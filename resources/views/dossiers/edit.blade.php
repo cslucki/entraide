@@ -65,9 +65,17 @@
                                 <select id="shared_with_loop_id" name="shared_with_loop_id" x-model="loop"
                                         class="mt-1 block w-full rounded-lg border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
                                     <option value="">{{ __('dossiers.visibility_loop_placeholder') }}</option>
-                                    @foreach($shareableLoops as $loop)
-                                        <option value="{{ $loop->id }}">
-                                            {{ $loop->name }} — {{ $loop->visibility === 'private' ? __('dossiers.loop_private') : __('dossiers.loop_wider') }}
+                                    {{-- La variable d'iteration ne s'appelle PAS
+                                         `$loop` : Blade reserve ce nom a l'objet
+                                         de boucle et l'ecrase a chaque tour. Le
+                                         `<option>` lisait donc `id` sur un
+                                         stdClass — 500 des qu'une Boucle etait
+                                         offerte. Bug reste invisible tant que la
+                                         liste etait vide (elle l'etait toujours,
+                                         faute d'`organization_id` selectionne). --}}
+                                    @foreach($shareableLoops as $boucle)
+                                        <option value="{{ $boucle->id }}">
+                                            {{ $boucle->name }} — {{ $boucle->visibility === 'private' ? __('dossiers.loop_private') : __('dossiers.loop_wider') }}
                                         </option>
                                     @endforeach
                                 </select>

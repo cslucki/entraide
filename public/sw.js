@@ -1,5 +1,9 @@
 // BouclePro — Service Worker (PWA shell offline)
-const CACHE_NAME = 'bouclepro-v3';
+// Le bump reste necessaire : `activate` purge les caches des versions
+// precedentes, seule facon de retirer aux navigateurs deja installes les
+// reponses du Drive stockees sous l'ancienne strategie — sans quoi elles
+// resserviraient de repli hors ligne avec un contenu faux.
+const CACHE_NAME = 'bouclepro-v4';
 
 const SHELL_ASSETS = [
   '/site.webmanifest',
@@ -70,6 +74,36 @@ self.addEventListener('fetch', (event) => {
           return response;
         });
       })
+    );
+    return;
+  }
+
+  // ── Donnees du module Dossiers/Drive : network-first, repli sur le cache ──
+  //
+  // Ces listes changent a chaque import, deplacement ou suppression. Servies
+  // depuis le Cache Storage, elles rendaient l'etat d'AVANT l'ecriture qu'on
+  // venait de faire : un fichier importe restait invisible jusqu'au
+  // rafraichissement, un fichier deplace reapparaissait (TASK-1130). Ni
+  // `Cache-Control: no-store` cote serveur ni `cache: 'no-store'` cote fetch
+  // n'y peuvent rien — le Cache Storage d'un service worker n'obeit pas au
+  // cache HTTP, il faut le dire ICI.
+  //
+  // La regle est volontairement bornee a ce module : le reste de BouclePro
+  // garde sa strategie. Les navigations vers ces memes URLs sont deja traitees
+  // plus haut (`destination === 'document'`) : seules les requetes de donnees
+  // arrivent ici. `/org/{x}/blog/dossiers` n'est pas concerne, le motif exige
+  // `dossiers` juste apres l'organisation.
+  if (/^\/org\/[^/]+\/dossiers(\/|$)/.test(url.pathname)) {
+    event.respondWith(
+      fetch(request).then((response) => {
+        // Seul le JSON est conserve : un telechargement de fichier n'a rien a
+        // faire dans le Cache Storage, et un blob perime encore moins.
+        if (response.ok && (response.headers.get('content-type') || '').includes('application/json')) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(request))
     );
     return;
   }

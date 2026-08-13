@@ -3221,6 +3221,93 @@ function registerDossierFilesCard() {
     FilePond.registerPlugin(FilePondPluginFileValidateType, FilePondPluginFileValidateSize);
 
     Alpine.data('dossierFilesCard', (config) => ({
+        // TASK-1130 : la surface a deux angles — Documents (la liste) et
+        // Series (l'editorial). Un etat d'affichage, pas un moteur.
+        vue: 'documents',
+        // Compteur du survol de depot : sur LE MEME composant que le reste,
+        // jamais dans un x-data imbrique — un scope enfant rendrait
+        // filePondContainer invisible a $refs du composant parent (bug trouve
+        // en recette, TASK-1130 passe 4).
+        survol: 0,
+        // Les fichiers arrivent par fetch APRES les dossiers/Articles rendus
+        // cote serveur : sans cet etat, l'ecran affirmait « pas de fichier »
+        // pendant 2-3 s — un fichier deplace semblait avoir disparu (constate
+        // en audit, TASK-1130 UX finale). Le squelette remplace ce mensonge.
+        filesLoading: true,
+        // Les noms de la surface spatiale (dossiers + Articles), rendus par le
+        // serveur : ils disent si une recherche ne trouve VRAIMENT rien, la
+        // ou `totalFiles` ne parle que des fichiers.
+        nomsSpatiaux: config.nomsSpatiaux || [],
+        // Le nom du Dossier : celui que prend sa sequence, sans le demander.
+        dossierName: config.dossierName || '',
+        // ── Selection (TASK-1130, doctrine Cyril des 13 et 14/08) ───────
+        // Un Drive se manipule en deux temps : on designe, puis on agit. Et la
+        // designation est PLURIELLE : deplacer six fichiers d'un coup est le
+        // geste utile ; un par un ne l'est pas.
+        //
+        // Les cles « type:id » sont la source de verite, dans l'ordre des
+        // clics. Le catalogue, lui, garde le contenu de chaque ligne : les
+        // dossiers et les Articles sont rendus par Blade et n'existent nulle
+        // part ailleurs dans l'etat JS, et une plage Maj+clic prend des lignes
+        // sur lesquelles personne n'a clique.
+        selectionKeys: [],
+        _catalogue: {},
+        // L'ancre de la plage Maj+clic : le dernier element designe seul.
+        _ancre: null,
+        // Vrai sur un ecran tactile : le tap y ouvre et l'appui long
+        // selectionne, comme dans les applications Drive, Files et Photos. Le
+        // double-tap, lui, appartient au zoom du systeme.
+        tactile: false,
+        _appuiTimer: null,
+        _appuiLong: false,
+        // La file d'envoi : un fichier a la fois, dans l'ordre choisi.
+        _fileQueue: [],
+        uploadEnCours: false,
+        uploadFait: 0,
+        uploadTotal: 0,
+        // Ce que le navigateur a refuse avant meme d'essayer (poids, format) :
+        // il faut le dire, et le dire calmement.
+        showUploadRejectModal: false,
+        uploadRejects: [],
+        // Renommer un fichier : son libelle, pas son fichier sur le disque.
+        showRenameModal: false,
+        renameTarget: null,
+        renameValue: '',
+        // « Retirer de cette Boucle » (CAS B) : une confirmation legere avant
+        // le PATCH — retirer un partage n'est pas supprimer, le ton du modal
+        // n'est pas celui d'une destruction.
+        showUnshareFolderModal: false,
+        unshareFolderTarget: null,
+        // ── Mode Serie (TASK-1130, addendum) ────────────────────────────
+        // Une Serie = organisation SEQUENTIELLE : elle ajoute une position et
+        // une numerotation calculee, elle ne deplace, ne renomme et ne
+        // duplique jamais rien. Meme URL, meme surface : `vue` passe a
+        // 'serie' et la projection ordonnee remplace la liste spatiale.
+        // Moteur : les routes /series existantes (store, annexes, reorder,
+        // destroy), toutes multi-Series via `series_id` — rien de recree.
+        seriesMode: config.seriesMode || [],
+        serieArticles: config.serieArticles || [],
+        canManageSeries: config.canManageSeries || false,
+        serieActive: null,
+        showSerieSelect: false,
+        showCreateSerieModal: false,
+        // « + Nouveau » -> « Ajouter un article existant » : le rattachement
+        // au DOSSIER (pas a une Serie) — l'ancien modal de la carte Contenus,
+        // rehoberge dans le flux de creation. Moteur inchange (articles.store
+        // + articles/search).
+        showAttachArticleModal: false,
+        attachSearchQuery: '',
+        attachSearchResults: [],
+        attachSearching: false,
+        attachSaving: false,
+        newSerieName: '',
+        showSerieAddModal: false,
+        showSerieDeleteModal: false,
+        serieSaving: false,
+        serieDragArmedId: null,
+        serieDragItemId: null,
+        serieDragOverId: null,
+        serieAnnouncement: '',
         files: [],
         quota: { used_bytes: 0, limit_bytes: null, remaining_bytes: null },
         uploading: false,
@@ -3243,6 +3330,32 @@ function registerDossierFilesCard() {
         _pond: null,
         showDeleteModal: false,
         deleteTarget: null,
+        // Supprimer un Dossier (TASK-1130 passe 4, CAS A/B) : les lignes de
+        // dossier sont rendues cote serveur (pas reactives comme `files`),
+        // donc un succes recharge la page plutot que de retirer la ligne a
+        // la main — geste rare et deja confirme, la recharge reste honnete.
+        showDeleteFolderModal: false,
+        deleteFolderTarget: null,
+        deletingFolder: false,
+        // Deplacer un fichier (TASK-1130 passe 4) : `moveTargets` vient du
+        // serveur (sous-dossiers + parent reel, deja filtres au droit
+        // manageFiles) — jamais recalcule cote client, qui n'a pas les
+        // permissions des AUTRES dossiers sous la main.
+        moveTargets: config.moveTargets || [],
+        showMoveModal: false,
+        moveTarget: null,
+        moveLot: [],
+        // Les cles en cours de glissement : toute la selection, pas la seule
+        // ligne saisie.
+        draggingKeys: [],
+        dragOverFolderId: null,
+        // Le lot en attente de confirmation de suppression : le meme modal
+        // sert l'element seul et le lot, avec un texte qui compte.
+        deleteLot: [],
+        // Le rapport d'un lot partiellement passe — jamais un « fait » qui
+        // recouvrirait un refus.
+        showLotModal: false,
+        lotRapport: null,
         showPreviewModal: false,
         previewFile: null,
         showImportMenu: false,
@@ -3346,6 +3459,11 @@ function registerDossierFilesCard() {
                 .filter(f => missingIds.includes(f.id))
                 .map(f => this.normalizeFile(f));
             this.files = [...missingFiles, ...this.files];
+            // `totalFiles` vient du serveur et ne bougeait qu'a la suppression :
+            // apres un import dans un dossier VIDE il restait a 0, et la liste
+            // entiere — dont le fichier tout juste depose — restait masquee
+            // jusqu'au rechargement. Le compte suit desormais ce qu'on voit.
+            this.totalFiles = Math.max(this.totalFiles, this.files.length);
         },
 
         async createArticle() {
@@ -3373,7 +3491,10 @@ function registerDossierFilesCard() {
                     this.showArticleModal = false;
                     this.showMessage(this.i18n.articleCreated, 'success');
                     // Redirect to edit the new article
-                    window.location.href = data.redirect_url || `/org/${this.orgParam}/blog/${data.post.slug}/edit`;
+                    // Le repli fabriquait la meme URL fausse que le serveur :
+                    // sans `redirect_url`, on reste sur le Drive plutot que
+                    // d'envoyer la personne sur un 404.
+                    if (data.redirect_url) window.location.href = data.redirect_url;
                 } else {
                     this.showMessage(data.message || this.i18n.articleCreateFailed, 'error');
                 }
@@ -3386,11 +3507,15 @@ function registerDossierFilesCard() {
 
         async createMarkdownNote() {
             if (!this.mdFileName.trim()) return;
-            
+
             this.saving = true;
             try {
                 const fileName = this.mdFileName.endsWith('.md') ? this.mdFileName : `${this.mdFileName}.md`;
-                const blob = new Blob([this.mdContent], { type: 'text/markdown' });
+                // L'editeur ecrit dans son textarea : c'est lui qui porte le
+                // Markdown reel (titres, listes, liens), pas `mdContent`.
+                const champ = document.querySelector('textarea[name="dossier-md-content"][data-tiptap-target]');
+                const contenu = champ ? champ.value : this.mdContent;
+                const blob = new Blob([contenu], { type: 'text/markdown' });
                 const file = new File([blob], fileName, { type: 'text/markdown' });
                 
                 const formData = new FormData();
@@ -3518,13 +3643,28 @@ function registerDossierFilesCard() {
         },
 
         init() {
+            // Preference d'affichage (TASK-1130 passe 4) : localStorage
+            // uniquement, jamais une colonne pour ce seul detail — la meme
+            // cle sert le Dossier prive et le Dossier de Boucle, un seul
+            // reglage pour tout le Drive.
+            try {
+                const stored = window.localStorage.getItem('bp-dossier-view-mode');
+                if (stored === 'list' || stored === 'grid') this.viewMode = stored;
+            } catch (e) { /* localStorage indisponible (navigation privee, quota) : reste sur 'list' */ }
+
             this.loadFiles();
+            // Ecran tactile : `hover: none` distingue un doigt d'une souris
+            // mieux que la largeur de la fenetre.
+            this.tactile = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
             document.addEventListener('keydown', (ev) => {
                 if (ev.key === 'Escape') {
                     if (this.showPreviewModal) { this.showPreviewModal = false; this.previewFile = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="preview-title"]'); }); }
-                    else if (this.showDeleteModal) { this.showDeleteModal = false; this.deleteTarget = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-file-title"]'); }); }
+                    else if (this.showDeleteModal) { this.showDeleteModal = false; this.deleteTarget = null; this.deleteLot = []; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-file-title"]'); }); }
                     else if (this.showArticleModal) { this.showArticleModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="create-article-title"]'); }); }
                     else if (this.showMdModal) { this.showMdModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="markdown-note-title"]'); }); }
+                    // En dernier : aucune modale ouverte, Echap libere la
+                    // selection. Jamais avant — sortir d'une modale prime.
+                    else if (this.selectionCount) { this.viderSelection(); }
                 }
             });
             if (this.canManageFiles && this.$refs.filePondContainer) {
@@ -3542,37 +3682,71 @@ function registerDossierFilesCard() {
                 const labelIdle = this.i18n.uploadHelp || 'Drag & drop files or <span class="filepond--label-action">browse</span>';
 
                 this._pond = FilePond.create(this.$refs.filePondContainer, Object.assign(Object.create(null), {
-                    multiple: true,
-                    maxFiles: 5,
+                    // FilePond ne connait pas `multiple` : son option s'appelle
+                    // `allowMultiple`. Ecrite a cote, elle etait ignoree — et
+                    // l'`<input type=file>` sous-jacent restait sans l'attribut
+                    // `multiple`, donc le selecteur du systeme n'autorisait
+                    // qu'UN fichier a la fois (signale par Cyril).
+                    allowMultiple: true,
+                    // Au-dela de `maxFiles`, FilePond ne refuse pas le fichier
+                    // en trop : sur le chemin « parcourir » il jette la
+                    // SELECTION ENTIERE sans jamais appeler `onaddfile`
+                    // (filepond.js, `exceedsMaxFiles`). A 5, choisir 6 fichiers
+                    // ne produisait donc ni requete, ni message, ni ligne —
+                    // l'ecran restait muet. La limite suit desormais celle du
+                    // serveur.
+                    maxFiles: 20,
                     maxFileSize: '50MB',
                     acceptedFileTypes: acceptedTypes,
+                    // Le navigateur ne connait pas toujours l'extension : il
+                    // rend alors un type vide, et le fichier etait refuse avant
+                    // meme d'etre propose. Le serveur, lui, lit le contenu — on
+                    // le laisse trancher.
+                    fileValidateTypeDetectType: (source, type) => new Promise((resolve, reject) => {
+                        if (type) { resolve(type); return; }
+                        const extension = (source?.name || '').split('.').pop().toLowerCase();
+                        const parExtension = {
+                            md: 'text/markdown', markdown: 'text/markdown', txt: 'text/plain',
+                            csv: 'text/csv', xls: 'application/vnd.ms-excel',
+                            xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                            doc: 'application/msword',
+                            docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                            pdf: 'application/pdf', zip: 'application/zip',
+                        }[extension];
+
+                        return parExtension ? resolve(parExtension) : reject(type);
+                    }),
                     labelIdle: labelIdle,
+                    // Les refus de FilePond sortent par ici. Sans ces deux
+                    // rappels, un lot ecarte disparaissait en silence : c'est ce
+                    // qui a rendu la panne si difficile a voir.
+                    onwarning(err, file) {
+                        self.refuserFichier(file, err);
+                    },
+                    onerror(err, file) {
+                        self.refuserFichier(file, err);
+                    },
+                    // Chaque fichier choisi passe par ici. On ne lance PAS son
+                    // envoi tout de suite : plusieurs envois simultanes se
+                    // disputaient la meme barre de progression et le meme
+                    // rechargement de liste — resultat, un seul fichier
+                    // survivait a l'ecran. Les fichiers font la queue, et la
+                    // file part une fois.
                     onaddfile(err, file) {
-                        if (err) { console.warn('[FilePond] addfile error', err); return; }
-                        const duplicate = self.files.some((existingFile) => existingFile.original_name === file.file.name || existingFile.display_name === file.file.name);
-                        if (duplicate) {
-                            self.showMessage(self.i18n.duplicateName, 'error');
-                            self._pond.removeFile(file.id);
+                        if (err) {
+                            self.refuserFichier(file, err);
+
                             return;
                         }
-                        const formData = new FormData();
-                        formData.append('files[]', file.file, file.file.name);
+                        const duplicate = self.files.some((existingFile) => existingFile.original_name === file.file.name || existingFile.display_name === file.file.name);
+                        if (duplicate) {
+                            self.refuserFichier(file, { main: self.i18n.duplicateName });
 
-                        self.uploadFormData(formData, [file.file])
-                            .then(({ ok, data }) => {
-                                if (ok) {
-                                    self.showMessage(data.message || self.i18n.uploaded, 'success');
-                                    self._pond.removeFile(file.id);
-                                    self.loadFiles(1).then(() => self.mergeMissingUploads(data.files));
-                                } else {
-                                    self.showMessage(data.message || self.i18n.uploadFailed, 'error');
-                                    self._pond.removeFile(file.id);
-                                }
-                            })
-                            .catch(() => {
-                                self.showMessage(self.i18n.uploadFailed, 'error');
-                                self._pond.removeFile(file.id);
-                            });
+                            return;
+                        }
+
+                        self._fileQueue.push(file);
+                        self.demarrerLaFile();
                     },
                 }));
             }
@@ -3624,7 +3798,8 @@ function registerDossierFilesCard() {
                     this.lastPage = data.files.last_page || 1;
                     this.totalFiles = data.files.total || 0;
                 })
-                .catch(() => this.showMessage(this.i18n.uploadFailed, 'error'));
+                .catch(() => this.showMessage(this.i18n.uploadFailed, 'error'))
+                .finally(() => { this.filesLoading = false; });
         },
 
         formatBytes(bytes) {
@@ -3635,11 +3810,376 @@ function registerDossierFilesCard() {
         },
 
         normalizeFile(file) {
+            // Les dates suivent la langue de la PAGE, pas celle du navigateur :
+            // `toLocaleDateString()` sans argument rendait « 8/12/2026 » a cote
+            // des « 11/08/2026 » du serveur, dans la meme colonne.
+            const langue = document.documentElement.lang || undefined;
+            const jour = (valeur) => valeur ? new Date(valeur).toLocaleDateString(langue) : '';
+
             return {
                 ...file,
                 sizeFormatted: this.formatBytes(file.size_bytes),
-                uploadedAtFormatted: file.created_at ? new Date(file.created_at).toLocaleDateString() : '',
+                uploadedAtFormatted: jour(file.created_at),
+                updatedAtFormatted: jour(file.updated_at || file.created_at),
             };
+        },
+
+        /**
+         * Le proprietaire d'un fichier, dit comme dans le reste de la liste :
+         * « moi » pour soi-meme, le nom public sinon. L'identite de la personne
+         * connectee vient de la balise <meta name="user-id">, deja posee par le
+         * gabarit — aucune requete supplementaire.
+         */
+        /**
+         * Vrai quand la recherche en cours ne rend rien du tout : ni fichier
+         * (le serveur a repondu 0), ni dossier, ni Article (les noms sont
+         * connus du client, la surface spatiale etant rendue en entier).
+         */
+        get aucunResultat() {
+            const q = (this.searchQuery || '').trim().toLowerCase();
+            if (!q) return false;
+            if (this.totalFiles > 0) return false;
+
+            return !(this.nomsSpatiaux || []).some(nom => nom.includes(q));
+        },
+
+        /**
+         * Refuser un fichier sans le perdre de vue : il quitte la zone de
+         * depot, et son motif rejoint la liste montree a la fin.
+         */
+        refuserFichier(file, err) {
+            const nom = file?.file?.name || '';
+            const tropLourd = file?.file?.size > 50 * 1024 * 1024;
+            this.uploadRejects.push({
+                name: nom,
+                reason: tropLourd ? (this.i18n.fileTooLarge || '') : (err?.main || err?.body || this.i18n.uploadFailed || ''),
+            });
+            this.showUploadRejectModal = true;
+            if (this._pond && file?.id) this._pond.removeFile(file.id);
+        },
+
+        /** Vide la file, un fichier apres l'autre. */
+        async demarrerLaFile() {
+            if (this.uploadEnCours) return;
+            this.uploadEnCours = true;
+            this.uploadFait = 0;
+            this.uploadTotal = this._fileQueue.length;
+
+            let reussis = 0;
+            const echecs = [];
+
+            while (this._fileQueue.length) {
+                // Un fichier ajoute pendant l'envoi rejoint le compte affiche.
+                this.uploadTotal = Math.max(this.uploadTotal, this.uploadFait + this._fileQueue.length);
+
+                const file = this._fileQueue.shift();
+                const formData = new FormData();
+                formData.append('files[]', file.file, file.file.name);
+
+                try {
+                    const { ok, data } = await this.uploadFormData(formData, [file.file], true);
+                    if (ok) {
+                        reussis++;
+                    } else {
+                        // Reponse non-JSON (413 du serveur web, 500 en HTML) :
+                        // `data` est vide. Dire « echec de l'envoi » vaut mieux
+                        // que reafficher le nom du fichier en guise de raison.
+                        echecs.push({ name: file.file.name, reason: data?.message || this.i18n.uploadFailed });
+                    }
+                } catch (e) {
+                    echecs.push({ name: file.file.name, reason: this.i18n.networkError });
+                } finally {
+                    this.uploadFait++;
+                    // FilePond peut avoir deja retire le fichier de sa propre
+                    // liste : lever ici ferait sauter TOUT ce qui suit la
+                    // boucle — dont le rechargement final, qui est justement
+                    // ce qui fait apparaitre les fichiers a l'ecran.
+                    try { this._pond?.removeFile(file.id); } catch (e) { /* deja retire */ }
+                }
+            }
+
+            this.uploading = false;
+            this.uploadProgress = 0;
+            this.uploadFileName = '';
+
+            // Un seul rechargement, a la fin : la liste ne clignote pas a
+            // chaque fichier et aucune reponse n'en ecrase une autre.
+            // Une seule lecture suffit desormais. La seconde, tentee 600 ms
+            // plus tard quand la liste revenait vide, compensait un symptome
+            // dont on ignorait la cause : le service worker servait sa copie
+            // d'avant l'import (`stale-while-revalidate`, corrige dans sw.js).
+            try {
+                await this.loadFiles(1);
+            } catch (e) {
+                console.error('[dossiers] rechargement apres import', e);
+            }
+
+            // La file ne se rouvre qu'ici : tant que la relecture n'est pas
+            // faite, une nouvelle selection rejoint la file en cours au lieu
+            // d'en demarrer une seconde en parallele.
+            this.uploadEnCours = false;
+
+            if (reussis > 0) {
+                const modele = reussis === 1 ? (this.i18n.uploaded || '') : (this.i18n.filesBatchResult || '');
+                this.showMessage(
+                    reussis === 1
+                        ? modele
+                        : modele.replace(':success', reussis).replace(':total', reussis + echecs.length).replace(':errors', ''),
+                    'success',
+                );
+            }
+            if (echecs.length) {
+                this.uploadRejects = this.uploadRejects.concat(echecs);
+                this.showUploadRejectModal = true;
+            }
+        },
+
+        /**
+         * L'element designe quand il n'y en a QU'UN.
+         *
+         * Volontairement nul des qu'il y en a plusieurs : la barre d'un seul
+         * element propose Ouvrir, Partager et Renommer, qui n'ont pas de sens
+         * en lot. Ce getter les eteint toutes d'un coup, sans qu'aucune de ces
+         * conditions ait a connaitre l'existence du lot.
+         */
+        get selection() {
+            return this.selectionKeys.length === 1
+                ? (this._catalogue[this.selectionKeys[0]] || null)
+                : null;
+        },
+
+        get selectionCount() {
+            return this.selectionKeys.length;
+        },
+
+        get selectionElements() {
+            return this.selectionKeys.map(cle => this._catalogue[cle]).filter(Boolean);
+        },
+
+        /**
+         * Les actions du lot : proposees seulement si TOUS les elements les
+         * supportent. Une action a moitie applicable est un piege — on la
+         * masque plutot que de la faire echouer sur la moitie du lot.
+         */
+        get lotDeplacable() {
+            const lot = this.selectionElements;
+
+            return this.moveTargets.length > 0 && lot.length > 1
+                && lot.every(i => i.type === 'file' || i.type === 'article');
+        },
+
+        get lotSupprimable() {
+            const lot = this.selectionElements;
+
+            return this.canDeleteFiles && lot.length > 1 && lot.every(i => i.type === 'file');
+        },
+
+        get lotRetirable() {
+            const lot = this.selectionElements;
+
+            return lot.length > 1 && lot.every(i => i.type === 'article' && i.formulaireRetrait);
+        },
+
+        cleSelection(item) {
+            return `${item.type}:${item.id}`;
+        },
+
+        /**
+         * Memoriser une ligne rendue, qu'elle soit designee ou non.
+         *
+         * La plage Maj+clic prend des lignes que personne n'a touchees : sans
+         * ce catalogue on connaitrait leur cle sans rien savoir d'elles, et la
+         * barre d'actions serait vide.
+         */
+        enregistrer(item) {
+            if (!item) return;
+            this._catalogue[this.cleSelection(item)] = item;
+        },
+
+        estSelectionne(type, id) {
+            return this.selectionKeys.includes(`${type}:${id}`);
+        },
+
+        /** Clic simple : cet element REMPLACE la selection. */
+        selectionner(item) {
+            if (!item) return;
+            this.enregistrer(item);
+            const cle = this.cleSelection(item);
+            this.selectionKeys = [cle];
+            this._ancre = cle;
+        },
+
+        /** Ctrl/Cmd+clic : cet element rejoint ou quitte la selection. */
+        basculerSelection(item) {
+            if (!item) return;
+            this.enregistrer(item);
+            const cle = this.cleSelection(item);
+            this.selectionKeys = this.selectionKeys.includes(cle)
+                ? this.selectionKeys.filter(c => c !== cle)
+                : this.selectionKeys.concat(cle);
+            this._ancre = cle;
+        },
+
+        /**
+         * Maj+clic : toute la plage entre l'ancre et cet element.
+         *
+         * L'ordre vient du DOM, seule source qui connaisse l'ordre VISUEL : les
+         * lignes ont trois origines (dossiers et Articles rendus par Blade,
+         * fichiers rendus par `x-for`), les deux modes coexistent dans la page
+         * et la recherche en masque. Le filtre sur `offsetParent` ne garde donc
+         * que ce qui est reellement a l'ecran.
+         */
+        etendreSelection(item) {
+            if (!item) return;
+            this.enregistrer(item);
+            const cle = this.cleSelection(item);
+            const cles = this.clesVisibles();
+            const depart = cles.indexOf(this._ancre);
+            const arrivee = cles.indexOf(cle);
+
+            if (depart === -1 || arrivee === -1) { this.selectionner(item); return; }
+
+            const [a, b] = depart <= arrivee ? [depart, arrivee] : [arrivee, depart];
+            this.selectionKeys = cles.slice(a, b + 1);
+            // Maj+clic surligne aussi du texte : le geste doit designer des
+            // lignes, pas laisser une trainee de selection bleue derriere lui.
+            window.getSelection()?.removeAllRanges();
+        },
+
+        clesVisibles() {
+            const racine = this.$root || document;
+
+            return [...racine.querySelectorAll('[data-selection-key]')]
+                .filter(element => element.offsetParent !== null)
+                .map(element => element.dataset.selectionKey);
+        },
+
+        viderSelection() {
+            this.selectionKeys = [];
+            this._ancre = null;
+        },
+
+        /**
+         * Le clic simple designe ; il n'ouvre pas.
+         *
+         * Ctrl/Cmd+clic et Maj+clic n'ouvrent donc plus d'onglet sur une ligne :
+         * c'est le compromis de Drive et de l'explorateur de fichiers, ou ces
+         * deux gestes appartiennent a la selection. Le clic milieu, lui, reste
+         * au navigateur pour qui veut un onglet.
+         */
+        clicElement(evenement, item) {
+            if (evenement.button === 1) return;
+
+            evenement.preventDefault();
+
+            // Un appui long vient de selectionner : le `click` qui le suit sur
+            // mobile ne doit pas ouvrir par-dessus.
+            if (this._appuiLong) { this._appuiLong = false; return; }
+
+            // Tactile : le tap ouvre, sauf quand une selection est deja en
+            // cours — il l'enrichit alors, comme dans Files et Photos.
+            if (this.tactile) {
+                if (this.selectionCount > 0) { this.basculerSelection(item); return; }
+                this.ouvrir(item);
+
+                return;
+            }
+
+            if (evenement.shiftKey) { this.etendreSelection(item); return; }
+            if (evenement.metaKey || evenement.ctrlKey) { this.basculerSelection(item); return; }
+
+            this.selectionner(item);
+        },
+
+        /** Le double-clic ouvre : dossier, Article ou fichier. */
+        ouvrir(item) {
+            if (!item) return;
+            this.viderSelection();
+            if (item.type === 'file') { this.ouvrirFichier(item.file); return; }
+            if (item.url) window.location.href = item.url;
+        },
+
+        /**
+         * Ouvrir un fichier : l'apercu quand il est lisible dans la page, le
+         * telechargement sinon. Une seule definition, partagee par la liste, la
+         * grille et la barre contextuelle.
+         */
+        ouvrirFichier(file) {
+            if (!file) return;
+            const apercu = file.mime_type?.startsWith('image/')
+                || file.mime_type === 'application/pdf'
+                || file.mime_type === 'text/plain'
+                || file.mime_type === 'text/markdown';
+
+            if (apercu) { this.openPreview(file); return; }
+
+            window.location = `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${file.id}`;
+        },
+
+        /** Appui long tactile : 500 ms sans bouger designent l'element. */
+        debutAppui(item) {
+            this._appuiLong = false;
+            clearTimeout(this._appuiTimer);
+            this._appuiTimer = setTimeout(() => {
+                this._appuiLong = true;
+                this.selectionner(item);
+                if (navigator.vibrate) navigator.vibrate(10);
+            }, 500);
+        },
+
+        finAppui() {
+            clearTimeout(this._appuiTimer);
+        },
+
+        openRenameModal(file) {
+            this.renameTarget = file;
+            this.renameValue = file.display_name || file.original_name || '';
+            this.showRenameModal = true;
+        },
+
+        async confirmRename() {
+            const nom = (this.renameValue || '').trim();
+            if (!this.renameTarget || !nom || this.saving) return;
+            this.saving = true;
+            try {
+                const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${this.renameTarget.id}/rename`;
+                const response = await fetch(url, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ display_name: nom }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    this.showMessage(data.message || this.i18n.networkError, 'error');
+                    return;
+                }
+                // Le nom rendu par le serveur, pas celui tape : c'est lui qui
+                // garde l'extension d'origine.
+                const cible = this.files.find(f => f.id === this.renameTarget.id);
+                if (cible) cible.display_name = data.file.display_name;
+                this.showRenameModal = false;
+                this.renameTarget = null;
+                this.showMessage(data.message, 'success');
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        uploaderLibelle(file) {
+            const moi = document.querySelector('meta[name="user-id"]')?.content;
+            if (file?.uploader?.id && moi && file.uploader.id === moi) return this.i18n.ownerMe || 'moi';
+
+            return file?.uploader?.name || '—';
+        },
+
+        /** Les initiales, dessinees ici : aucun appel a un service d'avatars. */
+        uploaderInitiales(file) {
+            const nom = (file?.uploader?.name || '').trim();
+            if (!nom) return '?';
+
+            return nom.split(/\s+/).slice(0, 2).map(m => m.charAt(0)).join('').toUpperCase();
         },
 
         formatQuota(bytes) {
@@ -3655,6 +4195,21 @@ function registerDossierFilesCard() {
             if (mime === 'text/csv' || mime === 'application/vnd.ms-excel' || mime?.includes('spreadsheetml')) return 'Excel';
             if (mime === 'application/zip' || mime === 'application/x-zip-compressed') return 'ZIP';
             return mime || '—';
+        },
+
+        /**
+         * Le type tel qu'on le lit dans un explorateur : l'extension du nom,
+         * qui distingue un .docx d'un .doc et un .xlsx d'un .xls la ou le type
+         * MIME les confond. On retombe sur la famille quand le nom n'a pas
+         * d'extension (une note creee ici, par exemple).
+         */
+        typeDeFichier(file) {
+            const nom = file?.display_name || file?.original_name || '';
+            const extension = nom.includes('.') ? nom.split('.').pop() : '';
+
+            return extension.length && extension.length <= 5
+                ? extension.toUpperCase()
+                : this.fileTypeLabel(file?.mime_type);
         },
 
         async deleteFile(file) {
@@ -3699,13 +4254,787 @@ function registerDossierFilesCard() {
             this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="delete-file-title"]'); });
         },
 
+        openDeleteFolderModal(id, name) {
+            this._trapTrigger = document.activeElement;
+            this.deleteFolderTarget = { id, name };
+            this.showDeleteFolderModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="delete-folder-title"]'); });
+        },
+
+        closeDeleteFolderModal() {
+            this.showDeleteFolderModal = false;
+            this.deleteFolderTarget = null;
+            this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-folder-title"]'); });
+        },
+
+        async confirmDeleteFolder() {
+            if (!this.deleteFolderTarget) return;
+            const id = this.deleteFolderTarget.id;
+            this.deletingFolder = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                if (response.ok) {
+                    window.location.reload();
+                    return;
+                }
+                const data = await response.json().catch(() => ({}));
+                this.showMessage(data.message || this.i18n.deleteFailed, 'error');
+            } catch (error) {
+                this.showMessage(this.i18n.deleteFailed, 'error');
+            } finally {
+                this.deletingFolder = false;
+                this.closeDeleteFolderModal();
+            }
+        },
+
         async confirmDeleteFile() {
-            if (!this.deleteTarget) return;
+            const lot = this.deleteLot.slice();
             const file = this.deleteTarget;
             this.showDeleteModal = false;
             this.deleteTarget = null;
+            this.deleteLot = [];
             this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="delete-file-title"]'); });
+
+            if (lot.length) { await this.supprimerLot(lot); return; }
+            if (!file) return;
+
             await this.deleteFile(file);
+        },
+
+        // ── Deplacer un fichier (TASK-1130 passe 4) : menu "Deplacer vers..."
+        //    et glisser-deposer partagent ce meme point d'entree unique, pour
+        //    ne jamais faire diverger les deux gestes. ─────────────────────
+
+        setViewMode(mode) {
+            this.viewMode = mode;
+            // Liste et Grille sont aussi la sortie du mode Serie : trois modes,
+            // une seule bascule.
+            if (this.vue === 'serie') this.quitSerieMode();
+            try { window.localStorage.setItem('bp-dossier-view-mode', mode); } catch (e) { /* meme garde qu'a la lecture */ }
+        },
+
+        // Le troisieme mode de la bascule. 0 Serie : etat vide + creer ;
+        // exactement 1 : on l'ouvre directement ; plusieurs : le choix est
+        // explicite (« Serie : Choisir… ▾ »), jamais arbitraire. Jamais
+        // persiste : c'est une interaction, pas une preference d'affichage.
+        enterSerieToggle() {
+            if (this.vue === 'serie') return;
+            this.vue = 'serie';
+            this.serieActive = null;
+            if (this.seriesMode.length === 1) { this.enterSerieMode(this.seriesMode[0].id); return; }
+            // Aucune sequence encore : on n'ouvre pas un formulaire, on ouvre la
+            // sequence. Elle prend le nom du Dossier et son contenu — c'est ce
+            // qu'on venait voir. Renommer ou retirer reste possible ensuite.
+            if (this.seriesMode.length === 0 && this.canManageSeries) this.creerSerieDuDossier();
+        },
+
+        /**
+         * La Serie evidente : celle du Dossier, avec ce qu'il contient.
+         */
+        async creerSerieDuDossier() {
+            if (this.serieSaving) return;
+            this.serieSaving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/series`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ name: this.dossierName, remplir: true }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    this.showMessage(data.message || Object.values(data.errors || {}).flat()[0] || this.i18n.serieReorderFailed, 'error');
+                    return;
+                }
+                const items = (data.series.items || []).map((item) => {
+                    const article = item.blog_post || item.blogPost;
+                    const fichier = item.dossier_file || item.dossierFile;
+
+                    return {
+                        itemId: item.id,
+                        type: article ? 'article' : 'file',
+                        name: article ? article.title : (fichier?.display_name || fichier?.original_name || ''),
+                        key: article ? `blog:${article.id}` : `file:${fichier?.id}`,
+                    };
+                });
+                const serie = { id: data.series.id, name: data.series.name || this.dossierName, items };
+                this.seriesMode.push(serie);
+                this.enterSerieMode(serie.id);
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.serieSaving = false;
+            }
+        },
+
+        // Apres un deplacement reussi, le compteur « N elements » du dossier
+        // cible est rafraichi depuis l'etat deja disponible (data-count porte
+        // par le serveur au rendu) — pas de rechargement, pas de requete.
+        bumpFolderCount(folderId) {
+            document.querySelectorAll(`[data-folder-count="${folderId}"]`).forEach((el) => {
+                const count = (parseInt(el.dataset.count, 10) || 0) + 1;
+                el.dataset.count = String(count);
+                el.textContent = count === 1
+                    ? (this.i18n.folderItemsOne || '1')
+                    : (this.i18n.folderItemsMany || ':count').replace(':count', String(count));
+            });
+        },
+
+        // ── Mode Serie : entrer, sortir, classer ─────────────────────────
+
+        enterSerieMode(id) {
+            const serie = this.seriesMode.find(s => s.id === id);
+            if (!serie) return;
+            // Copie de travail : l'optimisme s'applique dessus, le revert
+            // revient a l'etat serveur garde dans seriesMode.
+            this.serieActive = { id: serie.id, name: serie.name, items: serie.items.map(i => ({ ...i })) };
+            this.vue = 'serie';
+            this.showSerieSelect = false;
+        },
+
+        quitSerieMode() {
+            this.serieActive = null;
+            this.serieDragArmedId = null;
+            this.serieDragItemId = null;
+            this.serieDragOverId = null;
+            this.vue = 'documents';
+        },
+
+        // L'etat serveur de reference, mis a jour apres chaque succes.
+        _syncSerieBack() {
+            const serie = this.seriesMode.find(s => s.id === this.serieActive?.id);
+            if (serie) serie.items = this.serieActive.items.map(i => ({ ...i }));
+        },
+
+        // Un contenu n'appartient qu'a UNE Serie (regle MVP du moteur) : les
+        // candidats a l'ajout excluent tout ce qui vit deja dans une Serie.
+        _serieUsedKeys() {
+            const used = new Set();
+            this.seriesMode.forEach(s => s.items.forEach(i => { if (i.key) used.add(i.key); }));
+            return used;
+        },
+
+        get serieArticleCandidates() {
+            const used = this._serieUsedKeys();
+            return this.serieArticles.filter(a => !used.has('blog:' + a.id));
+        },
+
+        get serieFileCandidates() {
+            const used = this._serieUsedKeys();
+            return this.files.filter(f => !used.has('file:' + f.id));
+        },
+
+        async serieAdd(kind, id, name) {
+            if (!this.serieActive || this.serieSaving) return;
+            this.serieSaving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify(kind === 'article'
+                        ? { blog_post_id: id, series_id: this.serieActive.id }
+                        : { dossier_file_id: id, series_id: this.serieActive.id }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    this.showMessage(data.message || Object.values(data.errors || {}).flat()[0] || this.i18n.serieReorderFailed, 'error');
+                    return;
+                }
+                this.serieActive.items.push({
+                    itemId: data.item?.id,
+                    type: kind,
+                    name,
+                    key: (kind === 'article' ? 'blog:' : 'file:') + id,
+                });
+                this._syncSerieBack();
+                this.showMessage(data.message || this.i18n.serieAdded, 'success');
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.serieSaving = false;
+            }
+        },
+
+        async serieRemove(item) {
+            if (!this.serieActive || !item.itemId || this.serieSaving) return;
+            this.serieSaving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes/${item.itemId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ series_id: this.serieActive.id }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    this.showMessage(data.message || this.i18n.serieReorderFailed, 'error');
+                    return;
+                }
+                this.serieActive.items = this.serieActive.items.filter(i => i.itemId !== item.itemId);
+                this._syncSerieBack();
+                this.showMessage(data.message || this.i18n.serieRemoved, 'success');
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.serieSaving = false;
+            }
+        },
+
+        // Le premier ne monte pas, le dernier ne descend pas — la racine
+        // (itemId null) n'entre jamais dans le classement.
+        serieCanMoveUp(itemId) {
+            const movable = this.serieActive?.items.filter(i => i.itemId) || [];
+            return movable.findIndex(i => i.itemId === itemId) > 0;
+        },
+
+        serieCanMoveDown(itemId) {
+            const movable = this.serieActive?.items.filter(i => i.itemId) || [];
+            const idx = movable.findIndex(i => i.itemId === itemId);
+            return idx !== -1 && idx < movable.length - 1;
+        },
+
+        // Monter / Descendre : premiere classe, clavier et mobile — le drag
+        // les complete, il ne les remplace jamais. La racine (itemId null)
+        // reste en tete : elle ne se classe pas, elle se remplace.
+        async serieMove(itemId, delta) {
+            if (!this.serieActive || this.serieSaving) return;
+            const items = this.serieActive.items;
+            const fixed = items.filter(i => !i.itemId);
+            const movable = items.filter(i => i.itemId);
+            const from = movable.findIndex(i => i.itemId === itemId);
+            const to = from + delta;
+            if (from === -1 || to < 0 || to >= movable.length) return;
+            const avant = items.map(i => ({ ...i }));
+            movable.splice(to, 0, movable.splice(from, 1)[0]);
+            this.serieActive.items = [...fixed, ...movable];
+            await this.persistSerieOrder(avant, itemId);
+        },
+
+        serieDropOn(targetItemId) {
+            const dragged = this.serieDragItemId;
+            this.serieDragOverId = null;
+            if (!this.serieActive || !dragged || dragged === targetItemId) return;
+            const items = this.serieActive.items;
+            const fixed = items.filter(i => !i.itemId);
+            const movable = items.filter(i => i.itemId);
+            const from = movable.findIndex(i => i.itemId === dragged);
+            const to = movable.findIndex(i => i.itemId === targetItemId);
+            if (from === -1 || to === -1) return;
+            const avant = items.map(i => ({ ...i }));
+            movable.splice(to, 0, movable.splice(from, 1)[0]);
+            this.serieActive.items = [...fixed, ...movable];
+            this.persistSerieOrder(avant, dragged);
+        },
+
+        // Le seul endroit qui persiste un ordre : l'interface a deja bouge,
+        // le serveur reste source de verite. Echec = retour a l'ordre
+        // d'avant + message — jamais un ordre non persiste a l'ecran.
+        async persistSerieOrder(avant, movedItemId) {
+            this.serieSaving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/series/annexes/reorder`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({
+                        items: this.serieActive.items.filter(i => i.itemId).map(i => i.itemId),
+                        series_id: this.serieActive.id,
+                    }),
+                });
+                if (!response.ok) throw new Error(String(response.status));
+                this._syncSerieBack();
+                const rang = this.serieActive.items.findIndex(i => i.itemId === movedItemId);
+                if (rang !== -1) {
+                    const item = this.serieActive.items[rang];
+                    this.serieAnnouncement = `${String(rang + 1).padStart(2, '0')} — ${item.name}`;
+                }
+            } catch (e) {
+                this.serieActive.items = avant;
+                this.showMessage(this.i18n.serieReorderFailed, 'error');
+            } finally {
+                this.serieSaving = false;
+                this.serieDragArmedId = null;
+                this.serieDragItemId = null;
+            }
+        },
+
+        async createSerie() {
+            const name = this.newSerieName.trim();
+            if (!name || this.serieSaving) return;
+            this.serieSaving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/series`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ name }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    this.showMessage(data.message || Object.values(data.errors || {}).flat()[0] || this.i18n.serieReorderFailed, 'error');
+                    return;
+                }
+                const serie = { id: data.series.id, name: data.series.name || name, items: [] };
+                this.seriesMode.push(serie);
+                this.showCreateSerieModal = false;
+                this.newSerieName = '';
+                this.showMessage(data.message || this.i18n.serieCreated, 'success');
+                this.enterSerieMode(serie.id);
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.serieSaving = false;
+            }
+        },
+
+        // Dissoudre la classification sequentielle — aucun Article, aucun
+        // fichier, aucun contenu du Dossier n'est supprime.
+        async deleteSerieActive() {
+            if (!this.serieActive || this.serieSaving) return;
+            this.serieSaving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/series`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ series_id: this.serieActive.id }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    this.showMessage(data.message || this.i18n.serieReorderFailed, 'error');
+                    return;
+                }
+                this.seriesMode = this.seriesMode.filter(s => s.id !== this.serieActive.id);
+                this.showSerieDeleteModal = false;
+                this.quitSerieMode();
+                this.showMessage(data.message || this.i18n.serieDeleted, 'success');
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.serieSaving = false;
+            }
+        },
+
+        // Definir un Article de la Serie comme racine : le moteur existant
+        // (update + series_id) replace l'ancienne racine en premiere annexe
+        // et renumerote — la reponse porte l'etat complet, on l'applique.
+        async serieSetRoot(item) {
+            if (!this.serieActive || this.serieSaving || item.type !== 'article' || !item.key) return;
+            const blogPostId = item.key.split(':')[1];
+            this.serieSaving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/series`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ root_blog_post_id: blogPostId, series_id: this.serieActive.id }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    this.showMessage(data.message || Object.values(data.errors || {}).flat()[0] || this.i18n.serieReorderFailed, 'error');
+                    return;
+                }
+                // Reconstruire la projection depuis la verite serveur.
+                const s = data.series;
+                const items = [];
+                if (s.root_blog_post) items.push({ itemId: null, type: 'root', name: s.root_blog_post.title, key: 'blog:' + s.root_blog_post.id });
+                (s.items || []).forEach(i => {
+                    if (i.blog_post) items.push({ itemId: i.id, type: 'article', name: i.blog_post.title, key: 'blog:' + i.blog_post.id });
+                    else if (i.dossier_file) items.push({ itemId: i.id, type: 'file', name: i.dossier_file.display_name || i.dossier_file.original_name, key: 'file:' + i.dossier_file.id });
+                });
+                this.serieActive.items = items;
+                this._syncSerieBack();
+                this.showMessage(data.message || this.i18n.serieCreated, 'success');
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.serieSaving = false;
+            }
+        },
+
+        // ── « Ajouter un article existant » (fonction DOSSIER, via + Nouveau) ──
+
+        openAttachArticleModal() {
+            this._trapTrigger = this.$refs.fabButton || document.activeElement;
+            this.attachSearchQuery = '';
+            this.attachSearchResults = [];
+            this.showAttachArticleModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="attach-article-title"]'); });
+        },
+
+        closeAttachArticleModal() {
+            this.showAttachArticleModal = false;
+            this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="attach-article-title"]'); });
+        },
+
+        async searchAttachArticles() {
+            if (this.attachSearchQuery.trim().length < 2) { this.attachSearchResults = []; return; }
+            this.attachSearching = true;
+            try {
+                const res = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/articles/search?q=` + encodeURIComponent(this.attachSearchQuery.trim()), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await res.json();
+                this.attachSearchResults = data.articles || [];
+            } catch (e) {
+                this.attachSearchResults = [];
+            } finally {
+                this.attachSearching = false;
+            }
+        },
+
+        async attachExistingArticle(article) {
+            if (this.attachSaving) return;
+            this.attachSaving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/articles`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ blog_post_id: article.id }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    this.showMessage(data.message || Object.values(data.errors || {}).flat()[0] || this.i18n.networkError, 'error');
+                    return;
+                }
+                // Les lignes Articles sont rendues cote serveur : recharger est
+                // le geste honnete, comme pour la suppression de dossier.
+                window.location.reload();
+            } catch (e) {
+                this.showMessage(this.i18n.networkError, 'error');
+            } finally {
+                this.attachSaving = false;
+            }
+        },
+
+        // « Retirer de cette Boucle » (CAS B) : confirmation legere, ton
+        // non destructif — le PATCH part du <form> du modal, pas d'ici.
+        openUnshareFolderModal(id, name, action) {
+            this._trapTrigger = document.activeElement;
+            this.unshareFolderTarget = { id, name, action };
+            this.showUnshareFolderModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="unshare-folder-title"]'); });
+        },
+
+        closeUnshareFolderModal() {
+            this.showUnshareFolderModal = false;
+            this.unshareFolderTarget = null;
+            this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="unshare-folder-title"]'); });
+        },
+
+        openMoveModal(file) {
+            if (!this.moveTargets.length) return;
+            this._trapTrigger = document.activeElement;
+            this.moveTarget = file;
+            this.moveLot = [];
+            this.showMoveModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="move-file-title"]'); });
+        },
+
+        /** Le meme choix de destination, pour toute la selection. */
+        openMoveLot() {
+            if (!this.moveTargets.length) return;
+            const lot = this.selectionElements.filter(i => i.type === 'file' || i.type === 'article');
+            if (!lot.length) return;
+            this._trapTrigger = document.activeElement;
+            this.moveTarget = null;
+            this.moveLot = lot;
+            this.showMoveModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="move-file-title"]'); });
+        },
+
+        closeMoveModal() {
+            this.showMoveModal = false;
+            this.moveTarget = null;
+            this.moveLot = [];
+            this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="move-file-title"]'); });
+        },
+
+        async moveFileTo(file, targetDossierId) {
+            if (!file || !targetDossierId || targetDossierId === this.dossierId) return;
+
+            this.saving = true;
+            try {
+                const response = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/files/${file.id}/move`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ target_dossier_id: targetDossierId }),
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Le fichier a quitte ce Dossier : il quitte aussi cette vue,
+                    // exactement comme apres une suppression.
+                    this.files = this.files.filter(f => f.id !== file.id);
+                    this.totalFiles = Math.max(0, this.totalFiles - 1);
+                    // La destination est nommee (TASK-1130 UX finale) :
+                    // « Fichier deplace. » sans dire vers ou laissait le geste
+                    // muet. moveTargets porte deja le nom, filtre au droit reel.
+                    const cible = this.moveTargets.find(t => t.id === targetDossierId);
+                    this.showMessage(cible?.name && this.i18n.movedTo
+                        ? this.i18n.movedTo.replace(':name', cible.name)
+                        : (data.message || this.i18n.moved), 'success');
+                    this.bumpFolderCount(targetDossierId);
+                } else {
+                    this.showMessage(data.message || this.i18n.moveFailed, 'error');
+                }
+            } catch (error) {
+                this.showMessage(this.i18n.moveFailed, 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        async confirmMoveFile(targetDossierId) {
+            const lot = this.moveLot.slice();
+            const file = this.moveTarget;
+            this.closeMoveModal();
+
+            if (lot.length) { await this.deplacerVers(targetDossierId, lot); return; }
+            if (!file) return;
+
+            await this.moveFileTo(file, targetDossierId);
+        },
+
+        // Glisser des lignes : un marqueur d'etat propre a cette page — le
+        // geste ne quitte jamais l'onglet. `draggingKeys` porte TOUT ce qui est
+        // tire, et pas seulement la ligne sous le curseur.
+        onFileDragStart(evenement, file) {
+            this.demarrerGlissement(evenement, { type: 'file', id: file.id, name: file.display_name || file.original_name, file });
+        },
+
+        onArticleDragStart(evenement, item) {
+            this.demarrerGlissement(evenement, item);
+        },
+
+        /**
+         * Tirer un element HORS de la selection la remplace d'abord ; tirer un
+         * element DE la selection emporte toute la selection. C'est le geste de
+         * Drive et de l'explorateur : on ne deplace jamais a l'insu de la
+         * personne des lignes qu'elle ne voit pas designees.
+         */
+        demarrerGlissement(evenement, item) {
+            if (!this.estSelectionne(item.type, item.id)) this.selectionner(item);
+            else this.enregistrer(item);
+
+            this.draggingKeys = this.selectionKeys.slice();
+            // Firefox n'emet aucun `drop` si le glissement ne porte pas de
+            // donnee : ce texte n'est jamais lu, il rend le geste possible.
+            try { evenement?.dataTransfer?.setData('text/plain', this.draggingKeys.join(',')); } catch (e) { /* navigateur qui refuse : le geste marche sans */ }
+        },
+
+        estEnDeplacement(type, id) {
+            return this.draggingKeys.includes(`${type}:${id}`);
+        },
+
+        onFileDragEnd() {
+            this.draggingKeys = [];
+            this.dragOverFolderId = null;
+        },
+
+        onFolderDragOver(folderId) {
+            if (!this.draggingKeys.length) return;
+            this.dragOverFolderId = folderId;
+        },
+
+        onFolderDragLeave(folderId) {
+            if (this.dragOverFolderId === folderId) this.dragOverFolderId = null;
+        },
+
+        async onFolderDrop(folderId) {
+            const cles = this.draggingKeys.slice();
+            this.dragOverFolderId = null;
+            this.draggingKeys = [];
+            if (!cles.length) return;
+
+            await this.deplacerVers(folderId, cles.map(cle => this._catalogue[cle]).filter(Boolean));
+        },
+
+        // ── Agir sur un lot ──────────────────────────────────────────────
+        //
+        // Une requete par element, sur les endpoints qui existent deja. Un
+        // endpoint « en masse » aurait fait perdre deux choses : l'examen des
+        // droits element par element (source ET cible sont verifiees a chaque
+        // deplacement) et le detail des refus — un doublon de nom n'a aucune
+        // raison d'empecher les cinq autres de partir.
+
+        async deplacerVers(cibleId, elements = null) {
+            const lot = (elements || this.selectionElements).filter(i => i.type === 'file' || i.type === 'article');
+            if (!cibleId || !lot.length || cibleId === this.dossierId) return;
+
+            this.saving = true;
+            const echecs = [];
+            let reussis = 0;
+            let articleDeplace = false;
+
+            for (const item of lot) {
+                const url = item.type === 'file'
+                    ? `/org/${this.orgParam}/dossiers/${this.dossierId}/files/${item.id}/move`
+                    : `/org/${this.orgParam}/dossiers/${this.dossierId}/articles/${item.id}/move`;
+
+                try {
+                    const reponse = await fetch(url, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({ target_dossier_id: cibleId }),
+                    });
+                    const data = await reponse.json().catch(() => ({}));
+
+                    if (reponse.ok) {
+                        reussis++;
+                        if (item.type === 'file') {
+                            this.files = this.files.filter(f => f.id !== item.id);
+                            this.totalFiles = Math.max(0, this.totalFiles - 1);
+                        } else {
+                            articleDeplace = true;
+                        }
+                        this.bumpFolderCount(cibleId);
+                    } else {
+                        echecs.push({ name: item.name, reason: data.message || this.i18n.moveFailed });
+                    }
+                } catch (error) {
+                    echecs.push({ name: item.name, reason: this.i18n.moveFailed });
+                }
+            }
+
+            this.saving = false;
+            this.viderSelection();
+            this.rapporterLot(reussis, lot.length, echecs, 'move', cibleId);
+
+            // Les lignes d'Article viennent du serveur : elles ne peuvent pas
+            // disparaitre sans une recharge, contrairement aux fichiers.
+            if (articleDeplace && !echecs.length) setTimeout(() => window.location.reload(), 900);
+        },
+
+        /** Le lot part sur le meme modal de confirmation que l'element seul. */
+        openDeleteLot() {
+            const lot = this.selectionElements.filter(i => i.type === 'file');
+            if (!lot.length) return;
+            this._trapTrigger = document.activeElement;
+            this.deleteLot = lot;
+            this.deleteTarget = null;
+            this.showDeleteModal = true;
+            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="delete-file-title"]'); });
+        },
+
+        async supprimerLot(lot) {
+            this.saving = true;
+            const echecs = [];
+            let reussis = 0;
+
+            for (const item of lot) {
+                try {
+                    const reponse = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/files/${item.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+                    const data = await reponse.json().catch(() => ({}));
+
+                    if (reponse.ok) {
+                        reussis++;
+                        this.files = this.files.filter(f => f.id !== item.id);
+                        this.totalFiles = Math.max(0, this.totalFiles - 1);
+                    } else {
+                        echecs.push({ name: item.name, reason: data.message || this.i18n.deleteFailed });
+                    }
+                } catch (error) {
+                    echecs.push({ name: item.name, reason: this.i18n.deleteFailed });
+                }
+            }
+
+            this.saving = false;
+            this.viderSelection();
+            this.rapporterLot(reussis, lot.length, echecs, 'delete');
+            await this.loadFiles(this.currentPage);
+        },
+
+        /**
+         * Retirer des Articles du Dossier — ils ne sont pas supprimes, d'ou un
+         * verbe different de celui des fichiers et aucune confirmation : le
+         * geste se refait en un rattachement.
+         */
+        async retirerLot() {
+            const lot = this.selectionElements.filter(i => i.type === 'article');
+            if (!lot.length) return;
+
+            this.saving = true;
+            const echecs = [];
+            let reussis = 0;
+
+            for (const item of lot) {
+                try {
+                    const reponse = await fetch(`/org/${this.orgParam}/dossiers/${this.dossierId}/articles/${item.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+                    const data = await reponse.json().catch(() => ({}));
+
+                    if (reponse.ok) reussis++;
+                    else echecs.push({ name: item.name, reason: data.message || Object.values(data.errors || {}).flat()[0] || this.i18n.deleteFailed });
+                } catch (error) {
+                    echecs.push({ name: item.name, reason: this.i18n.deleteFailed });
+                }
+            }
+
+            this.saving = false;
+            this.viderSelection();
+
+            if (echecs.length) {
+                this.rapporterLot(reussis, lot.length, echecs, 'delete');
+
+                return;
+            }
+
+            // Les lignes d'Article sont rendues par le serveur.
+            window.location.reload();
+        },
+
+        /**
+         * Dire ce qui s'est VRAIMENT passe : « 5 sur 6 » et la liste des refus,
+         * jamais un « fait » qui recouvrirait un echec. Le lot sans faute se
+         * contente du bandeau habituel.
+         */
+        rapporterLot(reussis, total, echecs, action, cibleId = null) {
+            if (!echecs.length) {
+                if (!reussis) return;
+                const cible = cibleId ? this.moveTargets.find(t => t.id === cibleId) : null;
+                const message = action === 'move'
+                    ? (total === 1 && cible?.name && this.i18n.movedTo
+                        ? this.i18n.movedTo.replace(':name', cible.name)
+                        : (this.i18n.lotMoved || '').replace(':count', String(reussis)).replace(':name', cible?.name || ''))
+                    : (total === 1 ? this.i18n.deleted : (this.i18n.lotDeleted || '').replace(':count', String(reussis)));
+                this.showMessage(message || this.i18n.moved, 'success');
+
+                return;
+            }
+
+            this.lotRapport = {
+                titre: action === 'move' ? this.i18n.lotMoveReportTitle : this.i18n.lotDeleteReportTitle,
+                resume: (this.i18n.lotReportSummary || ':done/:total')
+                    .replace(':done', String(reussis))
+                    .replace(':total', String(total)),
+                echecs,
+            };
+            this.showLotModal = true;
         },
 
         openPreview(file) {

@@ -779,6 +779,7 @@ Route::prefix('/org/{organization}')
                 Route::get('/dossiers/{dossier}/semantic-search', DossierSemanticSearchController::class)->name('dossiers.semantic-search');
                 Route::post('/dossiers/{dossier}/articles', [DossierArticleController::class, 'store'])->name('dossiers.articles.store');
                 Route::post('/dossiers/{dossier}/articles/create-and-attach', [DossierArticleController::class, 'createAndAttach'])->name('dossiers.articles.create-and-attach');
+                Route::patch('/dossiers/{dossier}/articles/{post}/move', [DossierArticleController::class, 'move'])->name('dossiers.articles.move');
                 Route::delete('/dossiers/{dossier}/articles/{post}', [DossierArticleController::class, 'destroy'])->name('dossiers.articles.destroy');
                 Route::patch('/dossiers/{dossier}/articles/reorder', [DossierArticleController::class, 'reorder'])->name('dossiers.articles.reorder');
                 Route::get('/dossiers/{dossier}/articles/search', [DossierArticleController::class, 'search'])->name('dossiers.articles.search');
@@ -796,12 +797,15 @@ Route::prefix('/org/{organization}')
                 Route::patch('/dossiers/{dossier}/series/annexes/reorder', [DossierSeriesController::class, 'reorderAnnexes'])->name('dossiers.series.annexes.reorder');
                 Route::get('/dossiers/{dossier}/edit', [DossierController::class, 'edit'])->name('dossiers.edit');
                 Route::patch('/dossiers/{dossier}', [DossierController::class, 'update'])->name('dossiers.update');
+                Route::patch('/dossiers/{dossier}/unshare', [DossierController::class, 'unshare'])->name('dossiers.unshare');
                 Route::delete('/dossiers/{dossier}', [DossierController::class, 'destroy'])->name('dossiers.destroy');
                 Route::get('/dossiers/{dossier}/files', [DossierFileController::class, 'index'])->name('dossiers.files.index');
                 Route::post('/dossiers/{dossier}/files', [DossierFileController::class, 'store'])->name('dossiers.files.store');
                 Route::get('/dossiers/{dossier}/files/{file}', [DossierFileController::class, 'show'])->name('dossiers.files.show');
                 Route::get('/dossiers/{dossier}/files/{file}/preview', [DossierFileController::class, 'preview'])->name('dossiers.files.preview');
                 Route::delete('/dossiers/{dossier}/files/{file}', [DossierFileController::class, 'destroy'])->name('dossiers.files.destroy');
+                Route::patch('/dossiers/{dossier}/files/{file}/move', [DossierFileController::class, 'move'])->name('dossiers.files.move');
+                Route::patch('/dossiers/{dossier}/files/{file}/rename', [DossierFileController::class, 'rename'])->name('dossiers.files.rename');
 
                 // Blog (org-scoped)
                 Route::get('/blog/rediger/nouveau', [BlogController::class, 'orgCreate'])->name('blog.create');

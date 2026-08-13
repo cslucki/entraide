@@ -17,6 +17,13 @@ class DossierMemberController extends Controller
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('view', $dossier);
 
+        // TASK-1130 passe 4 : un enfant ne porte ni owner_id ni
+        // dossier_members a lui — toute lecture/ecriture de membres doit
+        // viser la racine qui gouverne, quel que soit l'appelant (vue,
+        // API directe, futur client). Deleguer ici, dans la primitive,
+        // evite que ce soit a chaque appelant de s'en souvenir.
+        $dossier = $dossier->governingDossier();
+
         // Dossier racine : les personnes qui y accedent sont les membres actifs
         // de la Boucle — dossier_members est vide par construction, et le lire
         // aurait rendu une liste vide a un Dossier bien habite. Lecture seule :
@@ -64,6 +71,7 @@ class DossierMemberController extends Controller
         $organization = $this->currentOrganizationOrFail();
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageMembers', $dossier);
+        $dossier = $dossier->governingDossier();
 
         $data = $request->validate([
             'user_id' => [
@@ -118,6 +126,7 @@ class DossierMemberController extends Controller
         $dossier = $this->resolveDossier($request->route('dossier'));
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageMembers', $dossier);
+        $dossier = $dossier->governingDossier();
 
         $data = $request->validate([
             'role' => 'required|string|in:reader,editor',
@@ -144,6 +153,7 @@ class DossierMemberController extends Controller
         $dossier = $this->resolveDossier($request->route('dossier'));
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageMembers', $dossier);
+        $dossier = $dossier->governingDossier();
 
         $member = $dossier->dossierMembers()->where('user_id', $request->route('member'))->first();
         if (! $member) {
@@ -165,6 +175,7 @@ class DossierMemberController extends Controller
         $organization = $this->currentOrganizationOrFail();
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageMembers', $dossier);
+        $dossier = $dossier->governingDossier();
 
         $query = preg_replace('/\s+/', ' ', trim($request->input('q', '')));
         $ownerId = $dossier->owner_id;

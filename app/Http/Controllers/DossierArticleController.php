@@ -90,7 +90,9 @@ class DossierArticleController extends Controller
                 'user_id' => $request->user()->id,
                 'organization_id' => $organization->id,
                 'title' => $data['title'],
-                'slug' => Str::slug($data['title']),
+                // Le slug appartient au modele : lui seul sait le rendre
+                // unique, et tous les chemins de creation passent par lui.
+                'slug' => null,
                 'content' => '<p></p>',
                 'status' => 'draft',
                 'category_id' => $data['category_id'] ?? null,
@@ -118,9 +120,109 @@ class DossierArticleController extends Controller
                     'title' => $post->title,
                 ],
                 'entry' => $entry,
-                'redirect_url' => "/org/{$organization->slug}/blog/{$post->slug}/edit",
+                // L'URL vient du routeur, jamais d'une chaine ecrite a la
+                // main : la route d'edition est `/blog/rediger/{slug}/modifier`,
+                // et l'URL fabriquee ici envoyait tout le monde sur un 404.
+                'redirect_url' => route('organization.blog.edit', [
+                    'organization' => $organization->slug,
+                    'post' => $post->slug,
+                ]),
             ], 201);
         });
+    }
+
+    /**
+     * Deplacer un Article d'un Dossier vers un autre.
+     *
+     * Un fichier se glissait deja d'un dossier a l'autre ; un Article, non —
+     * il fallait le detacher puis le rattacher a la main (TASK-1130, signale
+     * a l'usage). Le miroir exact de `files/{file}/move`, aux memes refus.
+     *
+     * L'ecriture reste UN update sur la ligne pivot : `dossier_blog_posts`
+     * porte un index unique sur `blog_post_id`, donc un detach + attach
+     * aurait ouvert une fenetre ou l'Article n'appartient a rien — et perdu
+     * `added_by` au passage.
+     */
+    public function move(Request $request, DossierArticleIndexingDispatcher $indexing): JsonResponse
+    {
+        $dossier = $this->resolveDossier($request->route('dossier'));
+        $organization = $this->currentOrganizationOrFail();
+        $this->ensureDossierBelongsToCurrentOrganization($dossier);
+        // Un deplacement est un retrait PLUS un ajout : les deux droits sont
+        // exiges, sur la source comme sur la cible.
+        $this->authorize('detachArticle', $dossier);
+
+        $post = $this->resolveBlogPost($request->route('post'));
+        $this->ensureBlogPostBelongsToCurrentOrganization($post);
+        $this->ensureUserOwnsBlogPost($request, $post);
+
+        $data = $request->validate([
+            'target_dossier_id' => ['required', 'string'],
+        ]);
+
+        $entry = DossierBlogPost::query()
+            ->where('organization_id', $organization->id)
+            ->where('dossier_id', $dossier->id)
+            ->where('blog_post_id', $post->id)
+            ->first();
+
+        if (! $entry) {
+            abort(404);
+        }
+
+        $target = Dossier::where('id', $data['target_dossier_id'])
+            ->where('organization_id', $organization->id)
+            ->first();
+
+        if (! $target) {
+            // Hors du tenant courant ou inexistant : meme reponse, aucune fuite
+            // d'information sur ce qui existe ailleurs.
+            return response()->json(['message' => __('dossiers.move_cross_organization_refused')], 404);
+        }
+
+        $this->authorize('attachArticle', $target);
+
+        if ($target->id === $dossier->id) {
+            return response()->json(['message' => __('dossiers.article_move_same_dossier')], 422);
+        }
+
+        // Une Serie impose que son contenu vive dans SON Dossier
+        // (DossierSeriesService::assertBelongsToDossier). Deplacer l'Article
+        // amputerait donc la sequence de quelqu'un — on refuse en le disant,
+        // plutot que de dissoudre en silence.
+        $seriesIds = ArticleSeries::where('dossier_id', $dossier->id)
+            ->where('organization_id', $organization->id)
+            ->pluck('id');
+
+        if ($seriesIds->isNotEmpty()) {
+            $lieAUneSerie = ArticleSeries::whereIn('id', $seriesIds)
+                ->where('root_blog_post_id', $post->id)
+                ->exists()
+                || ArticleSeriesItem::whereIn('article_series_id', $seriesIds)
+                    ->where('blog_post_id', $post->id)
+                    ->exists();
+
+            if ($lieAUneSerie) {
+                return response()->json(['message' => __('dossiers.article_move_series_refused')], 422);
+            }
+        }
+
+        DB::transaction(function () use ($entry, $target) {
+            $entry->update([
+                'dossier_id' => $target->id,
+                'position' => ((int) $target->dossierBlogPosts()->max('position')) + 1,
+            ]);
+        });
+
+        // Les deux Dossiers changent de contenu : leur index respectif doit
+        // etre reconstruit, pas seulement celui de la destination.
+        $indexing->dispatch($organization->id, $dossier->id, $post->id);
+        $indexing->dispatch($organization->id, $target->id, $post->id);
+
+        return response()->json([
+            'message' => __('dossiers.article_moved'),
+            'article' => ['id' => $post->id, 'dossier_id' => $target->id],
+        ]);
     }
 
     public function destroy(Request $request, DossierArticleIndexingDispatcher $indexing): RedirectResponse|JsonResponse

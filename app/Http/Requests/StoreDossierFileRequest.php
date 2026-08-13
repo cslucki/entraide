@@ -39,12 +39,20 @@ class StoreDossierFileRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'files' => ['required', 'array', 'max:5'],
+            // 20, comme la limite du client : une regle serveur plus basse
+            // que ce que l'interface propose ne protege rien, elle contredit.
+            'files' => ['required', 'array', 'max:20'],
             'files.*' => [
                 'required',
                 'file',
                 'max:51200',
-                'mimetypes:image/jpeg,image/png,image/webp,image/gif,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip,application/x-zip-compressed',
+                // `mimetypes:` compare le type devine par finfo SUR LE CONTENU. Un
+                // .xls ancien (conteneur OLE2) sort selon les versions de
+                // libmagic en `application/vnd.ms-excel`, en
+                // `application/x-ole-storage` ou en `application/CDFV2` : les
+                // trois designent le meme classeur, les deux derniers manquaient
+                // et faisaient echouer ce seul fichier au milieu d'un import.
+                'mimetypes:image/jpeg,image/png,image/webp,image/gif,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,application/vnd.ms-excel,application/x-ole-storage,application/CDFV2,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip,application/x-zip-compressed',
             ],
         ];
     }

@@ -26,6 +26,12 @@ class DossierPolicy
      */
     public function view(User $user, Dossier $dossier): bool
     {
+        // TASK-1130 : un enfant ne porte ni owner_id ni loop_id — sa
+        // gouvernance se demande a la racine qui le porte. Sur une racine,
+        // governingDossier() rend $dossier lui-meme : rien ne change pour
+        // l'existant.
+        $dossier = $dossier->governingDossier();
+
         if ($this->isOwner($user, $dossier)) {
             return true;
         }
@@ -69,11 +75,38 @@ class DossierPolicy
      */
     public function updateVisibility(User $user, Dossier $dossier): bool
     {
-        if ($dossier->isLoopDossier()) {
+        // Un enfant n'a pas d'audience propre — il herite de celle de sa
+        // racine (TASK-1130) — donc rien a choisir ici pour lui non plus.
+        if ($dossier->isLoopDossier() || ! $dossier->isRoot()) {
+            return false;
+        }
+
+        // « Mes documents » est prive par definition : c'est l'espace ou l'on
+        // range ce qu'on ne partage pas encore. On partage un dossier qui s'y
+        // trouve, jamais l'espace lui-meme.
+        if ($dossier->isPersonalDocumentsRoot()) {
             return false;
         }
 
         return $this->isOwner($user, $dossier);
+    }
+
+    /**
+     * Renommer un Dossier — distinct de `update()`, qui gouverne l'ecriture
+     * DANS le Dossier (fichiers, Articles, sous-dossiers).
+     *
+     * La distinction existe pour « Mes documents » : son contenu est
+     * parfaitement normal — on y cree, on y depose, on y range — mais son
+     * identite appartient au produit. Confondre les deux verrouillerait
+     * l'espace entier au lieu de son seul nom.
+     */
+    public function rename(User $user, Dossier $dossier): bool
+    {
+        if ($dossier->isPersonalDocumentsRoot()) {
+            return false;
+        }
+
+        return $this->update($user, $dossier);
     }
 
     public function create(User $user): bool
@@ -96,6 +129,9 @@ class DossierPolicy
         // TASK-1091 avait ajoute ici un test sur `core.dossiers`. C'etait trop
         // large : cela faisait dependre l'ecriture du Dossier de la presence
         // d'une seule de ses vues.
+        // TASK-1130 : gouvernance demandee a la racine, jamais a l'enfant.
+        $dossier = $dossier->governingDossier();
+
         if ($dossier->isLoopDossier()) {
             return $dossier->loop !== null && $user->can('update', $dossier->loop);
         }
@@ -109,11 +145,44 @@ class DossierPolicy
 
     public function delete(User $user, Dossier $dossier): bool
     {
+        // TASK-1130 passe 4 (CAS A) : le Dossier racine d'une Boucle n'est
+        // jamais supprimable d'ici — le detruire emporterait tout l'espace
+        // documentaire de la Boucle, une decision de cycle de vie de la
+        // Boucle elle-meme, hors de portee d'un geste Dossier. Un vrai
+        // sous-dossier (parent_id non nul) EST reellement possede par sa
+        // Boucle : memes droits que d'y ecrire (update()), pas un refus
+        // systematique comme isOwner() seul l'aurait rendu (owner_id est
+        // toujours NULL sous gouvernance Boucle).
+        if ($dossier->isLoopDossier() && $dossier->isRoot()) {
+            return false;
+        }
+
+        // Meme raison pour « Mes documents » : supprimer l'espace personnel
+        // n'est pas un geste de rangement. Il n'a d'ailleurs pas de
+        // remplacant — la primitive le recreerait a la visite suivante, vide,
+        // en laissant l'ancien contenu sans destination.
+        if ($dossier->isPersonalDocumentsRoot()) {
+            return false;
+        }
+
+        $governing = $dossier->governingDossier();
+
+        if ($governing->isLoopDossier()) {
+            return $governing->loop !== null && $user->can('update', $governing->loop);
+        }
+
+        // Dossier personnel, racine ou enfant : seul le proprietaire reel.
         return $this->isOwner($user, $dossier);
     }
 
     public function manageMembers(User $user, Dossier $dossier): bool
     {
+        // Inviter quelqu'un dans « Mes documents » reviendrait a partager tout
+        // l'espace personnel d'un coup, y compris ce qui n'y est pas encore.
+        if ($dossier->isPersonalDocumentsRoot()) {
+            return false;
+        }
+
         return $this->isOwner($user, $dossier);
     }
 
@@ -122,8 +191,10 @@ class DossierPolicy
         // Un Dossier racine n'a ni owner ni lignes dossier_members : ses
         // editeurs sont ceux de la Boucle, comme pour update(). Sans cette
         // branche, personne — pas meme le proprietaire de la Boucle — ne
-        // pouvait y attacher un article.
-        if ($dossier->isLoopDossier()) {
+        // pouvait y attacher un article. Meme remontee pour un enfant.
+        $governing = $dossier->governingDossier();
+
+        if ($governing->isLoopDossier()) {
             return $this->update($user, $dossier);
         }
 
@@ -169,15 +240,23 @@ class DossierPolicy
         // Meme delegue que l'ecriture : qui administre la Boucle administre
         // les fichiers de son Dossier racine. isOwner() seul aurait interdit
         // toute suppression, owner_id etant null par doctrine.
-        if ($dossier->isLoopDossier()) {
+        if ($dossier->governingDossier()->isLoopDossier()) {
             return $this->update($user, $dossier);
         }
 
         return $this->isOwner($user, $dossier);
     }
 
+    /**
+     * Ces quatre verifications delegue toutes a `governingDossier()` — pas
+     * seulement pour un root d'article ou de fichier, mais pour n'importe
+     * quel Dossier de la chaine (TASK-1130). Un enfant n'a ni owner_id ni
+     * dossier_members a lui : les lire directement dessus repondrait
+     * toujours non, meme au proprietaire reel.
+     */
     public function isOwner(User $user, Dossier $dossier): bool
     {
+        $dossier = $dossier->governingDossier();
         $organization = currentOrganization();
 
         return $organization !== null
@@ -188,6 +267,7 @@ class DossierPolicy
 
     public function isMember(User $user, Dossier $dossier): bool
     {
+        $dossier = $dossier->governingDossier();
         $organization = currentOrganization();
 
         if ($organization === null || $dossier->organization_id !== $organization->id || $user->organization_id !== $organization->id) {
@@ -201,6 +281,7 @@ class DossierPolicy
 
     public function isEditor(User $user, Dossier $dossier): bool
     {
+        $dossier = $dossier->governingDossier();
         $organization = currentOrganization();
 
         if ($organization === null || $dossier->organization_id !== $organization->id || $user->organization_id !== $organization->id) {
@@ -215,6 +296,7 @@ class DossierPolicy
 
     public function isReader(User $user, Dossier $dossier): bool
     {
+        $dossier = $dossier->governingDossier();
         $organization = currentOrganization();
 
         if ($organization === null || $dossier->organization_id !== $organization->id || $user->organization_id !== $organization->id) {

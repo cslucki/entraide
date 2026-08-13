@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -38,7 +39,7 @@ class DossierFileController extends Controller
         $query = DossierFile::query()
             ->where('dossier_id', $dossier->id)
             ->where('organization_id', $organization->id)
-            ->with('uploader:id,organization_id,first_name,name,email,banned_at');
+            ->with('uploader:id,organization_id,first_name,avatar,name,email,banned_at');
 
         if ($search !== '') {
             $searchTerm = trim($search);
@@ -63,6 +64,15 @@ class DossierFileController extends Controller
             ->whereNull('deleted_at')
             ->sum('size_bytes');
 
+        // `no-store`, et pas seulement le `no-cache, private` par defaut de
+        // Laravel : cette liste change a chaque import, deplacement ou
+        // suppression, et `no-cache` autorise le navigateur a CONSERVER la
+        // reponse. Chromium la resservait telle quelle a la relecture qui suit
+        // une ecriture — meme URL, meme en-tete `Date` — et l'ecran affichait
+        // l'etat d'avant : les fichiers importes restaient invisibles jusqu'a
+        // un rafraichissement, et ceux qu'on venait de deplacer revenaient.
+        // L'option `cache: 'no-store'` posee cote client ne suffisait pas ; la
+        // regle appartient a la reponse, qui seule sait qu'elle est perissable.
         return response()->json([
             'files' => $files,
             'quota' => [
@@ -70,7 +80,7 @@ class DossierFileController extends Controller
                 'limit_bytes' => $organization->dossierStorageQuotaBytes(),
                 'remaining_bytes' => $organization->dossierStorageRemainingBytes(),
             ],
-        ]);
+        ])->header('Cache-Control', 'no-store, private');
     }
 
     public function store(StoreDossierFileRequest $request): JsonResponse
@@ -181,7 +191,7 @@ class DossierFileController extends Controller
                     'source' => 'upload',
                 ]);
 
-                $dossierFile->load('uploader:id,organization_id,first_name,name,email,banned_at');
+                $dossierFile->load('uploader:id,organization_id,first_name,avatar,name,email,banned_at');
                 $createdFiles[] = array_merge(
                     $dossierFile->toArray(),
                     ['uploader' => $this->publicUserPayload($dossierFile->uploader, $organization->id)]
@@ -297,6 +307,119 @@ class DossierFileController extends Controller
         ]);
     }
 
+    /**
+     * Deplacer un fichier vers un autre Dossier (TASK-1130 passe 4).
+     *
+     * Deux droits distincts, pas un seul : `deleteFile` sur la source (retirer
+     * le fichier d'ici est le meme geste que le supprimer d'ici) et
+     * `manageFiles` sur la cible (y deposer un fichier est le meme geste que
+     * l'y importer). Un utilisateur qui peut vider un Dossier mais pas
+     * remplir l'autre ne doit reussir qu'a moitie le geste, jamais silencieusement.
+     */
+    /**
+     * Renommer un fichier — son libelle, jamais son fichier sur le disque.
+     *
+     * `display_name` est ce que la personne lit ; `original_name` reste la
+     * trace de ce qui a ete depose, et `path` n'est pas touche : renommer ne
+     * doit pas pouvoir casser un telechargement. L'extension d'origine est
+     * conservee, pour que le fichier reste ouvrable par le bon logiciel.
+     */
+    public function rename(Request $request): JsonResponse
+    {
+        $dossier = $this->resolveDossier($request->route('dossier'));
+        $file = $this->resolveFile($request->route('file'));
+        $organization = $this->currentOrganizationOrFail();
+        $this->ensureCurrentUserBelongsToCurrentOrganization();
+        $this->ensureDossierBelongsToCurrentOrganization($dossier);
+
+        if ($file->dossier_id !== $dossier->id || $file->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $this->authorize('manageFiles', $dossier);
+
+        $data = $request->validate([
+            'display_name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $extension = pathinfo($file->original_name, PATHINFO_EXTENSION);
+        $nom = trim($data['display_name']);
+
+        if ($extension !== '' && ! Str::endsWith(Str::lower($nom), '.'.Str::lower($extension))) {
+            $nom .= '.'.$extension;
+        }
+
+        $doublon = DossierFile::query()
+            ->where('organization_id', $organization->id)
+            ->where('dossier_id', $dossier->id)
+            ->where('display_name', $nom)
+            ->whereKeyNot($file->getKey())
+            ->exists();
+
+        if ($doublon) {
+            return response()->json(['message' => __('dossiers.file_duplicate_name')], 422);
+        }
+
+        $file->update(['display_name' => $nom]);
+
+        return response()->json([
+            'file' => $file->fresh(),
+            'message' => __('dossiers.file_renamed'),
+        ]);
+    }
+
+    public function move(Request $request): JsonResponse
+    {
+        $dossier = $this->resolveDossier($request->route('dossier'));
+        $file = $this->resolveFile($request->route('file'));
+        $organization = $this->currentOrganizationOrFail();
+        $this->ensureCurrentUserBelongsToCurrentOrganization();
+        $this->ensureDossierBelongsToCurrentOrganization($dossier);
+
+        if ($file->dossier_id !== $dossier->id || $file->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $this->authorize('deleteFile', $dossier);
+
+        $data = $request->validate([
+            'target_dossier_id' => ['required', 'string'],
+        ]);
+
+        $target = Dossier::where('id', $data['target_dossier_id'])
+            ->where('organization_id', $organization->id)
+            ->first();
+
+        if (! $target) {
+            // Hors du tenant courant ou inexistant : meme reponse, aucune fuite
+            // d'information sur ce qui existe ailleurs.
+            return response()->json(['message' => __('dossiers.move_cross_organization_refused')], 404);
+        }
+
+        $this->authorize('manageFiles', $target);
+
+        if ($target->id === $dossier->id) {
+            return response()->json(['message' => __('dossiers.file_move_same_dossier')], 422);
+        }
+
+        $duplicate = DossierFile::query()
+            ->where('organization_id', $organization->id)
+            ->where('dossier_id', $target->id)
+            ->where('original_name', $file->original_name)
+            ->exists();
+
+        if ($duplicate) {
+            return response()->json(['message' => __('dossiers.file_duplicate_name')], 422);
+        }
+
+        $file->update(['dossier_id' => $target->id]);
+
+        return response()->json([
+            'message' => __('dossiers.file_moved'),
+            'file' => ['id' => $file->id, 'dossier_id' => $target->id],
+        ]);
+    }
+
     private function resolveDossier(string $dossier): Dossier
     {
         return Dossier::query()->whereKey($dossier)->firstOrFail();
@@ -355,6 +478,10 @@ class DossierFileController extends Controller
             'id' => $user->id,
             'name' => $user->fullName,
             'email' => $user->email,
+            // Le visage seulement s'il existe vraiment : `avatar_url` retombe
+            // sinon sur un service tiers, a qui on enverrait le nom de la
+            // personne pour dessiner deux lettres qu'on sait dessiner ici.
+            'avatar_url' => filled($user->avatar) ? $user->avatar_url : null,
         ];
     }
 }

@@ -7,6 +7,7 @@ use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierFile;
+use App\Models\User;
 use App\Services\Dossiers\DossierSeriesService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -65,6 +66,10 @@ class DossierSeriesController extends Controller
             // La racine devient facultative : une Serie de fichiers n'en a pas.
             'root_blog_post_id' => ['nullable', 'uuid'],
             'name' => ['nullable', 'string', 'max:255'],
+            // Ouvrir le mode Serie sur un Dossier qui n'en a aucune ne doit
+            // rien demander : la sequence porte le nom du Dossier et contient
+            // ce qu'il contient. `remplir` dit exactement cela.
+            'remplir' => ['sometimes', 'boolean'],
         ]);
 
         $post = null;
@@ -81,10 +86,45 @@ class DossierSeriesController extends Controller
             $this->rethrowUnder($e, ['blog_post_id' => 'root_blog_post_id']);
         }
 
+        if ($request->boolean('remplir')) {
+            $series = $this->remplirAvecLeContenuDuDossier($series, $dossier, $request->user());
+        }
+
         return response()->json([
-            'series' => $series->load('rootBlogPost'),
+            'series' => $series->load(['rootBlogPost', 'items.blogPost', 'items.dossierFile']),
             'message' => __('dossiers.series_created'),
         ]);
+    }
+
+    /**
+     * Verse dans la Serie tout ce que le Dossier contient deja.
+     *
+     * Ordre d'ecran : les Articles dans leur ordre d'attachement, puis les
+     * fichiers du plus recent au plus ancien — la sequence part de ce que la
+     * personne voit, elle ne reinvente pas un classement.
+     *
+     * Un contenu deja pris par une autre Serie est saute sans bruit : le
+     * moteur interdit l'appartenance double, et ce n'est pas une erreur de
+     * l'utilisateur — il n'a rien demande d'autre que « ouvre le mode Serie ».
+     */
+    private function remplirAvecLeContenuDuDossier(ArticleSeries $series, Dossier $dossier, User $acteur): ArticleSeries
+    {
+        $contenus = $dossier->dossierBlogPosts()
+            ->with('blogPost')
+            ->get()
+            ->map(fn ($entree) => $entree->blogPost)
+            ->filter()
+            ->concat($dossier->files()->orderByDesc('created_at')->get());
+
+        foreach ($contenus as $contenu) {
+            try {
+                $this->series->addItem($series, $contenu, $acteur);
+            } catch (ValidationException) {
+                continue;
+            }
+        }
+
+        return $series->fresh();
     }
 
     public function update(Request $request): JsonResponse

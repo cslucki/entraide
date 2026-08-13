@@ -54,13 +54,52 @@ class BlogPost extends Model
     protected static function booted(): void
     {
         static::saving(function (self $post) {
+            // Le slug se derive du titre, et il doit etre UNIQUE : la contrainte
+            // `blog_posts_slug_unique` est globale. Deux personnes qui creent un
+            // Article « Test » le meme jour tombaient sinon sur un 23505 brut,
+            // affiche tel quel a l'ecran (signale sur le Drive, TASK-1130).
+            //
+            // La regle vit ici, dans la primitive d'ecriture, et pas dans le
+            // controleur qui se trouvait etre le premier a la rencontrer : tous
+            // les chemins de creation d'Article en beneficient.
             if (empty($post->slug) && $post->title) {
                 $post->slug = Str::slug($post->title);
+            }
+
+            if ($post->isDirty('slug') && filled($post->slug)) {
+                $post->slug = static::slugDisponible($post->slug, $post->getKey());
             }
             // Estime le temps de lecture (200 mots/min)
             $wordCount = str_word_count(strip_tags($post->content ?? ''));
             $post->read_time = max(1, (int) ceil($wordCount / 200));
         });
+    }
+
+    /**
+     * Le premier slug libre a partir de celui qu'on souhaitait.
+     *
+     * Les Articles supprimes comptent : leur ligne existe encore et l'index
+     * unique ne fait pas de difference. Le suffixe est numerique tant qu'il
+     * reste lisible, puis aleatoire — un titre tres commun ne doit pas faire
+     * boucler la creation.
+     */
+    protected static function slugDisponible(string $souhaite, ?string $ignorerId = null): string
+    {
+        $base = Str::slug($souhaite) ?: 'article';
+        $slug = $base;
+        $suffixe = 1;
+
+        while (static::withTrashed()
+            ->where('slug', $slug)
+            ->when($ignorerId !== null, fn ($q) => $q->whereKeyNot($ignorerId))
+            ->exists()) {
+            $suffixe++;
+            $slug = $suffixe <= 20
+                ? $base.'-'.$suffixe
+                : $base.'-'.Str::lower(Str::random(6));
+        }
+
+        return $slug;
     }
 
     public function user(): BelongsTo
