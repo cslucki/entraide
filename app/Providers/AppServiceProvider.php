@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\Ai\CapabilityRegistry;
+use App\Ai\Context\ContextBuilder;
+use App\Ai\PromptRepository;
+use App\Ai\ProviderResolver;
 use App\Events\LoopMessageCreated;
 use App\Http\Middleware\ResolveOrganization;
 use App\Jobs\GenerateAiAgentResponse;
@@ -55,6 +59,7 @@ use App\Services\Ai\SupervisionProviderResolver;
 use App\Services\LoopTypeSettingsService;
 use App\Services\ReferralCodeGenerator;
 use App\Services\RewardDispatcher;
+use App\Support\Ai\AiEconomicGuard;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -94,6 +99,11 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(SupervisionProviderResolver::class),
                 $app->make(AiScenarioFactory::class),
                 $app->make(FakeAIProvider::class),
+                $app->make(CapabilityRegistry::class),
+                $app->make(PromptRepository::class),
+                $app->make(ProviderResolver::class),
+                $app->make(ContextBuilder::class),
+                $app->make(AiEconomicGuard::class),
             );
         });
 
