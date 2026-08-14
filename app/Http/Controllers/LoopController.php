@@ -11,12 +11,14 @@ use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\Referral;
 use App\Models\User;
+use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopGovernanceService;
 use App\Services\LoopMessageService;
-use App\Services\LoopService;
 use App\Services\Loops\LoopLifecycleService;
+use App\Services\Loops\LoopPresetConfigurator;
+use App\Services\LoopService;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
@@ -547,6 +549,18 @@ class LoopController extends Controller
             'loop', 'eligibleReferrals', 'isMember', 'clarificationEnabled',
             'canManageJoinRequests', 'pendingJoinRequests', 'loopInvitations', 'governance',
         ) + [
+            // TASK-1210 : les Boucles ou l'utilisateur peut publier une demande.
+            // Meme perimetre que la source `user.loops` du Context Builder —
+            // membre actif, Boucle active, Organization courante — pour que le
+            // selecteur n'offre jamais plus que ce que l'IA a pu voir.
+            'publishableLoops' => $isMember
+                ? Loop::query()
+                    ->where('organization_id', $loop->organization_id)
+                    ->where('status', 'active')
+                    ->whereHas('members', fn ($q) => $q->where('user_id', $user->id)->where('status', 'active'))
+                    ->orderBy('name')
+                    ->get(['id', 'name'])
+                : collect(),
             'workspaceCards' => $this->workspaceCardsFor($loop, $user),
             // Les outils **mis en avant** et les autres (TASK-1124). La barre
             // montrait `take(3)` : la 4e Card active etait introuvable. Les
@@ -571,7 +585,7 @@ class LoopController extends Controller
             // le service appliquera — proprietaire autorise par son
             // Organization, ou administrateur — et jamais sur une archivee.
             'canCustomiseTools' => ! $loop->isArchived()
-                && app(\App\Services\Loops\LoopPresetConfigurator::class)->canConfigure($user, $loop),
+                && app(LoopPresetConfigurator::class)->canConfigure($user, $loop),
             'archiveImpact' => app(LoopLifecycleService::class)->impactOf($loop),
             // La vue rend chaque Card depuis le registre : plus aucune condition
             // sur une cle de Card dans le Blade.
@@ -944,7 +958,13 @@ class LoopController extends Controller
                 ->with('help_request_error', __('loops.clarification_disabled'));
         }
 
-        $result = $this->aiProvider->analyze($data['intention']);
+        // TASK-1210 : la clarification se fait DANS un contexte — cet
+        // utilisateur, cette Organization, ses Boucles — sans quoi l'IA ne peut
+        // suggerer aucun cercle. Le service retombe seul sur la clarification
+        // deterministe si l'IA est indisponible.
+        $result = $this->aiProvider instanceof ClarifyUserHelpRequestService
+            ? $this->aiProvider->clarifyForLoop($loop, $user, $data['intention'])
+            : $this->aiProvider->analyze($data['intention']);
 
         if ($result->isBlocked()) {
             return redirect($this->loopRoute('loops.show', $loop))
@@ -981,17 +1001,43 @@ class LoopController extends Controller
             'title' => 'required|string|max:120',
             'need' => 'required|string|max:2000',
             'help_type' => 'required|string|in:request,service',
+            'loop_id' => 'required|string',
         ]);
 
-        $route = $data['help_type'] === 'service'
-            ? 'services.create'
-            : 'requests.create';
+        // Revalidation serveur de la destination (TASK-1210). L'utilisateur a pu
+        // changer la Boucle proposee, et le champ vient du navigateur : rien
+        // n'autorise a lui faire confiance. Seule une Boucle active de cette
+        // Organization, dont il est membre actif, est acceptee.
+        $cible = Loop::query()
+            ->where('id', $data['loop_id'])
+            ->where('organization_id', $organization->id)
+            ->where('status', 'active')
+            ->whereHas('members', fn ($q) => $q->where('user_id', $user->id)->where('status', 'active'))
+            ->first();
 
-        return redirect()->route($route)
-            ->withInput([
-                'title' => $data['title'],
-                'description' => $data['need'],
-            ]);
+        if ($cible === null) {
+            return back()
+                ->withInput()
+                ->with('help_request_error', __('loops.help_request_loop_invalid'));
+        }
+
+        // La publication est une ecriture metier : elle n'a lieu QUE sur ce clic
+        // explicite. La capability, elle, reste `can_write=false`.
+        $message = $this->loopMessageService->sendHelpRequestMessage(
+            loop: $cible,
+            sender: $user,
+            body: $data['need'],
+            title: $data['title'],
+            need: $data['need'],
+            context: '',
+            expectedHelpType: $data['help_type'] === 'service'
+                ? __('loops.help_type_service')
+                : __('loops.help_type_request'),
+        );
+
+        return redirect($this->loopRoute('loops.show', $cible))
+            ->with('success', __('loops.help_request_published'))
+            ->with('help_request_message_id', $message->id);
     }
 
     /**
