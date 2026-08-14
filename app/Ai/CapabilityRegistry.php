@@ -9,6 +9,8 @@ final class CapabilityRegistry
 {
     public const LOOP_SUMMARY = 'loop_summary';
 
+    public const CLARIFY_HELP_REQUEST = 'clarify_help_request';
+
     public const SCOPE_ORGANIZATION = 'organization';
 
     public const SCOPE_LOOP = 'loop';
@@ -41,7 +43,26 @@ final class CapabilityRegistry
             contextCharBudget: self::loopSummaryContextBudget(),
         );
 
-        $this->definitions = [$loopSummary->id => $loopSummary];
+        $clarifyHelpRequest = new CapabilityDefinition(
+            id: self::CLARIFY_HELP_REQUEST,
+            process: AiProcess::fromScenarioId('clarify_help_request'),
+            // L'humain valide AVANT toute publication : la capability propose une
+            // demande et une Boucle, elle n'en publie aucune.
+            requiresHumanConfirmation: true,
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
+            // Les Boucles de l'utilisateur, et rien d'autre : l'IA ne peut
+            // suggerer que ce que le serveur lui a donne.
+            allowedSources: [self::SOURCE_USER_LOOPS],
+            maxOutput: 2000,
+            promptKey: 'clarify_help_request',
+            contextCharBudget: self::clarifyContextBudget(),
+        );
+
+        $this->definitions = [
+            $loopSummary->id => $loopSummary,
+            $clarifyHelpRequest->id => $clarifyHelpRequest,
+        ];
     }
 
     /**
@@ -62,6 +83,24 @@ final class CapabilityRegistry
         }
 
         return (int) config('ai.chatloop.max_context_chars', $default);
+    }
+
+    /**
+     * Budget de contexte de `clarify_help_request`.
+     *
+     * Le contexte se limite a la liste des Boucles autorisees : quelques
+     * dizaines de lignes courtes. 4000 caracteres laissent de la marge a une
+     * Organization tres fournie sans jamais deverser un catalogue entier.
+     */
+    private static function clarifyContextBudget(): int
+    {
+        $default = 4000;
+
+        if (! function_exists('app') || ! app()->bound('config')) {
+            return $default;
+        }
+
+        return (int) config('ai.clarify.max_context_chars', $default);
     }
 
     public function has(string $capability): bool
