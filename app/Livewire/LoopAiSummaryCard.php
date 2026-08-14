@@ -72,6 +72,12 @@ class LoopAiSummaryCard extends Component
         }
     }
 
+    /**
+     * TASK-1207 : le dernier resume est relu depuis sa trace technique
+     * (`ai_interactions`) et non plus depuis un `LoopMessage` publie dans la
+     * Boucle — `loop_summary` est une capability `can_write=false`. La surface
+     * affichee est strictement la meme : corps, date, demandeur.
+     */
     private function loadSummary(ChatLoopAiService $service): void
     {
         $summary = $service->latestSummary($this->loop);
@@ -87,11 +93,10 @@ class LoopAiSummaryCard extends Component
 
         $this->hasSummary = true;
         $this->summaryBody = $summary->body;
-        $this->summaryCreatedAtIso = $summary->created_at?->toIso8601String();
+        $this->summaryCreatedAtIso = $summary->createdAt?->toIso8601String();
 
-        $requesterId = $summary->metadata['requested_by'] ?? null;
-        $this->summaryAuthor = $requesterId
-            ? User::find($requesterId)?->publicDisplayName()
+        $this->summaryAuthor = $summary->requestedById
+            ? User::find($summary->requestedById)?->publicDisplayName()
             : null;
     }
 
