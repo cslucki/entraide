@@ -102,6 +102,10 @@ ai/playwright/screenshots/
 playwright-report/
 test-results/
 .claude/projects/
+# Les worktrees d'agent vivent ici. Sans cette regle, `git add` en enregistre un
+# comme gitlink 160000 — un sous-module sans URL, que personne ne peut resoudre
+# au clone. C'est arrive une fois, dans 0076f87.
+.claude/worktrees/
 /codebase/
 
 # Design source files
