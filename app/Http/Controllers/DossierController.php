@@ -87,9 +87,14 @@ class DossierController extends Controller
 
             // Avec moi : ce que d'autres m'ont explicitement confie. La lecture
             // reste celle de la policy view() — une invitation nominative.
+            // `owner_id != $userId` excluait les sous-dossiers : un enfant n'a
+            // pas d'`owner_id`, et `NULL != x` vaut NULL en SQL, donc faux. Le
+            // dossier qu'on venait de partager n'apparaissait jamais ici
+            // (TASK-1136). On ecarte ce qu'on possede par une comparaison qui
+            // accepte le NULL, et le tri se fait ensuite sur la gouvernance.
             $avecMoi = Dossier::query()
                 ->where('organization_id', $organization->id)
-                ->where('owner_id', '!=', $userId)
+                ->where(fn ($q) => $q->whereNull('owner_id')->orWhere('owner_id', '!=', $userId))
                 ->whereHas('dossierMembers', fn ($q) => $q->where('user_id', $userId))
                 ->with(['owner:id,first_name,avatar,name,email,banned_at,organization_id', 'dossierMembers' => fn ($q) => $q->where('user_id', $userId)])
                 ->withCount(['files', 'dossierBlogPosts', 'children'])
