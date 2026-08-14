@@ -79,9 +79,64 @@ Ces trois classes sont **réutilisées à l'identique par P1-3**, sans aucune
 modification — l'instrumentation des embeddings n'a nécessité ni nouveau
 constructeur, ni nouvelle règle de tarification.
 
+## Garde économique (P2)
+
+`App\Support\Ai\AiEconomicGuard` décide **avant** l'appel, et mesure après.
+
+`authorize(Organization, process, provider, model, budgetMensuel, quotaUnknown)`
+compte, sur le mois courant et **pour cette Organization seule** :
+
+- la somme des coûts **connus** (`cost_unknown = false`) — refus si le budget
+  mensuel est atteint ;
+- le nombre d'appels au **coût non mesurable** (`cost_unknown = true`) — refus
+  si le quota est atteint.
+
+Un refus signifie qu'**aucun appel provider n'est émis**. Le quota UNKNOWN
+existe parce qu'un coût non mesurable ne peut pas être plafonné par un budget :
+sans lui, un modèle hors catalogue consommerait sans limite tout en restant
+invisible dans la somme.
+
+`finalize(provider, model, usage, ?coûtRapporté)` applique la priorité :
+
+1. coût rapporté par le provider, **si** l'API l'expose ;
+2. sinon `AiPricingCatalog` (usage observé x tarif connu) ;
+3. sinon UNKNOWN.
+
+Un échec d'appel est tracé avec `cost_usd = NULL` **et** `cost_unknown = NULL` —
+l'état « statut non évalué ». Il reste ainsi visible sans peser ni sur le budget
+ni sur le quota, dont les compteurs filtrent sur `false` et `true`.
+
+### Le SDK texte v0.7.2 n'expose aucun coût provider
+
+Vérifié par lecture de `vendor/laravel/ai/src/` : ni `Responses\Data\Usage`,
+ni `Responses\Data\Meta` ne portent de coût. L'échelon 1 n'a donc pas de
+source pour le texte — le catalogue devient le premier échelon effectif, UNKNOWN
+reste le dernier. **Aucun appel HTTP secondaire n'est fait pour contourner le
+SDK et récupérer un coût.**
+
+Piège traité : `Usage` type ses compteurs `int` avec un défaut à `0`, et les
+passerelles écrivent `$usage['prompt_tokens'] ?? 0`. Un bloc `usage` absent
+devient donc `0/0`, indiscernable d'un vrai zéro **dans l'objet du SDK**.
+`AiUsage::fromSdkTextTokens()` rétablit la distinction au seul endroit où elle
+est encore décidable : une génération réelle ne consomme jamais 0 token
+d'entrée ET 0 de sortie. Ce couple signe un usage non rapporté, donc UNKNOWN —
+jamais un coût de 0.
+
+### Limite actuelle, connue et assumée
+
+**La garde économique ne couvre qu'une seule capability.**
+`AiEconomicGuard` n'est référencé que par `ChatLoopAiService`, et seulement
+pour `loop_summary`. Les autres call sites IA du produit calculent parfois leur
+coût, mais **aucun n'est plafonné**.
+
+Conséquence à connaître avant d'ouvrir l'IA à des utilisateurs réels : le
+budget protège aujourd'hui la capability la moins coûteuse, pendant que la
+génération d'articles ne l'est pas. Généraliser la garde — et la rendre
+Organization-scoped — est l'objet de P4.
+
 ## Instrumentation des invocations Laravel AI SDK (P1-3)
 
-Seul usage réel du SDK aujourd'hui : les embeddings Dossiers
+Cette section décrit l'instrumentation des **embeddings** Dossiers
 (`App\Services\Dossiers\DossierChunkEmbeddingService`). Deux call sites :
 indexation (`App\Jobs\IndexDossierArticleChunks`, un seul batch SDK pour
 tous les chunks d'un article — un seul `invocationId` pour N chunks, le
@@ -92,11 +147,16 @@ contrat réel du batch) et recherche sémantique
 
 `GeneratingEmbeddings` (ouverture, fixe l'horodatage de latence) et
 `EmbeddingsGenerated` (résultat + usage, écrit la ligne de trace de succès).
-Les 26 autres événements installés (dont `PromptingAgent`/`AgentPrompted`,
-symétriques côté Agents) ne sont **pas** branchés : aucun call site Agent
-réel n'existe dans le produit — les brancher aurait été de l'instrumentation
-spéculative, invérifiable par un test réel. Voir `ARCHITECTURE.md` pour le
-détail des limites du SDK et la règle P3.
+Les 26 autres événements installés ne sont **pas** branchés.
+
+`PromptingAgent`/`AgentPrompted`, symétriques côté Agents, ne le sont pas non
+plus alors qu'un call site texte existe désormais (`loop_summary`) — et c'est
+délibéré. `ai_interactions` est le registre canonique que lit
+`AiEconomicGuard` : un listener global écrirait une **seconde** trace pour le
+même appel, et le budget compterait cet appel deux fois. L'instrumentation
+texte vit donc au call site produit, qui écrit une trace et une seule.
+
+Voir `ARCHITECTURE.md` pour le détail des limites du SDK et la règle P3.
 
 ### `App\Listeners\RecordSdkEmbeddingsInvocation`
 
