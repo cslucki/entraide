@@ -99,6 +99,56 @@ class LoopController extends Controller
         abort(403);
     }
 
+    /**
+     * La seule Boucle qu'une valeur venue du navigateur ou d'un provider peut
+     * designer : active, dans cette Organization, et dont l'utilisateur est
+     * membre actif. Tout le reste vaut null — y compris un identifiant qui
+     * n'est pas un UUID, comme en produisent les scenarios du FakeAIProvider.
+     * Le garde `isUuid` n'est pas cosmetique : comparer une chaine arbitraire
+     * a une colonne uuid leve une exception sur PostgreSQL.
+     */
+    private function publishableLoopOrNull(mixed $loopId, Organization $organization, User $user): ?Loop
+    {
+        if (! is_string($loopId) || ! Str::isUuid($loopId)) {
+            return null;
+        }
+
+        return Loop::query()
+            ->where('id', $loopId)
+            ->where('organization_id', $organization->id)
+            ->where('status', 'active')
+            ->whereHas('members', fn ($q) => $q->where('user_id', $user->id)->where('status', 'active'))
+            ->first();
+    }
+
+    /**
+     * Une suggestion n'atteint l'ecran que si elle designe une Boucle que
+     * l'utilisateur peut reellement utiliser. Le libelle est relu en base :
+     * l'IA propose un identifiant, jamais un nom qui fait autorite.
+     *
+     * @return array{id: string, label: string, reason: ?string}|null
+     */
+    private function validatedSuggestedLoopFor(mixed $suggested, Organization $organization, User $user): ?array
+    {
+        if (! is_array($suggested)) {
+            return null;
+        }
+
+        $loop = $this->publishableLoopOrNull($suggested['id'] ?? null, $organization, $user);
+
+        if ($loop === null) {
+            return null;
+        }
+
+        $reason = trim((string) ($suggested['reason'] ?? ''));
+
+        return [
+            'id' => $loop->id,
+            'label' => $loop->name,
+            'reason' => $reason !== '' ? $reason : null,
+        ];
+    }
+
     private function loopRoute(string $route, Loop $loop): string
     {
         $organization = request()->route('organization');
@@ -971,8 +1021,21 @@ class LoopController extends Controller
                 ->with('help_request_error', $result->fallback['reason'] ?? 'Cette demande ne peut pas être publiée.');
         }
 
+        // La suggestion est validee ICI, quel que soit le chemin qui l'a
+        // produite. Le chemin SDK valide deja contre la liste offerte au
+        // modele ; le repli deterministe (FakeAIProvider) renvoie lui des
+        // identifiants de scenario qui ne designent aucune Boucle reelle.
+        // Sans ce filtre, l'ecran collait la justification d'une Boucle
+        // imaginaire sur une preselection choisie par defaut du navigateur.
+        $analysis = $result->toArray();
+        $analysis['suggested_loop'] = $this->validatedSuggestedLoopFor(
+            $analysis['suggested_loop'] ?? null,
+            $organization,
+            $user,
+        );
+
         return redirect($this->loopRoute('loops.show', $loop))
-            ->with('help_request_analysis', $result->toArray())
+            ->with('help_request_analysis', $analysis)
             ->with('help_request_intention', $data['intention']);
     }
 
@@ -1001,19 +1064,13 @@ class LoopController extends Controller
             'title' => 'required|string|max:120',
             'need' => 'required|string|max:2000',
             'help_type' => 'required|string|in:request,service',
-            'loop_id' => 'required|string',
+            'loop_id' => 'required|uuid',
         ]);
 
         // Revalidation serveur de la destination (TASK-1210). L'utilisateur a pu
         // changer la Boucle proposee, et le champ vient du navigateur : rien
-        // n'autorise a lui faire confiance. Seule une Boucle active de cette
-        // Organization, dont il est membre actif, est acceptee.
-        $cible = Loop::query()
-            ->where('id', $data['loop_id'])
-            ->where('organization_id', $organization->id)
-            ->where('status', 'active')
-            ->whereHas('members', fn ($q) => $q->where('user_id', $user->id)->where('status', 'active'))
-            ->first();
+        // n'autorise a lui faire confiance.
+        $cible = $this->publishableLoopOrNull($data['loop_id'], $organization, $user);
 
         if ($cible === null) {
             return back()

@@ -362,6 +362,133 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
     }
 
     // =====================================================================
+    // F. Cycle HTTP complet — le resultat doit atteindre l'utilisateur
+    // =====================================================================
+
+    /**
+     * Le defaut constate en recette live : l'appel reussit, la trace est
+     * ecrite, mais l'ecran suivant n'affiche rien. Ce test suit le cycle
+     * complet POST -> redirect -> GET dans la MEME session.
+     */
+    public function test_the_clarified_request_reaches_the_next_screen(): void
+    {
+        $this->fakeClarifier(['suggested_loop_id' => $this->ethique->id]);
+
+        $post = $this->actingAs($this->member)
+            ->post(route('loops.help-request.analyze', $this->loop), [
+                'intention' => 'J’aimerais réfléchir aux risques éthiques liés aux agents IA.',
+            ]);
+
+        $post->assertRedirect();
+        $post->assertSessionHas('help_request_analysis');
+
+        $html = $this->actingAs($this->member)
+            ->get($post->headers->get('Location'))
+            ->assertOk()
+            ->getContent();
+
+        // 1. la reformulation
+        $this->assertStringContainsString('cadrer nos usages de l’IA', $html);
+        // 2. le selecteur de Boucle
+        $this->assertStringContainsString('name="loop_id"', $html);
+        // 3. la Boucle suggeree, preselectionnee
+        $this->assertMatchesRegularExpression(
+            '/<option value="'.preg_quote($this->ethique->id, '/').'"[^>]*selected/',
+            $html,
+        );
+        // 4. la justification
+        $this->assertStringContainsString('éthique de l’IA', $html);
+        // 5. le bouton de publication
+        $this->assertStringContainsString(__('loops.help_request_publish_cta'), $html);
+    }
+
+    /**
+     * Le chemin REELLEMENT emprunte par le navigateur : les routes
+     * org-scopees. C'est la seule difference avec le test precedent.
+     */
+    public function test_the_clarified_request_reaches_the_next_screen_on_org_routes(): void
+    {
+        $this->fakeClarifier(['suggested_loop_id' => $this->ethique->id]);
+
+        $post = $this->actingAs($this->member)
+            ->post(route('organization.loops.help-request.analyze', [
+                'organization' => $this->organization->slug,
+                'loop' => $this->loop,
+            ]), ['intention' => 'J’aimerais réfléchir aux risques éthiques liés aux agents IA.']);
+
+        $post->assertRedirect();
+        $post->assertSessionHas('help_request_analysis');
+
+        $location = $post->headers->get('Location');
+
+        $html = $this->actingAs($this->member)->get($location)->assertOk()->getContent();
+
+        $this->assertStringContainsString('name="loop_id"', $html);
+        $this->assertStringContainsString(__('loops.help_request_publish_cta'), $html);
+    }
+
+    // =====================================================================
+    // G. Le repli deterministe ne peut pas mentir a l'ecran
+    // =====================================================================
+
+    /**
+     * Defaut releve par Cyril en recette : coupe-circuit desactive, le repli
+     * `FakeAIProvider` suggerait `loop-dev-commercial` — une Boucle de
+     * scenario, inexistante. L'ecran affichait sa justification
+     * (« prospection et premiers clients ») pendant que le navigateur, faute
+     * d'option correspondante, preselectionnait la premiere Boucle de la
+     * liste. Une raison vraie collee sur une destination fausse.
+     */
+    public function test_a_fallback_suggestion_with_a_scenario_id_never_reaches_the_screen(): void
+    {
+        config(['ai.clarify.enabled' => false]);
+
+        $post = $this->actingAs($this->member)
+            ->post(route('loops.help-request.analyze', $this->loop), [
+                'intention' => 'Je cherche des conseils pour trouver mes premiers clients',
+            ]);
+
+        $post->assertRedirect();
+
+        $html = $this->actingAs($this->member)
+            ->get($post->headers->get('Location'))
+            ->assertOk()
+            ->getContent();
+
+        // Ni la Boucle imaginaire ni sa justification.
+        $this->assertStringNotContainsString('Développement commercial', $html);
+        $this->assertStringNotContainsString('prospection', $html);
+        $this->assertStringNotContainsString(__('loops.help_request_suggested_loop'), $html);
+
+        // Sans suggestion valide, la destination par defaut est la Boucle
+        // d'ou l'utilisateur parle — un choix neutre, pas une recommandation.
+        $this->assertMatchesRegularExpression(
+            '/<option value="'.preg_quote($this->loop->id, '/').'"[^>]*selected/',
+            $html,
+        );
+        $this->assertStringContainsString(__('loops.help_request_publish_cta'), $html);
+    }
+
+    /**
+     * `loops.id` est une colonne uuid : comparer une chaine arbitraire leve
+     * une exception sur PostgreSQL. Un identifiant malforme doit etre une
+     * erreur de validation, jamais un 500.
+     */
+    public function test_publishing_with_a_non_uuid_loop_id_is_a_validation_error(): void
+    {
+        $this->actingAs($this->member)
+            ->post(route('loops.help-request.publish', $this->loop), [
+                'title' => 'Un titre',
+                'need' => 'Un besoin.',
+                'help_type' => 'request',
+                'loop_id' => 'loop-dev-commercial',
+            ])
+            ->assertSessionHasErrors('loop_id');
+
+        $this->assertDatabaseCount('loop_messages', 0);
+    }
+
+    // =====================================================================
     // Helpers
     // =====================================================================
 
