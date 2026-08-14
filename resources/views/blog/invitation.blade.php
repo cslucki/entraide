@@ -1,6 +1,14 @@
 <x-app-layout>
     <div class="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div class="max-w-lg w-full">
+            {{-- A refused acceptance redirects back here with a reason. Without
+                 this the visitor was simply bounced with no explanation. --}}
+            @if(session('error'))
+                <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {{ session('error') }}
+                </div>
+            @endif
+
             <div class="bg-white rounded-xl shadow-md p-8">
                 {{-- Badge --}}
                 <div class="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-full mb-4">
@@ -65,10 +73,33 @@
                             </button>
                         </form>
 
-                        <div class="text-center text-sm text-gray-500">
-                            {{ __('blog-invitation.invite_not_you') }}
-                            <a href="{{ route('login') }}" class="text-indigo-600 hover:text-indigo-800 font-medium">{{ __('blog.login') }}</a>
-                        </div>
+                        {{-- POST, not a link (TASK-1078): this parks the token in the
+                             session so the acceptance can be picked up inside the
+                             login/registration POST. A plain <a> lost it, which is
+                             exactly why the guest journey used to dead-end. --}}
+                        @guest
+                            <div class="flex flex-col gap-2 sm:flex-row">
+                                <form method="POST" action="{{ route('blog.invite.prepare', ['token' => $invitation->token]) }}" class="flex-1">
+                                    @csrf
+                                    <input type="hidden" name="intent" value="login">
+                                    <button type="submit" class="w-full rounded-lg border border-gray-300 px-6 py-3 font-semibold text-gray-700 transition hover:bg-gray-50">
+                                        {{ __('blog.login') }}
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ route('blog.invite.prepare', ['token' => $invitation->token]) }}" class="flex-1">
+                                    @csrf
+                                    <input type="hidden" name="intent" value="register">
+                                    <button type="submit" class="w-full rounded-lg bg-indigo-600 px-6 py-3 font-semibold text-white transition hover:bg-indigo-700">
+                                        {{ __('blog-invitation.invite_btn_register') }}
+                                    </button>
+                                </form>
+                            </div>
+                        @else
+                            <div class="text-center text-sm text-gray-500">
+                                {{ __('blog-invitation.invite_not_you') }}
+                                <a href="{{ route('login') }}" class="text-indigo-600 hover:text-indigo-800 font-medium">{{ __('blog.login') }}</a>
+                            </div>
+                        @endguest
                     </div>
 
                     {{-- Expiry notice --}}

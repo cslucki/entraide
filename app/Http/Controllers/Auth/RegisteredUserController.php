@@ -7,6 +7,7 @@ use App\Models\Country;
 use App\Models\PointLedger;
 use App\Models\User;
 use App\Notifications\WelcomeNotification;
+use App\Services\InvitationResumption;
 use App\Services\ReferralService;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Auth\Events\Registered;
@@ -109,6 +110,13 @@ class RegisteredUserController extends Controller
                 );
             } catch (\RuntimeException) {
             }
+        }
+
+        // Same as on login: an invitation parked before registration is consumed
+        // inside this POST, and the address just registered is re-checked against
+        // the one the invitation was issued to.
+        if ($redirect = app(InvitationResumption::class)->resume($user)) {
+            return $redirect;
         }
 
         return redirect()->intended($user->getLoginRedirectTarget());

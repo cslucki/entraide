@@ -2,11 +2,13 @@
 
 namespace App\Services\Dossiers;
 
+use App\Listeners\RecordSdkEmbeddingsInvocation;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Models\DossierChunk;
 use App\Models\Organization;
+use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -40,7 +42,28 @@ class DossierArticleIndexer
                 return $this->deleteChunks($organizationId, $dossierId, $blogPostId);
             }
 
-            $embeddingResult = $this->embeddings->embed(array_column($chunks, 'content'));
+            $provider = trim((string) config('ai.default_for_embeddings', 'openai'));
+            $model = trim((string) config("ai.providers.{$provider}.models.embeddings.default", 'text-embedding-3-small'));
+
+            if ($this->alreadyIndexed($organizationId, $dossierId, $blogPostId, $chunks, $provider, $model)) {
+                return count($chunks);
+            }
+
+            Context::add(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY, [
+                'organization_id' => $organizationId,
+                'scenario_id' => 'dossier_embeddings_index',
+                'metadata' => [
+                    'dossier_id' => $dossierId,
+                    'blog_post_id' => $blogPostId,
+                    'chunk_count' => count($chunks),
+                ],
+            ]);
+
+            try {
+                $embeddingResult = $this->embeddings->embed(array_column($chunks, 'content'));
+            } finally {
+                Context::forget(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY);
+            }
 
             if (count($embeddingResult['embeddings']) !== count($chunks)) {
                 throw new RuntimeException('Embedding count does not match generated chunk count.');
@@ -122,6 +145,43 @@ class DossierArticleIndexer
             ->delete();
 
         return 0;
+    }
+
+    /**
+     * @param  array<int, array{chunk_index: int, content: string, content_hash: string, token_count: int}>  $chunks
+     */
+    private function alreadyIndexed(
+        string $organizationId,
+        string $dossierId,
+        string $blogPostId,
+        array $chunks,
+        string $provider,
+        string $model,
+    ): bool {
+        if ($provider === '' || $model === '') {
+            return false;
+        }
+
+        $stored = DossierChunk::query()
+            ->where('organization_id', $organizationId)
+            ->where('dossier_id', $dossierId)
+            ->where('blog_post_id', $blogPostId)
+            ->where('embedding_provider', $provider)
+            ->where('embedding_model', $model)
+            ->orderBy('chunk_index')
+            ->get(['chunk_index', 'content_hash']);
+
+        if ($stored->count() !== count($chunks)) {
+            return false;
+        }
+
+        return $stored->every(function (DossierChunk $storedChunk, int $index) use ($chunks): bool {
+            $expected = $chunks[$index] ?? null;
+
+            return is_array($expected)
+                && $storedChunk->chunk_index === $expected['chunk_index']
+                && hash_equals($storedChunk->content_hash, $expected['content_hash']);
+        });
     }
 
     /**

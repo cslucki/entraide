@@ -12,25 +12,33 @@
     // NOTE: a primary Manifesto designation (loops.manifesto_blog_post_id) is a future
     // dedicated task. We deliberately do NOT auto-pick the first linked BlogPost as "the
     // Manifesto" here, to avoid presenting an arbitrary article as the reference document.
-    // Per-card accent (icon tile) to echo the mockup's calm colour coding.
-    $cardAccents = [
-        'core.ai_summary' => 'bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300',
-        'core.manifesto' => 'bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300',
-        'core.roadmap' => 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300',
-        'core.members' => 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300',
-    ];
     $loopMembers = $currentLoop->members->where('status', 'active')->sortBy(fn ($m) => match ($m->role) {
         'owner' => 0, 'moderator' => 1, default => 2,
     });
     $inviteAction = ($_org && request()->routeIs('organization.*') && Route::has('organization.points.invitation.send'))
         ? route('organization.points.invitation.send', ['organization' => $_org])
         : route('points.invitation.send');
-    $canUseWorkspaceCards = $isMember || (bool) auth()->user()?->is_admin;
-    $workspaceCards = collect(config('loop_cards.cards', []))
-        ->filter(fn ($card) => (bool) ($card['default_enabled'] ?? false))
-        ->when(! $canUseWorkspaceCards, fn ($cards) => $cards->filter(fn () => false))
-        ->sortBy('order')
+    $loopInvitationAction = ($_org && request()->routeIs('organization.*') && Route::has('organization.loops.invitations.store'))
+        ? route('organization.loops.invitations.store', ['organization' => $_org, 'loop' => $currentLoop])
+        : route('loops.invitations.store', $currentLoop);
+    // Les panneaux rendus a droite : la grille, plus le cadre permanent et les
+    // actions ChatLoop, dont les boutons d'ouverture vivent ailleurs depuis
+    // TASK-1090. La mecanique du panneau ne change pas — seuls les points
+    // d'entree ont demenage.
+    $panelCards = collect($workspaceCards)
+        ->concat($frameCards ?? collect())
+        ->concat($chatActionCards ?? collect())
+        ->unique('key')
         ->values();
+    // $workspaceCards is resolved by LoopController::show(). It used to be built
+    // here from the global catalogue filtered on `default_enabled`, so every Loop
+    // showed every card whatever its own composition — and three of them opened
+    // on an empty panel because `requires_card` denied the read. The view no
+    // longer decides what a Loop contains.
+    //
+    // Order comes from the catalogue (`order`), applied by activeCardsFor():
+    // `loop_cards` carries no position column, so there is no per-Loop ordering
+    // to preserve.
 @endphp
 
 @push('head')
@@ -86,26 +94,32 @@
     }
 
     /* Left card: ChatLoop thread + composer (cream, calm) */
+    /* Les couleurs viennent des jetons de theme, comme le reste du site. En dur,
+       cet ecran restait beige quel que soit le theme choisi — le seul du produit
+       a ne pas suivre. */
     .chatloop-thread-panel {
         min-height: 0;
         display: flex;
         flex-direction: column;
         flex: 1 1 auto;
-        background: linear-gradient(180deg, #FBF9F3, #FCFAF5);
+        /* --bp-panel, pas --bp-surface-soft : dans le theme zen ce dernier vaut
+           la couleur de bordure (#DDE3F0), ce qui donnait un panneau bleu-gris
+           sur une page vert d'eau. Les deux panneaux sont des cartes posees sur
+           la page teintee — c'est le motif du reste du produit. */
+        background: var(--bp-panel);
     }
-    .dark .chatloop-thread-panel { background: #111827; }
 
     /* Right card: active tool panel (white) — mobile overlay by default */
     .chatloop-side-panel {
         display: flex;
         flex-direction: column;
-        background: #fff;
+        background: var(--bp-panel);
         position: absolute;
         inset: 0;
         z-index: 20;
         box-shadow: 0 24px 56px -18px rgba(20, 24, 60, .45);
     }
-    .dark .chatloop-side-panel { background: #0b1220; }
+
 
     .chatloop-splitter { display: none; }
 
@@ -120,13 +134,12 @@
         /* Card styling on each child */
         .chatloop-thread-panel,
         .chatloop-side-panel {
-            border: 1px solid rgb(229 231 235);
+            border: 1px solid var(--bp-border);
             border-radius: 24px;
             box-shadow: 0 1px 2px rgba(20, 24, 60, .05), 0 22px 50px -34px rgba(20, 24, 60, .34);
             overflow: hidden;
         }
-        .dark .chatloop-thread-panel,
-        .dark .chatloop-side-panel { border-color: rgb(55 65 81); }
+
         /* Side panel becomes a real grid cell (no longer an overlay) */
         .chatloop-side-panel {
             position: relative;
@@ -203,16 +216,25 @@
             }"
             x-effect="document.body.style.overflow = activeCard && window.matchMedia('(max-width: 1023px)').matches ? 'hidden' : ''"
             @keydown.escape.window="closeCard()"
+            {{-- Ouvrir une Card depuis ailleurs — le message ChatLoop qui annonce
+                 un Sondage, par exemple. Le nom de la Card est compare a celles
+                 que le workspace rend deja : un evenement portant une cle
+                 inconnue n'ouvre rien. --}}
+            @bp-open-loop-card.window="
+                if ($event.detail?.card && @js($panelCards->pluck('key')).includes($event.detail.card)) {
+                    activeCard = $event.detail.card; focus = 'none';
+                }
+            "
             x-bind:data-resizing="resizing ? 'true' : 'false'"
-            class="loops-show-container h-dvh flex flex-col bg-gray-100 dark:bg-gray-950"
+            class="loops-show-container h-dvh flex flex-col bg-[var(--bp-page)]"
             data-loop-workspace-shell
         >
 
         {{-- Topbar --}}
-        <div class="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div class="flex flex-nowrap items-center gap-2 border-b border-[var(--bp-border)] px-3 py-2.5 flex-shrink-0 sm:gap-3 sm:px-4">
             @php $backHome = app()->bound('current_organization') && app('current_organization')->isMonoLoop(); @endphp
             <a href="{{ $backHome ? route('home') : $_loopRoute('index') }}"
-               class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+               class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] text-[var(--bp-muted)] transition hover:text-[var(--bp-text)]"
                aria-label="{{ $backHome ? __('loops.back_home') : __('loops.back_to_loops') }}">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
@@ -221,18 +243,23 @@
             <div class="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
                 <div class="min-w-0 flex-1">
                     <div class="flex min-w-0 items-start gap-2">
-                        <h1 class="truncate text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $currentLoop->name }}</h1>
+                        <h1 class="truncate text-base font-semibold text-[var(--bp-text)] sm:text-lg">{{ $currentLoop->name }}</h1>
                         <span class="mt-0.5 inline-flex shrink-0 items-center rounded-full border px-1 py-px text-[8px] font-semibold uppercase tracking-wide {{ $currentLoop->isPublic() ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-300' : 'border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400' }}">
                             {{ $currentLoop->isPublic() ? __('loops.visibility_public') : __('loops.visibility_private') }}
                         </span>
                     </div>
                     @if($currentLoop->description)
-                        <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ $currentLoop->description }}</p>
+                        <p class="truncate text-xs text-[var(--bp-muted)]">{{ $currentLoop->description }}</p>
                     @endif
                 </div>
 
             </div>
+            @include('loops.partials.header-actions')
         </div>
+
+        @if($canArchiveLoop ?? false)
+            @include('loops.partials.archive-modal', ['impact' => $archiveImpact ?? []])
+        @endif
 
         {{-- Session messages --}}
         @if(session('success') && session('success') !== 'Message envoyé.')
@@ -258,6 +285,25 @@
              left ChatLoop card — see the .chatloop-thread-panel below — not a global
              strip above the workspace. --}}
 
+        @if($currentLoop->isArchived())
+            {{-- Une Boucle archivee reste ouverte a ceux qui pouvaient la voir.
+                 Le bandeau dit ce qui a change et ce qui n'a pas change : plus de
+                 contribution, mais rien de perdu. Sans lui, les boutons refuses
+                 par le serveur passeraient pour des pannes. --}}
+            <div class="mb-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-800/60 dark:bg-amber-900/20">
+                <p class="flex flex-wrap items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
+                    <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/></svg>
+                    {{ __('loops.archive_banner_title') }}
+                    @if($currentLoop->archived_at)
+                        <span class="text-xs font-normal text-amber-700 dark:text-amber-300">
+                            {{ __('loops.archived_since', ['date' => $currentLoop->archived_at->isoFormat('LL')]) }}
+                        </span>
+                    @endif
+                </p>
+                <p class="mt-1 text-xs leading-5 text-amber-800 dark:text-amber-200/90">{{ __('loops.archive_banner_body') }}</p>
+            </div>
+        @endif
+
         {{-- Workspace: neutral parent, two sibling cards (chat | splitter | side) --}}
         <section
             class="chatloop-workspace"
@@ -272,7 +318,7 @@
                 class="chatloop-thread-panel"
                 data-loop-workspace-chat
             >
-                @if($workspaceCards->isNotEmpty())
+                @if($workspaceCards->isNotEmpty() || ($chatActionCards ?? collect())->isNotEmpty())
                     <div class="flex-shrink-0 border-b border-gray-200 bg-white/90 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/90 sm:px-4">
                         @include('loops.partials.chat-tools')
                     </div>
@@ -280,7 +326,7 @@
                 @livewire('loop-chat', ['loop' => $currentLoop], key('loop-chat-'.$currentLoop->id))
             </div>
 
-            @if($workspaceCards->isNotEmpty())
+            @if($panelCards->isNotEmpty())
                 {{-- Resizable vertical splitter (desktop only, when a panel is open) --}}
                 <button
                     type="button"
@@ -318,8 +364,8 @@
 
                             {{-- Desktop: active tool title (docked card) --}}
                             <div class="hidden min-w-0 flex-1 lg:block">
-                                @foreach($workspaceCards as $card)
-                                    <p x-show="activeCard === @js($card['key'])" x-cloak class="truncate text-base font-bold tracking-tight text-gray-900 dark:text-gray-100">{{ __($card['label_key']) }}</p>
+                                @foreach($panelCards as $card)
+                                    <p x-show="activeCard === @js($card['key'])" x-cloak class="truncate text-base font-bold tracking-tight text-gray-900 dark:text-gray-100">{{ app(\App\Support\Loops\LoopCardRegistry::class)->labelFor($currentLoop, $card['key']) }}</p>
                                 @endforeach
                             </div>
 
@@ -348,67 +394,27 @@
                         </div>
 
                         <div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-                            @foreach($workspaceCards as $card)
+                            @foreach($panelCards as $card)
                                 <section x-show="activeCard === @js($card['key'])" x-cloak class="space-y-5">
-                                    @if($card['key'] === 'core.ai_summary')
-                                        <livewire:loop-ai-summary-card :loop="$currentLoop" :key="'loop-ai-summary-'.$currentLoop->id" lazy />
-                                    @elseif($card['key'] === 'core.manifesto')
-                                        {{-- Manifesto — designated primary BlogPost (lazy Livewire card) --}}
-                                        <livewire:loop-manifesto-card :loop="$currentLoop" :key="'loop-manifesto-'.$currentLoop->id" lazy />
-                                    @elseif($card['key'] === 'core.roadmap')
-                                        {{-- Roadmap — persistent (loop_roadmap_items), lazy Livewire card --}}
-                                        <livewire:loop-roadmap-card :loop="$currentLoop" :key="'loop-roadmap-'.$currentLoop->id" lazy />
-                                    @elseif($card['key'] === 'core.members')
-                                        {{-- Members list + email invitation --}}
-                                        <div class="space-y-4">
-                                            <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
-                                                <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">{{ __($card['label_key']) }}</p>
-                                                <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __('loops.members_count', ['count' => $loopMembers->count()]) }}</p>
-                                            </div>
+                                    {{-- Rendu pilote par le registre : plus aucune condition sur
+                                         une cle de Card ici. Une Card sans composant ni vue ne
+                                         rend rien plutot que d'ouvrir sur le vide, et aucune
+                                         chaine fournie par un utilisateur n'atteint Livewire —
+                                         le nom vient du catalogue, verifie par le registre.
 
-                                            @if($loopMembers->isEmpty())
-                                                <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
-                                                    {{ __($card['empty_title_key']) }}
-                                                </div>
-                                            @else
-                                                <ul class="space-y-2">
-                                                    @foreach($loopMembers as $member)
-                                                        @php
-                                                            $mUser = $member->user;
-                                                            $mAvatar = $mUser?->isDisplayableIn(currentOrganization()) ? $mUser?->avatar_url : null;
-                                                            $roleLabel = __('loops.members_role_'.($member->role ?: 'member'));
-                                                        @endphp
-                                                        <li class="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
-                                                            @if($mAvatar)
-                                                                <img src="{{ $mAvatar }}" alt="" class="h-8 w-8 shrink-0 rounded-full object-cover">
-                                                            @else
-                                                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-600 dark:bg-violet-500/20 dark:text-violet-300">{{ mb_strtoupper(mb_substr($mUser?->publicDisplayName() ?? '?', 0, 1)) }}</span>
-                                                            @endif
-                                                            <span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-800 dark:text-gray-100">{{ $mUser?->publicDisplayName() ?? 'BouclePro' }}</span>
-                                                            <span class="shrink-0 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">{{ $roleLabel }}</span>
-                                                        </li>
-                                                    @endforeach
-                                                </ul>
-                                            @endif
-
-                                            <div class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-                                                <p class="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
-                                                    <svg class="h-4 w-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg>
-                                                    {{ __('loops.members_invite_title') }}
-                                                </p>
-                                                <form method="POST" action="{{ $inviteAction }}" class="mt-3 space-y-2">
-                                                    @csrf
-                                                    <input type="email" name="recipient_email" required placeholder="{{ __('loops.members_invite_email_placeholder') }}"
-                                                           class="w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
-                                                    <input type="text" name="recipient_name" maxlength="255" placeholder="{{ __('loops.members_invite_name_placeholder') }}"
-                                                           class="w-full rounded-xl border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
-                                                    <button type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-700">
-                                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/></svg>
-                                                        {{ __('loops.members_invite_submit') }}
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        </div>
+                                         Le registre est interroge directement, sans passer par
+                                         une variable locale : la forme en ligne de la directive
+                                         PHP compile mal quand l'expression contient des
+                                         crochets, et laissait une balise ouverte jamais
+                                         refermee qui desarticulait tout le fichier a partir de
+                                         ce point. Le nom de cette directive n'est pas ecrit ici
+                                         non plus — les blocs bruts sont extraits avant que les
+                                         commentaires ne soient retires, donc le citer suffisait
+                                         a reproduire le defaut. --}}
+                                    @if($cardRegistry->componentFor($card['key']))
+                                        @livewire($cardRegistry->componentFor($card['key']), ['loop' => $currentLoop], key($card['key'].'-'.$currentLoop->id))
+                                    @elseif($cardRegistry->viewFor($card['key']))
+                                        @include($cardRegistry->viewFor($card['key']), ['card' => $card])
                                     @endif
                                 </section>
                             @endforeach

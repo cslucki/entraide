@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Category extends Model
@@ -36,6 +37,10 @@ class Category extends Model
         }
 
         if ($context === 'transactions' && $org && $org->transactions_naming === 'b2b') {
+            return $this->name_b2b;
+        }
+
+        if ($context === 'loops' && $org && $org->loops_naming === 'b2b') {
             return $this->name_b2b;
         }
 
@@ -70,5 +75,11 @@ class Category extends Model
     public function blogPosts(): HasMany
     {
         return $this->hasMany(BlogPost::class, 'category_id');
+    }
+
+    /** Loops tagged with this domain (TASK-1076). */
+    public function loops(): BelongsToMany
+    {
+        return $this->belongsToMany(Loop::class, 'category_loop')->withTimestamps();
     }
 }

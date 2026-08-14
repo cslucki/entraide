@@ -5,6 +5,9 @@ namespace App\Services\Ai;
 use App\Models\AdminAiPrompt;
 use App\Models\MemberAiProfile;
 use App\Services\Ai\Persistence\AdminAiInteractionPersistence;
+use App\Support\Ai\AiCost;
+use App\Support\Ai\AiPricingCatalog;
+use App\Support\Ai\AiUsage;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
@@ -464,6 +467,11 @@ class MemberProfileAgentResponder
             'result_summary' => $response,
             'latency_ms' => $result['latency_ms'] ?? null,
             'metadata' => $metadata,
+            // TASK-1132 : ce site ne fournissait aucun coût, donc la persistance
+            // en fabriquait un (`?? 0.0`). Aucun usage n'étant remonté ici, le
+            // verdict vient du catalogue : nul et connu pour rule_based/ollama,
+            // inconnu pour un provider distant.
+            ...$this->costFor($result)->traceAttributes(),
         ]);
     }
 
@@ -480,7 +488,24 @@ class MemberProfileAgentResponder
             'content' => $question,
             'result_summary' => $response,
             'latency_ms' => $result['latency_ms'] ?? null,
+            ...$this->costFor($result)->traceAttributes(),
         ]);
+    }
+
+    /**
+     * Verdict économique d'une réponse de l'agent de profil (TASK-1132).
+     *
+     * Ce service ne remonte pas l'usage de ses appels : sans tokens observés, un
+     * provider distant produit un coût non mesurable, jamais un 0 inventé.
+     * Exposer l'usage suppose de changer le contrat de ce responder — P1-3.
+     */
+    private function costFor(array $result): AiCost
+    {
+        return AiPricingCatalog::cost(
+            $result['provider'] ?? null,
+            $result['model'] ?? null,
+            AiUsage::notObserved(),
+        );
     }
 
     private function collectHighlights(MemberAiProfile $profile, array $fields): array

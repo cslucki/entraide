@@ -1,4 +1,20 @@
 <x-admin-layout title="Boucles">
+    {{-- Deux repères, pas un dashboard. Le total du parc ne varie jamais avec
+         les filtres ; le second chiffre est le total de l'Organization choisie
+         dans le filtre — le filtre Type ne le change pas. --}}
+    <div class="mb-4 flex flex-wrap gap-8">
+        <div>
+            <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $totalLoops }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('loops.admin_loops_total_label') }}</div>
+        </div>
+        @if($organizationLoops !== null)
+        <div>
+            <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $organizationLoops }}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('loops.admin_loops_org_label', ['organization' => $selectedOrganization->name]) }}</div>
+        </div>
+        @endif
+    </div>
+
     <div class="flex flex-col gap-4 mb-4 lg:flex-row lg:items-center lg:justify-between">
         <p class="text-sm text-gray-500 dark:text-gray-400">
             Boucles filtrées par organisation. Par défaut : votre organisation.
@@ -11,8 +27,18 @@
                     <option value="{{ $org->id }}" {{ $selectedOrganizationId === $org->id ? 'selected' : '' }}>{{ $org->name }} {{ $org->is_default ? '(par défaut)' : '' }}</option>
                     @endforeach
                 </select>
+                {{-- Le filtre Type se combine au filtre Organization. Les
+                     options viennent du registre, jamais du fichier de
+                     configuration : les types crees s'y trouvent, dans la
+                     portee affichee seulement. --}}
+                <select name="type" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                    <option value="">{{ __('loops.admin_loops_filter_all_types') }}</option>
+                    @foreach($typeOptions as $typeKey => $typeLabel)
+                    <option value="{{ $typeKey }}" @selected($selectedType === $typeKey)>{{ $typeLabel }}</option>
+                    @endforeach
+                </select>
                 <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Filtrer</button>
-                @if(request()->has('organization_id'))
+                @if(request()->has('organization_id') || request()->filled('type'))
                 <a href="{{ route('admin.loops') }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">Effacer</a>
                 @endif
             </form>
@@ -27,74 +53,91 @@
         <table class="w-full text-sm">
             <thead class="bg-gray-50 dark:bg-gray-700">
                 <tr>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Nom</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden sm:table-cell">Organisation</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden sm:table-cell">Visibilité</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden md:table-cell">Statut</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden lg:table-cell">Créateur</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Membres</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden md:table-cell">Dernière activité</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Boucle</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">État</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('loops.type_label') }}</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                 @forelse($loops as $orgLoop)
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
+                    {{-- Secondary information is folded into this cell rather than
+                         spread over eleven columns: the table was wider than the
+                         viewport and the Actions column fell off the screen. --}}
                     <td class="px-4 py-3">
-                        <div class="min-w-0">
-                            <p class="font-medium text-gray-900 dark:text-gray-100 truncate">{{ $orgLoop->name }}</p>
+                        <div class="min-w-0 max-w-md">
+                            <a href="{{ route('admin.loops.show', $orgLoop) }}"
+                               class="block truncate font-medium text-gray-900 transition hover:text-indigo-600 hover:underline dark:text-gray-100 dark:hover:text-indigo-400"
+                               title="Voir la Boucle">{{ $orgLoop->name }}</a>
                             @if($orgLoop->description)
-                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xs">{{ Str::limit($orgLoop->description, 80) }}</p>
+                                <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ Str::limit($orgLoop->description, 70) }}</p>
                             @endif
+                            <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-gray-400">
+                                @if($orgLoop->organization)
+                                    <a href="{{ route('admin.organizations.edit', $orgLoop->organization) }}"
+                                       class="rounded bg-indigo-50 px-1.5 py-0.5 font-medium text-indigo-700 hover:underline dark:bg-indigo-900/40 dark:text-indigo-300">
+                                        {{ $orgLoop->organization->name }}
+                                    </a>
+                                @endif
+                                <span>{{ $orgLoop->active_members_count }} membre{{ $orgLoop->active_members_count !== 1 ? 's' : '' }}</span>
+                                <span>· {{ $orgLoop->invitations_count }} {{ mb_strtolower(__('loops.invitations_sent_count')) }}@if($orgLoop->pending_invitations_count) ({{ $orgLoop->pending_invitations_count }} en attente)@endif</span>
+                                <span class="cursor-help" title="{{ $orgLoop->cards->where('enabled', true)->map->label()->implode(', ') ?: '—' }}">
+                                    · {{ $orgLoop->enabled_cards_count }} {{ mb_strtolower(__('loops.cards_linked')) }}
+                                </span>
+                                @if($orgLoop->creator)
+                                    <span>· {{ $orgLoop->creator->full_name }}</span>
+                                @endif
+                                @php $lastMsg = $orgLoop->messages->first(); @endphp
+                                @if($lastMsg?->created_at)
+                                    <span>· {{ $lastMsg->created_at->diffForHumans() }}</span>
+                                @endif
+                            </p>
                         </div>
                     </td>
-                    <td class="px-4 py-3 hidden sm:table-cell">
-                        @if($orgLoop->organization)
-                            <a href="{{ route('admin.organizations.edit', $orgLoop->organization) }}" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 hover:underline">
-                                {{ $orgLoop->organization->name }}
-                            </a>
-                        @else
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">Organisation inconnue</span>
-                        @endif
-                        <p class="mt-1 max-w-[160px] truncate font-mono text-[11px] text-gray-400 dark:text-gray-500">{{ $orgLoop->organization_id }}</p>
-                    </td>
-                    <td class="px-4 py-3 hidden sm:table-cell">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                            {{ $orgLoop->isPublic() ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' }}">
+
+                    {{-- Visibility and status share one column: two badges, not two. --}}
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium {{ $orgLoop->isPublic() ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' }}">
                             {{ $orgLoop->isPublic() ? 'Publique' : 'Privée' }}
                         </span>
+                        <span class="mt-1 block text-[11px] {{ $orgLoop->status === 'active' ? 'text-green-700 dark:text-green-300' : 'text-gray-500 dark:text-gray-400' }}">
+                            {{ $orgLoop->status === 'active' ? 'Active' : ($orgLoop->status === 'archived' ? 'Archivée' : $orgLoop->status) }}
+                        </span>
                     </td>
+
                     <td class="px-4 py-3 hidden md:table-cell">
-                        @if($orgLoop->status === 'active')
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
-                        @elseif($orgLoop->status === 'archived')
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Archivée</span>
-                        @else
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">{{ $orgLoop->status }}</span>
-                        @endif
-                    </td>
-                    <td class="px-4 py-3 hidden lg:table-cell text-xs text-gray-600 dark:text-gray-400">
-                        @if($orgLoop->creator)
-                        <p class="font-medium text-gray-900 dark:text-gray-100">{{ $orgLoop->creator->full_name }}</p>
-                        <p class="text-xs text-gray-500 truncate max-w-[140px]">{{ $orgLoop->creator->email }}</p>
-                        @else
-                        <span class="text-gray-400">—</span>
-                        @endif
-                    </td>
-                    <td class="px-4 py-3">
-                        <span class="font-medium text-gray-900 dark:text-gray-100">{{ $orgLoop->active_members_count }}</span>
-                        <span class="text-xs text-gray-500 dark:text-gray-400"> membre{{ $orgLoop->active_members_count !== 1 ? 's' : '' }}</span>
-                    </td>
-                    <td class="px-4 py-3 hidden md:table-cell text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                        @php $lastMsg = $orgLoop->messages->first(); @endphp
-                        @if($lastMsg?->created_at)
-                        {{ $lastMsg->created_at->diffForHumans() }}
-                        @else
-                        <span class="text-gray-400">—</span>
-                        @endif
+                        {{-- Inline form: changing the type applies the preset, which
+                             only ever adds missing cards. Nothing is removed. --}}
+                        @php
+                            $registry = app(\App\Support\Loops\LoopTypeRegistry::class);
+                            $currentType = $registry->resolve($orgLoop->type);
+                            // Choices, plus whatever this Loop already carries: a
+                            // type withdrawn from the offer must not disappear from
+                            // the Loop that has it.
+                            $choices = $registry->selectableFor($orgLoop->type);
+                        @endphp
+                        <form method="POST" action="{{ route('admin.loops.type.update', $orgLoop) }}">
+                            @csrf @method('PUT')
+                            <select name="type" onchange="this.form.submit()"
+                                    class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                                @foreach($choices as $key => $definition)
+                                    <option value="{{ $key }}" @selected($currentType === $key)>
+                                        {{-- label(), jamais la definition : un type cree n'a
+                                             pas de label_key, et le mot surcharge de
+                                             l'Organization doit se voir ici aussi. --}}
+                                        {{ $registry->label($key, $orgLoop->organization) }}@unless($registry->isAvailable($key)) — {{ __('loops.types_admin_unavailable') }}@endunless
+                                    </option>
+                                @endforeach
+                            </select>
+                        </form>
                     </td>
                     <td class="px-4 py-3">
                         <div class="flex gap-2 items-center">
+                            {{-- The name itself opens the overview; the Actions column
+                                 keeps only what acts. Workspace is gone from here: it
+                                 needs an active membership and 404'd for an admin who
+                                 is not one. --}}
                             <a href="{{ route('admin.loops.edit', $orgLoop) }}" class="text-xs font-medium text-indigo-600 hover:underline">Modifier</a>
                             <a href="{{ route('admin.loops.files', $orgLoop) }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Fichiers</a>
                             @if($orgLoop->isActive())
@@ -120,7 +163,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                    <td colspan="4" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                         Aucune boucle dans cette Organisation.
                     </td>
                 </tr>

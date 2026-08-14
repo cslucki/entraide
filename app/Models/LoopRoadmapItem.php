@@ -33,6 +33,9 @@ class LoopRoadmapItem extends Model
     protected $fillable = [
         'organization_id',
         'loop_id',
+        // La Decision qui a lance cette action, s'il y en a une. Nullable :
+        // l'immense majorite des items n'en vient d'aucune.
+        'loop_decision_id',
         'title',
         'description',
         'status',
@@ -41,6 +44,12 @@ class LoopRoadmapItem extends Model
         'created_by',
         'completed_at',
     ];
+
+    /** La Decision qui a lance cette action, s'il y en a une. */
+    public function decision(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(LoopDecision::class, 'loop_decision_id');
+    }
 
     protected function casts(): array
     {
@@ -76,9 +85,18 @@ class LoopRoadmapItem extends Model
             ->orderBy('name');
     }
 
+    /**
+     * Le fil de l'item, du plus recent au plus ancien.
+     *
+     * Le departage par identifiant n'est pas cosmetique : `created_at` est a la
+     * seconde sous PostgreSQL, et deux messages ecrits dans la meme seconde
+     * s'ordonnaient au hasard. `LoopRoadmapExtrasTest > messages relation and
+     * ordering` echouait **deja** sur PostgreSQL avant cette tache ; il passe
+     * maintenant.
+     */
     public function messages(): HasMany
     {
-        return $this->hasMany(LoopRoadmapItemMessage::class)->latest();
+        return $this->hasMany(LoopRoadmapItemMessage::class)->latest()->orderByDesc('id');
     }
 
     public function creator(): BelongsTo

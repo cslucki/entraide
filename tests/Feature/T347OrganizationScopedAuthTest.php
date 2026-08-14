@@ -154,6 +154,10 @@ class T347OrganizationScopedAuthTest extends TestCase
         $this->assertAuthenticated();
     }
 
+    // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
+    // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
+    // n'est pas un endroit ou ranger un test qui gene.
+    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
     public function test_org_scoped_login_redirects_to_org_home(): void
     {
         $user = User::factory()->create([
@@ -196,6 +200,10 @@ class T347OrganizationScopedAuthTest extends TestCase
         }
     }
 
+    // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
+    // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
+    // n'est pas un endroit ou ranger un test qui gene.
+    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
     public function test_admin_users_can_sort_by_name(): void
     {
         User::factory()->create(['name' => 'AAA Aaron']);

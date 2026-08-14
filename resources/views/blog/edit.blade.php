@@ -85,7 +85,52 @@
             <div class="flex-1 min-w-0">
 
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">{{ __('blog.heading_edit') }}</h1>
+                    {{-- Barre d'outils de l'article.
+
+                         Le titre « Modifier l'article » a disparu : on devine
+                         qu'on edite. A sa place, les quatre Cards qui encombraient
+                         la colonne laterale — Boucle, Dossier, Taches, Co-auteurs —
+                         deviennent des boutons qui ouvrent chacun un pop-up.
+
+                         Un badge apparait des qu'un lien existe, et le badge ouvre
+                         le meme pop-up que le bouton : on clique la ou on regarde. --}}
+                    {{-- Une barre de boutons, sans badge.
+
+                         Le nom du Dossier et l'appartenance a la serie ont ete
+                         essayes en badge texte puis en pastille : le premier
+                         allongeait la barre, le second n'apprenait pas
+                         grand-chose. L'etat vit dans les pop-ups, ou on a la
+                         place de le lire. --}}
+                    <div class="mb-6 flex flex-wrap items-center gap-2">
+                        <button type="button" @click="$store.editorPanels.toggle('boucle')"
+                                :class="$store.editorPanels.isOpen('boucle') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"
+                                class="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <svg class="h-3.5 w-3.5 text-red-500 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                            {{ __('blog.sidebar_boucle') }}
+                        </button>
+
+                        <button type="button" @click="$store.editorPanels.toggle('dossier')"
+                                :class="$store.editorPanels.isOpen('dossier') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"
+                                class="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <svg class="h-3.5 w-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
+                            {{ __('blog.sidebar_dossier') }}
+                        </button>
+
+                        <button type="button" @click="$store.editorPanels.toggle('todo')"
+                                :class="$store.editorPanels.isOpen('todo') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"
+                                class="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <svg class="h-3.5 w-3.5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg>
+                            {{ __('blog.sidebar_todo') }}
+                        </button>
+
+                        <button type="button" @click="$store.editorPanels.toggle('coauthors')"
+                                :class="$store.editorPanels.isOpen('coauthors') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"
+                                class="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition hover:bg-gray-50 dark:hover:bg-gray-700"
+                                :title="@js(__('blog.sidebar_co_ecriture'))">
+                            <svg class="h-3.5 w-3.5 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/></svg>
+                            {{ __('blog.sidebar_co_ecriture') }}
+                        </button>
+                    </div>
 
             <form action="{{ $_blogRoute('update', ['post' => $post]) }}" method="POST" enctype="multipart/form-data" class="space-y-6">
                 @csrf @method('PUT')
@@ -285,6 +330,13 @@
                     <a href="{{ $_blogRoute($backRouteName, ['post' => $post]) }}" class="rounded-lg border border-gray-300 px-3 py-2 text-center text-xs leading-snug text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 sm:px-6 sm:text-sm">
                         {{ __('blog.btn_cancel') }}
                     </a>
+                    {{-- Snapshot : meme forme qu'« Annuler », une autre couleur.
+                         `type="button"` est indispensable — dans un <form>, un
+                         bouton sans type soumet l'article. --}}
+                    <button type="button" @click="$store.editorPanels.toggle('snapshot')"
+                            class="rounded-lg border border-violet-300 px-3 py-2 text-center text-xs leading-snug text-violet-700 transition hover:bg-violet-50 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-950/40 sm:px-6 sm:text-sm">
+                        {{ __('blog.sidebar_snapshot') }}
+                    </button>
                 </div>
             </form>
 
@@ -314,6 +366,8 @@
         :style="isDesktop ? `width: ${width}px` : ''"
         class="flex w-full shrink-0 flex-col space-y-2 md:w-auto"
     >
+                {{-- boucle : deplacee dans un pop-up (TASK-1085). Etat Alpine inchange. --}}
+                <x-editor-panel name="boucle" :title="__('blog.sidebar_boucle')" width="max-w-2xl">
                 {{-- Boucle card --}}
                 <div
                     x-data="blogLoopCard({
@@ -343,7 +397,7 @@
                     class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
                 >
                     <button
-                        @click="toggle()"
+                        x-show="false" @click="toggle()"
                         class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
                     >
                         <span class="flex items-center gap-1.5">
@@ -444,6 +498,10 @@
                     </div>
                 </div>
                 {{-- /Boucle card --}}
+                </x-editor-panel>
+
+                {{-- dossier : deplacee dans un pop-up (TASK-1085). Etat Alpine inchange. --}}
+                <x-editor-panel name="dossier" :title="__('blog.sidebar_dossier')" width="max-w-2xl">
 
                 {{-- Dossier card --}}
                 <div
@@ -456,6 +514,12 @@
                         i18n: {
                             sidebar: @js(__('blog.sidebar_dossier')),
                             notClassified: @js(__('blog.dossier_not_classified')),
+                            openDossier: @js(__('blog.dossier_open')),
+                            seriesRoot: @js(__('blog.dossier_series_root')),
+                            seriesAnnex: @js(__('blog.dossier_series_annex')),
+                            seriesRootShort: @js(__('blog.dossier_series_root_short')),
+                            seriesOpen: @js(__('blog.dossier_series_open')),
+                            seriesCurrent: @js(__('blog.dossier_series_current')),
                             selectPlaceholder: @js(__('blog.dossier_select_placeholder')),
                             classify: @js(__('blog.dossier_classify')),
                             move: @js(__('blog.dossier_move')),
@@ -479,7 +543,7 @@
                     class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
                 >
                     <button
-                        @click="toggle()"
+                        x-show="false" @click="toggle()"
                         class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
                     >
                         <span class="flex items-center gap-1.5">
@@ -525,13 +589,94 @@
                         <template x-if="!loading && currentDossier">
                             <div class="rounded-lg border border-amber-100 bg-amber-50/60 p-2 dark:border-amber-900/60 dark:bg-amber-950/10">
                                 <div class="flex items-center justify-between gap-2">
-                                    <span class="truncate text-xs font-semibold text-gray-800 dark:text-gray-100" x-text="currentDossier.name"></span>
+                                    {{-- Le nom ouvre le Dossier. Sans ce lien il fallait
+                                         repasser par « Mes dossiers » et le retrouver. --}}
+                                    <a :href="currentDossier.url" target="_blank" rel="noopener"
+                                       class="inline-flex min-w-0 items-center gap-1 truncate text-xs font-semibold text-gray-800 underline-offset-2 transition hover:text-amber-700 hover:underline dark:text-gray-100 dark:hover:text-amber-300"
+                                       :title="i18n.openDossier">
+                                        <span class="truncate" x-text="currentDossier.name"></span>
+                                        <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/>
+                                        </svg>
+                                    </a>
                                     <button type="button" @click="detach()"
                                         class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition disabled:opacity-50"
                                         :disabled="saving">
                                         <span x-text="i18n.detach"></span>
                                     </button>
                                 </div>
+
+                                {{-- La Serie est une fonctionnalite du Dossier : sans cette
+                                     mention, l'auteur n'a aucun moyen de savoir qu'il ecrit
+                                     dans une serie, ni laquelle. --}}
+                                <template x-if="currentDossier.series">
+                                    <div class="mt-1">
+                                        <p class="flex flex-wrap items-center gap-1 text-[11px] text-gray-600 dark:text-gray-300">
+                                            <span class="rounded bg-indigo-100 px-1.5 py-0.5 font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+                                                  x-text="currentDossier.series.is_root ? i18n.seriesRoot : i18n.seriesAnnex"></span>
+                                            <span class="min-w-0 truncate" x-text="currentDossier.series.root_title"></span>
+                                            {{-- Le rang, seulement quand il apprend quelque chose. --}}
+                                            <span x-show="!currentDossier.series.is_root && currentDossier.series.position"
+                                                  class="shrink-0 tabular-nums text-gray-400"
+                                                  x-text="`${currentDossier.series.position}/${currentDossier.series.total}`"></span>
+                                        </p>
+
+                                        {{-- Passer d'un texte au suivant sans repasser par le
+                                             Dossier. Le precedent et le suivant sont calcules par
+                                             le serveur depuis l'ordre persiste : la vue ne le
+                                             recalcule pas, elle l'affiche. --}}
+                                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                            <a x-show="currentDossier.series.previous"
+                                               :href="currentDossier.series.previous?.url"
+                                               :title="currentDossier.series.previous?.title"
+                                               class="inline-flex min-w-0 items-center gap-1 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-gray-600 transition hover:border-amber-300 hover:text-amber-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:text-amber-200">
+                                                <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+                                                <span class="max-w-[7rem] truncate" x-text="currentDossier.series.previous?.title"></span>
+                                            </a>
+
+                                            <a x-show="currentDossier.series.next"
+                                               :href="currentDossier.series.next?.url"
+                                               :title="currentDossier.series.next?.title"
+                                               class="inline-flex min-w-0 items-center gap-1 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-gray-600 transition hover:border-amber-300 hover:text-amber-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:text-amber-200">
+                                                <span class="max-w-[7rem] truncate" x-text="currentDossier.series.next?.title"></span>
+                                                <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+                                            </a>
+
+                                            <a :href="currentDossier.series.url"
+                                               class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 underline-offset-2 transition hover:underline dark:text-amber-300"
+                                               x-text="i18n.seriesOpen"></a>
+                                        </div>
+
+                                        {{-- Toute la serie, pas seulement sa racine.
+                                             L'auteur ecrit une partie d'un ensemble : il doit
+                                             pouvoir voir cet ensemble et passer d'un texte a
+                                             l'autre sans repasser par le Dossier. --}}
+                                        {{-- Une serie reduite au seul article courant n'apprend
+                                             rien : la liste ne s'affiche qu'a partir de deux. --}}
+                                        <ul x-show="(currentDossier.series.articles || []).length > 1"
+                                            class="mt-1.5 space-y-0.5 border-t border-amber-100 pt-1.5 dark:border-amber-900/60">
+                                            <template x-for="article in currentDossier.series.articles" :key="article.id">
+                                                <li>
+                                                    {{-- `:href` a null retire l'attribut : un <a> sans
+                                                         href n'est ni cliquable ni focusable, ce qui est
+                                                         exactement le comportement voulu pour l'article
+                                                         courant et pour un brouillon sans slug. --}}
+                                                    <a :href="article.url && !article.is_current ? article.url : null"
+                                                       class="flex items-center gap-1.5 rounded px-1 py-0.5 text-[11px]"
+                                                       :class="article.is_current
+                                                            ? 'font-semibold text-amber-800 dark:text-amber-200'
+                                                            : 'text-gray-600 transition hover:bg-amber-100/60 hover:text-amber-800 dark:text-gray-300 dark:hover:bg-amber-900/20 dark:hover:text-amber-200'">
+                                                        <span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide"
+                                                              :class="article.is_root ? 'text-indigo-600 dark:text-indigo-300' : 'text-gray-400'"
+                                                              x-text="article.is_root ? i18n.seriesRootShort : '·'"></span>
+                                                        <span class="min-w-0 truncate" x-text="article.title"></span>
+                                                        <span x-show="article.is_current" class="shrink-0 text-[9px] text-amber-600 dark:text-amber-300" x-text="i18n.seriesCurrent"></span>
+                                                    </a>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </div>
+                                </template>
                                 <div class="mt-1.5 flex gap-2">
                                     <select x-model="selectedDossierId"
                                         class="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-amber-500">
@@ -577,6 +722,10 @@
                     </div>
                 </div>
                 {{-- /Dossier card --}}
+                </x-editor-panel>
+
+                {{-- todo : deplacee dans un pop-up (TASK-1085). Etat Alpine inchange. --}}
+                <x-editor-panel name="todo" :title="__('blog.sidebar_todo')" width="max-w-2xl">
 
                 {{-- Todo card --}}
                 <div
@@ -630,7 +779,7 @@
                     class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
                 >
                     <button
-                        @click="toggle()"
+                        x-show="false" @click="toggle()"
                         class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
                     >
                         <span class="flex items-center gap-1.5">
@@ -850,6 +999,8 @@
                         </template>
                     </div>
                 </div>
+                </x-editor-panel>
+
                 {{-- /Todo card --}}
 
                 {{-- Plan card --}}
@@ -1037,6 +1188,121 @@
                     </div>
                 </div>
                 {{-- /Questionner selection card --}}
+
+        {{-- Explorer notes card --}}
+        <div
+            x-data="blogExplorerCard({
+                indexUrl: @js($_blogRoute('explorer.notes.index', ['post' => $post])),
+                updateUrlBase: @js($_blogRoute('explorer.notes.update', ['post' => $post, 'note' => '__NOTE_ID__'])),
+                destroyUrlBase: @js($_blogRoute('explorer.notes.destroy', ['post' => $post, 'note' => '__NOTE_ID__'])),
+                csrfToken: @js(csrf_token()),
+                i18n: {
+                    loadError: @js(__('blog.explorer_note_save_error')),
+                    noteSaved: @js(__('blog.explorer_note_saved')),
+                    noteSaveError: @js(__('blog.explorer_note_save_error')),
+                    noteDeleted: @js(__('blog.explorer_note_deleted')),
+                    deleteError: @js(__('blog.explorer_note_delete_error')),
+                    noNotes: @js(__('blog.explorer_no_notes')),
+                    sidebarTitle: @js(__('blog.sidebar_notes')),
+                    noteFrom: @js(__('blog.explorer_note_from')),
+                    notePlaceholder: @js(__('blog.explorer_note_placeholder')),
+                    btnEdit: @js(__('blog.explorer_note_edit')),
+                    btnSave: @js(__('blog.explorer_note_save')),
+                    btnCancel: @js(__('blog.explorer_note_cancel')),
+                    btnDelete: @js(__('blog.explorer_note_delete')),
+                    deleteConfirm: @js(__('blog.explorer_note_delete_confirm')),
+                },
+            })"
+            class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+        >
+            <button
+                @click="toggle()"
+                class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
+            >
+                <span class="flex items-center gap-1.5">
+                    <svg class="w-3 h-3 text-purple-500 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.8 9.8 0 01-3.55-.644L3 21l1.395-3.72A7.95 7.95 0 013 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/>
+                    </svg>
+                    <span x-text="i18n.sidebarTitle || 'Notes'"></span>
+                </span>
+                <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': open }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+
+            <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(24rem,calc(100vh-8rem))] overflow-y-auto">
+                <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
+                <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
+
+                <template x-if="loading && notes.length === 0">
+                    <div class="flex items-center justify-center py-4">
+                        <svg class="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    </div>
+                </template>
+
+                <template x-if="!loading && notes.length === 0">
+                    <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.noNotes || 'Aucune note.'"></p>
+                </template>
+
+                <template x-for="note in notes" :key="note.id">
+                    <div class="rounded-lg border border-gray-100 bg-gray-50/70 p-2 dark:border-gray-700 dark:bg-gray-900/50 group transition" :class="highlightedId === note.id ? 'ring-2 ring-purple-400 bg-purple-50/70 dark:bg-purple-900/20' : ''">
+                        <div class="flex items-start justify-between gap-2">
+                            <button type="button" @click="openNote(note)" class="min-w-0 flex-1 text-left">
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-1" x-text="(i18n.noteFrom || 'Note du :date').replace(':date', note.created_at || '') + (note.user_name ? ' · ' + note.user_name : '')"></p>
+                                <p class="text-xs text-gray-700 dark:text-gray-300 leading-relaxed line-clamp-3" x-text="truncate(note.note_content, 150)"></p>
+                            </button>
+                            <button type="button" @click="if(confirm(i18n.deleteConfirm || 'Supprimer cette note ?')) deleteNote(note.id)" :disabled="deletingId === note.id"
+                                class="shrink-0 text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 transition opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                                :title="i18n.btnDelete || 'Supprimer'">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <div x-show="selectedNote" x-cloak class="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 md:items-center" @keydown.escape.window="closeNoteModal()">
+                <div class="flex h-[82dvh] max-h-[82dvh] w-full flex-col rounded-t-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:mx-4 md:max-w-[860px] md:rounded-xl" @click.stop>
+                    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-700">
+                        <div>
+                            <h3 class="text-base font-bold text-gray-900 dark:text-gray-100" x-text="i18n.sidebarTitle || 'Questionnements'"></h3>
+                            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400" x-text="selectedNote ? (i18n.noteFrom || 'Note du :date').replace(':date', selectedNote.created_at || '') : ''"></p>
+                        </div>
+                        <button type="button" @click="closeNoteModal()" class="text-gray-400 transition hover:text-gray-600 dark:hover:text-gray-300">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto bg-slate-50/80 p-5 dark:bg-gray-900/40">
+                        <template x-if="selectedNote && !editingNote">
+                            <article class="bp-questioning-reader mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800/95" x-html="renderQuestioning(selectedNote.note_content)"></article>
+                        </template>
+                        <template x-if="selectedNote && editingNote">
+                            <div class="rounded-lg border border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800">
+                                <div class="flex flex-wrap items-center gap-1 border-b border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/60">
+                                    <button type="button" @click="noteCommand('bold')" :class="isNoteActive('bold') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">B</button>
+                                    <button type="button" @click="noteCommand('italic')" :class="isNoteActive('italic') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs italic hover:bg-gray-100 dark:hover:bg-gray-700">I</button>
+                                    <span class="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-700"></span>
+                                    <button type="button" @click="noteCommand('heading3')" :class="isNoteActive('heading', { level: 3 }) ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">Titre</button>
+                                    <button type="button" @click="noteCommand('bulletList')" :class="isNoteActive('bulletList') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700">Liste</button>
+                                </div>
+                                <div x-ref="questionEditor" class="bp-note-editor min-h-[420px] px-4 py-3 text-sm leading-relaxed text-gray-900 dark:text-gray-100"></div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="flex items-center justify-between border-t border-gray-100 px-5 py-3 dark:border-gray-700">
+                        <button type="button" @click="if(confirm(i18n.deleteConfirm || 'Supprimer cette note ?')) deleteNote(selectedNote.id)" :disabled="!selectedNote || deletingId === selectedNote?.id || savingNote" class="px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20" x-text="i18n.btnDelete || 'Supprimer'"></button>
+                        <div class="flex items-center gap-2">
+                            <button type="button" x-show="!editingNote" @click="startEditNote()" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700" x-text="i18n.btnEdit || 'Modifier'"></button>
+                            <button type="button" x-show="editingNote" @click="cancelEditNote()" :disabled="savingNote" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-700" x-text="i18n.btnCancel || 'Annuler'"></button>
+                            <button type="button" x-show="editingNote" @click="saveSelectedNote()" :disabled="savingNote" class="rounded-lg bg-purple-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-purple-700 disabled:opacity-50" x-text="savingNote ? '...' : (i18n.btnSave || 'Enregistrer')"></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{-- /Explorer notes card --}}
 
                 {{-- Annotations card --}}
                 <div
@@ -1515,6 +1781,8 @@
         </div>
     </div>
 
+    {{-- coauthors : deplacee dans un pop-up (TASK-1085). Etat Alpine inchange. --}}
+    <x-editor-panel name="coauthors" :title="__('blog.sidebar_co_ecriture')" width="max-w-xl">
     {{-- Co-authors card --}}
         <div
             x-data="blogCoAuthorCard({
@@ -1544,7 +1812,7 @@
             class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
         >
             <button
-                @click="toggle()"
+                x-show="false" @click="toggle()"
                 class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
             >
                 <span class="flex items-center gap-1.5">
@@ -1739,8 +2007,12 @@
                 <p class="text-[10px] leading-4 text-gray-400 dark:text-gray-500" x-text="i18n.hint"></p>
             </div>
         </div>
+    </x-editor-panel>
+
         {{-- /Co-authors card --}}
 
+        {{-- snapshot : deplacee dans un pop-up (TASK-1085). Etat Alpine inchange. --}}
+        <x-editor-panel name="snapshot" :title="__('blog.sidebar_snapshot')" width="max-w-2xl">
         {{-- Snapshot card --}}
         <div
             x-data="blogSnapshotCard({
@@ -1759,6 +2031,7 @@
             class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
         >
             <button
+                x-show="false"
                 @click="toggle()"
                 class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
             >
@@ -1777,7 +2050,7 @@
                 </svg>
             </button>
 
-            <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(34rem,calc(100vh-8rem))] overflow-y-auto">
+            <div x-show="true" class="px-3 pb-3 space-y-3 max-h-[min(34rem,calc(100vh-8rem))] overflow-y-auto">
                 {{-- Success message --}}
                 <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
                 {{-- Error message --}}
@@ -1944,121 +2217,7 @@
             </div>
         </div>
         {{-- /Snapshot card --}}
-
-        {{-- Explorer notes card --}}
-        <div
-            x-data="blogExplorerCard({
-                indexUrl: @js($_blogRoute('explorer.notes.index', ['post' => $post])),
-                updateUrlBase: @js($_blogRoute('explorer.notes.update', ['post' => $post, 'note' => '__NOTE_ID__'])),
-                destroyUrlBase: @js($_blogRoute('explorer.notes.destroy', ['post' => $post, 'note' => '__NOTE_ID__'])),
-                csrfToken: @js(csrf_token()),
-                i18n: {
-                    loadError: @js(__('blog.explorer_note_save_error')),
-                    noteSaved: @js(__('blog.explorer_note_saved')),
-                    noteSaveError: @js(__('blog.explorer_note_save_error')),
-                    noteDeleted: @js(__('blog.explorer_note_deleted')),
-                    deleteError: @js(__('blog.explorer_note_delete_error')),
-                    noNotes: @js(__('blog.explorer_no_notes')),
-                    sidebarTitle: @js(__('blog.sidebar_notes')),
-                    noteFrom: @js(__('blog.explorer_note_from')),
-                    notePlaceholder: @js(__('blog.explorer_note_placeholder')),
-                    btnEdit: @js(__('blog.explorer_note_edit')),
-                    btnSave: @js(__('blog.explorer_note_save')),
-                    btnCancel: @js(__('blog.explorer_note_cancel')),
-                    btnDelete: @js(__('blog.explorer_note_delete')),
-                    deleteConfirm: @js(__('blog.explorer_note_delete_confirm')),
-                },
-            })"
-            class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
-        >
-            <button
-                @click="toggle()"
-                class="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition"
-            >
-                <span class="flex items-center gap-1.5">
-                    <svg class="w-3 h-3 text-purple-500 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.8 9.8 0 01-3.55-.644L3 21l1.395-3.72A7.95 7.95 0 013 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/>
-                    </svg>
-                    <span x-text="i18n.sidebarTitle || 'Notes'"></span>
-                </span>
-                <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': open }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-                </svg>
-            </button>
-
-            <div x-show="open" x-cloak class="px-3 pb-3 space-y-3 max-h-[min(24rem,calc(100vh-8rem))] overflow-y-auto">
-                <div x-show="success" x-cloak class="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded" x-text="success"></div>
-                <div x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded" x-text="error"></div>
-
-                <template x-if="loading && notes.length === 0">
-                    <div class="flex items-center justify-center py-4">
-                        <svg class="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                    </div>
-                </template>
-
-                <template x-if="!loading && notes.length === 0">
-                    <p class="text-xs text-gray-400 dark:text-gray-500 text-center py-2" x-text="i18n.noNotes || 'Aucune note.'"></p>
-                </template>
-
-                <template x-for="note in notes" :key="note.id">
-                    <div class="rounded-lg border border-gray-100 bg-gray-50/70 p-2 dark:border-gray-700 dark:bg-gray-900/50 group transition" :class="highlightedId === note.id ? 'ring-2 ring-purple-400 bg-purple-50/70 dark:bg-purple-900/20' : ''">
-                        <div class="flex items-start justify-between gap-2">
-                            <button type="button" @click="openNote(note)" class="min-w-0 flex-1 text-left">
-                                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-1" x-text="(i18n.noteFrom || 'Note du :date').replace(':date', note.created_at || '') + (note.user_name ? ' · ' + note.user_name : '')"></p>
-                                <p class="text-xs text-gray-700 dark:text-gray-300 leading-relaxed line-clamp-3" x-text="truncate(note.note_content, 150)"></p>
-                            </button>
-                            <button type="button" @click="if(confirm(i18n.deleteConfirm || 'Supprimer cette note ?')) deleteNote(note.id)" :disabled="deletingId === note.id"
-                                class="shrink-0 text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 transition opacity-0 group-hover:opacity-100 disabled:opacity-50"
-                                :title="i18n.btnDelete || 'Supprimer'">
-                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                            </button>
-                        </div>
-                    </div>
-                </template>
-            </div>
-
-            <div x-show="selectedNote" x-cloak class="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 md:items-center" @keydown.escape.window="closeNoteModal()">
-                <div class="flex h-[82dvh] max-h-[82dvh] w-full flex-col rounded-t-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:mx-4 md:max-w-[860px] md:rounded-xl" @click.stop>
-                    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-700">
-                        <div>
-                            <h3 class="text-base font-bold text-gray-900 dark:text-gray-100" x-text="i18n.sidebarTitle || 'Questionnements'"></h3>
-                            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400" x-text="selectedNote ? (i18n.noteFrom || 'Note du :date').replace(':date', selectedNote.created_at || '') : ''"></p>
-                        </div>
-                        <button type="button" @click="closeNoteModal()" class="text-gray-400 transition hover:text-gray-600 dark:hover:text-gray-300">
-                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                        </button>
-                    </div>
-
-                    <div class="flex-1 overflow-y-auto bg-slate-50/80 p-5 dark:bg-gray-900/40">
-                        <template x-if="selectedNote && !editingNote">
-                            <article class="bp-questioning-reader mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800/95" x-html="renderQuestioning(selectedNote.note_content)"></article>
-                        </template>
-                        <template x-if="selectedNote && editingNote">
-                            <div class="rounded-lg border border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800">
-                                <div class="flex flex-wrap items-center gap-1 border-b border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900/60">
-                                    <button type="button" @click="noteCommand('bold')" :class="isNoteActive('bold') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">B</button>
-                                    <button type="button" @click="noteCommand('italic')" :class="isNoteActive('italic') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs italic hover:bg-gray-100 dark:hover:bg-gray-700">I</button>
-                                    <span class="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-700"></span>
-                                    <button type="button" @click="noteCommand('heading3')" :class="isNoteActive('heading', { level: 3 }) ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">Titre</button>
-                                    <button type="button" @click="noteCommand('bulletList')" :class="isNoteActive('bulletList') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200' : 'text-gray-600 dark:text-gray-300'" class="rounded px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700">Liste</button>
-                                </div>
-                                <div x-ref="questionEditor" class="bp-note-editor min-h-[420px] px-4 py-3 text-sm leading-relaxed text-gray-900 dark:text-gray-100"></div>
-                            </div>
-                        </template>
-                    </div>
-
-                    <div class="flex items-center justify-between border-t border-gray-100 px-5 py-3 dark:border-gray-700">
-                        <button type="button" @click="if(confirm(i18n.deleteConfirm || 'Supprimer cette note ?')) deleteNote(selectedNote.id)" :disabled="!selectedNote || deletingId === selectedNote?.id || savingNote" class="px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20" x-text="i18n.btnDelete || 'Supprimer'"></button>
-                        <div class="flex items-center gap-2">
-                            <button type="button" x-show="!editingNote" @click="startEditNote()" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700" x-text="i18n.btnEdit || 'Modifier'"></button>
-                            <button type="button" x-show="editingNote" @click="cancelEditNote()" :disabled="savingNote" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-700" x-text="i18n.btnCancel || 'Annuler'"></button>
-                            <button type="button" x-show="editingNote" @click="saveSelectedNote()" :disabled="savingNote" class="rounded-lg bg-purple-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-purple-700 disabled:opacity-50" x-text="savingNote ? '...' : (i18n.btnSave || 'Enregistrer')"></button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {{-- /Explorer notes card --}}
+        </x-editor-panel>
 
     </aside>
 

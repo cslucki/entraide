@@ -11,8 +11,13 @@ class AdminAiInteractionController extends Controller
 {
     public function index(Request $request): View
     {
+        // `id` departage derriere l'horodatage : la pagination coupait au gre
+        // du plan PostgreSQL des que deux interactions partageaient la meme
+        // seconde — stable sur SQLite, aleatoire en CI. Meme lecon que
+        // TASK-1117 et que le resolveur de tenant par defaut.
         $query = AdminAiInteraction::query()
-            ->orderBy('created_at', 'desc');
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc');
 
         // Filters
         if ($request->filled('provider')) {

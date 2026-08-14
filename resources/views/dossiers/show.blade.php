@@ -2,24 +2,6 @@
     @php
         $orgParam = request()->route('organization');
         $entries = $dossier->dossierBlogPosts->filter(fn ($entry) => $entry->blogPost !== null)->values();
-        $series = $series ?? null;
-        $seriesRoot = $series?->rootBlogPost;
-        $seriesAnnexes = $series?->items ?? collect();
-
-        $ungrouped = collect();
-        $seriesRootEntry = null;
-        $annexBlogPostIds = $seriesAnnexes->pluck('blog_post_id')->toArray();
-
-        foreach ($entries as $entry) {
-            $bp = $entry->blogPost;
-            if ($series && $series->root_blog_post_id === $bp->id) {
-                $seriesRootEntry = $entry;
-            } elseif (in_array($bp->id, $annexBlogPostIds)) {
-                continue;
-            } else {
-                $ungrouped->push($entry);
-            }
-        }
 
         $canView = fn ($bp) => $canManageArticles || ($bp->status === 'published');
         $blogShowRoute = fn ($bp) => $bp && $canView($bp)
@@ -28,109 +10,142 @@
         $blogEditRoute = fn ($bp) => $bp && $canManageArticles
             ? route('organization.blog.edit', ['organization' => $orgParam, 'post' => $bp->slug])
             : null;
-        $publicIdentity = fn ($user) => $user?->isDisplayableIn(currentOrganization()) ? [
-            'id' => $user->id,
-            'first_name' => $user->first_name,
-            'name' => $user->name,
-        ] : [
-            'id' => null,
-            'first_name' => null,
-            'name' => __('profile.deactivated_user'),
-        ];
-        $ownerDisplayable = $dossier->owner?->isDisplayableIn(currentOrganization()) ?? false;
+        // Le proprietaire affiche est toujours celui de la racine gouvernante :
+        // un enfant n'a pas d'owner_id a lui (TASK-1130 passe 4).
+        $ownerDisplayable = $governingDossier->owner?->isDisplayableIn(currentOrganization()) ?? false;
 
-        $entriesForJs = $entries->map(fn ($entry) => [
-            'id' => $entry->getKey(),
-            'position' => $entry->position,
-            'blog_post_id' => $entry->blog_post_id,
-            'blog_post' => [
-                'id' => $entry->blogPost->id,
-                'title' => $entry->blogPost->title,
-                'slug' => $entry->blogPost->slug,
-                'status' => $entry->blogPost->status,
-                'user_id' => $entry->blogPost->user_id,
-                'updated_at' => $entry->blogPost->updated_at?->toIso8601String(),
-                'published_at' => $entry->blogPost->published_at?->toIso8601String(),
-                'author' => $entry->blogPost->user ? $publicIdentity($entry->blogPost->user) : null,
-                'coAuthors' => $entry->blogPost->coAuthors->map(fn ($u) => $publicIdentity($u))->toArray(),
-                'canView' => $canView($entry->blogPost),
-                'canEdit' => $canManageArticles,
-                'viewUrl' => $blogShowRoute($entry->blogPost),
-                'editUrl' => $blogEditRoute($entry->blogPost),
-            ],
+        // ── L'identite d'une ligne, ecrite UNE fois ──────────────────────
+        // Chaque ligne la donne a quatre endroits : au catalogue de selection,
+        // au clic, au double-clic et a l'appui long. Recopier ce litteral a
+        // quatre reprises par ligne, dans six gabarits, garantissait qu'une
+        // correction en oublierait un.
+        $js = fn ($valeur) => \Illuminate\Support\Js::from($valeur)->toHtml();
+        $itemDossier = function ($folder) use ($orgParam, $js) {
+            $adresse = fn (array $extra = []) => route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()] + $extra);
+
+            return '{ type: \'folder\''
+                .', id: '.$js($folder->getKey())
+                .', name: '.$js($folder->name)
+                .', url: '.$js($adresse())
+                .', urlPartage: '.$js($adresse(['partage' => 1]))
+                .', urlRenommer: '.$js(auth()->user()->can('update', $folder) ? route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) : null)
+                .', peutSupprimer: '.$js(auth()->user()->can('delete', $folder))
+                .' }';
+        };
+        $itemArticle = fn ($post) => '{ type: \'article\''
+            .', id: '.$js($post->id)
+            .', name: '.$js($post->title)
+            .', url: '.$js($blogShowRoute($post))
+            .', urlEditer: '.$js($blogEditRoute($post))
+            .', formulaireRetrait: '.$js('retirer-article-'.$post->id)
+            .' }';
+        // ── La gouttiere de tete d'une ligne ────────────────────────────
+        // Toutes les lignes de la liste la portent, a la MEME largeur, pour que
+        // les noms s'alignent. Depuis que la poignee de glissement reserve sa
+        // place au lieu d'apparaitre au survol (sinon la ligne sautait), elle
+        // n'existait que sur les fichiers : ils se retrouvaient decales de
+        // 18 px vers la droite, dossiers et Articles restant a gauche.
+        //
+        // Elle porte la poignee quand la ligne se glisse, et reste vide sinon —
+        // un dossier ne se deplace pas, mais sa ligne s'aligne quand meme.
+        $gouttiereDrive = function (bool $glissable) {
+            $base = '-ml-2 flex h-3.5 w-3.5 shrink-0 items-center justify-center text-gray-300 dark:text-gray-600';
+
+            if (! $glissable) {
+                return '<span class="'.$base.'" aria-hidden="true"></span>';
+            }
+
+            return '<span class="'.$base.' opacity-0 transition-opacity group-hover/ligne:opacity-100" aria-hidden="true" title="'
+                .e(__('dossiers.drive_drag_hint')).'">'
+                .'<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>'
+                .'</span>';
+        };
+
+        // Un fichier vit dans l'etat JS : son identite s'ecrit en JavaScript,
+        // pas en PHP — mais elle obeit a la meme regle d'unicite.
+        $itemFichier = '{ type: \'file\', id: file.id, name: file.display_name || file.original_name, file }';
+
+        // Colonnes du Drive (TASK-1130, doctrine Cyril) : memes colonnes et
+        // meme gabarit qu'a l'index — revelees progressivement, les cellules
+        // masquees sortant du flux grid. Sous `lg`, la ligne redevient un
+        // resume compact ; le nom reste la donnee principale.
+        // Trois colonnes contextuelles, chacune justifiee par ce qui VARIE ici :
+        //
+        // - « Type » est toujours utile : une icone ne dit pas si l'on regarde
+        //   un PDF, un classeur ou un Article. Elle est donc permanente.
+        // - « Proprietaire » ne varie que dans un Drive de Boucle, ou plusieurs
+        //   personnes deposent. Dans l'espace personnel, tout appartient a la
+        //   meme personne — et ce qu'on a recu se lit dans « Partages ».
+        // - « Partage » ne varie que hors Boucle : dans une Boucle, chaque
+        //   ligne repeterait « Boucle », ce que le fil d'Ariane dit deja.
+        $estDriveDeBoucle = $governingDossier->isLoopDossier();
+        $colonneProprietaire = $estDriveDeBoucle;
+        $colonnePartage = ! $estDriveDeBoucle;
+
+        // Les deux gabarits s'ecrivent EN ENTIER, et non autour d'un ternaire.
+        // Tailwind cherche ses classes comme du TEXTE dans les fichiers : une
+        // classe assemblee par concatenation (`...3fr)_'.($x?'9rem':'6rem').'_...`)
+        // n'existe nulle part telle quelle, n'est donc jamais generee, et la
+        // grille retombait sur ses deux colonnes de base — chaque cellule sur
+        // sa propre ligne. Deux lignes redondantes valent mieux qu'une elegante
+        // qui ne produit aucun CSS.
+        $grilleDrive = $estDriveDeBoucle
+            ? 'grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-x-3 lg:grid-cols-[minmax(0,3fr)_9rem_6.5rem_6.5rem_6.5rem_2.75rem]'
+            : 'grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-x-3 lg:grid-cols-[minmax(0,3fr)_6rem_6.5rem_6.5rem_6.5rem_2.75rem]';
+        $celluleLgDrive = 'hidden lg:block min-w-0 truncate text-xs text-gray-500 dark:text-gray-400';
+        // L'element designe : un fond calme et un liséré, jamais une couleur
+        // d'alerte — designer n'est pas agir.
+        $classeSelection = 'bg-indigo-50 ring-1 ring-inset ring-indigo-300 dark:bg-indigo-950/40 dark:ring-indigo-700';
+        // « Prive » est le cas dominant : explicite, mais rendu le plus discret
+        // des trois etats (reference canonique drive-v2).
+        $classePartage = fn (string $etat) => $etat === __('dossiers.share_private')
+            ? 'hidden lg:block min-w-0 truncate text-xs text-gray-400 dark:text-gray-500'
+            : 'hidden lg:block min-w-0 truncate text-xs text-gray-500 dark:text-gray-400';
+
+        // La gouvernance HERITEE de ce Dossier : ce que porte tout contenu qui
+        // y vit, sauf un CAS B qui dit la sienne.
+        $partageHerite = $governingDossier->isLoopDossier()
+            ? __('dossiers.share_loop')
+            : ($governingDossier->dossierMembers->isNotEmpty() ? __('dossiers.share_shared') : __('dossiers.share_private'));
+        $proprietaireHerite = $governingDossier->isLoopDossier()
+            ? ($governingDossier->loop?->name ?? '—')
+            : ($governingDossier->owner_id === auth()->id()
+                ? __('dossiers.owner_me')
+                : ($governingDossier->owner?->isDisplayableIn(currentOrganization()) ? $governingDossier->owner->publicDisplayName() : __('profile.deactivated_user')));
+
+        // Mode Serie (TASK-1130, doctrine finale) : la projection SEQUENTIELLE de
+        // chaque Serie — les contenus reels du Dossier avec un rang, jamais
+        // dupliques, jamais renommes. `numberedContents()` est la meme
+        // numerotation calculee que partout ailleurs.
+        $seriesModeData = $seriesList->map(fn ($s) => [
+            'id' => $s->getKey(),
+            'name' => $s->displayName() ?: __('dossiers.series_untitled'),
+            'items' => $s->numberedContents()->map(fn ($e) => [
+                'itemId' => $e['item']?->getKey(),
+                'type' => $e['type'],
+                'name' => $e['name'],
+                'key' => $e['content'] instanceof \App\Models\BlogPost
+                    ? 'blog:'.$e['content']->getKey()
+                    : ($e['content'] instanceof \App\Models\DossierFile ? 'file:'.$e['content']->getKey() : null),
+            ])->values(),
         ])->values();
 
-        $seriesData = $series ? [
-            'id' => $series->getKey(),
-            'root_blog_post_id' => $series->root_blog_post_id,
-            'root' => $seriesRoot ? [
-                'id' => $seriesRoot->id,
-                'title' => $seriesRoot->title,
-                'slug' => $seriesRoot->slug,
-                'status' => $seriesRoot->status,
-                'user_id' => $seriesRoot->user_id,
-                'updated_at' => $seriesRoot->updated_at?->toIso8601String(),
-                'published_at' => $seriesRoot->published_at?->toIso8601String(),
-                'author' => $seriesRoot->user ? $publicIdentity($seriesRoot->user) : null,
-                'coAuthors' => $seriesRoot->coAuthors->map(fn ($u) => $publicIdentity($u))->toArray(),
-                'canView' => $canView($seriesRoot),
-                'canEdit' => $canManageArticles,
-                'viewUrl' => $blogShowRoute($seriesRoot),
-                'editUrl' => $blogEditRoute($seriesRoot),
-            ] : null,
-            'items' => $seriesAnnexes->map(fn ($item) => [
-                'id' => $item->getKey(),
-                'blog_post_id' => $item->blog_post_id,
-                'position' => $item->position,
-                'blog_post' => $item->blogPost ? [
-                    'id' => $item->blogPost->id,
-                    'title' => $item->blogPost->title,
-                    'slug' => $item->blogPost->slug,
-                    'status' => $item->blogPost->status,
-                    'user_id' => $item->blogPost->user_id,
-                    'updated_at' => $item->blogPost->updated_at?->toIso8601String(),
-                    'published_at' => $item->blogPost->published_at?->toIso8601String(),
-                    'author' => $item->blogPost->user ? $publicIdentity($item->blogPost->user) : null,
-                    'coAuthors' => $item->blogPost->coAuthors->map(fn ($u) => $publicIdentity($u))->toArray(),
-                    'canView' => $canView($item->blogPost),
-                    'canEdit' => $canManageArticles,
-                    'viewUrl' => $blogShowRoute($item->blogPost),
-                    'editUrl' => $blogEditRoute($item->blogPost),
-                ] : null,
-            ])->values(),
-        ] : null;
-
-        $seriesEligibleForJs = $seriesEligibleArticles->map(fn ($article) => [
-            'id' => $article->id,
-            'title' => $article->title,
-            'slug' => $article->slug,
-            'status' => $article->status,
+        // Candidats Articles pour « Ajouter a la serie » : ceux deja attaches
+        // au Dossier (les fichiers candidats viennent de l'etat JS `files`).
+        $serieArticlesData = $entries->map(fn ($entry) => [
+            'id' => $entry->blog_post_id,
+            'title' => $entry->blogPost->title,
         ])->values();
     @endphp
 
-    <x-slot name="title">{{ $dossier->name }} — {{ __('dossiers.title') }} — {{ $brandOrganizationName ?? 'BouclePro' }}</x-slot>
+    <x-slot name="title">{{ $dossier->displayName() }} — {{ __('navigation.my_dossiers') }} — {{ $brandOrganizationName ?? 'BouclePro' }}</x-slot>
 
     <x-page-container>
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div class="min-w-0">
-                <a href="{{ route('organization.dossiers.index', ['organization' => $orgParam]) }}" class="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">{{ __('dossiers.back') }}</a>
-                <div class="mt-4 flex flex-wrap items-center gap-3">
-                    <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ $dossier->name }}</h1>
-                    @if($userRole === 'owner')
-                        <a href="{{ route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $dossier->getKey()]) }}" class="inline-flex items-center justify-center rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200" title="{{ __('dossiers.rename') }}">
-                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                            </svg>
-                        </a>
-                        <span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200">{{ __('dossiers.private_badge') }}</span>
-                    @else
-                        <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950/60 dark:text-amber-200">{{ __('dossiers.shared_badge') }}</span>
-                        <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ __('dossiers.your_role', ['role' => __('dossiers.role_'.$userRole)]) }}</span>
-                    @endif
-                </div>
-                <p class="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.show_subtitle') }}</p>
-            </div>
-        </div>
+        {{-- TASK-1130 (UX finale) : une seule identite. Plus de « Retour aux
+             dossiers » ni de H1 repetant le breadcrumb — le fil d'Ariane de
+             la barre du Drive EST l'identite de la page, « Documents » (l'index)
+             en premiere miette. Le badge de contexte et le crayon de renommage
+             vivent a cote de la miette courante. --}}
 
         @if(session('success'))
             <div class="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
@@ -144,92 +159,364 @@
             </div>
         @endif
 
-        {{-- Tabs --}}
-        <div x-data="dossierTabs('{{ request()->get('tab', 'contenus') }}')" @hashchange.window="onHashChange()">
-            <div class="mt-8 border-b border-gray-200 dark:border-gray-700" role="tablist" aria-label="{{ __('dossiers.contents_tab') }}">
-                <button @click="activate('contenus')" :aria-selected="active === 'contenus'" :tabindex="active === 'contenus' ? '0' : '-1'" role="tab" id="tab-contenus" aria-controls="tabpanel-contenus" class="inline-flex px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors" :class="active === 'contenus' ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'">
-                    {{ __('dossiers.contents_tab') }}
-                </button>
-                <button @click="activate('fichiers')" :aria-selected="active === 'fichiers'" :tabindex="active === 'fichiers' ? '0' : '-1'" role="tab" id="tab-fichiers" aria-controls="tabpanel-fichiers" class="inline-flex px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors" :class="active === 'fichiers' ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'">
-                    {{ __('dossiers.files_tab') }}
-                </button>
-                <button @click="activate('membres')" :aria-selected="active === 'membres'" :tabindex="active === 'membres' ? '0' : '-1'" role="tab" id="tab-membres" aria-controls="tabpanel-membres" class="inline-flex px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors" :class="active === 'membres' ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'">
-                    {{ __('dossiers.members_tab') }}
-                </button>
-            </div>
-
-            {{-- Tab: Contents --}}
-            <div x-show="active === 'contenus'" x-cloak role="tabpanel" id="tabpanel-contenus" aria-labelledby="tab-contenus" class="mt-6">
-                <section class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6"
-                         x-data="dossierContentsCard(@js([
+        {{-- ── Le Drive : une seule surface (TASK-1130, passe 2) ── --}}
+                @if($canViewFiles)
+                {{-- La portee Alpine englobe la sidebar du module : « + Nouveau »
+                     y vit au bureau (reference canonique drive-v2) et pilote les
+                     memes actions que sur mobile. --}}
+                <div x-data="dossierFilesCard(@js([
                              'csrfToken' => csrf_token(),
                              'dossierId' => $dossier->getKey(),
                              'orgParam' => $orgParam,
-                             'currentUserId' => auth()->id(),
-                             'canManageArticles' => $canManageArticles,
-                             'series' => $seriesData,
-                             'ungrouped' => $entriesForJs->filter(fn ($e) => !$seriesData || ($e['blog_post_id'] !== $seriesData['root_blog_post_id'] && !in_array($e['blog_post_id'], $annexBlogPostIds)))->values(),
-                             'seriesEligibleArticles' => $seriesEligibleForJs,
-                             'i18n' => [
-                                 'seriesTitle' => __('dossiers.content_series_title'),
-                                 'ungroupedTitle' => __('dossiers.content_ungrouped_title'),
-                                 'rootBadge' => __('dossiers.content_root_badge'),
-                                 'annexBadge' => __('dossiers.content_annex_badge'),
-                                 'ungroupedBadge' => __('dossiers.content_ungrouped_badge'),
-                                 'rootRole' => __('dossiers.content_root_role'),
-                                 'ungroupedRole' => __('dossiers.content_ungrouped_role'),
-                                 'noSeries' => __('dossiers.content_no_series'),
-                                 'noSeriesHelp' => __('dossiers.content_no_series_help'),
-                                 'setRoot' => __('dossiers.content_set_root'),
-                                 'addToSeries' => __('dossiers.content_add_to_series'),
-                                 'removeFromSeries' => __('dossiers.content_remove_from_series'),
-                                 'changeRoot' => __('dossiers.content_change_root'),
-                                 'deleteSeries' => __('dossiers.content_delete_series'),
-                                 'seriesDeleteModalTitle' => __('dossiers.content_series_delete_modal_title'),
-                                 'seriesDeleteModalBody' => __('dossiers.content_series_delete_modal_body'),
-                                 'detachModalTitle' => __('dossiers.content_detach_modal_title'),
-                                 'detachModalBody' => __('dossiers.content_detach_modal_body'),
-                                 'viewArticle' => __('dossiers.content_view_article'),
-                                 'editArticle' => __('dossiers.edit_article'),
-                                 'removeFromFolder' => __('dossiers.remove_from_folder'),
-                                 'cancel' => __('dossiers.cancel'),
-                                 'moveUp' => __('dossiers.move_up'),
-                                 'moveDown' => __('dossiers.move_down'),
-                                 'seriesCreated' => __('dossiers.series_created'),
-                                 'seriesDeleted' => __('dossiers.series_deleted'),
-                                 'annexAdded' => __('dossiers.annex_added'),
-                                 'annexRemoved' => __('dossiers.annex_removed'),
-                                 'seriesRootUpdated' => __('dossiers.series_root_updated'),
-                                 'statusDraft' => __('dossiers.status_draft'),
-                                 'statusPublished' => __('dossiers.status_published'),
-                                 'articleDetached' => __('dossiers.article_detached'),
-                                 'dragHandle' => __('dossiers.content_drag_handle'),
-                                 'attachArticle' => __('dossiers.attach_article'),
-                                 'byAuthor' => __('dossiers.content_by_author'),
-                                 'withCoauthors' => __('dossiers.content_with_coauthors'),
-                                 'clearSearchToReorder' => __('dossiers.clear_search_to_reorder'),
-                             ],
+                             'canManageFiles' => $canManageFiles,
+                             'canDeleteFiles' => $canDeleteFiles,
+                             'moveTargets' => $moveTargets,
+                             'seriesMode' => $seriesModeData,
+                             'serieArticles' => $serieArticlesData,
+                             'canManageSeries' => $canManageSeries,
+                             'dossierName' => $dossier->displayName(),
+                             'activeTab' => 'fichiers',
+                             'nomsSpatiaux' => $driveFolders->pluck('name')
+                                 ->merge($dossier->dossierBlogPosts->map(fn ($e) => $e->blogPost?->title))
+                                 ->filter()->map(fn ($n) => mb_strtolower($n))->values(),
+                              'i18n' => [
+                                  'title' => __('dossiers.files_title'),
+                                  'emptyTitle' => __('dossiers.files_empty_title'),
+                                  'emptyBody' => __('dossiers.files_empty_body'),
+                                  'uploadHelp' => __('dossiers.file_upload_help'),
+                                  'uploading' => __('dossiers.file_uploading'),
+                                  'uploadingFile' => __('dossiers.file_uploading_file'),
+                                  'uploadProgress' => __('dossiers.file_upload_progress'),
+                                  'uploaded' => __('dossiers.file_uploaded'),
+                                  'uploadFailed' => __('dossiers.file_upload_failed'),
+                                  'deleted' => __('dossiers.file_deleted'),
+                                  'deleteFailed' => __('dossiers.file_delete_failed'),
+                                  'confirmDeleteTitle' => __('dossiers.file_confirm_delete_title'),
+                                  'confirmDeleteBody' => __('dossiers.file_confirm_delete_body'),
+                                  'confirmDeleteCancel' => __('dossiers.file_confirm_delete_cancel'),
+                                  'confirmDeleteConfirm' => __('dossiers.file_confirm_delete_confirm'),
+                                  'download' => __('dossiers.file_download'),
+                                  'preview' => __('dossiers.file_preview'),
+                                  'deleteFile' => __('dossiers.file_delete'),
+                                  'name' => __('dossiers.file_name'),
+                                  'size' => __('dossiers.file_size'),
+                                  'uploadedBy' => __('dossiers.file_uploaded_by'),
+                                  'storageUnlimited' => __('dossiers.storage_unlimited'),
+                                  'storageUsedLabel' => __('dossiers.storage_used'),
+                                   'articleCreated' => __('dossiers.article_created'),
+                                   'articleCreateFailed' => __('dossiers.article_create_failed'),
+                                   'markdownCreated' => __('dossiers.markdown_created'),
+                                   'markdownCreateFailed' => __('dossiers.markdown_create_failed'),
+                                   'filesUploaded' => __('dossiers.files_uploaded'),
+                                   'filesBatchResult' => __('dossiers.files_batch_result'),
+                                   'filesBatchErrors' => __('dossiers.files_batch_errors'),
+                                   'fileTooLarge' => __('dossiers.file_too_large'),
+                                  'networkError' => __('dossiers.network_error'),
+                                  'duplicateName' => __('dossiers.file_duplicate_name'),
+                                  'previewNotAvailable' => __('dossiers.file_preview_not_available'),
+                                  // La portee est dite par le champ lui-meme :
+                                  // « ce dossier » ne nomme rien quand on est
+                                  // dans l'espace personnel, qui a un nom.
+                                  'searchPlaceholder' => $dossier->isPersonalDocumentsRoot()
+                                      ? __('dossiers.search_in_my_documents')
+                                      : __('dossiers.file_search_placeholder'),
+                                  'move' => __('dossiers.file_move'),
+                                  'moved' => __('dossiers.file_moved'),
+                                  'movedTo' => __('dossiers.file_moved_to'),
+                                  'folderItemsOne' => trans_choice('dossiers.drive_folder_items', 1, ['count' => 1]),
+                                  'folderItemsMany' => trans_choice('dossiers.drive_folder_items', 2, ['count' => ':count']),
+                                  'serieAdded' => __('dossiers.annex_added'),
+                                  'serieRemoved' => __('dossiers.annex_removed'),
+                                  'serieCreated' => __('dossiers.series_created'),
+                                  'serieDeleted' => __('dossiers.series_deleted'),
+                                  'serieReorderFailed' => __('dossiers.series_reorder_failed'),
+                                  'dragHandle' => __('dossiers.content_drag_handle'),
+                                  'moveFailed' => __('dossiers.file_move_failed'),
+                                  'moveModalTitle' => __('dossiers.drive_move_modal_title'),
+                                  'moveModalTitleLot' => __('dossiers.drive_move_modal_title_lot'),
+                                  'moveToParent' => __('dossiers.drive_move_to_parent'),
+                                  'moveNoTargets' => __('dossiers.drive_move_no_targets'),
+                                  // Agir sur plusieurs elements : le compte est
+                                  // toujours dit, et le rapport ne ment pas.
+                                  'confirmDeleteBodyLot' => __('dossiers.drive_lot_delete_body'),
+                                  'lotMoved' => trans_choice('dossiers.drive_lot_moved', 2, ['count' => ':count']),
+                                  'lotDeleted' => trans_choice('dossiers.drive_lot_deleted', 2, ['count' => ':count']),
+                                  'lotMoveReportTitle' => __('dossiers.drive_lot_move_report'),
+                                  'lotDeleteReportTitle' => __('dossiers.drive_lot_delete_report'),
+                                  'lotReportSummary' => __('dossiers.drive_lot_report_summary'),
+                                  'moveConfirm' => __('dossiers.drive_move_confirm'),
+                                  'moveCancel' => __('dossiers.drive_move_cancel'),
+                                  'folderDeleteTitle' => __('dossiers.drive_folder_confirm_delete_title'),
+                                  'folderDeleteBody' => __('dossiers.drive_folder_confirm_delete_body'),
+                                  'folderDeleteCancel' => __('dossiers.dossier_confirm_delete_cancel'),
+                                  'folderDeleteConfirm' => __('dossiers.dossier_confirm_delete_confirm'),
+                                  'viewList' => __('dossiers.file_view_list'),
+                                  'viewGrid' => __('dossiers.file_view_grid'),
+                                  'ownerMe' => __('dossiers.owner_me'),
+                                  'selectionClear' => __('dossiers.selection_clear'),
+                                  // Le compte ne s'affiche qu'a partir de deux
+                                  // elements : en dessous, la barre dit le nom.
+                                  'selectionCount' => trans_choice('dossiers.drive_lot_selected', 2, ['count' => ':count']),
+                                  'open' => __('dossiers.drive_open'),
+                                  'share' => __('dossiers.share_tab'),
+                                  'rename' => __('dossiers.rename'),
+                                  'editArticle' => __('dossiers.drive_edit_article'),
+                                  'removeArticle' => __('dossiers.drive_remove_article'),
+                                  'renameTitle' => __('dossiers.file_rename_title'),
+                                  'renameLabel' => __('dossiers.file_rename_label'),
+                                  'searchNoResults' => __('dossiers.search_no_results'),
+                              ],
                          ]))">
-                    <div class="flex flex-col gap-4">
-                        {{-- Header --}}
-                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.contents_tab') }}</h2>
-                            <template x-if="canManageArticles">
-                                <button @click="openAddArticleModal()" type="button" class="w-full whitespace-nowrap rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:w-auto">{{ __('dossiers.add_article') }}</button>
-                            </template>
+                <x-dossiers.module :espace="$espace">
+                    @if($canManageFiles)
+                        <x-slot name="nouveau">
+                            @include('dossiers.partials.nouveau', ['avecRef' => true, 'classesBouton' => 'w-full', 'ancrageMenu' => 'left-0'])
+                        </x-slot>
+                    @endif
+
+                {{-- La surface est nue : les lignes se posent sur le fond, sans
+                     grande carte blanche englobante (reference canonique). --}}
+                <section class="pt-4">
+                    {{-- Depot par glisser : la surcouche s'allume au survol d'un
+                         vrai fichier, et le depot part dans l'upload existant —
+                         le meme que les entrees du menu, aucun second moteur.
+                         Le wrapper est rendu pour TOUS les roles (TASK-1130 UX
+                         finale) : seul son comportement est conditionnel. Un
+                         wrapper ouvert pour certains roles et ferme pour
+                         d'autres etait la moitie du desequilibre HTML qui
+                         faisait vivre toute la page DANS la barre d'outils. --}}
+                    <div class="relative"
+                         @if($canManageFiles)
+                         @dragenter.prevent="if (($event.dataTransfer?.types || []).includes('Files')) survol++"
+                         @dragover.prevent
+                         @dragleave.prevent="survol = Math.max(0, survol - 1)"
+                         @drop.prevent="survol = 0; if ($event.dataTransfer?.files?.length) handleMediaFiles({ target: { files: $event.dataTransfer.files, value: '' } }, 'drop')"
+                         @endif
+                         >
+                        @if($canManageFiles)
+                        <div x-show="survol > 0" x-cloak
+                             class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center rounded-2xl border-2 border-dashed border-indigo-400 bg-indigo-50/90 dark:border-indigo-500 dark:bg-indigo-950/80">
+                            <p class="text-base font-semibold text-indigo-700 dark:text-indigo-200">{{ __('dossiers.drive_drop_here') }}</p>
                         </div>
-                        {{-- Search row --}}
-                        <input x-model="searchQuery" type="text" placeholder="{{ __('dossiers.article_search_placeholder') }}" class="w-full rounded-lg border-gray-300 text-sm shadow-sm sm:max-w-md dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
-                        <template x-if="isSearchActive">
-                            <p class="text-xs text-amber-600 dark:text-amber-400" x-text="i18n.clearSearchToReorder"></p>
-                        </template>
+                        @endif
 
-                    <template x-if="message">
-                        <div class="mt-4 rounded-xl border px-4 py-3 text-sm font-medium"
-                             :class="messageType === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200' : 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200'"
-                             x-text="message"></div>
-                    </template>
+                    {{-- La barre du Drive : ou l'on est, chercher, creer. --}}
+                    <div class="flex flex-wrap items-center gap-3">
+                        {{-- Breadcrumb recursif (TASK-1130 passe 4) : la chaine
+                             reelle de `parent_id`, jamais un chemin recompose a
+                             partir d'informations de presentation. Chaque
+                             niveau est un lien, sauf le dernier qui est la
+                             position. --}}
+                        @php
+                            $cibleParent = $moveTargets->firstWhere('isParent', true);
+                        @endphp
+                        {{-- Le fil d'Ariane est l'identite de la page (TASK-1130
+                             UX finale) : « Documents » (l'index) en premiere
+                             miette, puis la chaine reelle de parent_id, puis la
+                             position courante — plus aucun H1 ne la repete.
+                             Chaque maillon cliquable est une cible d'au moins
+                             44px de haut. --}}
+                        <nav class="flex w-full min-w-0 flex-wrap items-center gap-x-1.5 text-sm sm:w-auto sm:flex-1" aria-label="Breadcrumb">
+                            {{-- La premiere miette est l'espace d'ou l'on vient :
+                                 « Mes documents » pour un Dossier personnel,
+                                 « Boucles » pour le Drive d'une Boucle. Sur la
+                                 racine personnelle elle-meme, elle est omise :
+                                 la position courante EST « Mes documents », et
+                                 une miette qui pointe sur la page affichee
+                                 n'apprend rien. --}}
+                            @unless($dossier->isPersonalDocumentsRoot())
+                                <a href="{{ $espace === 'boucles'
+                                        ? route('organization.dossiers.index', ['organization' => $orgParam, 'espace' => 'boucles'])
+                                        : route('organization.dossiers.index', ['organization' => $orgParam]) }}"
+                                   class="inline-flex min-h-11 shrink-0 items-center rounded font-medium text-indigo-600 hover:underline dark:text-indigo-400">{{ $espace === 'boucles' ? __('dossiers.space_loops') : __('dossiers.space_my_documents') }}</a>
+                                <svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+                            @endunless
+                            @foreach($breadcrumbAncestors as $ancetre)
+                                {{-- La racine personnelle est deja la premiere
+                                     miette : la repeter donnait « Mes documents ›
+                                     Mes documents › ... ». --}}
+                                @continue($ancetre->isPersonalDocumentsRoot())
+                                {{-- Le dernier maillon est le parent reel : glisser
+                                     un fichier ici le remonte d'un niveau, meme
+                                     action que "Deplacer vers... > Dossier parent". --}}
+                                @php
+                                    $estParentReel = $cibleParent && $ancetre->getKey() === $cibleParent['id'];
+                                @endphp
+                                <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $ancetre->getKey()]) }}"
+                                   class="inline-flex min-h-11 max-w-[10rem] items-center rounded font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                                   @if($estParentReel)
+                                   @dragover.prevent="onFolderDragOver('{{ $ancetre->getKey() }}')"
+                                   @dragleave="onFolderDragLeave('{{ $ancetre->getKey() }}')"
+                                   @drop.prevent="onFolderDrop('{{ $ancetre->getKey() }}')"
+                                   :class="dragOverFolderId === '{{ $ancetre->getKey() }}' ? 'bg-indigo-50 ring-2 ring-indigo-400 dark:bg-indigo-950/30' : ''"
+                                   @endif
+                                   ><span class="truncate">{{ $ancetre->isLoopDossier() ? ($ancetre->loop?->name ?? __('dossiers.drive_breadcrumb_root')) : $ancetre->name }}</span></a>
+                                <svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+                            @endforeach
+                            <span class="inline-flex min-h-11 max-w-[16rem] items-center gap-2" aria-current="page">
+                                <span class="truncate text-base font-semibold text-gray-900 dark:text-gray-100">{{ $dossier->isLoopDossier() ? ($dossier->loop?->name ?? __('dossiers.drive_breadcrumb_root')) : $dossier->displayName() }}</span>
+                            </span>
+                            {{-- Contexte et gestes d'identite, a cote de la
+                                 position courante. Le role n'apparait que s'il
+                                 explique une limitation reelle (lecture seule) —
+                                 jamais en chip generique. --}}
+                            @if($dossier->isPersonalDocumentsRoot())
+                                {{-- « Mes documents » ne se renomme pas : le
+                                     crayon n'est pas cache par prudence, il
+                                     n'existe pas — la policy `rename` refuserait
+                                     de toute facon la requete. --}}
+                            @elseif($governingDossier->isLoopDossier())
+                                <span class="shrink-0 rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200">{{ __('dossiers.loop_dossier_badge') }}</span>
+                            @elseif($userRole === 'owner')
+                                <a href="{{ route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $dossier->getKey()]) }}" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200" title="{{ __('dossiers.rename') }}">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                    </svg>
+                                </a>
+                                {{-- Le partage est un geste d'IDENTITE, comme le
+                                     renommage : il vit a cote de lui, pas a
+                                     l'autre bout de la barre parmi les outils de
+                                     la surface. L'icone dit aussi l'etat — teintee
+                                     des que le dossier est partage. --}}
+                                @php
+                                    $dejaPartage = $dossier->shared_with_loop_id !== null || $dossier->dossierMembers->isNotEmpty();
+                                @endphp
+                                <button type="button" @click="window.dispatchEvent(new CustomEvent('open-share-panel'))"
+                                        class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition {{ $dejaPartage
+                                            ? 'text-indigo-600 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/40'
+                                            : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200' }}"
+                                        title="{{ $dejaPartage ? __('dossiers.share_manage') : __('dossiers.share_tab') }}"
+                                        aria-label="{{ $dejaPartage ? __('dossiers.share_manage') : __('dossiers.share_tab') }}">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z"/></svg>
+                                </button>
+                            @else
+                                <span class="shrink-0 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950/60 dark:text-amber-200">{{ __('dossiers.shared_badge') }}</span>
+                                {{-- Lecture seule pour un membre lecteur COMME
+                                     pour un visiteur par visibilite Organization
+                                     (role 'none') : les deux limitations sont
+                                     reelles, seul un role sans limite se tait. --}}
+                                @if(in_array($userRole, ['reader', 'none'], true))
+                                    <span class="shrink-0 rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ __('dossiers.read_only_badge') }}</span>
+                                @endif
+                            @endif
+                        </nav>
 
+                        {{-- La recherche filtre la vue spatiale ; en mode Serie
+                             l'ordre est la question, pas le filtre — un
+                             reordonnancement sur une projection filtree a deja
+                             produit un bug ici, on ne le reinvite pas. --}}
+                        <div class="relative w-full min-w-0 flex-1 sm:w-72 sm:flex-none" x-show="vue !== 'serie'">
+                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                <svg class="h-4 w-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+                            </div>
+                            <input x-model="searchQuery" @input.debounce.300ms="onSearchInput()" type="search"
+                                   class="block w-full rounded-xl border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-400"
+                                   :placeholder="i18n.searchPlaceholder || 'Search files…'">
+                        </div>
+                        <div class="flex shrink-0 gap-0.5 rounded-lg border border-gray-200 p-0.5 dark:border-gray-700 max-sm:order-3 max-sm:basis-full">
+                            <button type="button" @click="setViewMode('list')" :aria-pressed="vue === 'documents' && viewMode === 'list'"
+                                    class="flex h-11 w-11 items-center justify-center rounded-md transition sm:h-8 sm:w-8"
+                                    :class="vue === 'documents' && viewMode === 'list' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'"
+                                    :aria-label="i18n.viewList" :title="i18n.viewList">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5"/></svg>
+                            </button>
+                            <button type="button" @click="setViewMode('grid')" :aria-pressed="vue === 'documents' && viewMode === 'grid'"
+                                    class="flex h-11 w-11 items-center justify-center rounded-md transition sm:h-8 sm:w-8"
+                                    :class="vue === 'documents' && viewMode === 'grid' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'"
+                                    :aria-label="i18n.viewGrid" :title="i18n.viewGrid">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6a2.25 2.25 0 0 1 2.25-2.25h.75A2.25 2.25 0 0 1 9 6v.75a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 6.75V6Zm0 11.25A2.25 2.25 0 0 1 6 15h.75a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-.75ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25h.75A2.25 2.25 0 0 1 18.75 6v.75a2.25 2.25 0 0 1-2.25 2.25h-.75a2.25 2.25 0 0 1-2.25-2.25V6Zm0 11.25A2.25 2.25 0 0 1 15.75 15h.75a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25h-.75A2.25 2.25 0 0 1 13.5 18v-.75Z"/></svg>
+                            </button>
+                            <button type="button" @click="enterSerieToggle()" :aria-pressed="vue === 'serie'"
+                                    class="flex h-11 w-11 items-center justify-center rounded-md transition sm:h-8 sm:w-8"
+                                    :class="vue === 'serie' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'"
+                                    aria-label="{{ __('dossiers.series_mode_label') }}" title="{{ __('dossiers.series_mode_label') }}">
+                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10.362 1.093a.75.75 0 00-.724 0L2.523 5.018 10 9.143l7.477-4.125-7.115-3.925zM18 6.443l-7.25 4v8.25l6.862-3.786A.75.75 0 0018 14.25V6.443zm-8.75 12.25v-8.25l-7.25-4v7.807a.75.75 0 00.388.657l6.862 3.786z"/></svg>
+                            </button>
+                        </div>
+
+                        {{-- Mobile : « + Nouveau » vit dans la ligne d'outils,
+                             a cote de la recherche — la sidebar qui le porte au
+                             bureau n'existe pas ici. Meme partial, meme etat,
+                             aucun second moteur. --}}
+                        @if($canManageFiles)
+                            <div class="shrink-0 md:hidden max-sm:order-2">
+                                @include('dossiers.partials.nouveau', ['avecRef' => false, 'classesBouton' => '', 'ancrageMenu' => 'left-0 sm:right-0 sm:left-auto'])
+                            </div>
+                        @endif
+
+
+                    </div>
+
+                    {{-- Sous-barre : trois modes d'une MEME surface —
+                         Liste | Grille | Serie (TASK-1130, doctrine finale).
+                         En mode Serie, la gauche porte le contexte de la
+                         sequence : « Serie : X ▾ », le compte, l'ajout, et le
+                         menu « ... » — jamais un panneau de gestion. --}}
+                    <div class="mt-3 flex flex-wrap items-center gap-3">
+                        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2" x-show="vue === 'serie'" x-cloak>
+                            <span class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ __('dossiers.series_mode_label') }} :</span>
+                            <div class="relative" x-data="{ ouvert: false }" x-on:keydown.escape.window="ouvert = false">
+                                <button type="button" @click="ouvert = !ouvert" x-bind:aria-expanded="ouvert"
+                                        class="inline-flex min-h-11 max-w-[16rem] items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-gray-900 transition hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-700">
+                                    <span class="truncate" x-text="serieActive ? serieActive.name : '{{ __('dossiers.series_mode_pick') }}'"></span>
+                                    <svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+                                </button>
+                                <div x-show="ouvert" x-cloak @click.outside="ouvert = false"
+                                     class="absolute left-0 z-30 mt-1 w-72 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                    <template x-for="serie in seriesMode" :key="serie.id">
+                                        <button type="button" @click="ouvert = false; enterSerieMode(serie.id)"
+                                                class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
+                                                :class="serieActive && serieActive.id === serie.id && 'font-semibold text-indigo-700 dark:text-indigo-300'">
+                                            <span class="min-w-0 flex-1 truncate text-left" x-text="serie.name"></span>
+                                            <span class="shrink-0 text-xs tabular-nums text-gray-400" x-text="serie.items.length"></span>
+                                        </button>
+                                    </template>
+                                    @if($canManageSeries)
+                                        <div class="my-1 border-t border-gray-100 dark:border-gray-700" x-show="seriesMode.length"></div>
+                                        <button type="button" @click="ouvert = false; newSerieName = ''; showCreateSerieModal = true"
+                                                class="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50/60 dark:text-indigo-300 dark:hover:bg-indigo-950/40">
+                                            <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                                            {{ __('dossiers.series_mode_create') }}
+                                        </button>
+                                    @endif
+                                </div>
+                            </div>
+                            <template x-if="serieActive">
+                                <span class="text-xs text-gray-500 dark:text-gray-400" x-text="serieActive.items.length === 1 ? i18n.folderItemsOne : i18n.folderItemsMany.replace(':count', serieActive.items.length)"></span>
+                            </template>
+                            @if($canManageSeries)
+                                <template x-if="serieActive">
+                                    <button type="button" @click="showSerieAddModal = true"
+                                            class="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                                        {{ __('dossiers.series_mode_add') }}
+                                    </button>
+                                </template>
+                                <template x-if="serieActive">
+                                    <div class="relative shrink-0" x-data="{ ouvert: false }" x-on:keydown.escape.window="ouvert = false">
+                                        <button type="button" @click="ouvert = !ouvert" x-bind:aria-expanded="ouvert"
+                                                class="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                                                :aria-label="serieActive.name">
+                                            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg>
+                                        </button>
+                                        <div x-show="ouvert" x-cloak @click.outside="ouvert = false"
+                                             class="absolute left-0 top-full z-30 mt-1 w-52 rounded-xl border border-gray-200 bg-white p-1 text-left shadow-lg sm:left-auto sm:right-0 dark:border-gray-700 dark:bg-gray-800">
+                                            <button type="button" @click="ouvert = false; showSerieDeleteModal = true"
+                                                    class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.series_mode_delete') }}</button>
+                                        </div>
+                                    </div>
+                                </template>
+                            @endif
+                        </div>
+                    </div>
+
+                    {{-- Recherche semantique (pilote, gatee par
+                         DossierSemanticSearchGate) : re-logee en bloc autonome
+                         discret de la vue Documents — elle cherche des
+                         passages dans les articles du dossier, ce n'est ni une
+                         fonction Serie ni un panneau de gestion. Markup
+                         d'origine inchange. --}}
+                    <div x-show="vue === 'documents'">
                     @if($canUseSemanticArticleSearch)
                     <section class="mt-6 rounded-3xl border border-indigo-100 bg-white p-5 shadow-sm dark:border-indigo-900/50 dark:bg-gray-800 sm:p-6"
                              x-data="dossierSemanticArticleSearch(@js([
@@ -306,371 +593,122 @@
                         </div>
                     </section>
                     @endif
+                    </div>
 
-                    <template x-if="!hasSeries && filteredUngrouped.length === 0">
-                        <div class="mt-6 rounded-2xl border border-dashed border-gray-300 px-5 py-10 text-center dark:border-gray-700">
-                            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.noSeries"></h3>
-                            <p class="mx-auto mt-2 max-w-md text-sm text-gray-600 dark:text-gray-300" x-text="i18n.noSeriesHelp"></p>
-                        </div>
-                    </template>
+                    {{-- Etats du mode Serie sans sequence ouverte : zero
+                         Serie -> inviter a creer ; plusieurs -> demander
+                         laquelle, jamais choisir a la place de la personne. --}}
+                    <div x-show="vue === 'serie' && !serieActive && !seriesMode.length" x-cloak
+                         class="mt-4 rounded-xl border border-dashed border-gray-300 px-5 py-8 text-center dark:border-gray-700">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.series_tab_empty_title') }}</p>
+                        <p class="mx-auto mt-1 max-w-md text-sm text-gray-500 dark:text-gray-400">{{ __('dossiers.series_tab_empty_body') }}</p>
+                        @if($canManageSeries)
+                            <button type="button" @click="newSerieName = ''; showCreateSerieModal = true"
+                                    class="mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                                {{ __('dossiers.series_mode_create') }}
+                            </button>
+                        @endif
+                    </div>
+                    <div x-show="vue === 'serie' && !serieActive && seriesMode.length" x-cloak
+                         class="mt-4 rounded-xl border border-dashed border-gray-300 px-5 py-8 text-center dark:border-gray-700">
+                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('dossiers.series_mode_pick_help') }}</p>
+                    </div>
 
-                    <template x-if="hasSeries">
-                        <div class="mt-6 space-y-4">
-                            <div class="rounded-2xl border border-indigo-200 bg-indigo-50 dark:border-indigo-900/60 dark:bg-indigo-950/30">
-                                <div class="p-4">
-                                    <div class="flex items-center justify-between">
-                                        <div class="flex items-center gap-2">
-                                            <svg class="h-5 w-5 text-indigo-500" viewBox="0 0 20 20" fill="currentColor"><path d="M10.362 1.093a.75.75 0 00-.724 0L2.523 5.018 10 9.143l7.477-4.125-7.115-3.925zM18 6.443l-7.25 4v8.25l6.862-3.786A.75.75 0 0018 14.25V6.443zm-8.75 12.25v-8.25l-7.25-4v7.807a.75.75 0 00.388.657l6.862 3.786z"/></svg>
-                                            <span class="text-sm font-semibold text-indigo-700 dark:text-indigo-300" x-text="i18n.seriesTitle"></span>
-                                        </div>
-                                        <template x-if="canManageArticles">
-                                            <div class="relative" data-article-menu>
-                                                <button @click="showSeriesMenu = !showSeriesMenu" type="button" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
-                                                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                    {{-- La projection sequentielle : les contenus de la Serie,
+                         dans son ordre, numerotes 01, 02… Le rang est calcule,
+                         jamais recopie — rien n'est renomme, rien n'est
+                         deplace. Seuls les membres de la Serie apparaissent et
+                         portent numero et poignee ; le drag de la poignee ne
+                         change QUE la position (le deplacement Drive vit en
+                         mode normal, jamais ici). --}}
+                    <template x-if="vue === 'serie' && serieActive">
+                        <div class="mt-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                            <p class="sr-only" role="status" aria-live="polite" x-text="serieAnnouncement"></p>
+                            <ul class="divide-y divide-gray-100 rounded-xl bg-white dark:divide-gray-700/60 dark:bg-gray-800">
+                                <template x-for="(item, index) in serieActive.items" :key="item.itemId || item.key || index">
+                                    <li class="flex items-center gap-2 px-4 py-3 transition first:rounded-t-xl last:rounded-b-xl sm:gap-3"
+                                        :draggable="(canManageSeries && serieDragArmedId === item.itemId && !!item.itemId) ? 'true' : 'false'"
+                                        @dragstart="if (item.itemId && serieDragArmedId === item.itemId) { serieDragItemId = item.itemId; } else { $event.preventDefault(); }"
+                                        @dragend="serieDragArmedId = null; serieDragItemId = null; serieDragOverId = null"
+                                        @dragover.prevent="if (serieDragItemId && item.itemId) serieDragOverId = item.itemId"
+                                        @dragleave="if (serieDragOverId === item.itemId) serieDragOverId = null"
+                                        @drop.prevent="serieDropOn(item.itemId)"
+                                        :class="serieDragOverId === item.itemId && serieDragItemId !== item.itemId ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30' : (serieDragItemId === item.itemId ? 'opacity-40' : '')">
+                                        <span class="w-7 shrink-0 text-center font-mono text-xs font-bold tabular-nums text-indigo-600 dark:text-indigo-300" x-text="String(index + 1).padStart(2, '0')"></span>
+                                        @if($canManageSeries)
+                                        <template x-if="item.itemId">
+                                            <span class="hidden h-11 w-7 shrink-0 cursor-grab touch-none select-none items-center justify-center text-gray-300 hover:text-gray-500 active:cursor-grabbing sm:flex dark:text-gray-600 dark:hover:text-gray-400"
+                                                  @mousedown="serieDragArmedId = item.itemId" @mouseup="serieDragArmedId = null"
+                                                  :title="i18n.dragHandle" aria-hidden="true">
+                                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
+                                            </span>
+                                        </template>
+                                        <template x-if="!item.itemId">
+                                            <span class="hidden w-7 shrink-0 sm:block" aria-hidden="true"></span>
+                                        </template>
+                                        @endif
+                                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                                              :class="item.type === 'file' ? 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400' : 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300'" aria-hidden="true">
+                                            <svg x-show="item.type !== 'file'" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
+                                            <svg x-show="item.type === 'file'" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                        </span>
+                                        <span class="flex min-h-11 min-w-0 flex-1 flex-col justify-center">
+                                            <span class="block truncate text-sm font-medium text-gray-900 dark:text-gray-100" x-text="item.name"></span>
+                                            <span class="block text-xs text-gray-500 dark:text-gray-400">
+                                                <span x-text="item.type === 'file' ? '{{ __('dossiers.drive_type_file') }}' : '{{ __('dossiers.drive_article_badge') }}'"></span><span x-show="item.type === 'root'"> · {{ __('dossiers.content_root_badge') }}</span>
+                                            </span>
+                                        </span>
+                                        @if($canManageSeries)
+                                        <template x-if="item.itemId">
+                                            <span class="flex shrink-0 items-center">
+                                                <button type="button" @click="serieMove(item.itemId, -1)" :disabled="serieSaving || !serieCanMoveUp(item.itemId)"
+                                                        class="hidden h-11 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30 sm:flex dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                                                        :aria-label="'{{ __('dossiers.move_up') }} — ' + item.name">
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5"/></svg>
                                                 </button>
-                                                <div x-show="showSeriesMenu" @click.away="showSeriesMenu = false" x-cloak x-transition class="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                                                    <button @click="showSeriesMenu = false" type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.changeRoot"></button>
-                                                    <button @click="showSeriesMenu = false; openDeleteSeriesModal()" type="button" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30" x-text="i18n.deleteSeries"></button>
-                                                </div>
-                                            </div>
-                                        </template>
-                                    </div>
-                                </div>
-
-                                {{-- Root article --}}
-                                <template x-if="seriesRoot">
-                                    <div class="border-t border-indigo-200 dark:border-indigo-900/60">
-                                        <div class="px-4 py-3">
-                                            <div class="flex items-start justify-between gap-3 rounded-xl bg-white px-3 py-3 dark:bg-gray-800 sm:py-2" data-no-drag :data-article-id="seriesRoot.blogPostId">
-                                                <div class="flex items-start gap-2 min-w-0 flex-1">
-                                                    {{-- No drag handle for root --}}
-                                                    <div class="min-w-0 flex-1">
-                                                        <div class="flex flex-wrap items-center gap-1.5">
-                                                            <span class="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300" x-text="i18n.rootBadge"></span>
-                                                            <span class="rounded-full px-1.5 py-0.5 text-xs font-semibold"
-                                                                  :class="seriesRoot.status === 'published' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200' : (seriesRoot.status === 'archived' ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200')"
-                                                                  x-text="formatStatus(seriesRoot.status)"></span>
-                                                        </div>
-                                                        <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-                                                            <template x-if="seriesRoot.canView && seriesRoot.viewUrl">
-                                                                <a :href="seriesRoot.viewUrl" class="hover:underline" x-text="seriesRoot.title"></a>
-                                                            </template>
-                                                            <template x-if="!seriesRoot.canView || !seriesRoot.viewUrl">
-                                                                <span x-text="seriesRoot.title"></span>
-                                                            </template>
-                                                        </p>
-                                                        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                                            <template x-if="seriesRoot.author">
-                                                                <span x-text="i18n.byAuthor.replace(':name', (seriesRoot.author.first_name || '') + ' ' + (seriesRoot.author.name || ''))"></span>
-                                                            </template>
-                                                            <template x-if="seriesRoot.coAuthors && seriesRoot.coAuthors.length > 0">
-                                                                <span> · <span x-text="i18n.withCoauthors.replace(':names', seriesRoot.coAuthors.map(c => (c.first_name || '') + ' ' + (c.name || '')).join(', '))"></span></span>
-                                                            </template>
-                                                            <template x-if="seriesRoot.updatedAt">
-                                                                <span> · <span x-text="formatDate(seriesRoot.updatedAt)"></span></span>
-                                                            </template>
-                                                            <template x-if="seriesRoot.publishedAt">
-                                                                <span> · <span x-text="'📅 ' + formatDate(seriesRoot.publishedAt)"></span></span>
-                                                            </template>
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div class="flex shrink-0 items-center gap-1">
-                                                    <template x-if="seriesRoot.canView && seriesRoot.viewUrl">
-                                                        <a :href="seriesRoot.viewUrl" class="rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.viewArticle"></a>
-                                                    </template>
-                                                    <template x-if="seriesRoot.canEdit && seriesRoot.editUrl">
-                                                        <a :href="seriesRoot.editUrl" class="rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.editArticle"></a>
-                                                    </template>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </template>
-
-                                {{-- Annexes --}}
-                                <div class="border-t border-indigo-200 px-4 py-3 dark:border-indigo-900/60" x-show="seriesItems.length > 0">
-                                    <div class="space-y-2" x-ref="annexesContainer">
-                                        <template x-for="(item, index) in filteredAnnexItems" :key="item.id">
-                                            <div :data-article-id="item.blog_post_id" class="flex items-start justify-between gap-3 rounded-xl bg-white px-3 py-3 dark:bg-gray-800 sm:py-2">
-                                                <div class="flex items-start gap-2 min-w-0 flex-1">
-                                                     <template x-if="canManageArticles">
-                                                         <span x-show="!isSearchActive" class="drag-handle mt-0.5 cursor-grab shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" :title="i18n.dragHandle">
-                                                             <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
-                                                         </span>
-                                                     </template>
-                                                    <div class="min-w-0 flex-1">
-                                                        <div class="flex flex-wrap items-center gap-1.5">
-                                                            <span class="rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300" x-text="i18n.annexBadge"></span>
-                                                            <span class="rounded-full px-1.5 py-0.5 text-xs font-semibold"
-                                                                  :class="item.blog_post?.status === 'published' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200' : (item.blog_post?.status === 'archived' ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200')"
-                                                                  x-text="formatStatus(item.blog_post?.status)"></span>
-                                                        </div>
-                                                        <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-                                                            <template x-if="item.blog_post?.canView && item.blog_post?.viewUrl">
-                                                                <a :href="item.blog_post.viewUrl" class="hover:underline" x-text="item.blog_post?.title || '—'"></a>
-                                                            </template>
-                                                            <template x-if="!item.blog_post?.canView || !item.blog_post?.viewUrl">
-                                                                <span x-text="item.blog_post?.title || '—'"></span>
-                                                            </template>
-                                                        </p>
-                                                        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                                            <template x-if="item.blog_post?.author">
-                                                                <span x-text="i18n.byAuthor.replace(':name', (item.blog_post.author.first_name || '') + ' ' + (item.blog_post.author.name || ''))"></span>
-                                                            </template>
-                                                            <template x-if="item.blog_post?.coAuthors && item.blog_post.coAuthors.length > 0">
-                                                                <span> · <span x-text="i18n.withCoauthors.replace(':names', item.blog_post.coAuthors.map(c => (c.first_name || '') + ' ' + (c.name || '')).join(', '))"></span></span>
-                                                            </template>
-                                                            <template x-if="item.blog_post?.updatedAt">
-                                                                <span> · <span x-text="formatDate(item.blog_post.updatedAt)"></span></span>
-                                                            </template>
-                                                            <template x-if="item.blog_post?.publishedAt">
-                                                                <span> · <span x-text="'📅 ' + formatDate(item.blog_post.publishedAt)"></span></span>
-                                                            </template>
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div class="flex shrink-0 items-center gap-1">
-                                                    <template x-if="canManageArticles">
-                                                        <div class="flex items-center gap-0.5">
-                                                            <button @click="moveAnnex(index, -1)" :disabled="index === 0 || isSearchActive" :title="i18n.moveUp" type="button" class="rounded-lg p-1 text-gray-400 hover:bg-gray-200 disabled:opacity-30 dark:hover:bg-gray-700">
-                                                                <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd"/></svg>
-                                                            </button>
-                                                            <button @click="moveAnnex(index, 1)" :disabled="index === filteredAnnexItems.length - 1 || isSearchActive" :title="i18n.moveDown" type="button" class="rounded-lg p-1 text-gray-400 hover:bg-gray-200 disabled:opacity-30 dark:hover:bg-gray-700">
-                                                                <svg class="h-3.5 w-3.5 rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd"/></svg>
-                                                            </button>
-                                                        </div>
-                                                    </template>
-                                                    <template x-if="item.blog_post?.canView && item.blog_post?.viewUrl">
-                                                        <a :href="item.blog_post.viewUrl" class="rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.viewArticle"></a>
-                                                    </template>
-                                                    <template x-if="item.blog_post?.canEdit && item.blog_post?.editUrl">
-                                                        <a :href="item.blog_post.editUrl" class="rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.editArticle"></a>
-                                                    </template>
-                                                    <template x-if="canManageArticles">
-                                                        <div class="relative" data-article-menu>
-                                                            <button @click="toggleMenu(item.id)" type="button" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
-                                                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                                                            </button>
-                                                            <div x-show="openMenuId === item.id" @click.away="openMenuId = null" x-cloak x-transition class="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                                                                <button @click="removeAnnex(item)" type="button" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30" x-text="i18n.removeFromSeries"></button>
-                                                            </div>
-                                                        </div>
-                                                    </template>
-                                                </div>
-                                            </div>
-                                        </template>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-
-                    {{-- Ungrouped articles --}}
-                    <template x-if="filteredUngrouped.length > 0 || (hasSeries && seriesItems.length === 0)">
-                        <div class="mt-6">
-                            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3" x-text="i18n.ungroupedTitle"></h3>
-                            <div class="space-y-2" x-ref="ungroupedContainer">
-                                <template x-for="(entry, index) in filteredUngrouped" :key="entry.id">
-                                    <div :data-article-id="entry.blog_post_id" class="flex items-start justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-900/40 sm:py-2">
-                                        <div class="flex items-start gap-2 min-w-0 flex-1">
-                                            <template x-if="canManageArticles">
-                                                <span x-show="!isSearchActive" class="drag-handle mt-0.5 cursor-grab shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" :title="i18n.dragHandle">
-                                                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
+                                                <button type="button" @click="serieMove(item.itemId, 1)" :disabled="serieSaving || !serieCanMoveDown(item.itemId)"
+                                                        class="hidden h-11 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30 sm:flex dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                                                        :aria-label="'{{ __('dossiers.move_down') }} — ' + item.name">
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
+                                                </button>
+                                                <span class="relative" x-data="{ ouvert: false }" x-on:keydown.escape.window="ouvert = false">
+                                                    <button type="button" @click="ouvert = !ouvert" x-bind:aria-expanded="ouvert"
+                                                            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-400 sm:w-9 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                                                            :aria-label="item.name">
+                                                        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg>
+                                                    </button>
+                                                    <span x-show="ouvert" x-cloak @click.outside="ouvert = false"
+                                                          class="absolute right-0 top-full z-30 mt-1 block w-52 rounded-xl border border-gray-200 bg-white p-1 text-left shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                                        <button type="button" @click="ouvert = false; serieMove(item.itemId, -1)" :disabled="serieSaving || !serieCanMoveUp(item.itemId)"
+                                                                class="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 sm:min-h-0 sm:hidden dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.move_up') }}</button>
+                                                        <button type="button" @click="ouvert = false; serieMove(item.itemId, 1)" :disabled="serieSaving || !serieCanMoveDown(item.itemId)"
+                                                                class="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 sm:min-h-0 sm:hidden dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.move_down') }}</button>
+                                                        <template x-if="item.type === 'article'">
+                                                            <button type="button" @click="ouvert = false; serieSetRoot(item)" :disabled="serieSaving"
+                                                                    class="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.content_set_root') }}</button>
+                                                        </template>
+                                                        <button type="button" @click="ouvert = false; serieRemove(item)" :disabled="serieSaving"
+                                                                class="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.content_remove_from_series') }}</button>
+                                                    </span>
                                                 </span>
-                                            </template>
-                                            <div class="min-w-0 flex-1">
-                                                <div class="flex flex-wrap items-center gap-1.5">
-                                                    <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950/50 dark:text-amber-300" x-text="i18n.ungroupedBadge"></span>
-                                                    <span class="rounded-full px-1.5 py-0.5 text-xs font-semibold"
-                                                          :class="entry.blog_post?.status === 'published' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200' : (entry.blog_post?.status === 'archived' ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200')"
-                                                          x-text="formatStatus(entry.blog_post?.status)"></span>
-                                                </div>
-                                                <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-                                                    <template x-if="entry.blog_post?.canView && entry.blog_post?.viewUrl">
-                                                        <a :href="entry.blog_post.viewUrl" class="hover:underline" x-text="entry.blog_post?.title || '—'"></a>
-                                                    </template>
-                                                    <template x-if="!entry.blog_post?.canView || !entry.blog_post?.viewUrl">
-                                                        <span x-text="entry.blog_post?.title || '—'"></span>
-                                                    </template>
-                                                </p>
-                                                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                                    <template x-if="entry.blog_post?.author">
-                                                        <span x-text="i18n.byAuthor.replace(':name', (entry.blog_post.author.first_name || '') + ' ' + (entry.blog_post.author.name || ''))"></span>
-                                                    </template>
-                                                    <template x-if="entry.blog_post?.coAuthors && entry.blog_post.coAuthors.length > 0">
-                                                        <span> · <span x-text="i18n.withCoauthors.replace(':names', entry.blog_post.coAuthors.map(c => (c.first_name || '') + ' ' + (c.name || '')).join(', '))"></span></span>
-                                                    </template>
-                                                    <template x-if="entry.blog_post?.updatedAt">
-                                                        <span> · <span x-text="formatDate(entry.blog_post.updatedAt)"></span></span>
-                                                    </template>
-                                                    <template x-if="entry.blog_post?.publishedAt">
-                                                        <span> · <span x-text="'📅 ' + formatDate(entry.blog_post.publishedAt)"></span></span>
-                                                    </template>
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div class="flex shrink-0 items-center gap-1">
-                                            <template x-if="canManageArticles">
-                                                <div class="flex items-center gap-0.5">
-                                                    <button @click="moveUngrouped(index, -1)" :disabled="index === 0 || isSearchActive" :title="i18n.moveUp" type="button" class="rounded-lg p-1 text-gray-400 hover:bg-gray-200 disabled:opacity-30 dark:hover:bg-gray-700">
-                                                        <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd"/></svg>
-                                                    </button>
-                                                    <button @click="moveUngrouped(index, 1)" :disabled="index === filteredUngrouped.length - 1 || isSearchActive" :title="i18n.moveDown" type="button" class="rounded-lg p-1 text-gray-400 hover:bg-gray-200 disabled:opacity-30 dark:hover:bg-gray-700">
-                                                        <svg class="h-3.5 w-3.5 rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd"/></svg>
-                                                    </button>
-                                                </div>
-                                            </template>
-                                            <template x-if="entry.blog_post?.canView && entry.blog_post?.viewUrl">
-                                                <a :href="entry.blog_post.viewUrl" class="rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.viewArticle"></a>
-                                            </template>
-                                            <template x-if="entry.blog_post?.canEdit && entry.blog_post?.editUrl">
-                                                <a :href="entry.blog_post.editUrl" class="rounded-lg border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" x-text="i18n.editArticle"></a>
-                                            </template>
-                                            <template x-if="canManageArticles">
-                                                <div class="relative" data-article-menu>
-                                                    <button @click="toggleMenu(entry.id)" type="button" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
-                                                        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                                                    </button>
-                                                    <div x-show="openMenuId === entry.id" @click.away="openMenuId = null" x-cloak x-transition class="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                                                        <template x-if="hasSeries">
-                                                            <button @click="addToSeries(entry)" type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.addToSeries"></button>
-                                                        </template>
-                                                        <template x-if="!hasSeries && canManageArticles">
-                                                            <button @click="setAsRoot(entry)" type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.setRoot"></button>
-                                                        </template>
-                                                        <button @click="confirmDetach(entry)" type="button" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30" x-text="i18n.removeFromFolder"></button>
-                                                    </div>
-                                                </div>
-                                            </template>
-                                        </div>
-                                    </div>
+                                            </span>
+                                        </template>
+                                        @endif
+                                    </li>
                                 </template>
-                            </div>
+                                <li x-show="!serieActive.items.length" class="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400">{{ __('dossiers.series_mode_items_empty') }}</li>
+                            </ul>
                         </div>
                     </template>
 
-                    {{-- Empty state --}}
-                    <template x-if="!hasSeries && filteredUngrouped.length === 0">
-                        <div class="mt-6 rounded-2xl border border-dashed border-gray-300 px-5 py-10 text-center dark:border-gray-700">
-                            <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('dossiers.articles_empty_body') }}</p>
-                        </div>
-                    </template>
-
-                    {{-- Add Article Modal --}}
-                    <template x-if="showAddModal">
-                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="closeAddModal()" role="dialog" aria-modal="true" aria-labelledby="add-article-title">
-                            <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
-                                <div class="flex items-center justify-between">
-                                    <h3 id="add-article-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.add_article_title') }}</h3>
-                                    <button @click="closeAddModal()" type="button" class="rounded-lg p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                                        <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg>
-                                    </button>
-                                </div>
-                                <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.article_search_help') }}</p>
-                                <input x-ref="addSearchInput" x-model="addSearchQuery" @input.debounce.300ms="searchEligibleArticles()" type="text" placeholder="{{ __('dossiers.article_search_placeholder') }}" class="mt-4 block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
-                                <div class="mt-4 max-h-64 space-y-2 overflow-y-auto">
-                                    <template x-if="addSearching">
-                                        <p class="py-4 text-center text-sm text-gray-500 dark:text-gray-400">...</p>
-                                    </template>
-                                    <template x-for="article in addSearchResults" :key="article.id">
-                                        <div class="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-900/40">
-                                            <div class="min-w-0 flex-1">
-                                                <p class="truncate text-sm font-medium text-gray-900 dark:text-gray-100" x-text="article.title"></p>
-                                                <p class="text-xs text-gray-500 dark:text-gray-400" x-text="article.statusLabel"></p>
-                                            </div>
-                                            <button @click="attachArticle(article)" :disabled="adding" class="ml-3 whitespace-nowrap rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50" x-text="i18n.attachArticle"></button>
-                                        </div>
-                                    </template>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-
-                    {{-- Delete Series Modal --}}
-                    <template x-if="showDeleteSeriesModal">
-                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showDeleteSeriesModal = false" role="dialog" aria-modal="true" aria-labelledby="delete-series-title">
-                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
-                                <h3 id="delete-series-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.seriesDeleteModalTitle"></h3>
-                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300" x-text="i18n.seriesDeleteModalBody"></p>
-                                <div class="mt-6 flex justify-end gap-3">
-                                    <button @click="showDeleteSeriesModal = false" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.cancel"></button>
-                                    <button @click="deleteSeries()" :disabled="saving" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 disabled:opacity-50" x-text="i18n.deleteSeries"></button>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-
-                    {{-- Detach Modal --}}
-                    <template x-if="showDetachModal">
-                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showDetachModal = false; detachEntry = null" role="dialog" aria-modal="true" aria-labelledby="detach-article-title">
-                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
-                                <h3 id="detach-article-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.detachModalTitle"></h3>
-                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300" x-text="i18n.detachModalBody"></p>
-                                <div class="mt-6 flex justify-end gap-3">
-                                    <button @click="showDetachModal = false; detachEntry = null" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.cancel"></button>
-                                    <button @click="detachArticle()" :disabled="detaching" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 disabled:opacity-50" x-text="i18n.removeFromFolder"></button>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-                </section>
-            </div>
-
-            {{-- Tab: Files --}}
-            <div x-show="active === 'fichiers'" x-cloak role="tabpanel" id="tabpanel-fichiers" aria-labelledby="tab-fichiers" class="mt-6">
-                @if($canViewFiles)
-                <section class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6"
-                         x-data="dossierFilesCard(@js([
-                             'csrfToken' => csrf_token(),
-                             'dossierId' => $dossier->getKey(),
-                             'orgParam' => $orgParam,
-                             'canManageFiles' => $canManageFiles,
-                             'canDeleteFiles' => $canDeleteFiles,
-                             'activeTab' => 'fichiers',
-                              'i18n' => [
-                                  'title' => __('dossiers.files_title'),
-                                  'emptyTitle' => __('dossiers.files_empty_title'),
-                                  'emptyBody' => __('dossiers.files_empty_body'),
-                                  'uploadHelp' => __('dossiers.file_upload_help'),
-                                  'uploading' => __('dossiers.file_uploading'),
-                                  'uploadingFile' => __('dossiers.file_uploading_file'),
-                                  'uploadProgress' => __('dossiers.file_upload_progress'),
-                                  'uploaded' => __('dossiers.file_uploaded'),
-                                  'uploadFailed' => __('dossiers.file_upload_failed'),
-                                  'deleted' => __('dossiers.file_deleted'),
-                                  'deleteFailed' => __('dossiers.file_delete_failed'),
-                                  'confirmDeleteTitle' => __('dossiers.file_confirm_delete_title'),
-                                  'confirmDeleteBody' => __('dossiers.file_confirm_delete_body'),
-                                  'confirmDeleteCancel' => __('dossiers.file_confirm_delete_cancel'),
-                                  'confirmDeleteConfirm' => __('dossiers.file_confirm_delete_confirm'),
-                                  'download' => __('dossiers.file_download'),
-                                  'preview' => __('dossiers.file_preview'),
-                                  'deleteFile' => __('dossiers.file_delete'),
-                                  'name' => __('dossiers.file_name'),
-                                  'size' => __('dossiers.file_size'),
-                                  'uploadedBy' => __('dossiers.file_uploaded_by'),
-                                  'storageUnlimited' => __('dossiers.storage_unlimited'),
-                                  'storageUsedLabel' => __('dossiers.storage_used'),
-                                   'articleCreated' => __('dossiers.article_created'),
-                                   'articleCreateFailed' => __('dossiers.article_create_failed'),
-                                   'markdownCreated' => __('dossiers.markdown_created'),
-                                   'markdownCreateFailed' => __('dossiers.markdown_create_failed'),
-                                   'filesUploaded' => __('dossiers.files_uploaded'),
-                                   'filesBatchResult' => __('dossiers.files_batch_result'),
-                                   'filesBatchErrors' => __('dossiers.files_batch_errors'),
-                                   'fileTooLarge' => __('dossiers.file_too_large'),
-                                  'networkError' => __('dossiers.network_error'),
-                                  'duplicateName' => __('dossiers.file_duplicate_name'),
-                                  'previewNotAvailable' => __('dossiers.file_preview_not_available'),
-                                  'searchPlaceholder' => __('dossiers.file_search_placeholder'),
-                              ],
-                         ]))">
-                    <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.files_title') }}</h2>
-
-                    <div x-show="message" x-transition
+                    {{-- Toast ancre en bas de l'ecran (TASK-1130 UX finale) :
+                         il vivait DANS la barre d'outils et deplacait le
+                         layout a chaque message. bottom-24 sous sm : au-dessus
+                         du FAB global et de la barre de navigation mobile. --}}
+                    <div x-show="message" x-transition x-cloak role="status" aria-live="polite"
                          :class="messageType === 'error' ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-900/60 dark:text-red-200' : 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-900/60 dark:text-emerald-200'"
-                         class="mt-4 rounded-xl border px-4 py-3 text-sm font-medium">
+                         class="fixed bottom-24 left-1/2 z-[70] w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-xl border px-4 py-3 text-sm font-medium shadow-lg sm:bottom-6">
                         <span x-text="message"></span>
                     </div>
 
@@ -678,55 +716,11 @@
                     <div class="mt-5 relative">
                         <div id="dossier-file-pond" x-ref="filePondContainer" class="hidden"></div>
                         {{-- Hidden file inputs for media types --}}
-                        <input type="file" x-ref="imageInput" accept="image/*" capture="user" class="hidden" @change="handleMediaFiles($event, 'image')">
-                        <input type="file" x-ref="videoInput" accept="video/*" capture="user" class="hidden" @change="handleMediaFiles($event, 'video')">
+                        {{-- `multiple` : on prend plusieurs photos d'un chantier
+                             en une fois, comme on choisit plusieurs fichiers. --}}
+                        <input type="file" x-ref="imageInput" accept="image/*" capture="user" multiple class="hidden" @change="handleMediaFiles($event, 'image')">
+                        <input type="file" x-ref="videoInput" accept="video/*" capture="user" multiple class="hidden" @change="handleMediaFiles($event, 'video')">
                         <input type="file" x-ref="audioInput" accept="audio/*" multiple class="hidden" @change="handleMediaFiles($event, 'audio')">
-                        <button x-ref="fabButton" @click="showImportMenu = !showImportMenu" type="button" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-                            {{ __('dossiers.fab_action') }}
-                        </button>
-                        <div x-show="showImportMenu" @click.away="showImportMenu = false" x-cloak x-transition class="absolute left-0 z-20 mt-2 w-64 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                            {{-- Section: Ajouter --}}
-                            <div class="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('dossiers.fab_section_add') }}</div>
-                            <button @click="showImportMenu = false; browseFiles()" type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
-                                <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                                {{ __('dossiers.fab_add_file') }}
-                            </button>
-                            <button @click="showImportMenu = false; triggerMediaUpload('image')" type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
-                                <svg class="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                                {{ __('dossiers.fab_add_photo') }}
-                            </button>
-                            <button @click="showImportMenu = false; triggerMediaUpload('video')" type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
-                                <svg class="h-5 w-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                                {{ __('dossiers.fab_add_video') }}
-                            </button>
-                            <button @click="showImportMenu = false; triggerMediaUpload('audio')" type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
-                                <svg class="h-5 w-5 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
-                                {{ __('dossiers.fab_add_audio') }}
-                            </button>
-
-                            <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-
-                            {{-- Section: Créer --}}
-                            <div class="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('dossiers.fab_section_create') }}</div>
-                            <button @click="showImportMenu = false; openArticleModal()" type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
-                                <svg class="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                                {{ __('dossiers.fab_new_article') }}
-                            </button>
-                            <button @click="showImportMenu = false; openMdModal()" type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
-                                <svg class="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                                {{ __('dossiers.fab_markdown_note') }}
-                            </button>
-
-                            <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-
-                            {{-- Section: Dossier --}}
-                            <button disabled type="button" class="flex w-full cursor-not-allowed items-center gap-3 px-4 py-2.5 text-sm text-gray-400 dark:text-gray-500">
-                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
-                                {{ __('dossiers.fab_folder') }} <span class="text-xs italic">({{ __('dossiers.fab_soon') }})</span>
-                            </button>
-                        </div>
-                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.file_upload_help') }}</p>
                     </div>
                     @endif
 
@@ -735,9 +729,13 @@
                             <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm shadow-indigo-900/20">
                                 <svg class="h-5 w-5 animate-pulse" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01.88-7.903A5 5 0 0117.9 9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
                             </div>
-                            <div class="min-w-0 flex-1">
+                            <div class="flex min-h-11 min-w-0 flex-1 flex-col justify-center">
                             <div class="flex items-center justify-between gap-3">
-                                <p class="truncate text-sm font-semibold text-indigo-950 dark:text-indigo-100" x-text="uploadFileName ? i18n.uploadingFile.replace(':name', uploadFileName) : i18n.uploading"></p>
+                                <p class="truncate text-sm font-semibold text-indigo-950 dark:text-indigo-100">
+                                    <span x-text="uploadFileName ? i18n.uploadingFile.replace(':name', uploadFileName) : i18n.uploading"></span>
+                                    <span x-show="uploadTotal > 1" class="ml-1 font-normal opacity-80"
+                                          x-text="'(' + Math.min(uploadFait + 1, uploadTotal) + '/' + uploadTotal + ')'"></span>
+                                </p>
                                 <p class="shrink-0 text-xs font-bold tabular-nums text-indigo-700 dark:text-indigo-200" x-text="i18n.uploadProgress.replace(':percent', uploadProgress)"></p>
                             </div>
                             <p class="mt-1 text-xs font-medium text-indigo-600/80 dark:text-indigo-300/80" x-show="uploadBatchTotal > 1" x-text="uploadBatchCurrent + ' / ' + uploadBatchTotal + ' ' + i18n.filesUploaded.toLowerCase()"></p>
@@ -782,11 +780,13 @@
 
                     {{-- Markdown Note Modal --}}
                     <template x-if="showMdModal">
-                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showMdModal = false" role="dialog" aria-modal="true" aria-labelledby="markdown-note-title">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="closeMdModal()" role="dialog" aria-modal="true" aria-labelledby="markdown-note-title">
                             <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
-                                <h3 id="markdown-note-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.modal_new_markdown_title') }}</h3>
-                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.modal_new_markdown_desc') }}</p>
-                                <div class="mt-4">
+                                <h3 id="markdown-note-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100"
+                                    x-text="mdTarget ? @js(__('dossiers.modal_edit_markdown_title')) : @js(__('dossiers.modal_new_markdown_title'))"></h3>
+                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300"
+                                   x-text="mdTarget ? @js(__('dossiers.modal_edit_markdown_desc')) : @js(__('dossiers.modal_new_markdown_desc'))"></p>
+                                <div class="mt-4" x-show="!mdTarget">
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('dossiers.modal_markdown_name_label') }}</label>
                                     <div class="mt-1 flex items-center gap-2">
                                         <input type="text" x-model="mdFileName" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" placeholder="{{ __('dossiers.modal_markdown_name_placeholder') }}">
@@ -795,89 +795,345 @@
                                 </div>
                                 <div class="mt-4">
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('dossiers.modal_markdown_content_label') }}</label>
-                                    <textarea x-model="mdContent" rows="8" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" placeholder="{{ __('dossiers.modal_markdown_content_placeholder') }}"></textarea>
+                                    {{-- Le meme editeur que la description d'un
+                                         service : on ecrit du texte, pas de la
+                                         syntaxe. Il s'initialise a l'ouverture,
+                                         la modale n'existant pas au chargement. --}}
+                                    <div class="mt-1" x-init="$nextTick(() => document.dispatchEvent(new CustomEvent('bp:markdown-editor:init')))">
+                                        <x-markdown-wysiwyg-editor name="dossier-md-content" :value="''" rows="8" :placeholder="__('dossiers.modal_markdown_content_placeholder')" />
+                                    </div>
                                 </div>
                                 <div class="mt-6 flex justify-end gap-3">
-                                    <button @click="showMdModal = false" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                                    <button @click="closeMdModal()" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
                                         {{ __('dossiers.modal_cancel') }}
                                     </button>
-                                    <button @click="createMarkdownNote()" :disabled="!mdFileName.trim()" type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50">
-                                        {{ __('dossiers.modal_create') }}
-                                    </button>
+                                    <button @click="enregistrerMarkdown()" :disabled="!mdFileName.trim() || saving || mdLoading" type="button"
+                                            x-text="mdTarget ? @js(__('dossiers.modal_save')) : @js(__('dossiers.modal_create'))"
+                                            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"></button>
                                 </div>
                             </div>
                         </div>
                     </template>
 
-                    <div class="mt-5" x-show="totalFiles > 0 || quota.used_bytes > 0">
-                        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                            <span x-text="quotaLabel"></span>
-                        </div>
-                        <div class="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700" x-show="quota.limit_bytes !== null">
-                            <div class="h-full rounded-full transition-all duration-300"
-                                 :class="quotaPercent > 90 ? 'bg-red-500' : (quotaPercent > 70 ? 'bg-amber-500' : 'bg-indigo-500')"
-                                 :style="'width:' + quotaPercent + '%'"></div>
+
+
+
+                    {{-- La barre de selection : sa PROPRE bande, juste au-dessus
+                         de la liste sur laquelle elle agit. Logee dans la ligne
+                         d'outils, elle en chassait la recherche et repoussait
+                         les gestes d'identite du fil d'Ariane sur une seconde
+                         ligne — la page sautait a chaque clic. Ici elle
+                         s'ajoute, ne deplace rien, et designe sans ambiguite ce
+                         sur quoi elle porte.
+
+                         `sticky` : sur une longue liste, les actions restent
+                         atteignables sans remonter. Elle se pose AU-DESSUS du
+                         contenu, jamais par-dessus. --}}
+                    {{-- La bande d'actions groupees : a partir de DEUX elements
+                         seulement (doctrine Cyril, TASK-1131).
+
+                         A un seul element, la ligne est designee — fond teinte
+                         et lisere — et ses actions se prennent dans son menu
+                         « ... », la ou on va naturellement les chercher. Une
+                         bande qui s'ouvre au premier clic deplace le regard
+                         pour proposer ce que la ligne offre deja.
+
+                         Elle garde sa propre bande, juste au-dessus de la liste
+                         sur laquelle elle agit, et reste atteignable en
+                         `sticky` sur une longue liste. --}}
+                    <div x-show="selectionCount > 1" x-cloak
+                         x-transition:enter="transition ease-out duration-150 motion-reduce:transition-none"
+                         x-transition:enter-start="opacity-0 -translate-y-1"
+                         x-transition:enter-end="opacity-100 translate-y-0"
+                         x-transition:leave="transition ease-in duration-100 motion-reduce:transition-none"
+                         x-transition:leave-start="opacity-100"
+                         x-transition:leave-end="opacity-0"
+                         class="sticky top-2 z-30 mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-xl border border-indigo-200 bg-indigo-50/95 px-2 py-1.5 shadow-sm backdrop-blur-sm dark:border-indigo-800/70 dark:bg-indigo-950/90"
+                         role="region" :aria-label="i18n.selectionCount.replace(':count', selectionCount)">
+                        <button type="button" @click="viderSelection()"
+                                    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-indigo-700 sm:h-9 sm:w-9 transition hover:bg-indigo-100 dark:text-indigo-200 dark:hover:bg-indigo-900/60"
+                                    :aria-label="i18n.selectionClear" :title="i18n.selectionClear">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                            </button>
+                            <span class="min-w-0 max-w-[14rem] truncate text-sm font-semibold text-indigo-900 dark:text-indigo-100"
+                              aria-live="polite"
+                              x-text="i18n.selectionCount.replace(':count', selectionCount)"></span>
+
+                        {{-- Seulement ce qui vaut pour TOUS les elements
+                             designes. Deplacer et supprimer se disent au
+                             pluriel ; ouvrir, renommer et partager ne se disent
+                             pas du tout — ils appartiennent au menu d'UNE
+                             ligne. --}}
+                        <div class="flex flex-wrap items-center justify-end gap-1.5 max-sm:basis-full sm:ml-auto">
+                                    <button type="button" x-show="lotDeplacable" @click="openMoveLot()"
+                                            class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-indigo-800 transition hover:bg-indigo-100 dark:text-indigo-100 dark:hover:bg-indigo-900/60" x-text="i18n.move"></button>
+                                    <button type="button" x-show="lotSupprimable" @click="openDeleteLot()"
+                                            class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.deleteFile"></button>
+                                    <button type="button" x-show="lotRetirable" @click="retirerLot()"
+                                            class="inline-flex min-h-11 shrink-0 items-center sm:min-h-9 gap-1.5 rounded-lg px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30" x-text="i18n.removeArticle"></button>
                         </div>
                     </div>
 
-                    <div class="mt-4" x-show="totalFiles > 0">
-                        <div class="relative">
-                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                                <svg class="h-4 w-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+                    {{-- Squelette (TASK-1130 UX finale) : les fichiers arrivent
+                         en asynchrone apres les dossiers/Articles rendus cote
+                         serveur — sans lui, l'ecran affirmait « rien ici »
+                         pendant le fetch. --}}
+                    <div x-show="vue === 'documents' && filesLoading" x-cloak aria-hidden="true" class="mt-4 space-y-2">
+                        <div class="flex items-center gap-3 rounded-xl border border-gray-100 px-4 py-3 dark:border-gray-700/60">
+                            <div class="h-8 w-8 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-700"></div>
+                            <div class="min-w-0 flex-1 space-y-2">
+                                <div class="h-3 w-1/3 animate-pulse rounded bg-gray-100 dark:bg-gray-700"></div>
+                                <div class="h-2.5 w-1/5 animate-pulse rounded bg-gray-100 dark:bg-gray-700"></div>
                             </div>
-                            <input x-model="searchQuery" @input.debounce.300ms="onSearchInput()" type="search"
-                                   class="block w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-400"
-                                   :placeholder="i18n.searchPlaceholder || 'Search files…'">
+                        </div>
+                        <div class="flex items-center gap-3 rounded-xl border border-gray-100 px-4 py-3 dark:border-gray-700/60">
+                            <div class="h-8 w-8 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-700"></div>
+                            <div class="min-w-0 flex-1 space-y-2">
+                                <div class="h-3 w-2/5 animate-pulse rounded bg-gray-100 dark:bg-gray-700"></div>
+                                <div class="h-2.5 w-1/4 animate-pulse rounded bg-gray-100 dark:bg-gray-700"></div>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="mt-4 flex items-center justify-end gap-2" x-show="totalFiles > 0">
-                        <button @click="viewMode = 'list'" :class="viewMode === 'list' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'" class="rounded-lg p-2 transition" title="{{ __('dossiers.file_view_list') }}">
-                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
-                        </button>
-                        <button @click="viewMode = 'grid'" :class="viewMode === 'grid' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'" class="rounded-lg p-2 transition" title="{{ __('dossiers.file_view_grid') }}">
-                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
-                        </button>
-                    </div>
-
-                    <div class="mt-5 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700" x-show="totalFiles > 0 && viewMode === 'list'">
-                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                            <thead class="bg-gray-50 dark:bg-gray-900/60">
-                                <tr>
-                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                                        <button @click="toggleSort('name')" class="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
-                                            {{ __('dossiers.file_name') }}
-                                            <svg x-show="sortBy === 'name'" :class="sortDirection === 'asc' ? 'rotate-180' : ''" class="h-3 w-3 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-                                        </button>
-                                    </th>
-                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                                        <span class="inline-flex items-center gap-1">
-                                            {{ __('dossiers.file_uploaded_by') }}
+                    <div class="mt-4 rounded-xl border border-gray-200 dark:border-gray-700" x-show="vue === 'documents' && viewMode === 'list' && (totalFiles > 0 || {{ ($driveFolders->count() + $dossier->dossierBlogPosts->count()) > 0 ? 'true' : 'false' }})">
+                        <div class="hidden lg:block">
+                            <div class="{{ $grilleDrive }} border-b border-gray-200 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:border-gray-700 dark:text-gray-500">
+                                <div>{{ __('dossiers.col_name') }}</div>
+                                @if($colonneProprietaire)<div>{{ __('dossiers.col_owner') }}</div>@endif
+                                <div>{{ __('dossiers.col_type') }}</div>
+                                @if($colonnePartage)<div>{{ __('dossiers.col_share') }}</div>@endif
+                                <div>{{ __('dossiers.col_modified') }}</div>
+                                <div>{{ __('dossiers.col_size') }}</div>
+                                <div><span class="sr-only">{{ __('dossiers.col_name') }}</span></div>
+                            </div>
+                        </div>
+                        <ul class="divide-y divide-gray-100 rounded-xl bg-white dark:divide-gray-700/60 dark:bg-gray-800">
+                            {{-- Les dossiers d'abord, comme dans tout Drive. La
+                                 recherche de la barre filtre aussi ces lignes,
+                                 localement — memes regles pour les trois types. --}}
+                            @foreach($driveFolders as $folder)
+                                @php
+                                    $estCibleDeplacement = $moveTargets->contains('id', $folder->getKey());
+                                @endphp
+                                <li class="group/ligne {{ $grilleDrive }} px-4 py-2.5 transition first:rounded-t-xl last:rounded-b-xl hover:bg-amber-50/40 dark:hover:bg-amber-500/5"
+                                    data-selection-key="folder:{{ $folder->getKey() }}" x-init="enregistrer({!! $itemDossier($folder) !!})"
+                                    x-show="!searchQuery || {{ \Illuminate\Support\Js::from(mb_strtolower($folder->name)) }}.includes(searchQuery.toLowerCase())"
+                                    @if($estCibleDeplacement)
+                                    @dragover.prevent="onFolderDragOver('{{ $folder->getKey() }}')"
+                                    @dragleave="onFolderDragLeave('{{ $folder->getKey() }}')"
+                                    @drop.prevent="onFolderDrop('{{ $folder->getKey() }}')"
+                                    :class="dragOverFolderId === '{{ $folder->getKey() }}'
+                                        ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30'
+                                        : (draggingKeys.length ? 'ring-1 ring-inset ring-dashed ring-indigo-300/70 dark:ring-indigo-700' : (estSelectionne('folder', '{{ $folder->getKey() }}') ? '{{ $classeSelection }}' : ''))"
+                                    @else
+                                    :class="estSelectionne('folder', '{{ $folder->getKey() }}') && '{{ $classeSelection }}'"
+                                    @endif
+                                    >
+                                    @php
+                                        // CAS B : un Dossier personnel seulement partage
+                                        // ici (parent_id NULL, il vit ailleurs) — le
+                                        // discriminant de la passe 4, rendu VISIBLE pour
+                                        // que les menus differents soient previsibles.
+                                        $estPartageIci = $folder->parent_id === null && $folder->owner !== null;
+                                        // Une racine personnelle a MOI, listee dans « Mes
+                                        // documents » : elle vit aussi ailleurs, mais elle
+                                        // n'est pas « partagee par quelqu'un » — le
+                                        // marqueur ne s'allume que pour le dossier d'un
+                                        // autre.
+                                        $estDunAutre = $estPartageIci && $folder->owner_id !== auth()->id();
+                                        $nomProprietaire = $estDunAutre
+                                            ? ($folder->owner->isDisplayableIn(currentOrganization()) ? $folder->owner->publicDisplayName() : __('profile.deactivated_user'))
+                                            : null;
+                                        $nbElements = $folder->files_count + $folder->dossier_blog_posts_count;
+                                        // Une ligne qui porte sa propre gouvernance (une racine)
+                                        // dit SON etat ; une ligne gouvernee par le Dossier
+                                        // ouvert herite du sien.
+                                        // Le proprietaire REEL de la ligne : le sien si elle
+                                        // porte sa propre gouvernance (une racine), celui du
+                                        // Dossier ouvert sinon.
+                                        $proprietaireDuDossier = $estPartageIci ? $folder->owner : $governingDossier->owner;
+                                        $proprietaireLibelle = $estPartageIci
+                                            ? ($folder->owner_id === auth()->id() ? __('dossiers.owner_me') : ($nomProprietaire ?? '—'))
+                                            : $proprietaireHerite;
+                                        $partageDuDossier = ! $estPartageIci
+                                            ? $partageHerite
+                                            : ($folder->shared_with_loop_id
+                                                ? __('dossiers.share_loop')
+                                                : (($folder->dossier_members_count ?? 0) > 0 ? __('dossiers.share_shared') : __('dossiers.share_private')));
+                                    @endphp
+                                    <div class="flex min-w-0 items-center gap-3">
+                                        {!! $gouttiereDrive(false) !!}
+                                        <span class="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300" aria-hidden="true">
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
+                                            @if($estDunAutre)
+                                                <span class="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white ring-1 ring-amber-300 dark:bg-gray-800 dark:ring-amber-500/50">
+                                                    <svg class="h-2 w-2 text-amber-600 dark:text-amber-300" fill="currentColor" viewBox="0 0 20 20"><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z"/></svg>
+                                                </span>
+                                            @endif
                                         </span>
-                                    </th>
-                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                                        <button @click="toggleSort('size')" class="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
-                                            {{ __('dossiers.file_size') }}
-                                            <svg x-show="sortBy === 'size'" :class="sortDirection === 'asc' ? 'rotate-180' : ''" class="h-3 w-3 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                                        <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}"
+                                           @click="clicElement($event, {!! $itemDossier($folder) !!})" @dblclick="ouvrir({!! $itemDossier($folder) !!})" @touchstart="debutAppui({!! $itemDossier($folder) !!})" @touchend="finAppui()" @touchmove="finAppui()"
+                                           class="flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800">
+                                            <span class="block truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $folder->name }}</span>
+                                            <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400">{{ $partageDuDossier }} · <span data-folder-count="{{ $folder->getKey() }}" data-count="{{ $nbElements }}">{{ trans_choice('dossiers.drive_folder_items', $nbElements, ['count' => $nbElements]) }}</span>@if($estDunAutre) · {{ __('dossiers.drive_shared_by', ['name' => $nomProprietaire]) }}@endif</span>
+                                        </a>
+                                    </div>
+                                    @if($colonneProprietaire)
+                                        <div class="hidden min-w-0 items-center gap-2 lg:flex">
+                                            <x-user-avatar :user="$proprietaireDuDossier" size="xs" />
+                                            <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $proprietaireLibelle }}</span>
+                                        </div>
+                                    @endif
+                                    <div class="{{ $celluleLgDrive }}">{{ __('dossiers.drive_type_folder') }}</div>
+                                    @if($colonnePartage)
+                                        <div class="{{ $classePartage($partageDuDossier) }}">{{ $partageDuDossier }}</div>
+                                    @endif
+                                    <div class="{{ $celluleLgDrive }} tabular-nums">{{ $folder->updated_at?->isoFormat('L') }}</div>
+                                    <div class="{{ $celluleLgDrive }} tabular-nums"><span data-folder-count="{{ $folder->getKey() }}" data-count="{{ $nbElements }}">{{ trans_choice('dossiers.drive_folder_items', $nbElements, ['count' => $nbElements]) }}</span></div>
+                                    <div class="relative justify-self-end" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
+                                        <button type="button" @click="open = !open" x-bind:aria-expanded="open"
+                                                class="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                                                aria-label="{{ $folder->name }}">
+                                            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg>
                                         </button>
-                                    </th>
-                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                                        <button @click="toggleSort('date')" class="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100">
-                                            {{ __('dossiers.file_date') }}
-                                            <svg x-show="sortBy === 'date'" :class="sortDirection === 'asc' ? 'rotate-180' : ''" class="h-3 w-3 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                                        <div x-show="open" x-cloak @click.outside="open = false"
+                                             class="absolute right-0 top-full z-30 mt-1 w-44 rounded-xl border border-gray-200 bg-white p-1 text-left shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                            <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_open') }}</a>
+                                            @if($folder->parent_id !== null)
+                                                {{-- CAS A : un vrai sous-dossier, reellement possede ici
+                                                     (Boucle ou personnel) — pas seulement vu en passant. --}}
+                                                @can('update', $folder)
+                                                    <a href="{{ route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.rename') }}</a>
+                                                @endcan
+                                                @can('manageMembers', $folder)
+                                                    <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey(), 'partage' => 1]) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_tab') }}</a>
+                                                @endcan
+                                                @can('delete', $folder)
+                                                    <button type="button" @click="open = false; openDeleteFolderModal('{{ $folder->getKey() }}', @js($folder->name))"
+                                                            class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.drive_delete_folder') }}</button>
+                                                @endcan
+                                            @else
+                                                {{-- CAS B : ce dossier vit ailleurs (l'espace personnel de
+                                                     son proprietaire) — seulement partage avec cette Boucle.
+                                                     Le retirer n'est jamais le supprimer. --}}
+                                                @can('update', $folder)
+                                                    <a href="{{ route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.rename') }}</a>
+                                                @endcan
+                                                @if($folder->shared_with_loop_id)
+                                                @can('updateVisibility', $folder)
+                                                    {{-- Confirmation legere (TASK-1130 UX finale) :
+                                                         retirer un partage n'est pas supprimer, mais
+                                                         un submit direct sur une surface d'equipe
+                                                         restait une surprise. --}}
+                                                    <button type="button" @click="open = false; openUnshareFolderModal('{{ $folder->getKey() }}', @js($folder->name), '{{ route('organization.dossiers.unshare', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}')"
+                                                            class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_unshare_folder') }}</button>
+                                                @endcan
+                                                @endif
+                                                @can('delete', $folder)
+                                                    <button type="button" @click="open = false; openDeleteFolderModal('{{ $folder->getKey() }}', @js($folder->name))"
+                                                            class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.drive_delete_folder_definitively') }}</button>
+                                                @endcan
+                                            @endif
+                                        </div>
+                                    </div>
+                                </li>
+                            @endforeach
+
+                            {{-- Les Articles : identite editoriale, une seule
+                                 apparition dans la surface. --}}
+                            @foreach($dossier->dossierBlogPosts as $entry)
+                                @php $post = $entry->blogPost; @endphp
+                                @continue(! $post || ! $canView($post))
+                                <li class="group/ligne {{ $grilleDrive }} px-4 py-2.5 transition first:rounded-t-xl last:rounded-b-xl hover:bg-rose-50/40 dark:hover:bg-rose-500/5"
+                                    data-selection-key="article:{{ $post->id }}" x-init="enregistrer({!! $itemArticle($post) !!})"
+                                    @if($moveTargets->isNotEmpty() && $canManageArticles)
+                                    draggable="true"
+                                    @dragstart="onArticleDragStart($event, {!! $itemArticle($post) !!})"
+                                    @dragend="onFileDragEnd()"
+                                    @endif
+                                    :class="estEnDeplacement('article', '{{ $post->id }}') ? 'opacity-40' : (estSelectionne('article', '{{ $post->id }}') ? '{{ $classeSelection }}' : '')"
+                                    x-show="!searchQuery || {{ \Illuminate\Support\Js::from(mb_strtolower($post->title)) }}.includes(searchQuery.toLowerCase())">
+                                    @php
+                                        $auteurArticle = $post->user?->isDisplayableIn(currentOrganization()) ? $post->user->publicDisplayName() : __('profile.deactivated_user');
+                                        $motsArticle = str_word_count(strip_tags((string) $post->content));
+                                        // La Serie dont CET Article est la racine, s'il y en a une.
+                                        $serieDeLArticle = $seriesList->firstWhere('root_blog_post_id', $post->getKey());
+                                        $elementsDeSerie = $serieDeLArticle ? $serieDeLArticle->items->count() + 1 : null;
+                                    @endphp
+                                    <div class="flex min-w-0 items-center gap-3">
+                                        {!! $gouttiereDrive($moveTargets->isNotEmpty() && $canManageArticles) !!}
+                                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300" aria-hidden="true">
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
+                                        </span>
+                                        <a href="{{ $blogShowRoute($post) }}" draggable="false"
+                                           @click="clicElement($event, {!! $itemArticle($post) !!})" @dblclick="ouvrir({!! $itemArticle($post) !!})" @touchstart="debutAppui({!! $itemArticle($post) !!})" @touchend="finAppui()" @touchmove="finAppui()"
+                                           class="flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800">
+                                            <span class="block truncate text-sm font-medium text-gray-900 dark:text-gray-100">{{ $post->title }}</span>
+                                            <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400">{{ $partageHerite }} · {{ __('dossiers.drive_article_badge') }} · {{ $post->updated_at?->isoFormat('L') }}</span>
+                                        </a>
+                                    </div>
+                                    @if($colonneProprietaire)
+                                        <div class="hidden min-w-0 items-center gap-2 lg:flex">
+                                            <x-user-avatar :user="$post->user" size="xs" />
+                                            <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $post->user_id === auth()->id() ? __('dossiers.owner_me') : $auteurArticle }}</span>
+                                        </div>
+                                    @endif
+                                    <div class="{{ $celluleLgDrive }}">{{ __('dossiers.drive_article_badge') }}</div>
+                                    @if($colonnePartage)
+                                        <div class="{{ $classePartage($partageHerite) }}">{{ $partageHerite }}</div>
+                                    @endif
+                                    <div class="{{ $celluleLgDrive }} tabular-nums">{{ $post->updated_at?->isoFormat('L') }}</div>
+                                    {{-- La taille d'un Article : le nombre d'elements
+                                         quand il ouvre une Serie — c'est ce qu'on
+                                         vient y lire —, son texte sinon. --}}
+                                    <div class="{{ $celluleLgDrive }} tabular-nums">{{ $elementsDeSerie !== null
+                                        ? trans_choice('dossiers.drive_folder_items', $elementsDeSerie, ['count' => $elementsDeSerie])
+                                        : trans_choice('dossiers.article_words', $motsArticle, ['count' => number_format($motsArticle, 0, ',', ' ')]) }}</div>
+                                    <div class="relative justify-self-end" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
+                                        <button type="button" @click="open = !open" x-bind:aria-expanded="open"
+                                                class="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                                                aria-label="{{ $post->title }}">
+                                            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg>
                                         </button>
-                                    </th>
-                                    <th scope="col" class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                                        {{ __('dossiers.file_actions') }}
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
-                                <template x-for="file in sortedFiles" :key="file.id">
-                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-900/40">
-                                        <td class="whitespace-nowrap px-4 py-3">
-                                            <div class="flex items-center gap-3">
-                                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                                        <div x-show="open" x-cloak @click.outside="open = false"
+                                             class="absolute right-0 top-full z-30 mt-1 w-48 rounded-xl border border-gray-200 bg-white p-1 text-left shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                            <a href="{{ $blogShowRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_open') }}</a>
+                                            @if($canManageArticles)
+                                                <a href="{{ $blogEditRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_edit_article') }}</a>
+                                                {{-- Un Article ne se partage pas seul : le partage vit sur
+                                                     le Dossier qui le contient, et l'entree le dit. --}}
+                                                @unless($dossier->isPersonalDocumentsRoot())
+                                                    <button type="button" @click="open = false; window.dispatchEvent(new CustomEvent('open-share-panel'))" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_the_folder') }}</button>
+                                                @endunless
+                                                @if($moveTargets->isNotEmpty())
+                                                    <button type="button" @click="open = false; selectionner({!! $itemArticle($post) !!}); openMoveLot()" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_move') }}</button>
+                                                @endif
+                                                <form id="retirer-article-{{ $post->id }}" method="POST" action="{{ route('organization.dossiers.articles.destroy', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'post' => $post->id]) }}">
+                                                    @csrf @method('DELETE')
+                                                    <button type="submit" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.drive_remove_article') }}</button>
+                                                </form>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </li>
+                            @endforeach
+
+                            {{-- Les fichiers : donnees JS, meme anatomie de ligne. --}}
+                            <template x-for="file in sortedFiles" :key="file.id">
+                                <li class="group/ligne {{ $grilleDrive }} px-4 py-2.5 transition first:rounded-t-xl last:rounded-b-xl hover:bg-gray-50 dark:hover:bg-gray-900/40 @if($canDeleteFiles && $moveTargets->isNotEmpty()) cursor-grab active:cursor-grabbing @endif"
+                                    :data-selection-key="'file:' + file.id" x-init="enregistrer({{ $itemFichier }})"
+                                    @if($canDeleteFiles && $moveTargets->isNotEmpty())
+                                    draggable="true"
+                                    @dragstart="onFileDragStart($event, file)"
+                                    @dragend="onFileDragEnd()"
+                                    :class="estEnDeplacement('file', file.id) ? 'opacity-40' : (estSelectionne('file', file.id) ? '{{ $classeSelection }}' : '')"
+                                    @else
+                                    :class="estSelectionne('file', file.id) && '{{ $classeSelection }}'"
+                                    @endif
+                                    >
+                                    <div class="flex min-w-0 items-center gap-3">
+                                        {!! $gouttiereDrive($canDeleteFiles && $moveTargets->isNotEmpty()) !!}
+                                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
                                                       :class="{
                                                           'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400': file.mime_type === 'application/pdf',
                                                           'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400': file.mime_type?.startsWith('image/'),
@@ -895,107 +1151,295 @@
                                                     <svg x-show="file.mime_type === 'text/markdown'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
                                                     <svg x-show="file.mime_type === 'application/zip' || file.mime_type === 'application/x-zip-compressed'" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
                                                 </span>
-                                                <div class="min-w-0">
-                                                    <div class="truncate text-sm font-medium text-gray-900 dark:text-gray-100" x-text="file.display_name || file.original_name"></div>
-                                                    <div class="text-xs text-gray-500 dark:text-gray-400" x-text="fileTypeLabel(file.mime_type)"></div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                                            <span x-text="file.uploader?.name || '—'"></span>
-                                        </td>
-                                        <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-700 dark:text-gray-300" x-text="file.sizeFormatted"></td>
-                                        <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-700 dark:text-gray-300" x-text="file.uploadedAtFormatted"></td>
-                                        <td class="whitespace-nowrap px-4 py-3 text-right text-sm">
-                                            <div class="flex items-center justify-end gap-2">
-                                                @if($canViewFiles)
-                                                <button @click="openPreview(file)"
-                                                        x-show="file.mime_type?.startsWith('image/') || file.mime_type === 'application/pdf' || file.mime_type === 'text/plain' || file.mime_type === 'text/markdown'"
-                                                        class="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                                                        title="{{ __('dossiers.file_preview') }}">
-                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                                                </button>
-                                                @endif
-                                                <a :href="'{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)"
-                                                   class="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                                                   title="{{ __('dossiers.file_download') }}">
-                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                                </a>
-                                                @if($canDeleteFiles)
-                                                <button @click="openDeleteModal(file)" :disabled="saving"
-                                                        class="rounded-lg p-1.5 text-red-500 hover:bg-red-100 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/40 dark:hover:text-red-300 disabled:opacity-50"
-                                                        title="{{ __('dossiers.file_delete') }}">
-                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                                </button>
-                                                @endif
-                                            </div>
-                                        </td>
-                                    </tr>
-                                </template>
-                            </tbody>
-                        </table>
+                                    <button type="button" class="flex min-h-11 min-w-0 flex-1 flex-col justify-center text-left rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800"
+                                            @click="clicElement($event, {{ $itemFichier }})" @dblclick="ouvrir({{ $itemFichier }})" @touchstart="debutAppui({{ $itemFichier }})" @touchend="finAppui()" @touchmove="finAppui()">
+                                        <span class="block truncate text-sm font-medium text-gray-900 dark:text-gray-100" x-text="file.display_name || file.original_name"></span>
+                                        <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400" x-text="@js($partageHerite) + ' · ' + file.sizeFormatted + ' · ' + file.updatedAtFormatted"></span>
+                                    </button>
+                                    </div>
+                                    @if($colonneProprietaire)
+                                        <div class="hidden min-w-0 items-center gap-2 lg:flex">
+                                            <img x-show="file.uploader?.avatar_url" :src="file.uploader?.avatar_url" alt="" aria-hidden="true"
+                                                 class="h-6 w-6 shrink-0 rounded-full object-cover">
+                                            <span x-show="!file.uploader?.avatar_url"
+                                                  class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[9px] font-semibold uppercase text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                                                  x-text="uploaderInitiales(file)"></span>
+                                            <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400" x-text="uploaderLibelle(file)"></span>
+                                        </div>
+                                    @endif
+                                    {{-- L'extension, comme dans un explorateur : PDF, DOCX, XLS —
+                                         elle distingue ce que le type MIME confond. --}}
+                                    <div class="{{ $celluleLgDrive }} uppercase" x-text="typeDeFichier(file)"></div>
+                                    @if($colonnePartage)
+                                        <div class="{{ $classePartage($partageHerite) }}">{{ $partageHerite }}</div>
+                                    @endif
+                                    <div class="{{ $celluleLgDrive }} tabular-nums" x-text="file.updatedAtFormatted"></div>
+                                    <div class="{{ $celluleLgDrive }} tabular-nums" x-text="file.sizeFormatted"></div>
+                                    <div class="relative justify-self-end" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
+                                        <button type="button" @click="open = !open" x-bind:aria-expanded="open"
+                                                class="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                                                :aria-label="file.display_name || file.original_name">
+                                            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg>
+                                        </button>
+                                        <div x-show="open" x-cloak @click.outside="open = false"
+                                             class="absolute right-0 top-full z-30 mt-1 w-44 rounded-xl border border-gray-200 bg-white p-1 text-left shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                            <button type="button" @click="open = false; openPreview(file)"
+                                                    x-show="file.mime_type?.startsWith('image/') || file.mime_type === 'application/pdf' || file.mime_type === 'text/plain' || file.mime_type === 'text/markdown'"
+                                                    class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_preview') }}</button>
+                                            <a :href="'{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)"
+                                               class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_download') }}</a>
+                                            @if($canManageFiles)
+                                                <button type="button" x-show="estMarkdown(file)" @click="open = false; openMarkdownEdit(file)"
+                                                    class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_edit_markdown') }}</button>
+                                                <button type="button" @click="open = false; openRenameModal(file)"
+                                                        class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_rename') }}</button>
+                                            @endif
+                                            @if($canDeleteFiles && $moveTargets->isNotEmpty())
+                                                <button type="button" @click="open = false; openMoveModal(file)"
+                                                        class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_move') }}</button>
+                                            @endif
+                                            @unless($dossier->isPersonalDocumentsRoot())
+                                                <button type="button" @click="open = false; window.dispatchEvent(new CustomEvent('open-share-panel'))"
+                                                        class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_the_folder') }}</button>
+                                            @endunless
+                                            @if($canDeleteFiles)
+                                                <button type="button" @click="open = false; openDeleteModal(file)" :disabled="saving"
+                                                        class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.file_delete') }}</button>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </li>
+                            </template>
+                        </ul>
                     </div>
 
-                    {{-- Grid view --}}
-                    <div class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4" x-show="totalFiles > 0 && viewMode === 'grid'">
+                    {{-- Une recherche qui ne trouve rien le dit : sans cet
+                         etat, la surface vide se lisait comme un dossier vide. --}}
+                    <div x-show="vue === 'documents' && aucunResultat" x-cloak class="py-14 text-center">
+                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="i18n.searchNoResults"></p>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400" x-text="searchQuery"></p>
+                    </div>
+
+                    {{-- Grille (TASK-1130 passe 4) : memes trois boucles que la
+                         liste juste au-dessus ($driveFolders, dossierBlogPosts,
+                         sortedFiles) — aucune source de donnees separee, une
+                         presentation alternative seulement. Le glisser-deposer
+                         et le menu "..." fonctionnent a l'identique. --}}
+                    <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+                         x-show="vue === 'documents' && viewMode === 'grid' && (totalFiles > 0 || {{ ($driveFolders->count() + $dossier->dossierBlogPosts->count()) > 0 ? 'true' : 'false' }})">
+                        @foreach($driveFolders as $folder)
+                            @php
+                                $estCibleDeplacement = $moveTargets->contains('id', $folder->getKey());
+                            @endphp
+                            <div class="group relative flex flex-col items-center rounded-xl border border-gray-200 bg-white p-4 text-center transition hover:border-amber-300 dark:border-gray-700 dark:bg-gray-800"
+                                 data-selection-key="folder:{{ $folder->getKey() }}" x-init="enregistrer({!! $itemDossier($folder) !!})"
+                                 x-show="!searchQuery || {{ \Illuminate\Support\Js::from(mb_strtolower($folder->name)) }}.includes(searchQuery.toLowerCase())"
+                                 @if($estCibleDeplacement)
+                                 @dragover.prevent="onFolderDragOver('{{ $folder->getKey() }}')"
+                                 @dragleave="onFolderDragLeave('{{ $folder->getKey() }}')"
+                                 @drop.prevent="onFolderDrop('{{ $folder->getKey() }}')"
+                                 :class="dragOverFolderId === '{{ $folder->getKey() }}'
+                                     ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30'
+                                     : (draggingKeys.length ? 'ring-1 ring-inset ring-dashed ring-indigo-300/70 dark:ring-indigo-700' : (estSelectionne('folder', '{{ $folder->getKey() }}') ? '{{ $classeSelection }}' : ''))"
+                                 @else
+                                 :class="estSelectionne('folder', '{{ $folder->getKey() }}') && '{{ $classeSelection }}'"
+                                 @endif
+                                 >
+                                @php
+                                    // Meme discriminant CAS B que la liste, meme marqueur.
+                                    $estPartageIci = $folder->parent_id === null && $folder->owner !== null;
+                                    $estDunAutre = $estPartageIci && $folder->owner_id !== auth()->id();
+                                    $nomProprietaire = $estDunAutre
+                                        ? ($folder->owner->isDisplayableIn(currentOrganization()) ? $folder->owner->publicDisplayName() : __('profile.deactivated_user'))
+                                        : null;
+                                    $nbElements = $folder->files_count + $folder->dossier_blog_posts_count;
+                                @endphp
+                                <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}"
+                                   @click="clicElement($event, {!! $itemDossier($folder) !!})" @dblclick="ouvrir({!! $itemDossier($folder) !!})" @touchstart="debutAppui({!! $itemDossier($folder) !!})" @touchend="finAppui()" @touchmove="finAppui()"
+                                   class="flex w-full flex-col items-center gap-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800">
+                                    <span class="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300" aria-hidden="true">
+                                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
+                                        @if($estDunAutre)
+                                            <span class="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-white ring-1 ring-amber-300 dark:bg-gray-800 dark:ring-amber-500/50">
+                                                <svg class="h-2.5 w-2.5 text-amber-600 dark:text-amber-300" fill="currentColor" viewBox="0 0 20 20"><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z"/></svg>
+                                            </span>
+                                        @endif
+                                    </span>
+                                    <span class="line-clamp-2 w-full text-sm font-medium text-gray-900 dark:text-gray-100">{{ $folder->name }}</span>
+                                    <span class="w-full truncate text-xs text-gray-500 dark:text-gray-400"><span data-folder-count="{{ $folder->getKey() }}" data-count="{{ $nbElements }}">{{ trans_choice('dossiers.drive_folder_items', $nbElements, ['count' => $nbElements]) }}</span>@if($estDunAutre) · {{ __('dossiers.drive_shared_by', ['name' => $nomProprietaire]) }}@endif</span>
+                                </a>
+                                <div class="absolute right-1.5 top-1.5" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
+                                    <button type="button" @click="open = !open" x-bind:aria-expanded="open"
+                                            class="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:hover:bg-gray-700 dark:hover:text-gray-200 max-sm:opacity-100 sm:h-8 sm:w-8 sm:opacity-0"
+                                            :class="open && 'opacity-100'"
+                                            aria-label="{{ $folder->name }}">
+                                        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg>
+                                    </button>
+                                    <div x-show="open" x-cloak @click.outside="open = false"
+                                         class="absolute right-0 top-full z-30 mt-1 w-44 rounded-xl border border-gray-200 bg-white p-1 text-left shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                        <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_open') }}</a>
+                                        @if($folder->parent_id !== null)
+                                            @can('update', $folder)
+                                                <a href="{{ route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.rename') }}</a>
+                                            @endcan
+                                            @can('manageMembers', $folder)
+                                                <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey(), 'partage' => 1]) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_tab') }}</a>
+                                            @endcan
+                                            @can('delete', $folder)
+                                                <button type="button" @click="open = false; openDeleteFolderModal('{{ $folder->getKey() }}', @js($folder->name))"
+                                                        class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.drive_delete_folder') }}</button>
+                                            @endcan
+                                        @else
+                                            @can('update', $folder)
+                                                <a href="{{ route('organization.dossiers.edit', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.rename') }}</a>
+                                            @endcan
+                                            @if($folder->shared_with_loop_id)
+                                            @can('updateVisibility', $folder)
+                                                <button type="button" @click="open = false; openUnshareFolderModal('{{ $folder->getKey() }}', @js($folder->name), '{{ route('organization.dossiers.unshare', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}')"
+                                                        class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_unshare_folder') }}</button>
+                                            @endcan
+                                            @endif
+                                            @can('delete', $folder)
+                                                <button type="button" @click="open = false; openDeleteFolderModal('{{ $folder->getKey() }}', @js($folder->name))"
+                                                        class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.drive_delete_folder_definitively') }}</button>
+                                            @endcan
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+
+                        @foreach($dossier->dossierBlogPosts as $entry)
+                            @php $post = $entry->blogPost; @endphp
+                            @continue(! $post || ! $canView($post))
+                            <div class="group relative flex flex-col items-center rounded-xl border border-gray-200 bg-white p-4 text-center transition hover:border-rose-300 dark:border-gray-700 dark:bg-gray-800"
+                                 data-selection-key="article:{{ $post->id }}" x-init="enregistrer({!! $itemArticle($post) !!})"
+                                 @if($moveTargets->isNotEmpty() && $canManageArticles)
+                                 draggable="true"
+                                 @dragstart="onArticleDragStart($event, {!! $itemArticle($post) !!})"
+                                 @dragend="onFileDragEnd()"
+                                 @endif
+                                 :class="estEnDeplacement('article', '{{ $post->id }}') ? 'opacity-40' : (estSelectionne('article', '{{ $post->id }}') ? '{{ $classeSelection }}' : '')"
+                                 x-show="!searchQuery || {{ \Illuminate\Support\Js::from(mb_strtolower($post->title)) }}.includes(searchQuery.toLowerCase())">
+                                <a href="{{ $blogShowRoute($post) }}" draggable="false"
+                                   @click="clicElement($event, {!! $itemArticle($post) !!})" @dblclick="ouvrir({!! $itemArticle($post) !!})" @touchstart="debutAppui({!! $itemArticle($post) !!})" @touchend="finAppui()" @touchmove="finAppui()"
+                                   class="flex w-full flex-col items-center gap-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800">
+                                    <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300" aria-hidden="true">
+                                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
+                                    </span>
+                                    <span class="line-clamp-2 w-full text-sm font-medium text-gray-900 dark:text-gray-100">{{ $post->title }}</span>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.drive_article_badge') }} · {{ $post->user?->publicDisplayName() ?? '—' }}</span>
+                                </a>
+                                <div class="absolute right-1.5 top-1.5" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
+                                    <button type="button" @click="open = !open" x-bind:aria-expanded="open"
+                                            class="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:hover:bg-gray-700 dark:hover:text-gray-200 max-sm:opacity-100 sm:h-8 sm:w-8 sm:opacity-0"
+                                            :class="open && 'opacity-100'"
+                                            aria-label="{{ $post->title }}">
+                                        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg>
+                                    </button>
+                                    <div x-show="open" x-cloak @click.outside="open = false"
+                                         class="absolute right-0 top-full z-30 mt-1 w-48 rounded-xl border border-gray-200 bg-white p-1 text-left shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                        <a href="{{ $blogShowRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_open') }}</a>
+                                        @if($canManageArticles)
+                                            <a href="{{ $blogEditRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_edit_article') }}</a>
+                                            @if($moveTargets->isNotEmpty())
+                                                <button type="button" @click="open = false; selectionner({!! $itemArticle($post) !!}); openMoveLot()" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_move') }}</button>
+                                            @endif
+                                            <form id="retirer-article-grille-{{ $post->id }}" method="POST" action="{{ route('organization.dossiers.articles.destroy', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'post' => $post->id]) }}">
+                                                @csrf @method('DELETE')
+                                                <button type="submit" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.drive_remove_article') }}</button>
+                                            </form>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+
                         <template x-for="file in sortedFiles" :key="file.id">
-                            <div class="group relative overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-                                <div class="aspect-square bg-gray-100 dark:bg-gray-900/40 flex items-center justify-center">
-                                    <template x-if="file.mime_type?.startsWith('image/')">
-                                        <img :src="'{{ route('organization.dossiers.files.preview', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)" :alt="file.display_name || file.original_name" class="h-full w-full object-cover">
-                                    </template>
-                                    <template x-if="!file.mime_type?.startsWith('image/')">
-                                        <span class="flex h-16 w-16 items-center justify-center rounded-2xl"
-                                              :class="{
-                                                  'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400': file.mime_type === 'application/pdf',
-                                                  'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400': file.mime_type === 'application/msword' || file.mime_type?.includes('wordprocessingml'),
-                                                  'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-400': file.mime_type === 'text/csv' || file.mime_type === 'application/vnd.ms-excel' || file.mime_type?.includes('spreadsheetml'),
-                                                  'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400': file.mime_type === 'text/plain',
-                                                  'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400': file.mime_type === 'text/markdown',
-                                                  'bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400': file.mime_type === 'application/zip' || file.mime_type === 'application/x-zip-compressed',
-                                              }">
-                                            <svg class="h-8 w-8" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
-                                        </span>
-                                    </template>
-                                </div>
-                                <div class="p-3">
-                                    <div class="truncate text-sm font-medium text-gray-900 dark:text-gray-100" x-text="file.display_name || file.original_name"></div>
-                                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400" x-text="file.sizeFormatted"></div>
-                                </div>
-                                <div class="absolute right-2 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
-                                    @if($canViewFiles)
-                                    <button @click="openPreview(file)"
-                                            x-show="file.mime_type?.startsWith('image/') || file.mime_type === 'application/pdf' || file.mime_type === 'text/plain' || file.mime_type === 'text/markdown'"
-                                            class="rounded-lg bg-white/90 p-1.5 text-gray-700 shadow-sm hover:bg-white dark:bg-gray-800/90 dark:text-gray-200 dark:hover:bg-gray-800">
-                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <div class="group relative flex flex-col items-center rounded-xl border border-gray-200 bg-white p-4 text-center transition hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 @if($canDeleteFiles && $moveTargets->isNotEmpty()) cursor-grab active:cursor-grabbing @endif"
+                                 :data-selection-key="'file:' + file.id" x-init="enregistrer({{ $itemFichier }})"
+                                 @if($canDeleteFiles && $moveTargets->isNotEmpty())
+                                 draggable="true"
+                                 @dragstart="onFileDragStart($event, file)"
+                                 @dragend="onFileDragEnd()"
+                                 :class="estEnDeplacement('file', file.id) ? 'opacity-40' : (estSelectionne('file', file.id) ? '{{ $classeSelection }}' : '')"
+                                 @else
+                                 :class="estSelectionne('file', file.id) && '{{ $classeSelection }}'"
+                                 @endif
+                                 >
+                                <button type="button" class="flex w-full flex-col items-center gap-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800"
+                                        @click="clicElement($event, {{ $itemFichier }})" @dblclick="ouvrir({{ $itemFichier }})" @touchstart="debutAppui({{ $itemFichier }})" @touchend="finAppui()" @touchmove="finAppui()">
+                                    <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
+                                          :class="{
+                                              'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400': file.mime_type === 'application/pdf',
+                                              'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400': file.mime_type?.startsWith('image/'),
+                                              'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400': file.mime_type === 'application/msword' || file.mime_type?.includes('wordprocessingml'),
+                                              'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-400': file.mime_type === 'text/csv' || file.mime_type === 'application/vnd.ms-excel' || file.mime_type?.includes('spreadsheetml'),
+                                              'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400': file.mime_type === 'text/plain',
+                                              'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400': file.mime_type === 'text/markdown',
+                                              'bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400': file.mime_type === 'application/zip' || file.mime_type === 'application/x-zip-compressed',
+                                          }">
+                                        <svg x-show="file.mime_type === 'application/pdf'" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                                        <svg x-show="file.mime_type?.startsWith('image/')" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                        <svg x-show="file.mime_type === 'application/msword' || file.mime_type?.includes('wordprocessingml')" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                        <svg x-show="file.mime_type === 'text/csv' || file.mime_type === 'application/vnd.ms-excel' || file.mime_type?.includes('spreadsheetml')" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                        <svg x-show="file.mime_type === 'text/plain'" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                        <svg x-show="file.mime_type === 'text/markdown'" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+                                        <svg x-show="file.mime_type === 'application/zip' || file.mime_type === 'application/x-zip-compressed'" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+                                    </span>
+                                    <span class="line-clamp-2 w-full text-sm font-medium text-gray-900 dark:text-gray-100" x-text="file.display_name || file.original_name"></span>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400" x-text="fileTypeLabel(file.mime_type)"></span>
+                                </button>
+                                <div class="absolute right-1.5 top-1.5" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
+                                    <button type="button" @click="open = !open" x-bind:aria-expanded="open"
+                                            class="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:hover:bg-gray-700 dark:hover:text-gray-200 max-sm:opacity-100 sm:h-8 sm:w-8 sm:opacity-0"
+                                            :class="open && 'opacity-100'"
+                                            :aria-label="file.display_name || file.original_name">
+                                        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm0 5.25a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg>
                                     </button>
-                                    @endif
-                                    <a :href="'{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)"
-                                       class="rounded-lg bg-white/90 p-1.5 text-gray-700 shadow-sm hover:bg-white dark:bg-gray-800/90 dark:text-gray-200 dark:hover:bg-gray-800">
-                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
-                                    </a>
-                                    @if($canDeleteFiles)
-                                    <button @click="openDeleteModal(file)" :disabled="saving"
-                                            class="rounded-lg bg-white/90 p-1.5 text-red-600 shadow-sm hover:bg-white disabled:opacity-50 dark:bg-gray-800/90 dark:text-red-400 dark:hover:bg-gray-800">
-                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
-                                    </button>
-                                    @endif
+                                    <div x-show="open" x-cloak @click.outside="open = false"
+                                         class="absolute right-0 top-full z-30 mt-1 w-44 rounded-xl border border-gray-200 bg-white p-1 text-left shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                        <button type="button" @click="open = false; openPreview(file)"
+                                                x-show="file.mime_type?.startsWith('image/') || file.mime_type === 'application/pdf' || file.mime_type === 'text/plain' || file.mime_type === 'text/markdown'"
+                                                class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_preview') }}</button>
+                                        <a :href="'{{ route('organization.dossiers.files.show', ['organization' => $orgParam, 'dossier' => $dossier->getKey(), 'file' => '__FILE_ID__']) }}'.replace('__FILE_ID__', file.id)"
+                                           class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_download') }}</a>
+                                        @if($canManageFiles)
+                                            <button type="button" x-show="estMarkdown(file)" @click="open = false; openMarkdownEdit(file)"
+                                                    class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_edit_markdown') }}</button>
+                                            <button type="button" @click="open = false; openRenameModal(file)"
+                                                    class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.rename') }}</button>
+                                        @endif
+                                        @if($canDeleteFiles && $moveTargets->isNotEmpty())
+                                            <button type="button" @click="open = false; openMoveModal(file)"
+                                                    class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_move') }}</button>
+                                        @endif
+                                        @unless($dossier->isPersonalDocumentsRoot())
+                                            <button type="button" @click="open = false; window.dispatchEvent(new CustomEvent('open-share-panel'))"
+                                                    class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_the_folder') }}</button>
+                                        @endunless
+                                        @if($canDeleteFiles)
+                                            <button type="button" @click="open = false; openDeleteModal(file)" :disabled="saving"
+                                                    class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.file_delete') }}</button>
+                                        @endif
+                                    </div>
                                 </div>
                             </div>
                         </template>
                     </div>
 
-                    <template x-if="files.length === 0 && totalFiles === 0">
-                        <div class="rounded-3xl border-2 border-dashed border-gray-300 bg-gray-50/50 px-5 py-16 text-center dark:border-gray-700 dark:bg-gray-900/20">
-                            <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-200 dark:bg-gray-800">
-                                <svg class="h-8 w-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
-                            </div>
-                            <h3 class="mt-6 text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.emptyTitle"></h3>
-                            <p class="mx-auto mt-2 max-w-sm text-sm text-gray-600 dark:text-gray-400" x-text="i18n.emptyBody"></p>
+@if($driveFolders->isEmpty() && $dossier->dossierBlogPosts->isEmpty())
+                    <template x-if="vue === 'documents' && !filesLoading && files.length === 0 && totalFiles === 0">
+                        <div class="mt-4 rounded-xl border border-dashed border-gray-300 px-5 py-6 text-center dark:border-gray-700">
+                            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.drive_empty_title') }}</p>
+                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('dossiers.drive_empty_desc') }}</p>
                         </div>
                     </template>
+                    @endif
 
-                    <div class="mt-4 flex items-center justify-center gap-2" x-show="lastPage > 1">
+                    <p class="mt-2 text-right text-xs text-gray-400 dark:text-gray-500" x-show="vue === 'documents' && quota.used_bytes > 0" x-text="quotaLabel"></p>
+
+                    <div class="mt-4 flex items-center justify-center gap-2" x-show="vue === 'documents' && lastPage > 1">
                         <button @click="loadFiles(currentPage - 1)" :disabled="currentPage <= 1"
                                 class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">&laquo;</button>
                         <span class="text-xs text-gray-500 dark:text-gray-400" x-text="currentPage + ' / ' + lastPage"></span>
@@ -1003,14 +1447,277 @@
                                 class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">&raquo;</button>
                     </div>
 
+
+                    {{-- Fichiers refuses avant meme l'envoi (poids, format,
+                         doublon) : une reponse claire plutot qu'un silence. --}}
+                    <template x-if="showUploadRejectModal && uploadRejects.length">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showUploadRejectModal = false; uploadRejects = []" @keydown.escape.window="showUploadRejectModal = false; uploadRejects = []" role="dialog" aria-modal="true" aria-labelledby="upload-reject-title">
+                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
+                                <div class="flex items-start gap-3">
+                                    <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300" aria-hidden="true">
+                                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+                                    </span>
+                                    <div class="min-w-0 flex-1">
+                                        <h3 id="upload-reject-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.upload_rejected_title') }}</h3>
+                                        <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.upload_rejected_body') }}</p>
+                                        <ul class="mt-3 max-h-56 space-y-1.5 overflow-y-auto">
+                                            <template x-for="(refus, i) in uploadRejects" :key="i">
+                                                <li class="rounded-lg bg-gray-50 px-3 py-2 text-sm dark:bg-gray-900/50">
+                                                    <span class="block truncate font-medium text-gray-900 dark:text-gray-100" x-text="refus.name"></span>
+                                                    <span class="block text-xs text-gray-500 dark:text-gray-400" x-text="refus.reason"></span>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div class="mt-6 flex justify-end">
+                                    <button type="button" @click="showUploadRejectModal = false; uploadRejects = []" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">{{ __('dossiers.upload_rejected_ok') }}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    {{-- Le rapport d'un lot : « 5 sur 6 » et le motif de chaque
+                         refus. Distinct du refus d'import, car il ne parle pas
+                         du meme moment : ici les elements sont PARTIS, sauf
+                         ceux qu'on nomme. --}}
+                    <template x-if="showLotModal && lotRapport">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showLotModal = false; lotRapport = null" @keydown.escape.window="showLotModal = false; lotRapport = null" role="dialog" aria-modal="true" aria-labelledby="lot-report-title">
+                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
+                                <div class="flex items-start gap-3">
+                                    <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300" aria-hidden="true">
+                                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+                                    </span>
+                                    <div class="min-w-0 flex-1">
+                                        <h3 id="lot-report-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="lotRapport.titre"></h3>
+                                        <p class="mt-1 text-sm text-gray-600 dark:text-gray-300" x-text="lotRapport.resume"></p>
+                                        <ul class="mt-3 max-h-56 space-y-1.5 overflow-y-auto">
+                                            <template x-for="(refus, i) in lotRapport.echecs" :key="i">
+                                                <li class="rounded-lg bg-gray-50 px-3 py-2 text-sm dark:bg-gray-900/50">
+                                                    <span class="block truncate font-medium text-gray-900 dark:text-gray-100" x-text="refus.name"></span>
+                                                    <span class="block text-xs text-gray-500 dark:text-gray-400" x-text="refus.reason"></span>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div class="mt-6 flex justify-end">
+                                    <button type="button" @click="showLotModal = false; lotRapport = null" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">{{ __('dossiers.drive_lot_close') }}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    {{-- Renommer un fichier : le libelle lu par les gens, pas
+                         le fichier sur le disque. L'extension d'origine est
+                         conservee par le serveur. --}}
+                    <template x-if="showRenameModal && renameTarget">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showRenameModal = false" @keydown.escape.window="showRenameModal = false" role="dialog" aria-modal="true" aria-labelledby="rename-file-title">
+                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
+                                <h3 id="rename-file-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100"
+                                    x-text="(i18n.renameTitle || '').replace(':name', renameTarget.display_name || renameTarget.original_name)"></h3>
+                                <div class="mt-4">
+                                    <label for="rename-file-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300" x-text="i18n.renameLabel"></label>
+                                    <input id="rename-file-input" type="text" x-model="renameValue" maxlength="255" @keydown.enter="confirmRename()"
+                                           class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                                </div>
+                                <div class="mt-6 flex justify-end gap-3">
+                                    <button type="button" @click="showRenameModal = false" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">{{ __('dossiers.drive_cancel') }}</button>
+                                    <button type="button" @click="confirmRename()" :disabled="!renameValue.trim() || saving" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50">{{ __('dossiers.file_rename') }}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    {{-- Move Modal (TASK-1130 passe 4) : le fallback accessible du
+                         glisser-deposer, meme point d'entree (confirmMoveFile). --}}
+                    <template x-if="showMoveModal">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="closeMoveModal()" @keydown.escape.window="closeMoveModal()" role="dialog" aria-modal="true" aria-labelledby="move-file-title">
+                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
+                                <h3 id="move-file-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="moveLot.length > 1
+                                        ? i18n.moveModalTitleLot.replace(':count', moveLot.length)
+                                        : i18n.moveModalTitle.replace(':name', moveLot.length ? moveLot[0].name : (moveTarget?.display_name || moveTarget?.original_name || ''))"></h3>
+                                <ul class="mt-4 max-h-72 space-y-1 overflow-y-auto">
+                                    <template x-for="target in moveTargets" :key="target.id">
+                                        <li>
+                                            <button type="button" @click="confirmMoveFile(target.id)" :disabled="saving"
+                                                    class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-700/60">
+                                                <svg class="h-4 w-4 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
+                                                <span x-show="target.isParent" class="shrink-0 text-gray-400" aria-hidden="true">&uarr;</span>
+                                                <span x-text="target.isParent ? i18n.moveToParent : target.name"></span>
+                                            </button>
+                                        </li>
+                                    </template>
+                                    <li x-show="!moveTargets.length" class="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400" x-text="i18n.moveNoTargets"></li>
+                                </ul>
+                                <div class="mt-4 flex justify-end">
+                                    <button @click="closeMoveModal()" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.moveCancel"></button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    {{-- Ajouter un article existant (fonction DOSSIER, via
+                         + Nouveau) : la recherche d'articles eligibles et le
+                         rattachement existants, en modal leger. --}}
+                    @if($canManageArticles)
+                    <template x-if="showAttachArticleModal">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="closeAttachArticleModal()" @keydown.escape.window="closeAttachArticleModal()" role="dialog" aria-modal="true" aria-labelledby="attach-article-title">
+                            <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
+                                <div class="flex items-center justify-between">
+                                    <h3 id="attach-article-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.fab_attach_article') }}</h3>
+                                    <button type="button" @click="closeAttachArticleModal()" class="flex h-11 w-11 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200" aria-label="{{ __('dossiers.drive_cancel') }}">
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                </div>
+                                <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.article_search_help') }}</p>
+                                <input x-model="attachSearchQuery" @input.debounce.300ms="searchAttachArticles()" type="search" placeholder="{{ __('dossiers.article_search_placeholder') }}"
+                                       class="mt-4 block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                                <ul class="mt-4 max-h-64 space-y-1 overflow-y-auto">
+                                    <li x-show="attachSearching" class="px-3 py-3 text-center text-sm text-gray-400">…</li>
+                                    <template x-for="article in attachSearchResults" :key="article.id">
+                                        <li class="flex items-center gap-3 rounded-xl px-3 py-2">
+                                            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300" aria-hidden="true">
+                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
+                                            </span>
+                                            <span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-900 dark:text-gray-100" x-text="article.title"></span>
+                                            <button type="button" @click="attachExistingArticle(article)" :disabled="attachSaving"
+                                                    class="shrink-0 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50">{{ __('dossiers.attach_article') }}</button>
+                                        </li>
+                                    </template>
+                                    <li x-show="!attachSearching && attachSearchQuery.trim().length >= 2 && !attachSearchResults.length" class="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">{{ __('dossiers.attach_no_results') }}</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </template>
+                    @endif
+
+                    {{-- Creer une serie (mode Serie) : un nom, un bouton — le
+                         moteur existant (store, name seul) fait le reste.
+                         Gate serveur : un lecteur ne recoit aucun markup de
+                         gestion. --}}
+                    @if($canManageSeries)
+                    <template x-if="showCreateSerieModal">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showCreateSerieModal = false" @keydown.escape.window="showCreateSerieModal = false" role="dialog" aria-modal="true" aria-labelledby="create-serie-title">
+                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
+                                <h3 id="create-serie-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.series_mode_create') }}</h3>
+                                <div class="mt-4">
+                                    <label for="new-serie-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('dossiers.series_mode_name_label') }}</label>
+                                    <input id="new-serie-name" type="text" x-model="newSerieName" maxlength="255" @keydown.enter="createSerie()"
+                                           class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                                </div>
+                                <div class="mt-6 flex justify-end gap-3">
+                                    <button type="button" @click="showCreateSerieModal = false" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">{{ __('dossiers.drive_cancel') }}</button>
+                                    <button type="button" @click="createSerie()" :disabled="!newSerieName.trim() || serieSaving" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50">{{ __('dossiers.modal_create') }}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    {{-- Ajouter a la serie : les contenus DEJA presents dans le
+                         Dossier — rien n'est duplique, un contenu n'appartient
+                         qu'a une seule Serie (regle du moteur). --}}
+                    <template x-if="showSerieAddModal && serieActive">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showSerieAddModal = false" @keydown.escape.window="showSerieAddModal = false" role="dialog" aria-modal="true" aria-labelledby="serie-add-title">
+                            <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
+                                <div class="flex items-center justify-between">
+                                    <h3 id="serie-add-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.series_mode_add_title') }}</h3>
+                                    <button type="button" @click="showSerieAddModal = false" class="flex h-11 w-11 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200" aria-label="{{ __('dossiers.drive_cancel') }}">
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                </div>
+                                <ul class="mt-4 max-h-80 space-y-1 overflow-y-auto">
+                                    <template x-for="article in serieArticleCandidates" :key="'blog:' + article.id">
+                                        <li class="flex items-center gap-3 rounded-xl px-3 py-2">
+                                            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300" aria-hidden="true">
+                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
+                                            </span>
+                                            <span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-900 dark:text-gray-100" x-text="article.title"></span>
+                                            <button type="button" @click="serieAdd('article', article.id, article.title)" :disabled="serieSaving"
+                                                    class="shrink-0 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50">{{ __('dossiers.series_mode_add_short') }}</button>
+                                        </li>
+                                    </template>
+                                    <template x-for="file in serieFileCandidates" :key="'file:' + file.id">
+                                        <li class="flex items-center gap-3 rounded-xl px-3 py-2">
+                                            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400" aria-hidden="true">
+                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                            </span>
+                                            <span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-900 dark:text-gray-100" x-text="file.display_name || file.original_name"></span>
+                                            <button type="button" @click="serieAdd('file', file.id, file.display_name || file.original_name)" :disabled="serieSaving"
+                                                    class="shrink-0 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50">{{ __('dossiers.series_mode_add_short') }}</button>
+                                        </li>
+                                    </template>
+                                    <li x-show="!serieArticleCandidates.length && !serieFileCandidates.length" class="px-3 py-6 text-center text-sm text-gray-500 dark:text-gray-400">{{ __('dossiers.series_mode_no_candidates') }}</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </template>
+
+                    {{-- Supprimer la serie : on dissout la classification
+                         sequentielle — aucun Article, aucun fichier, aucun
+                         contenu du Dossier n'est supprime. --}}
+                    @php /* toujours sous @if($canManageSeries) ouvert plus haut */ @endphp
+                    <template x-if="showSerieDeleteModal && serieActive">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showSerieDeleteModal = false" @keydown.escape.window="showSerieDeleteModal = false" role="dialog" aria-modal="true" aria-labelledby="serie-delete-title">
+                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
+                                <h3 id="serie-delete-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.content_series_delete_modal_title') }}</h3>
+                                <p class="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100" x-text="serieActive.name"></p>
+                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.content_series_delete_modal_body') }}</p>
+                                <div class="mt-6 flex justify-end gap-3">
+                                    <button type="button" @click="showSerieDeleteModal = false" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">{{ __('dossiers.drive_cancel') }}</button>
+                                    <button type="button" @click="deleteSerieActive()" :disabled="serieSaving" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 disabled:opacity-50">{{ __('dossiers.series_mode_delete') }}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                    @endif
+
+                    {{-- Unshare Folder Modal (TASK-1130 UX finale) : retirer un
+                         partage n'est PAS supprimer — confirmation legere, ton
+                         calme, bouton indigo et non rouge. Le PATCH part du
+                         <form> reel, meme route qu'avant. --}}
+                    <template x-if="showUnshareFolderModal">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="closeUnshareFolderModal()" @keydown.escape.window="closeUnshareFolderModal()" role="dialog" aria-modal="true" aria-labelledby="unshare-folder-title">
+                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
+                                <h3 id="unshare-folder-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.drive_unshare_confirm_title') }}</h3>
+                                <p class="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100" x-text="unshareFolderTarget?.name"></p>
+                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.drive_unshare_confirm_body') }}</p>
+                                <form method="POST" :action="unshareFolderTarget?.action" class="mt-6 flex justify-end gap-3">
+                                    @csrf
+                                    @method('PATCH')
+                                    <button type="button" @click="closeUnshareFolderModal()" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">{{ __('dossiers.drive_cancel') }}</button>
+                                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">{{ __('dossiers.drive_unshare_confirm_confirm') }}</button>
+                                </form>
+                            </div>
+                        </div>
+                    </template>
+
+                    {{-- Delete Folder Modal (TASK-1130 passe 4, CAS A/B) : un
+                         seul modal, deux entrees ("Supprimer" / "Supprimer
+                         definitivement") qui appellent le meme geste — la
+                         distinction se joue au menu, pas ici. --}}
+                    <template x-if="showDeleteFolderModal">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="closeDeleteFolderModal()" @keydown.escape.window="closeDeleteFolderModal()" role="dialog" aria-modal="true" aria-labelledby="delete-folder-title">
+                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
+                                <h3 id="delete-folder-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.folderDeleteTitle.replace(':name', deleteFolderTarget?.name || '')"></h3>
+                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300" x-text="i18n.folderDeleteBody"></p>
+                                <div class="mt-6 flex justify-end gap-3">
+                                    <button @click="closeDeleteFolderModal()" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.folderDeleteCancel"></button>
+                                    <button @click="confirmDeleteFolder()" :disabled="deletingFolder" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 disabled:opacity-50" x-text="i18n.folderDeleteConfirm"></button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
                     {{-- Delete Confirmation Modal --}}
                     <template x-if="showDeleteModal">
-                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showDeleteModal = false; deleteTarget = null" role="dialog" aria-modal="true" aria-labelledby="delete-file-title">
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showDeleteModal = false; deleteTarget = null; deleteLot = []" role="dialog" aria-modal="true" aria-labelledby="delete-file-title">
                             <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
                                 <h3 id="delete-file-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.confirmDeleteTitle"></h3>
-                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300" x-text="i18n.confirmDeleteBody"></p>
+                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300"
+                                   x-text="deleteLot.length > 1 ? i18n.confirmDeleteBodyLot.replace(':count', deleteLot.length) : i18n.confirmDeleteBody"></p>
                                 <div class="mt-6 flex justify-end gap-3">
-                                    <button @click="showDeleteModal = false; deleteTarget = null" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.confirmDeleteCancel"></button>
+                                    <button @click="showDeleteModal = false; deleteTarget = null; deleteLot = []" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.confirmDeleteCancel"></button>
                                     <button @click="confirmDeleteFile()" :disabled="saving" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 disabled:opacity-50" x-text="i18n.confirmDeleteConfirm"></button>
                                 </div>
                             </div>
@@ -1058,20 +1765,128 @@
                             </div>
                         </div>
                     </template>
+                    {{-- Ferme la surcouche de depot par glisser, ouverte plus haut. --}}
+                    </div>
                 </section>
+                </x-dossiers.module>
+                {{-- Ferme la portee Alpine `dossierFilesCard`, ouverte avec le
+                     module : elle englobe la sidebar ET la surface. --}}
+                </div>
                 @endif
-            </div>
 
-            {{-- Tab: Members --}}
-            <div x-show="active === 'membres'" x-cloak role="tabpanel" id="tabpanel-membres" aria-labelledby="tab-membres" class="mt-6">
-                <section class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6"
-                         x-data="dossierMembersCard(@js([
+        {{-- Nouveau dossier — un vrai enfant (parent_id), dans n'importe quel
+             Dossier : Boucle ou prive, racine ou deja imbrique (TASK-1130
+             passe 4). Poste sur le store() existant ; creer un enfant est un
+             geste d'ecriture sur CE dossier, meme regle que d'y attacher un
+             fichier ou un article. --}}
+        @can('update', $dossier)
+            <div x-data="{ open: false }" @open-new-folder.window="open = true" x-on:keydown.escape.window="open = false">
+                <template x-if="open">
+                    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="open = false" role="dialog" aria-modal="true" aria-labelledby="new-folder-title">
+                        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800">
+                            {{-- TASK-1130 passe 4 : ce modal s'affichait aussi
+                                 dans un Dossier prive en parlant d'une Boucle
+                                 absente — un langage Drive unique n'impose pas
+                                 un seul texte partout ou la realite differe. --}}
+                            <h3 id="new-folder-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __($governingDossier->isLoopDossier() ? 'dossiers.drive_new_folder_title' : 'dossiers.drive_new_folder_title_private') }}</h3>
+                            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ $governingDossier->isLoopDossier() ? __('dossiers.drive_new_folder_desc') : __('dossiers.drive_new_folder_desc_private', ['name' => $dossier->name]) }}</p>
+                            <form method="POST" action="{{ route('organization.dossiers.store', ['organization' => $orgParam]) }}" class="mt-4">
+                                @csrf
+                                <input type="hidden" name="parent_id" value="{{ $dossier->getKey() }}">
+                                <label for="new-folder-name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">{{ __('dossiers.drive_new_folder_name') }}</label>
+                                <input id="new-folder-name" name="name" type="text" required maxlength="120"
+                                       class="mt-1.5 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                                <div class="mt-5 flex justify-end gap-2">
+                                    <button type="button" @click="open = false" class="inline-flex min-h-11 items-center rounded-xl border border-gray-300 px-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">{{ __('dossiers.drive_cancel') }}</button>
+                                    <button type="submit" class="inline-flex min-h-11 items-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700">{{ __('dossiers.drive_new_folder_submit') }}</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        @endcan
+
+        {{-- « Partager » (TASK-1130 UX finale) : un seul mot, deux contenus,
+             toujours resolus sur la racine gouvernante — jamais sur l'enfant
+             precis, qui n'a ni owner_id ni dossier_members a lui. Le bouton
+             vit desormais dans la barre du Drive ; ce bloc n'est plus que le
+             modal qu'il ouvre (contenu fonctionnel inchange, en x-show pour
+             que dossierMembersCard s'initialise au chargement comme avant). --}}
+        @php
+            $gouvernant = $governingDossier;
+        @endphp
+        {{-- `?partage=1` ouvre le panneau a l'arrivee : c'est le lien que porte
+             « Gerer » depuis la vue Partages, pour aller du constat au geste
+             sans chercher. --}}
+        <div x-data="{ open: {{ request()->boolean('partage') ? 'true' : 'false' }} }" @open-share-panel.window="open = true" x-on:keydown.escape.window="open = false">
+            <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4"
+                 @click.self="open = false" role="dialog" aria-modal="true" aria-labelledby="share-panel-title">
+                <div class="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800">
+                    <div class="mb-4 flex items-center justify-between">
+                        <h3 id="share-panel-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.share_tab') }}</h3>
+                        <button type="button" @click="open = false" class="flex h-11 w-11 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200" aria-label="{{ __('dossiers.cancel') }}">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                @if($gouvernant->isLoopDossier())
+                    {{-- Gouverne par une Boucle : ni root ni enfant n'a de
+                         gestion parallele. La Boucle est la source de verite,
+                         et c'est chez elle qu'on partage. --}}
+                    @php
+                        $registreRoles = app(\App\Support\Loops\LoopRoleRegistry::class);
+                        $ordreRoles = [\App\Support\Loops\LoopRoleRegistry::OWNER => 0, \App\Support\Loops\LoopRoleRegistry::FACILITATOR => 1];
+                        $accesBoucle = ($gouvernant->loop?->activeMembers ?? collect())
+                            ->sortBy(fn ($m) => [$ordreRoles[$registreRoles->canonical($m->role)] ?? 2, $m->joined_at]);
+                    @endphp
+                    <section>
+                        <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.share_loop_title') }}</h2>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('dossiers.share_loop_body') }}</p>
+
+                        <ul class="mt-4 divide-y divide-gray-100 dark:divide-gray-700">
+                            @foreach($accesBoucle as $membreBoucle)
+                                <li class="flex items-center justify-between gap-3 py-2.5">
+                                    <span class="min-w-0 truncate text-sm font-medium text-gray-800 dark:text-gray-100">
+                                        {{ $membreBoucle->user?->isDisplayableIn(currentOrganization()) ? $membreBoucle->user->publicDisplayName() : __('profile.deactivated_user') }}
+                                    </span>
+                                    <span class="shrink-0 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                        {{ __('dossiers.role_loop_'.$registreRoles->canonical($membreBoucle->role)) }}
+                                    </span>
+                                </li>
+                            @endforeach
+                        </ul>
+
+                        @if($gouvernant->loop)
+                            <a href="{{ route('organization.loops.show', ['organization' => $orgParam, 'loop' => $gouvernant->loop]) }}"
+                               class="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+                                {{ __('dossiers.share_manage_loop_members') }} →
+                            </a>
+                        @endif
+                    </section>
+                @else
+                <section x-data="dossierMembersCard(@js([
                              'csrfToken' => csrf_token(),
+                             // Le dossier OUVERT, pas la racine gouvernante.
+                             //
+                             // Les cinq endpoints membres remontent deja au
+                             // gouvernant apres avoir autorise (`$dossier =
+                             // $dossier->governingDossier();`) : l'ecriture
+                             // atterrit donc au meme endroit qu'avant. Ce qui
+                             // change, c'est le dossier SUR LEQUEL on demande
+                             // l'autorisation.
+                             //
+                             // Adresser la racine la faisait echouer des que
+                             // celle-ci etait « Mes documents » : `manageMembers`
+                             // refuse la racine systeme — partager tout l'espace
+                             // personnel d'un coup n'a pas de sens — et le
+                             // panneau recevait 403 sur `members/search`, donc
+                             // aucun resultat. L'interface promettait un geste
+                             // que le serveur refusait.
                              'dossierId' => $dossier->getKey(),
                              'orgParam' => $orgParam,
-                             'ownerId' => $dossier->owner_id,
-                              'ownerName' => $dossier->owner?->publicDisplayName() ?? __('profile.deactivated_user'),
-                              'ownerInitial' => $ownerDisplayable ? strtoupper(substr($dossier->owner->first_name ?? $dossier->owner->name ?? '?', 0, 1)) : '?',
+                             'ownerId' => $gouvernant->owner_id,
+                              'ownerName' => $gouvernant->owner?->publicDisplayName() ?? __('profile.deactivated_user'),
+                              'ownerInitial' => $ownerDisplayable ? strtoupper(substr($gouvernant->owner->first_name ?? $gouvernant->owner->name ?? '?', 0, 1)) : '?',
                              'currentUserId' => auth()->id(),
                              'canManage' => $canManageMembers,
                               'i18n' => array_merge([
@@ -1255,10 +2070,17 @@
                     </template>
                     @endif
                 </section>
+                @endif
+
             </div>
         </div>
 
         </div>
+
+        {{-- Garde d'espace mobile : le FAB global est desormais neutralise sur
+             ce module (voir components/mobile-fab), il ne reste que la barre de
+             navigation basse a degager. --}}
+        <div class="h-16 sm:hidden" aria-hidden="true"></div>
 
         {{-- No-JS fallback --}}
         <noscript>
@@ -1270,7 +2092,7 @@
                     <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.files_tab') }}</h2>
                 </section>
                 <section id="membres" class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
-                    <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.members_tab') }}</h2>
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.share_tab') }}</h2>
                 </section>
             </div>
         </noscript>

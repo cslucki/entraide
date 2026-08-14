@@ -255,11 +255,12 @@
         <div x-data="{ headingOpen: false }" class="relative shrink-0" @click.outside="headingOpen = false; $nextTick(() => $el.closest('.bp-toolbar-scroll')?.classList.remove('bp-toolbar-open-dropdown'))">
             <button type="button" @click="headingOpen = !headingOpen; $nextTick(() => $el.closest('.bp-toolbar-scroll')?.classList.toggle('bp-toolbar-open-dropdown', headingOpen))" :class="btnClass(activeStates?.heading2 ? 'heading2' : activeStates?.heading3 ? 'heading3' : activeStates?.heading4 ? 'heading4' : '' )"
                 class="rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition">
-                <span x-text="activeStates?.heading2 ? 'H2' : activeStates?.heading3 ? 'H3' : activeStates?.heading4 ? 'H4' : 'P'"></span>
+                <span x-text="activeStates?.heading1 ? 'H1' : activeStates?.heading2 ? 'H2' : activeStates?.heading3 ? 'H3' : activeStates?.heading4 ? 'H4' : 'P'"></span>
                 <svg class="w-3 h-3 inline ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
             </button>
             <div x-show="headingOpen" x-cloak class="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1 min-w-[140px]">
-                <button type="button" @click="exec('toggleParagraph'); headingOpen = false" :class="!activeStates?.heading2 && !activeStates?.heading3 && !activeStates?.heading4 ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'" class="block w-full text-left px-3 py-1.5 text-xs transition">{{ __('blog.editor_paragraph') }}</button>
+                <button type="button" @click="exec('toggleParagraph'); headingOpen = false" :class="!activeStates?.heading1 && !activeStates?.heading2 && !activeStates?.heading3 && !activeStates?.heading4 ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'" class="block w-full text-left px-3 py-1.5 text-xs transition">{{ __('blog.editor_paragraph') }}</button>
+                <button type="button" @click="exec('toggleH1'); headingOpen = false" :class="activeStates?.heading1 ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'" class="block w-full text-left px-3 py-1.5 text-sm font-bold transition">{{ __('blog.editor_heading1') }}</button>
                 <button type="button" @click="exec('toggleH2'); headingOpen = false" :class="activeStates?.heading2 ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'" class="block w-full text-left px-3 py-1.5 text-xs font-semibold transition">{{ __('blog.editor_heading2') }}</button>
                 <button type="button" @click="exec('toggleH3'); headingOpen = false" :class="activeStates?.heading3 ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'" class="block w-full text-left px-3 py-1.5 text-xs font-medium transition">{{ __('blog.editor_heading3') }}</button>
                 <button type="button" @click="exec('toggleH4'); headingOpen = false" :class="activeStates?.heading4 ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'" class="block w-full text-left px-3 py-1.5 text-xs transition">{{ __('blog.editor_heading4') }}</button>
@@ -579,7 +580,7 @@
         <div
             x-ref="editorElement"
             x-show="!editorError"
-            class="w-full border {{ $invalid ? 'border-red-500 ring-1 ring-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600' }} rounded-lg bg-white dark:bg-gray-800 [&_.ProseMirror]:min-h-[20rem]             [&_.ProseMirror]:max-h-[36rem] [&_.ProseMirror]:overflow-y-auto [&_.ProseMirror]:overflow-x-auto [&_.ProseMirror]:px-4 [&_.ProseMirror]:py-3 [&_.ProseMirror]:text-gray-900 [&_.ProseMirror]:dark:text-gray-100 [&_.ProseMirror]:text-sm [&_.ProseMirror]:outline-none [&_.ProseMirror_p]:my-1 [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-bold [&_.ProseMirror_h2]:mt-4 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:mt-3 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_li]:my-0.5 [&_.ProseMirror_pre]:bg-gray-100 [&_.ProseMirror_pre]:dark:bg-gray-900 [&_.ProseMirror_pre]:rounded-lg [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_pre]:font-mono [&_.ProseMirror_pre]:text-xs [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_code]:bg-gray-100 [&_.ProseMirror_code]:dark:bg-gray-900 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:px-1 [&_.ProseMirror_code]:py-0.5 [&_.ProseMirror_code]:text-xs [&_.ProseMirror_pre_code]:bg-transparent [&_.ProseMirror_pre_code]:p-0 [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-gray-300 [&_.ProseMirror_th]:dark:border-gray-600 [&_.ProseMirror_th]:px-3 [&_.ProseMirror_th]:py-2 [&_.ProseMirror_th]:bg-gray-50 [&_.ProseMirror_th]:dark:bg-gray-700 [&_.ProseMirror_th]:font-semibold [&_.ProseMirror_th]:text-left [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-gray-300 [&_.ProseMirror_td]:dark:border-gray-600 [&_.ProseMirror_td]:px-3 [&_.ProseMirror_td]:py-2 [&_.ProseMirror_img]:max-w-full [&_.ProseMirror_img]:rounded [&_.ProseMirror_img]:h-auto [&_.ProseMirror_a]:text-indigo-600 [&_.ProseMirror_a]:dark:text-indigo-400 [&_.ProseMirror_a]:underline [&_.ProseMirror_*]:caret-gray-800 [&_.ProseMirror_*]:dark:caret-gray-200
+            class="w-full border {{ $invalid ? 'border-red-500 ring-1 ring-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600' }} rounded-lg bg-white dark:bg-gray-800 [&_.ProseMirror]:min-h-[20rem]             [&_.ProseMirror]:max-h-[36rem] [&_.ProseMirror]:overflow-y-auto [&_.ProseMirror]:overflow-x-auto [&_.ProseMirror]:px-4 [&_.ProseMirror]:py-3 [&_.ProseMirror]:text-gray-900 [&_.ProseMirror]:dark:text-gray-100 [&_.ProseMirror]:text-sm [&_.ProseMirror]:outline-none [&_.ProseMirror_p]:my-1 [&_.ProseMirror_h1]:text-2xl [&_.ProseMirror_h1]:font-bold [&_.ProseMirror_h1]:mt-5 [&_.ProseMirror_h1]:mb-1 [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-bold [&_.ProseMirror_h2]:mt-4 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:mt-3 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_li]:my-0.5 [&_.ProseMirror_pre]:bg-gray-100 [&_.ProseMirror_pre]:dark:bg-gray-900 [&_.ProseMirror_pre]:rounded-lg [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_pre]:font-mono [&_.ProseMirror_pre]:text-xs [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_code]:bg-gray-100 [&_.ProseMirror_code]:dark:bg-gray-900 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:px-1 [&_.ProseMirror_code]:py-0.5 [&_.ProseMirror_code]:text-xs [&_.ProseMirror_pre_code]:bg-transparent [&_.ProseMirror_pre_code]:p-0 [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-gray-300 [&_.ProseMirror_th]:dark:border-gray-600 [&_.ProseMirror_th]:px-3 [&_.ProseMirror_th]:py-2 [&_.ProseMirror_th]:bg-gray-50 [&_.ProseMirror_th]:dark:bg-gray-700 [&_.ProseMirror_th]:font-semibold [&_.ProseMirror_th]:text-left [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-gray-300 [&_.ProseMirror_td]:dark:border-gray-600 [&_.ProseMirror_td]:px-3 [&_.ProseMirror_td]:py-2 [&_.ProseMirror_img]:max-w-full [&_.ProseMirror_img]:rounded [&_.ProseMirror_img]:h-auto [&_.ProseMirror_a]:text-indigo-600 [&_.ProseMirror_a]:dark:text-indigo-400 [&_.ProseMirror_a]:underline [&_.ProseMirror_*]:caret-gray-800 [&_.ProseMirror_*]:dark:caret-gray-200
             [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-gray-400 [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"></div>
 
         {{-- Loading overlay --}}
@@ -618,6 +619,64 @@
     <template x-if="!editorError">
         <input type="hidden" name="{{ $name }}" :value="content">
     </template>
+
+    {{-- Prévisualisation.
+
+         Elle lit le contenu courant de l'éditeur, y compris ce qui n'est pas
+         enregistré. Elle n'écrit rien : pas de sauvegarde, pas de changement de
+         statut, pas de publication, pas de snapshot, pas de navigation. Fermer
+         rend l'éditeur exactement dans l'état où il était.
+
+         Le rendu reprend les classes de la page Article finale plutôt qu'une
+         seconde feuille de style qui divergerait au premier changement. --}}
+    <div x-data="{ open: false, preview: '' }" @keydown.escape.window="open = false">
+        <button type="button"
+                @click="preview = content; open = true"
+                class="mt-2 inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-700 transition hover:border-indigo-300 hover:text-indigo-700 dark:border-gray-600 dark:text-gray-200 dark:hover:border-indigo-500"
+                data-blog-preview-button>
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1 1 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178a1 1 0 0 1 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178Z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+            </svg>
+            {{ __('blog.preview') }}
+        </button>
+
+        <div x-show="open" x-cloak
+             class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-gray-900/60 p-4 sm:p-8"
+             role="dialog" aria-modal="true" aria-label="{{ __('blog.preview') }}">
+            <div class="w-full max-w-3xl rounded-2xl bg-white shadow-xl dark:bg-gray-800" @click.outside="open = false">
+                <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-5 py-3 dark:border-gray-700">
+                    <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('blog.preview') }}</p>
+                    <button type="button" @click="open = false"
+                            class="inline-flex min-h-[40px] items-center rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                        {{ __('blog.preview_close') }}
+                    </button>
+                </div>
+
+                <div class="px-5 py-5 sm:px-8 sm:py-7">
+                    {{-- Titre et résumé courants, lus dans le formulaire lui-même
+                         pour refléter ce qui est saisi et non ce qui est stocké. --}}
+                    <h1 x-text="document.querySelector('[name=title]')?.value || ''"
+                        class="text-2xl font-bold leading-tight text-gray-900 dark:text-gray-100"></h1>
+                    <p x-text="document.querySelector('[name=summary]')?.value || ''"
+                       class="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400"></p>
+
+                    {{-- Le contenu vient de l'éditeur, donc de ProseMirror, qui
+                         ne produit que les nœuds déclarés par ses extensions :
+                         ni script, ni gestionnaire d'événement. --}}
+                    <div class="prose prose-sm mt-5 max-w-none text-gray-800 dark:prose-invert dark:text-gray-200 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-gray-100 [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-xs dark:[&_pre]:bg-gray-900 [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs dark:[&_code]:bg-gray-900 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table]:max-w-full"
+                         x-html="preview"></div>
+                </div>
+
+                <div class="border-t border-gray-200 px-5 py-3 text-right dark:border-gray-700">
+                    <button type="button" @click="open = false"
+                            class="inline-flex min-h-[44px] items-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700">
+                        {{ __('blog.preview_continue') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     {{-- Error message --}}
     <div x-show="editorError" x-cloak class="text-sm text-amber-600 dark:text-amber-400 mt-1">

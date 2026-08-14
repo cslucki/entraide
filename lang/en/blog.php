@@ -531,4 +531,13 @@ return [
     'dossier_create_error' => 'Failed to create the folder.',
     'dossier_article_not_saved' => 'Save the article first, then classify it.',
     'dossier_move_error' => 'Failed to move the article.',
+    'preview' => 'Preview',
+    'preview_close' => 'Close',
+    'preview_continue' => 'Continue writing',
+    'dossier_open' => 'Open the Dossier',
+    'dossier_series_root' => 'Series root',
+    'dossier_series_annex' => 'In a series',
+    'dossier_series_root_short' => 'Root',
+    'dossier_series_open' => 'View the series',
+    'dossier_series_current' => '(this article)',
 ];

@@ -8,6 +8,10 @@ use App\Models\AiInteraction;
 use App\Models\BlogAiConfig;
 use App\Models\BlogPost;
 use App\Models\User;
+use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiPricingCatalog;
+use App\Support\Ai\AiProcess;
+use App\Support\Ai\AiUsage;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -208,9 +212,10 @@ class BlogAiService
                 }
 
                 $text = trim((string) ($response->json('response') ?? $response->json('thinking') ?? ''));
-                $inputTokens = 0;
-                $outputTokens = (int) ($response->json('eval_count') ?? 0);
-                $costUsd = 0;
+                // Ollama tourne en local : coût nul réel, déclaré `free` au
+                // catalogue (TASK-1132).
+                $usage = AiUsage::fromOllamaGenerate($response->json());
+                $cost = AiPricingCatalog::cost($provider, $model, $usage);
             } else {
                 $http = Http::timeout($timeout)->acceptJson()->asJson();
 
@@ -238,15 +243,11 @@ class BlogAiService
 
                 $body = $response->json();
                 $text = trim((string) ($body['choices'][0]['message']['content'] ?? ''));
-                $inputTokens = (int) ($body['usage']['input_tokens'] ?? 0);
-                $outputTokens = (int) ($body['usage']['output_tokens'] ?? 0);
-                $inputPrice = (float) ($config['input_price_per_1m'] ?? 0);
-                $outputPrice = (float) ($config['output_price_per_1m'] ?? 0);
-                $costUsd = round(
-                    ($inputTokens / 1_000_000) * $inputPrice
-                    + ($outputTokens / 1_000_000) * $outputPrice,
-                    6
-                );
+                // TASK-1132 : `$config['input_price_per_1m'] ?? 0` fabriquait un
+                // coût de 0 dès que le provider n'était pas OpenAI, car seul le
+                // bloc `openai` portait un prix. Le catalogue tranche désormais.
+                $usage = AiUsage::fromChatCompletions($body);
+                $cost = AiPricingCatalog::cost($provider, $model, $usage);
             }
         } catch (ConnectionException $e) {
             throw new \RuntimeException('Connexion au service IA impossible.');
@@ -259,13 +260,15 @@ class BlogAiService
         $interaction = AiInteraction::create([
             'user_id' => $user->id,
             'organization_id' => $organizationId,
+            'correlation_id' => AiCorrelation::id(),
+            'process' => AiProcess::fromFeature($feature),
             'feature' => $feature,
             'model' => $provider.'/'.$model,
             'prompt' => $prompt,
             'response' => $text,
-            'input_tokens' => $inputTokens,
-            'output_tokens' => $outputTokens,
-            'cost_usd' => $costUsd,
+            'input_tokens' => $usage->inputTokensOrZero(),
+            'output_tokens' => $usage->outputTokensOrZero(),
+            ...$cost->traceAttributes(),
             'metadata' => [
                 'blog_post_id' => $post->id,
                 'latency_ms' => $latencyMs,

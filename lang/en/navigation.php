@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'agenda' => 'Agenda',
+    'agenda_hint' => 'Meetings',
     'exchanges' => 'Exchanges',
     'directory' => 'Directory',
     'blog' => 'Blog',
@@ -16,7 +18,7 @@ return [
     'invitations' => 'Invitations',
     'favorites' => 'My favorites',
     'my_articles' => 'My articles',
-    'my_dossiers' => 'My folders',
+    'my_dossiers' => 'Dossiers',
     'settings' => 'Profile and settings',
     'administration' => 'Administration',
     'logout' => 'Log out',
@@ -61,6 +63,20 @@ return [
     'toggle_display_mode' => 'Toggle display mode',
     'language_switcher' => 'Switch language',
     'main_navigation' => 'Main navigation',
+
+    // ── The rail's « Cooperate » shortcut ───────────────────────────────────
+    'fab_label' => 'Cooperate',
+    'fab_hint' => 'Open shortcuts',
+    'fab_need_help' => 'I need help',
+    'fab_need_help_hint' => 'Post a request',
+    'fab_offer_help' => 'I can help',
+    'fab_offer_help_hint' => 'Offer a skill',
+    'fab_create_link' => 'I connect people',
+    'fab_create_link_hint' => 'Open a Loop',
+    'fab_explore' => 'I explore a lead',
+    'fab_explore_hint' => 'Browse the directory',
+    'fab_meet' => 'I want to meet',
+    'fab_meet_hint' => 'See the gatherings',
     'announcements' => 'Announcements',
     'services' => 'Services',
     'members' => 'Members',

@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'agenda' => 'Agenda',
+    'agenda_hint' => 'Rencontres',
     'exchanges' => 'Échanges',
     'directory' => 'Annuaire',
     'blog' => 'Blog',
@@ -16,7 +18,7 @@ return [
     'invitations' => 'Invitations',
     'favorites' => 'Mes favoris',
     'my_articles' => 'Mes articles',
-    'my_dossiers' => 'Mes dossiers',
+    'my_dossiers' => 'Dossiers',
     'settings' => 'Profil et paramètres',
     'administration' => 'Administration',
     'logout' => 'Déconnexion',
@@ -61,6 +63,20 @@ return [
     'toggle_display_mode' => "Changer de mode d'affichage",
     'language_switcher' => 'Changer de langue',
     'main_navigation' => 'Navigation principale',
+
+    // ── Le raccourci « Coopérer » du rail ───────────────────────────────────
+    'fab_label' => 'Coopérer',
+    'fab_hint' => 'Ouvrir les raccourcis',
+    'fab_need_help' => 'J\'ai besoin d\'aide',
+    'fab_need_help_hint' => 'Formuler une demande',
+    'fab_offer_help' => 'Je propose de l\'aide',
+    'fab_offer_help_hint' => 'Offrir une compétence',
+    'fab_create_link' => 'Je crée du lien',
+    'fab_create_link_hint' => 'Ouvrir une Boucle',
+    'fab_explore' => 'J\'explore une piste',
+    'fab_explore_hint' => 'Parcourir l\'annuaire',
+    'fab_meet' => 'Je veux rencontrer',
+    'fab_meet_hint' => 'Voir les rencontres',
     'announcements' => 'Annonces',
     'services' => 'Services',
     'members' => 'Membres',

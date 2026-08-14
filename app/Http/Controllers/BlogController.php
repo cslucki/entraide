@@ -6,6 +6,7 @@ use App\Models\BlogComment;
 use App\Models\BlogPost;
 use App\Models\BlogSnapshot;
 use App\Models\Category;
+use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\Tag;
 use App\Services\BlogAiService;
@@ -35,7 +36,12 @@ class BlogController extends Controller implements HasMiddleware
     }
 
     private const ALLOWED_HTML_TAGS = [
-        'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li',
+        // h1 added by TASK-1084. Its absence was silent and hard to see: the
+        // editor produced a proper <h1>, and strip_tags() removed the tag while
+        // keeping its text — so a level-1 title came back as an ordinary
+        // paragraph after saving, with nothing to indicate why. Documents
+        // pasted from an LLM almost always open with one.
+        'h1', 'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li',
         'img', 'b', 'i', 'strong', 'em', 'u', 'br', 'a', 'code', 'pre',
         'table', 'tr', 'td', 'th', 'thead', 'tbody', 'tfoot',
         'caption', 'col', 'colgroup',
@@ -146,6 +152,8 @@ class BlogController extends Controller implements HasMiddleware
             abort(404);
         }
 
+        $this->assertPrivateLoopManifestoIsReadable($post);
+
         $post->increment('views_count');
         $post->load(['user', 'category', 'tags', 'comments.user', 'comments.replies.user'])
             ->loadCount('likes');
@@ -163,6 +171,40 @@ class BlogController extends Controller implements HasMiddleware
         [$headers, $postContent] = $this->extractPublishedToc($post);
 
         return view('blog.show', compact('post', 'relatedPosts', 'isLiked', 'headers', 'postContent'));
+    }
+
+    /**
+     * A published article is normally readable by the whole Organization. That
+     * is wrong for one case (TASK-1079): an article designated as the Manifesto
+     * of a *private* Loop. Publishing it makes it visible on that Loop's
+     * presentation page, but the Loop's confidentiality must extend to the
+     * article itself — otherwise the direct /blog/{slug} URL walks straight
+     * around it.
+     *
+     * Only active members of that Loop, and platform super-admins, may read it.
+     */
+    private function assertPrivateLoopManifestoIsReadable(BlogPost $post): void
+    {
+        $loop = Loop::where('manifesto_blog_post_id', $post->id)
+            ->where('visibility', 'private')
+            ->first();
+
+        if (! $loop) {
+            return;
+        }
+
+        $user = auth()->user();
+
+        if ($user?->is_admin) {
+            return;
+        }
+
+        $isMember = $user && LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->exists();
+
+        abort_unless($isMember, 404);
     }
 
     public function orgShow(string $org, BlogPost $post): View
@@ -252,7 +294,15 @@ class BlogController extends Controller implements HasMiddleware
                     'slug' => $post->slug,
                     'title' => $post->title,
                 ],
-                'redirect_url' => "/org/{$org}/blog/{$post->slug}/edit",
+                // La route nommee, jamais une URL fabriquee : l'edition vit
+                // sur `/blog/rediger/{slug}/modifier`, et cette chaine-la
+                // envoyait sur un 404. Meme faute que celle corrigee dans
+                // `DossierArticleController` (TASK-1130) — c'etait la derniere
+                // occurrence du depot.
+                'redirect_url' => route('organization.blog.edit', [
+                    'organization' => $org,
+                    'post' => $post->slug,
+                ]),
             ], 201);
         }
 
@@ -523,10 +573,13 @@ class BlogController extends Controller implements HasMiddleware
         $request->validate([
             'title' => 'required|string|max:255',
             'summary' => 'required|string|max:500',
-            'category_id' => 'required|uuid|exists:categories,id',
+            // Optional since TASK-1084: an article without a category is a
+            // perfectly ordinary article, and 89 of them already existed.
+            'category_id' => 'nullable|uuid|exists:categories,id',
         ]);
 
-        if (! Category::where('id', $request->input('category_id'))->where('organization_id', $organization->id)->exists()) {
+        if ($request->filled('category_id')
+            && ! Category::where('id', $request->input('category_id'))->where('organization_id', $organization->id)->exists()) {
             return response()->json(['error' => __('blog.validation_category_invalid')], 422);
         }
 
@@ -940,7 +993,9 @@ class BlogController extends Controller implements HasMiddleware
             'image' => ['nullable', 'image', 'max:5120', 'mimes:jpeg,png,webp,gif'],
             'remove_image' => ['nullable', 'boolean'],
             'status' => ['required', Rule::in($allowedStatuses)],
-            'category_id' => [$isPublished ? 'required' : 'nullable', 'uuid', 'exists:categories,id'],
+            // Optional whatever the status: publishing an article is not a
+            // reason to invent a category for it.
+            'category_id' => ['nullable', 'uuid', 'exists:categories,id'],
             'tags' => ['nullable', 'string'],
             'meta_title' => ['nullable', 'string', 'max:255'],
             'meta_description' => ['nullable', 'string', 'max:320'],

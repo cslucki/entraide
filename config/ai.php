@@ -26,6 +26,16 @@ return [
                 ],
             ],
         ],
+        'openrouter' => [
+            'driver' => 'openrouter',
+            'key' => env('OPENROUTER_API_KEY'),
+            'models' => [
+                'embeddings' => [
+                    'default' => env('AI_EMBEDDING_MODEL', 'openai/text-embedding-3-small'),
+                    'dimensions' => (int) env('AI_EMBEDDING_DIMENSIONS', 1536),
+                ],
+            ],
+        ],
     ],
 
     'dossiers' => [
@@ -34,6 +44,10 @@ return [
             'organization_ids' => array_values(array_filter(array_map(
                 'trim',
                 explode(',', (string) env('DOSSIER_SEMANTIC_SEARCH_ORGANIZATION_IDS', '')),
+            ))),
+            'organization_slugs' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('DOSSIER_SEMANTIC_SEARCH_ORGANIZATION_SLUGS', '')),
             ))),
             'limit' => 5,
         ],
@@ -47,9 +61,18 @@ return [
     |--------------------------------------------------------------------------
     |
     | Configuration centralisée pour les appels OpenAI utilisés par le centre
-    | de supervision IA admin. Les clés `input_price_per_1m` et
-    | `output_price_per_1m` permettent d'afficher un coût estimé après chaque
-    | appel (USD par million de tokens, source : tarifs publics du modèle).
+    | de supervision IA admin.
+    |
+    | TASK-1132 / IA P1-2 — les tarifs ne vivent PLUS ici.
+    | Les clés `input_price_per_1m` / `output_price_per_1m` portaient des défauts
+    | en dur (0.15 / 0.60) qui masquaient l'absence de tarif : un provider sans
+    | prix déclaré produisait un coût de 0 indiscernable d'un modèle gratuit.
+    |
+    | Le tarif est désormais lu dans le catalogue versionné
+    | `config/ai_pricing.php` via `App\Support\Ai\AiPricingCatalog`, qui distingue
+    | explicitement un tarif connu d'un tarif inconnu. La surcharge opérateur
+    | OPENAI_INPUT_PRICE_PER_1M / OPENAI_OUTPUT_PRICE_PER_1M reste honorée, mais
+    | depuis `ai_pricing.overrides.openai` et sans défaut fabriqué.
     |
     */
 
@@ -60,8 +83,6 @@ return [
         'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
         'max_output_tokens' => (int) env('OPENAI_MAX_OUTPUT_TOKENS', 900),
         'timeout' => (int) env('OPENAI_TIMEOUT', 15),
-        'input_price_per_1m' => (float) env('OPENAI_INPUT_PRICE_PER_1M', 0.15),
-        'output_price_per_1m' => (float) env('OPENAI_OUTPUT_PRICE_PER_1M', 0.60),
     ],
 
     'supervision' => [
@@ -204,6 +225,10 @@ return [
         'temperature' => (float) env('CHATLOOP_AI_TEMPERATURE', 0.7),
         'max_simultaneous' => (int) env('CHATLOOP_AI_MAX_SIMULTANEOUS', 1),
         'lock_ttl' => (int) env('CHATLOOP_AI_LOCK_TTL', 90),
+        'summary_economic_guard' => [
+            'monthly_budget_usd' => (float) env('CHATLOOP_AI_SUMMARY_MONTHLY_BUDGET_USD', 2.00),
+            'monthly_unknown_limit' => (int) env('CHATLOOP_AI_SUMMARY_MONTHLY_UNKNOWN_LIMIT', 10),
+        ],
     ],
 
 ];

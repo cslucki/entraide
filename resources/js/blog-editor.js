@@ -10,6 +10,8 @@ import TextAlign from '@tiptap/extension-text-align';
 import { TextStyle, Color } from '@tiptap/extension-text-style';
 import Annotation from './tiptap/annotation-mark.js';
 import { MediaEmbed } from './tiptap/media-embed-node.js';
+import { Markdown } from '@tiptap/markdown';
+import { createMarkdownPasteHandler } from './tiptap/markdown-paste.js';
 
 const editors = new WeakMap();
 
@@ -155,7 +157,17 @@ export function createEditor(element, { content = '', onUpdate = null, placehold
                 HTMLAttributes: {},
             }),
             MediaEmbed,
+            // Already a dependency of this project, and already used by the
+            // other editor. It parses pasted Markdown into real nodes instead
+            // of the single grey code block users were getting.
+            Markdown,
         ],
+        // Recognises a pasted Markdown *document* and hands it to the extension
+        // above. Anything else — prose, rich HTML, a genuine code snippet, a
+        // paste inside a code block — falls through untouched.
+        editorProps: {
+            handlePaste: createMarkdownPasteHandler(),
+        },
         content,
         onUpdate: ({ editor: ed }) => {
             if (onUpdate) {
@@ -165,6 +177,10 @@ export function createEditor(element, { content = '', onUpdate = null, placehold
     });
 
     editors.set(element, editor);
+
+    // The paste handler receives the ProseMirror view, not the Editor. This is
+    // how it reaches back to the commands it needs.
+    editor.view.dom.editor = editor;
 
     return editor;
 }

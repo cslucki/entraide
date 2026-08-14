@@ -1,0 +1,64 @@
+# Echecs SQLite connus — reference du gate `SQLite CI`.
+#
+# DETTE TEMPORAIRE CONTROLEE. Ce n'est pas une allowlist ou ranger un test qui
+# gene : c'est la photographie, prise sur GitHub, de ce que la suite SQLite
+# rend aujourd'hui. Le gate exige l'egalite exacte avec cette liste.
+#
+#   un echec en plus  -> rouge (regression)
+#   un echec en moins -> rouge aussi (progres : retirer la ligne ici, dans la
+#                        meme PR, pour que le gain se voie dans le diff Git)
+#
+# GOUVERNANCE
+#   INTERDIT : modifier ce fichier pour faire passer une CI.
+#   AJOUT    : validation orchestrateur ou tache dediee.
+#              `TASK1126SqliteGateTest` en garde le plafond — il ne peut que
+#              baisser.
+#   RETRAIT  : des lors que le test est repare ou n'est plus attendu rouge.
+#
+# TRAJECTOIRE : 32 -> ... -> 0.
+#
+# COMPOSITION AU 2026-08-11 (TASK-1126), 32 echecs sur 4274 tests :
+#   12  moteur — `pgvector` n'existe pas sous SQLite, ceux-la ne seront jamais
+#       verts ici ; ils appartiennent a la reference, pas a la dette
+#   19  `ci-known-red` deterministes, deja annotes et deja exclus du gate
+#       PostgreSQL ; c'est **la** dette a resorber
+#    1  `AdminAiInteractionTest` — ni annote, ni pgvector, a classer
+#
+# Aucun flaky ici, et aucun ne doit y entrer : un test rouge un jour sur deux
+# rendrait ce gate instable. Les flakies se corrigent, ils ne s'inscrivent pas.
+#
+# Identites au format JUnit normalise : `Espace.De.Noms.Classe::methode`.
+# Ne jamais coller depuis la sortie du terminal, qui tronque les noms.
+#
+Tests.Feature.Admin.AdminAiInteractionTest::test_filter_by_search
+Tests.Feature.Admin.AdminDashboardRedirectTest::test_admin_with_organization_login_defaults_to_chatloop_url
+Tests.Feature.Admin.AdminUserDeletePreviewTest::test_delete_preview_shows_count_tables
+Tests.Feature.Admin.AdminUserDeletePreviewTest::test_org_admin_can_access_org_delete_preview
+Tests.Feature.Admin.AdminUserDeletePreviewTest::test_post_delete_with_correct_name_shows_dry_run_message
+Tests.Feature.Api.ApiTenantScopingTest::test_authenticated_user_organization_wins_over_default_organization
+Tests.Feature.Dossiers.PgvectorDossierSemanticSearchEndpointTest::test_endpoint_returns_top_five_pgvector_results_with_citation_urls
+Tests.Feature.Dossiers.PgvectorDossierSemanticSearchServiceTest::test_closest_result_is_ranked_first_and_result_shape_is_stable
+Tests.Feature.Dossiers.PgvectorDossierSemanticSearchServiceTest::test_dossier_id_filter_excludes_chunks_from_same_organization_other_dossier
+Tests.Feature.Dossiers.PgvectorDossierSemanticSearchServiceTest::test_draft_future_soft_deleted_detached_and_deleted_dossier_content_is_excluded
+Tests.Feature.Dossiers.PgvectorDossierSemanticSearchServiceTest::test_multiple_distances_are_ordered_exactly_by_pgvector
+Tests.Feature.Dossiers.PgvectorDossierSemanticSearchServiceTest::test_old_embedding_model_is_excluded
+Tests.Feature.Dossiers.PgvectorDossierSemanticSearchServiceTest::test_old_embedding_provider_is_excluded
+Tests.Feature.Dossiers.PgvectorDossierSemanticSearchServiceTest::test_organization_id_filter_excludes_other_organization_chunks
+Tests.Feature.Dossiers.PgvectorDossierSemanticSearchServiceTest::test_other_dossier_is_excluded_even_when_chunk_is_stale
+Tests.Feature.Dossiers.PgvectorDossierSemanticSearchServiceTest::test_soft_deleted_target_dossier_returns_no_results_without_embeddings
+Tests.Feature.Dossiers.PgvectorDossierSemanticSearchServiceTest::test_top_five_maximum_is_returned
+Tests.Feature.Livewire.InlineMemberAgentTest::test_ai_agent_chat_page_shows_chat_interface
+Tests.Feature.Livewire.InlineMemberAgentTest::test_chat_visible_when_profile_published
+Tests.Feature.Livewire.LoopChatTest::test_loop_owner_sees_workspace_cards_shell_closed_by_default
+Tests.Feature.Livewire.MessageThreadTest::test_buyer_can_pin_message
+Tests.Feature.Livewire.MessageThreadTest::test_buyer_can_unpin_message
+Tests.Feature.Livewire.MessageThreadTest::test_pin_replaces_previous_pin_in_messages
+Tests.Feature.Livewire.MessageThreadTest::test_pinned_message_is_shown_in_banner_in_messages
+Tests.Feature.Livewire.MessageThreadTest::test_reaction_coexists_with_reply_image_pin_in_messages
+Tests.Feature.Livewire.MessageThreadTest::test_seller_can_pin_message
+Tests.Feature.PgvectorDossierChunksSchemaTest::test_postgresql_vector_storage_distance_constraints_and_indexes
+Tests.Feature.PublicFrenchPartnersRoutesTest::test_boucles_index_does_not_redirect_to_partenaires
+Tests.Feature.T347OrganizationScopedAuthTest::test_admin_users_can_sort_by_name
+Tests.Feature.T347OrganizationScopedAuthTest::test_org_scoped_login_redirects_to_org_home
+Tests.Feature.T969BlogTagsTest::test_blog_store_normalizes_hash_prefixed_tags
+Tests.Feature.T997BlogMethodSelectionAnnotationTest::test_edit_page_contains_selection_tool_and_source_filters_without_deferred_scope

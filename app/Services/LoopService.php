@@ -3,35 +3,63 @@
 namespace App\Services;
 
 use App\Models\Loop;
+use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
 use App\Models\Referral;
 use App\Models\User;
+use App\Services\Loops\LoopRootDocumentService;
+use App\Support\Loops\LoopRoleRegistry;
+use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class LoopService
 {
-    public function createLoopForOrg(User $user, string $organizationId, string $name, ?string $description = null, string $visibility = 'private'): Loop
+    public function createLoopForOrg(User $user, string $organizationId, string $name, ?string $description = null, string $visibility = 'private', ?string $tagline = null, string $accessMode = Loop::ACCESS_REQUEST, ?string $type = null): Loop
     {
         $slug = $this->generateUniqueSlug($organizationId, $name);
+        $registry = app(LoopTypeRegistry::class);
 
         $loop = Loop::create([
             'organization_id' => $organizationId,
             'name' => $name,
             'slug' => $slug,
             'description' => $description,
-            'type' => 'custom',
+            'tagline' => $tagline,
+            'type' => $this->resolveCreationType($type),
             'status' => 'active',
             'visibility' => $visibility,
+            'access_mode' => Loop::isValidAccessMode($accessMode) ? $accessMode : Loop::ACCESS_REQUEST,
             'created_by' => $user->id,
         ]);
 
         $this->addMember($loop, $user, 'owner');
 
+        // Was missing here while createLoop() had it: a Loop created from the
+        // admin came out with no cards at all and relied on the fallback.
+        $registry->applyPreset($loop);
+
+        app(LoopRootDocumentService::class)->ensureRootDocument($loop, $user);
+
         return $loop;
     }
 
-    public function createLoop(User $user, string $name, ?string $description = null, string $visibility = 'private'): Loop
+    /**
+     * The type a new Loop starts on.
+     *
+     * A type withdrawn from the offer cannot be picked at creation — unlike a
+     * Loop that already carries one, there is nothing to preserve here.
+     */
+    private function resolveCreationType(?string $type): string
+    {
+        $registry = app(LoopTypeRegistry::class);
+
+        return $registry->isAvailable($type) ? $registry->resolve($type) : $registry->default();
+    }
+
+    public function createLoop(User $user, string $name, ?string $description = null, string $visibility = 'private', ?string $tagline = null, string $accessMode = Loop::ACCESS_REQUEST, ?string $coverImagePath = null, ?string $type = null): Loop
     {
         $orgId = $user->organization_id;
 
@@ -46,13 +74,25 @@ class LoopService
             'name' => $name,
             'slug' => $slug,
             'description' => $description,
-            'type' => 'custom',
+            'tagline' => $tagline,
+            'cover_image_path' => $coverImagePath,
+            'type' => $this->resolveCreationType($type),
             'status' => 'active',
             'visibility' => $visibility,
+            'access_mode' => Loop::isValidAccessMode($accessMode) ? $accessMode : Loop::ACCESS_REQUEST,
             'created_by' => $user->id,
         ]);
 
         $this->addMember($loop, $user, 'owner');
+
+        // The type's card preset defines the Loop's starting composition
+        // (TASK-1079). Additive and idempotent — see LoopTypeRegistry.
+        app(LoopTypeRegistry::class)->applyPreset($loop);
+
+        // Root Dossier and root document (TASK-1082). A Loop is never created
+        // without them: the whole creation fails rather than leaving a Loop
+        // whose card would show "no document".
+        app(LoopRootDocumentService::class)->ensureRootDocument($loop, $user);
 
         return $loop;
     }
@@ -81,7 +121,15 @@ class LoopService
                 throw new \RuntimeException('User is already a member of this loop.');
             }
 
-            $existing->update(['status' => 'active', 'joined_at' => now()]);
+            // Reactivation must honour the role the caller asked for. It used to
+            // set status alone, so re-adding a former member "as owner" silently
+            // handed them back whatever role their old row happened to carry
+            // (TASK-1079 CP5ter).
+            $existing->update([
+                'status' => 'active',
+                'joined_at' => now(),
+                'role' => app(LoopRoleRegistry::class)->canonical($role),
+            ]);
 
             return $existing;
         }
@@ -96,13 +144,86 @@ class LoopService
         ]);
     }
 
-    public function removeMember(LoopMember $member): void
+    /**
+     * Bulk-add existing Organization members to a Loop (TASK-1076, post-creation
+     * step). Wraps addMemberByUserId() rather than duplicating its invariants:
+     * cross-organization and deactivated users are refused there, and a user who
+     * is already an active member is skipped instead of failing the whole batch,
+     * so the operation is idempotent.
+     *
+     * A pending join request from someone added this way is closed as accepted —
+     * otherwise it would linger and the person could appear as "waiting" while
+     * already being a member.
+     *
+     * @param  array<int, string>  $userIds
+     * @return array{added: int, skipped: int}
+     */
+    /**
+     * Les personnes de l'Organization de la Boucle qui n'y sont pas encore.
+     *
+     * Cette requete vivait en prive dans LoopController et n'etait donc
+     * atteignable que depuis l'ecran d'invitation. Trois ecrans en ont besoin —
+     * l'invitation, la Card Membres et l'edition — et le serveur s'en ressert
+     * pour re-verifier ce qu'un formulaire a poste : une seule definition.
+     *
+     * @return Collection<int, User>
+     */
+    public function invitableOrganizationMembers(Loop $loop): Collection
     {
-        if ($member->role === 'owner') {
-            throw new \RuntimeException('Cannot remove the owner of a loop.');
+        $alreadyIn = LoopMember::query()
+            ->where('loop_id', $loop->id)
+            ->where('status', 'active')
+            ->pluck('user_id');
+
+        return User::assignable()
+            ->where('organization_id', $loop->organization_id)
+            ->whereNotIn('id', $alreadyIn)
+            ->orderBy('name')
+            ->get(['id', 'name', 'first_name', 'email', 'avatar', 'banned_at']);
+    }
+
+    public function addMembersFromOrganization(Loop $loop, array $userIds, User $actor): array
+    {
+        $added = 0;
+        $skipped = 0;
+
+        foreach (array_unique($userIds) as $userId) {
+            try {
+                $this->addMemberByUserId($loop, $userId);
+                $added++;
+            } catch (\RuntimeException|ModelNotFoundException) {
+                // Already an active member, cross-organization or deactivated:
+                // silently skipped, the caller reports the counts.
+                $skipped++;
+
+                continue;
+            }
+
+            LoopJoinRequest::where('loop_id', $loop->id)
+                ->where('user_id', $userId)
+                ->where('status', LoopJoinRequest::STATUS_PENDING)
+                ->update([
+                    'status' => LoopJoinRequest::STATUS_ACCEPTED,
+                    'decided_by' => $actor->id,
+                    'decided_at' => now(),
+                ]);
         }
 
-        $member->update(['status' => 'left']);
+        return ['added' => $added, 'skipped' => $skipped];
+    }
+
+    /**
+     * Kept as the historical entry point, now delegating to the governance
+     * service. The blanket refusal for any owner is gone: an owner may be
+     * removed while another active one remains, and only the last is protected.
+     */
+    public function removeMember(LoopMember $member): void
+    {
+        $result = app(LoopGovernanceService::class)->removeMember($member);
+
+        if ($result === LoopGovernanceService::RESULT_LAST_OWNER) {
+            throw new \RuntimeException('Cannot remove the last active owner of a loop.');
+        }
     }
 
     public function addMember(Loop $loop, User $user, string $role = 'member'): LoopMember
@@ -176,6 +297,118 @@ class LoopService
         assert($referred instanceof User);
 
         return $this->addMember($loop, $referred);
+    }
+
+    public function joinOpenLoop(Loop $loop, User $user): LoopMember
+    {
+        $existing = LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if ($existing) {
+            if ($existing->status !== 'active') {
+                $existing->update(['status' => 'active', 'joined_at' => now()]);
+            }
+
+            return $existing->fresh();
+        }
+
+        return LoopMember::create([
+            'loop_id' => $loop->id,
+            'user_id' => $user->id,
+            'role' => 'member',
+            'status' => 'active',
+            'joined_at' => now(),
+            'organization_id' => $loop->organization_id,
+        ]);
+    }
+
+    public function requestToJoin(Loop $loop, User $user, ?string $message = null): LoopJoinRequest
+    {
+        return DB::transaction(function () use ($loop, $user, $message) {
+            $existingPending = LoopJoinRequest::where('loop_id', $loop->id)
+                ->where('user_id', $user->id)
+                ->where('status', LoopJoinRequest::STATUS_PENDING)
+                ->lockForUpdate()
+                ->exists();
+
+            if ($existingPending) {
+                throw new \RuntimeException('A pending join request already exists for this loop.');
+            }
+
+            return LoopJoinRequest::create([
+                'organization_id' => $loop->organization_id,
+                'loop_id' => $loop->id,
+                'user_id' => $user->id,
+                'message' => $message,
+                'status' => LoopJoinRequest::STATUS_PENDING,
+            ]);
+        });
+    }
+
+    public function cancelJoinRequest(LoopJoinRequest $joinRequest): void
+    {
+        if (! $joinRequest->isPending()) {
+            throw new \RuntimeException('Only a pending join request can be cancelled.');
+        }
+
+        $joinRequest->update(['status' => LoopJoinRequest::STATUS_CANCELLED]);
+    }
+
+    public function acceptJoinRequest(LoopJoinRequest $joinRequest, User $decidedBy): LoopMember
+    {
+        return DB::transaction(function () use ($joinRequest, $decidedBy) {
+            $joinRequest = LoopJoinRequest::where('id', $joinRequest->id)->lockForUpdate()->firstOrFail();
+
+            if (! $joinRequest->isPending()) {
+                throw new \RuntimeException('This join request has already been decided.');
+            }
+
+            $existingMember = LoopMember::where('loop_id', $joinRequest->loop_id)
+                ->where('user_id', $joinRequest->user_id)
+                ->first();
+
+            if ($existingMember) {
+                if ($existingMember->status !== 'active') {
+                    $existingMember->update(['status' => 'active', 'joined_at' => now()]);
+                }
+                $member = $existingMember->fresh();
+            } else {
+                $member = LoopMember::create([
+                    'loop_id' => $joinRequest->loop_id,
+                    'user_id' => $joinRequest->user_id,
+                    'role' => 'member',
+                    'status' => 'active',
+                    'joined_at' => now(),
+                    'organization_id' => $joinRequest->organization_id,
+                ]);
+            }
+
+            $joinRequest->update([
+                'status' => LoopJoinRequest::STATUS_ACCEPTED,
+                'decided_by' => $decidedBy->id,
+                'decided_at' => now(),
+            ]);
+
+            return $member;
+        });
+    }
+
+    public function rejectJoinRequest(LoopJoinRequest $joinRequest, User $decidedBy): void
+    {
+        DB::transaction(function () use ($joinRequest, $decidedBy) {
+            $joinRequest = LoopJoinRequest::where('id', $joinRequest->id)->lockForUpdate()->firstOrFail();
+
+            if (! $joinRequest->isPending()) {
+                throw new \RuntimeException('This join request has already been decided.');
+            }
+
+            $joinRequest->update([
+                'status' => LoopJoinRequest::STATUS_REJECTED,
+                'decided_by' => $decidedBy->id,
+                'decided_at' => now(),
+            ]);
+        });
     }
 
     public function archiveLoop(Loop $loop): Loop

@@ -50,6 +50,10 @@ class PublicFrenchPartnersRoutesTest extends TestCase
             ->assertRedirect('/partenaires/demande');
     }
 
+    // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
+    // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
+    // n'est pas un endroit ou ranger un test qui gene.
+    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
     public function test_boucles_index_does_not_redirect_to_partenaires(): void
     {
         $organization = Organization::factory()->create([

@@ -50,8 +50,15 @@ class SystemEmailTemplateTest extends TestCase
 
         $this->seed(SystemEmailTemplateSeeder::class);
 
-        $this->assertSame(6 * 2 * 3, SystemEmailTemplate::count());
-        $this->assertSame(12, SystemEmailTemplate::where('organization_id', $this->org->id)->count());
+        // Asserted structurally rather than against a hard-coded total: the point
+        // is "every active organization gets every template in both locales, and
+        // inactive ones get none", which must keep holding as templates are added.
+        $slugs = SystemEmailTemplate::distinct()->count('slug');
+        $inactive = Organization::where('slug', 'inactive')->sole();
+
+        $this->assertSame($slugs * 2 * 3, SystemEmailTemplate::count());
+        $this->assertSame($slugs * 2, SystemEmailTemplate::where('organization_id', $this->org->id)->count());
+        $this->assertSame(0, SystemEmailTemplate::where('organization_id', $inactive->id)->count());
     }
 
     public function test_seeder_does_not_duplicate(): void

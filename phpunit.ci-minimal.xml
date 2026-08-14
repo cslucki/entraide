@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
     CI MINIMAL — Blocking quality gate.
-    Runs only Unit tests + stable Feature subset.
+    Runs the Unit suite. Les tests Feature sont dans phpunit.ci-feature.xml,
+    lance par la meme etape bloquante depuis TASK-1112.
+
+    (Le commentaire d origine annonçait un « stable Feature subset » qui
+    n existait pas : aucune testsuite Feature n a jamais figure ici.)
     Used by the "quality-gate" job in ci-postgresql.yml.
     All failures here are blocking.
 -->
@@ -24,6 +28,19 @@
         <env name="APP_ENV" value="testing"/>
         <env name="APP_KEY" value="base64:b+IwxNpzaahGTvmk+0WLnzODWBnKA99oQDutpRQ7xfI="/>
         <env name="APP_URL" value="http://localhost"/>
+        <!--
+            **La locale doit etre fixee.** En local, `.env` porte `APP_LOCALE=fr`
+            et la suite a ete ecrite contre le français : elle asserte des
+            chaines comme « Manifeste ». La CI n'a pas de `.env`, retombait sur
+            le defaut de `config/app.php`, et le premier passage reel a rendu 42
+            echecs dont la quasi-totalite disaient « Manifesto » la ou le test
+            attendait « Manifeste ».
+            Fixer la locale ici fait concorder les deux environnements — ce
+            n'est pas assouplir un test, c'est cesser de comparer deux choses
+            differentes.
+        -->
+        <env name="APP_LOCALE" value="fr"/>
+        <env name="APP_FALLBACK_LOCALE" value="fr"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>

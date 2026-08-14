@@ -48,4 +48,13 @@ return [
     'invite_accepted_title' => 'Invitation already accepted',
     'invite_accepted_message' => 'This invitation has already been used. Log in to access the article.',
     'invite_go_home' => 'Back to home',
+
+    // TASK-1078 — resumption after authentication
+    'invite_btn_register' => 'Create my account',
+    'accept_email_mismatch' => 'This invitation was sent to a different e-mail address. Sign in with the matching account.',
+    'accept_expired' => 'This invitation has expired.',
+    'accept_taken' => 'This invitation has already been used by someone else.',
+    'accept_user_deactivated' => 'Your account is deactivated.',
+    'accept_post_unavailable' => 'This article is no longer available.',
+    'accept_invalid' => 'This invitation cannot be found or is invalid.',
 ];

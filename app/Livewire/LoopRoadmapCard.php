@@ -9,6 +9,8 @@ use App\Models\LoopRoadmapItemMessage;
 use App\Models\LoopRoadmapLabel;
 use App\Models\User;
 use App\Services\LoopService;
+use App\Services\Loops\LoopLifecycleService;
+use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -69,7 +71,7 @@ class LoopRoadmapCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return;
         }
 
@@ -127,7 +129,7 @@ class LoopRoadmapCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->isMemberOrAdmin() || ! LoopRoadmapItem::isValidStatus($status)) {
+        if (! $this->canWrite() || ! LoopRoadmapItem::isValidStatus($status)) {
             return;
         }
 
@@ -157,7 +159,7 @@ class LoopRoadmapCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return;
         }
 
@@ -288,6 +290,10 @@ class LoopRoadmapCard extends Component
         DB::transaction(function () use ($item, $user) {
             if (! $this->isActiveLoopMember($user->id)) {
                 app(LoopService::class)->addMemberByUserId($this->loop, $user->id, 'member');
+
+                // Une adhesion vient de changer : ce qu'on avait memorise n'est
+                // plus vrai pour la suite de cette requete.
+                $this->forgetMembership();
             }
             $item->assignees()->syncWithoutDetaching([$user->id]);
         });
@@ -377,7 +383,7 @@ class LoopRoadmapCard extends Component
     /** Re-scope an archived item to this Organization + Loop. */
     private function resolveTrashedItem(string $id): ?LoopRoadmapItem
     {
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return null;
         }
 
@@ -464,7 +470,7 @@ class LoopRoadmapCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return;
         }
 
@@ -639,7 +645,7 @@ class LoopRoadmapCard extends Component
     /** Re-scope a message to this Organization + Loop. Requires active membership. */
     private function resolveMessage(string $messageId): ?LoopRoadmapItemMessage
     {
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return null;
         }
 
@@ -652,7 +658,7 @@ class LoopRoadmapCard extends Component
     /** Re-scope a label to this Organization + Loop. Never trust a browser id. */
     private function resolveLabel(string $labelId): ?LoopRoadmapLabel
     {
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return null;
         }
 
@@ -682,7 +688,7 @@ class LoopRoadmapCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->isMemberOrAdmin() || ! LoopRoadmapItem::isValidStatus($status)) {
+        if (! $this->canWrite() || ! LoopRoadmapItem::isValidStatus($status)) {
             $this->errorMessage = __('loops.roadmap_reorder_failed');
 
             return;
@@ -721,7 +727,7 @@ class LoopRoadmapCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->isMemberOrAdmin()
+        if (! $this->canWrite()
             || ! LoopRoadmapItem::isValidStatus($sourceStatus)
             || ! LoopRoadmapItem::isValidStatus($targetStatus)
             || $sourceStatus === $targetStatus) {
@@ -801,7 +807,7 @@ class LoopRoadmapCard extends Component
     {
         $this->errorMessage = null;
 
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return;
         }
 
@@ -887,7 +893,7 @@ class LoopRoadmapCard extends Component
      */
     private function resolveItem(string $id): ?LoopRoadmapItem
     {
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return null;
         }
 
@@ -897,7 +903,66 @@ class LoopRoadmapCard extends Component
             ->find($id);
     }
 
+    /**
+     * L'adhesion de la personne connectee, lue **une fois par requete**.
+     *
+     * `render()` calcule `canModify()` pour chaque item, et `canModify()`
+     * passait par `canWrite()` **et** `isPrivileged()` — deux lectures de
+     * `loop_members` par item. Mesure : 11 lectures pour 2 items, 87 pour 40.
+     * C'est la forme que l'invariant de performance interdit.
+     *
+     * **Le cache ne vit que pendant `render()`.** C'est la correction d'une
+     * premiere version qui le laissait vivre toute la requete : une propriete
+     * privee ne voyage pas dans le snapshot — verifie —, mais l'unite de vie
+     * d'une instance Livewire n'est pas la requete, c'est le **commit**, et un
+     * commit porte un tableau de `calls`. Deux gestes partis dans le meme tick
+     * partagent donc une instance, et un droit retire entre les deux par une
+     * requete concurrente n'etait plus honore. C'etait une regression de
+     * comportement, sur l'invariant meme que cette tache doit tenir.
+     *
+     * Le N+1 est un probleme de **boucle de rendu** — `canModify()` par item —
+     * et non de garde d'ecriture. Remplir le cache a l'entree de `render()` et
+     * le vider a la sortie supprime le cout sans allonger la fenetre d'aucune
+     * garde : chaque geste d'ecriture relit l'etat.
+     */
+    private ?LoopMember $membershipMemo = null;
+
+    private bool $membershipMemoRempli = false;
+
+    /**
+     * Le droit d'animer, lui aussi lu une fois par requete.
+     *
+     * `isPrivileged()` passe par `LoopPermissionResolver::can()`, qui interroge
+     * `loop_members` a **chaque appel** : le resolveur n'a pas de cache, et
+     * n'est pas lie en singleton — une instance neuve a chaque `app()`.
+     * Memoiser l'adhesion ne suffisait donc pas : le cout continuait de suivre
+     * le nombre d'items, par cet autre chemin.
+     *
+     * Le reglage est une constante de la requete pour une personne donnee : il
+     * ne peut pas changer entre deux items de la meme planche.
+     */
+    private ?bool $privilegeMemo = null;
+
     private function activeMembership(): ?LoopMember
+    {
+        if ($this->membershipMemoRempli) {
+            return $this->membershipMemo;
+        }
+
+        $this->membershipMemoRempli = true;
+
+        return $this->membershipMemo = $this->readActiveMembership();
+    }
+
+    /** Oublier ce qu'on savait : l'adhesion vient de changer dans cette requete. */
+    private function forgetMembership(): void
+    {
+        $this->membershipMemo = null;
+        $this->membershipMemoRempli = false;
+        $this->privilegeMemo = null;
+    }
+
+    private function readActiveMembership(): ?LoopMember
     {
         $user = auth()->user();
         if (! $user || $user->isDeactivated()) {
@@ -911,6 +976,20 @@ class LoopRoadmapCard extends Component
             ->where('user_id', $user->id)
             ->where('status', 'active')
             ->first();
+    }
+
+    /**
+     * Membership, plus the Loop still accepting contributions.
+     *
+     * Split from isMemberOrAdmin() rather than folded into it: that one also
+     * answers "may this person see the board", and an archived Loop stays
+     * readable. Every write guard in this component calls this instead, so the
+     * read/write line is drawn once.
+     */
+    private function canWrite(): bool
+    {
+        return $this->isMemberOrAdmin()
+            && app(LoopLifecycleService::class)->isWritable($this->loop);
     }
 
     private function isMemberOrAdmin(): bool
@@ -928,14 +1007,19 @@ class LoopRoadmapCard extends Component
 
     private function isPrivileged(): bool
     {
-        $user = auth()->user();
-        if ($user && $user->is_admin) {
-            return true;
+        if ($this->privilegeMemo !== null) {
+            return $this->privilegeMemo;
         }
 
-        $membership = $this->activeMembership();
+        $user = auth()->user();
+        if ($user && $user->is_admin) {
+            return $this->privilegeMemo = true;
+        }
 
-        return $membership !== null && in_array($membership->role, ['owner', 'moderator'], true);
+        // Resolved centrally (CP5ter): the facilitator replaces the never-used
+        // moderator, and a type or an Organization can vary the rule.
+        return $this->privilegeMemo = $user !== null
+            && app(LoopPermissionResolver::class)->can($user, $this->loop, 'roadmap.manage');
     }
 
     /** Adding a not-yet-member Org user to the Loop is reserved to privileged users. */
@@ -946,7 +1030,7 @@ class LoopRoadmapCard extends Component
 
     private function canModify(LoopRoadmapItem $item): bool
     {
-        if (! $this->isMemberOrAdmin()) {
+        if (! $this->canWrite()) {
             return false;
         }
 
@@ -988,6 +1072,10 @@ class LoopRoadmapCard extends Component
 
     public function render()
     {
+        // Le cache d'autorisation ne vit **que** dans ce rendu. Voir le
+        // commentaire de `$membershipMemo`.
+        $this->forgetMembership();
+
         $canManage = $this->isMemberOrAdmin();
 
         $items = $canManage
@@ -1011,6 +1099,11 @@ class LoopRoadmapCard extends Component
                 ->where('organization_id', $this->loop->organization_id)
                 ->where('loop_id', $this->loop->id)
                 ->orderByDesc('deleted_at')
+                // Departage : sans lui, **quels** cinquante items archives sont
+                // visibles changeait d'un rendu a l'autre quand plusieurs le
+                // sont dans la meme transaction — un item pouvait devenir
+                // irrecuperable depuis l'ecran.
+                ->orderByDesc('id')
                 ->limit(50)
                 ->get()
             : collect();
@@ -1046,7 +1139,7 @@ class LoopRoadmapCard extends Component
                 ->get()
             : collect();
 
-        return view('livewire.loop-roadmap-card', [
+        $vue = view('livewire.loop-roadmap-card', [
             'items' => $items,
             'columns' => $columns,
             'openCount' => $columns[LoopRoadmapItem::STATUS_TODO]->count() + $columns[LoopRoadmapItem::STATUS_IN_PROGRESS]->count(),
@@ -1065,6 +1158,12 @@ class LoopRoadmapCard extends Component
             'archivedCount' => $archivedItems->count(),
             'palette' => LoopRoadmapLabel::COLORS,
         ]);
+
+        // Le cache d'autorisation ne survit pas au rendu : les gestes d'ecriture
+        // qui suivront dans le meme commit Livewire reliront l'etat.
+        $this->forgetMembership();
+
+        return $vue;
     }
 
     private function loopLabels(): Collection

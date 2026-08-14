@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Ai\Agents\LoopSummaryAgent;
 use App\Events\LoopMessageCreated;
 use App\Models\AiInteraction;
 use App\Models\Loop;
@@ -60,7 +61,13 @@ class ChatLoopAiServiceTest extends TestCase
         $loopService->addMember($this->loop, $this->member, 'member');
 
         config(['ai.openai.api_key' => 'test-key']);
+        config(['ai.providers.openai.driver' => 'openai']);
+        config(['ai.providers.openai.key' => 'test-key']);
         config(['ai.chatloop.min_summary_words' => 0]);
+
+        // `summarize()` passe par le Laravel AI SDK depuis TASK-1207 ;
+        // `answer()` et `ask()` restent sur le chemin HTTP direct.
+        LoopSummaryAgent::fake(["Synthèse de l'IA."]);
 
         Http::fake([
             '*' => Http::response([
@@ -128,25 +135,25 @@ class ChatLoopAiServiceTest extends TestCase
         $this->assertEquals($interaction->id, $message->metadata['ai_interaction_id']);
     }
 
-    public function test_summarize_persists_ai_message_with_summarize_action(): void
+    /**
+     * TASK-1207 : le resume ne publie plus de message metier dans la Boucle.
+     * Il est trace, puis relu depuis sa trace.
+     */
+    public function test_summarize_traces_the_interaction_without_publishing_a_loop_message(): void
     {
-        $message = $this->service()->summarize($this->loop, $this->member);
+        $summary = $this->service()->summarize($this->loop, $this->member);
 
-        $this->assertEquals('ai', $message->type);
-        $this->assertNull($message->sender_id);
-        $this->assertEquals('summarize', $message->metadata['action']);
-        $this->assertEquals($this->member->id, $message->metadata['requested_by']);
-        $this->assertEquals($this->loop->organization_id, $message->organization_id);
+        $this->assertSame("Synthèse de l'IA.", $summary->body);
+        $this->assertSame($this->member->id, $summary->requestedById);
 
-        $this->assertDatabaseHas('loop_messages', [
-            'loop_id' => $this->loop->id,
-            'type' => 'ai',
-            'body' => 'Réponse de l\'IA.',
-        ]);
+        $this->assertNoAiMessage();
 
         $interaction = AiInteraction::query()->latest('id')->first();
         $this->assertNotNull($interaction);
         $this->assertEquals('chatloop_ai_summarize', $interaction->feature);
+        $this->assertEquals('chatloop.summarize', $interaction->process);
+        $this->assertEquals($this->loop->organization_id, $interaction->organization_id);
+        $this->assertSame($interaction->id, $summary->aiInteractionId);
     }
 
     public function test_summarize_refuses_a_non_member(): void
@@ -185,26 +192,35 @@ class ChatLoopAiServiceTest extends TestCase
         }
     }
 
-    public function test_latest_summary_returns_last_summarize_ignoring_answer_and_deleted(): void
+    public function test_latest_summary_returns_the_last_summarize_and_ignores_other_processes(): void
     {
-        // An answer message must not be picked as a summary.
+        // An answer must not be picked as a summary: different process.
         $this->service()->answer($this->loop, $this->member);
 
         $this->assertNull($this->service()->latestSummary($this->loop));
 
+        LoopSummaryAgent::fake(['Première synthèse.', 'Deuxième synthèse.']);
+
         $first = $this->service()->summarize($this->loop, $this->member);
         $second = $this->service()->summarize($this->loop, $this->member);
 
+        $this->assertSame('Première synthèse.', $first->body);
+        $this->assertSame('Deuxième synthèse.', $second->body);
+
         $latest = $this->service()->latestSummary($this->loop);
         $this->assertNotNull($latest);
-        $this->assertSame($second->id, $latest->id);
+        $this->assertSame($second->aiInteractionId, $latest->aiInteractionId);
+        $this->assertSame('Deuxième synthèse.', $latest->body);
+    }
 
-        // A deleted latest summary is ignored.
-        $second->update(['deleted_at' => now(), 'deleted_by' => $this->member->id]);
+    public function test_latest_summary_is_scoped_to_its_loop_and_its_organization(): void
+    {
+        $this->service()->summarize($this->loop, $this->member);
 
-        $latestAfterDelete = $this->service()->latestSummary($this->loop);
-        $this->assertNotNull($latestAfterDelete);
-        $this->assertSame($first->id, $latestAfterDelete->id);
+        $otherLoop = (new LoopService)->createLoop($this->owner, 'Another loop');
+
+        $this->assertNotNull($this->service()->latestSummary($this->loop));
+        $this->assertNull($this->service()->latestSummary($otherLoop));
     }
 
     public function test_it_limits_context_to_the_last_thirty_messages(): void

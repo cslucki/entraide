@@ -36,6 +36,7 @@ class Organization extends Model
         'service_points_min',
         'service_points_max',
         'loops_enabled',
+        'members_can_create_loops',
         'ai_profiles_enabled',
         'subscriptions_enabled',
         'loop_mode',
@@ -48,6 +49,8 @@ class Organization extends Model
         'header_javascript',
         'blog_naming',
         'transactions_naming',
+        'loops_naming',
+        'loop_permissions',
         'feed_post_publish_mode',
         'theme_id',
         'locale',
@@ -59,11 +62,13 @@ class Organization extends Model
         'homepage_template',
         'homepage_settings',
         'dossier_storage_quota_bytes',
+            'loop_composition_policy',
     ];
 
     protected function casts(): array
     {
         return [
+            'loop_permissions' => 'array',
             'is_active' => 'boolean',
             'is_public' => 'boolean',
             'is_default' => 'boolean',
@@ -71,6 +76,7 @@ class Organization extends Model
             'service_points_min' => 'integer',
             'service_points_max' => 'integer',
             'loops_enabled' => 'boolean',
+            'members_can_create_loops' => 'boolean',
             'ai_profiles_enabled' => 'boolean',
             'subscriptions_enabled' => 'boolean',
             'maintenance_mode' => 'boolean',
@@ -224,8 +230,33 @@ class Organization extends Model
         return $this->loop_mode !== 'mono';
     }
 
+    public function membersCanCreateLoops(): bool
+    {
+        return (bool) $this->loops_enabled && (bool) $this->members_can_create_loops;
+    }
+
     public function isFeedPostPublishableByMembers(): bool
     {
         return $this->feed_post_publish_mode === 'members';
+    }
+
+    // ── Composition des Cards (TASK-1090) ───────────────────────────────────
+
+    public const COMPOSITION_LOCKED = 'locked';
+
+    public const COMPOSITION_OWNER_ALLOWED = 'owner_allowed';
+
+    public const COMPOSITION_POLICIES = [self::COMPOSITION_LOCKED, self::COMPOSITION_OWNER_ALLOWED];
+
+    /**
+     * Le proprietaire d'une Boucle peut-il en composer les Cards ?
+     *
+     * Verrouille par defaut : c'est le comportement livre jusqu'ici, et une
+     * Organization qui n'a rien decide ne doit pas voir ses regles changer parce
+     * qu'une colonne est apparue.
+     */
+    public function allowsOwnerComposition(): bool
+    {
+        return $this->loop_composition_policy === self::COMPOSITION_OWNER_ALLOWED;
     }
 }

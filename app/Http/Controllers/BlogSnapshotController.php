@@ -11,7 +11,9 @@ use Illuminate\Support\Facades\Gate;
 class BlogSnapshotController extends Controller
 {
     private const ALLOWED_HTML_TAGS = [
-        'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li',
+        // h1 included since TASK-1084: a snapshot must restore exactly what
+        // was saved, and stripping the level-1 title here would undo it.
+        'h1', 'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li',
         'img', 'b', 'i', 'strong', 'em', 'u', 'br', 'a', 'code', 'pre',
         'table', 'tr', 'td', 'th', 'thead', 'tbody', 'tfoot',
         'caption', 'col', 'colgroup',

@@ -2,6 +2,13 @@
 
 namespace App\Services\ChatLoop;
 
+use App\Ai\Agents\LoopSummaryAgent;
+use App\Ai\CapabilityDefinition;
+use App\Ai\CapabilityRegistry;
+use App\Ai\ContexteIa;
+use App\Ai\PromptRepository;
+use App\Ai\ProviderResolver;
+use App\Ai\ResolvedModel;
 use App\Events\LoopMessageCreated;
 use App\Models\AdminAiPrompt;
 use App\Models\AiConfig;
@@ -10,7 +17,11 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\User;
+use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiMarkdownSanitizer;
+use App\Support\Ai\AiProcess;
+use App\Support\Ai\AiUsage;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +29,13 @@ use Illuminate\Support\Facades\Http;
 
 class ChatLoopAiService
 {
+    public function __construct(
+        private readonly AiEconomicGuard $economicGuard,
+        private readonly CapabilityRegistry $capabilities,
+        private readonly PromptRepository $prompts,
+        private readonly ProviderResolver $providers,
+    ) {}
+
     public function answer(Loop $loop, User $requester): LoopMessage
     {
         $this->assertCanRequest($loop, $requester);
@@ -87,7 +105,16 @@ class ChatLoopAiService
         }
     }
 
-    public function summarize(Loop $loop, User $requester): LoopMessage
+    /**
+     * Capability `loop_summary` — READ-ONLY metier (TASK-1207 / IA P3).
+     *
+     * Le resume N'EST PLUS publie en `LoopMessage`. `CapabilityDefinition::$canWrite`
+     * vaut `false` : la capability peut lire les messages autorises de la Boucle,
+     * appeler l'IA et deposer ses traces techniques, mais elle ne peut pas creer
+     * de contribution visible sans validation humaine. Le resume vit desormais
+     * dans sa trace `ai_interactions`, relue par `latestSummary()`.
+     */
+    public function summarize(Loop $loop, User $requester): LoopSummary
     {
         $this->assertCanRequest($loop, $requester);
 
@@ -109,65 +136,263 @@ class ChatLoopAiService
                 throw new \RuntimeException(__('loops.not_enough_content_to_summarize'));
             }
 
+            $capability = CapabilityRegistry::LOOP_SUMMARY;
+            $definition = $this->capabilities->get($capability);
+
+            // La Boucle est une PORTEE a l'interieur du tenant, jamais le tenant.
+            $this->capabilities->assertScopeAllowed($capability, CapabilityRegistry::SCOPE_LOOP);
+
+            $organization = $loop->organization()->firstOrFail();
+
+            $contexte = new ContexteIa(
+                organizationId: (string) $organization->id,
+                userId: (string) $requester->id,
+                loopId: (string) $loop->id,
+                locale: $locale,
+                capability: $capability,
+                correlationId: AiCorrelation::id(),
+                source: CapabilityRegistry::SOURCE_LOOP_MESSAGES,
+            );
+
             $scenarioId = (string) config('ai.chatloop.summarize_scenario', 'chatloop_ai_summarize');
-            $systemPrompt = $this->resolvePrompt($scenarioId, $locale);
 
-            [$context, $contextMessageIds, $triggerMessageId] = $this->buildContext($loop, $locale);
+            // Constitution d'abord, instruction capability ensuite. AdminAiPrompt
+            // reste la source de l'instruction, il ne remplace pas la Constitution.
+            $instructions = $this->prompts->compose(
+                $capability,
+                $this->resolvePrompt($scenarioId, $locale),
+            );
 
-            $ai = $this->callAi($loop, $requester, $scenarioId, $systemPrompt, $context);
+            [$context] = $this->buildContext($loop, $locale);
 
-            $answer = AiMarkdownSanitizer::sanitize(
-                $ai['content'],
+            $resolved = $this->providers->resolve($capability, $contexte);
+
+            $verdict = $this->economicGuard->authorize(
+                $organization,
+                $definition->process,
+                $resolved->provider,
+                $resolved->model,
+                (float) config('ai.chatloop.summary_economic_guard.monthly_budget_usd', 2.00),
+                (int) config('ai.chatloop.summary_economic_guard.monthly_unknown_limit', 10),
+            );
+
+            // Un refus est un refus : aucun appel SDK n'est emis.
+            if (! $verdict->allowed) {
+                throw new \RuntimeException($verdict->reason === AiEconomicGuard::REASON_MONTHLY_BUDGET_REACHED
+                    ? __('loops.ai_summary_monthly_budget_reached')
+                    : __('loops.ai_summary_temporarily_unavailable'));
+            }
+
+            $interaction = $this->generateSummaryViaSdk(
+                $loop,
+                $requester,
+                $contexte,
+                $definition,
+                $resolved,
+                $scenarioId,
+                $instructions,
+                $context,
+            );
+
+            $summary = LoopSummary::fromInteraction(
+                $interaction,
                 (int) config('ai.chatloop.max_response_chars', 1400),
             );
 
-            if ($answer === '') {
+            if (trim($summary->body) === '') {
                 throw new \RuntimeException(__('loops.ai_empty_response'));
             }
 
-            return DB::transaction(function () use ($loop, $requester, $answer, $ai, $contextMessageIds, $triggerMessageId) {
-                $message = LoopMessage::create([
-                    'loop_id' => $loop->id,
-                    'sender_id' => null,
-                    'reply_to_id' => null,
-                    'body' => $answer,
-                    'image_path' => null,
-                    'type' => 'ai',
-                    'metadata' => [
-                        'requested_by' => $requester->id,
-                        'action' => 'summarize',
-                        'context_message_ids' => $contextMessageIds,
-                        'trigger_message_id' => $triggerMessageId,
-                        'provider' => $ai['provider'],
-                        'model' => $ai['model'],
-                        'ai_interaction_id' => $ai['ai_interaction_id'],
-                    ],
-                    'organization_id' => $loop->organization_id,
-                ]);
-
-                event(new LoopMessageCreated($message));
-
-                $loop->touch();
-
-                return $message;
-            });
+            return $summary;
         } finally {
             Cache::forget($lockKey);
         }
     }
 
     /**
-     * Latest AI summary of the loop (metadata.action = 'summarize'), if any.
+     * Appel texte du Laravel AI SDK + trace P1 unique.
+     *
+     * Une operation utilisateur = un `correlation_id` metier, porte par le
+     * ContexteIa. Une invocation SDK = un `invocationId` distinct, genere par le
+     * SDK et conserve en `metadata.sdk_invocation_id`. Les deux ne se confondent
+     * jamais.
+     *
+     * L'instrumentation est ici, au call site, et NON dans un listener global
+     * `AgentPrompted` : un listener ecrirait une seconde trace pour le meme
+     * appel, alors que `ai_interactions` est le registre canonique que lit
+     * `AiEconomicGuard`. Une trace produit + une trace SDK, ce serait un appel
+     * compte deux fois dans le budget.
      */
-    public function latestSummary(Loop $loop): ?LoopMessage
+    private function generateSummaryViaSdk(
+        Loop $loop,
+        User $requester,
+        ContexteIa $contexte,
+        CapabilityDefinition $definition,
+        ResolvedModel $resolved,
+        string $scenarioId,
+        string $instructions,
+        string $context,
+    ): AiInteraction {
+        $agent = new LoopSummaryAgent(
+            $instructions,
+            (int) config('ai.chatloop.max_tokens', 512),
+            (float) config('ai.chatloop.temperature', 0.7),
+        );
+
+        $startedAt = microtime(true);
+
+        try {
+            // Provider ET modele passes EXPLICITEMENT : le SDK ne retombe sur
+            // aucun defaut, et une liste a une seule entree exclut tout failover.
+            $response = $agent->prompt(
+                $context,
+                provider: $resolved->provider,
+                model: $resolved->model,
+                timeout: $this->providerTimeout($resolved->provider),
+            );
+        } catch (\Throwable $exception) {
+            // Trace de l'echec sans cout invente : `cost_usd` NULL et
+            // `cost_unknown` NULL, l'etat « statut de cout non evalue » du
+            // tri-etat P1-2. Un echec n'entre donc ni dans le budget mensuel,
+            // ni dans le quota UNKNOWN.
+            $this->recordSummaryInteraction(
+                loop: $loop,
+                requester: $requester,
+                contexte: $contexte,
+                definition: $definition,
+                resolved: $resolved,
+                scenarioId: $scenarioId,
+                context: $context,
+                text: null,
+                usage: AiUsage::notObserved(),
+                costAttributes: ['cost_usd' => null, 'cost_unknown' => null],
+                status: 'failed',
+                latencyMs: $this->elapsedMs($startedAt),
+                sdkInvocationId: null,
+                failure: $exception::class,
+            );
+
+            throw new \RuntimeException(__('loops.ai_error'), 0, $exception);
+        }
+
+        $usage = AiUsage::fromSdkTextTokens(
+            $response->usage->promptTokens,
+            $response->usage->completionTokens,
+        );
+
+        // laravel/ai v0.7.2 n'expose AUCUN cout provider (ni `Usage`, ni `Meta`).
+        // On ne contourne pas le SDK par un appel HTTP secondaire pour en obtenir
+        // un : le catalogue tranche, sinon UNKNOWN.
+        $cost = $this->economicGuard->finalize($resolved->provider, $resolved->model, $usage);
+
+        return $this->recordSummaryInteraction(
+            loop: $loop,
+            requester: $requester,
+            contexte: $contexte,
+            definition: $definition,
+            resolved: $resolved,
+            scenarioId: $scenarioId,
+            context: $context,
+            text: trim($response->text),
+            usage: $usage,
+            costAttributes: $cost->traceAttributes(),
+            status: 'success',
+            latencyMs: $this->elapsedMs($startedAt),
+            sdkInvocationId: $response->invocationId,
+            failure: null,
+        );
+    }
+
+    /**
+     * @param  array{cost_usd: ?float, cost_unknown: ?bool}  $costAttributes
+     */
+    private function recordSummaryInteraction(
+        Loop $loop,
+        User $requester,
+        ContexteIa $contexte,
+        CapabilityDefinition $definition,
+        ResolvedModel $resolved,
+        string $scenarioId,
+        string $context,
+        ?string $text,
+        AiUsage $usage,
+        array $costAttributes,
+        string $status,
+        int $latencyMs,
+        ?string $sdkInvocationId,
+        ?string $failure,
+    ): AiInteraction {
+        return AiInteraction::create([
+            'user_id' => $requester->id,
+            // Le tenant vient de la Boucle, pas du contexte de requete : une
+            // trace ne peut pas atterrir dans une autre Organization que celle
+            // dont les messages ont ete lus.
+            'organization_id' => $contexte->organizationId,
+            'correlation_id' => $contexte->correlationId,
+            'process' => $definition->process,
+            'feature' => $scenarioId,
+            'model' => $resolved->trace(),
+            'prompt' => $context,
+            'response' => $text,
+            'input_tokens' => $usage->inputTokensOrZero(),
+            'output_tokens' => $usage->outputTokensOrZero(),
+            ...$costAttributes,
+            'metadata' => array_filter([
+                'loop_id' => $loop->id,
+                'requested_by' => $requester->id,
+                'latency_ms' => $latencyMs,
+                'provider' => $resolved->provider,
+                'capability' => $definition->id,
+                'status' => $status,
+                'sdk_invocation_id' => $sdkInvocationId,
+                'failure' => $failure,
+            ], static fn ($value): bool => $value !== null),
+        ]);
+    }
+
+    private function providerTimeout(string $provider): int
     {
-        return $loop->messages()
-            ->where('type', 'ai')
-            ->where('metadata->action', 'summarize')
-            ->notDeleted()
+        $config = match ($provider) {
+            'ollama' => config('ai.ollama'),
+            'openrouter' => config('ai.openrouter'),
+            default => config('ai.openai'),
+        };
+
+        return (int) (is_array($config) ? ($config['timeout'] ?? 30) : 30);
+    }
+
+    private function elapsedMs(float $startedAt): int
+    {
+        return (int) round((microtime(true) - $startedAt) * 1000);
+    }
+
+    /**
+     * Dernier resume IA de la Boucle, relu depuis sa trace technique.
+     *
+     * Le resume n'etant plus publie en `LoopMessage` (`can_write=false`), la
+     * source est `ai_interactions` : meme tenant, meme process, meme Boucle.
+     * Les echecs ne peuvent pas remonter — ils n'ont pas de `response`.
+     */
+    public function latestSummary(Loop $loop): ?LoopSummary
+    {
+        $interaction = AiInteraction::query()
+            ->where('organization_id', $loop->organization_id)
+            ->where('process', AiProcess::fromFeature(
+                (string) config('ai.chatloop.summarize_scenario', 'chatloop_ai_summarize')
+            ))
+            ->where('metadata->loop_id', $loop->id)
+            ->whereNotNull('response')
+            ->where('response', '!=', '')
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->first();
+
+        return $interaction === null
+            ? null
+            : LoopSummary::fromInteraction(
+                $interaction,
+                (int) config('ai.chatloop.max_response_chars', 1400),
+            );
     }
 
     public function ask(Loop $loop, User $requester, string $question): LoopMessage
@@ -502,15 +727,21 @@ class ChatLoopAiService
             .'ou sensible.';
     }
 
-    private function callAi(Loop $loop, User $user, string $scenarioId, string $systemPrompt, string $context): array
-    {
-        $provider = AiConfig::get('default_provider') ?: config('ai.default_provider', 'openai');
-
-        $model = AiConfig::get('default_model') ?? config('ai.default_model') ?? match ($provider) {
-            'openrouter' => config('ai.openrouter.model'),
-            'ollama' => config('ai.ollama.model'),
-            default => config('ai.openai.model'),
-        };
+    /**
+     * Chemin HTTP direct historique, desormais reserve a `answer()` et `ask()`.
+     *
+     * `summarize()` ne passe plus par ici (TASK-1207) : il utilise l'API texte
+     * du Laravel AI SDK. Les deux parametres `resolvedProvider`/`resolvedModel`
+     * n'existaient que pour lui et ont disparu avec son appel.
+     */
+    private function callAi(
+        Loop $loop,
+        User $user,
+        string $scenarioId,
+        string $systemPrompt,
+        string $context,
+    ): array {
+        [$provider, $model] = $this->resolveProviderAndModel();
 
         $config = match ($provider) {
             'ollama' => config('ai.ollama'),
@@ -555,9 +786,10 @@ class ChatLoopAiService
                 }
 
                 $text = trim((string) ($response->json('response') ?? ''));
-                $inputTokens = 0;
-                $outputTokens = (int) ($response->json('eval_count') ?? 0);
-                $costUsd = 0.0;
+                // Ollama tourne en local : ce coût nul est une vraie mesure,
+                // déclarée `free` au catalogue (TASK-1132).
+                $usage = AiUsage::fromOllamaGenerate($response->json());
+                $cost = $this->economicGuard->finalize($provider, $model, $usage);
             } else {
                 $http = Http::timeout($timeout)->acceptJson()->asJson();
 
@@ -583,11 +815,16 @@ class ChatLoopAiService
 
                 $body = $response->json();
                 $text = trim((string) ($body['choices'][0]['message']['content'] ?? ''));
-                $inputTokens = (int) ($body['usage']['input_tokens'] ?? 0);
-                $outputTokens = (int) ($body['usage']['output_tokens'] ?? 0);
-                $inputPrice = (float) ($config['input_price_per_1m'] ?? 0);
-                $outputPrice = (float) ($config['output_price_per_1m'] ?? 0);
-                $costUsd = round(($inputTokens / 1_000_000) * $inputPrice + ($outputTokens / 1_000_000) * $outputPrice, 6);
+                // TASK-1132 : `$config['input_price_per_1m'] ?? 0` fabriquait un
+                // coût de 0 dès que le provider n'était pas OpenAI, car seul le
+                // bloc `openai` portait un prix. Le catalogue tranche désormais.
+                // TASK-1207 : la lecture de `usage.cost` propre a `loop_summary`
+                // disparait avec le chemin legacy de cette capability. Elle
+                // n'avait de toute facon jamais rien a lire : OpenRouter ne
+                // renvoie `usage.cost` que si la requete demande
+                // `usage: {include: true}`, ce que ce payload n'a jamais fait.
+                $usage = AiUsage::fromChatCompletions($body);
+                $cost = $this->economicGuard->finalize($provider, $model, $usage);
             }
         } catch (ConnectionException) {
             throw new \RuntimeException(__('loops.ai_error'));
@@ -598,13 +835,15 @@ class ChatLoopAiService
         $interaction = AiInteraction::create([
             'user_id' => $user->id,
             'organization_id' => currentOrganization()?->id ?? $user->organization_id,
+            'correlation_id' => AiCorrelation::id(),
+            'process' => AiProcess::fromFeature($scenarioId),
             'feature' => $scenarioId,
             'model' => $provider.'/'.$model,
             'prompt' => $context,
             'response' => $text,
-            'input_tokens' => $inputTokens,
-            'output_tokens' => $outputTokens,
-            'cost_usd' => $costUsd,
+            'input_tokens' => $usage->inputTokensOrZero(),
+            'output_tokens' => $usage->outputTokensOrZero(),
+            ...$cost->traceAttributes(),
             'metadata' => [
                 'loop_id' => $loop->id,
                 'requested_by' => $user->id,
@@ -619,6 +858,21 @@ class ChatLoopAiService
             'model' => $model,
             'ai_interaction_id' => $interaction->id,
         ];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function resolveProviderAndModel(): array
+    {
+        $provider = (string) (AiConfig::get('default_provider') ?: config('ai.default_provider', 'openai'));
+        $model = (string) (AiConfig::get('default_model') ?? config('ai.default_model') ?? match ($provider) {
+            'openrouter' => config('ai.openrouter.model'),
+            'ollama' => config('ai.ollama.model'),
+            default => config('ai.openai.model'),
+        });
+
+        return [$provider, $model];
     }
 
     private function plainText(string $text): string

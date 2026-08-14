@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    CI FEATURE — Blocking quality gate, second half.
+
+    Avant TASK-1112, la CI GitHub ne lançait que `tests/Unit` : **aucun test
+    Feature n'a jamais tourné dans un gate bloquant**. Une régression Feature,
+    même massive, laissait la coche verte. Le seul filet réel était la suite
+    locale.
+
+    Ce fichier lance `tests/Feature` — moins les classes déjà rouges sur
+    `develop`, listées une par une ci-dessous avec leur nombre d'échecs. Les
+    exclure est le seul moyen d'obtenir un gate qui **signifie** quelque chose
+    aujourd'hui : sans elles, la CI serait rouge en permanence et personne ne
+    la regarderait plus.
+
+    **Cette liste doit rétrécir, jamais grandir.** Y ajouter une classe pour
+    faire passer une PR reviendrait à désactiver le gate qu'on vient de poser.
+    Un test qui la retire échouerait alors — c'est voulu.
+
+    Mesuré sur `develop` le 2026-08-08, sur PostgreSQL : 23 échecs, 12 classes.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <groups>
+        <exclude>
+            <!--
+                Les 23 methodes deja rouges sur `develop` avant TASK-1112,
+                annotees `@group ci-known-red` la ou elles vivent, avec la
+                raison. **Le groupe doit se vider** : ce n'est pas un endroit ou
+                ranger un test qui gene.
+
+                Exclure par **groupe** et non par fichier : la premiere version
+                de ce gate excluait douze classes entieres, soit **248 tests
+                sacrifies pour en taire 23** — environ dix tests sains par test
+                rouge. Le depot exclut deja par groupe dans `phpunit.pgsql.xml` ;
+                c'etait le bon outil, sous la main.
+            -->
+            <group>ci-known-red</group>
+
+            <!-- Meme exclusion que `phpunit.pgsql.xml` : ces tests ne valent
+                 que sous SQLite. Sans cette ligne, un futur test du groupe qui
+                 ne se protegerait pas lui-meme rendrait le gate rouge. -->
+            <group>sqlite-only</group>
+        </exclude>
+    </groups>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_KEY" value="base64:b+IwxNpzaahGTvmk+0WLnzODWBnKA99oQDutpRQ7xfI="/>
+        <env name="APP_URL" value="http://localhost"/>
+        <!--
+            **La locale doit etre fixee.** En local, `.env` porte `APP_LOCALE=fr`
+            et la suite a ete ecrite contre le français : elle asserte des
+            chaines comme « Manifeste ». La CI n'a pas de `.env`, retombait sur
+            le defaut de `config/app.php`, et le premier passage reel a rendu 42
+            echecs dont la quasi-totalite disaient « Manifesto » la ou le test
+            attendait « Manifeste ».
+            Fixer la locale ici fait concorder les deux environnements — ce
+            n'est pas assouplir un test, c'est cesser de comparer deux choses
+            differentes.
+        -->
+        <env name="APP_LOCALE" value="fr"/>
+        <env name="APP_FALLBACK_LOCALE" value="fr"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="BROADCAST_CONNECTION" value="null"/>
+        <env name="CACHE_STORE" value="array"/>
+        <env name="DB_CONNECTION" value="pgsql"/>
+        <env name="DB_DATABASE" value="bouclepro_test"/>
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="SESSION_DRIVER" value="array"/>
+        <env name="PULSE_ENABLED" value="false"/>
+        <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="NIGHTWATCH_ENABLED" value="false"/>
+    </php>
+</phpunit>

@@ -5,6 +5,8 @@ namespace App\Livewire;
 use App\Models\AdminAiInteraction;
 use App\Models\MemberAiProfile;
 use App\Models\User;
+use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiProcess;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
@@ -212,6 +214,8 @@ class BoundedMemberAgent extends Component
         AdminAiInteraction::create([
             'organization_id' => $organization?->id,
             'user_id' => auth()->id(),
+            'correlation_id' => AiCorrelation::id(),
+            'process' => AiProcess::fromScenarioId('bounded_member_presentation'),
             'scenario_id' => 'bounded_member_presentation',
             'provider' => 'rule_based',
             'status' => 'success',

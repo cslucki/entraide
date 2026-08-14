@@ -54,11 +54,12 @@ class LoopRoadmapCardTest extends TestCase
         app()->instance('current_organization', $this->organization);
         $this->service = new LoopService;
 
-        $this->loop = $this->service->createLoop($this->owner, 'Roadmap Loop'); // owner role
+        // A Projets Loop: the Roadmap belongs to that type since CP5ter-E2.
+        $this->loop = $this->service->createLoop($this->owner, 'Roadmap Loop', type: 'project'); // owner role
         $this->service->addMember($this->loop, $this->member, 'member');
         $this->service->addMember($this->loop, $this->moderator, 'moderator');
 
-        $this->otherLoop = $this->service->createLoop($this->crossUser, 'Other Org Loop');
+        $this->otherLoop = $this->service->createLoop($this->crossUser, 'Other Org Loop', type: 'project');
     }
 
     private function item(array $attrs = []): LoopRoadmapItem

@@ -316,13 +316,18 @@ class LoopMemberInvariantTest extends TestCase
     // Blocker 2: LoopMember authorization
     // -------------------------------------------------------------------------
 
-    public function test_same_organization_non_member_cannot_view_loop_show(): void
+    public function test_same_organization_non_member_sees_presentation_not_workspace(): void
     {
+        // TASK-1075: "private" no longer means "hidden from the catalog/direct
+        // link" — it means workspace content is locked to members. A same-org
+        // non-member now gets the discovery presentation card (200), not a 404,
+        // and never sees the workspace content.
         $response = $this->actingAs($this->userB)
             ->get(route('loops.show', $this->loop));
 
-        // userB is in same community but not a loop member → 404
-        $response->assertStatus(404);
+        $response->assertOk();
+        $response->assertSee(__('loops.presentation_locked_title'));
+        $response->assertDontSee(__('loops.cards_bar_label'));
     }
 
     public function test_same_organization_non_member_cannot_add_loop_member(): void

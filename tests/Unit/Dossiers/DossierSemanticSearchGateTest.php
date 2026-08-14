@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Dossiers;
 
+use App\Models\Organization;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use Tests\TestCase;
 
@@ -63,10 +64,30 @@ class DossierSemanticSearchGateTest extends TestCase
         $this->assertFalse($this->gate()->isEnabledFor('00000000-0000-0000-0000-000000000001'));
     }
 
+    public function test_it_resolves_an_explicit_slug_allowlist_to_the_organization_id(): void
+    {
+        $organization = Organization::factory()->create(['slug' => 'artscilab-demo']);
+        $this->configureGate(enabled: true, organizationIds: []);
+        config()->set('ai.dossiers.semantic_search.organization_slugs', [' ARTSCILAB-DEMO ']);
+
+        $this->assertTrue($this->gate()->isEnabledFor($organization->id));
+    }
+
+    public function test_slug_allowlist_does_not_enable_another_organization(): void
+    {
+        Organization::factory()->create(['slug' => 'artscilab-demo']);
+        $other = Organization::factory()->create(['slug' => 'other-tenant']);
+        $this->configureGate(enabled: true, organizationIds: []);
+        config()->set('ai.dossiers.semantic_search.organization_slugs', ['artscilab-demo']);
+
+        $this->assertFalse($this->gate()->isEnabledFor($other->id));
+    }
+
     private function configureGate(bool $enabled, array|string $organizationIds): void
     {
         config()->set('ai.dossiers.semantic_search.enabled', $enabled);
         config()->set('ai.dossiers.semantic_search.organization_ids', $organizationIds);
+        config()->set('ai.dossiers.semantic_search.organization_slugs', []);
     }
 
     private function gate(): DossierSemanticSearchGate

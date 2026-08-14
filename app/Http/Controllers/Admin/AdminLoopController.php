@@ -4,14 +4,27 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Loop;
+use App\Models\LoopInvitation;
 use App\Models\LoopMember;
+use App\Models\LoopRoadmapItem;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\LoopGovernanceService;
+use App\Services\LoopManifestoService;
+use App\Services\Loops\LoopCardCompositionService;
+use App\Services\Loops\LoopLifecycleService;
+use App\Services\Loops\LoopPresetConfigurator;
+use App\Services\Loops\PresetException;
 use App\Services\LoopService;
+use App\Support\Loops\LoopCardRegistry;
+use App\Support\Loops\LoopPermissionResolver;
+use App\Support\Loops\LoopRoleRegistry;
+use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -26,49 +39,292 @@ class AdminLoopController extends Controller
         $organizations = $this->adminOrganizations();
         $selectedOrganizationId = $this->selectedAdminOrganizationId($request);
 
-        $query = Loop::with(['creator:id,name,email', 'organization:id,name,slug'])
-            ->withCount('activeMembers')
-            ->latest();
+        // Le parametre arrive de l'URL — forme puis existence, comme scope()
+        // sur l'ecran des types. `organizations.id` est une colonne `uuid` :
+        // PostgreSQL refuse la comparaison avec une chaine forgee et leve
+        // `22P02`, une 500 la ou il faut une 404. SQLite compare comme du
+        // texte : le defaut ne se voyait qu'en production.
+        $selectedOrganization = null;
 
         if ($selectedOrganizationId !== 'all') {
-            $query->where('organization_id', $selectedOrganizationId);
+            abort_unless(Str::isUuid($selectedOrganizationId), 404);
+
+            $selectedOrganization = $organizations->firstWhere('id', $selectedOrganizationId);
+
+            abort_unless($selectedOrganization !== null, 404);
+        }
+
+        $registry = app(LoopTypeRegistry::class);
+
+        // Le filtre ne propose que ce que la portee affichee connait : chez
+        // une Organization, les types communs et les siens — jamais le type
+        // prive d'une voisine ; sur « Toutes les organisations », le
+        // catalogue entier, types crees compris.
+        $typeOptions = [];
+
+        foreach (array_keys($selectedOrganization ? $registry->all($selectedOrganization) : $registry->fullCatalogue()) as $key) {
+            $typeOptions[$key] = $registry->label($key, $selectedOrganization);
+        }
+
+        // Un type que la portee affichee ne propose pas — forge, ou alias
+        // legacy — n'est pas un filtre : le selecteur afficherait « Tous les
+        // types » au-dessus d'une liste qui ne le serait pas.
+        $selectedType = (string) $request->input('type', '');
+
+        if (! array_key_exists($selectedType, $typeOptions)) {
+            $selectedType = '';
+        }
+
+        // Everything the list shows is counted in the query rather than walked
+        // per row: members, invitations (total and pending) and cards. `cards`
+        // is eager-loaded once for the badges — 25 rows, no N+1.
+        $query = Loop::with(['creator:id,name,email', 'organization:id,name,slug', 'cards'])
+            ->withCount([
+                'activeMembers',
+                'invitations',
+                'invitations as pending_invitations_count' => fn ($q) => $q->where('status', LoopInvitation::STATUS_PENDING),
+                'cards as enabled_cards_count' => fn ($q) => $q->where('enabled', true),
+            ])
+            ->latest();
+
+        if ($selectedOrganization !== null) {
+            $query->where('organization_id', $selectedOrganization->id);
+        }
+
+        if ($selectedType !== '') {
+            // Les memes valeurs stockees que countLoopsOfType() : le lien venu
+            // de /admin/loop-types doit rendre exactement le compte annonce.
+            $query->whereIn('type', $registry->storedTypeValues($selectedType));
         }
 
         $loops = $query->paginate(25)->withQueryString();
 
         $loops->load(['messages' => fn ($q) => $q->latest()->limit(1)]);
 
-        return view('admin.loops.index', compact('loops', 'organizations', 'selectedOrganizationId'));
+        return view('admin.loops.index', [
+            'loops' => $loops,
+            'organizations' => $organizations,
+            'selectedOrganizationId' => $selectedOrganizationId,
+            'selectedOrganization' => $selectedOrganization,
+            'selectedType' => $selectedType,
+            'typeOptions' => $typeOptions,
+            // Deux chiffres, pas un dashboard. Le premier ne bouge jamais :
+            // c'est la reference du parc entier, quels que soient les filtres.
+            // Le second suit l'Organization **choisie dans le filtre** — pas le
+            // contexte de requete — et le filtre Type ne le change pas non
+            // plus : c'est le total de l'Organization, pas celui de la page.
+            'totalLoops' => Loop::query()->count(),
+            'organizationLoops' => $selectedOrganization
+                ? Loop::query()->where('organization_id', $selectedOrganization->id)->count()
+                : null,
+            // Only what may be chosen. A Loop still on a withdrawn type keeps
+            // it in its own selector — see selectableFor() in the view.
+            'loopTypes' => $registry->available(),
+        ]);
     }
 
-    public function archive(Loop $loop): RedirectResponse
+    /**
+     * Change a Loop's type and apply the new preset.
+     *
+     * Additive only: missing cards are added, nothing is ever removed and no
+     * content is touched. The admin is told exactly what was added.
+     */
+    public function updateType(Request $request, Loop $loop): RedirectResponse
+    {
+        $registry = app(LoopTypeRegistry::class);
+
+        $type = (string) $request->input('type');
+
+        if (! $registry->exists($type)) {
+            return back()->with('error', __('loops.type_invalid'));
+        }
+
+        // La regle est **lue au registre** et non redite ici : c'est la
+        // duplication qui avait laisse les deux autres chemins sans garde.
+        if (! $registry->isAssignableTo($type, $loop->type)) {
+            return back()->with('error', __('loops.type_unavailable'));
+        }
+
+        $loop->update(['type' => $type]);
+        $added = $registry->applyPreset($loop->fresh());
+
+        return back()->with('success', $added === []
+            ? __('loops.type_changed_no_card')
+            : __('loops.type_changed', [
+                'cards' => collect($added)->map(fn ($k) => $registry->cardLabel($k))->implode(', '),
+            ]));
+    }
+
+    /**
+     * Turn one card on or off for one Loop.
+     *
+     * The permission is `loops.manage_cards`, declared since TASK-1079 and
+     * until now without a single consumer. Every write goes through
+     * LoopCardCompositionService: nothing here touches LoopCard directly.
+     */
+    public function updateCards(Request $request, Loop $loop): RedirectResponse
+    {
+        // Tenant-scoped even for a super-admin: the write always resolves
+        // through the Loop's own Organization.
+        $this->assertOrgAccess($loop);
+        abort_unless(app(LoopPermissionResolver::class)->can($request->user(), $loop, 'loops.manage_cards'), 403);
+
+        $data = $request->validate([
+            'card_key' => 'required|string',
+            'enabled' => 'required|boolean',
+        ]);
+
+        $service = app(LoopCardCompositionService::class);
+
+        try {
+            $data['enabled']
+                ? $service->enable($loop, $data['card_key'])
+                : $service->disable($loop, $data['card_key']);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __($data['enabled'] ? 'loops.cards_enabled' : 'loops.cards_disabled'));
+    }
+
+    /**
+     * Le configurateur d'une Boucle : preset, emplacements, catalogue.
+     *
+     * Etend l'ecran de composition livre par TASK-1083 plutot que d'en ouvrir un
+     * second : meme service d'ecriture, meme registre, meme comptage.
+     */
+    public function configure(Request $request, Loop $loop): View
     {
         $this->assertOrgAccess($loop);
 
-        if ($loop->isArchived()) {
-            return redirect()->route('admin.loops.edit', $loop)
-                ->with('error', 'Cette boucle est déjà archivée.');
-        }
+        $configurator = app(LoopPresetConfigurator::class);
 
-        $this->loopService->archiveLoop($loop);
+        abort_unless($configurator->canConfigure($request->user(), $loop), 403);
 
-        return redirect()->route('admin.loops.edit', $loop)
-            ->with('success', 'Boucle archivée.');
+        return view('admin.loops.configure', [
+            'loop' => $loop,
+            'composition' => $configurator->describe($loop),
+            // Dans la portee de la Boucle : elle seule dit quels types existent
+            // ici, et sous quel mot.
+            'types' => app(LoopTypeRegistry::class)->selectableFor($loop->type, $loop->organization),
+            'organization' => $loop->organization,
+            'backUrl' => route('admin.loops.edit', $loop),
+        ]);
     }
 
-    public function restore(Loop $loop): RedirectResponse
+    /**
+     * Activer, desactiver ou remplacer une Card ; restaurer le preset.
+     *
+     * Une seule route pour quatre gestes : ils partagent leurs verifications, et
+     * les separer aurait multiplie les portes d'entree a garder.
+     */
+    public function composeCards(Request $request, Loop $loop): RedirectResponse
     {
         $this->assertOrgAccess($loop);
 
-        if ($loop->isActive()) {
-            return redirect()->route('admin.loops.edit', $loop)
-                ->with('error', 'Cette boucle est déjà active.');
+        $data = $request->validate([
+            'action' => 'required|in:enable,disable,replace,restore,promote,demote',
+            'card_key' => 'nullable|string',
+            'incoming_key' => 'nullable|string',
+        ]);
+
+        $configurator = app(LoopPresetConfigurator::class);
+        $user = $request->user();
+
+        try {
+            $message = match ($data['action']) {
+                'enable' => $this->doEnable($configurator, $user, $loop, $data['card_key'] ?? ''),
+                'disable' => $this->doDisable($configurator, $user, $loop, $data['card_key'] ?? ''),
+                'replace' => $this->doReplace($configurator, $user, $loop, $data['card_key'] ?? '', $data['incoming_key'] ?? ''),
+                // Mettre en avant / retirer des principaux : jamais une
+                // activation, jamais une desactivation (TASK-1124).
+                'promote' => tap(__('loops.tools_promoted'), fn () => $configurator->promote($user, $loop, $data['card_key'] ?? '')),
+                'demote' => tap(__('loops.tools_demoted'), fn () => $configurator->demote($user, $loop, $data['card_key'] ?? '')),
+                default => __('loops.preset_restored', [
+                    'count' => count($configurator->restorePreset($user, $loop)),
+                ]),
+            };
+        } catch (PresetException $e) {
+            return back()->with('error', $e->getMessage());
         }
 
-        $this->loopService->restoreLoop($loop);
+        return back()->with('success', $message);
+    }
 
-        return redirect()->route('admin.loops.edit', $loop)
-            ->with('success', 'Boucle réactivée.');
+    /** Appliquer un preset, avec ou sans desactivation des Cards absentes. */
+    public function applyPreset(Request $request, Loop $loop): RedirectResponse
+    {
+        $this->assertOrgAccess($loop);
+
+        $data = $request->validate([
+            'type' => 'required|string',
+            'deactivate_absent' => 'nullable|boolean',
+        ]);
+
+        try {
+            app(LoopPresetConfigurator::class)->applyPreset(
+                $request->user(), $loop, $data['type'], (bool) ($data['deactivate_absent'] ?? false),
+            );
+        } catch (PresetException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __('loops.preset_applied', [
+            'type' => app(LoopTypeRegistry::class)->label($data['type'], $loop->organization),
+        ]));
+    }
+
+    private function doEnable(LoopPresetConfigurator $c, $user, Loop $loop, string $key): string
+    {
+        $c->enable($user, $loop, $key);
+
+        return __('loops.preset_enabled');
+    }
+
+    private function doDisable(LoopPresetConfigurator $c, $user, Loop $loop, string $key): string
+    {
+        $c->disable($user, $loop, $key);
+
+        return __('loops.preset_disabled');
+    }
+
+    private function doReplace(LoopPresetConfigurator $c, $user, Loop $loop, string $outgoing, string $incoming): string
+    {
+        $c->replace($user, $loop, $outgoing, $incoming);
+
+        return __('loops.preset_replaced');
+    }
+
+    public function archive(Request $request, Loop $loop): RedirectResponse
+    {
+        $this->assertOrgAccess($loop);
+
+        $result = app(LoopLifecycleService::class)->archive($request->user(), $loop);
+
+        abort_if($result === LoopLifecycleService::RESULT_DENIED, 403);
+
+        return redirect()->route('admin.loops.edit', $loop)->with(
+            $result === LoopLifecycleService::RESULT_OK ? 'success' : 'error',
+            $result === LoopLifecycleService::RESULT_OK
+                ? __('loops.archive_done')
+                : __('loops.archive_already'),
+        );
+    }
+
+    public function restore(Request $request, Loop $loop): RedirectResponse
+    {
+        $this->assertOrgAccess($loop);
+
+        $result = app(LoopLifecycleService::class)->reactivate($request->user(), $loop);
+
+        abort_if($result === LoopLifecycleService::RESULT_DENIED, 403);
+
+        return redirect()->route('admin.loops.edit', $loop)->with(
+            $result === LoopLifecycleService::RESULT_OK ? 'success' : 'error',
+            $result === LoopLifecycleService::RESULT_OK
+                ? __('loops.reactivate_done')
+                : __('loops.reactivate_already'),
+        );
     }
 
     private function isSuperAdmin(): bool
@@ -114,7 +370,11 @@ class AdminLoopController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name', 'email', 'organization_id']);
 
-            return view('admin.loops.create', compact('users', 'organizations'));
+            return view('admin.loops.create', [
+                'users' => $users,
+                'organizations' => $organizations,
+                'loopTypes' => app(LoopTypeRegistry::class)->available(),
+            ]);
         }
 
         $orgId = $user->organization_id;
@@ -128,7 +388,10 @@ class AdminLoopController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
 
-        return view('admin.loops.create', compact('users'));
+        return view('admin.loops.create', [
+            'users' => $users,
+            'loopTypes' => app(LoopTypeRegistry::class)->available(),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -145,6 +408,7 @@ class AdminLoopController extends Controller
                     Rule::exists('users', 'id')->whereNull('banned_at'),
                 ],
                 'organization_id' => 'required|exists:organizations,id',
+                'type' => ['nullable', Rule::in(app(LoopTypeRegistry::class)->availableKeys())],
             ]);
 
             $owner = User::assignable()->findOrFail($data['owner_id']);
@@ -159,6 +423,9 @@ class AdminLoopController extends Controller
                 $data['name'],
                 $data['description'] ?? null,
                 $data['visibility'],
+                null,
+                Loop::ACCESS_REQUEST,
+                $data['type'] ?? null,
             );
 
             return redirect()->route('admin.loops.edit', $loop)
@@ -181,6 +448,7 @@ class AdminLoopController extends Controller
                     ->where('organization_id', $orgId)
                     ->whereNull('banned_at'),
             ],
+            'type' => ['nullable', Rule::in(app(LoopTypeRegistry::class)->availableKeys())],
         ]);
 
         $owner = User::assignable()->findOrFail($data['owner_id']);
@@ -194,10 +462,67 @@ class AdminLoopController extends Controller
             $data['name'],
             $data['description'] ?? null,
             $data['visibility'],
+            null,
+            Loop::ACCESS_REQUEST,
+            null,
+            $data['type'] ?? null,
         );
 
         return redirect()->route('admin.loops.edit', $loop)
             ->with('success', 'Boucle créée avec succès.');
+    }
+
+    /**
+     * Read-only overview of a Loop from the admin.
+     *
+     * Everything that matters about a Loop on one page — identity, type, cards,
+     * governance, Manifesto, invitations — so an administrator can see what a
+     * Loop *is* without entering its workspace and without the risk of touching
+     * anything. Nothing here mutates.
+     */
+    public function show(Loop $loop): View
+    {
+        $this->assertOrgAccess($loop);
+
+        $loop->load([
+            'organization', 'creator', 'categories',
+            'owners.user', 'activeMembers.user', 'cards',
+            'manifesto.user',
+        ]);
+        $loop->loadCount([
+            'activeMembers',
+            'invitations',
+            'invitations as pending_invitations_count' => fn ($q) => $q->where('status', LoopInvitation::STATUS_PENDING),
+        ]);
+
+        $registry = app(LoopTypeRegistry::class);
+
+        return view('admin.loops.show', [
+            'boucle' => $loop,
+            'typeLabel' => $registry->label($loop->type, $loop->organization),
+            'presetCards' => $registry->cardsFor($loop->type, $loop->organization),
+            // activeCardsFor(), not the raw relation: Loops predating the
+            // loop_cards table fall back to their type preset, so reading the
+            // relation showed them as having no cards while the workspace
+            // rendered four.
+            'activeCards' => $registry->activeCardsFor($loop),
+            'composition' => app(LoopCardCompositionService::class)->compositionFor($loop),
+            'cardCatalogue' => app(LoopCardRegistry::class)->manageableCatalogue(),
+            // A glance at what each card actually holds, so the overview answers
+            // "what is in this Loop" without opening the workspace.
+            'cardPreview' => [
+                'core.members' => $loop->active_members_count,
+                'core.roadmap' => LoopRoadmapItem::where('loop_id', $loop->id)->count(),
+                'core.manifesto' => $loop->manifesto?->title,
+                'core.ai_summary' => $loop->messages()->count(),
+            ],
+            'manifestoSources' => app(LoopManifestoService::class)->sourcesFor($loop),
+            'invitations' => $loop->invitations()->with('sender')->latest()->limit(10)->get(),
+            // The workspace requires an active membership and deliberately has
+            // no super-admin bypass (TASK-1073/1074), so the link is offered
+            // only when it would actually open — it used to 404.
+            'canEnterWorkspace' => auth()->user()?->can('viewWorkspace', $loop) ?? false,
+        ]);
     }
 
     public function edit(Loop $loop): View
@@ -222,7 +547,14 @@ class AdminLoopController extends Controller
 
         $boucle = $loop;
 
-        return view('admin.loops.edit', compact('boucle', 'users'));
+        // La capacite reelle, pas une supposition : le bouton « Modifier les
+        // outils » n'apparait que si le configurateur acceptera — et jamais
+        // sur une archivee, que assertConfigurable() refuserait de toute
+        // facon cote ecriture.
+        $canConfigureCards = ! $loop->isArchived()
+            && app(LoopPresetConfigurator::class)->canConfigure(auth()->user(), $loop);
+
+        return view('admin.loops.edit', compact('boucle', 'users', 'canConfigureCards'));
     }
 
     public function update(Request $request, Loop $loop): RedirectResponse
@@ -252,18 +584,46 @@ class AdminLoopController extends Controller
                     ->where('organization_id', $loop->organization_id)
                     ->whereNull('banned_at'),
             ],
+            'role' => ['nullable', Rule::in(LoopRoleRegistry::CANONICAL)],
         ]);
 
         $userId = $request->input('user_id');
+        $role = (string) $request->input('role', LoopRoleRegistry::MEMBER);
 
         try {
-            $this->loopService->addMemberByUserId($loop, $userId);
+            $this->loopService->addMemberByUserId($loop, $userId, $role);
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
 
         return redirect()->route('admin.loops.edit', $loop)
             ->with('success', 'Membre ajouté à la boucle.');
+    }
+
+    /**
+     * Change a member's role from the global admin.
+     *
+     * Every transition goes through the governance service, so the last-owner
+     * invariant is applied here exactly as everywhere else.
+     */
+    public function updateMemberRole(Request $request, Loop $loop, LoopMember $member): RedirectResponse
+    {
+        $this->assertOrgAccess($loop);
+
+        abort_if($member->loop_id !== $loop->id, 404);
+
+        $role = (string) $request->input('role');
+
+        $result = app(LoopGovernanceService::class)->changeRole($member, $role);
+
+        return redirect()->route('admin.loops.edit', $loop)->with(
+            $result === LoopGovernanceService::RESULT_OK ? 'success' : 'error',
+            match ($result) {
+                LoopGovernanceService::RESULT_OK => __('loops.governance_changed'),
+                LoopGovernanceService::RESULT_LAST_OWNER => __('loops.governance_refused_last_owner'),
+                default => __('loops.governance_refused'),
+            },
+        );
     }
 
     public function removeMember(Loop $loop, LoopMember $member): RedirectResponse
@@ -274,14 +634,14 @@ class AdminLoopController extends Controller
             abort(404);
         }
 
-        try {
-            $this->loopService->removeMember($member);
-        } catch (\RuntimeException $e) {
-            return back()->with('error', $e->getMessage());
+        $result = app(LoopGovernanceService::class)->removeMember($member);
+
+        if ($result === LoopGovernanceService::RESULT_LAST_OWNER) {
+            return back()->with('error', __('loops.governance_refused_last_owner'));
         }
 
         return redirect()->route('admin.loops.edit', $loop)
-            ->with('success', 'Membre retiré de la boucle.');
+            ->with('success', __('loops.governance_removed'));
     }
 
     public function files(Loop $loop): View

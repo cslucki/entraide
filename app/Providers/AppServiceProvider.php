@@ -29,6 +29,7 @@ use App\Observers\ServiceObserver;
 use App\Observers\TransactionObserver;
 use App\Observers\TranslationOverrideObserver;
 use App\Policies\FeedPostPolicy;
+use App\Policies\LoopPolicy;
 use App\Policies\MessagePolicy;
 use App\Policies\ProfileAgentConversationPolicy;
 use App\Policies\ReviewPolicy;
@@ -51,8 +52,10 @@ use App\Services\Ai\Scenarios\ClarifyHelpRequestScenario;
 use App\Services\Ai\Scenarios\ServiceOfferMasterScenario;
 use App\Services\Ai\Scenarios\SupervisionContentScenario;
 use App\Services\Ai\SupervisionProviderResolver;
+use App\Services\LoopTypeSettingsService;
 use App\Services\ReferralCodeGenerator;
 use App\Services\RewardDispatcher;
+use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -75,6 +78,17 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(RewardDispatcher::class);
         $this->app->singleton(SupervisionProviderResolver::class);
         $this->app->singleton(AdminAiInteractionPersistence::class);
+
+        // Singleton for its per-request memo: card presets are asked for on
+        // every workspace render, and a fresh instance per resolution would
+        // query loop_type_settings each time.
+        $this->app->singleton(LoopTypeSettingsService::class);
+
+        // Meme raison, depuis que le catalogue de types ne vient plus seulement
+        // du fichier de configuration : `exists()` et `definition()` sont sur
+        // des chemins chauds, et les vues resolvent le registre a chaque appel.
+        // Sans singleton, le memo du catalogue serait recree — donc inutile.
+        $this->app->singleton(LoopTypeRegistry::class);
         $this->app->bind(AiProvider::class, function ($app) {
             return new ClarifyUserHelpRequestService(
                 $app->make(SupervisionProviderResolver::class),
@@ -86,14 +100,16 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(SupervisionProvider::class, function ($app) {
             $config = $app['config']->get('ai.openai');
 
+            // TASK-1132 : les tarifs ne sont plus injectés ici. Les défauts
+            // `?? 0.15` / `?? 0.60` dupliquaient config/ai.php et masquaient
+            // l'absence de tarif. Le provider interroge désormais le catalogue
+            // versionné (config/ai_pricing.php).
             $inner = new OpenAiSupervisionProvider(
                 apiKey: (string) ($config['api_key'] ?? ''),
                 baseUrl: (string) ($config['base_url'] ?? 'https://api.openai.com/v1'),
                 model: (string) ($config['model'] ?? ''),
                 maxOutputTokens: (int) ($config['max_output_tokens'] ?? 900),
                 timeout: (int) ($config['timeout'] ?? 15),
-                inputPricePer1M: (float) ($config['input_price_per_1m'] ?? 0.15),
-                outputPricePer1M: (float) ($config['output_price_per_1m'] ?? 0.60),
             );
 
             return new LoggingSupervisionProvider(
@@ -250,6 +266,7 @@ class AppServiceProvider extends ServiceProvider
         );
 
         Gate::policy(FeedPost::class, FeedPostPolicy::class);
+        Gate::policy(Loop::class, LoopPolicy::class);
         Gate::policy(ProfileAgentConversation::class, ProfileAgentConversationPolicy::class);
         Gate::policy(Service::class, ServicePolicy::class);
         Gate::policy(ServiceRequest::class, ServiceRequestPolicy::class);
@@ -266,27 +283,59 @@ class AppServiceProvider extends ServiceProvider
             $view->with('pendingOrganizationRequestsCount', OrganizationRequest::where('status', 'pending')->count());
         });
 
-        Route::bind('loop', function (string $value) {
-            $orgSlug = request()->route('organization');
+        Route::bind('loop', function (string $value, $route = null) {
+            // L'Organization se lit sur **la route en cours de resolution**, et
+            // non sur `request()`.
+            //
+            // La difference n'est visible que sur une requete Livewire. Livero
+            // rejoue les middlewares persistants de la page d'origine en
+            // reconstruisant sa route ; mais `request()` reste, lui, le
+            // `POST /livewire/update`, qui ne porte aucun parametre
+            // `organization`. Le slug tombait donc dans la branche « pas
+            // d'Organization » et repondait 404, tandis qu'un UUID passait
+            // outre — d'ou une Boucle qui marchait par UUID et cassait toutes
+            // ses interactions par slug.
+            //
+            // Le repli sur `request()` reste pour les appels qui n'ont pas de
+            // route, et le filtre par `organization_id` est inchange : rien
+            // n'est ouvert, c'est seulement la bonne source qui est lue.
+            $orgSlug = $route->parameter('organization');
+
+            // `ResolveOrganization` vient de resoudre la meme Organization
+            // dans ce pipeline et l'a laissee dans le conteneur. La relire
+            // coutait une requete de plus a chaque mise a jour Livewire, pour
+            // le meme resultat.
+            $org = null;
+
+            if ($orgSlug) {
+                $courante = currentOrganization();
+
+                $org = ($courante && $courante->slug === $orgSlug)
+                    ? $courante
+                    : Organization::findBySlug($orgSlug);
+
+                if (! $org) {
+                    abort(404);
+                }
+            }
 
             if (Str::isUuid($value)) {
                 $query = Loop::query();
-                if ($orgSlug) {
-                    $org = Organization::findBySlug($orgSlug);
-                    if (! $org) {
-                        abort(404);
-                    }
+
+                // Sans Organization dans la route — les chemins hors `/org/` —
+                // l'UUID n'est pas filtre ici : ce sont les controleurs qui
+                // verifient le tenant en aval. Avec une Organization, le filtre
+                // s'applique, et c'est le **seul** garde-fou sur le chemin
+                // Livewire, ou aucun controleur ne tourne.
+                if ($org) {
                     $query->where('organization_id', $org->id);
                 }
 
                 return $query->findOrFail($value);
             }
 
-            if (! $orgSlug) {
-                abort(404);
-            }
-
-            $org = Organization::findBySlug($orgSlug);
+            // Un slug n'a de sens que dans une Organization : le meme peut
+            // exister dans plusieurs.
             if (! $org) {
                 abort(404);
             }

@@ -76,28 +76,39 @@ class DossierSharingTest extends TestCase
 
     // --- Visibility ---
 
-    public function test_dossier_becomes_shared_when_member_added(): void
+    public function test_adding_a_member_does_not_change_the_chosen_audience(): void
     {
+        // Reversed by TASK-1082 CP4, and the reasoning is worth recording.
+        // `visibility` used to be rewritten to `shared` the moment a member
+        // appeared — which is why it looked like a setting and behaved like a
+        // computed field, and why nobody could ever keep a chosen value.
+        //
+        // Inviting someone to a private Dossier is not a change of audience.
+        // The Dossier stays private; the invited person gets in through
+        // dossier_members, which is exactly what that table is for.
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->assertEquals(Dossier::VISIBILITY_PRIVATE, $dossier->visibility);
 
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
 
         $dossier->refresh();
-        $this->assertEquals(Dossier::VISIBILITY_SHARED, $dossier->visibility);
+        $this->assertEquals(Dossier::VISIBILITY_PRIVATE, $dossier->visibility);
+        // Asserted through the membership itself: this file does not bind a
+        // current Organization, and the policy needs one.
+        $this->assertTrue($dossier->isMember($this->readerA->id));
     }
 
-    public function test_dossier_reverts_to_private_when_last_member_removed(): void
+    public function test_removing_the_last_member_leaves_the_audience_alone(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $m = $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
-        $dossier->refresh();
-        $this->assertEquals(Dossier::VISIBILITY_SHARED, $dossier->visibility);
 
         $m->delete();
         $dossier->syncVisibility();
         $dossier->refresh();
+
         $this->assertEquals(Dossier::VISIBILITY_PRIVATE, $dossier->visibility);
+        $this->assertFalse($dossier->isMember($this->readerA->id));
     }
 
     public function test_is_member_returns_true_for_added_user(): void
@@ -285,10 +296,10 @@ class DossierSharingTest extends TestCase
     public function test_search_finds_by_first_name(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
-        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+        $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
 
         $this->actingAs($this->ownerA)
-            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Jean']))
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Zephyrin']))
             ->assertOk()
             ->assertJsonCount(1, 'users')
             ->assertJsonPath('users.0.id', $this->editorA->id);
@@ -297,10 +308,10 @@ class DossierSharingTest extends TestCase
     public function test_search_finds_by_last_name(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
-        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+        $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
 
         $this->actingAs($this->ownerA)
-            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Dupont']))
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Qvistgaard']))
             ->assertOk()
             ->assertJsonCount(1, 'users')
             ->assertJsonPath('users.0.id', $this->editorA->id);
@@ -309,10 +320,10 @@ class DossierSharingTest extends TestCase
     public function test_search_finds_by_full_name_first_plus_last(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
-        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+        $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
 
         $this->actingAs($this->ownerA)
-            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Jean Dupont']))
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Zephyrin Qvistgaard']))
             ->assertOk()
             ->assertJsonCount(1, 'users')
             ->assertJsonPath('users.0.id', $this->editorA->id);
@@ -321,10 +332,10 @@ class DossierSharingTest extends TestCase
     public function test_search_finds_by_full_name_last_plus_first(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
-        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+        $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
 
         $this->actingAs($this->ownerA)
-            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Dupont Jean']))
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'Qvistgaard Zephyrin']))
             ->assertOk()
             ->assertJsonCount(1, 'users')
             ->assertJsonPath('users.0.id', $this->editorA->id);
@@ -333,12 +344,12 @@ class DossierSharingTest extends TestCase
     public function test_search_is_case_insensitive(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
-        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+        $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
         $this->readerA->update(['first_name' => 'Marie', 'name' => 'Curie']);
         $this->strangerA->update(['first_name' => 'Pierre', 'name' => 'Martin']);
 
         $this->actingAs($this->ownerA)
-            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'jean']))
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'zephyrin']))
             ->assertOk()
             ->assertJsonCount(1, 'users')
             ->assertJsonPath('users.0.id', $this->editorA->id);
@@ -347,10 +358,10 @@ class DossierSharingTest extends TestCase
     public function test_search_normalizes_spaces(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
-        $this->editorA->update(['first_name' => 'Jean', 'name' => 'Dupont']);
+        $this->editorA->update(['first_name' => 'Zephyrin', 'name' => 'Qvistgaard']);
 
         $this->actingAs($this->ownerA)
-            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => '  Jean   Dupont  ']))
+            ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => '  Zephyrin   Qvistgaard  ']))
             ->assertOk()
             ->assertJsonCount(1, 'users')
             ->assertJsonPath('users.0.id', $this->editorA->id);
@@ -359,7 +370,7 @@ class DossierSharingTest extends TestCase
     public function test_search_isolation_does_not_find_other_org_users(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
-        $this->userB->update(['first_name' => 'OtherOrgOnly1048', 'name' => 'Dupont']);
+        $this->userB->update(['first_name' => 'OtherOrgOnly1048', 'name' => 'Qvistgaard']);
 
         $this->actingAs($this->ownerA)
             ->getJson($this->orgRoute('dossiers.members.search', $dossier, ['q' => 'OtherOrgOnly1048']))
@@ -582,10 +593,15 @@ class DossierSharingTest extends TestCase
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
 
+        // TASK-1130 passe 4 : « Membres » est devenu « Partager » — l'ancienne
+        // cle `members_title` n'etait deja plus rendue nulle part ; cette
+        // assertion passait par coincidence (meme texte "Membres" produit par
+        // `members_tab`, qui a lui aussi ete renomme). Le vrai marqueur de
+        // panneau reste `share_tab`, et `add_member` pour la gestion owner.
         $this->actingAs($this->ownerA)
             ->get($this->orgRoute('dossiers.show', $dossier))
             ->assertOk()
-            ->assertSee(__('dossiers.members_title'))
+            ->assertSee(__('dossiers.share_tab'))
             ->assertSee(__('dossiers.add_member'));
     }
 
@@ -603,28 +619,68 @@ class DossierSharingTest extends TestCase
 
     public function test_editor_can_see_attach_form(): void
     {
+        // TASK-1130 (doctrine finale) : la carte Contenus n'existe plus —
+        // rattacher un Article existant est une fonction Dossier, dans le
+        // flux « + Nouveau », avec sa recherche. L'editeur y a droit.
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
         $this->member($dossier, $this->editorA, DossierMember::ROLE_EDITOR);
 
         $this->actingAs($this->editorA)
             ->get($this->orgRoute('dossiers.show', $dossier))
             ->assertOk()
-            ->assertSee(__('dossiers.contents_tab'))
-            ->assertSee('dossierContentsCard');
+            ->assertSee(e(__('dossiers.fab_attach_article')), false)
+            ->assertSee(e(__('dossiers.attach_article')), false);
     }
 
     // --- Shared dossiers index ---
 
+    /**
+     * Regression : « Boucle de destination » etait vide pour tout le monde.
+     *
+     * L'ecran d'edition ne listait que les Boucles que l'utilisateur peut
+     * ouvrir — mais les modeles etaient hydrates sans `organization_id`, la
+     * colonne que `viewWorkspace` compare. Le filtre rejetait donc TOUTES les
+     * Boucles, et le partage avec une Boucle etait impossible depuis cet ecran.
+     */
+    public function test_the_edit_screen_offers_the_loops_i_can_actually_open(): void
+    {
+        $dossier = $this->dossier($this->orgA, $this->ownerA, 'A partager');
+
+        $boucle = \App\Models\Loop::factory()->create([
+            'organization_id' => $this->orgA->id,
+            'status' => 'active',
+            'type' => 'general',
+            'name' => 'Boucle Centre-ville',
+        ]);
+        $boucle->members()->create([
+            'organization_id' => $this->orgA->id,
+            'user_id' => $this->ownerA->id,
+            'role' => 'owner',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($this->ownerA)
+            ->get(route('organization.dossiers.edit', ['organization' => $this->orgA->slug, 'dossier' => $dossier->getKey()]))
+            ->assertOk()
+            ->assertSee('Boucle Centre-ville')
+            ->assertViewHas('shareableLoops', fn ($loops) => $loops->contains('id', $boucle->getKey()));
+    }
+
     public function test_reader_sees_shared_dossiers_in_index(): void
     {
+        // TASK-1130 (decision finale) : « Partages » est une VUE d'agregation
+        // a deux sous-vues — Avec moi / Par moi. Ce qui compte : le dossier
+        // recu est visible dans « Avec moi », et son proprietaire est dit.
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'Shared Folder');
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
 
         $this->actingAs($this->readerA)
-            ->get(route('organization.dossiers.index', ['organization' => $this->orgA->slug]))
+            ->get(route('organization.dossiers.index', ['organization' => $this->orgA->slug, 'espace' => 'partages']))
             ->assertOk()
             ->assertSee(__('dossiers.shared_with_me'))
-            ->assertSee('Shared Folder');
+            ->assertSee(__('dossiers.shared_by_me'))
+            ->assertSee('Shared Folder')
+            ->assertSee(e($this->ownerA->publicDisplayName()), false);
     }
 
     public function test_owner_sees_shared_badge_when_dossier_has_members(): void
@@ -632,9 +688,12 @@ class DossierSharingTest extends TestCase
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'Shared Folder');
         $this->member($dossier, $this->readerA, DossierMember::ROLE_READER);
 
+        // Depuis « Partages par moi » : le dossier que j'ai partage, et avec
+        // combien de personnes.
         $this->actingAs($this->ownerA)
-            ->get(route('organization.dossiers.index', ['organization' => $this->orgA->slug]))
+            ->get(route('organization.dossiers.index', ['organization' => $this->orgA->slug, 'espace' => 'partages', 'vue' => 'par-moi']))
             ->assertOk()
-            ->assertSee(__('dossiers.shared_badge'));
+            ->assertSee('Shared Folder')
+            ->assertSee(e(trans_choice('dossiers.shared_with_people', 1, ['count' => 1])), false);
     }
 }

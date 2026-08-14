@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ArticleSeries;
+use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class BlogDossierApiController extends Controller
 {
@@ -27,12 +30,211 @@ class BlogDossierApiController extends Controller
         }
 
         return response()->json([
-            'dossier' => [
-                'id' => $entry->dossier->id,
-                'name' => $entry->dossier->name,
-                'position' => $entry->position,
-            ],
+            'dossier' => $this->dossierPayload($entry, $organization),
         ]);
+    }
+
+    /**
+     * Retirer toute trace d'un Article des Series d'un Dossier.
+     *
+     * Promouvoir la premiere annexe plutot que supprimer la Serie : une Serie
+     * qui perd sa racine tient encore les contenus que quelqu'un y a ranges, et
+     * les jeter detruirait du travail. Seule une Serie qui ne contient plus rien
+     * du tout disparait.
+     *
+     * **Toutes** les Series du Dossier sont traitees, pas la premiere venue.
+     * Depuis TASK-1095 un Dossier peut en porter plusieurs ; un `->first()` sans
+     * ordre agissait sur une Serie arbitraire, qui n'etait pas forcement celle
+     * contenant l'Article — le detachement etait alors un silence, et laissait
+     * un item pointant vers un Article qui n'est plus dans le Dossier.
+     */
+    private function detachFromSeries(string $dossierId, string $blogPostId): void
+    {
+        $seriesList = ArticleSeries::where('dossier_id', $dossierId)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($seriesList as $series) {
+            DB::transaction(function () use ($series, $blogPostId) {
+                $locked = ArticleSeries::whereKey($series->id)->lockForUpdate()->first();
+
+                if (! $locked) {
+                    return;
+                }
+
+                ArticleSeriesItem::where('article_series_id', $locked->id)
+                    ->where('blog_post_id', $blogPostId)
+                    ->delete();
+
+                if ($locked->root_blog_post_id !== $blogPostId) {
+                    return;
+                }
+
+                // La racine s'en va : c'est un **Article** qui doit la
+                // remplacer. Depuis TASK-1095 une Serie contient aussi des
+                // fichiers, et le premier item peut en etre un — son
+                // `blog_post_id` est alors NULL. La colonne etant devenue
+                // nullable, la promouvoir ne levait plus rien : elle fabriquait
+                // silencieusement une Serie sans racine **et sans nom**, un etat
+                // que `DossierSeriesService::create()` refuse explicitement.
+                $next = ArticleSeriesItem::where('article_series_id', $locked->id)
+                    ->whereNotNull('blog_post_id')
+                    ->orderBy('position')
+                    ->first();
+
+                if ($next) {
+                    $locked->update(['root_blog_post_id' => $next->blog_post_id]);
+                    $next->delete();
+
+                    return;
+                }
+
+                // Plus aucun Article : s'il reste des fichiers, la Serie
+                // survit **sans racine**, ce qui est desormais un etat legal —
+                // a condition qu'elle porte un nom, sinon elle n'aurait rien a
+                // afficher. Les fichiers ranges par quelqu'un ne sont jamais
+                // jetes pour cause de depart d'un Article.
+                if (ArticleSeriesItem::where('article_series_id', $locked->id)->exists()) {
+                    $locked->update([
+                        'root_blog_post_id' => null,
+                        'name' => $locked->name ?: __('dossiers.series_untitled'),
+                    ]);
+
+                    return;
+                }
+
+                $locked->delete();
+            });
+        }
+    }
+
+    /**
+     * What the editor's Dossier card needs to be useful.
+     *
+     * Beyond the name, it now carries the URL of the Dossier itself — reaching
+     * it meant going back to "Mes dossiers" and hunting — and the Series this
+     * article belongs to, if any, since a Series is a feature of the Dossier
+     * and the writer has no other way of knowing they are inside one.
+     *
+     * @return array<string, mixed>
+     */
+    /**
+     * The Series as a reader meets it: root first, then annexes in order.
+     *
+     * `slug` can be missing on a draft that has never been saved; such an
+     * article gets no link rather than a broken one.
+     */
+    private function seriesArticles(ArticleSeries $series, $annexes, $currentBlogPostId, $organization): array
+    {
+        $rows = collect();
+
+        if ($series->rootBlogPost) {
+            $rows->push([$series->rootBlogPost, true]);
+        }
+
+        foreach ($annexes as $annexe) {
+            if ($annexe->blogPost) {
+                $rows->push([$annexe->blogPost, false]);
+            }
+        }
+
+        return $rows->map(fn (array $row) => [
+            'id' => $row[0]->id,
+            'title' => $row[0]->title,
+            'is_root' => $row[1],
+            'is_current' => $row[0]->id === $currentBlogPostId,
+            'url' => $row[0]->slug ? route('organization.blog.edit', [
+                'organization' => $organization->slug,
+                'post' => $row[0]->slug,
+            ]) : null,
+        ])->values()->all();
+    }
+
+    private function dossierPayload(DossierBlogPost $entry, $organization): array
+    {
+        $series = ArticleSeries::where('dossier_id', $entry->dossier_id)
+            ->with('rootBlogPost:id,title,slug')
+            ->first();
+
+        $annexes = $series === null ? collect() : ArticleSeriesItem::where('article_series_id', $series->id)
+            ->with('blogPost:id,title,slug')
+            ->orderBy('position')
+            ->get();
+
+        $inSeries = $series !== null && (
+            $series->root_blog_post_id === $entry->blog_post_id
+            || $annexes->contains('blog_post_id', $entry->blog_post_id)
+        );
+
+        return [
+            'id' => $entry->dossier->id,
+            'name' => $entry->dossier->name,
+            'position' => $entry->position,
+            'url' => route('organization.dossiers.show', [
+                'organization' => $organization->slug,
+                'dossier' => $entry->dossier->id,
+            ]),
+            'series' => $inSeries ? $this->seriesPayload(
+                $series, $annexes, $entry->blog_post_id, $organization, $entry->dossier->id
+            ) : null,
+        ];
+    }
+
+    /**
+     * Ce que l'editeur sait de la Serie a laquelle appartient l'Article.
+     *
+     * Le precedent et le suivant se **deduisent** de la liste ordonnee, ils ne
+     * sont pas recalcules : l'ordre — racine d'abord, puis les annexes a leur
+     * position persistee — n'existe qu'a un seul endroit, et deux calculs
+     * auraient fini par diverger.
+     */
+    private function seriesPayload(
+        ArticleSeries $series,
+        $annexes,
+        string $currentBlogPostId,
+        $organization,
+        string $dossierId,
+    ): array {
+        $articles = $this->seriesArticles($series, $annexes, $currentBlogPostId, $organization);
+
+        $index = collect($articles)->search(fn (array $a) => $a['is_current'] === true);
+
+        $neighbour = function ($offset) use ($articles, $index) {
+            if ($index === false) {
+                return null;
+            }
+
+            $row = $articles[$index + $offset] ?? null;
+
+            return $row === null ? null : [
+                'id' => $row['id'],
+                'title' => $row['title'],
+                'url' => $row['url'],
+            ];
+        };
+
+        $isRoot = $series->root_blog_post_id === $currentBlogPostId;
+
+        return [
+            'root_title' => $series->rootBlogPost?->title,
+            'is_root' => $isRoot,
+            // Le rang d'une annexe, tel qu'on le lit : la racine est le
+            // premier Article, la premiere annexe le deuxieme.
+            'position' => $index === false ? null : $index + 1,
+            'total' => count($articles),
+            'previous' => $neighbour(-1),
+            'next' => $neighbour(1),
+            // Pas de route de Serie dediee dans ce produit : la Serie se lit
+            // dans l'onglet « contenus » de son Dossier.
+            'url' => route('organization.dossiers.show', [
+                'organization' => $organization->slug,
+                'dossier' => $dossierId,
+            ]).'?tab=contenus',
+            // La serie entiere, pour que l'auteur voie de quoi son texte fait
+            // partie sans quitter l'editeur.
+            'articles' => $articles,
+        ];
     }
 
     public function listDossiers(Request $request): JsonResponse
@@ -123,6 +325,17 @@ class BlogDossierApiController extends Controller
 
         if (! $deleted) {
             return response()->json(['message' => __('dossiers.article_not_attached')], 422);
+        }
+
+        // Leaving a Dossier also leaves its Series.
+        //
+        // Without this, an article moved to another Dossier stayed the root or
+        // an annexe of the Series it came from — a Series whose root was no
+        // longer even in its own Dossier. The visible symptom was a refusal
+        // that made no sense: "this article is already the root of a series"
+        // on an article sitting alone in a brand-new Dossier.
+        if ($entry) {
+            $this->detachFromSeries($entry->dossier_id, $post->id);
         }
 
         if ($entry) {

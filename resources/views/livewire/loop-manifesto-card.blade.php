@@ -1,9 +1,4 @@
 <div class="space-y-4">
-    <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">{{ __('loops.cards.manifesto.label') }}</p>
-        <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __('loops.cards.manifesto.description') }}</p>
-    </div>
-
     @if($errorMessage)
         <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200">{{ $errorMessage }}</div>
     @endif
@@ -15,21 +10,71 @@
     @elseif($choosing)
         {{-- Choose an existing article of this Loop --}}
         <div class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+            {{-- The current document stays designated the whole time this picker
+                 is open: at no instant does the Loop show "no document". --}}
             <div class="flex items-center justify-between gap-2">
-                <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('loops.manifesto_candidates_title') }}</p>
+                <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('loops.root_document_replace_title') }}</p>
                 <button type="button" wire:click="toggleChoosing" class="text-xs font-medium text-gray-500 transition hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">{{ __('loops.cancel') }}</button>
             </div>
+
+            <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ __('loops.root_document_current_kept') }}</p>
+
+            <label class="mt-3 block">
+                <span class="sr-only">{{ __('loops.root_document_search') }}</span>
+                <input type="search" wire:model.live.debounce.300ms="search"
+                       placeholder="{{ __('loops.root_document_search') }}"
+                       class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+            </label>
+
             @if($candidates->isEmpty())
-                <p class="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400">{{ __('loops.manifesto_no_candidates') }}</p>
+                <p class="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400">{{ __('loops.root_document_no_candidate') }}</p>
             @else
-                <ul class="mt-3 space-y-2">
+                {{-- Alpine holds the pending choice so the confirmation states
+                     the consequences before anything is written. --}}
+                <ul class="mt-3 space-y-2" x-data="{ pending: null, pendingTitle: '' }">
                     @foreach($candidates as $post)
-                        <li class="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/60">
+                        <li class="flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/60">
                             <span class="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-100">{{ $post->title }}</span>
-                            <span class="shrink-0 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{{ $post->status === 'published' ? __('loops.manifesto_published') : __('loops.manifesto_draft') }}</span>
-                            <button type="button" wire:click="designate('{{ $post->id }}')" class="shrink-0 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-violet-700">{{ __('loops.manifesto_designate') }}</button>
+
+                            <span class="shrink-0 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+                                {{ $post->status === 'published' ? __('loops.manifesto_published') : __('loops.manifesto_draft') }}
+                            </span>
+                            @if($post->listed_in_blog)
+                                <span class="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">Blog</span>
+                            @endif
+
+                            <button type="button"
+                                    @click="pending = @js($post->id); pendingTitle = @js($post->title)"
+                                    class="min-h-[36px] shrink-0 rounded-lg bg-violet-600 px-3 text-xs font-semibold text-white transition hover:bg-violet-700">
+                                {{ __('loops.root_document_replace') }}
+                            </button>
                         </li>
                     @endforeach
+
+                    {{-- Confirmation. An Alpine modal, never window.confirm(). --}}
+                    <div x-show="pending" x-cloak
+                         class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4"
+                         x-on:keydown.escape.window="pending = null">
+                        <div class="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-800"
+                             @click.outside="pending = null" role="dialog" aria-modal="true">
+                            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('loops.root_document_replace_title') }}</h3>
+                            <p class="mt-1 truncate text-sm font-medium text-violet-700 dark:text-violet-300" x-text="pendingTitle"></p>
+                            <p class="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ __('loops.root_document_replace_warning') }}</p>
+                            <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ __('loops.root_document_current_kept') }}</p>
+
+                            <div class="mt-5 flex justify-end gap-2">
+                                <button type="button" @click="pending = null"
+                                        class="min-h-[44px] rounded-xl border border-gray-300 px-4 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                                    {{ __('loops.cancel') }}
+                                </button>
+                                <button type="button"
+                                        @click="$wire.designate(pending); pending = null"
+                                        class="min-h-[44px] rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white transition hover:bg-violet-700">
+                                    {{ __('loops.root_document_replace_confirm') }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </ul>
             @endif
         </div>
@@ -42,8 +87,14 @@
                     {{ $manifesto->status === 'published' ? __('loops.manifesto_published') : __('loops.manifesto_draft') }}
                 </span>
             </div>
-            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ \Illuminate\Support\Str::limit(strip_tags((string) ($manifesto->summary ?: $manifesto->content)), 240) }}</p>
-            <p class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500">
+            {{-- The Manifesto itself, rendered in full. A 240-character excerpt
+                 made the card pointless: this is the founding text, reading it
+                 is the whole purpose of opening the card. Sanitised on the way
+                 out — the content comes from the Blog editor. --}}
+            <div class="prose prose-sm mt-3 max-w-none text-gray-700 dark:prose-invert dark:text-gray-200">
+                {!! $manifestoHtml !!}
+            </div>
+            <p class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-gray-100 pt-3 text-[11px] text-gray-400 dark:border-gray-800 dark:text-gray-500">
                 @if($manifesto->user)<span>{{ __('loops.manifesto_by', ['name' => $manifesto->user->publicDisplayName()]) }}</span>@endif
                 <span>{{ __('loops.manifesto_updated', ['date' => $manifesto->updated_at?->isoFormat('D MMM Y')]) }}</span>
                 @if($version)<span class="rounded bg-gray-100 px-1.5 py-0.5 font-bold text-gray-500 dark:bg-gray-700 dark:text-gray-300">v{{ $version }}</span>@endif
@@ -55,13 +106,84 @@
             {{ __('loops.manifesto_open_in_editor') }}
         </a>
 
-        @if($canManage)
+        {{-- What the outside world sees, stated plainly so publishing is never
+             a leap of faith. The Loop's confidentiality always wins. --}}
+        <div class="rounded-xl border px-3 py-2 text-[11px] leading-5 {{ $isPublic ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-300' : 'border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400' }}">
+            @if($loopIsPrivate)
+                {{ __('loops.manifesto_visibility_private_loop') }}
+            @elseif($isPublic)
+                {{ __('loops.manifesto_visibility_public') }}
+            @else
+                {{ __('loops.manifesto_visibility_draft') }}
+            @endif
+        </div>
+
+        @if($canPublish)
             <div class="flex items-center gap-2">
-                <button type="button" wire:click="toggleChoosing" class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-violet-200 hover:text-violet-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-violet-700 dark:hover:text-violet-200">
-                    {{ __('loops.manifesto_replace') }}
-                </button>
-                <button type="button" wire:click="removeManifesto" wire:confirm="{{ __('loops.manifesto_remove_confirm') }}" class="inline-flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-500 transition hover:border-red-200 hover:text-red-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:border-red-700 dark:hover:text-red-400">
-                    {{ __('loops.manifesto_remove') }}
+                @if($manifesto->status === 'published')
+                    <button type="button" wire:click="unpublish" class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-600 transition hover:border-amber-300 hover:text-amber-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-amber-600 dark:hover:text-amber-300">
+                        {{ __('loops.manifesto_unpublish') }}
+                    </button>
+                @else
+                    <button type="button" wire:click="publish" class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700">
+                        {{ __('loops.manifesto_publish') }}
+                    </button>
+                @endif
+            </div>
+        @endif
+
+        {{-- Sources: links to documents that keep living in Dossiers. Nothing is
+             copied here, and the file keeps its own owner and permissions. --}}
+        <div class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+            <div class="flex items-center justify-between gap-2">
+                <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    {{ __('loops.manifesto_sources_title') }}
+                </h4>
+                @if($canManageSources)
+                    <button type="button" wire:click="togglePickingSource" class="rounded-lg px-2 py-1 text-xs font-semibold text-violet-600 transition hover:bg-violet-50 dark:text-violet-300 dark:hover:bg-violet-900/20">
+                        {{ $pickingSource ? __('loops.manifesto_sources_cancel') : __('loops.manifesto_sources_add') }}
+                    </button>
+                @endif
+            </div>
+
+            @if($pickingSource)
+                <div class="mt-3 max-h-56 space-y-1 overflow-y-auto rounded-xl border border-gray-200 p-2 dark:border-gray-700">
+                    @forelse($candidateFiles as $file)
+                        <button type="button" wire:click="attachSource('{{ $file->id }}')" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition hover:bg-violet-50 dark:hover:bg-violet-900/20">
+                            <span class="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-200">{{ $file->display_name }}</span>
+                            <span class="shrink-0 text-[10px] text-gray-400">{{ $file->dossier?->name ?? '—' }}</span>
+                        </button>
+                    @empty
+                        <p class="px-2 py-3 text-center text-xs text-gray-400">{{ __('loops.manifesto_sources_no_candidate') }}</p>
+                    @endforelse
+                </div>
+            @endif
+
+            @forelse($sources as $source)
+                <div class="mt-2 flex items-center gap-2 rounded-lg border border-gray-100 px-2 py-1.5 dark:border-gray-800">
+                    <svg class="h-4 w-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25M9 16.5v.75m3-3v3M15 12v5.25m-4.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+                    <span class="min-w-0 flex-1 truncate text-xs text-gray-700 dark:text-gray-200">{{ $source->dossierFile->display_name }}</span>
+                    <span class="shrink-0 text-[10px] text-gray-400">{{ $source->dossierFile->dossier?->name ?? '—' }}</span>
+                    @if($canManageSources)
+                        <button type="button" wire:click="detachSource('{{ $source->dossier_file_id }}')" class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-gray-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
+                            {{ __('loops.manifesto_sources_detach') }}
+                        </button>
+                    @endif
+                </div>
+            @empty
+                @unless($pickingSource)
+                    <p class="mt-2 text-xs text-gray-400">{{ __('loops.manifesto_sources_empty') }}</p>
+                @endunless
+            @endforelse
+        </div>
+
+        @if($canManage)
+            {{-- Replacement only. "Remove" is gone: a Loop always has a root
+                 document, and emptying the card was never a useful state. The
+                 previous document stays in the root Dossier, intact. --}}
+            <div class="flex items-center gap-2">
+                <button type="button" wire:click="toggleChoosing" class="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:border-violet-200 hover:text-violet-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-violet-700 dark:hover:text-violet-200">
+                    {{ __('loops.root_document_replace') }}
                 </button>
             </div>
         @endif

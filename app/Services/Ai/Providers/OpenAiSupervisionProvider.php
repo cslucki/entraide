@@ -9,6 +9,8 @@ use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\DTO\AiSupervisionResult;
 use App\Services\Ai\Exceptions\SupervisionException;
 use App\Services\Ai\JsonResponseParser;
+use App\Support\Ai\AiPricingCatalog;
+use App\Support\Ai\AiUsage;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
@@ -42,14 +44,18 @@ Règles de catégorisation :
 - Si aucune compétence secondaire ne correspond, retourner un tableau vide pour skills.
 PROMPT;
 
+    /**
+     * TASK-1132 : plus aucun tarif injecté ici. Les prix venaient de
+     * `config/ai.php` avec des défauts en dur dupliqués dans AppServiceProvider,
+     * ce qui rendait un tarif manquant indiscernable d'un modèle gratuit. Le
+     * tarif est maintenant lu par modèle dans le catalogue versionné.
+     */
     public function __construct(
         private readonly string $apiKey,
         private readonly string $baseUrl,
         private readonly string $model,
         private readonly int $maxOutputTokens,
         private readonly int $timeout,
-        private readonly float $inputPricePer1M,
-        private readonly float $outputPricePer1M,
     ) {}
 
     public function supervise(string $content, ?string $model = null): AiSupervisionResult
@@ -112,8 +118,19 @@ PROMPT;
         $text = $this->extractOutputText($body);
         $parsed = JsonResponseParser::parseSupervisionResult($text);
 
-        $inputTokens = (int) data_get($body, 'usage.input_tokens', 0);
-        $outputTokens = (int) data_get($body, 'usage.output_tokens', 0);
+        // L'API Responses expose bien `usage.input_tokens` / `usage.output_tokens`
+        // (contrairement à `chat/completions`). Un bloc `usage` absent reste
+        // NON OBSERVÉ : on ne fabrique pas un usage de 0.
+        $usage = AiUsage::of(
+            self::readTokenCounter($body, 'usage.input_tokens'),
+            self::readTokenCounter($body, 'usage.output_tokens'),
+        );
+
+        $resolvedModel = (string) data_get($body, 'model', $this->model);
+        $cost = AiPricingCatalog::cost('openai', $resolvedModel, $usage);
+
+        $inputTokens = $usage->inputTokensOrZero();
+        $outputTokens = $usage->outputTokensOrZero();
 
         return new AiSupervisionResult(
             summary: $parsed['summary'],
@@ -128,9 +145,10 @@ PROMPT;
             notes: $parsed['notes'],
             inputTokens: $inputTokens,
             outputTokens: $outputTokens,
-            model: (string) data_get($body, 'model', $this->model),
-            estimatedCostUsd: $this->estimateCost($inputTokens, $outputTokens),
+            model: $resolvedModel,
+            estimatedCostUsd: $cost->costUsd,
             latencyMs: $latencyMs,
+            costUnknown: $cost->costUnknown,
         );
     }
 
@@ -403,11 +421,18 @@ PROMPT;
         throw new SupervisionException('Aucun output_text dans la réponse OpenAI.');
     }
 
-    private function estimateCost(int $inputTokens, int $outputTokens): float
+    /**
+     * Compteur de tokens réellement rapporté, ou null s'il est absent.
+     *
+     * Remplace `estimateCost()` (TASK-1132) : le calcul appartient désormais au
+     * catalogue tarifaire, ce provider n'a plus à connaître de prix. Ne pas
+     * retomber sur 0 est essentiel — c'est ce repli qui transformait une réponse
+     * sans usage en coût de 0 apparemment mesuré.
+     */
+    private static function readTokenCounter(mixed $body, string $path): ?int
     {
-        $cost = ($inputTokens / 1_000_000) * $this->inputPricePer1M
-            + ($outputTokens / 1_000_000) * $this->outputPricePer1M;
+        $value = data_get($body, $path);
 
-        return round($cost, 6);
+        return is_numeric($value) ? (int) $value : null;
     }
 }

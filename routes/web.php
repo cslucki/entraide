@@ -18,6 +18,8 @@ use App\Http\Controllers\Admin\AdminEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
+use App\Http\Controllers\Admin\AdminLoopPermissionController;
+use App\Http\Controllers\Admin\AdminLoopTypeController;
 use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
@@ -60,7 +62,9 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LikeController;
 use App\Http\Controllers\LocaleController;
+use App\Http\Controllers\LoopEventAgendaController;
 use App\Http\Controllers\LoopController;
+use App\Http\Controllers\LoopInvitationController;
 use App\Http\Controllers\MemberAiProfileConversationsController;
 use App\Http\Controllers\MemberAiProfileInteractionController;
 use App\Http\Controllers\MessageController;
@@ -209,6 +213,16 @@ Route::get('/blog/{post:slug}', [BlogController::class, 'show'])->name('blog.sho
 // Blog invitation public routes (no auth required)
 Route::get('/blog-invitations/{token}', [BlogInvitationController::class, 'show'])->name('blog.invite.show');
 Route::post('/blog-invitations/{token}/accept', [BlogInvitationController::class, 'accept'])->name('blog.invite.accept');
+// POST, not a link: it parks the token in the session before handing over to
+// login or registration, where the acceptance actually happens (TASK-1078).
+Route::post('/blog-invitations/{token}/prepare', [BlogInvitationController::class, 'prepare'])->middleware('throttle:20,1')->name('blog.invite.prepare');
+
+// Loop invitation public routes (no auth required). The GET is strictly
+// read-only; `prepare` is a POST because it writes the token to the session
+// before handing over to login or registration, where the acceptance actually
+// happens. Accepting never rides on a GET.
+Route::get('/loop-invitations/{token}', [LoopInvitationController::class, 'show'])->name('loop-invitations.show');
+Route::post('/loop-invitations/{token}/prepare', [LoopInvitationController::class, 'prepare'])->middleware('throttle:20,1')->name('loop-invitations.prepare');
 
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/search', [SearchController::class, 'index'])->name('search');
@@ -313,10 +327,44 @@ Route::middleware('auth')->group(function () {
     Route::middleware('loops.enabled')->group(function () {
         Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
         Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
-        Route::post('/loops', [LoopController::class, 'store'])->name('loops.store');
+        Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
         Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+        // L'agenda de l'Organization : lecture seule, il agrege ce qui a ete
+        // organise dans les Boucles. Declare avant /loops/{loop} n'est pas
+        // necessaire — le segment differe — mais reste groupe avec elles.
+        Route::get('/agenda', [LoopEventAgendaController::class, 'index'])->name('events.agenda');
+        Route::get('/loops/{loop}/edit', [LoopController::class, 'edit'])->name('loops.edit');
+        Route::put('/loops/{loop}', [LoopController::class, 'update'])->name('loops.update');
         Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
         Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
+        // Archivage par le proprietaire (TASK-1086). Distinct de loops.update :
+        // celle-ci refuse une Boucle archivee, ce qui rendrait la reactivation
+        // inaccessible a la seule personne censee pouvoir la demander.
+        Route::post('/loops/{loop}/archive', [LoopController::class, 'archive'])->name('loops.archive');
+        Route::post('/loops/{loop}/reactivate', [LoopController::class, 'reactivate'])->name('loops.reactivate');
+        Route::post('/loops/{loop}/join-requests', [LoopController::class, 'storeJoinRequest'])->middleware('throttle:5,1')->name('loops.join-requests.store');
+        Route::get('/loops/{loop}/invite', [LoopController::class, 'invite'])->name('loops.invite');
+        Route::post('/loops/{loop}/invite/members', [LoopController::class, 'storeMembers'])->middleware('throttle:10,1')->name('loops.invite.members');
+        // Flat route (not nested under /loops/{loop}/...): a join request id is
+        // already globally unique, and the dual path-based/org-prefixed union-typed
+        // $loopOrOrganization/$loop controller pattern used everywhere else in this
+        // controller only reserves the first two positional route slots — a third
+        // nested {joinRequest} segment breaks that resolution. The Loop is resolved
+        // from the request's own relation instead of a route segment.
+        // Flat, like the join-request routes above and for the same reason: a
+        // membership id is globally unique, and the union-typed
+        // $loopOrOrganization/$loop signature only reserves two positional
+        // slots — a third nested segment raises a TypeError (TASK-1075).
+        Route::put('/loop-members/{member}/role', [LoopController::class, 'updateMemberRole'])->name('loops.members.role');
+        Route::delete('/join-requests/{joinRequest}', [LoopController::class, 'cancelJoinRequest'])->name('loop-join-requests.cancel');
+        Route::post('/join-requests/{joinRequest}/accept', [LoopController::class, 'acceptJoinRequest'])->name('loop-join-requests.accept');
+        Route::post('/join-requests/{joinRequest}/reject', [LoopController::class, 'rejectJoinRequest'])->name('loop-join-requests.reject');
+        // Targeted e-mail invitations (TASK-1077). Sending and revoking need the
+        // Loop, so they keep the nested shape; the recipient-facing routes are
+        // flat and public — see the group below.
+        Route::post('/loops/{loop}/invitations', [LoopInvitationController::class, 'store'])->middleware('throttle:10,1')->name('loops.invitations.store');
+        Route::post('/loop-invitations/{invitation}/revoke', [LoopInvitationController::class, 'revoke'])->name('loop-invitations.revoke');
+        Route::post('/loop-invitations/{token}/accept', [LoopInvitationController::class, 'accept'])->middleware('throttle:10,1')->name('loop-invitations.accept');
         Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
         Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
         Route::post('/loops/{loop}/ask-ai', [LoopController::class, 'askAi'])->middleware('throttle:5,1')->name('loops.ai');
@@ -457,6 +505,20 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/email-logs/{emailLog}', [AdminEmailLogsController::class, 'show'])->name('email-logs.show');
 
     // System email templates (notifications overrides)
+    // Loop permission matrix — global settings by type x role x permission.
+    // Never per-Loop: there is no loop_id anywhere in this flow (TASK-1079).
+    Route::get('/loop-permissions', [AdminLoopPermissionController::class, 'index'])->name('loop-permissions');
+    Route::put('/loop-permissions', [AdminLoopPermissionController::class, 'update'])->name('loop-permissions.update');
+    Route::delete('/loop-permissions', [AdminLoopPermissionController::class, 'reset'])->name('loop-permissions.reset');
+
+    // Composition des types de Boucles (super-admin). Le contrôleur refuse
+    // lui-même tout non super-admin : le groupe admin ne suffit pas.
+    Route::get('/loop-types', [AdminLoopTypeController::class, 'index'])->name('loop-types');
+    Route::post('/loop-types', [AdminLoopTypeController::class, 'store'])->name('loop-types.store');
+    // Avant `{type}` : sans cela, « custom » serait avale comme une cle de type.
+    Route::delete('/loop-types/custom/{customLoopType}', [AdminLoopTypeController::class, 'destroy'])->name('loop-types.destroy');
+    Route::put('/loop-types/{type}', [AdminLoopTypeController::class, 'update'])->name('loop-types.update');
+    Route::delete('/loop-types/{type}', [AdminLoopTypeController::class, 'reset'])->name('loop-types.reset');
     Route::get('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'index'])->name('system-email-templates');
     Route::get('/system-email-templates/{systemEmailTemplate}/edit', [AdminSystemEmailTemplatesController::class, 'edit'])->name('system-email-templates.edit');
     Route::put('/system-email-templates/{systemEmailTemplate}', [AdminSystemEmailTemplatesController::class, 'update'])->name('system-email-templates.update');
@@ -532,13 +594,25 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/loops', [AdminLoopController::class, 'index'])->name('loops');
     Route::get('/loops/create', [AdminLoopController::class, 'create'])->name('loops.create');
     Route::post('/loops', [AdminLoopController::class, 'store'])->name('loops.store');
+    Route::get('/loops/{loop}', [AdminLoopController::class, 'show'])->name('loops.show');
     Route::get('/loops/{loop}/edit', [AdminLoopController::class, 'edit'])->name('loops.edit');
     Route::put('/loops/{loop}', [AdminLoopController::class, 'update'])->name('loops.update');
     Route::post('/loops/{loop}/members', [AdminLoopController::class, 'addMember'])->name('loops.members.add');
+    Route::put('/loops/{loop}/members/{member}/role', [AdminLoopController::class, 'updateMemberRole'])->name('loops.members.role');
     Route::delete('/loops/{loop}/members/{member}', [AdminLoopController::class, 'removeMember'])->name('loops.members.remove');
     Route::get('/loops/{loop}/files', [AdminLoopController::class, 'files'])->name('loops.files');
+    Route::put('/loops/{loop}/type', [AdminLoopController::class, 'updateType'])->name('loops.type.update');
+    // Composition locale des Cards (TASK-1083). Le controleur verifie
+    // loops.manage_cards ; la permission existait depuis TASK-1079 sans aucun
+    // consommateur.
+    Route::put('/loops/{loop}/cards', [AdminLoopController::class, 'updateCards'])->name('loops.cards.update');
     Route::post('/loops/{loop}/archive', [AdminLoopController::class, 'archive'])->name('loops.archive');
     Route::post('/loops/{loop}/restore', [AdminLoopController::class, 'restore'])->name('loops.restore');
+    // Le configurateur de presets (TASK-1090). Etend l'ecran de composition de
+    // TASK-1083 ; il ne le remplace pas.
+    Route::get('/loops/{loop}/configure', [AdminLoopController::class, 'configure'])->name('loops.configure');
+    Route::post('/loops/{loop}/compose', [AdminLoopController::class, 'composeCards'])->name('loops.compose');
+    Route::post('/loops/{loop}/preset', [AdminLoopController::class, 'applyPreset'])->name('loops.preset.apply');
     Route::delete('/loops/{loop}', [AdminLoopController::class, 'destroy'])->name('loops.destroy');
 
     // Outils
@@ -657,15 +731,41 @@ Route::prefix('/org/{organization}')
             Route::middleware('loops.enabled')->group(function () {
                 Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
                 Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
-                Route::post('/loops', [LoopController::class, 'store'])->name('loops.store');
+                Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
                 Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+                // L'agenda de l'Organization : lecture seule, il agrege ce qui a ete
+                // organise dans les Boucles. Declare avant /loops/{loop} n'est pas
+                // necessaire — le segment differe — mais reste groupe avec elles.
+                Route::get('/agenda', [LoopEventAgendaController::class, 'index'])->name('events.agenda');
+                Route::get('/loops/{loop}/edit', [LoopController::class, 'edit'])->name('loops.edit');
+                Route::put('/loops/{loop}', [LoopController::class, 'update'])->name('loops.update');
                 Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
                 Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
+                // Archivage par le proprietaire (TASK-1086). Distinct de loops.update :
+                // celle-ci refuse une Boucle archivee, ce qui rendrait la reactivation
+                // inaccessible a la seule personne censee pouvoir la demander.
+                Route::post('/loops/{loop}/archive', [LoopController::class, 'archive'])->name('loops.archive');
+                Route::post('/loops/{loop}/reactivate', [LoopController::class, 'reactivate'])->name('loops.reactivate');
+                Route::post('/loops/{loop}/join-requests', [LoopController::class, 'storeJoinRequest'])->middleware('throttle:5,1')->name('loops.join-requests.store');
+                Route::get('/loops/{loop}/invite', [LoopController::class, 'invite'])->name('loops.invite');
+                Route::post('/loops/{loop}/invite/members', [LoopController::class, 'storeMembers'])->middleware('throttle:10,1')->name('loops.invite.members');
+                Route::post('/loops/{loop}/invitations', [LoopInvitationController::class, 'store'])->middleware('throttle:10,1')->name('loops.invitations.store');
                 Route::post('/loops/{loop}/members', [LoopController::class, 'addMember'])->name('loops.members.add');
                 Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
                 Route::post('/loops/{loop}/ask-ai', [LoopController::class, 'askAi'])->middleware('throttle:5,1')->name('loops.ai');
                 Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
                 Route::post('/loops/{loop}/help-request/publish', [LoopController::class, 'publishHelpRequest'])->name('loops.help-request.publish');
+                // « Ecrire un article » depuis la Card Dossiers : un brouillon
+                // lie d'un coup au Dossier racine ET a la Boucle, puis
+                // l'editeur Blog existant. Contexte Organization seulement,
+                // comme tout le systeme documentaire.
+                Route::post('/loops/{loop}/dossier/articles', [\App\Http\Controllers\LoopDossierArticleController::class, 'store'])->middleware('throttle:10,1')->name('loops.dossier.articles.store');
+                // « Personnaliser ma Boucle » — l'ecran du proprietaire. Meme
+                // service que l'administration (LoopPresetConfigurator), donc
+                // memes gardes ; seul le langage change. Contexte Organization
+                // seulement : la Boucle appartient a un tenant.
+                Route::get('/loops/{loop}/outils', [\App\Http\Controllers\LoopToolsController::class, 'index'])->name('loops.tools');
+                Route::post('/loops/{loop}/outils', [\App\Http\Controllers\LoopToolsController::class, 'update'])->middleware('throttle:30,1')->name('loops.tools.update');
             });
 
             Route::middleware('verified')->group(function () {
@@ -679,6 +779,7 @@ Route::prefix('/org/{organization}')
                 Route::get('/dossiers/{dossier}/semantic-search', DossierSemanticSearchController::class)->name('dossiers.semantic-search');
                 Route::post('/dossiers/{dossier}/articles', [DossierArticleController::class, 'store'])->name('dossiers.articles.store');
                 Route::post('/dossiers/{dossier}/articles/create-and-attach', [DossierArticleController::class, 'createAndAttach'])->name('dossiers.articles.create-and-attach');
+                Route::patch('/dossiers/{dossier}/articles/{post}/move', [DossierArticleController::class, 'move'])->name('dossiers.articles.move');
                 Route::delete('/dossiers/{dossier}/articles/{post}', [DossierArticleController::class, 'destroy'])->name('dossiers.articles.destroy');
                 Route::patch('/dossiers/{dossier}/articles/reorder', [DossierArticleController::class, 'reorder'])->name('dossiers.articles.reorder');
                 Route::get('/dossiers/{dossier}/articles/search', [DossierArticleController::class, 'search'])->name('dossiers.articles.search');
@@ -696,12 +797,17 @@ Route::prefix('/org/{organization}')
                 Route::patch('/dossiers/{dossier}/series/annexes/reorder', [DossierSeriesController::class, 'reorderAnnexes'])->name('dossiers.series.annexes.reorder');
                 Route::get('/dossiers/{dossier}/edit', [DossierController::class, 'edit'])->name('dossiers.edit');
                 Route::patch('/dossiers/{dossier}', [DossierController::class, 'update'])->name('dossiers.update');
+                Route::patch('/dossiers/{dossier}/unshare', [DossierController::class, 'unshare'])->name('dossiers.unshare');
                 Route::delete('/dossiers/{dossier}', [DossierController::class, 'destroy'])->name('dossiers.destroy');
                 Route::get('/dossiers/{dossier}/files', [DossierFileController::class, 'index'])->name('dossiers.files.index');
                 Route::post('/dossiers/{dossier}/files', [DossierFileController::class, 'store'])->name('dossiers.files.store');
                 Route::get('/dossiers/{dossier}/files/{file}', [DossierFileController::class, 'show'])->name('dossiers.files.show');
                 Route::get('/dossiers/{dossier}/files/{file}/preview', [DossierFileController::class, 'preview'])->name('dossiers.files.preview');
                 Route::delete('/dossiers/{dossier}/files/{file}', [DossierFileController::class, 'destroy'])->name('dossiers.files.destroy');
+                Route::patch('/dossiers/{dossier}/files/{file}/move', [DossierFileController::class, 'move'])->name('dossiers.files.move');
+                Route::patch('/dossiers/{dossier}/files/{file}/rename', [DossierFileController::class, 'rename'])->name('dossiers.files.rename');
+                Route::get('/dossiers/{dossier}/files/{file}/markdown', [DossierFileController::class, 'markdown'])->name('dossiers.files.markdown');
+                Route::patch('/dossiers/{dossier}/files/{file}/markdown', [DossierFileController::class, 'updateMarkdown'])->name('dossiers.files.markdown.update');
 
                 // Blog (org-scoped)
                 Route::get('/blog/rediger/nouveau', [BlogController::class, 'orgCreate'])->name('blog.create');
@@ -830,8 +936,18 @@ Route::prefix('/org/{organization}')
 
                 // Community
                 Route::get('/loops', [OrgAdminController::class, 'loops'])->name('loops');
+                Route::get('/loops/{loop}/edit', [OrgAdminController::class, 'editLoop'])->name('loops.edit');
+                Route::put('/loops/{loop}', [OrgAdminController::class, 'updateLoop'])->name('loops.update');
+                Route::put('/loops/{loop}/cards', [OrgAdminController::class, 'updateLoopCards'])->name('loops.cards.update');
                 Route::patch('/loops/{loop}/toggle-active', [OrgAdminController::class, 'toggleLoopActive'])->name('loops.toggle-active');
+                // Le configurateur, cote Organization (TASK-1090). Meme service
+                // et meme vue que l'ecran plateforme.
+                Route::get('/loops/{loop}/configure', [OrgAdminController::class, 'configureLoop'])->name('loops.configure');
+                Route::post('/loops/{loop}/compose', [OrgAdminController::class, 'composeLoopCards'])->name('loops.compose');
+                Route::post('/loops/{loop}/preset', [OrgAdminController::class, 'applyLoopPreset'])->name('loops.preset.apply');
+                Route::patch('/composition-policy', [OrgAdminController::class, 'updateCompositionPolicy'])->name('composition-policy.update');
                 Route::post('/loops/{loop}/members', [OrgAdminController::class, 'addLoopMember'])->name('loops.members.add');
+                Route::put('/loops/{loop}/members/{member}/role', [OrgAdminController::class, 'updateLoopMemberRole'])->name('loops.members.role');
                 Route::delete('/loops/{loop}/members/{member}', [OrgAdminController::class, 'removeLoopMember'])->name('loops.members.remove');
                 Route::get('/messages', [OrgAdminController::class, 'messages'])->name('messages');
                 Route::get('/users', [OrgAdminController::class, 'users'])->name('users');

@@ -7,10 +7,21 @@ on:
     branches: [main, develop]
   workflow_dispatch:
 
+# Une nouvelle poussee sur la meme branche annule la precedente : le job dure
+# desormais une vingtaine de minutes, et les empiler ne renseigne personne.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality-gate:
     name: Quality Gate (blocking)
     runs-on: ubuntu-latest
+
+    # Le job est passe de ~70 s a ~20 min en gagnant la suite Feature. Sans
+    # cette borne, le defaut de GitHub est 360 minutes : un test qui pend
+    # retiendrait un runner six heures.
+    timeout-minutes: 45
 
     env:
       DB_CONNECTION: pgsql
@@ -86,5 +97,17 @@ jobs:
       - name: Run migrations
         run: php artisan migrate --force
 
+      # Les deux moities du gate, dans **un seul job** : l'installation de
+      # composer, npm et la construction des assets coutent environ une minute,
+      # et les dedoubler en deux jobs paierait cette minute deux fois pour rien.
+      # Les etapes restent separees pour que leurs durees se lisent
+      # independamment.
       - name: Run Unit tests (blocking)
         run: php vendor/bin/phpunit --configuration phpunit.ci-minimal.xml
+
+      # Avant TASK-1112, la CI ne lançait **que** les tests Unit : aucune
+      # regression Feature ne pouvait rendre ce gate rouge. La liste des classes
+      # exclues est dans `phpunit.ci-feature.xml`, avec la raison de chacune —
+      # elle doit retrecir, jamais grandir.
+      - name: Run Feature tests (blocking)
+        run: php vendor/bin/phpunit --configuration phpunit.ci-feature.xml

@@ -17,6 +17,37 @@ class DossierMemberController extends Controller
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('view', $dossier);
 
+        // TASK-1130 passe 4 : un enfant ne porte ni owner_id ni
+        // dossier_members a lui — toute lecture/ecriture de membres doit
+        // viser la racine qui gouverne, quel que soit l'appelant (vue,
+        // API directe, futur client). Deleguer ici, dans la primitive,
+        // evite que ce soit a chaque appelant de s'en souvenir.
+        $dossier = $dossier->governingDossier();
+
+        // Dossier racine : les personnes qui y accedent sont les membres actifs
+        // de la Boucle — dossier_members est vide par construction, et le lire
+        // aurait rendu une liste vide a un Dossier bien habite. Lecture seule :
+        // les acces se gerent depuis la Boucle, jamais d'ici.
+        if ($dossier->isLoopDossier()) {
+            $roles = app(\App\Support\Loops\LoopRoleRegistry::class);
+
+            $members = ($dossier->loop?->activeMembers() ?? \App\Models\LoopMember::query()->whereRaw('1 = 0'))
+                ->with('user:id,first_name,name,organization_id,banned_at')
+                ->orderByRaw("case role when 'owner' then 0 when 'facilitator' then 1 else 2 end")
+                ->orderBy('joined_at')
+                ->get()
+                ->map(fn ($m) => [
+                    'id' => $m->user?->isDisplayableIn($dossier->organization_id) ? $m->user_id : null,
+                    'name' => $m->user?->isDisplayableIn($dossier->organization_id) ? $m->user->name : __('profile.deactivated_user'),
+                    'first_name' => $m->user?->isDisplayableIn($dossier->organization_id) ? $m->user->first_name : null,
+                    'email' => null,
+                    'role' => 'loop_'.$roles->canonical($m->role),
+                    'added_by' => null,
+                ]);
+
+            return response()->json(['members' => $members, 'managed_by_loop' => true]);
+        }
+
         $isOwner = $request->user()->id === $dossier->owner_id;
 
         $members = $dossier->dossierMembers()
@@ -40,6 +71,7 @@ class DossierMemberController extends Controller
         $organization = $this->currentOrganizationOrFail();
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageMembers', $dossier);
+        $dossier = $dossier->governingDossier();
 
         $data = $request->validate([
             'user_id' => [
@@ -94,6 +126,7 @@ class DossierMemberController extends Controller
         $dossier = $this->resolveDossier($request->route('dossier'));
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageMembers', $dossier);
+        $dossier = $dossier->governingDossier();
 
         $data = $request->validate([
             'role' => 'required|string|in:reader,editor',
@@ -120,6 +153,7 @@ class DossierMemberController extends Controller
         $dossier = $this->resolveDossier($request->route('dossier'));
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageMembers', $dossier);
+        $dossier = $dossier->governingDossier();
 
         $member = $dossier->dossierMembers()->where('user_id', $request->route('member'))->first();
         if (! $member) {
@@ -141,6 +175,7 @@ class DossierMemberController extends Controller
         $organization = $this->currentOrganizationOrFail();
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageMembers', $dossier);
+        $dossier = $dossier->governingDossier();
 
         $query = preg_replace('/\s+/', ' ', trim($request->input('q', '')));
         $ownerId = $dossier->owner_id;

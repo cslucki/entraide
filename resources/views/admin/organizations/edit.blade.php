@@ -254,6 +254,19 @@
 
                 <div>
                     <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="hidden" name="members_can_create_loops" value="0">
+                        <input type="checkbox" name="members_can_create_loops" value="1"
+                            {{ old('members_can_create_loops', $organization->members_can_create_loops ?? true) ? 'checked' : '' }}
+                            class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                        <div>
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.members_can_create_loops_label') }}</span>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('admin.members_can_create_loops_desc') }}</p>
+                        </div>
+                    </label>
+                </div>
+
+                <div>
+                    <label class="flex items-center gap-3 cursor-pointer">
                         <input type="hidden" name="subscriptions_enabled" value="0">
                         <input type="checkbox" name="subscriptions_enabled" value="1"
                             {{ old('subscriptions_enabled', $organization->subscriptions_enabled ?? false) ? 'checked' : '' }}
@@ -366,6 +379,15 @@
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
                         <option value="b2c" {{ old('transactions_naming', $organization->transactions_naming ?? 'b2c') === 'b2c' ? 'selected' : '' }}>B2C (membres)</option>
                         <option value="b2b" {{ old('transactions_naming', $organization->transactions_naming ?? 'b2c') === 'b2b' ? 'selected' : '' }}>B2B (entreprises)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Boucles</label>
+                    <select name="loops_naming"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
+                        <option value="b2c" {{ old('loops_naming', $organization->loops_naming ?? 'b2c') === 'b2c' ? 'selected' : '' }}>B2C (membres)</option>
+                        <option value="b2b" {{ old('loops_naming', $organization->loops_naming ?? 'b2c') === 'b2b' ? 'selected' : '' }}>B2B (entreprises)</option>
                     </select>
                 </div>
             </div>

@@ -140,7 +140,15 @@ class AdminLoginHistoryTest extends TestCase
     {
         [$orgA, $adminA] = $this->makeOrgAdmin();
         $orgB = Organization::factory()->create(['is_active' => true]);
-        $userB = User::factory()->create(['organization_id' => $orgB->id]);
+        // Un nom qui n'appartient qu'a lui : la fabrique tire un
+        // `lastName()` dans un pool etroit, et la page affiche celui de
+        // l'admin connecte — quand les deux coincidaient, `assertDontSee`
+        // tombait sur une collision, pas sur une fuite (constate en suite
+        // complete, ~1 % des executions).
+        $userB = User::factory()->create([
+            'organization_id' => $orgB->id,
+            'name' => 'Zzyzx-Temoin-OrgB',
+        ]);
         LoginLog::factory()->create(['user_id' => $userB->id, 'organization_id' => $orgB->id]);
 
         $this->actingAs($adminA)

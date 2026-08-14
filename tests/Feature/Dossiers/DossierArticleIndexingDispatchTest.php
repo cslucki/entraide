@@ -203,14 +203,17 @@ class DossierArticleIndexingDispatchTest extends TestCase
         Queue::assertNothingPushed();
     }
 
-    public function test_dossier_destroy_controller_dispatches_captured_articles_after_pivots_are_deleted(): void
+    public function test_dossier_destroy_detaches_the_article_without_dispatching_anything(): void
     {
+        // Supprimer le Dossier retire le lien vers l'Article (decision Cyril
+        // du 13/08). L'Article lui-meme ne bouge pas : son contenu indexe est
+        // inchange, il n'y a donc rien a reindexer.
         [$organization, $user, $dossier, $post] = $this->fixture();
         $this->actAsOrganizationUser($organization, $user);
         Queue::fake();
 
-        $this->delete(route('organization.dossiers.destroy', [$organization, $dossier]))
-            ->assertRedirect();
+        $this->deleteJson(route('organization.dossiers.destroy', [$organization, $dossier]))
+            ->assertOk();
 
         $this->assertSoftDeleted('dossiers', ['id' => $dossier->id]);
         $this->assertDatabaseMissing('dossier_blog_posts', [
@@ -218,7 +221,8 @@ class DossierArticleIndexingDispatchTest extends TestCase
             'dossier_id' => $dossier->id,
             'blog_post_id' => $post->id,
         ]);
-        $this->assertIndexJobPushed($organization->id, $dossier->id, $post->id);
+        $this->assertDatabaseHas('blog_posts', ['id' => $post->id, 'deleted_at' => null]);
+        Queue::assertNothingPushed();
     }
 
     public function test_dossier_destroy_controller_without_articles_does_not_dispatch(): void

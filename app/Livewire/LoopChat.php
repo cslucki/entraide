@@ -8,10 +8,13 @@ use App\Models\LoopMessage;
 use App\Models\Reaction;
 use App\Models\User;
 use App\Services\LoopMessageService;
+use App\Services\Loops\LoopLifecycleService;
 use App\Services\UrlPreviewService;
+use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\On;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\WebpEncoder;
 use Intervention\Image\Laravel\Facades\Image;
@@ -47,23 +50,55 @@ class LoopChat extends Component
     public function mount(Loop $loop): void
     {
         $this->loop = $loop;
+        $this->refreshMembership();
+        $this->loadInitialMessages();
+    }
 
+    /**
+     * Recalculer l'adhesion **a chaque requete**, y compris les mises a jour
+     * Livewire.
+     *
+     * `$isMember` est une propriete publique : elle voyage dans le snapshot, et
+     * Livewire la restitue telle qu'elle etait au chargement de la page. Une
+     * personne retiree de la Boucle gardait donc `true` et continuait a lire —
+     * y compris des messages postes **apres** son depart — en rejouant son
+     * dernier snapshot. Le snapshot est une capacite durable : il n'a ni nonce,
+     * ni expiration.
+     *
+     * `booted()` s'execute a l'hydratation comme au montage : l'adhesion est
+     * desormais une conclusion tiree a chaque fois, pas un fait recopie.
+     */
+    public function booted(): void
+    {
+        $this->refreshMembership();
+    }
+
+    private function refreshMembership(): void
+    {
         $user = auth()->user();
-        if ($user && ! $user->isDeactivated()) {
-            $this->isMember = LoopMember::where('loop_id', $loop->id)
+
+        $this->isMember = $user
+            && ! $user->isDeactivated()
+            && LoopMember::where('loop_id', $this->loop->id)
                 ->where('user_id', $user->id)
                 ->where('status', 'active')
                 ->exists();
-        }
-
-        $this->loadInitialMessages();
     }
 
     public function aiRoute(): string
     {
-        $organization = request()->route('organization');
+        // L'Organization vient de la **Boucle**, pas de `request()`. Sur une
+        // mise a jour Livewire, la requete est le `POST /livewire/update` et ne
+        // porte aucun parametre `organization` : la route retombait alors sur
+        // sa forme sans prefixe, et changeait donc entre le chargement de la
+        // page et le premier clic.
+        $organization = request()->route('organization') ?? $this->loop->organization?->slug;
 
-        if ($organization && request()->routeIs('organization.*') && Route::has('organization.loops.ai')) {
+        // `routeIs('organization.*')` ne tient pas non plus sur un POST
+        // Livewire — la route courante y est celle de Livewire. C'est
+        // l'existence d'une Organization pour cette Boucle qui decide, et elle
+        // ne change pas d'une requete a l'autre.
+        if ($organization && Route::has('organization.loops.ai')) {
             return route('organization.loops.ai', [
                 'organization' => $organization,
                 'loop' => $this->loop,
@@ -109,6 +144,24 @@ class LoopChat extends Component
         }
     }
 
+    /**
+     * Whether this person may add to the conversation right now.
+     *
+     * Was six copies of the same three conditions. The fourth — an archived Loop
+     * is read-only — would have had to be added to all six, and the next
+     * contributor would have had five chances to forget it.
+     *
+     * Reading is unaffected: `$isMember` still gates what the panel shows, so an
+     * archived Loop keeps its history visible to the people who could see it.
+     */
+    private function canContribute(?User $user): bool
+    {
+        return $user !== null
+            && ! $user->isDeactivated()
+            && $this->isMember
+            && app(LoopLifecycleService::class)->isWritable($this->loop);
+    }
+
     public function sendMessage(LoopMessageService $service): void
     {
         $this->validate([
@@ -119,7 +172,7 @@ class LoopChat extends Component
         ]);
 
         $user = auth()->user();
-        if (! $user || $user->isDeactivated() || ! $this->isMember) {
+        if (! $this->canContribute($user)) {
             return;
         }
 
@@ -163,7 +216,7 @@ class LoopChat extends Component
     public function pinMessage(string $messageId): void
     {
         $user = auth()->user();
-        if (! $user || $user->isDeactivated() || ! $this->isMember) {
+        if (! $this->canContribute($user)) {
             return;
         }
 
@@ -244,7 +297,7 @@ class LoopChat extends Component
     public function editMessage(string $messageId): void
     {
         $user = auth()->user();
-        if (! $user || $user->isDeactivated() || ! $this->isMember) {
+        if (! $this->canContribute($user)) {
             return;
         }
 
@@ -274,7 +327,7 @@ class LoopChat extends Component
         ]);
 
         $user = auth()->user();
-        if (! $user || $user->isDeactivated() || ! $this->isMember || $this->editingMessageId === null) {
+        if (! $this->canContribute($user) || $this->editingMessageId === null) {
             return;
         }
 
@@ -331,7 +384,7 @@ class LoopChat extends Component
     public function unpinMessage(): void
     {
         $user = auth()->user();
-        if (! $user || $user->isDeactivated() || ! $this->isMember) {
+        if (! $this->canContribute($user)) {
             return;
         }
 
@@ -343,7 +396,7 @@ class LoopChat extends Component
     public function toggleReaction(string $messageId, string $reactionType): void
     {
         $user = auth()->user();
-        if (! $user || $user->isDeactivated() || ! $this->isMember) {
+        if (! $this->canContribute($user)) {
             return;
         }
 
@@ -398,8 +451,41 @@ class LoopChat extends Component
         return $relativePath;
     }
 
+    /**
+     * Une Card voisine vient de publier une activite dans ce fil.
+     *
+     * La methode ne fait **rien** : le seul fait d'avoir ete appelee provoque un
+     * nouveau rendu, et `render()` appelle deja `syncNewerMessages()`, qui
+     * ramene ce qui est plus recent et dedoublonne par identifiant. Y ajouter
+     * une requete reviendrait a ecrire deux fois la meme regle.
+     *
+     * ChatLoop rattrapait deja ces messages au battement suivant de son
+     * `wire:poll.3s`. Ce que l'evenement supprime, c'est l'attente — pas une
+     * absence. Le sondage periodique reste : il sert les messages des autres
+     * personnes, qu'aucune Card locale ne peut annoncer.
+     *
+     * L'identifiant de Boucle est verifie : plusieurs Boucles peuvent vivre
+     * dans un meme onglet, et un fil ne se rafraichit que pour la sienne.
+     */
+    #[On('loop-activity-published')]
+    public function onLoopActivityPublished(?string $loopId = null): void
+    {
+        if ($loopId !== null && $loopId !== $this->loop->id) {
+            $this->skipRender();
+        }
+    }
+
     public function render()
     {
+        // **Sans adhesion, rien ne se lit.** `$loadedMessageIds` voyage dans le
+        // snapshot : une personne retiree de la Boucle gardait sa liste, et
+        // `syncNewerMessages()` y ajoutait consciencieusement les messages
+        // postes apres son depart. Recalculer l'adhesion ne suffisait pas — il
+        // fallait que la lecture en depende.
+        if (! $this->isMember) {
+            $this->loadedMessageIds = [];
+        }
+
         $this->syncNewerMessages();
 
         $messages = $this->loop->messages()
@@ -436,6 +522,9 @@ class LoopChat extends Component
         $requestedByNames = $this->requestedByNames($messages);
         $aiRoute = $this->aiRoute();
         $canDeleteMessages = $this->canDeleteDisplayedMessages();
+        // La vue retire le compositeur plutot que d'accepter un message que
+        // sendMessage() refusera : un refus silencieux passe pour une panne.
+        $canContribute = $this->canContribute(auth()->user());
 
         return view('livewire.loop-chat', compact(
             'messages',
@@ -445,11 +534,18 @@ class LoopChat extends Component
             'requestedByNames',
             'aiRoute',
             'canDeleteMessages',
+            'canContribute',
         ));
     }
 
     private function loadInitialMessages(): void
     {
+        if (! $this->isMember) {
+            $this->loadedMessageIds = [];
+
+            return;
+        }
+
         $this->loadedMessageIds = $this->loop->messages()
             ->orderByDesc('created_at')
             ->orderByDesc('id')
@@ -464,6 +560,10 @@ class LoopChat extends Component
 
     private function syncNewerMessages(): void
     {
+        if (! $this->isMember) {
+            return;
+        }
+
         if ($this->loadedMessageIds === []) {
             $this->loadInitialMessages();
 
@@ -593,7 +693,11 @@ class LoopChat extends Component
             ->where('status', 'active')
             ->value('role');
 
-        return in_array($role, ['owner', 'moderator'], true);
+        // Resolved centrally (CP5ter).
+        $user = auth()->user();
+
+        return $user !== null
+            && app(LoopPermissionResolver::class)->can($user, $this->loop, 'chatloop.manage');
     }
 
     private function requestedByNames(Collection $messages): array

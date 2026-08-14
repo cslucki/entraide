@@ -190,18 +190,22 @@ class LoopActivityTrackingTest extends TestCase
         $response->assertDontSee('Inactive Loop');
     }
 
-    public function test_non_member_cannot_see_loop_on_index(): void
+    public function test_non_member_can_discover_loop_on_index(): void
     {
+        // TASK-1075: the catalog now shows every active Loop of the Organization,
+        // member or not — discovery no longer requires membership. Tenant
+        // isolation (cross-org) remains strict, see the test above.
         $response = $this->actingAs($this->nonMember)
             ->get(route('loops.index'));
 
         $response->assertStatus(200);
-        $response->assertDontSee('Active Loop');
-        $response->assertDontSee('Inactive Loop');
+        $response->assertSee('Active Loop');
+        $response->assertSee('Inactive Loop');
     }
 
-    public function test_member_of_one_loop_does_not_see_same_organization_other_loop(): void
+    public function test_member_of_one_loop_also_discovers_same_organization_other_loop(): void
     {
+        // TASK-1075: catalog discovery is Organization-wide, not membership-gated.
         $loopService = new LoopService;
         $anotherLoop = $loopService->createLoop($this->owner, 'Owner Only Loop');
 
@@ -210,7 +214,7 @@ class LoopActivityTrackingTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSee('Active Loop');
-        $response->assertDontSee('Owner Only Loop');
+        $response->assertSee('Owner Only Loop');
     }
 
     // -------------------------------------------------------------------------

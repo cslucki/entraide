@@ -37,8 +37,17 @@
                     <td class="px-4 py-3">
                         <p class="font-medium text-gray-900 dark:text-gray-100">{{ $boucle->name }}</p>
                         <p class="text-xs text-gray-500">{{ $boucle->slug }}</p>
+                        <p class="mt-1 flex flex-wrap items-center gap-x-2 text-[10px] text-gray-400">
+                            <span>{{ $boucle->active_members_count }} membre{{ $boucle->active_members_count !== 1 ? 's' : '' }}</span>
+                            <span>· {{ $boucle->invitations_count }} {{ mb_strtolower(__('loops.invitations_sent_count')) }}@if($boucle->pending_invitations_count) ({{ $boucle->pending_invitations_count }} en attente)@endif</span>
+                            <span class="cursor-help" title="{{ $boucle->cards->where('enabled', true)->map->label()->implode(', ') ?: '—' }}">
+                                · {{ $boucle->cards->where('enabled', true)->count() }} {{ mb_strtolower(__('loops.cards_linked')) }}
+                            </span>
+                        </p>
                     </td>
-                    <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 capitalize">{{ $boucle->type }}</td>
+                    <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
+                        {{ app(\App\Support\Loops\LoopTypeRegistry::class)->label($boucle->type, $organization) }}
+                    </td>
                     <td class="px-4 py-3">
                         @php
                             $sc = $boucle->isActive() ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
@@ -56,7 +65,17 @@
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-500">{{ $boucle->created_at->format('d/m/Y') }}</td>
                     <td class="px-4 py-3">
-                        <form method="POST" action="{{ route('organization.admin.loops.toggle-active', [$organization, $boucle]) }}" class="inline">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <a href="{{ route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $boucle->id]) }}"
+                               class="text-xs font-semibold text-indigo-600 hover:underline">Modifier</a>
+                            {{-- The workspace requires an active membership, with no
+                                 administrator bypass: offered to a non-member it only
+                                 produced a 404. --}}
+                            @can('viewWorkspace', $boucle)
+                                <a href="{{ $boucle->workspaceUrl() }}" class="text-xs text-gray-500 hover:text-indigo-600 hover:underline">Workspace</a>
+                            @endcan
+                        </div>
+                        <form method="POST" action="{{ route('organization.admin.loops.toggle-active', [$organization, $boucle]) }}" class="mt-1 inline">
                             @csrf
                             @method('PATCH')
                             <button type="submit" onclick="return confirm('{{ $boucle->isActive() ? __('navigation.org_admin_confirm_archive') : __('navigation.org_admin_confirm_reactivate') }}')"
@@ -66,38 +85,6 @@
                         </form>
                     </td>
                 </tr>
-                @if($boucle->relationLoaded('activeMembers'))
-                <tr class="bg-gray-50 dark:bg-gray-800/50">
-                    <td colspan="7" class="px-4 py-3">
-                        <div class="flex flex-wrap items-center gap-2">
-                            @foreach($boucle->activeMembers as $member)
-                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
-                                {{ $member->user?->full_name ?? '—' }}
-                                @if($member->role !== 'owner')
-                                <form method="POST" action="{{ route('organization.admin.loops.members.remove', [$organization, $boucle, $member]) }}" class="inline">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" onclick="return confirm('{{ __('navigation.org_admin_confirm_remove_member') }}')" class="text-red-500 hover:text-red-700 ml-1">&times;</button>
-                                </form>
-                                @endif
-                            </span>
-                            @endforeach
-                            <form method="POST" action="{{ route('organization.admin.loops.members.add', [$organization, $boucle]) }}" class="inline-flex items-center gap-1">
-                                @csrf
-                                <select name="user_id" class="text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1 py-0.5">
-                                    <option value="">{{ __('navigation.org_admin_add_member') }}…</option>
-                                    @foreach($organization->users as $user)
-                                    @unless($boucle->activeMembers->contains('user_id', $user->id))
-                                    <option value="{{ $user->id }}">{{ $user->fullName }}</option>
-                                    @endunless
-                                    @endforeach
-                                </select>
-                                <button type="submit" class="px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700">{{ __('navigation.org_admin_add') }}</button>
-                            </form>
-                        </div>
-                    </td>
-                </tr>
-                @endif
                 @empty
                 <tr>
                     <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-400">{{ __('navigation.org_admin_no_loops') }}</td>

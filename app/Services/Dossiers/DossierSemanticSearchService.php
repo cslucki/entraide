@@ -2,7 +2,10 @@
 
 namespace App\Services\Dossiers;
 
+use App\Listeners\RecordSdkEmbeddingsInvocation;
 use App\Models\Dossier;
+use App\Support\Ai\AiCorrelation;
+use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use RuntimeException;
@@ -41,7 +44,22 @@ class DossierSemanticSearchService
             throw new RuntimeException('Dossier semantic search requires PostgreSQL pgvector.');
         }
 
-        $embeddingResult = $this->embeddings->embed([$query]);
+        AiCorrelation::id();
+
+        Context::add(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY, [
+            'organization_id' => $organizationId,
+            'scenario_id' => 'dossier_embeddings_search',
+            'metadata' => [
+                'dossier_id' => $dossierId,
+            ],
+        ]);
+
+        try {
+            $embeddingResult = $this->embeddings->embed([$query]);
+        } finally {
+            Context::forget(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY);
+        }
+
         $embedding = $embeddingResult['embeddings'][0] ?? null;
 
         if (! is_array($embedding)) {

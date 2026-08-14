@@ -104,6 +104,7 @@ class AdminOrganizationController extends Controller
             'is_public' => 'nullable|boolean',
             'is_default' => 'nullable|boolean',
             'loops_enabled' => 'nullable|boolean',
+            'members_can_create_loops' => 'nullable|boolean',
             'subscriptions_enabled' => 'nullable|boolean',
             'loop_mode' => 'nullable|in:mono,multi',
             'primary_loop_id' => [
@@ -119,6 +120,7 @@ class AdminOrganizationController extends Controller
             'header_javascript' => 'nullable|string',
             'blog_naming' => 'nullable|in:b2b,b2c',
             'transactions_naming' => 'nullable|in:b2b,b2c',
+            'loops_naming' => 'nullable|in:b2b,b2c',
             'feed_post_publish_mode' => 'nullable|in:admin,members',
             'theme_id' => 'nullable|exists:themes,id',
             'locale' => 'nullable|in:fr,en',
@@ -145,6 +147,7 @@ class AdminOrganizationController extends Controller
 
         $data['is_public'] = isset($data['is_public']);
         $data['loops_enabled'] = ($data['loops_enabled'] ?? '0') === '1';
+        $data['members_can_create_loops'] = ($data['members_can_create_loops'] ?? '0') === '1';
         $data['subscriptions_enabled'] = ($data['subscriptions_enabled'] ?? '0') === '1';
         $data['loop_mode'] = $data['loop_mode'] ?? 'multi';
         $data['primary_loop_id'] = ($data['primary_loop_id'] ?? null) ?: null;
@@ -156,6 +159,7 @@ class AdminOrganizationController extends Controller
         $data['is_default'] = ($data['is_default'] ?? '0') === '1';
         $data['blog_naming'] = $data['blog_naming'] ?? $organization->blog_naming ?? 'b2b';
         $data['transactions_naming'] = $data['transactions_naming'] ?? $organization->transactions_naming ?? 'b2c';
+        $data['loops_naming'] = $data['loops_naming'] ?? $organization->loops_naming ?? 'b2c';
         $data['feed_post_publish_mode'] = $data['feed_post_publish_mode'] ?? $organization->feed_post_publish_mode ?? 'admin';
         $data['locale'] = $data['locale'] ?? $organization->locale ?? 'fr';
         $data['show_country'] = ($data['show_country'] ?? '1') === '1';

@@ -7,11 +7,13 @@ use App\Models\BlogPostInvitation;
 use App\Models\EmailLog;
 use App\Models\SystemEmailTemplate;
 use App\Models\User;
+use App\Services\BlogInvitationService;
 use App\Services\EmailerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Route;
 use Throwable;
 
 class BlogInvitationController extends Controller
@@ -202,34 +204,88 @@ class BlogInvitationController extends Controller
         ]);
     }
 
+    /** Accept — POST only, authentication required. */
     public function accept(Request $request, string $token)
     {
-        $invitation = BlogPostInvitation::valid()->where('token', $token)->firstOrFail();
-
         $user = $request->user();
 
         if (! $user) {
-            session(['invitation_token' => $token]);
-
-            return redirect()->route('login', array_filter([
-                'ref' => $invitation->sender?->referral_code,
-            ]));
+            return $this->prepare($request, $token);
         }
 
-        abort_if($user->is_deactivated, 403);
+        return $this->redirectForOutcome(
+            app(BlogInvitationService::class)->accept($token, $user),
+            $token,
+        );
+    }
 
-        $invitation->accept($user);
+    /**
+     * Park the token and send the visitor to log in or register.
+     *
+     * A POST rather than a link: it writes to the session, and the acceptance
+     * itself is picked up inside the login/registration POST — never on a GET.
+     */
+    public function prepare(Request $request, string $token)
+    {
+        $invitation = BlogPostInvitation::where('token', $token)->with('organization')->firstOrFail();
 
-        $post = $invitation->blogPost;
+        session([BlogInvitationService::SESSION_KEY => $invitation->token]);
 
-        if (! $post->coAuthors()->where('user_id', $user->id)->exists()) {
-            $post->coAuthors()->attach($user->id, [
-                'role' => 'coauthor',
-                'added_by' => $invitation->sender_id,
-            ]);
+        $target = $request->input('intent') === 'register' ? 'register' : 'login';
+        $organization = $invitation->organization;
+
+        // Organization-scoped when possible: an external invitee must land in
+        // the tenant the article belongs to, not on the bare route.
+        $params = array_filter([
+            'ref' => $invitation->sender?->referral_code,
+            // Comfort only — the server re-checks the address after
+            // authentication and that check is the sole guarantee.
+            'email' => $invitation->recipient_email,
+        ]);
+
+        if ($organization && Route::has("organization.{$target}")) {
+            return redirect()->route("organization.{$target}", array_merge(
+                ['organization' => $organization->slug],
+                $params,
+            ));
         }
 
-        return redirect()->route('blog.edit', ['post' => $post->slug]);
+        return redirect()->route($target, $params);
+    }
+
+    /**
+     * Shared landing after an accept attempt, wherever it was triggered from.
+     *
+     * @param  array{result: string, invitation: ?BlogPostInvitation}  $outcome
+     */
+    public function redirectForOutcome(array $outcome, ?string $token = null)
+    {
+        $invitation = $outcome['invitation'];
+        $post = $invitation?->blogPost;
+
+        $success = in_array($outcome['result'], [
+            BlogInvitationService::RESULT_ACCEPTED,
+            BlogInvitationService::RESULT_ALREADY_ACCEPTED_BY_SAME_USER,
+        ], true);
+
+        if ($success && $post) {
+            return redirect()->route('blog.edit', ['post' => $post->slug]);
+        }
+
+        $message = match ($outcome['result']) {
+            BlogInvitationService::RESULT_EMAIL_MISMATCH => __('blog-invitation.accept_email_mismatch'),
+            BlogInvitationService::RESULT_EXPIRED => __('blog-invitation.accept_expired'),
+            BlogInvitationService::RESULT_TAKEN_BY_ANOTHER_USER => __('blog-invitation.accept_taken'),
+            BlogInvitationService::RESULT_USER_DEACTIVATED => __('blog-invitation.accept_user_deactivated'),
+            BlogInvitationService::RESULT_POST_UNAVAILABLE => __('blog-invitation.accept_post_unavailable'),
+            default => __('blog-invitation.accept_invalid'),
+        };
+
+        if ($token) {
+            return redirect()->route('blog.invite.show', $token)->with('error', $message);
+        }
+
+        return redirect()->route('home')->with('error', $message);
     }
 
     public function orgIndex(string $org, BlogPost $post): JsonResponse

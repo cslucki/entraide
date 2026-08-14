@@ -8,6 +8,7 @@ use App\Models\BugReport;
 use App\Models\Category;
 use App\Models\LoginLog;
 use App\Models\Loop;
+use App\Models\LoopInvitation;
 use App\Models\LoopMember;
 use App\Models\Message;
 use App\Models\Organization;
@@ -20,10 +21,18 @@ use App\Models\Theme;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
+use App\Services\LoopGovernanceService;
+use App\Services\Loops\LoopLifecycleService;
+use App\Services\Loops\LoopPresetConfigurator;
+use App\Services\Loops\PresetException;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\LoopService;
 use App\Services\TranslationOverrideService;
 use App\Services\TranslationService;
 use App\Services\UserDataLifecycleRegistry;
+use App\Support\Loops\LoopPermissionResolver;
+use App\Support\Loops\LoopRoleRegistry;
+use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -133,7 +142,16 @@ class OrgAdminController extends Controller
     public function loops(Request $request, Organization $organization): View
     {
         $orgId = $organization->id;
-        $query = Loop::where('organization_id', $orgId)->with(['creator', 'activeMembers.user']);
+        // A listing, nothing more (TASK-1079): editing and member management moved
+        // to a dedicated page, so there is no reason to hydrate every member of
+        // every Loop here. Counters are aggregated in SQL.
+        $query = Loop::where('organization_id', $orgId)
+            ->with(['creator', 'owner.user', 'owners.user', 'cards'])
+            ->withCount([
+                'activeMembers',
+                'invitations',
+                'invitations as pending_invitations_count' => fn ($q) => $q->where('status', LoopInvitation::STATUS_PENDING),
+            ]);
 
         if ($request->filled('search')) {
             $query->where('name', 'like', '%'.$request->search.'%');
@@ -152,6 +170,7 @@ class OrgAdminController extends Controller
         return view('admin.org.loops', [
             'organization' => $organization,
             'loops' => $loops,
+            'loopTypes' => app(LoopTypeRegistry::class)->all(),
         ]);
     }
 
@@ -200,15 +219,299 @@ class OrgAdminController extends Controller
         ]);
     }
 
-    public function toggleLoopActive(Organization $organization, Loop $loop): RedirectResponse
+    /**
+     * Edit a Loop from the Organization admin: name, description, type.
+     *
+     * Strictly tenant-scoped, and deliberately narrow — the full editing
+     * surface stays in LoopController rather than being duplicated here.
+     */
+    /**
+     * Dedicated edit page for one Loop.
+     *
+     * Everything that acts on a Loop lives here rather than being crammed into
+     * the listing table: identity, type and its card composition, members, and
+     * the invitation figures.
+     */
+    public function editLoop(Organization $organization, Loop $loop): View
     {
         abort_if($loop->organization_id !== $organization->id, 404);
 
-        $loop->update([
-            'status' => $loop->isActive() ? 'archived' : 'active',
+        $registry = app(LoopTypeRegistry::class);
+
+        $loop->load(['creator', 'owner.user', 'activeMembers.user', 'cards']);
+        $loop->loadCount([
+            'activeMembers',
+            'invitations',
+            'invitations as pending_invitations_count' => fn ($q) => $q->where('status', LoopInvitation::STATUS_PENDING),
         ]);
 
-        $action = $loop->isActive() ? 'reactivated' : 'archived';
+        $memberIds = $loop->activeMembers->pluck('user_id');
+
+        return view('admin.org.loop-edit', [
+            'organization' => $organization,
+            'loop' => $loop,
+            // `selectableFor` et non `all()` : l'ecran offrait des types que le
+            // serveur refuse desormais, donc un cul-de-sac. Il garde celui que
+            // la Boucle porte, meme ferme — l'ecran plateforme fait deja ainsi.
+            //
+            // **Dans la portee de l'Organization** : sans elle, un type qu'elle
+            // a cree n'etait pas propose chez elle, et un type qu'elle a renomme
+            // s'affichait sous son nom commun.
+            'loopTypes' => $registry->selectableFor($loop->type, $organization),
+            'currentType' => $registry->resolve($loop->type),
+            // What the type prescribes, so the admin can tell the baseline apart
+            // from what this Loop added on its own. **Dans la portee de
+            // l'Organization** : c'est son socle surcharge qui fait baseline
+            // ici, pas celui de la Plateforme — la dette laissee par TASK-1120.
+            'presetCards' => $registry->cardsFor($loop->type, $organization),
+            // La capacite reelle **de la route visee** : configureLoop() exige
+            // l'appartenance a l'Organization (garde tenant stricte), la ou ce
+            // present ecran laisse passer le SuperAdmin. Sans ce troisieme
+            // terme, un SuperAdmin d'une autre Organization voyait un bouton
+            // qui menait a une 404 — constate en recette. Lui a son ecran
+            // plateforme ; le bouton scope est pour l'admin d'Organization.
+            'canConfigureCards' => ! $loop->isArchived()
+                && auth()->user()?->organization_id === $organization->id
+                && app(\App\Services\Loops\LoopPresetConfigurator::class)->canConfigure(auth()->user(), $loop),
+            'composition' => app(LoopCardCompositionService::class)->compositionFor($loop),
+            'candidates' => User::assignable()
+                ->where('organization_id', $organization->id)
+                ->whereNotIn('id', $memberIds)
+                ->orderBy('name')
+                ->get(['id', 'name', 'first_name', 'email']),
+        ]);
+    }
+
+    /**
+     * Turn one card on or off, within this Organization only.
+     *
+     * The tenant check comes first and is not negotiable: a forged Loop id from
+     * another Organization is a 404 before anything else is read. The same
+     * service as the platform admin does the writing — the business rules live
+     * in one place, not in two controllers.
+     */
+    public function updateLoopCards(Request $request, Organization $organization, Loop $loop): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+        abort_unless(app(LoopPermissionResolver::class)->can($request->user(), $loop, 'loops.manage_cards'), 403);
+
+        $data = $request->validate([
+            'card_key' => 'required|string',
+            'enabled' => 'required|boolean',
+        ]);
+
+        $service = app(LoopCardCompositionService::class);
+
+        try {
+            $data['enabled']
+                ? $service->enable($loop, $data['card_key'])
+                : $service->disable($loop, $data['card_key']);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __($data['enabled'] ? 'loops.cards_enabled' : 'loops.cards_disabled'));
+    }
+
+    public function updateLoop(Request $request, Organization $organization, Loop $loop): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+
+        $registry = app(LoopTypeRegistry::class);
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:5000'],
+            'type' => ['required', 'string'],
+        ]);
+
+        if (! $registry->exists($data['type'])) {
+            return back()->with('error', __('loops.type_invalid'));
+        }
+
+        // Meme regle que les deux autres chemins, lue au registre : un type
+        // retire des choix ne s'assigne pas, mais garder le sien reste permis.
+        if (! $registry->isAssignableTo($data['type'], $loop->type)) {
+            return back()->with('error', __('loops.type_unavailable'));
+        }
+
+        $loop->update([
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+            'type' => $data['type'],
+        ]);
+
+        $added = $registry->applyPreset($loop->fresh());
+
+        return redirect()
+            ->route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $loop->id])
+            ->with('success', $added === []
+            ? __('loops.type_changed_no_card')
+            : __('loops.type_changed', [
+                'cards' => collect($added)->map(fn ($k) => $registry->cardLabel($k))->implode(', '),
+            ]));
+    }
+
+    /**
+     * Change a member's role from the Organization admin.
+     *
+     * Tenant-scoped twice over: the Loop must belong to this Organization, and
+     * the membership must belong to that Loop. Same governance service as the
+     * global screen — the business rule is not duplicated.
+     */
+    public function updateLoopMemberRole(Request $request, Organization $organization, Loop $loop, LoopMember $member): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+        abort_if($member->loop_id !== $loop->id, 404);
+
+        $result = app(LoopGovernanceService::class)->changeRole($member, (string) $request->input('role'));
+
+        return redirect()
+            ->route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $loop->id])
+            ->with(
+                $result === LoopGovernanceService::RESULT_OK ? 'success' : 'error',
+                match ($result) {
+                    LoopGovernanceService::RESULT_OK => __('loops.governance_changed'),
+                    LoopGovernanceService::RESULT_LAST_OWNER => __('loops.governance_refused_last_owner'),
+                    default => __('loops.governance_refused'),
+                },
+            );
+    }
+
+    /**
+     * Archiver ou reactiver une Boucle depuis l'administration d'Organization.
+     *
+     * La mutation elle-meme a quitte ce controleur : elle vit dans
+     * LoopLifecycleService, avec les trois autres ecrans qui la faisaient chacun
+     * a leur maniere. Celui-ci ne verifiait aucune permission — il la demande
+     * desormais comme tout le monde.
+     */
+    /**
+     * Le configurateur, vu depuis l'Organization.
+     *
+     * Meme service, meme vue, memes regles que l'ecran plateforme : seules les
+     * routes changent. Dupliquer l'ecran aurait garanti qu'ils divergent.
+     */
+    public function configureLoop(Request $request, Organization $organization, Loop $loop): View
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+        // Second verrou : le middleware du prefixe admin refuse deja quelqu'un
+        // d'une autre Organization. On ne s'en remet pas a lui seul — la
+        // strictesse tenant ne se deduit pas d'une couche qu'on ne controle pas
+        // depuis ici.
+        abort_if($request->user()?->organization_id !== $organization->id, 404);
+
+        $configurator = app(LoopPresetConfigurator::class);
+
+        abort_unless($configurator->canConfigure($request->user(), $loop), 403);
+
+        return view('admin.loops.configure', [
+            'loop' => $loop,
+            'composition' => $configurator->describe($loop),
+            // Dans la portee de l'Organization, comme le chemin plateforme.
+            'types' => app(LoopTypeRegistry::class)->selectableFor($loop->type, $organization),
+            'organization' => $organization,
+            'backUrl' => route('organization.admin.loops.edit', [
+                'organization' => $organization->slug, 'loop' => $loop->id,
+            ]),
+            'scopedRoutes' => [
+                'compose' => route('organization.admin.loops.compose', [
+                    'organization' => $organization->slug, 'loop' => $loop->id,
+                ]),
+                'preset' => route('organization.admin.loops.preset.apply', [
+                    'organization' => $organization->slug, 'loop' => $loop->id,
+                ]),
+            ],
+        ]);
+    }
+
+    public function composeLoopCards(Request $request, Organization $organization, Loop $loop): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+
+        $data = $request->validate([
+            'action' => 'required|in:enable,disable,replace,restore,promote,demote',
+            'card_key' => 'nullable|string',
+            'incoming_key' => 'nullable|string',
+        ]);
+
+        $configurator = app(LoopPresetConfigurator::class);
+        $user = $request->user();
+
+        try {
+            $message = match ($data['action']) {
+                'enable' => tap(__('loops.preset_enabled'), fn () => $configurator->enable($user, $loop, $data['card_key'] ?? '')),
+                'disable' => tap(__('loops.preset_disabled'), fn () => $configurator->disable($user, $loop, $data['card_key'] ?? '')),
+                'replace' => tap(__('loops.preset_replaced'), fn () => $configurator->replace($user, $loop, $data['card_key'] ?? '', $data['incoming_key'] ?? '')),
+                'promote' => tap(__('loops.tools_promoted'), fn () => $configurator->promote($user, $loop, $data['card_key'] ?? '')),
+                'demote' => tap(__('loops.tools_demoted'), fn () => $configurator->demote($user, $loop, $data['card_key'] ?? '')),
+                default => __('loops.preset_restored', ['count' => count($configurator->restorePreset($user, $loop))]),
+            };
+        } catch (PresetException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', $message);
+    }
+
+    public function applyLoopPreset(Request $request, Organization $organization, Loop $loop): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+
+        $data = $request->validate([
+            'type' => 'required|string',
+            'deactivate_absent' => 'nullable|boolean',
+        ]);
+
+        try {
+            app(LoopPresetConfigurator::class)->applyPreset(
+                $request->user(), $loop, $data['type'], (bool) ($data['deactivate_absent'] ?? false),
+            );
+        } catch (PresetException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __('loops.preset_applied', [
+            'type' => app(LoopTypeRegistry::class)->label($data['type'], $loop->organization),
+        ]));
+    }
+
+    /**
+     * La politique de composition de l'Organization.
+     *
+     * Deux valeurs, et c'est tout : verrouille, ou proprietaires autorises.
+     * Une delegation plus fine demanderait sa propre table, et personne ne l'a
+     * demandee.
+     */
+    public function updateCompositionPolicy(Request $request, Organization $organization): RedirectResponse
+    {
+        abort_unless($request->user()?->is_admin || $organization->admin_id === $request->user()?->id, 403);
+
+        $data = $request->validate([
+            'policy' => ['required', Rule::in(Organization::COMPOSITION_POLICIES)],
+        ]);
+
+        $organization->update(['loop_composition_policy' => $data['policy']]);
+
+        return back()->with('success', __('loops.preset_policy_saved'));
+    }
+
+    public function toggleLoopActive(Request $request, Organization $organization, Loop $loop): RedirectResponse
+    {
+        abort_if($loop->organization_id !== $organization->id, 404);
+
+        $lifecycle = app(LoopLifecycleService::class);
+        $wasActive = $loop->isActive();
+
+        $result = $wasActive
+            ? $lifecycle->archive($request->user(), $loop)
+            : $lifecycle->reactivate($request->user(), $loop);
+
+        if ($result === LoopLifecycleService::RESULT_DENIED) {
+            abort(403);
+        }
+
+        $action = $wasActive ? 'archived' : 'reactivated';
 
         return back()->with('success', __("navigation.org_admin_loop_{$action}"));
     }
@@ -224,13 +527,16 @@ class OrgAdminController extends Controller
                     ->where('organization_id', $organization->id)
                     ->whereNull('banned_at'),
             ],
+            'role' => ['nullable', Rule::in(LoopRoleRegistry::CANONICAL)],
         ]);
 
         $user = User::assignable()->findOrFail($data['user_id']);
+        // Checked again on the resolved model, not only through the validation
+        // rule: tenant strictness is not something to infer from a query scope.
         abort_if($user->organization_id !== $organization->id, 422, __('loops.not_member'));
 
         try {
-            app(LoopService::class)->addMemberByUserId($loop, $data['user_id']);
+            app(LoopService::class)->addMemberByUserId($loop, $data['user_id'], $data['role'] ?? LoopRoleRegistry::MEMBER);
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
