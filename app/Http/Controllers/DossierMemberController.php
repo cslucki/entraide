@@ -22,7 +22,11 @@ class DossierMemberController extends Controller
         // viser la racine qui gouverne, quel que soit l'appelant (vue,
         // API directe, futur client). Deleguer ici, dans la primitive,
         // evite que ce soit a chaque appelant de s'en souvenir.
-        $dossier = $dossier->governingDossier();
+        // Le partage vit sur le Dossier DESIGNE, plus sur son governing
+        // root : remonter ici posait le membre sur « Mes documents » et
+        // ouvrait tout l'espace personnel (TASK-1136). La gouvernance
+        // (proprietaire, regime) continue de se demander a la racine — c'est
+        // `isOwner()` qui s'en charge, et il n'a pas change.
 
         // Dossier racine : les personnes qui y accedent sont les membres actifs
         // de la Boucle — dossier_members est vide par construction, et le lire
@@ -71,7 +75,11 @@ class DossierMemberController extends Controller
         $organization = $this->currentOrganizationOrFail();
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageMembers', $dossier);
-        $dossier = $dossier->governingDossier();
+        // Le partage vit sur le Dossier DESIGNE, plus sur son governing
+        // root : remonter ici posait le membre sur « Mes documents » et
+        // ouvrait tout l'espace personnel (TASK-1136). La gouvernance
+        // (proprietaire, regime) continue de se demander a la racine — c'est
+        // `isOwner()` qui s'en charge, et il n'a pas change.
 
         $data = $request->validate([
             'user_id' => [
@@ -126,7 +134,11 @@ class DossierMemberController extends Controller
         $dossier = $this->resolveDossier($request->route('dossier'));
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageMembers', $dossier);
-        $dossier = $dossier->governingDossier();
+        // Le partage vit sur le Dossier DESIGNE, plus sur son governing
+        // root : remonter ici posait le membre sur « Mes documents » et
+        // ouvrait tout l'espace personnel (TASK-1136). La gouvernance
+        // (proprietaire, regime) continue de se demander a la racine — c'est
+        // `isOwner()` qui s'en charge, et il n'a pas change.
 
         $data = $request->validate([
             'role' => 'required|string|in:reader,editor',
@@ -153,7 +165,11 @@ class DossierMemberController extends Controller
         $dossier = $this->resolveDossier($request->route('dossier'));
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageMembers', $dossier);
-        $dossier = $dossier->governingDossier();
+        // Le partage vit sur le Dossier DESIGNE, plus sur son governing
+        // root : remonter ici posait le membre sur « Mes documents » et
+        // ouvrait tout l'espace personnel (TASK-1136). La gouvernance
+        // (proprietaire, regime) continue de se demander a la racine — c'est
+        // `isOwner()` qui s'en charge, et il n'a pas change.
 
         $member = $dossier->dossierMembers()->where('user_id', $request->route('member'))->first();
         if (! $member) {
@@ -175,7 +191,11 @@ class DossierMemberController extends Controller
         $organization = $this->currentOrganizationOrFail();
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('manageMembers', $dossier);
-        $dossier = $dossier->governingDossier();
+        // Le partage vit sur le Dossier DESIGNE, plus sur son governing
+        // root : remonter ici posait le membre sur « Mes documents » et
+        // ouvrait tout l'espace personnel (TASK-1136). La gouvernance
+        // (proprietaire, regime) continue de se demander a la racine — c'est
+        // `isOwner()` qui s'en charge, et il n'a pas change.
 
         $query = preg_replace('/\s+/', ' ', trim($request->input('q', '')));
         $ownerId = $dossier->owner_id;

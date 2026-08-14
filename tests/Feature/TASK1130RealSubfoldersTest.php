@@ -232,7 +232,7 @@ class TASK1130RealSubfoldersTest extends TestCase
         );
     }
 
-    public function test_the_share_panel_of_a_private_child_targets_the_governing_root(): void
+    public function test_the_share_panel_of_a_private_child_targets_that_child(): void
     {
         $racinePrivee = Dossier::create([
             'organization_id' => $this->org->id,
@@ -245,35 +245,37 @@ class TASK1130RealSubfoldersTest extends TestCase
             'name' => 'Brouillons',
         ]);
 
-        // Le composant Alpine du panneau doit recevoir l'id de la RACINE,
-        // jamais celui de l'enfant : sans cela, ajouter un membre depuis un
-        // sous-dossier ecrit une ligne qu'aucune policy ne lira jamais
-        // (isOwner/isMember/isEditor/isReader delegue a governingDossier()).
+        // Ce test exigeait l'id de la RACINE jusqu'a TASK-1136. C'etait la
+        // cause de la fuite : le partage atterrissait sur le porteur de
+        // gouvernance au lieu du dossier designe. Le panneau vise desormais
+        // l'ENFANT ; la policy lit le partage sur lui puis sur ses ancetres,
+        // et une racine « Mes documents » n'est jamais une ancre.
         $html = $this->actingAs($this->owner)
             ->get(route('organization.dossiers.show', ['organization' => $this->org->slug, 'dossier' => $enfant->getKey()]))
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString($racinePrivee->getKey(), $html);
+        $this->assertStringContainsString($enfant->getKey(), $html);
 
         // Preuve par le geste reel : ajouter un membre depuis la route de
-        // l'ENFANT (celle que le panneau appelle) doit atterrir sur la racine.
+        // l'ENFANT atterrit sur l'ENFANT.
         $this->actingAs($this->owner)->postJson(
             route('organization.dossiers.members.store', ['organization' => $this->org->slug, 'dossier' => $enfant->getKey()]),
             ['user_id' => $this->membre->id, 'role' => DossierMember::ROLE_READER],
         )->assertOk();
 
         $this->assertDatabaseHas('dossier_members', [
-            'dossier_id' => $racinePrivee->getKey(),
+            'dossier_id' => $enfant->getKey(),
             'user_id' => $this->membre->id,
         ]);
         $this->assertDatabaseMissing('dossier_members', [
-            'dossier_id' => $enfant->getKey(),
+            'dossier_id' => $racinePrivee->getKey(),
         ]);
 
-        // Et la policy le confirme : le membre ajoute via l'enfant peut bien
-        // lire l'enfant, parce que la ligne vit au bon endroit.
+        // La policy le confirme : l'invite lit l'enfant partage...
         $this->assertTrue($this->membre->fresh()->can('view', $enfant));
+        // ...et PAS la racine, qui ne lui a jamais ete confiee.
+        $this->assertFalse($this->membre->fresh()->can('view', $racinePrivee->fresh()));
     }
 
     // ── Garde anti-cycle et compatibilite ────────────────────────────────────
