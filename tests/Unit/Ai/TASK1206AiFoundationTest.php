@@ -12,27 +12,50 @@ use PHPUnit\Framework\TestCase;
 
 class TASK1206AiFoundationTest extends TestCase
 {
+    private const ORGANIZATION_A = '11111111-1111-4111-8111-111111111111';
+
+    private const ORGANIZATION_B = '22222222-2222-4222-8222-222222222222';
+
+    private const USER = '33333333-3333-4333-8333-333333333333';
+
+    private const LOOP = '44444444-4444-4444-8444-444444444444';
+
     public function test_context_requires_an_organization(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
-        $this->context(organizationId: 0);
+        $this->context(organizationId: '');
+    }
+
+    /**
+     * TASK-1207 : `Organization`, `User` et `Loop` utilisent tous `HasUuids`.
+     * Un identifiant qui n'est pas un UUID ne vient d'aucun de ces modeles.
+     */
+    public function test_context_refuses_a_non_uuid_organization(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        $this->context(organizationId: '17');
     }
 
     public function test_context_keeps_organization_user_and_loop_as_distinct_ids(): void
     {
-        $context = $this->context(organizationId: 17, userId: 29, loopId: 41);
+        $context = $this->context(
+            organizationId: self::ORGANIZATION_A,
+            userId: self::USER,
+            loopId: self::LOOP,
+        );
 
-        $this->assertSame(17, $context->organizationId);
-        $this->assertSame(29, $context->userId);
-        $this->assertSame(41, $context->loopId);
+        $this->assertSame(self::ORGANIZATION_A, $context->organizationId);
+        $this->assertSame(self::USER, $context->userId);
+        $this->assertSame(self::LOOP, $context->loopId);
         $this->assertNotSame($context->organizationId, $context->loopId);
     }
 
     public function test_two_organizations_remain_distinct_contexts(): void
     {
-        $organizationA = $this->context(organizationId: 101, loopId: 500);
-        $organizationB = $this->context(organizationId: 202, loopId: 500);
+        $organizationA = $this->context(organizationId: self::ORGANIZATION_A, loopId: self::LOOP);
+        $organizationB = $this->context(organizationId: self::ORGANIZATION_B, loopId: self::LOOP);
 
         $this->assertNotSame($organizationA->organizationId, $organizationB->organizationId);
         $this->assertSame($organizationA->loopId, $organizationB->loopId);
@@ -113,9 +136,9 @@ class TASK1206AiFoundationTest extends TestCase
     }
 
     private function context(
-        int $organizationId = 1,
-        ?int $userId = 2,
-        ?int $loopId = 3,
+        string $organizationId = self::ORGANIZATION_A,
+        ?string $userId = self::USER,
+        ?string $loopId = self::LOOP,
     ): ContexteIa {
         return new ContexteIa(
             organizationId: $organizationId,
