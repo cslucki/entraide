@@ -133,6 +133,64 @@ repli de compatibilité legacy, pas la cible. Il rend le français prioritaire
 sur le prompt neutre. À reprendre lors des migrations, sans modifier
 `AdminAiPrompt`.
 
+## Le Context Builder (P3)
+
+`App\Ai\Context\ContextBuilder` repond a une seule question :
+
+> « De quelles informations autorisees cette capability a-t-elle besoin
+> maintenant, pour cet utilisateur, dans cette Organization ? »
+
+    ContextBuilder::build(ContexteIa, CapabilityDefinition): ContexteBorne
+
+`ContexteBorne` porte `text`, `provenance`, `charBudget`, `sourcesUsed` et
+`sourcesDenied`.
+
+### L'autorite, c'est la capability
+
+`CapabilityDefinition::$allowedSources` decide. Une source non declaree n'est
+pas filtree apres coup : **elle n'est jamais interrogee**. C'est ce qui empeche
+une capability de gagner l'acces a des donnees simplement parce qu'une source a
+ete ajoutee au builder.
+
+Une source declaree mais inaccessible apparait dans `sourcesDenied` avec une
+raison technique bornee — jamais un extrait de la ressource refusee, jamais un
+message confirmant qu'elle existe dans une autre Organization. Un contexte
+ampute doit se voir ; il ne doit rien laisser fuir.
+
+### Sources disponibles
+
+| Source | Contenu | Portee |
+|---|---|---|
+| `loop.messages` | les N derniers messages non supprimes, ordre chronologique, prefixes de leur auteur, encadres comme **contenu non fiable** | Boucle du contexte, dont l'Organization est verifiee dans la source elle-meme |
+| `user.loops` | identifiant, nom, type et `tagline` des Boucles **dont l'utilisateur est membre actif** | Organization du contexte, `status = active` |
+
+`user.loops` n'est declaree par aucune capability aujourd'hui : elle prepare la
+suggestion de Boucle.
+
+Son perimetre est **volontairement plus etroit** que le catalogue de
+`LoopController::getAccessibleLoopsQuery()`, qui expose toutes les Boucles
+actives de l'Organization pour permettre la decouverte. Un humain qui parcourt
+un catalogue et une IA qui propose une destination n'ont pas le meme perimetre
+legitime : l'IA ne propose que ce dont l'utilisateur est deja membre.
+
+### Budget
+
+`CapabilityDefinition::$maxOutput` borne ce que le modele **produit** ;
+`$contextCharBudget` borne ce qu'on lui **donne**. Deux limites distinctes,
+deux champs distincts. Le budget s'applique apres selection : mieux vaut trois
+sources completes que dix tronquees.
+
+Aucun appel LLM, aucune approximation de tokens par service externe : la
+selection est deterministe et locale, donc reproductible en test.
+
+### Ce qui n'est PAS encore supporte
+
+Une seule capability le consomme (`loop_summary`), et deux sources existent.
+Ni `dossier.chunks` (le retrieval semantique reste hors du builder), ni les
+articles, profils, transactions, evenements, decisions, ni l'historique
+`ai_interactions` comme contexte. La provenance vit en memoire dans
+`ContexteBorne` et n'est pas persistee.
+
 ## L'API texte du Laravel AI SDK (v0.7.2)
 
 Vérifiée par lecture directe de `vendor/laravel/ai/`, pas depuis la
