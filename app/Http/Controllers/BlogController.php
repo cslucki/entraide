@@ -294,7 +294,15 @@ class BlogController extends Controller implements HasMiddleware
                     'slug' => $post->slug,
                     'title' => $post->title,
                 ],
-                'redirect_url' => "/org/{$org}/blog/{$post->slug}/edit",
+                // La route nommee, jamais une URL fabriquee : l'edition vit
+                // sur `/blog/rediger/{slug}/modifier`, et cette chaine-la
+                // envoyait sur un 404. Meme faute que celle corrigee dans
+                // `DossierArticleController` (TASK-1130) — c'etait la derniere
+                // occurrence du depot.
+                'redirect_url' => route('organization.blog.edit', [
+                    'organization' => $org,
+                    'post' => $post->slug,
+                ]),
             ], 201);
         }
 
