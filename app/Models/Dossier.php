@@ -199,6 +199,55 @@ class Dossier extends Model
     }
 
     /**
+     * Les Dossiers ou un `dossier_members` donne acces a CELUI-CI.
+     *
+     * ## Pourquoi cette methode existe, separee de `governingDossier()`
+     *
+     * La gouvernance et le partage sont deux questions differentes, et les
+     * confondre a produit une fuite : `isMember()` remontait au governing
+     * root pour y lire les membres, si bien que partager un sous-dossier de
+     * « Mes documents » ecrivait la ligne sur la RACINE — donc ouvrait tout
+     * l'espace personnel a l'invite (TASK-1136).
+     *
+     * `governingDossier()` repond a « qui possede, quel est le regime » et ne
+     * change pas. Cette methode-ci repond a « ou peut vivre un partage qui me
+     * concerne » : moi-meme, puis chacun de mes ancetres — un descendant
+     * herite du partage de ses ancetres, ce qui est le comportement attendu
+     * quand on partage un dossier avec son contenu.
+     *
+     * ## La racine personnelle n'est jamais un point d'ancrage
+     *
+     * « Mes documents » contient tout ce qu'une personne possede, y compris
+     * ce qu'elle n'y a pas encore mis. Un partage pose la n'aurait aucune
+     * portee comprehensible : il est refuse a l'ecriture (`manageMembers`) et
+     * ignore a la lecture ici. Les deux, parce qu'une garde unique se contourne
+     * des qu'un chemin d'ecriture est oublie.
+     *
+     * @return array<int, string> identifiants, du plus proche au plus lointain
+     */
+    public function sharingAnchorIds(): array
+    {
+        $ancres = [];
+        $current = $this;
+        $depth = 0;
+
+        while ($current !== null && $depth <= self::MAX_DEPTH) {
+            if (! $current->isPersonalDocumentsRoot()) {
+                $ancres[] = $current->getKey();
+            }
+
+            if ($current->parent_id === null) {
+                break;
+            }
+
+            $current = $current->relationLoaded('parent') ? $current->parent : $current->parent()->first();
+            $depth++;
+        }
+
+        return $ancres;
+    }
+
+    /**
      * Refuse a parent that would corrupt the tree.
      *
      * Three rules, all of them checked before a single row is written:
