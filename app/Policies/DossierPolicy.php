@@ -26,12 +26,10 @@ class DossierPolicy
      */
     public function view(User $user, Dossier $dossier): bool
     {
-        // TASK-1130 : un enfant ne porte ni owner_id ni loop_id — sa
-        // gouvernance se demande a la racine qui le porte. Sur une racine,
-        // governingDossier() rend $dossier lui-meme : rien ne change pour
-        // l'existant.
-        $dossier = $dossier->governingDossier();
-
+        // Le partage se demande au Dossier LUI-MEME, avant toute remontee :
+        // ses points d'ancrage sont lui et ses ancetres, et ecraser
+        // `$dossier` par sa racine ferait perdre cette information
+        // (TASK-1136). `isOwner()` remonte de son cote, il n'en a pas besoin.
         if ($this->isOwner($user, $dossier)) {
             return true;
         }
@@ -40,6 +38,12 @@ class DossierPolicy
         if ($this->isMember($user, $dossier)) {
             return true;
         }
+
+        // TASK-1130 : pour tout le reste — regime, Boucle, visibilite — un
+        // enfant ne porte ni owner_id ni loop_id : sa gouvernance se demande
+        // a la racine qui le porte. Sur une racine, governingDossier() rend
+        // $dossier lui-meme : rien ne change pour l'existant.
+        $dossier = $dossier->governingDossier();
 
         // Tenant first: nothing below may cross an Organization boundary.
         $organization = currentOrganization();
@@ -265,47 +269,48 @@ class DossierPolicy
             && $dossier->owner_id === $user->id;
     }
 
-    public function isMember(User $user, Dossier $dossier): bool
+    /**
+     * Y a-t-il un partage qui concerne CE Dossier ?
+     *
+     * On interroge la chaine des points d'ancrage — le Dossier lui-meme, puis
+     * ses ancetres — et non le governing root. La difference n'est pas
+     * theorique : lire les membres sur la racine faisait qu'un partage pose
+     * sur un sous-dossier de « Mes documents » ouvrait l'espace personnel
+     * entier (TASK-1136). La racine personnelle est exclue des ancres.
+     */
+    private function partageActif(User $user, Dossier $dossier, ?string $role = null): bool
     {
-        $dossier = $dossier->governingDossier();
         $organization = currentOrganization();
 
         if ($organization === null || $dossier->organization_id !== $organization->id || $user->organization_id !== $organization->id) {
             return false;
         }
 
-        return $dossier->dossierMembers()
+        $ancres = $dossier->sharingAnchorIds();
+
+        if ($ancres === []) {
+            return false;
+        }
+
+        return DossierMember::query()
+            ->whereIn('dossier_id', $ancres)
             ->where('user_id', $user->id)
+            ->when($role !== null, fn ($q) => $q->where('role', $role))
             ->exists();
+    }
+
+    public function isMember(User $user, Dossier $dossier): bool
+    {
+        return $this->partageActif($user, $dossier);
     }
 
     public function isEditor(User $user, Dossier $dossier): bool
     {
-        $dossier = $dossier->governingDossier();
-        $organization = currentOrganization();
-
-        if ($organization === null || $dossier->organization_id !== $organization->id || $user->organization_id !== $organization->id) {
-            return false;
-        }
-
-        return $dossier->dossierMembers()
-            ->where('user_id', $user->id)
-            ->where('role', DossierMember::ROLE_EDITOR)
-            ->exists();
+        return $this->partageActif($user, $dossier, DossierMember::ROLE_EDITOR);
     }
 
     public function isReader(User $user, Dossier $dossier): bool
     {
-        $dossier = $dossier->governingDossier();
-        $organization = currentOrganization();
-
-        if ($organization === null || $dossier->organization_id !== $organization->id || $user->organization_id !== $organization->id) {
-            return false;
-        }
-
-        return $dossier->dossierMembers()
-            ->where('user_id', $user->id)
-            ->where('role', DossierMember::ROLE_READER)
-            ->exists();
+        return $this->partageActif($user, $dossier, DossierMember::ROLE_READER);
     }
 }

@@ -144,9 +144,15 @@ class TASK1130MemberSearchRegressionTest extends TestCase
             ->assertJsonPath('users.0.id', $this->collegue->getKey());
     }
 
-    // ── L'ecriture atterrit sur la racine, pas sur l'enfant ──────────────────
+    // ── L'ecriture atterrit sur le dossier partage ──────────────────────────
 
-    public function test_adding_a_member_from_a_subfolder_writes_on_the_governing_root(): void
+    /**
+     * Ce test affirmait l'inverse jusqu'a TASK-1136 : « les membres vivent sur
+     * la racine gouvernante, jamais sur l'enfant ». C'etait la fuite, pas le
+     * modele — poser le membre sur « Mes documents » ouvrait l'espace
+     * personnel entier a l'invite. Il garde desormais la regle corrigee.
+     */
+    public function test_adding_a_member_from_a_subfolder_writes_on_that_subfolder(): void
     {
         $this->actingAs($this->proprietaire)->postJson(
             route('organization.dossiers.members.store', [
@@ -156,20 +162,25 @@ class TASK1130MemberSearchRegressionTest extends TestCase
             ['user_id' => $this->collegue->getKey(), 'role' => 'reader'],
         )->assertSuccessful();
 
-        // Le modele de partage est inchange : les membres vivent sur la racine
-        // gouvernante, jamais sur l'enfant.
-        $this->assertSame(0, DossierMember::where('dossier_id', $this->sousDossier->getKey())->count());
         $this->assertDatabaseHas('dossier_members', [
-            'dossier_id' => $this->racinePersonnelle->getKey(),
+            'dossier_id' => $this->sousDossier->getKey(),
             'user_id' => $this->collegue->getKey(),
         ]);
+        $this->assertSame(
+            0,
+            DossierMember::where('dossier_id', $this->racinePersonnelle->getKey())->count(),
+            'Rien ne doit etre pose sur « Mes documents ».',
+        );
     }
 
     public function test_an_existing_member_is_not_offered_again(): void
     {
+        // Le membre est pose sur le sous-dossier lui-meme : depuis TASK-1136
+        // c'est la qu'un partage vit, et c'est donc la seule ligne qui doit
+        // retirer quelqu'un de la liste des invitables.
         DossierMember::create([
             'organization_id' => $this->org->id,
-            'dossier_id' => $this->racinePersonnelle->id,
+            'dossier_id' => $this->sousDossier->id,
             'user_id' => $this->collegue->id,
             'role' => 'reader',
             'added_by' => $this->proprietaire->id,
