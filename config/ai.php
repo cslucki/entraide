@@ -197,6 +197,12 @@ return [
     'clarify' => [
         'enabled' => (bool) env('AI_CLARIFY_ENABLED', false),
         'max_context_chars' => (int) env('AI_CLARIFY_MAX_CONTEXT_CHARS', 8000),
+        // TASK-1212 : meme garde economique que le resume ChatLoop, par
+        // process et par Organization (voir AiEconomicGuard).
+        'economic_guard' => [
+            'monthly_budget_usd' => (float) env('AI_CLARIFY_MONTHLY_BUDGET_USD', 2.00),
+            'monthly_unknown_limit' => (int) env('AI_CLARIFY_MONTHLY_UNKNOWN_LIMIT', 10),
+        ],
     ],
 
     /*

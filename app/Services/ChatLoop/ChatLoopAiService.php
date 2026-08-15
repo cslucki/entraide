@@ -172,7 +172,13 @@ class ChatLoopAiService
             $borne = $this->contextBuilder->build($contexte, $definition);
             $context = $borne->text;
 
-            $resolved = $this->providers->resolve($capability, $contexte);
+            // TASK-1212 : pas de configuration IA pour cette Organization =
+            // indisponibilite explicite, avant tout appel, sans repli plateforme.
+            try {
+                $resolved = $this->providers->resolve($capability, $contexte);
+            } catch (\DomainException $exception) {
+                throw new \RuntimeException(__('loops.ai_not_configured_for_organization'), 0, $exception);
+            }
 
             $verdict = $this->economicGuard->authorize(
                 $organization,
@@ -185,7 +191,10 @@ class ChatLoopAiService
 
             // Un refus est un refus : aucun appel SDK n'est emis.
             if (! $verdict->allowed) {
-                throw new \RuntimeException($verdict->reason === AiEconomicGuard::REASON_MONTHLY_BUDGET_REACHED
+                throw new \RuntimeException(in_array($verdict->reason, [
+                    AiEconomicGuard::REASON_MONTHLY_BUDGET_REACHED,
+                    AiEconomicGuard::REASON_ORGANIZATION_BUDGET_REACHED,
+                ], true)
                     ? __('loops.ai_summary_monthly_budget_reached')
                     : __('loops.ai_summary_temporarily_unavailable'));
             }
@@ -253,7 +262,9 @@ class ChatLoopAiService
             // aucun defaut, et une liste a une seule entree exclut tout failover.
             $response = $agent->prompt(
                 $context,
-                provider: $resolved->provider,
+                // TASK-1212 : l'instance SDK du tenant (son credential), la
+                // famille `provider` ne servant qu'a la trace et au tarif.
+                provider: $resolved->instance,
                 model: $resolved->model,
                 timeout: $this->providerTimeout($resolved->provider),
             );

@@ -156,7 +156,29 @@ class ClarifyUserHelpRequestService implements AiProvider
             'id',
         );
 
-        $resolved = $this->providers->resolve($capability, $contexte);
+        // TASK-1212 : provider, modele et credential viennent de l'Organization.
+        // Sans configuration tenant, aucun appel : le repli deterministe prend
+        // le relais, exactement comme quand la clarification IA est desactivee.
+        try {
+            $resolved = $this->providers->resolve($capability, $contexte);
+        } catch (DomainException) {
+            return $this->fallback->analyze($phrase);
+        }
+
+        // Budget mensuel de l'Organization et de la capability : un refus est
+        // un refus, aucun appel SDK n'est emis.
+        $verdict = $this->economicGuard->authorize(
+            $organization,
+            $definition->process,
+            $resolved->provider,
+            $resolved->model,
+            (float) config('ai.clarify.economic_guard.monthly_budget_usd', 2.00),
+            (int) config('ai.clarify.economic_guard.monthly_unknown_limit', 10),
+        );
+
+        if (! $verdict->allowed) {
+            return $this->fallback->analyze($phrase);
+        }
 
         $instructions = $this->prompts->compose($capability, $this->clarifyInstructions());
 
@@ -171,7 +193,7 @@ class ClarifyUserHelpRequestService implements AiProvider
         try {
             $response = $agent->prompt(
                 $this->userPrompt($phrase, $borne->text),
-                provider: $resolved->provider,
+                provider: $resolved->instance,
                 model: $resolved->model,
             );
         } catch (\Throwable $exception) {

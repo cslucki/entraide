@@ -11,6 +11,12 @@ final class AiEconomicGuard
 
     public const REASON_UNKNOWN_QUOTA_REACHED = 'unknown_quota_reached';
 
+    /**
+     * TASK-1212 : plafond mensuel porte par l'Organization elle-meme, toutes
+     * capabilities confondues. Verifie AVANT le plafond par process.
+     */
+    public const REASON_ORGANIZATION_BUDGET_REACHED = 'organization_monthly_budget_reached';
+
     public function authorize(
         Organization $organization,
         string $process,
@@ -21,6 +27,26 @@ final class AiEconomicGuard
     ): AiEconomicVerdict {
         $monthStart = now()->startOfMonth();
         $nextMonthStart = $monthStart->copy()->addMonth();
+
+        $organizationBudget = $organization->aiSetting?->monthly_budget_usd;
+
+        if ($organizationBudget !== null) {
+            $organizationMonthlyCost = (float) AiInteraction::query()
+                ->where('organization_id', $organization->id)
+                ->where('created_at', '>=', $monthStart)
+                ->where('created_at', '<', $nextMonthStart)
+                ->where('cost_unknown', false)
+                ->sum('cost_usd');
+
+            if ($organizationMonthlyCost >= (float) $organizationBudget) {
+                return AiEconomicVerdict::refuse(
+                    self::REASON_ORGANIZATION_BUDGET_REACHED,
+                    $organizationMonthlyCost,
+                    0,
+                    AiPricingCatalog::hasRate($provider, $model),
+                );
+            }
+        }
 
         $monthly = AiInteraction::query()
             ->where('organization_id', $organization->id)

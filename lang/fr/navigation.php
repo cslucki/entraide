@@ -100,6 +100,7 @@ return [
     'org_admin_blog' => 'Blog',
     'org_admin_categories' => 'Catégories',
     'org_admin_users' => 'Utilisateurs',
+    'org_admin_ai' => 'IA',
     'org_admin_identity' => 'Identité',
     'org_admin_reports' => 'Signalements',
     'org_admin_invitations' => 'Invitations',

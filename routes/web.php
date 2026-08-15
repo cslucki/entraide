@@ -972,6 +972,10 @@ Route::prefix('/org/{organization}')
                 Route::get('/identity', [OrgAdminController::class, 'identity'])->name('identity');
                 Route::post('/identity', [OrgAdminController::class, 'updateIdentity'])->name('identity.update');
 
+                // TASK-1212 : configuration IA du tenant (provider, modele, credential, budget)
+                Route::get('/ai', [OrgAdminController::class, 'ai'])->name('ai');
+                Route::put('/ai', [OrgAdminController::class, 'updateAi'])->name('ai.update');
+
                 // Design
                 Route::get('/homepage', [OrgAdminController::class, 'homepage'])->name('homepage');
                 Route::put('/homepage', [OrgAdminController::class, 'updateHomepage'])->name('homepage.update');
