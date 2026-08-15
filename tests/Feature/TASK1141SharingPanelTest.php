@@ -253,6 +253,37 @@ class TASK1141SharingPanelTest extends TestCase
             ->assertSee(__('dossiers.inherited_access_title'));
     }
 
+    /**
+     * L'en-tete recapitulative redisait « Acces directs » : meme proprietaire,
+     * meme badge, meme decompte, deux fois de suite dans la meme fenetre. Pour
+     * qui gere le partage, le panneau ouvre donc sur « Ajouter un membre ».
+     */
+    public function test_the_manager_panel_opens_on_add_member_without_a_duplicated_header(): void
+    {
+        $this->actingAs($this->owner)
+            ->get($this->route('dossiers.show', $this->parent, ['partage' => 1]))
+            ->assertOk()
+            // `yourRole` n'est lu que par le recapitulatif d'en-tete.
+            ->assertDontSee('i18n.yourRole', false)
+            ->assertSee('i18n.addMember', false)
+            ->assertSee(__('dossiers.direct_access_title'));
+    }
+
+    /**
+     * Un lecteur n'a pas la liste « Acces directs » : le recapitulatif reste
+     * sa seule lecture de qui accede au dossier, et ne doit pas disparaitre
+     * avec le dedoublonnage.
+     */
+    public function test_a_reader_still_gets_the_summary_header(): void
+    {
+        $this->share($this->parent, DossierMember::ROLE_READER);
+
+        $this->actingAs($this->member)
+            ->get($this->route('dossiers.show', $this->parent, ['partage' => 1]))
+            ->assertOk()
+            ->assertSee('i18n.yourRole', false);
+    }
+
     private function share(Dossier $dossier, string $role): DossierMember
     {
         return DossierMember::create([
