@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Dossier;
 use App\Models\DossierMember;
+use App\Models\LoopMember;
 use App\Models\User;
+use App\Support\Loops\LoopRoleRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -33,9 +35,9 @@ class DossierMemberController extends Controller
         // aurait rendu une liste vide a un Dossier bien habite. Lecture seule :
         // les acces se gerent depuis la Boucle, jamais d'ici.
         if ($dossier->isLoopDossier()) {
-            $roles = app(\App\Support\Loops\LoopRoleRegistry::class);
+            $roles = app(LoopRoleRegistry::class);
 
-            $members = ($dossier->loop?->activeMembers() ?? \App\Models\LoopMember::query()->whereRaw('1 = 0'))
+            $members = ($dossier->loop?->activeMembers() ?? LoopMember::query()->whereRaw('1 = 0'))
                 ->with('user:id,first_name,name,organization_id,banned_at')
                 ->orderByRaw("case role when 'owner' then 0 when 'facilitator' then 1 else 2 end")
                 ->orderBy('joined_at')
@@ -49,10 +51,14 @@ class DossierMemberController extends Controller
                     'added_by' => null,
                 ]);
 
-            return response()->json(['members' => $members, 'managed_by_loop' => true]);
+            return response()->json([
+                'members' => $members,
+                'inherited_members' => [],
+                'managed_by_loop' => true,
+            ]);
         }
 
-        $isOwner = $request->user()->id === $dossier->owner_id;
+        $isOwner = $request->user()->id === $dossier->governingDossier()->owner_id;
 
         $members = $dossier->dossierMembers()
             ->with('user:id,first_name,name,organization_id,banned_at'.($isOwner ? ',email' : ''))
@@ -66,7 +72,59 @@ class DossierMemberController extends Controller
                 'added_by' => $m->added_by,
             ]);
 
-        return response()->json(['members' => $members]);
+        $directUserIds = $dossier->dossierMembers()->pluck('user_id')->all();
+        $anchorIds = array_values(array_filter(
+            $dossier->sharingAnchorIds(),
+            fn (string $anchorId) => $anchorId !== $dossier->getKey(),
+        ));
+
+        $inheritedMembers = collect();
+
+        if ($anchorIds !== []) {
+            $anchorPositions = array_flip($anchorIds);
+
+            $inheritedMembers = DossierMember::query()
+                ->whereIn('dossier_id', $anchorIds)
+                ->whereNotIn('user_id', $directUserIds)
+                ->with([
+                    'user:id,first_name,name,organization_id,banned_at'.($isOwner ? ',email' : ''),
+                    'dossier:id,name',
+                ])
+                ->get()
+                ->groupBy('user_id')
+                ->map(function ($grants) use ($anchorPositions, $dossier, $isOwner) {
+                    // La policy accorde l'edition si l'une des ancres actives
+                    // porte editor. Afficher ce role effectif evite qu'un
+                    // panneau annonce Lecteur a une personne qui peut editer.
+                    $effectiveRole = $grants->contains('role', DossierMember::ROLE_EDITOR)
+                        ? DossierMember::ROLE_EDITOR
+                        : DossierMember::ROLE_READER;
+                    $source = $grants
+                        ->where('role', $effectiveRole)
+                        ->sortBy(fn (DossierMember $grant) => $anchorPositions[$grant->dossier_id] ?? PHP_INT_MAX)
+                        ->first();
+                    $user = $source?->user;
+                    $displayable = $user?->isDisplayableIn($dossier->organization_id) ?? false;
+
+                    return [
+                        'id' => $displayable ? $source->user_id : null,
+                        'name' => $displayable ? $user->name : __('profile.deactivated_user'),
+                        'first_name' => $displayable ? $user->first_name : null,
+                        'email' => $isOwner && $displayable ? $user->email : null,
+                        'role' => $effectiveRole,
+                        'inherited_from' => [
+                            'id' => $source->dossier_id,
+                            'name' => $source->dossier?->name,
+                        ],
+                    ];
+                })
+                ->values();
+        }
+
+        return response()->json([
+            'members' => $members,
+            'inherited_members' => $inheritedMembers,
+        ]);
     }
 
     public function store(Request $request): JsonResponse
@@ -89,7 +147,9 @@ class DossierMemberController extends Controller
                     ->where('organization_id', $organization->id)
                     ->whereNull('banned_at'),
             ],
-            'role' => 'required|string|in:reader,editor',
+            // Un nouvel acces commence toujours en Lecteur. Le role ne peut
+            // etre choisi qu'apres la creation explicite du membership.
+            'role' => 'sometimes|string|in:reader,editor',
         ]);
 
         $user = User::assignable()->findOrFail($data['user_id']);
@@ -98,7 +158,7 @@ class DossierMemberController extends Controller
             return response()->json(['message' => __('dossiers.member_cross_org')], 422);
         }
 
-        if ($user->id === $dossier->owner_id) {
+        if ($user->id === $dossier->governingDossier()->owner_id) {
             return response()->json(['message' => __('dossiers.member_is_owner')], 422);
         }
 
@@ -111,7 +171,7 @@ class DossierMemberController extends Controller
             'organization_id' => $organization->id,
             'dossier_id' => $dossier->id,
             'user_id' => $user->id,
-            'role' => $data['role'],
+            'role' => DossierMember::ROLE_READER,
             'added_by' => $request->user()->id,
         ]);
 
@@ -123,7 +183,7 @@ class DossierMemberController extends Controller
                 'name' => $user->name,
                 'first_name' => $user->first_name,
                 'email' => $user->email,
-                'role' => $data['role'],
+                'role' => DossierMember::ROLE_READER,
             ],
             'message' => __('dossiers.member_added'),
         ]);
@@ -198,7 +258,7 @@ class DossierMemberController extends Controller
         // `isOwner()` qui s'en charge, et il n'a pas change.
 
         $query = preg_replace('/\s+/', ' ', trim($request->input('q', '')));
-        $ownerId = $dossier->owner_id;
+        $ownerId = $dossier->governingDossier()->owner_id;
         $memberIds = $dossier->dossierMembers()->pluck('user_id')->all();
 
         $likePattern = '%'.$query.'%';
