@@ -62,9 +62,11 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LikeController;
 use App\Http\Controllers\LocaleController;
-use App\Http\Controllers\LoopEventAgendaController;
 use App\Http\Controllers\LoopController;
+use App\Http\Controllers\LoopDossierArticleController;
+use App\Http\Controllers\LoopEventAgendaController;
 use App\Http\Controllers\LoopInvitationController;
+use App\Http\Controllers\LoopToolsController;
 use App\Http\Controllers\MemberAiProfileConversationsController;
 use App\Http\Controllers\MemberAiProfileInteractionController;
 use App\Http\Controllers\MessageController;
@@ -257,6 +259,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('profile.complete')->group(function () {
         Route::get('/requests/create', [RequestController::class, 'create'])->name('requests.create');
         Route::post('/requests', [RequestController::class, 'store'])->name('requests.store');
+        Route::post('/requests/ai-formulate', [RequestController::class, 'formulate'])->name('requests.ai-formulate');
     });
     Route::get('/requests/{request}/edit', [RequestController::class, 'edit'])->name('requests.edit');
     Route::put('/requests/{request}', [RequestController::class, 'update'])->name('requests.update');
@@ -369,7 +372,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
         Route::post('/loops/{loop}/ask-ai', [LoopController::class, 'askAi'])->middleware('throttle:5,1')->name('loops.ai');
         Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
-        Route::post('/loops/{loop}/help-request/publish', [LoopController::class, 'publishHelpRequest'])->name('loops.help-request.publish');
+        Route::post('/loops/{loop}/help-request/continue', [LoopController::class, 'prepareHelpRequest'])->name('loops.help-request.continue');
     });
 });
 
@@ -680,6 +683,7 @@ Route::prefix('/org/{organization}')
             Route::middleware('profile.complete')->group(function () {
                 Route::get('/requests/create', [RequestController::class, 'create'])->name('requests.create');
                 Route::post('/requests', [RequestController::class, 'store'])->name('requests.store');
+                Route::post('/requests/ai-formulate', [RequestController::class, 'formulate'])->name('requests.ai-formulate');
             });
             Route::get('/requests/{request}/edit', [RequestController::class, 'edit'])->middleware('consume.org')->name('requests.edit');
             Route::put('/requests/{request}', [RequestController::class, 'update'])->middleware('consume.org')->name('requests.update');
@@ -754,18 +758,18 @@ Route::prefix('/org/{organization}')
                 Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
                 Route::post('/loops/{loop}/ask-ai', [LoopController::class, 'askAi'])->middleware('throttle:5,1')->name('loops.ai');
                 Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
-                Route::post('/loops/{loop}/help-request/publish', [LoopController::class, 'publishHelpRequest'])->name('loops.help-request.publish');
+                Route::post('/loops/{loop}/help-request/continue', [LoopController::class, 'prepareHelpRequest'])->name('loops.help-request.continue');
                 // « Ecrire un article » depuis la Card Dossiers : un brouillon
                 // lie d'un coup au Dossier racine ET a la Boucle, puis
                 // l'editeur Blog existant. Contexte Organization seulement,
                 // comme tout le systeme documentaire.
-                Route::post('/loops/{loop}/dossier/articles', [\App\Http\Controllers\LoopDossierArticleController::class, 'store'])->middleware('throttle:10,1')->name('loops.dossier.articles.store');
+                Route::post('/loops/{loop}/dossier/articles', [LoopDossierArticleController::class, 'store'])->middleware('throttle:10,1')->name('loops.dossier.articles.store');
                 // « Personnaliser ma Boucle » — l'ecran du proprietaire. Meme
                 // service que l'administration (LoopPresetConfigurator), donc
                 // memes gardes ; seul le langage change. Contexte Organization
                 // seulement : la Boucle appartient a un tenant.
-                Route::get('/loops/{loop}/outils', [\App\Http\Controllers\LoopToolsController::class, 'index'])->name('loops.tools');
-                Route::post('/loops/{loop}/outils', [\App\Http\Controllers\LoopToolsController::class, 'update'])->middleware('throttle:30,1')->name('loops.tools.update');
+                Route::get('/loops/{loop}/outils', [LoopToolsController::class, 'index'])->name('loops.tools');
+                Route::post('/loops/{loop}/outils', [LoopToolsController::class, 'update'])->middleware('throttle:30,1')->name('loops.tools.update');
             });
 
             Route::middleware('verified')->group(function () {

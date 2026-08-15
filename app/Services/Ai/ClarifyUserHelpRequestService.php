@@ -6,6 +6,7 @@ use App\Ai\Agents\HelpRequestClarifierAgent;
 use App\Ai\CapabilityDefinition;
 use App\Ai\CapabilityRegistry;
 use App\Ai\Context\ContextBuilder;
+use App\Ai\Context\OrganizationCategoriesSource;
 use App\Ai\Context\UserLoopsSource;
 use App\Ai\ContexteIa;
 use App\Ai\PromptRepository;
@@ -14,13 +15,16 @@ use App\Ai\ResolvedModel;
 use App\Models\AdminAiPrompt;
 use App\Models\AiConfig;
 use App\Models\AiInteraction;
+use App\Models\Category;
 use App\Models\Loop;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\Ai\DTO\AssistedInteractionLabResult;
 use App\Support\Ai\AiCorrelation;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiUsage;
+use DomainException;
 use Illuminate\Support\Facades\Schema;
 
 class ClarifyUserHelpRequestService implements AiProvider
@@ -89,6 +93,33 @@ class ClarifyUserHelpRequestService implements AiProvider
      */
     public function clarifyForLoop(Loop $loop, User $requester, string $phrase): AssistedInteractionLabResult
     {
+        return $this->clarifyInContext($loop->organization, $requester, $phrase, $loop);
+    }
+
+    /**
+     * Meme capability depuis le formulaire canonique d'une Demande.
+     *
+     * La portee reste l'Organization. Les categories de ce tenant et les
+     * Boucles de l'utilisateur sont les seules destinations suggerables.
+     */
+    public function clarifyForOrganization(
+        Organization $organization,
+        User $requester,
+        string $phrase,
+    ): AssistedInteractionLabResult {
+        if ($requester->organization_id !== $organization->id) {
+            throw new DomainException('The requester does not belong to this Organization.');
+        }
+
+        return $this->clarifyInContext($organization, $requester, $phrase, null);
+    }
+
+    private function clarifyInContext(
+        Organization $organization,
+        User $requester,
+        string $phrase,
+        ?Loop $loop,
+    ): AssistedInteractionLabResult {
         // Meme coupe-circuit que `analyze()` : quand la clarification IA est
         // desactivee, aucun appel provider n'est tente — et la clarification
         // deterministe prend le relais. Sans ce garde, les tests et les
@@ -100,12 +131,15 @@ class ClarifyUserHelpRequestService implements AiProvider
 
         $capability = CapabilityRegistry::CLARIFY_HELP_REQUEST;
         $definition = $this->capabilities->get($capability);
-        $this->capabilities->assertScopeAllowed($capability, CapabilityRegistry::SCOPE_LOOP);
+        $scope = $loop === null
+            ? CapabilityRegistry::SCOPE_ORGANIZATION
+            : CapabilityRegistry::SCOPE_LOOP;
+        $this->capabilities->assertScopeAllowed($capability, $scope);
 
         $contexte = new ContexteIa(
-            organizationId: (string) $loop->organization_id,
+            organizationId: (string) $organization->id,
             userId: (string) $requester->id,
-            loopId: (string) $loop->id,
+            loopId: $loop?->id,
             locale: str_starts_with((string) app()->getLocale(), 'en') ? 'en' : 'fr',
             capability: $capability,
             correlationId: AiCorrelation::id(),
@@ -117,6 +151,10 @@ class ClarifyUserHelpRequestService implements AiProvider
         // Les Boucles reellement offertes au modele. Rien d'autre ne pourra
         // etre retenu comme suggestion.
         $loopsOffertes = array_column($borne->provenanceFor(UserLoopsSource::NAME), 'id');
+        $categoriesOffertes = array_column(
+            $borne->provenanceFor(OrganizationCategoriesSource::NAME),
+            'id',
+        );
 
         $resolved = $this->providers->resolve($capability, $contexte);
 
@@ -163,7 +201,14 @@ class ClarifyUserHelpRequestService implements AiProvider
             'success', $startedAt, $response->invocationId, null,
         );
 
-        return $this->mapStructuredToDto($structured, $phrase, $loopsOffertes, $interaction);
+        return $this->mapStructuredToDto(
+            $structured,
+            $phrase,
+            $loopsOffertes,
+            $categoriesOffertes,
+            $organization,
+            $interaction,
+        );
     }
 
     /**
@@ -202,12 +247,45 @@ class ClarifyUserHelpRequestService implements AiProvider
     }
 
     /**
+     * @param  list<string>  $categoriesOffertes
+     */
+    private function validatedCategorySuggestion(
+        array $structured,
+        array $categoriesOffertes,
+        Organization $organization,
+    ): ?array {
+        $suggested = trim((string) ($structured['suggested_category_id'] ?? ''));
+
+        if ($suggested === '' || ! in_array($suggested, $categoriesOffertes, true)) {
+            return null;
+        }
+
+        $category = Category::query()
+            ->whereKey($suggested)
+            ->where('organization_id', $organization->id)
+            ->first();
+
+        if ($category === null) {
+            return null;
+        }
+
+        $label = $organization->transactions_naming === 'b2b'
+            ? $category->name_b2b
+            : $category->name_b2c;
+
+        return ['id' => $category->id, 'label' => $label];
+    }
+
+    /**
      * @param  list<string>  $loopsOffertes
+     * @param  list<string>  $categoriesOffertes
      */
     private function mapStructuredToDto(
         array $structured,
         string $originalPhrase,
         array $loopsOffertes,
+        array $categoriesOffertes,
+        Organization $organization,
         ?AiInteraction $interaction,
     ): AssistedInteractionLabResult {
         $confidence = (float) ($structured['confidence'] ?? 0.0);
@@ -261,6 +339,12 @@ class ClarifyUserHelpRequestService implements AiProvider
             scenario: 'clarify_help_request',
             scenarioLabel: 'Clarification de demande d\'aide',
             originalPhrase: $originalPhrase,
+            suggestedCategory: $this->validatedCategorySuggestion(
+                $structured,
+                $categoriesOffertes,
+                $organization,
+            ),
+            producer: 'laravel_ai_sdk',
         );
     }
 
@@ -320,6 +404,7 @@ class ClarifyUserHelpRequestService implements AiProvider
             scenario: 'clarify_help_request',
             scenarioLabel: 'Clarification de demande d\'aide',
             originalPhrase: $originalPhrase,
+            producer: 'legacy_provider',
         );
     }
 
@@ -335,8 +420,9 @@ class ClarifyUserHelpRequestService implements AiProvider
     }
 
     /**
-     * Instruction capability. `AdminAiPrompt` reste la source editable ; ce
-     * texte n'est que le repli quand aucun prompt actif n'existe.
+     * Instruction capability chargee depuis la source editable. L'absence de
+     * prompt actif est une indisponibilite explicite : aucun texte metier
+     * hardcode ne doit contourner silencieusement l'administration.
      */
     private function clarifyInstructions(): string
     {
@@ -346,24 +432,11 @@ class ClarifyUserHelpRequestService implements AiProvider
             ->orderByDesc('version')
             ->first();
 
-        if ($prompt && trim((string) $prompt->prompt_text) !== '') {
-            return (string) $prompt->prompt_text;
+        if ($prompt === null || trim((string) $prompt->prompt_text) === '') {
+            throw new DomainException('No active AdminAiPrompt is configured for clarify_help_request.');
         }
 
-        return <<<'TEXT'
-        Tu aides un membre de BouclePro à transformer une intention floue en une demande
-        d'aide claire, que ses pairs pourront comprendre et à laquelle ils pourront répondre.
-
-        Reformule à la première personne, sans jargon et sans promesse commerciale.
-
-        Choisis la Boucle la plus pertinente PARMI CELLES fournies en contexte, en te fondant
-        sur leur nom, leur type et leur accroche. Recopie son identifiant EXACTEMENT.
-        Si aucune ne correspond vraiment, renvoie une chaîne vide : proposer une Boucle
-        inadaptée est pire que n'en proposer aucune. N'invente jamais d'identifiant.
-
-        Si la demande reste trop vague pour être publiée, pose au maximum trois questions
-        de clarification et signale qu'une relecture humaine est nécessaire.
-        TEXT;
+        return (string) $prompt->prompt_text;
     }
 
     private function userPrompt(string $phrase, string $contexteBorne): string
@@ -383,7 +456,7 @@ class ClarifyUserHelpRequestService implements AiProvider
      * @param  array{cost_usd: ?float, cost_unknown: ?bool}  $costAttributes
      */
     private function recordInteraction(
-        Loop $loop,
+        ?Loop $loop,
         User $requester,
         ContexteIa $contexte,
         CapabilityDefinition $definition,
@@ -410,7 +483,7 @@ class ClarifyUserHelpRequestService implements AiProvider
             'output_tokens' => $usage->outputTokensOrZero(),
             ...$costAttributes,
             'metadata' => array_filter([
-                'loop_id' => $loop->id,
+                'loop_id' => $loop?->id,
                 'requested_by' => $requester->id,
                 'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
                 'provider' => $resolved->provider,

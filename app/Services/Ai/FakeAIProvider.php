@@ -35,6 +35,7 @@ class FakeAIProvider implements AiProvider
             scenario: $scenario['_scenario'],
             scenarioLabel: $scenario['_scenario_label'],
             originalPhrase: $phrase,
+            producer: 'deterministic_fallback',
         );
     }
 

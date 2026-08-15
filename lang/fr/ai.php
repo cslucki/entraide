@@ -106,6 +106,18 @@ return [
     'service_formulation_intention_required' => 'Décrivez au moins brièvement ce que vous proposez avant de demander l\'aide de l\'IA.',
     'service_formulation_intention_hint' => 'Renseignez au moins un titre ou une courte description.',
 
+    // AI Request Formulation (TASK-1211)
+    'request_formulate_cta' => 'M\'aider à formuler',
+    'request_formulate_cta_title' => 'L\'IA vous aide à transformer votre intention en une demande d\'aide claire',
+    'request_formulating' => 'L\'IA formule une demande',
+    'request_suggestion_title' => 'Proposition de l\'IA',
+    'request_apply_suggestion' => 'Appliquer la suggestion',
+    'request_dismiss_suggestion' => 'Annuler',
+    'request_formulation_error' => 'L\'IA n\'a pas pu formuler la demande pour le moment. Veuillez réessayer.',
+    'request_formulation_unavailable' => 'L\'assistance IA est indisponible pour le moment. Vos champs restent inchangés.',
+    'request_formulation_no_improvement' => 'Aucune amélioration exploitable n\'a été proposée. Vos champs restent inchangés.',
+    'request_formulation_intention_hint' => 'Renseignez au moins un titre ou une courte description.',
+
     // Tiptap Markdown WYSIWYG toolbar (TASK-1056)
     'markdown_undo' => 'Annuler',
     'markdown_redo' => 'Rétablir',

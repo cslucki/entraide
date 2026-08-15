@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Ai\Agents\HelpRequestClarifierAgent;
 use App\Ai\CapabilityRegistry;
+use App\Ai\Context\OrganizationCategoriesSource;
 use App\Ai\Context\UserLoopsSource;
+use App\Models\AdminAiPrompt;
 use App\Models\AiConfig;
 use App\Models\AiInteraction;
 use App\Models\Loop;
@@ -15,6 +17,7 @@ use App\Models\User;
 use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\Ai\DTO\AssistedInteractionLabResult;
 use App\Services\LoopService;
+use App\Support\Loops\HelpRequestHandoff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Laravel\Ai\Responses\Data\Meta;
@@ -58,6 +61,14 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
         app()->instance('current_organization', $this->organization);
 
         AiConfig::set('clarification_enabled', true);
+        AdminAiPrompt::query()
+            ->where('scenario_id', 'clarify_help_request')
+            ->where('version', 2)
+            ->update([
+                'name' => 'Clarification de demande d’aide — test',
+                'prompt_text' => 'Reformule sans inventer et recopie uniquement les identifiants fournis.',
+                'is_active' => true,
+            ]);
         config([
             'ai.clarify.enabled' => true,
             'ai.providers.openai.driver' => 'openai',
@@ -182,11 +193,12 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
         });
     }
 
-    public function test_the_capability_declares_user_loops_only(): void
+    public function test_the_capability_declares_only_categories_and_user_loops(): void
     {
         $definition = app(CapabilityRegistry::class)->get(CapabilityRegistry::CLARIFY_HELP_REQUEST);
 
         $this->assertTrue($definition->allowsSource(UserLoopsSource::NAME));
+        $this->assertTrue($definition->allowsSource(OrganizationCategoriesSource::NAME));
         $this->assertFalse($definition->allowsSource(CapabilityRegistry::SOURCE_LOOP_MESSAGES));
         $this->assertFalse($definition->canWrite);
         $this->assertTrue($definition->requiresHumanConfirmation);
@@ -224,23 +236,26 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
         $this->assertDatabaseCount('loop_messages', 0);
     }
 
-    public function test_publishing_requires_an_explicit_click_and_lands_in_the_chosen_loop(): void
+    public function test_explicit_click_continues_to_the_canonical_form_without_publishing(): void
     {
         $response = $this->actingAs($this->member)
-            ->post(route('loops.help-request.publish', $this->loop), [
+            ->post(route('loops.help-request.continue', $this->loop), [
                 'title' => 'Cadrer nos usages de l’IA',
                 'need' => 'Je cherche de l’aide sur l’éthique de l’IA.',
-                'help_type' => 'request',
                 // L'utilisateur a retenu une AUTRE Boucle que celle d'où il part.
-                'loop_id' => $this->ethique->id,
+                'relay_loop_id' => $this->ethique->id,
             ]);
 
-        $response->assertRedirect();
+        $response->assertRedirect(route('organization.requests.create', $this->organization->slug));
 
-        $message = LoopMessage::where('type', 'help_request')->firstOrFail();
-        $this->assertSame($this->ethique->id, $message->loop_id);
-        $this->assertSame($this->member->id, $message->sender_id);
-        $this->assertSame('Cadrer nos usages de l’IA', $message->metadata['title']);
+        // Le brouillon voyage hors session (TASK-1211) et n'est lu qu'une fois
+        // par le formulaire canonique.
+        $draft = app(HelpRequestHandoff::class)->pullDraft($this->member, $this->organization);
+        $this->assertSame('Cadrer nos usages de l’IA', $draft['title'] ?? null);
+        $this->assertSame('Je cherche de l’aide sur l’éthique de l’IA.', $draft['description'] ?? null);
+        $this->assertSame($this->ethique->id, $draft['relay_loop_id'] ?? null);
+        $this->assertDatabaseCount('loop_messages', 0);
+        $this->assertDatabaseCount('service_requests', 0);
     }
 
     public function test_publishing_into_a_loop_the_member_left_is_refused(): void
@@ -249,11 +264,10 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
         $interdite = (new LoopService)->createLoop($tiers, 'Interdite');
 
         $this->actingAs($this->member)
-            ->post(route('loops.help-request.publish', $this->loop), [
+            ->post(route('loops.help-request.continue', $this->loop), [
                 'title' => 'Un titre',
                 'need' => 'Un besoin.',
-                'help_type' => 'request',
-                'loop_id' => $interdite->id,
+                'relay_loop_id' => $interdite->id,
             ])
             ->assertSessionHas('help_request_error');
 
@@ -272,11 +286,10 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
         ]);
 
         $this->actingAs($this->member)
-            ->post(route('loops.help-request.publish', $this->loop), [
+            ->post(route('loops.help-request.continue', $this->loop), [
                 'title' => 'Un titre',
                 'need' => 'Un besoin.',
-                'help_type' => 'request',
-                'loop_id' => $ailleurs->id,
+                'relay_loop_id' => $ailleurs->id,
             ])
             ->assertSessionHas('help_request_error');
 
@@ -286,11 +299,10 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
     public function test_nothing_is_published_in_the_organization_marketplace(): void
     {
         $this->actingAs($this->member)
-            ->post(route('loops.help-request.publish', $this->loop), [
+            ->post(route('loops.help-request.continue', $this->loop), [
                 'title' => 'Un titre',
                 'need' => 'Un besoin.',
-                'help_type' => 'service',
-                'loop_id' => $this->loop->id,
+                'relay_loop_id' => $this->loop->id,
             ]);
 
         $this->assertDatabaseCount('service_requests', 0);
@@ -380,7 +392,7 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
             ]);
 
         $post->assertRedirect();
-        $post->assertSessionHas('help_request_analysis');
+        $this->assertTrue(app(HelpRequestHandoff::class)->has($this->member, $this->loop));
 
         $html = $this->actingAs($this->member)
             ->get($post->headers->get('Location'))
@@ -390,7 +402,7 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
         // 1. la reformulation
         $this->assertStringContainsString('cadrer nos usages de l’IA', $html);
         // 2. le selecteur de Boucle
-        $this->assertStringContainsString('name="loop_id"', $html);
+        $this->assertStringContainsString('name="relay_loop_id"', $html);
         // 3. la Boucle suggeree, preselectionnee
         $this->assertMatchesRegularExpression(
             '/<option value="'.preg_quote($this->ethique->id, '/').'"[^>]*selected/',
@@ -399,7 +411,7 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
         // 4. la justification
         $this->assertStringContainsString('éthique de l’IA', $html);
         // 5. le bouton de publication
-        $this->assertStringContainsString(__('loops.help_request_publish_cta'), $html);
+        $this->assertStringContainsString(__('loops.help_request_continue_cta'), $html);
     }
 
     /**
@@ -417,14 +429,14 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
             ]), ['intention' => 'J’aimerais réfléchir aux risques éthiques liés aux agents IA.']);
 
         $post->assertRedirect();
-        $post->assertSessionHas('help_request_analysis');
+        $this->assertTrue(app(HelpRequestHandoff::class)->has($this->member, $this->loop));
 
         $location = $post->headers->get('Location');
 
         $html = $this->actingAs($this->member)->get($location)->assertOk()->getContent();
 
-        $this->assertStringContainsString('name="loop_id"', $html);
-        $this->assertStringContainsString(__('loops.help_request_publish_cta'), $html);
+        $this->assertStringContainsString('name="relay_loop_id"', $html);
+        $this->assertStringContainsString(__('loops.help_request_continue_cta'), $html);
     }
 
     // =====================================================================
@@ -466,7 +478,7 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
             '/<option value="'.preg_quote($this->loop->id, '/').'"[^>]*selected/',
             $html,
         );
-        $this->assertStringContainsString(__('loops.help_request_publish_cta'), $html);
+        $this->assertStringContainsString(__('loops.help_request_continue_cta'), $html);
     }
 
     /**
@@ -477,13 +489,12 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
     public function test_publishing_with_a_non_uuid_loop_id_is_a_validation_error(): void
     {
         $this->actingAs($this->member)
-            ->post(route('loops.help-request.publish', $this->loop), [
+            ->post(route('loops.help-request.continue', $this->loop), [
                 'title' => 'Un titre',
                 'need' => 'Un besoin.',
-                'help_type' => 'request',
-                'loop_id' => 'loop-dev-commercial',
+                'relay_loop_id' => 'loop-dev-commercial',
             ])
-            ->assertSessionHasErrors('loop_id');
+            ->assertSessionHasErrors('relay_loop_id');
 
         $this->assertDatabaseCount('loop_messages', 0);
     }

@@ -74,6 +74,13 @@ class HelpRequestClarifierAgent implements Agent, HasStructuredOutput
                 ->description("Nature de l'aide attendue.")
                 ->required(),
 
+            'suggested_category_id' => $schema->string()
+                ->description(
+                    'Identifiant EXACT, recopie depuis la liste des categories autorisees fournie en contexte. '
+                    .'Chaine vide si aucune categorie ne correspond clairement. Ne jamais inventer un identifiant.'
+                )
+                ->required(),
+
             'suggested_loop_id' => $schema->string()
                 ->description(
                     'Identifiant EXACT, recopie depuis la liste des Boucles autorisees fournie en contexte, '

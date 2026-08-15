@@ -34,11 +34,15 @@ final class ContextBuilder
     /** @var array<string, ContextSource> */
     private array $sources;
 
-    public function __construct(LoopMessagesSource $loopMessages, UserLoopsSource $userLoops)
-    {
+    public function __construct(
+        LoopMessagesSource $loopMessages,
+        UserLoopsSource $userLoops,
+        OrganizationCategoriesSource $organizationCategories,
+    ) {
         $this->sources = [
             $loopMessages->name() => $loopMessages,
             $userLoops->name() => $userLoops,
+            $organizationCategories->name() => $organizationCategories,
         ];
     }
 

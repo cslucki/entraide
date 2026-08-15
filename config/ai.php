@@ -196,6 +196,7 @@ return [
 
     'clarify' => [
         'enabled' => (bool) env('AI_CLARIFY_ENABLED', false),
+        'max_context_chars' => (int) env('AI_CLARIFY_MAX_CONTEXT_CHARS', 8000),
     ],
 
     /*
