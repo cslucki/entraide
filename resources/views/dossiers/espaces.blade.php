@@ -54,13 +54,25 @@
                 @if($espace === 'partages')
                     {{-- Avec moi / Par moi : deux sous-vues de la MEME surface,
                          jamais deux ecrans (OneDrive les nomme mot pour mot). --}}
+                    {{-- « Partages avec moi » et « Partages par moi » se
+                         ressemblent trop, en FR comme en EN : deux libelles
+                         longs qui ne different que par un mot au milieu. La
+                         fleche porte le sens avant la lecture — entrant vers
+                         moi, sortant depuis moi. Meme jeu d'icones inline que
+                         le reste du module, aucune librairie ajoutee. --}}
                     <nav class="mt-3 flex gap-2" aria-label="{{ __('dossiers.space_shared') }}">
-                        @foreach([['avec-moi', __('dossiers.shared_with_me')], ['par-moi', __('dossiers.shared_by_me')]] as [$cle, $label])
+                        @foreach([
+                            ['avec-moi', __('dossiers.shared_with_me'), 'M12 3.75v12m0 0 4.5-4.5M12 15.75l-4.5-4.5M4.5 19.5h15'],
+                            ['par-moi', __('dossiers.shared_by_me'), 'M12 20.25V8.25m0 0 4.5 4.5M12 8.25l-4.5 4.5M4.5 4.5h15'],
+                        ] as [$cle, $label, $trace])
                             <a href="{{ route('organization.dossiers.index', ['organization' => $orgParam, 'espace' => 'partages', 'vue' => $cle]) }}"
                                @if($vue === $cle) aria-current="page" @endif
-                               class="inline-flex min-h-11 items-center rounded-full border px-4 text-sm transition {{ $vue === $cle
+                               class="inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm transition {{ $vue === $cle
                                     ? 'border-indigo-200 bg-indigo-50 font-semibold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200'
-                                    : 'border-transparent text-[var(--bp-muted)] hover:bg-[var(--bp-panel)]' }}">{{ $label }}</a>
+                                    : 'border-transparent text-[var(--bp-muted)] hover:bg-[var(--bp-panel)]' }}">
+                                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ $trace }}"/></svg>
+                                {{ $label }}
+                            </a>
                         @endforeach
                     </nav>
 

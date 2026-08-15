@@ -254,6 +254,10 @@ class DossierController extends Controller
             'owner:id,first_name,avatar,name,banned_at,organization_id',
             'dossierBlogPosts.blogPost.user:id,first_name,avatar,name,email,organization_id,banned_at',
             'dossierBlogPosts.blogPost.coAuthors:id,first_name,avatar,name,email,organization_id,banned_at',
+            // Qui a range CET Article dans CE Dossier. `blogPost.user` dit
+            // l'auteur du contenu, ce qui n'est pas la meme question des lors
+            // que plusieurs personnes deposent dans un Dossier partage.
+            'dossierBlogPosts.addedBy:id,first_name,avatar,name,email,organization_id,banned_at',
             'dossierMembers.user:id,first_name,avatar,name,email,organization_id,banned_at',
             'loop:id,name,organization_id,status',
             'loop.activeMembers.user:id,first_name,avatar,name,email,organization_id,banned_at',
@@ -362,7 +366,11 @@ class DossierController extends Controller
         $driveFolders = $driveFolders->merge(
             Dossier::where('organization_id', $organization->id)
                 ->where('parent_id', $dossier->id)
-                ->withCount(['files', 'dossierBlogPosts', 'children'])
+                // `dossierMembers` : sans ce compte, une ligne enfant ne pouvait
+                // pas dire SON partage et retombait sur l'etat de la racine
+                // gouvernante — un Dossier explicitement partage s'affichait
+                // « Prive » dans « Mes documents » (TASK-1143).
+                ->withCount(['files', 'dossierBlogPosts', 'children', 'dossierMembers'])
                 ->get()
         )->sortBy('name')->values();
 
@@ -403,6 +411,26 @@ class DossierController extends Controller
             && ! $isOwner
             && $firstSharedIndex !== false;
 
+        // Le Dossier ouvert est-il couvert par une ancre de partage explicite —
+        // lui-meme, ou l'un de ses ancetres ?
+        //
+        // Sans cette lecture, la colonne « Partage » repetait l'etat de la
+        // racine gouvernante : « Mes documents » n'ayant jamais de membre, tout
+        // ce qui vivait sous un Dossier partage s'affichait « Prive » alors que
+        // l'acces existait bel et bien. `sharingAnchorIds()` donne la portee et
+        // n'est ici que LUE — aucune ligne `dossier_members` n'est ecrite.
+        $ancres = $dossier->sharingAnchorIds();
+        $couvertParUnPartage = $ancres !== [] && (
+            DossierMember::query()
+                ->where('organization_id', $organization->id)
+                ->whereIn('dossier_id', $ancres)
+                ->exists()
+            || Dossier::query()
+                ->whereIn('id', $ancres)
+                ->whereNotNull('shared_with_loop_id')
+                ->exists()
+        );
+
         if ($isSharedSurface) {
             $chain = $chain->slice($firstSharedIndex)->values();
         }
@@ -425,6 +453,11 @@ class DossierController extends Controller
                 ? 'boucles'
                 : ($isSharedSurface ? 'partages' : 'documents'),
             'governingDossier' => $governingDossier,
+            // Le lecteur est-il arrive ici PAR un partage — et ce Dossier
+            // porte-t-il un acces explicite quelque part sur sa chaine ? Les
+            // deux nourrissent l'affichage du partage, jamais un droit.
+            'isSharedSurface' => $isSharedSurface,
+            'couvertParUnPartage' => $couvertParUnPartage,
             'driveFolders' => $driveFolders,
             'moveTargets' => $moveTargets,
             'driveRoot' => $driveRoot,
