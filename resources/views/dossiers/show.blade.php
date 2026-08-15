@@ -325,10 +325,10 @@
                                  une miette qui pointe sur la page affichee
                                  n'apprend rien. --}}
                             @unless($dossier->isPersonalDocumentsRoot())
-                                <a href="{{ $espace === 'boucles'
-                                        ? route('organization.dossiers.index', ['organization' => $orgParam, 'espace' => 'boucles'])
-                                        : route('organization.dossiers.index', ['organization' => $orgParam]) }}"
-                                   class="inline-flex min-h-11 shrink-0 items-center rounded font-medium text-indigo-600 hover:underline dark:text-indigo-400">{{ $espace === 'boucles' ? __('dossiers.space_loops') : __('dossiers.space_my_documents') }}</a>
+                                <a href="{{ $espace === 'documents'
+                                        ? route('organization.dossiers.index', ['organization' => $orgParam])
+                                        : route('organization.dossiers.index', ['organization' => $orgParam, 'espace' => $espace]) }}"
+                                   class="inline-flex min-h-11 shrink-0 items-center rounded font-medium text-indigo-600 hover:underline dark:text-indigo-400">{{ $espace === 'boucles' ? __('dossiers.space_loops') : ($espace === 'partages' ? __('dossiers.space_shared') : __('dossiers.space_my_documents')) }}</a>
                                 <svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
                             @endunless
                             @foreach($breadcrumbAncestors as $ancetre)

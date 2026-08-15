@@ -7,6 +7,7 @@ use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\Category;
 use App\Models\Dossier;
+use App\Models\DossierMember;
 use App\Models\Loop;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\PersonalDocumentsRoot;
@@ -167,10 +168,6 @@ class DossierController extends Controller
         $this->authorize('view', $dossier);
 
         return view('dossiers.show', $this->driveSurface($request, $dossier, $semanticSearchGate) + [
-            // L'espace qui reste allume dans la sidebar pendant qu'on navigue
-            // en profondeur : un Dossier de Boucle appartient a « Boucles »,
-            // tout le reste a « Mes documents ».
-            'espace' => $dossier->governingDossier()->isLoopDossier() ? 'boucles' : 'documents',
             'legacyRoots' => collect(),
         ]);
     }
@@ -360,6 +357,27 @@ class DossierController extends Controller
         // de cette chaine est un Dossier personnel partage avec elle — les
         // deux mecanismes composent, ils ne se remplacent pas.
         $chain = $dossier->ancestryChain();
+
+        // Cette projection ne donne aucun droit : la policy `view()` a deja
+        // autorise la requete. Elle choisit seulement le premier maillon que le
+        // lecteur connait par un partage nominatif. Root-first garantit que si
+        // A et B sont tous deux partages, le chemin reste A > B > ... ; si seul
+        // B l'est, aucun parent prive n'est rendu.
+        $sharedAnchorIds = DossierMember::query()
+            ->where('organization_id', $organization->id)
+            ->where('user_id', $userId)
+            ->whereIn('dossier_id', $chain->pluck('id'))
+            ->pluck('dossier_id')
+            ->all();
+        $firstSharedIndex = $chain->search(fn (Dossier $ancestor) => in_array($ancestor->getKey(), $sharedAnchorIds, true));
+        $isSharedSurface = ! $governingDossier->isLoopDossier()
+            && ! $isOwner
+            && $firstSharedIndex !== false;
+
+        if ($isSharedSurface) {
+            $chain = $chain->slice($firstSharedIndex)->values();
+        }
+
         $topOfRealChain = $chain->first();
 
         $driveRoot = null;
@@ -374,6 +392,9 @@ class DossierController extends Controller
 
         return [
             'dossier' => $dossier,
+            'espace' => $governingDossier->isLoopDossier()
+                ? 'boucles'
+                : ($isSharedSurface ? 'partages' : 'documents'),
             'governingDossier' => $governingDossier,
             'driveFolders' => $driveFolders,
             'moveTargets' => $moveTargets,

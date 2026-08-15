@@ -82,11 +82,12 @@
 
                             @foreach($lignes as $ligne)
                                 @php
+                                    $proprietaireReel = $ligne->governingDossier()->owner;
                                     $role = $vue === 'avec-moi'
                                         ? ($ligne->dossierMembers->first()?->role === 'editor' ? __('dossiers.role_editor') : __('dossiers.role_reader'))
                                         : null;
-                                    $proprio = $ligne->owner?->isDisplayableIn(currentOrganization())
-                                        ? $ligne->owner->publicDisplayName()
+                                    $proprio = $proprietaireReel?->isDisplayableIn(currentOrganization())
+                                        ? $proprietaireReel->publicDisplayName()
                                         : __('profile.deactivated_user');
                                     $partageAvec = $ligne->shared_with_loop_id
                                         ? ($ligne->sharedWithLoop?->name ?? __('dossiers.share_loop'))
@@ -114,7 +115,7 @@
                                          pas une liste. --}}
                                     <span class="{{ $cellule }} !flex items-center gap-1.5">
                                         @if($vue === 'avec-moi')
-                                            <x-user-avatar :user="$ligne->owner" size="xs" />
+                                            <x-user-avatar :user="$proprietaireReel" size="xs" />
                                             <span class="min-w-0 truncate">{{ $proprio }}</span>
                                         @elseif($ligne->shared_with_loop_id)
                                             <svg class="h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="15.5" r="3.2"/><path d="M4.5 19c.6-2.6 2.4-4 4.5-4M19.5 8.5C19 6 17.2 4.8 15.4 4.8"/></svg>
