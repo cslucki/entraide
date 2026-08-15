@@ -339,7 +339,6 @@ return [
     'file_rename' => 'Renommer',
     'file_rename_title' => 'Renommer « :name »',
     'file_rename_label' => 'Nouveau nom',
-    'share_the_folder' => 'Partager le dossier…',
     'file_move' => 'Déplacer vers…',
     'file_moved' => 'Fichier déplacé.',
     'file_move_failed' => 'Erreur lors du déplacement du fichier.',
