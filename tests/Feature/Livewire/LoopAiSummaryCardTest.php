@@ -7,6 +7,7 @@ use App\Livewire\LoopAiSummaryCard;
 use App\Models\AiInteraction;
 use App\Models\Loop;
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -38,6 +39,9 @@ class LoopAiSummaryCardTest extends TestCase
 
         $this->organization = Organization::factory()->create();
         $this->otherOrganization = Organization::factory()->create();
+        // TASK-1212 : l'IA transverse est configuree par Organization.
+        OrganizationAiSetting::factory()->create(['organization_id' => $this->organization->id, 'provider' => 'openai', 'model' => 'gpt-4o-mini']);
+        OrganizationAiSetting::factory()->create(['organization_id' => $this->otherOrganization->id, 'provider' => 'openai', 'model' => 'gpt-4o-mini']);
 
         $this->member = User::factory()->create(['organization_id' => $this->organization->id]);
         $this->nonMember = User::factory()->create(['organization_id' => $this->organization->id]);

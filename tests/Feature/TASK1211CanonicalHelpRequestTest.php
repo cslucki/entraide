@@ -16,6 +16,7 @@ use App\Models\LoopMarketplaceLink;
 use App\Models\LoopMessage;
 use App\Models\MemberAiProfile;
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\LoopMessageService;
@@ -50,6 +51,8 @@ class TASK1211CanonicalHelpRequestTest extends TestCase
         parent::setUp();
 
         $this->organization = Organization::factory()->create();
+        // TASK-1212 : l'IA transverse est configuree par Organization.
+        OrganizationAiSetting::factory()->create(['organization_id' => $this->organization->id, 'provider' => 'openai', 'model' => 'gpt-4o-mini']);
         $this->user = User::factory()->create(['organization_id' => $this->organization->id]);
         $this->category = Category::factory()->create(['organization_id' => $this->organization->id]);
         $this->loop = (new LoopService)->createLoop($this->user, 'Entraide locale');

@@ -214,6 +214,7 @@ return [
     'ai_summary_requested_by' => 'Requested by :name',
     'ai_summary_rate_limited' => 'Too many summary requests. Try again in a minute.',
     'ai_summary_monthly_budget_reached' => 'This organization has reached its monthly AI budget.',
+    'ai_not_configured_for_organization' => 'AI is not configured for this organization. An organization administrator must set the provider, model and API key first.',
     'ai_summary_temporarily_unavailable' => 'AI summaries are temporarily unavailable for this organization.',
     'cards' => [
         'events' => [

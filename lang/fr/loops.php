@@ -214,6 +214,7 @@ return [
     'ai_summary_requested_by' => 'Demandé par :name',
     'ai_summary_rate_limited' => 'Trop de demandes de résumé. Réessaie dans une minute.',
     'ai_summary_monthly_budget_reached' => 'Le budget IA mensuel de cette organisation est atteint.',
+    'ai_not_configured_for_organization' => 'L\'IA n\'est pas configurée pour cette organisation. Un administrateur de l\'organisation doit d\'abord renseigner le fournisseur, le modèle et la clé API.',
     'ai_summary_temporarily_unavailable' => 'Le résumé IA est temporairement indisponible pour cette organisation.',
     'cards' => [
         'events' => [
