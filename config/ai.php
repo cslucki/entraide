@@ -224,7 +224,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | Reponse documentaire sourcee depuis une Boucle : au plus `top_k` extraits
-    | (<= 5) des Dossiers accessibles, distance pgvector <= `max_distance`,
+    | (<= 5) des Dossiers accessibles, distance pgvector <= `max_distance`
+    | (cosinus ; 0.60 calibre sur le corpus ArtSciLab avec
+    | text-embedding-3-small : pertinent 0.32-0.57, hors corpus >= 0.62),
     | contexte borne a `max_context_chars`. Meme garde economique que les
     | autres capabilities.
     |
@@ -232,7 +234,7 @@ return [
 
     'knowledge' => [
         'top_k' => (int) env('AI_KNOWLEDGE_TOP_K', 5),
-        'max_distance' => (float) env('AI_KNOWLEDGE_MAX_DISTANCE', 0.75),
+        'max_distance' => (float) env('AI_KNOWLEDGE_MAX_DISTANCE', 0.60),
         'max_context_chars' => (int) env('AI_KNOWLEDGE_MAX_CONTEXT_CHARS', 6000),
         'max_tokens' => (int) env('AI_KNOWLEDGE_MAX_TOKENS', 700),
         'temperature' => (float) env('AI_KNOWLEDGE_TEMPERATURE', 0.2),
