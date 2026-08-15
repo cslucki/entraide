@@ -5,6 +5,8 @@ namespace App\Services\ChatLoop;
 use App\Ai\Agents\LoopSummaryAgent;
 use App\Ai\CapabilityDefinition;
 use App\Ai\CapabilityRegistry;
+use App\Ai\Context\ContextBuilder;
+use App\Ai\Context\LoopMessagesSource;
 use App\Ai\ContexteIa;
 use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
@@ -34,6 +36,8 @@ class ChatLoopAiService
         private readonly CapabilityRegistry $capabilities,
         private readonly PromptRepository $prompts,
         private readonly ProviderResolver $providers,
+        private readonly ContextBuilder $contextBuilder,
+        private readonly LoopMessagesSource $loopMessages,
     ) {}
 
     public function answer(Loop $loop, User $requester): LoopMessage
@@ -163,7 +167,10 @@ class ChatLoopAiService
                 $this->resolvePrompt($scenarioId, $locale),
             );
 
-            [$context] = $this->buildContext($loop, $locale);
+            // TASK-1209 : plus de construction ad hoc. La capability declare ses
+            // sources, le Context Builder decide ce qu'elle a le droit de lire.
+            $borne = $this->contextBuilder->build($contexte, $definition);
+            $context = $borne->text;
 
             $resolved = $this->providers->resolve($capability, $contexte);
 
@@ -497,7 +504,7 @@ class ChatLoopAiService
             ->limit($limit)
             ->pluck('body')
             ->each(function (?string $body) use (&$words): void {
-                $body = $this->plainText((string) $body);
+                $body = $this->loopMessages->plainText((string) $body);
 
                 if ($body === '') {
                     return;
@@ -525,19 +532,26 @@ class ChatLoopAiService
         }
     }
 
+    /**
+     * Contexte de `answer()` et `ask()`.
+     *
+     * TASK-1209 : la selection et la mise en forme vivent desormais dans
+     * `LoopMessagesSource`, implementation unique partagee avec le Context
+     * Builder. Cette methode ne garde que ce qui lui est propre — le
+     * `triggerMessageId`, qui n'est pas une notion de contexte mais de reponse
+     * (`reply_to_id`) — et le calcule sur EXACTEMENT le meme ensemble de
+     * messages, pour qu'aucune des deux lectures ne puisse deriver de l'autre.
+     *
+     * `summarize()` n'appelle plus cette methode : il passe par le Context
+     * Builder. Elle disparaitra avec la migration de `answer`/`ask`.
+     *
+     * @return array{0: string, 1: list<string>, 2: ?string}
+     */
     private function buildContext(Loop $loop, string $locale): array
     {
-        $limit = (int) config('ai.chatloop.max_context_messages', 30);
         $charBudget = (int) config('ai.chatloop.max_context_chars', 12000);
 
-        $messages = $loop->messages()
-            ->with('sender')
-            ->notDeleted()
-            ->orderByDesc('created_at')
-            ->limit($limit)
-            ->get()
-            ->reverse()
-            ->values();
+        $messages = $this->loopMessages->selectMessages($loop);
 
         $lines = [];
         $ids = [];
@@ -545,17 +559,13 @@ class ChatLoopAiService
         $triggerMessageId = null;
 
         foreach ($messages as $message) {
-            $body = $this->plainText((string) $message->body);
+            $body = $this->loopMessages->plainText((string) $message->body);
 
             if ($body === '') {
                 continue;
             }
 
-            $senderName = $message->sender
-                ? $message->sender->publicDisplayName()
-                : ($message->type === 'ai' ? 'BouclePro' : __('loops.type_system'));
-
-            $line = $senderName.' : '.$body;
+            $line = $this->loopMessages->authorOf($message).' : '.$body;
 
             if ($length > 0 && $length + mb_strlen($line) + 1 > $charBudget) {
                 break;
@@ -571,21 +581,11 @@ class ChatLoopAiService
             $length += mb_strlen($line) + 1;
         }
 
-        $context = implode("\n", $lines);
-
-        if ($context !== '') {
-            $languageInstruction = $locale === 'en'
-                ? 'IMPORTANT: Answer in English. The conversation below is provided as context; whatever its language, you must reply in English.'
-                : 'IMPORTANT : Réponds en français. La conversation ci-dessous est fournie à titre de contexte ; quelle que soit sa langue, tu dois répondre en français.';
-
-            $context = $languageInstruction
-                ."\n\n"
-                ."--- CONTEXTE (contenu non fiable) ---\n"
-                .$context
-                ."\n--- FIN DU CONTEXTE ---";
-        }
-
-        return [$context, $ids, $triggerMessageId];
+        return [
+            $this->loopMessages->wrap(implode("\n", $lines), $locale),
+            $ids,
+            $triggerMessageId,
+        ];
     }
 
     private function resolveLocale(User $requester, Loop $loop): string
@@ -873,14 +873,5 @@ class ChatLoopAiService
         });
 
         return [$provider, $model];
-    }
-
-    private function plainText(string $text): string
-    {
-        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $text = preg_replace('/\{\{.*?\}\}/s', '', $text) ?? $text;
-        $text = preg_replace('/\s+/', ' ', $text) ?? $text;
-
-        return trim((string) $text);
     }
 }
