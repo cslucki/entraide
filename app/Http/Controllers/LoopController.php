@@ -1103,14 +1103,17 @@ class LoopController extends Controller
         // Ce clic ne publie plus rien : il transfere seulement la proposition
         // vers le vrai formulaire metier. `relay_loop_id` et `category_id`
         // restent transitoires et seront revalides une seconde fois au submit
-        // qui cree la ServiceRequest.
-        return redirect()->route('organization.requests.create', [
-            'organization' => $organization->slug,
-        ])->withInput([
+        // qui cree la ServiceRequest. Le brouillon voyage hors session, comme
+        // l'analyse : ce clic quitte une page qui poll (voir HelpRequestHandoff).
+        $this->helpRequestHandoff->storeDraft($user, $organization, [
             'title' => $data['title'],
             'description' => $data['need'],
             'relay_loop_id' => $cible?->id,
             'category_id' => $categorie?->id,
+        ]);
+
+        return redirect()->route('organization.requests.create', [
+            'organization' => $organization->slug,
         ]);
     }
 

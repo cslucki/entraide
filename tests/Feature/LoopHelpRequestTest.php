@@ -214,7 +214,8 @@ class LoopHelpRequestTest extends TestCase
             ]);
 
         $response->assertRedirect();
-        $response->assertSessionHasInput('relay_loop_id', $this->loop->id);
+        $draft = app(HelpRequestHandoff::class)->pullDraft($this->member, $this->organization);
+        $this->assertSame($this->loop->id, $draft['relay_loop_id'] ?? null);
         $this->assertDatabaseCount('loop_messages', 0);
         $this->assertDatabaseCount('service_requests', 0);
     }

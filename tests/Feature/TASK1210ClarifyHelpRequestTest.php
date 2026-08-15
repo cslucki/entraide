@@ -247,9 +247,13 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
             ]);
 
         $response->assertRedirect(route('organization.requests.create', $this->organization->slug));
-        $response->assertSessionHasInput('title', 'Cadrer nos usages de l’IA');
-        $response->assertSessionHasInput('description', 'Je cherche de l’aide sur l’éthique de l’IA.');
-        $response->assertSessionHasInput('relay_loop_id', $this->ethique->id);
+
+        // Le brouillon voyage hors session (TASK-1211) et n'est lu qu'une fois
+        // par le formulaire canonique.
+        $draft = app(HelpRequestHandoff::class)->pullDraft($this->member, $this->organization);
+        $this->assertSame('Cadrer nos usages de l’IA', $draft['title'] ?? null);
+        $this->assertSame('Je cherche de l’aide sur l’éthique de l’IA.', $draft['description'] ?? null);
+        $this->assertSame($this->ethique->id, $draft['relay_loop_id'] ?? null);
         $this->assertDatabaseCount('loop_messages', 0);
         $this->assertDatabaseCount('service_requests', 0);
     }

@@ -10,6 +10,7 @@ use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\LoopMessageService;
+use App\Support\Loops\HelpRequestHandoff;
 use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -26,6 +27,7 @@ class RequestController extends Controller
     public function __construct(
         private readonly ClarifyUserHelpRequestService $clarifier,
         private readonly LoopMessageService $loopMessages,
+        private readonly HelpRequestHandoff $handoff,
     ) {}
 
     public function show(ServiceRequest $request): View
@@ -57,6 +59,16 @@ class RequestController extends Controller
     {
         $user = request()->user();
         $organization = $this->organizationFor($user);
+
+        // TASK-1211 : le brouillon prepare depuis une Boucle (« Qui peut
+        // m'aider ? » → « Continuer ma demande ») arrive ici hors session et
+        // n'est lu qu'une fois. Il ne remplace jamais une saisie renvoyee par
+        // une erreur de validation.
+        $draft = $this->handoff->pullDraft($user, $organization);
+
+        if ($draft !== null && ! request()->session()->hasOldInput()) {
+            request()->session()->flashInput($draft);
+        }
 
         $categories = Category::where('organization_id', $organization?->id)->with('pointGuidelines')->get();
         $relayLoops = $this->relayLoopsFor($organization, $user);

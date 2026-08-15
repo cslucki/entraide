@@ -20,6 +20,7 @@ use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\LoopMessageService;
 use App\Services\LoopService;
+use App\Support\Loops\HelpRequestHandoff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -88,9 +89,18 @@ class TASK1211CanonicalHelpRequestTest extends TestCase
         );
 
         $response->assertRedirect(route('organization.requests.create', $this->organization->slug));
-        $response->assertSessionHasInput('title', 'Relire mon dossier européen');
-        $response->assertSessionHasInput('description', 'Je cherche une relecture attentive avant le dépôt de mon dossier.');
-        $response->assertSessionHasInput('relay_loop_id', $this->loop->id);
+
+        $html = $this->actingAs($this->user)
+            ->get($response->headers->get('Location'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('value="Relire mon dossier européen"', $html);
+        $this->assertStringContainsString('Je cherche une relecture attentive avant le dépôt de mon dossier.', $html);
+        $this->assertMatchesRegularExpression(
+            '/<option value="'.preg_quote($this->loop->id, '/').'"[^>]*selected/',
+            $html,
+        );
 
         $this->assertDatabaseCount('service_requests', 0);
         $this->assertDatabaseCount('loop_messages', 0);
@@ -115,16 +125,19 @@ class TASK1211CanonicalHelpRequestTest extends TestCase
             'relay_loop_id' => '',
         ];
 
+        $handoff = app(HelpRequestHandoff::class);
+
         $this->actingAs($this->user)
             ->post($continue, $payload + ['suggested_category_id' => $this->category->id])
-            ->assertRedirect(route('organization.requests.create', $this->organization->slug))
-            ->assertSessionHasInput('category_id', $this->category->id);
+            ->assertRedirect(route('organization.requests.create', $this->organization->slug));
+        $this->assertSame($this->category->id, $handoff->pullDraft($this->user, $this->organization)['category_id'] ?? null);
 
         $this->actingAs($this->user)
             ->post($continue, $payload + ['suggested_category_id' => $foreign->id])
-            ->assertRedirect(route('organization.requests.create', $this->organization->slug))
-            ->assertSessionHasInput('title', 'Relire mon dossier européen');
-        $this->assertNull(session()->getOldInput('category_id'));
+            ->assertRedirect(route('organization.requests.create', $this->organization->slug));
+        $draft = $handoff->pullDraft($this->user, $this->organization);
+        $this->assertSame('Relire mon dossier européen', $draft['title'] ?? null);
+        $this->assertNull($draft['category_id'] ?? null);
 
         $this->actingAs($this->user)
             ->from(route('organization.loops.show', ['organization' => $this->organization->slug, 'loop' => $this->loop]))
@@ -133,6 +146,61 @@ class TASK1211CanonicalHelpRequestTest extends TestCase
 
         $this->assertDatabaseCount('service_requests', 0);
         $this->assertDatabaseCount('loop_messages', 0);
+    }
+
+    /**
+     * Meme course que pour l'analyse : le clic « Continuer ma demande » quitte
+     * une page qui poll toutes les 3 s. Le brouillon transfere au formulaire
+     * canonique doit survivre a une requete Livewire servie entre le POST et
+     * le GET de `requests/create`.
+     */
+    public function test_the_draft_reaches_the_canonical_form_despite_a_livewire_poll_in_between(): void
+    {
+        $post = $this->actingAs($this->user)->post(
+            route('organization.loops.help-request.continue', [
+                'organization' => $this->organization->slug,
+                'loop' => $this->loop,
+            ]),
+            [
+                'title' => 'Relire mon dossier européen',
+                'need' => 'Je cherche une relecture attentive avant le dépôt de mon dossier.',
+                'relay_loop_id' => $this->loop->id,
+                'suggested_category_id' => $this->category->id,
+            ],
+        );
+        $post->assertRedirect(route('organization.requests.create', $this->organization->slug));
+
+        $snapshot = Livewire::actingAs($this->user)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->snapshot;
+
+        $this->actingAs($this->user)
+            ->withHeaders(['X-Livewire' => 'true'])
+            ->postJson(app(HandleRequests::class)->getUpdateUri(), [
+                'components' => [[
+                    'snapshot' => json_encode($snapshot),
+                    'calls' => [['method' => '$refresh', 'params' => []]],
+                    'updates' => [],
+                ]],
+            ])
+            ->assertOk();
+
+        $html = $this->actingAs($this->user)
+            ->get($post->headers->get('Location'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('value="Relire mon dossier européen"', $html);
+        $this->assertStringContainsString('Je cherche une relecture attentive avant le dépôt de mon dossier.', $html);
+        $this->assertMatchesRegularExpression(
+            '/<option value="'.preg_quote($this->category->id, '/').'"[^>]*selected/',
+            $html,
+        );
+        $this->assertMatchesRegularExpression(
+            '/<option value="'.preg_quote($this->loop->id, '/').'"[^>]*selected/',
+            $html,
+        );
+        $this->assertDatabaseCount('service_requests', 0);
     }
 
     public function test_loop_flow_accepts_no_relay_destination(): void
@@ -150,7 +218,10 @@ class TASK1211CanonicalHelpRequestTest extends TestCase
         );
 
         $response->assertRedirect(route('organization.requests.create', $this->organization->slug));
-        $response->assertSessionMissing('relay_loop_id');
+
+        $draft = app(HelpRequestHandoff::class)->pullDraft($this->user, $this->organization);
+        $this->assertSame('Structurer une demande claire', $draft['title'] ?? null);
+        $this->assertNull($draft['relay_loop_id'] ?? null);
         $this->assertDatabaseCount('loop_messages', 0);
     }
 

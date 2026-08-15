@@ -3,6 +3,7 @@
 namespace App\Support\Loops;
 
 use App\Models\Loop;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 
@@ -69,8 +70,52 @@ final class HelpRequestHandoff
         return Cache::has($this->key($user, $loop));
     }
 
+    /**
+     * Deuxieme etape du meme trajet : le brouillon (titre, description,
+     * categorie, Boucle de relais) que « Continuer ma demande » transfere au
+     * formulaire canonique. Meme raison qu'au-dessus : ce clic quitte une page
+     * qui poll, et `withInput()` n'y survivrait pas mieux qu'un flash.
+     *
+     * @param  array<string, mixed>  $draft
+     */
+    public function storeDraft(User $user, Organization $organization, array $draft): void
+    {
+        Cache::put(
+            $this->draftKey($user, $organization),
+            $draft,
+            now()->addMinutes(self::TTL_MINUTES),
+        );
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function pullDraft(User $user, Organization $organization): ?array
+    {
+        $key = $this->draftKey($user, $organization);
+        $draft = Cache::get($key);
+
+        if ($draft === null) {
+            return null;
+        }
+
+        Cache::forget($key);
+
+        return is_array($draft) ? $draft : null;
+    }
+
+    public function hasDraft(User $user, Organization $organization): bool
+    {
+        return Cache::has($this->draftKey($user, $organization));
+    }
+
     private function key(User $user, Loop $loop): string
     {
         return 'loops:help-request-handoff:'.$user->id.':'.$loop->id;
+    }
+
+    private function draftKey(User $user, Organization $organization): string
+    {
+        return 'loops:help-request-draft:'.$user->id.':'.$organization->id;
     }
 }
