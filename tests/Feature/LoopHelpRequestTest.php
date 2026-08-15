@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AiConfig;
 use App\Models\Loop;
+use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\FakeAIProvider;
@@ -197,18 +198,58 @@ class LoopHelpRequestTest extends TestCase
     // Publish route
     // -------------------------------------------------------------------------
 
-    public function test_authenticated_member_can_publish_help_request(): void
+    /**
+     * TASK-1210 : la destination de ce parcours devient la Boucle choisie.
+     * L'ancienne redirection vers la marketplace Organization est le
+     * comportement legacy que cette TASK remplace — pour ce parcours seulement.
+     * La marketplace reste un mecanisme produit a part entiere.
+     */
+    public function test_authenticated_member_publishes_the_help_request_into_the_loop(): void
     {
         $response = $this->actingAs($this->member)
             ->post(route('loops.help-request.publish', $this->loop), [
                 'title' => 'Trouver mes premiers clients',
                 'need' => 'Je cherche des conseils pour trouver mes premiers clients.',
                 'help_type' => 'service',
+                'loop_id' => $this->loop->id,
             ]);
 
-        $response->assertRedirect(route('services.create'));
-        $this->assertEquals('Trouver mes premiers clients', session('_old_input.title'));
-        $this->assertEquals('Je cherche des conseils pour trouver mes premiers clients.', session('_old_input.description'));
+        $response->assertRedirect();
+        $response->assertSessionHas('success');
+
+        $this->assertDatabaseHas('loop_messages', [
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->member->id,
+            'type' => 'help_request',
+        ]);
+
+        $message = LoopMessage::where('loop_id', $this->loop->id)
+            ->where('type', 'help_request')
+            ->latest('created_at')
+            ->firstOrFail();
+
+        $this->assertSame('Trouver mes premiers clients', $message->metadata['title']);
+        $this->assertSame(
+            'Je cherche des conseils pour trouver mes premiers clients.',
+            $message->metadata['need'],
+        );
+        $this->assertSame($this->loop->organization_id, $message->organization_id);
+    }
+
+    public function test_publish_requires_a_destination_loop(): void
+    {
+        $response = $this->actingAs($this->member)
+            ->post(route('loops.help-request.publish', $this->loop), [
+                'title' => 'Un titre',
+                'need' => 'Un besoin.',
+                'help_type' => 'request',
+            ]);
+
+        $response->assertSessionHasErrors('loop_id');
+        $this->assertDatabaseMissing('loop_messages', [
+            'loop_id' => $this->loop->id,
+            'type' => 'help_request',
+        ]);
     }
 
     public function test_publish_requires_title(): void

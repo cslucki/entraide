@@ -2,6 +2,10 @@
 
 namespace Tests\Feature\Services\Ai;
 
+use App\Ai\CapabilityRegistry;
+use App\Ai\Context\ContextBuilder;
+use App\Ai\PromptRepository;
+use App\Ai\ProviderResolver;
 use App\Services\Ai\AiScenarioFactory;
 use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\Ai\Contracts\AiScenarioDefinition;
@@ -9,6 +13,7 @@ use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\DTO\AssistedInteractionLabResult;
 use App\Services\Ai\FakeAIProvider;
 use App\Services\Ai\SupervisionProviderResolver;
+use App\Support\Ai\AiEconomicGuard;
 use Tests\TestCase;
 
 class ClarifyUserHelpRequestServiceTest extends TestCase
@@ -26,10 +31,19 @@ class ClarifyUserHelpRequestServiceTest extends TestCase
         $this->resolver = $this->createMock(SupervisionProviderResolver::class);
         $this->scenarioFactory = $this->createMock(AiScenarioFactory::class);
 
+        // TASK-1210 : le service porte desormais le chemin transverse P3 en plus
+        // du chemin historique. Ces dependances ne servent qu'a
+        // `clarifyForLoop()` ; les tests ci-dessous exercent `analyze()`, dont
+        // le comportement est inchange.
         $this->service = new ClarifyUserHelpRequestService(
             $this->resolver,
             $this->scenarioFactory,
             new FakeAIProvider,
+            app(CapabilityRegistry::class),
+            app(PromptRepository::class),
+            app(ProviderResolver::class),
+            app(ContextBuilder::class),
+            app(AiEconomicGuard::class),
         );
     }
 
