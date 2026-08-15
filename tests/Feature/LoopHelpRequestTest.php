@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\Ai\FakeAIProvider;
 use App\Services\LoopMessageService;
 use App\Services\LoopService;
+use App\Support\Loops\HelpRequestHandoff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -131,10 +132,10 @@ class LoopHelpRequestTest extends TestCase
             ]);
 
         $response->assertRedirect();
-        $response->assertSessionHas('help_request_analysis');
         $response->assertSessionMissing('help_request_error');
 
-        $analysis = session('help_request_analysis');
+        $analysis = app(HelpRequestHandoff::class)->pull($this->member, $this->loop)['analysis'] ?? null;
+        $this->assertIsArray($analysis);
         $this->assertArrayHasKey('title', $analysis);
         $this->assertArrayHasKey('need', $analysis);
         $this->assertArrayHasKey('message_draft', $analysis);
@@ -158,7 +159,7 @@ class LoopHelpRequestTest extends TestCase
             ]);
 
         $response->assertRedirect();
-        $response->assertSessionMissing('help_request_analysis');
+        $this->assertFalse(app(HelpRequestHandoff::class)->has($this->member, $this->loop));
         $response->assertSessionHas('help_request_error');
     }
 
@@ -170,7 +171,7 @@ class LoopHelpRequestTest extends TestCase
             ]);
 
         $response->assertRedirect();
-        $response->assertSessionMissing('help_request_analysis');
+        $this->assertFalse(app(HelpRequestHandoff::class)->has($this->member, $this->loop));
         $response->assertSessionHas('help_request_error');
     }
 

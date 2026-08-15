@@ -29,6 +29,7 @@ use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\StructuredTextResponse;
 use Livewire\Livewire;
+use Livewire\Mechanisms\HandleRequests\HandleRequests;
 use Tests\TestCase;
 
 class TASK1211CanonicalHelpRequestTest extends TestCase
@@ -90,6 +91,45 @@ class TASK1211CanonicalHelpRequestTest extends TestCase
         $response->assertSessionHasInput('title', 'Relire mon dossier européen');
         $response->assertSessionHasInput('description', 'Je cherche une relecture attentive avant le dépôt de mon dossier.');
         $response->assertSessionHasInput('relay_loop_id', $this->loop->id);
+
+        $this->assertDatabaseCount('service_requests', 0);
+        $this->assertDatabaseCount('loop_messages', 0);
+    }
+
+    /**
+     * La categorie proposee par l'IA voyage avec le titre et la description
+     * jusqu'au formulaire canonique, ou l'humain la garde ou la change. Une
+     * categorie d'un autre tenant ne franchit jamais ce passage.
+     */
+    public function test_loop_flow_forwards_only_a_tenant_category_suggestion(): void
+    {
+        $foreign = Category::factory()->create();
+
+        $continue = route('organization.loops.help-request.continue', [
+            'organization' => $this->organization->slug,
+            'loop' => $this->loop,
+        ]);
+        $payload = [
+            'title' => 'Relire mon dossier européen',
+            'need' => 'Je cherche une relecture attentive avant le dépôt de mon dossier.',
+            'relay_loop_id' => '',
+        ];
+
+        $this->actingAs($this->user)
+            ->post($continue, $payload + ['suggested_category_id' => $this->category->id])
+            ->assertRedirect(route('organization.requests.create', $this->organization->slug))
+            ->assertSessionHasInput('category_id', $this->category->id);
+
+        $this->actingAs($this->user)
+            ->post($continue, $payload + ['suggested_category_id' => $foreign->id])
+            ->assertRedirect(route('organization.requests.create', $this->organization->slug))
+            ->assertSessionHasInput('title', 'Relire mon dossier européen');
+        $this->assertNull(session()->getOldInput('category_id'));
+
+        $this->actingAs($this->user)
+            ->from(route('organization.loops.show', ['organization' => $this->organization->slug, 'loop' => $this->loop]))
+            ->post($continue, $payload + ['suggested_category_id' => 'not-a-uuid'])
+            ->assertSessionHasErrors('suggested_category_id');
 
         $this->assertDatabaseCount('service_requests', 0);
         $this->assertDatabaseCount('loop_messages', 0);
@@ -220,6 +260,34 @@ class TASK1211CanonicalHelpRequestTest extends TestCase
         $this->assertDatabaseCount('service_requests', 0);
         $this->assertDatabaseCount('loop_messages', 0);
         Http::assertNothingSent();
+    }
+
+    /**
+     * L'etat Alpine du panneau est ecrit dans un attribut HTML : un guillemet
+     * double glisse dans le script le tronque silencieusement et tout le
+     * panneau meurt dans le navigateur (« loading is not defined »). Le DOM
+     * doit recevoir l'expression entiere, jusqu'a sa derniere methode.
+     */
+    public function test_requests_create_ai_panel_state_reaches_the_browser_intact(): void
+    {
+        $html = $this->actingAs($this->user)
+            ->get(route('organization.requests.create', $this->organization->slug))
+            ->assertOk()
+            ->getContent();
+
+        $dom = new \DOMDocument;
+        libxml_use_internal_errors(true);
+        $dom->loadHTML($html);
+        libxml_clear_errors();
+
+        $panel = (new \DOMXPath($dom))->query('//*[@data-request-ai-formulation]')->item(0);
+        $this->assertNotNull($panel, 'AI panel not rendered');
+
+        $state = $panel->getAttribute('x-data');
+        $this->assertStringContainsString('async formulate()', $state);
+        $this->assertStringContainsString('applySuggestion()', $state);
+        $this->assertStringContainsString('dismissSuggestion()', $state);
+        $this->assertStringNotContainsString('"', $state, 'x-data must not contain a double quote: it ends the HTML attribute');
     }
 
     public function test_deterministic_fallback_never_presents_a_false_or_destructive_improvement(): void
@@ -454,6 +522,63 @@ class TASK1211CanonicalHelpRequestTest extends TestCase
 
         app(LoopMessageService::class)->sendUserMessage($this->loop, $this->user, 'Un message utilisateur normal.');
         Queue::assertPushed(GenerateAiAgentResponse::class, 1);
+    }
+
+    /**
+     * Recette Emergence du 2026-08-15 : la clarification IA reussit, la trace
+     * est ecrite, mais l'ecran redirige revient vide, sans aucune erreur.
+     *
+     * La page d'une Boucle interroge le serveur toutes les 3 s (`wire:poll` de
+     * ChatLoop). Un flash de session ne vit que jusqu'a la sauvegarde de la
+     * requete SUIVANTE — et la suivante est ce poll, servi entre la redirection
+     * et son GET. Ce test rejoue exactement cet ordre : POST -> requete
+     * Livewire reelle (kernel + middleware de session) -> GET redirige.
+     */
+    public function test_the_clarified_request_survives_a_livewire_poll_served_before_the_redirected_screen(): void
+    {
+        $this->fakeClarifier(['suggested_category_id' => $this->category->id]);
+
+        $post = $this->actingAs($this->user)->post(
+            route('organization.loops.help-request.analyze', [
+                'organization' => $this->organization->slug,
+                'loop' => $this->loop,
+            ]),
+            ['intention' => 'Je cherche de l’aide pour monter un dossier de financement européen.'],
+        );
+        $post->assertRedirect();
+
+        // Le poll de ChatLoop, servi AVANT l'ecran attendu : une vraie requete
+        // Livewire, avec la pile de middleware (donc la session) du kernel.
+        $snapshot = Livewire::actingAs($this->user)
+            ->test(LoopChat::class, ['loop' => $this->loop])
+            ->snapshot;
+
+        $this->actingAs($this->user)
+            ->withHeaders(['X-Livewire' => 'true'])
+            ->postJson(app(HandleRequests::class)->getUpdateUri(), [
+                'components' => [[
+                    'snapshot' => json_encode($snapshot),
+                    'calls' => [['method' => '$refresh', 'params' => []]],
+                    'updates' => [],
+                ]],
+            ])
+            ->assertOk();
+
+        $html = $this->actingAs($this->user)
+            ->get($post->headers->get('Location'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Faire relire mon dossier européen', $html);
+        $this->assertStringContainsString('name="relay_loop_id"', $html);
+        $this->assertStringContainsString(__('loops.help_request_continue_cta'), $html);
+        // La categorie suggeree part avec le reste vers le formulaire canonique.
+        $this->assertMatchesRegularExpression(
+            '/name="suggested_category_id"[^>]*value="'.preg_quote($this->category->id, '/').'"/',
+            $html,
+        );
+        $this->assertDatabaseCount('service_requests', 0);
+        $this->assertDatabaseCount('loop_messages', 0);
     }
 
     private function storeRoute(): string

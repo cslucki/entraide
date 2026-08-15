@@ -25,6 +25,7 @@ return [
     'help_request_no_relay_loop' => 'Aucune Boucle',
     'help_request_continue_cta' => 'Continuer ma demande',
     'help_request_suggested_loop' => 'Boucle suggérée',
+    'help_request_suggested_category' => 'Catégorie suggérée',
     'help_request_publish_cta' => 'Publier dans cette Boucle',
     'help_request_no_loop_option' => '— Choisir une Boucle —',
     'help_request_badge' => 'Demande d\'aide',

@@ -1,6 +1,8 @@
 @php
     $currentLoop = $loop;
-    $analysis = session('help_request_analysis');
+    // TASK-1211 : deposee par le controleur (HelpRequestHandoff), pas par un
+    // flash de session — le poll de ChatLoop l'aurait consommee avant l'ecran.
+    $analysis = $helpRequestAnalysis ?? null;
     $_org = request()->route('organization');
     $_loopRoute = function ($name, $params = []) use ($_org) {
         if ($_org && request()->routeIs('organization.*') && Route::has('organization.loops.'.$name)) {
@@ -478,7 +480,7 @@
                                             $needsFallback = $analysis['fallback']['needed'] ?? false;
                                             $fallbackReason = $analysis['fallback']['reason'] ?? null;
                                             $fallbackQuestions = $analysis['fallback']['questions'] ?? [];
-                                            $originalPhrase = $analysis['original_phrase'] ?? session('help_request_intention', '');
+                                            $originalPhrase = $analysis['original_phrase'] ?? ($helpRequestIntention ?? '');
                                             $fallbackNeedEmpty = $needsFallback && empty($analysis['need']) && $originalPhrase;
                                             $needValue = $fallbackNeedEmpty ? $originalPhrase : ($analysis['need'] ?? '');
                                         @endphp
@@ -517,6 +519,19 @@
                                                     class="w-full resize-none px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent">{{ old('need', $needValue) }}</textarea>
                                                 @error('need')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                                             </div>
+                                            {{-- TASK-1211 : la categorie suggeree part avec le titre et la
+                                                 description vers le formulaire canonique, ou l'humain la
+                                                 garde ou la change. Revalidee cote serveur a chaque etape. --}}
+                                            @php
+                                                $suggestedCategory = $analysis['suggested_category'] ?? null;
+                                                $suggestedCategoryId = is_array($suggestedCategory) ? ($suggestedCategory['id'] ?? null) : null;
+                                            @endphp
+                                            @if($suggestedCategoryId)
+                                                <input type="hidden" name="suggested_category_id" value="{{ $suggestedCategoryId }}">
+                                                <p class="text-xs text-indigo-600 dark:text-indigo-300">
+                                                    <span class="font-semibold">{{ __('loops.help_request_suggested_category') }}</span> · {{ $suggestedCategory['label'] ?? '' }}
+                                                </p>
+                                            @endif
                                             {{-- TASK-1210 : la destination. L'IA propose, l'humain choisit.
                                                  Le select n'offre que des Boucles dont il est membre actif, et
                                                  le serveur revalide de toute facon a la publication. --}}

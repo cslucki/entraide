@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\Ai\DTO\AssistedInteractionLabResult;
 use App\Services\LoopService;
+use App\Support\Loops\HelpRequestHandoff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Laravel\Ai\Responses\Data\Meta;
@@ -387,7 +388,7 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
             ]);
 
         $post->assertRedirect();
-        $post->assertSessionHas('help_request_analysis');
+        $this->assertTrue(app(HelpRequestHandoff::class)->has($this->member, $this->loop));
 
         $html = $this->actingAs($this->member)
             ->get($post->headers->get('Location'))
@@ -424,7 +425,7 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
             ]), ['intention' => 'J’aimerais réfléchir aux risques éthiques liés aux agents IA.']);
 
         $post->assertRedirect();
-        $post->assertSessionHas('help_request_analysis');
+        $this->assertTrue(app(HelpRequestHandoff::class)->has($this->member, $this->loop));
 
         $location = $post->headers->get('Location');
 

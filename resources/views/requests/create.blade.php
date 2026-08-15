@@ -83,7 +83,7 @@
                     description.value = this.suggestion.description;
                     description.dispatchEvent(new Event('input', { bubbles: true }));
                 }
-                if (category && this.suggestion.category_id && category.querySelector(`option[value="${this.suggestion.category_id}"]`)) {
+                if (category && this.suggestion.category_id && Array.from(category.options).some((option) => option.value === this.suggestion.category_id)) {
                     category.value = this.suggestion.category_id;
                     category.dispatchEvent(new Event('change', { bubbles: true }));
                 }

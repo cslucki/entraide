@@ -19,6 +19,7 @@ use App\Services\LoopMessageService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Services\Loops\LoopPresetConfigurator;
 use App\Services\LoopService;
+use App\Support\Loops\HelpRequestHandoff;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
@@ -49,6 +50,7 @@ class LoopController extends Controller
         private readonly LoopMessageService $loopMessageService,
         private readonly ChatLoopAiService $chatLoopAiService,
         private readonly AiProvider $aiProvider,
+        private readonly HelpRequestHandoff $helpRequestHandoff,
     ) {}
 
     private function resolveOrganization(): Organization
@@ -575,6 +577,11 @@ class LoopController extends Controller
 
         $clarificationEnabled = AiConfig::get('clarification_enabled', false);
 
+        // TASK-1211 : la clarification deposee par « Qui peut m'aider ? » est
+        // lue ICI, une seule fois, par l'ecran qui l'affiche — jamais via un
+        // flash de session, que le poll de ChatLoop consommerait avant lui.
+        $helpRequest = $this->helpRequestHandoff->pull($user, $loop);
+
         $canManageJoinRequests = $user->can('manageJoinRequests', $loop);
         $pendingJoinRequests = $canManageJoinRequests
             ? LoopJoinRequest::where('loop_id', $loop->id)
@@ -599,6 +606,8 @@ class LoopController extends Controller
             'loop', 'eligibleReferrals', 'isMember', 'clarificationEnabled',
             'canManageJoinRequests', 'pendingJoinRequests', 'loopInvitations', 'governance',
         ) + [
+            'helpRequestAnalysis' => $helpRequest['analysis'] ?? null,
+            'helpRequestIntention' => $helpRequest['intention'] ?? null,
             // TASK-1210 : les Boucles ou l'utilisateur peut publier une demande.
             // Meme perimetre que la source `user.loops` du Context Builder —
             // membre actif, Boucle active, Organization courante — pour que le
@@ -1034,9 +1043,11 @@ class LoopController extends Controller
             $user,
         );
 
-        return redirect($this->loopRoute('loops.show', $loop))
-            ->with('help_request_analysis', $analysis)
-            ->with('help_request_intention', $data['intention']);
+        // Hors session : entre ce POST et l'ecran redirige, ChatLoop poll et
+        // un flash n'y survivrait pas (voir HelpRequestHandoff).
+        $this->helpRequestHandoff->store($user, $loop, $analysis, $data['intention']);
+
+        return redirect($this->loopRoute('loops.show', $loop));
     }
 
     public function prepareHelpRequest(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
@@ -1064,6 +1075,7 @@ class LoopController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'need' => ['required', 'string', 'max:2000'],
             'relay_loop_id' => ['bail', 'nullable', 'uuid'],
+            'suggested_category_id' => ['bail', 'nullable', 'uuid'],
         ]);
 
         $relayLoopId = $data['relay_loop_id'] ?? null;
@@ -1077,15 +1089,28 @@ class LoopController extends Controller
                 ->with('help_request_error', __('loops.help_request_loop_invalid'));
         }
 
+        // La categorie suggeree par l'IA voyage avec le reste, mais seulement
+        // si elle appartient a cette Organization : sinon elle est simplement
+        // absente et l'humain choisit dans le formulaire.
+        $suggestedCategoryId = $data['suggested_category_id'] ?? null;
+        $categorie = $suggestedCategoryId !== null
+            ? Category::query()
+                ->whereKey($suggestedCategoryId)
+                ->where('organization_id', $organization->id)
+                ->first(['id'])
+            : null;
+
         // Ce clic ne publie plus rien : il transfere seulement la proposition
-        // vers le vrai formulaire metier. `relay_loop_id` reste transitoire et
-        // sera revalide une seconde fois au submit qui cree la ServiceRequest.
+        // vers le vrai formulaire metier. `relay_loop_id` et `category_id`
+        // restent transitoires et seront revalides une seconde fois au submit
+        // qui cree la ServiceRequest.
         return redirect()->route('organization.requests.create', [
             'organization' => $organization->slug,
         ])->withInput([
             'title' => $data['title'],
             'description' => $data['need'],
             'relay_loop_id' => $cible?->id,
+            'category_id' => $categorie?->id,
         ]);
     }
 

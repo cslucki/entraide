@@ -25,6 +25,7 @@ return [
     'help_request_no_relay_loop' => 'No Loop',
     'help_request_continue_cta' => 'Continue my request',
     'help_request_suggested_loop' => 'Suggested Loop',
+    'help_request_suggested_category' => 'Suggested category',
     'help_request_publish_cta' => 'Publish in this Loop',
     'help_request_no_loop_option' => '— Choose a Loop —',
     'help_request_badge' => 'Help request',
