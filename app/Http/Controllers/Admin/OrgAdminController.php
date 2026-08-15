@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Ai\ProviderResolver;
 use App\Http\Controllers\Controller;
+use App\Models\AiInteraction;
 use App\Models\BlogPost;
 use App\Models\BugReport;
 use App\Models\Category;
@@ -12,6 +14,7 @@ use App\Models\LoopInvitation;
 use App\Models\LoopMember;
 use App\Models\Message;
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\Referral;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -22,10 +25,10 @@ use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
 use App\Services\LoopGovernanceService;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Services\Loops\LoopPresetConfigurator;
 use App\Services\Loops\PresetException;
-use App\Services\Loops\LoopCardCompositionService;
 use App\Services\LoopService;
 use App\Services\TranslationOverrideService;
 use App\Services\TranslationService;
@@ -272,7 +275,7 @@ class OrgAdminController extends Controller
             // plateforme ; le bouton scope est pour l'admin d'Organization.
             'canConfigureCards' => ! $loop->isArchived()
                 && auth()->user()?->organization_id === $organization->id
-                && app(\App\Services\Loops\LoopPresetConfigurator::class)->canConfigure(auth()->user(), $loop),
+                && app(LoopPresetConfigurator::class)->canConfigure(auth()->user(), $loop),
             'composition' => app(LoopCardCompositionService::class)->compositionFor($loop),
             'candidates' => User::assignable()
                 ->where('organization_id', $organization->id)
@@ -1030,6 +1033,65 @@ class OrgAdminController extends Controller
         }
 
         return back()->with('success', __('navigation.org_admin_translation_reset_done'));
+    }
+
+    /**
+     * TASK-1212 (IA P4-lite) : configuration IA de l'Organization. Le
+     * credential n'est jamais renvoye a la vue : seul son etat (definie / non
+     * definie, date de mise a jour) est affiche.
+     */
+    public function ai(Organization $organization): View
+    {
+        $setting = $organization->aiSetting;
+
+        $monthStart = now()->startOfMonth();
+        $monthlyCost = (float) AiInteraction::query()
+            ->where('organization_id', $organization->id)
+            ->where('created_at', '>=', $monthStart)
+            ->where('created_at', '<', $monthStart->copy()->addMonth())
+            ->where('cost_unknown', false)
+            ->sum('cost_usd');
+
+        return view('admin.org.ai', [
+            'organization' => $organization,
+            'setting' => $setting,
+            'providers' => ProviderResolver::ALLOWED_PROVIDERS,
+            'monthlyCost' => $monthlyCost,
+            'defaultModel' => (string) (config('ai.default_model') ?: config('ai.openrouter.model', 'openai/gpt-4o-mini')),
+        ]);
+    }
+
+    public function updateAi(Request $request, Organization $organization): RedirectResponse
+    {
+        $data = $request->validate([
+            'provider' => ['required', Rule::in(ProviderResolver::ALLOWED_PROVIDERS)],
+            'model' => ['required', 'string', 'max:150'],
+            'api_key' => ['nullable', 'string', 'max:500'],
+            'clear_api_key' => ['nullable', 'boolean'],
+            'monthly_budget_usd' => ['nullable', 'numeric', 'min:0', 'max:100000'],
+            'is_enabled' => ['nullable', 'boolean'],
+        ]);
+
+        $setting = OrganizationAiSetting::query()->firstOrNew(['organization_id' => $organization->id]);
+        $setting->provider = $data['provider'];
+        $setting->model = trim($data['model']);
+        $budget = $data['monthly_budget_usd'] ?? null;
+        $setting->monthly_budget_usd = $budget !== null && $budget !== '' ? (float) $budget : null;
+        $setting->is_enabled = $request->boolean('is_enabled');
+
+        // Le champ cle est ecrit-seul : vide = conserver, case cochee = effacer.
+        if ($request->boolean('clear_api_key')) {
+            $setting->api_key = null;
+            $setting->api_key_updated_at = null;
+        } elseif (trim((string) ($data['api_key'] ?? '')) !== '') {
+            $setting->api_key = trim($data['api_key']);
+            $setting->api_key_updated_at = now();
+        }
+
+        $setting->save();
+
+        return redirect()->route('organization.admin.ai', ['organization' => $organization->slug])
+            ->with('success', __('admin.organization_ai_saved'));
     }
 
     public function identity(Organization $organization): View

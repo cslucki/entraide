@@ -13,6 +13,7 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\Ai\DTO\AssistedInteractionLabResult;
@@ -51,6 +52,9 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
 
         $this->organization = Organization::factory()->create();
         $this->otherOrganization = Organization::factory()->create();
+        // TASK-1212 : l'IA transverse est configuree par Organization.
+        OrganizationAiSetting::factory()->create(['organization_id' => $this->organization->id, 'provider' => 'openai', 'model' => 'gpt-4o-mini']);
+        OrganizationAiSetting::factory()->create(['organization_id' => $this->otherOrganization->id, 'provider' => 'openai', 'model' => 'gpt-4o-mini']);
         $this->member = User::factory()->create(['organization_id' => $this->organization->id]);
 
         $loops = new LoopService;
@@ -320,7 +324,8 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
         $this->clarify('une intention');
 
         HelpRequestClarifierAgent::assertPrompted(function ($prompt): bool {
-            $this->assertSame('openai', $prompt->provider->name());
+            // TASK-1212 : l'instance SDK est celle du tenant.
+            $this->assertSame('org:'.$this->organization->id.':openai', $prompt->provider->name());
             $this->assertNotSame('', $prompt->model);
 
             return true;

@@ -7,6 +7,7 @@ use App\Models\AiConfig;
 use App\Models\AiInteraction;
 use App\Models\Loop;
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopService;
@@ -44,6 +45,8 @@ class TASK1205LoopSummaryEconomicGuardTest extends TestCase
         parent::setUp();
 
         $this->organization = Organization::factory()->create();
+        // TASK-1212 : provider/modele/credential portes par l'Organization.
+        OrganizationAiSetting::factory()->create(['organization_id' => $this->organization->id, 'provider' => 'openrouter', 'model' => 'deepseek/deepseek-chat-v3-0324']);
         $owner = User::factory()->create(['organization_id' => $this->organization->id]);
         $this->member = User::factory()->create(['organization_id' => $this->organization->id]);
         $loops = new LoopService;
@@ -83,7 +86,7 @@ class TASK1205LoopSummaryEconomicGuardTest extends TestCase
 
         LoopSummaryAgent::assertPrompted(
             fn ($prompt): bool => $prompt->model === 'deepseek/deepseek-chat-v3-0324'
-                && $prompt->provider->name() === 'openrouter'
+                && $prompt->provider->name() === 'org:'.$this->organization->id.':openrouter'
         );
     }
 
