@@ -221,6 +221,14 @@ class AppServiceProvider extends ServiceProvider
                     return;
                 }
 
+                // Une projection de ServiceRequest est une annonce metier, pas
+                // une question adressee a l'agent. Les help_request historiques
+                // non lies conservent leur comportement : la garde est bornee
+                // aux deux marqueurs explicites de TASK-1211.
+                if ($message->isServiceRequestProjection()) {
+                    return;
+                }
+
                 dispatch(new GenerateAiAgentResponse($loop, $message));
             },
         );

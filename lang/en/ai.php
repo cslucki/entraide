@@ -106,6 +106,18 @@ return [
     'service_formulation_intention_required' => 'Enter at least a title or a short description before asking the AI for help.',
     'service_formulation_intention_hint' => 'Enter at least a title or a short description.',
 
+    // AI Request Formulation (TASK-1211)
+    'request_formulate_cta' => 'Help me formulate',
+    'request_formulate_cta_title' => 'AI helps you turn your intention into a clear help request',
+    'request_formulating' => 'AI is formulating a request',
+    'request_suggestion_title' => 'AI proposal',
+    'request_apply_suggestion' => 'Apply suggestion',
+    'request_dismiss_suggestion' => 'Dismiss',
+    'request_formulation_error' => 'AI could not formulate the request right now. Please try again.',
+    'request_formulation_unavailable' => 'AI assistance is currently unavailable. Your fields remain unchanged.',
+    'request_formulation_no_improvement' => 'No useful improvement was proposed. Your fields remain unchanged.',
+    'request_formulation_intention_hint' => 'Enter at least a title or a short description.',
+
     // Tiptap Markdown WYSIWYG toolbar (TASK-1056)
     'markdown_undo' => 'Undo',
     'markdown_redo' => 'Redo',

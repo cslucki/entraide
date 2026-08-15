@@ -108,7 +108,15 @@
                             <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
                         </div>
                     @elseif($msg->type === 'help_request')
-                        @php $meta = $msg->metadata ?? []; @endphp
+                        @php
+                            $meta = $msg->metadata ?? [];
+                            $projectionId = $msg->isServiceRequestProjection()
+                                ? ($meta['service_request_id'] ?? null)
+                                : null;
+                            $canonicalRequest = $projectionId
+                                ? $projectedRequests->get($projectionId)
+                                : null;
+                        @endphp
                         <div x-data="{ deleteOpen: false }" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl p-4 space-y-2">
                             <div class="flex items-center justify-between gap-2">
                                 <div class="flex items-center gap-2">
@@ -145,18 +153,40 @@
                                     </template>
                                 @endif
                             </div>
-                            <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">{{ $meta['title'] ?? __('loops.help_request_badge') }}</h3>
-                            <p class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{{ $msg->body }}</p>
-                            @if(!empty($meta['expected_help_type']))
-                                <div class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                    </svg>
-                                    <span>{{ __('loops.expected_help', ['type' => $meta['expected_help_type']]) }}</span>
-                                </div>
+                            @if($projectionId)
+                                @if($canonicalRequest)
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <h3 class="min-w-0 flex-1 text-sm font-bold text-gray-900 dark:text-gray-100">{{ $canonicalRequest->title }}</h3>
+                                        @if($canonicalRequest->status === 'closed')
+                                            <span class="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ __('requests.status_closed') }}</span>
+                                        @endif
+                                    </div>
+                                    <p class="text-sm leading-relaxed text-gray-700 dark:text-gray-300">{{ Str::limit(strip_tags($canonicalRequest->description), 320) }}</p>
+                                    <a href="{{ $projectedRequestUrls[$canonicalRequest->id] }}"
+                                       class="inline-flex items-center rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-700">
+                                        {{ __('requests.view_request') }}
+                                    </a>
+                                @else
+                                    <p class="text-sm font-medium text-gray-600 dark:text-gray-300">{{ __('requests.projection_unavailable') }}</p>
+                                @endif
+                            @else
+                                {{-- Compatibilite des help_request historiques : leur snapshot
+                                     reste lisible, mais n'est jamais presente comme une demande canonique. --}}
+                                <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">{{ $meta['title'] ?? __('loops.help_request_badge') }}</h3>
+                                <p class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{{ $msg->body }}</p>
+                                @if(!empty($meta['expected_help_type']))
+                                    <div class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        <span>{{ __('loops.expected_help', ['type' => $meta['expected_help_type']]) }}</span>
+                                    </div>
+                                @endif
                             @endif
                             <div class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500 pt-1 border-t border-amber-200/50 dark:border-amber-700/30">
-                                @if($msg->sender)
+                                @if($canonicalRequest?->user)
+                                    <span>{{ $canonicalRequest->user_id === auth()->id() ? __('messages.me') : $canonicalRequest->user->publicDisplayName() }}</span>
+                                @elseif($msg->sender)
                                     <span>{{ $isOwn ? __('messages.me') : $senderName }}</span>
                                 @else
                                     <span>{{ __('messages.member') }}</span>

@@ -37,7 +37,7 @@ class AdminAiPromptIntegrationTest extends TestCase
             'scenario_id' => 'clarify_help_request',
             'name' => 'Test clarify prompt',
             'prompt_text' => 'DB PROMPT: clarify help request',
-            'version' => 1,
+            'version' => 3,
             'is_active' => true,
         ]);
 
@@ -70,7 +70,7 @@ class AdminAiPromptIntegrationTest extends TestCase
             'scenario_id' => 'clarify_help_request',
             'name' => 'Override',
             'prompt_text' => 'DB OVERRIDE',
-            'version' => 2,
+            'version' => 99,
             'is_active' => true,
         ]);
 

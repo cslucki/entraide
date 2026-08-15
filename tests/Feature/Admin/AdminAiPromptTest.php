@@ -57,6 +57,21 @@ class AdminAiPromptTest extends TestCase
         $this->assertStringContainsString('transmise au membre', $prompt->prompt_text);
     }
 
+    public function test_ai_prompt_seeder_creates_the_bounded_clarification_prompt_v2(): void
+    {
+        $this->seed(AiPromptSeeder::class);
+
+        $prompt = AdminAiPrompt::query()
+            ->where('scenario_id', 'clarify_help_request')
+            ->where('version', 2)
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        $this->assertStringContainsString('suggested_category_id', $prompt->prompt_text);
+        $this->assertStringContainsString('suggested_loop_id', $prompt->prompt_text);
+        $this->assertStringContainsString("N'invente jamais d'identifiant", $prompt->prompt_text);
+    }
+
     public function test_admin_can_create_prompt(): void
     {
         $admin = $this->makeAdmin();
