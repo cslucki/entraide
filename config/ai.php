@@ -218,6 +218,31 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Loop knowledge answer — RAG V1 (TASK-1213)
+    |--------------------------------------------------------------------------
+    |
+    | Reponse documentaire sourcee depuis une Boucle : au plus `top_k` extraits
+    | (<= 5) des Dossiers accessibles, distance pgvector <= `max_distance`,
+    | contexte borne a `max_context_chars`. Meme garde economique que les
+    | autres capabilities.
+    |
+    */
+
+    'knowledge' => [
+        'top_k' => (int) env('AI_KNOWLEDGE_TOP_K', 5),
+        'max_distance' => (float) env('AI_KNOWLEDGE_MAX_DISTANCE', 0.75),
+        'max_context_chars' => (int) env('AI_KNOWLEDGE_MAX_CONTEXT_CHARS', 6000),
+        'max_tokens' => (int) env('AI_KNOWLEDGE_MAX_TOKENS', 700),
+        'temperature' => (float) env('AI_KNOWLEDGE_TEMPERATURE', 0.2),
+        'max_answer_chars' => (int) env('AI_KNOWLEDGE_MAX_ANSWER_CHARS', 3000),
+        'economic_guard' => [
+            'monthly_budget_usd' => (float) env('AI_KNOWLEDGE_MONTHLY_BUDGET_USD', 2.00),
+            'monthly_unknown_limit' => (int) env('AI_KNOWLEDGE_MONTHLY_UNKNOWN_LIMIT', 10),
+        ],
+    ],
+
     'chatloop' => [
         'enabled' => (bool) env('CHATLOOP_AI_ENABLED', true),
         'scenario' => env('CHATLOOP_AI_SCENARIO', 'chatloop_ai_answer'),

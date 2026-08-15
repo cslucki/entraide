@@ -26,6 +26,18 @@ final class CapabilityRegistry
 
     public const SOURCE_ORGANIZATION_CATEGORIES = 'organization.categories';
 
+    /**
+     * TASK-1213 : recherche documentaire (chunks pgvector des Dossiers
+     * accessibles). Reservee aux capabilities qui repondent a une question.
+     */
+    public const SOURCE_DOSSIER_RETRIEVAL = 'dossier.retrieval';
+
+    /**
+     * TASK-1213 : reponse documentaire sourcee depuis une Boucle. Read-only :
+     * elle n'ecrit ni message ni objet metier.
+     */
+    public const LOOP_KNOWLEDGE_ANSWER = 'loop_knowledge_answer';
+
     /** @var array<string, CapabilityDefinition> */
     private array $definitions;
 
@@ -62,9 +74,26 @@ final class CapabilityRegistry
             contextCharBudget: self::clarifyContextBudget(),
         );
 
+        $loopKnowledgeAnswer = new CapabilityDefinition(
+            id: self::LOOP_KNOWLEDGE_ANSWER,
+            process: AiProcess::fromScenarioId('loop_knowledge_answer'),
+            // Rien a confirmer : la capability ne produit aucune action metier.
+            requiresHumanConfirmation: false,
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
+            // Uniquement le corpus documentaire autorise : ni messages de
+            // Boucle, ni catalogue, ni profil — la question porte sur ce que
+            // les Dossiers savent.
+            allowedSources: [self::SOURCE_DOSSIER_RETRIEVAL],
+            maxOutput: 4000,
+            promptKey: 'loop_knowledge_answer',
+            contextCharBudget: self::knowledgeContextBudget(),
+        );
+
         $this->definitions = [
             $loopSummary->id => $loopSummary,
             $clarifyHelpRequest->id => $clarifyHelpRequest,
+            $loopKnowledgeAnswer->id => $loopKnowledgeAnswer,
         ];
     }
 
@@ -104,6 +133,21 @@ final class CapabilityRegistry
         }
 
         return (int) config('ai.clarify.max_context_chars', $default);
+    }
+
+    /**
+     * Budget de contexte de `loop_knowledge_answer` : au plus cinq extraits
+     * courts et leurs en-tetes.
+     */
+    private static function knowledgeContextBudget(): int
+    {
+        $default = 6000;
+
+        if (! function_exists('app') || ! app()->bound('config')) {
+            return $default;
+        }
+
+        return (int) config('ai.knowledge.max_context_chars', $default);
     }
 
     public function has(string $capability): bool

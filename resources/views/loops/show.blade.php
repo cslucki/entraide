@@ -428,6 +428,105 @@
 
         <x-conversation.image-lightbox key="loop-chat" />
 
+        @if($isMember)
+            {{-- TASK-1213 : « Consulter les Dossiers » — reponse documentaire sourcee,
+                 read-only. Ouvert par l'evenement `bp-open-knowledge` (bouton dans
+                 loop-chat). Requete JSON, aucune ecriture, aucune session. --}}
+            <div x-data="{
+                    open: false,
+                    question: '',
+                    loading: false,
+                    error: null,
+                    result: null,
+                    endpoint: @js($_loopRoute('knowledge.ask', ['loop' => $currentLoop])),
+                    reset() { this.error = null; this.result = null; },
+                    async ask() {
+                        const q = this.question.trim();
+                        if (q.length < 3 || this.loading) return;
+                        this.loading = true; this.reset();
+                        try {
+                            const token = document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '';
+                            const response = await fetch(this.endpoint, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': token },
+                                body: JSON.stringify({ question: q })
+                            });
+                            const data = await response.json();
+                            if (!response.ok) { this.error = data.error || (data.errors && Object.values(data.errors).flat()[0]) || @js(__('loops.knowledge_error')); return; }
+                            this.result = data;
+                        } catch (e) {
+                            this.error = @js(__('loops.knowledge_error'));
+                        } finally {
+                            this.loading = false;
+                        }
+                    }
+                }"
+                @bp-open-knowledge.window="open = true; $nextTick(() => $refs.knowledgeQuestion?.focus())"
+                data-knowledge-modal>
+                <template x-teleport="body">
+                    <div x-show="open" x-cloak
+                        class="fixed inset-0 z-50 flex items-center justify-center"
+                        x-effect="document.body.style.overflow = open ? 'hidden' : ''"
+                        @keydown.escape.window="open = false">
+                        <div x-show="open" @click="open = false" class="fixed inset-0 bg-black/50 transition-opacity"></div>
+                        <div x-show="open" @click.away="open = false"
+                            class="relative w-full max-w-lg bg-white dark:bg-gray-800 rounded-2xl shadow-xl flex flex-col max-h-[85vh] mx-3" data-knowledge-dialog>
+                            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('loops.knowledge_title') }}</h3>
+                                <button type="button" @click="open = false" class="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="{{ __('loops.knowledge_close') }}">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                            <div class="overflow-y-auto px-4 py-3 min-h-0 flex-1 space-y-3">
+                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('loops.knowledge_intro') }}</p>
+                                <form @submit.prevent="ask()" class="space-y-2">
+                                    <label for="knowledge-question" class="sr-only">{{ __('loops.knowledge_title') }}</label>
+                                    <textarea id="knowledge-question" x-ref="knowledgeQuestion" x-model="question" rows="3" maxlength="500" minlength="3" required
+                                        placeholder="{{ __('loops.knowledge_placeholder') }}"
+                                        class="w-full resize-none px-3.5 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-sky-400 focus:border-transparent"></textarea>
+                                    <button type="submit" :disabled="loading || question.trim().length < 3"
+                                        class="w-full px-4 py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition flex items-center justify-center gap-1.5">
+                                        <span x-show="!loading">{{ __('loops.knowledge_ask') }}</span>
+                                        <span x-show="loading">{{ __('loops.knowledge_asking') }}</span>
+                                    </button>
+                                </form>
+
+                                <div x-show="error" x-cloak class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200" data-knowledge-error x-text="error"></div>
+
+                                <template x-if="result">
+                                    <div class="space-y-3" data-knowledge-result>
+                                        <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/40">
+                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300 mb-1">{{ __('loops.knowledge_answer_title') }}</p>
+                                            <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-line" data-knowledge-answer x-text="result.answer"></p>
+                                        </div>
+                                        <div x-show="result.sources && result.sources.length" data-knowledge-sources>
+                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1" x-text="result.grounded ? @js(__('loops.knowledge_sources_title')) : @js(__('loops.knowledge_consulted_title'))"></p>
+                                            <ul class="space-y-2">
+                                                <template x-for="source in result.sources" :key="source.ref">
+                                                    <li class="rounded-lg border border-gray-200 dark:border-gray-700 p-2.5 text-xs" data-knowledge-source>
+                                                        <div class="flex items-start justify-between gap-2">
+                                                            <div class="min-w-0">
+                                                                <span class="font-mono text-[10px] text-sky-700 dark:text-sky-300" x-text="'[' + source.ref + ']'"></span>
+                                                                <span class="font-semibold text-gray-900 dark:text-gray-100" x-text="source.title"></span>
+                                                                <span class="text-gray-500 dark:text-gray-400" x-text="' · ' + source.dossier_name"></span>
+                                                            </div>
+                                                            <a x-show="source.url" :href="source.url" target="_blank" rel="noopener" class="flex-shrink-0 text-sky-700 dark:text-sky-300 hover:underline">{{ __('loops.knowledge_open_source') }}</a>
+                                                        </div>
+                                                        <p class="mt-1 text-gray-600 dark:text-gray-300 italic" x-text="source.excerpt"></p>
+                                                    </li>
+                                                </template>
+                                            </ul>
+                                        </div>
+                                        <p class="text-[11px] text-gray-400 dark:text-gray-500">{{ __('loops.knowledge_disclaimer') }}</p>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        @endif
+
         {{-- Bottom strip: join CTA (guests) / help-request modal holder (members) --}}
         <div class="flex-shrink-0">
             @if(!$isMember && $currentLoop->isPublic())
