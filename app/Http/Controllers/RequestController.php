@@ -3,18 +3,30 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\RequestAttachment;
 use App\Models\ServiceRequest;
+use App\Models\User;
+use App\Services\Ai\ClarifyUserHelpRequestService;
+use App\Services\LoopMessageService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class RequestController extends Controller
 {
+    public function __construct(
+        private readonly ClarifyUserHelpRequestService $clarifier,
+        private readonly LoopMessageService $loopMessages,
+    ) {}
+
     public function show(ServiceRequest $request): View
     {
         $organization = currentOrganization();
@@ -42,27 +54,65 @@ class RequestController extends Controller
 
     public function create(): View
     {
-        $organization = currentOrganization();
-        if (! $organization) {
-            abort(404);
-        }
+        $user = request()->user();
+        $organization = $this->organizationFor($user);
 
         $categories = Category::where('organization_id', $organization?->id)->with('pointGuidelines')->get();
+        $relayLoops = $this->relayLoopsFor($organization, $user);
 
-        return view('requests.create', compact('categories', 'organization'));
+        return view('requests.create', compact('categories', 'organization', 'relayLoops'));
+    }
+
+    /** L'aide IA ne remplit que le titre et la description, sans rien publier. */
+    public function formulate(Request $httpRequest): JsonResponse
+    {
+        $user = $httpRequest->user();
+        $organization = $this->organizationFor($user);
+
+        $data = $httpRequest->validate([
+            'title' => ['nullable', 'string', 'max:255', 'required_without:description'],
+            'description' => ['nullable', 'string', 'max:2000', 'required_without:title'],
+        ]);
+
+        $title = trim((string) ($data['title'] ?? ''));
+        $description = trim((string) ($data['description'] ?? ''));
+        $intention = implode("\n", array_filter([
+            $title !== '' ? 'Titre actuel : '.$title : null,
+            $description !== '' ? 'Description actuelle : '.$description : null,
+        ]));
+
+        $result = $this->clarifier->clarifyForOrganization($organization, $user, $intention);
+
+        if ($result->isBlocked()) {
+            return response()->json([
+                'error' => $result->fallback['reason'] ?? __('ai.request_formulation_error'),
+            ], 422);
+        }
+
+        return response()->json([
+            'suggestion' => [
+                'title' => $result->title,
+                'description' => $result->messageDraft ?: $result->need,
+            ],
+        ]);
     }
 
     public function store(Request $httpRequest): RedirectResponse
     {
-        $organization = currentOrganization();
-        if (! $organization) {
-            abort(404);
-        }
+        $user = $httpRequest->user();
+        $organization = $this->organizationFor($user);
 
         $data = $httpRequest->validate($this->validationRules($organization, ['deadline' => 'nullable|date|after:today']), [], __('marketplace.validation_attributes'));
+        $relayLoop = $this->relayLoopOrNull($data['relay_loop_id'] ?? null, $organization, $user);
+
+        if (! empty($data['relay_loop_id']) && $relayLoop === null) {
+            throw ValidationException::withMessages([
+                'relay_loop_id' => __('requests.relay_loop_invalid'),
+            ]);
+        }
 
         $serviceRequest = ServiceRequest::create([
-            'user_id' => auth()->id(),
+            'user_id' => $user->id,
             'organization_id' => $organization->id,
             'title' => $data['title'],
             'description' => $data['description'],
@@ -76,11 +126,33 @@ class RequestController extends Controller
 
         $this->storeAttachments($httpRequest, $serviceRequest);
 
+        if ($relayLoop !== null) {
+            try {
+                $message = $this->loopMessages->sendServiceRequestProjection(
+                    $relayLoop,
+                    $user,
+                    $serviceRequest,
+                );
+
+                return redirect()->route('organization.loops.show', [
+                    'organization' => $organization->slug,
+                    'loop' => $relayLoop,
+                ])->with('success', __('requests.notification.created_and_relayed'))
+                    ->with('help_request_message_id', $message->id);
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
+        }
+
         $redirectRoute = $organization && Route::has('organization.dashboard.requests')
             ? route('organization.dashboard.requests', ['organization' => $organization->slug])
             : route('dashboard.requests');
 
-        return redirect($redirectRoute)->with('success', __('requests.notification.created'));
+        $response = redirect($redirectRoute)->with('success', __('requests.notification.created'));
+
+        return $relayLoop !== null
+            ? $response->with('warning', __('requests.relay_failed'))
+            : $response;
     }
 
     private function storeAttachments(Request $httpRequest, ServiceRequest $serviceRequest): void
@@ -178,14 +250,64 @@ class RequestController extends Controller
         return [
             'title' => 'required|string|min:10|max:255',
             'description' => 'required|string|min:100',
-            'category_id' => 'required|uuid|exists:categories,id',
+            'category_id' => [
+                'bail',
+                'required',
+                'uuid',
+                Rule::exists((new Category)->getTable(), 'id')
+                    ->where(fn ($query) => $query->where('organization_id', $organization->id)),
+            ],
             'delivery_mode' => 'required|in:remote,onsite,both',
             'budget_min' => array_merge(['required', 'integer'], $this->pointLimitRules($organization)),
             'budget_max' => array_merge(['nullable', 'integer', 'gte:budget_min'], $this->pointLimitRules($organization)),
             'deadline' => $deadlineRule['deadline'],
             'attachments' => 'nullable|array|max:5',
             'attachments.*' => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx|max:10240',
+            'relay_loop_id' => ['bail', 'nullable', 'uuid'],
         ];
+    }
+
+    private function organizationFor(?User $user): Organization
+    {
+        $organization = currentOrganization();
+
+        if (! $organization || ! $user || $user->isDeactivated() || $user->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        return $organization;
+    }
+
+    private function relayLoopsFor(Organization $organization, User $user)
+    {
+        return Loop::query()
+            ->where('organization_id', $organization->id)
+            ->where('status', 'active')
+            ->whereHas('members', fn ($query) => $query
+                ->where('user_id', $user->id)
+                ->where('status', 'active'))
+            ->orderBy('name')
+            ->get(['id', 'name', 'organization_id']);
+    }
+
+    private function relayLoopOrNull(mixed $loopId, Organization $organization, User $user): ?Loop
+    {
+        if ($loopId === null || $loopId === '') {
+            return null;
+        }
+
+        if (! is_string($loopId) || ! Str::isUuid($loopId)) {
+            return null;
+        }
+
+        return Loop::query()
+            ->whereKey($loopId)
+            ->where('organization_id', $organization->id)
+            ->where('status', 'active')
+            ->whereHas('members', fn ($query) => $query
+                ->where('user_id', $user->id)
+                ->where('status', 'active'))
+            ->first();
     }
 
     private function pointLimitRules(Organization $organization): array

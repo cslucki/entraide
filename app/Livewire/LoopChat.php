@@ -6,6 +6,8 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\Reaction;
+use App\Models\Scopes\BelongsToOrganizationScope;
+use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\LoopMessageService;
 use App\Services\Loops\LoopLifecycleService;
@@ -14,10 +16,10 @@ use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
-use Livewire\Attributes\On;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\WebpEncoder;
 use Intervention\Image\Laravel\Facades\Image;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -520,6 +522,8 @@ class LoopChat extends Component
         }
 
         $requestedByNames = $this->requestedByNames($messages);
+        $projectedRequests = $this->projectedRequests($messages);
+        $projectedRequestUrls = $this->projectedRequestUrls($projectedRequests);
         $aiRoute = $this->aiRoute();
         $canDeleteMessages = $this->canDeleteDisplayedMessages();
         // La vue retire le compositeur plutot que d'accepter un message que
@@ -532,10 +536,54 @@ class LoopChat extends Component
             'reactionData',
             'myReactions',
             'requestedByNames',
+            'projectedRequests',
+            'projectedRequestUrls',
             'aiRoute',
             'canDeleteMessages',
             'canContribute',
         ));
+    }
+
+    /**
+     * Charge toutes les demandes projetees en une requete, explicitement dans
+     * le tenant de la Boucle. Une metadata malformee n'atteint jamais la
+     * colonne UUID PostgreSQL et aucune requete ne part depuis Blade.
+     *
+     * @return Collection<string, ServiceRequest>
+     */
+    private function projectedRequests(Collection $messages): Collection
+    {
+        $ids = $messages
+            ->filter(fn (LoopMessage $message) => $message->isServiceRequestProjection())
+            ->map(fn (LoopMessage $message) => $message->metadata['service_request_id'])
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        return ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->where('organization_id', $this->loop->organization_id)
+            ->whereIn('id', $ids)
+            ->with('user')
+            ->get()
+            ->reject(fn (ServiceRequest $request) => $request->user?->isDeactivated() ?? true)
+            ->keyBy('id');
+    }
+
+    /** @param Collection<string, ServiceRequest> $requests */
+    private function projectedRequestUrls(Collection $requests): array
+    {
+        $slug = $this->loop->organization?->slug;
+
+        return $requests->mapWithKeys(function (ServiceRequest $request) use ($slug): array {
+            $url = $slug && Route::has('organization.requests.show')
+                ? route('organization.requests.show', ['organization' => $slug, 'request' => $request])
+                : route('requests.show', $request);
+
+            return [$request->id => $url];
+        })->all();
     }
 
     private function loadInitialMessages(): void

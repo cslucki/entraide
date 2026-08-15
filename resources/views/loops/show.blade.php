@@ -481,7 +481,6 @@
                                             $originalPhrase = $analysis['original_phrase'] ?? session('help_request_intention', '');
                                             $fallbackNeedEmpty = $needsFallback && empty($analysis['need']) && $originalPhrase;
                                             $needValue = $fallbackNeedEmpty ? $originalPhrase : ($analysis['need'] ?? '');
-                                            $selectedHelpType = old('help_type', ($analysis['intent'] ?? '') === 'offer' ? 'service' : 'request');
                                         @endphp
 
                                         @if($needsFallback)
@@ -504,7 +503,7 @@
                                             </div>
                                         @endif
 
-                                        <form method="POST" action="{{ $_loopRoute('help-request.publish', ['loop' => $currentLoop]) }}" class="space-y-3">
+                                        <form method="POST" action="{{ $_loopRoute('help-request.continue', ['loop' => $currentLoop]) }}" class="space-y-3">
                                             @csrf
                                             <div>
                                                 <label for="hr-title" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('loops.form_title') }}</label>
@@ -524,12 +523,13 @@
                                             @php
                                                 $suggested = $analysis['suggested_loop'] ?? null;
                                                 $suggestedId = is_array($suggested) ? ($suggested['id'] ?? null) : null;
-                                                $selectedLoopId = old('loop_id', $suggestedId ?? $currentLoop->id);
+                                                $selectedLoopId = old('relay_loop_id', $suggestedId ?? $currentLoop->id);
                                             @endphp
                                             <div>
                                                 <label for="hr-loop" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('loops.help_request_choose_loop') }}</label>
-                                                <select name="loop_id" id="hr-loop"
+                                                <select name="relay_loop_id" id="hr-loop"
                                                     class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                                                    <option value="" @selected($selectedLoopId === null || $selectedLoopId === '')>{{ __('loops.help_request_no_relay_loop') }}</option>
                                                     @foreach(($publishableLoops ?? collect()) as $candidate)
                                                         <option value="{{ $candidate->id }}" @selected($selectedLoopId === $candidate->id)>{{ $candidate->name }}</option>
                                                     @endforeach
@@ -539,22 +539,7 @@
                                                         <span class="font-semibold">{{ __('loops.help_request_suggested_loop') }}</span> · {{ $suggested['reason'] }}
                                                     </p>
                                                 @endif
-                                                @error('loop_id')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
-                                            </div>
-                                            <div>
-                                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">{{ __('loops.exchange_type') }}</label>
-                                                <div class="flex gap-3">
-                                                    <label class="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/20 has-[:checked]:ring-1 has-[:checked]:ring-indigo-500">
-                                                        <input type="radio" name="help_type" value="request" @checked($selectedHelpType === 'request')
-                                                            class="text-indigo-600 focus:ring-indigo-500">
-                                                        {{ __('loops.help_type_request') }}
-                                                    </label>
-                                                    <label class="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/20 has-[:checked]:ring-1 has-[:checked]:ring-indigo-500">
-                                                        <input type="radio" name="help_type" value="service" @checked($selectedHelpType === 'service')
-                                                            class="text-indigo-600 focus:ring-indigo-500">
-                                                        {{ __('loops.help_type_service') }}
-                                                    </label>
-                                                </div>
+                                                @error('relay_loop_id')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                                             </div>
                                             <div class="flex gap-3 pt-1">
                                                 <a href="{{ $_loopRoute('show', ['loop' => $currentLoop]) }}"
@@ -566,7 +551,7 @@
                                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                                                     </svg>
-                                                    {{ __('loops.help_request_publish_cta') }}
+                                                    {{ __('loops.help_request_continue_cta') }}
                                                 </button>
                                             </div>
                                         </form>

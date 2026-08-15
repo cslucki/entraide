@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class LoopMessage extends Model
 {
@@ -114,6 +115,14 @@ class LoopMessage extends Model
     public function isDeleted(): bool
     {
         return $this->deleted_at !== null;
+    }
+
+    public function isServiceRequestProjection(): bool
+    {
+        return $this->type === 'help_request'
+            && ($this->metadata['projection_type'] ?? null) === 'service_request'
+            && is_string($this->metadata['service_request_id'] ?? null)
+            && Str::isUuid($this->metadata['service_request_id']);
     }
 
     public function isEditableBy(User $user): bool

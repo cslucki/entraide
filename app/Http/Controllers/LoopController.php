@@ -1039,7 +1039,7 @@ class LoopController extends Controller
             ->with('help_request_intention', $data['intention']);
     }
 
-    public function publishHelpRequest(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
+    public function prepareHelpRequest(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
     {
         $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
         $organization = $this->resolveOrganization();
@@ -1061,40 +1061,32 @@ class LoopController extends Controller
         }
 
         $data = $request->validate([
-            'title' => 'required|string|max:120',
-            'need' => 'required|string|max:2000',
-            'help_type' => 'required|string|in:request,service',
-            'loop_id' => 'required|uuid',
+            'title' => ['required', 'string', 'max:255'],
+            'need' => ['required', 'string', 'max:2000'],
+            'relay_loop_id' => ['bail', 'nullable', 'uuid'],
         ]);
 
-        // Revalidation serveur de la destination (TASK-1210). L'utilisateur a pu
-        // changer la Boucle proposee, et le champ vient du navigateur : rien
-        // n'autorise a lui faire confiance.
-        $cible = $this->publishableLoopOrNull($data['loop_id'], $organization, $user);
+        $relayLoopId = $data['relay_loop_id'] ?? null;
+        $cible = $relayLoopId !== null
+            ? $this->publishableLoopOrNull($relayLoopId, $organization, $user)
+            : null;
 
-        if ($cible === null) {
+        if ($relayLoopId !== null && $cible === null) {
             return back()
                 ->withInput()
                 ->with('help_request_error', __('loops.help_request_loop_invalid'));
         }
 
-        // La publication est une ecriture metier : elle n'a lieu QUE sur ce clic
-        // explicite. La capability, elle, reste `can_write=false`.
-        $message = $this->loopMessageService->sendHelpRequestMessage(
-            loop: $cible,
-            sender: $user,
-            body: $data['need'],
-            title: $data['title'],
-            need: $data['need'],
-            context: '',
-            expectedHelpType: $data['help_type'] === 'service'
-                ? __('loops.help_type_service')
-                : __('loops.help_type_request'),
-        );
-
-        return redirect($this->loopRoute('loops.show', $cible))
-            ->with('success', __('loops.help_request_published'))
-            ->with('help_request_message_id', $message->id);
+        // Ce clic ne publie plus rien : il transfere seulement la proposition
+        // vers le vrai formulaire metier. `relay_loop_id` reste transitoire et
+        // sera revalide une seconde fois au submit qui cree la ServiceRequest.
+        return redirect()->route('organization.requests.create', [
+            'organization' => $organization->slug,
+        ])->withInput([
+            'title' => $data['title'],
+            'description' => $data['need'],
+            'relay_loop_id' => $cible?->id,
+        ]);
     }
 
     /**

@@ -15,6 +15,7 @@ use App\Models\AdminAiPrompt;
 use App\Models\AiConfig;
 use App\Models\AiInteraction;
 use App\Models\Loop;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\Ai\DTO\AssistedInteractionLabResult;
@@ -89,6 +90,34 @@ class ClarifyUserHelpRequestService implements AiProvider
      */
     public function clarifyForLoop(Loop $loop, User $requester, string $phrase): AssistedInteractionLabResult
     {
+        return $this->clarifyInContext($loop->organization, $requester, $phrase, $loop);
+    }
+
+    /**
+     * Meme capability depuis le formulaire canonique d'une Demande.
+     *
+     * La portee reste l'Organization et `user.loops` reste la seule source :
+     * l'absence de Boucle d'origine ne doit ni supprimer l'aide a la
+     * formulation, ni elargir le contexte autorise.
+     */
+    public function clarifyForOrganization(
+        Organization $organization,
+        User $requester,
+        string $phrase,
+    ): AssistedInteractionLabResult {
+        if ($requester->organization_id !== $organization->id) {
+            throw new \DomainException('The requester does not belong to this Organization.');
+        }
+
+        return $this->clarifyInContext($organization, $requester, $phrase, null);
+    }
+
+    private function clarifyInContext(
+        Organization $organization,
+        User $requester,
+        string $phrase,
+        ?Loop $loop,
+    ): AssistedInteractionLabResult {
         // Meme coupe-circuit que `analyze()` : quand la clarification IA est
         // desactivee, aucun appel provider n'est tente — et la clarification
         // deterministe prend le relais. Sans ce garde, les tests et les
@@ -100,12 +129,15 @@ class ClarifyUserHelpRequestService implements AiProvider
 
         $capability = CapabilityRegistry::CLARIFY_HELP_REQUEST;
         $definition = $this->capabilities->get($capability);
-        $this->capabilities->assertScopeAllowed($capability, CapabilityRegistry::SCOPE_LOOP);
+        $scope = $loop === null
+            ? CapabilityRegistry::SCOPE_ORGANIZATION
+            : CapabilityRegistry::SCOPE_LOOP;
+        $this->capabilities->assertScopeAllowed($capability, $scope);
 
         $contexte = new ContexteIa(
-            organizationId: (string) $loop->organization_id,
+            organizationId: (string) $organization->id,
             userId: (string) $requester->id,
-            loopId: (string) $loop->id,
+            loopId: $loop?->id,
             locale: str_starts_with((string) app()->getLocale(), 'en') ? 'en' : 'fr',
             capability: $capability,
             correlationId: AiCorrelation::id(),
@@ -383,7 +415,7 @@ class ClarifyUserHelpRequestService implements AiProvider
      * @param  array{cost_usd: ?float, cost_unknown: ?bool}  $costAttributes
      */
     private function recordInteraction(
-        Loop $loop,
+        ?Loop $loop,
         User $requester,
         ContexteIa $contexte,
         CapabilityDefinition $definition,
@@ -410,7 +442,7 @@ class ClarifyUserHelpRequestService implements AiProvider
             'output_tokens' => $usage->outputTokensOrZero(),
             ...$costAttributes,
             'metadata' => array_filter([
-                'loop_id' => $loop->id,
+                'loop_id' => $loop?->id,
                 'requested_by' => $requester->id,
                 'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
                 'provider' => $resolved->provider,

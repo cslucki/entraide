@@ -2,6 +2,7 @@
     $requestTerm = app()->getLocale() === 'en' ? __('marketplace.request_term') : ($T['request'] ?? __('marketplace.request_term'));
     $_reqOrgSlug = request()->route('organization');
     $_reqStoreAction = $_reqOrgSlug && Route::has('organization.requests.store') ? route('organization.requests.store', ['organization' => $_reqOrgSlug]) : route('requests.store');
+    $_reqAiFormulateAction = $_reqOrgSlug && Route::has('organization.requests.ai-formulate') ? route('organization.requests.ai-formulate', ['organization' => $_reqOrgSlug]) : route('requests.ai-formulate');
     $pointMin = $organization->servicePointsMin();
     $pointMax = $organization->servicePointsMax();
     $pointHelpContext = ['organization' => $organization->name, 'min' => $pointMin, 'max' => $pointMax];
@@ -20,6 +21,101 @@
             </div>
         </div>
 
+        <div x-data="{
+            loading: false,
+            suggestion: null,
+            error: null,
+            canFormulate: false,
+            errorMessageFallback: '',
+            init() {
+                this.errorMessageFallback = this.$el.dataset.errorMessage || '';
+                this.refreshCanFormulate();
+                document.addEventListener('input', (event) => {
+                    if ((event.target.name === 'title' || event.target.name === 'description') && event.target.closest('form[data-marketplace-validation]')) {
+                        this.refreshCanFormulate();
+                    }
+                });
+            },
+            refreshCanFormulate() {
+                const form = document.querySelector('form[data-marketplace-validation]');
+                const title = form?.querySelector('[name=\'title\']')?.value?.trim() || '';
+                const description = form?.querySelector('[name=\'description\']')?.value?.trim() || '';
+                this.canFormulate = title !== '' || description !== '';
+            },
+            async formulate() {
+                this.loading = true;
+                this.error = null;
+                this.suggestion = null;
+                try {
+                    const form = document.querySelector('form[data-marketplace-validation]');
+                    const payload = new FormData();
+                    payload.append('title', form.querySelector('[name=\'title\']')?.value || '');
+                    payload.append('description', form.querySelector('[name=\'description\']')?.value || '');
+                    const token = document.querySelector('meta[name=\'csrf-token\']')?.getAttribute('content') || '';
+                    const response = await fetch('{{ $_reqAiFormulateAction }}', {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+                        body: payload
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        this.error = data.error || this.errorMessageFallback;
+                        return;
+                    }
+                    this.suggestion = data.suggestion;
+                } catch (exception) {
+                    this.error = this.errorMessageFallback;
+                } finally {
+                    this.loading = false;
+                }
+            },
+            applySuggestion() {
+                if (!this.suggestion) return;
+                const form = document.querySelector('form[data-marketplace-validation]');
+                const title = form.querySelector('[name=\'title\']');
+                const description = form.querySelector('[name=\'description\']');
+                if (title && this.suggestion.title) {
+                    title.value = this.suggestion.title;
+                    title.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                if (description && this.suggestion.description) {
+                    description.value = this.suggestion.description;
+                    description.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                this.suggestion = null;
+                this.error = null;
+            },
+            dismissSuggestion() {
+                this.suggestion = null;
+                this.error = null;
+            }
+        }" data-request-ai-formulation data-error-message="{{ __('ai.request_formulation_error') }}"
+             class="mb-6 rounded-xl border border-indigo-200 bg-white p-4 dark:border-indigo-600 dark:bg-gray-800">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">{{ __('ai.request_formulate_cta_title') }}</p>
+                <button type="button" @click="formulate()" :disabled="loading || !canFormulate"
+                    class="rounded-lg bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50">
+                    <span x-show="!loading">✨ {{ __('ai.request_formulate_cta') }}</span>
+                    <span x-show="loading">{{ __('ai.request_formulating') }}...</span>
+                </button>
+            </div>
+            <p x-show="!canFormulate" class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('ai.request_formulation_intention_hint') }}</p>
+
+            <div x-show="suggestion" x-transition class="mt-4 rounded-lg border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-700 dark:bg-indigo-900/20">
+                <h4 class="text-sm font-semibold text-indigo-800 dark:text-indigo-200">{{ __('ai.request_suggestion_title') }}</h4>
+                <div class="mt-2 space-y-2 text-sm text-indigo-700 dark:text-indigo-300">
+                    <p><strong>{{ __('marketplace.title') }} :</strong> <span x-text="suggestion?.title"></span></p>
+                    <p class="whitespace-pre-line"><strong>{{ __('marketplace.description') }} :</strong> <span x-text="suggestion?.description"></span></p>
+                </div>
+                <div class="mt-3 flex flex-wrap gap-2">
+                    <button type="button" @click="applySuggestion()" class="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700">{{ __('ai.request_apply_suggestion') }}</button>
+                    <button type="button" @click="dismissSuggestion()" class="rounded-lg border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">{{ __('ai.request_dismiss_suggestion') }}</button>
+                </div>
+            </div>
+
+            <div x-show="error" x-transition class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-700 dark:bg-red-900/20 dark:text-red-300" x-text="error"></div>
+        </div>
+
         @if($errors->any())
         <div class="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
             <ul class="list-disc ml-4">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
@@ -34,13 +130,13 @@
 
             <div class="mb-5">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.title') }} {{ __('marketplace.required') }}</label>
-                <input type="text" name="title" value="{{ old('title') }}" required maxlength="255"
+                <input type="text" name="title" value="{{ old('title') }}" required minlength="10" maxlength="255"
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
             </div>
 
             <div class="mb-5">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.request_description', ['request' => $requestTerm]) }} {{ __('marketplace.required') }}</label>
-                <textarea name="description" rows="5" required
+                <textarea name="description" rows="5" required minlength="100"
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">{{ old('description') }}</textarea>
             </div>
 
@@ -50,7 +146,7 @@
                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
                     <option value="">{{ __('marketplace.select') }}</option>
                     @foreach($categories as $cat)
-                    <option value="{{ $cat->id }}">{{ $cat->name_b2c }}</option>
+                    <option value="{{ $cat->id }}" @selected(old('category_id') === $cat->id)>{{ $cat->name_b2c }}</option>
                     @endforeach
                 </select>
             </div>
@@ -172,6 +268,19 @@
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('marketplace.deadline') }} <span class="text-gray-400">{{ __('marketplace.optional') }}</span></label>
                 <input type="date" name="deadline" value="{{ old('deadline') }}" min="{{ date('Y-m-d', strtotime('+1 day')) }}"
                     class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <div class="mb-8">
+                <label for="relay_loop_id" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('requests.relay_loop_label') }} <span class="font-normal text-gray-400">{{ __('marketplace.optional') }}</span></label>
+                <select id="relay_loop_id" name="relay_loop_id"
+                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                    <option value="">{{ __('requests.relay_loop_none') }}</option>
+                    @foreach($relayLoops as $relayLoop)
+                        <option value="{{ $relayLoop->id }}" @selected(old('relay_loop_id') === $relayLoop->id)>{{ $relayLoop->name }}</option>
+                    @endforeach
+                </select>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('requests.relay_loop_help') }}</p>
+                @error('relay_loop_id')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
 
             <div class="flex gap-3">
