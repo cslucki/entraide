@@ -79,8 +79,15 @@
         // - « Partage » ne varie que hors Boucle : dans une Boucle, chaque
         //   ligne repeterait « Boucle », ce que le fil d'Ariane dit deja.
         $estDriveDeBoucle = $governingDossier->isLoopDossier();
+        // Dans un Dossier recu par partage, « Partage » repeterait « partage »
+        // a chaque ligne : ce que le lecteur ignore, c'est QUI a depose quoi.
+        // « Ajoute par » — et non « Proprietaire » : le modele ne connait que
+        // `uploaded_by` pour un fichier et `added_by` pour le lien Article,
+        // deux depots, pas deux proprietes (TASK-1143).
+        $vueRecueEnPartage = ! $estDriveDeBoucle && ($isSharedSurface ?? false);
         $colonneProprietaire = $estDriveDeBoucle;
-        $colonnePartage = ! $estDriveDeBoucle;
+        $colonneAjoutePar = $vueRecueEnPartage;
+        $colonnePartage = ! $estDriveDeBoucle && ! $vueRecueEnPartage;
 
         // Les deux gabarits s'ecrivent EN ENTIER, et non autour d'un ternaire.
         // Tailwind cherche ses classes comme du TEXTE dans les fichiers : une
@@ -89,7 +96,7 @@
         // grille retombait sur ses deux colonnes de base — chaque cellule sur
         // sa propre ligne. Deux lignes redondantes valent mieux qu'une elegante
         // qui ne produit aucun CSS.
-        $grilleDrive = $estDriveDeBoucle
+        $grilleDrive = ($estDriveDeBoucle || $vueRecueEnPartage)
             ? 'grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-x-3 lg:grid-cols-[minmax(0,3fr)_9rem_6.5rem_6.5rem_6.5rem_2.75rem]'
             : 'grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-x-3 lg:grid-cols-[minmax(0,3fr)_6rem_6.5rem_6.5rem_6.5rem_2.75rem]';
         $celluleLgDrive = 'hidden lg:block min-w-0 truncate text-xs text-gray-500 dark:text-gray-400';
@@ -104,9 +111,18 @@
 
         // La gouvernance HERITEE de ce Dossier : ce que porte tout contenu qui
         // y vit, sauf un CAS B qui dit la sienne.
+        //
+        // L'etat se lisait sur la seule racine gouvernante. « Mes documents »
+        // n'ayant jamais de membre — elle n'est pas une ancre de partage —,
+        // tout ce qui vivait sous un Dossier reellement partage s'affichait
+        // « Prive » : faux pour son proprietaire comme pour son lecteur. Un
+        // contenu couvert par une ancre, ici ou plus haut, dit desormais
+        // l'acces qu'il tient de cette ancre (TASK-1143).
         $partageHerite = $governingDossier->isLoopDossier()
             ? __('dossiers.share_loop')
-            : ($governingDossier->dossierMembers->isNotEmpty() ? __('dossiers.share_shared') : __('dossiers.share_private'));
+            : (($couvertParUnPartage ?? false) || $governingDossier->dossierMembers->isNotEmpty()
+                ? __('dossiers.share_inherited')
+                : __('dossiers.share_private'));
         $proprietaireHerite = $governingDossier->isLoopDossier()
             ? ($governingDossier->loop?->name ?? '—')
             : ($governingDossier->owner_id === auth()->id()
@@ -900,6 +916,7 @@
                             <div class="{{ $grilleDrive }} border-b border-gray-200 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:border-gray-700 dark:text-gray-500">
                                 <div>{{ __('dossiers.col_name') }}</div>
                                 @if($colonneProprietaire)<div>{{ __('dossiers.col_owner') }}</div>@endif
+                                @if($colonneAjoutePar)<div>{{ __('dossiers.col_added_by') }}</div>@endif
                                 <div>{{ __('dossiers.col_type') }}</div>
                                 @if($colonnePartage)<div>{{ __('dossiers.col_share') }}</div>@endif
                                 <div>{{ __('dossiers.col_modified') }}</div>
@@ -955,11 +972,26 @@
                                         $proprietaireLibelle = $estPartageIci
                                             ? ($folder->owner_id === auth()->id() ? __('dossiers.owner_me') : ($nomProprietaire ?? '—'))
                                             : $proprietaireHerite;
-                                        $partageDuDossier = ! $estPartageIci
-                                            ? $partageHerite
-                                            : ($folder->shared_with_loop_id
-                                                ? __('dossiers.share_loop')
-                                                : (($folder->dossier_members_count ?? 0) > 0 ? __('dossiers.share_shared') : __('dossiers.share_private')));
+                                        // Une ligne dit d'abord SON partage.
+                                        // L'etat n'etait lu que sur les racines
+                                        // (`$estPartageIci`) : un sous-dossier
+                                        // explicitement partage heritait de
+                                        // l'etat de « Mes documents » et
+                                        // s'affichait « Prive » alors qu'il
+                                        // etait bel et bien partage. On lit son
+                                        // ancre a lui, et on ne retombe sur
+                                        // l'heritage qu'a defaut (TASK-1143).
+                                        $ancreDeLaLigne = $folder->shared_with_loop_id
+                                            || ($folder->dossier_members_count ?? 0) > 0;
+                                        $partageDuDossier = $folder->shared_with_loop_id
+                                            ? __('dossiers.share_loop')
+                                            : ($ancreDeLaLigne
+                                                ? __('dossiers.share_shared')
+                                                // Une racine porte sa propre
+                                                // gouvernance : sans ancre, elle
+                                                // est privee, et n'herite de
+                                                // rien du Dossier ouvert.
+                                                : ($estPartageIci ? __('dossiers.share_private') : $partageHerite));
                                     @endphp
                                     <div class="flex min-w-0 items-center gap-3">
                                         {!! $gouttiereDrive(false) !!}
@@ -968,6 +1000,16 @@
                                             @if($estDunAutre)
                                                 <span class="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white ring-1 ring-amber-300 dark:bg-gray-800 dark:ring-amber-500/50">
                                                     <svg class="h-2 w-2 text-amber-600 dark:text-amber-300" fill="currentColor" viewBox="0 0 20 20"><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z"/></svg>
+                                                </span>
+                                            @elseif($ancreDeLaLigne)
+                                                {{-- Le partage se voit sur la ligne, pas
+                                                     seulement dans une colonne masquee sous
+                                                     lg : c'est la seule marque lisible en
+                                                     mobile. --}}
+                                                <span class="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white ring-1 ring-indigo-300 dark:bg-gray-800 dark:ring-indigo-500/50"
+                                                      title="{{ __('dossiers.share_shared_badge') }}">
+                                                    <svg class="h-2 w-2 text-indigo-600 dark:text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="16.5" cy="15.5" r="3"/><path d="M4.5 19c.6-2.6 2.4-4 4.5-4"/></svg>
+                                                    <span class="sr-only">{{ __('dossiers.share_shared_badge') }}</span>
                                                 </span>
                                             @endif
                                         </span>
@@ -978,7 +1020,10 @@
                                             <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400">{{ $partageDuDossier }} · <span data-folder-count="{{ $folder->getKey() }}" data-count="{{ $nbElements }}">{{ trans_choice('dossiers.drive_folder_items', $nbElements, ['count' => $nbElements]) }}</span>@if($estDunAutre) · {{ __('dossiers.drive_shared_by', ['name' => $nomProprietaire]) }}@endif</span>
                                         </a>
                                     </div>
-                                    @if($colonneProprietaire)
+                                    @if($colonneProprietaire || $colonneAjoutePar)
+                                        {{-- Un Dossier a un vrai proprietaire :
+                                             c'est lui qu'on montre, meme sous
+                                             l'en-tete « Ajoute par ». --}}
                                         <div class="hidden min-w-0 items-center gap-2 lg:flex">
                                             <x-user-avatar :user="$proprietaireDuDossier" size="xs" />
                                             <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $proprietaireLibelle }}</span>
@@ -1055,6 +1100,15 @@
                                     x-show="!searchQuery || {{ \Illuminate\Support\Js::from(mb_strtolower($post->title)) }}.includes(searchQuery.toLowerCase())">
                                     @php
                                         $auteurArticle = $post->user?->isDisplayableIn(currentOrganization()) ? $post->user->publicDisplayName() : __('profile.deactivated_user');
+                                        // Qui a range l'Article ici. Un lien
+                                        // ancien peut n'avoir aucun `added_by` :
+                                        // on l'admet plutot que d'attribuer le
+                                        // depot a l'auteur par defaut.
+                                        $deposantArticle = $entry->added_by === auth()->id()
+                                            ? __('dossiers.owner_me')
+                                            : ($entry->addedBy?->isDisplayableIn(currentOrganization())
+                                                ? $entry->addedBy->publicDisplayName()
+                                                : ($entry->addedBy ? __('profile.deactivated_user') : '—'));
                                         $motsArticle = str_word_count(strip_tags((string) $post->content));
                                         // La Serie dont CET Article est la racine, s'il y en a une.
                                         $serieDeLArticle = $seriesList->firstWhere('root_blog_post_id', $post->getKey());
@@ -1076,6 +1130,16 @@
                                         <div class="hidden min-w-0 items-center gap-2 lg:flex">
                                             <x-user-avatar :user="$post->user" size="xs" />
                                             <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $post->user_id === auth()->id() ? __('dossiers.owner_me') : $auteurArticle }}</span>
+                                        </div>
+                                    @endif
+                                    @if($colonneAjoutePar)
+                                        {{-- Qui a range CET Article ICI —
+                                             `added_by` du lien, pas l'auteur du
+                                             contenu : dans un Dossier partage,
+                                             les deux different souvent. --}}
+                                        <div class="hidden min-w-0 items-center gap-2 lg:flex">
+                                            <x-user-avatar :user="$entry->addedBy" size="xs" />
+                                            <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $deposantArticle }}</span>
                                         </div>
                                     @endif
                                     <div class="{{ $celluleLgDrive }}">{{ __('dossiers.drive_article_badge') }}</div>
@@ -1157,7 +1221,10 @@
                                         <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400" x-text="@js($partageHerite) + ' · ' + file.sizeFormatted + ' · ' + file.updatedAtFormatted"></span>
                                     </button>
                                     </div>
-                                    @if($colonneProprietaire)
+                                    @if($colonneProprietaire || $colonneAjoutePar)
+                                        {{-- `uploaded_by` est la seule attribution
+                                             qu'un fichier possede : c'est bien
+                                             « ajoute par », jamais un proprietaire. --}}
                                         <div class="hidden min-w-0 items-center gap-2 lg:flex">
                                             <img x-show="file.uploader?.avatar_url" :src="file.uploader?.avatar_url" alt="" aria-hidden="true"
                                                  class="h-6 w-6 shrink-0 rounded-full object-cover">
