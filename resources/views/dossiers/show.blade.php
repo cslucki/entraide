@@ -1913,6 +1913,13 @@
                         <span x-text="message"></span>
                     </div>
 
+                    {{-- Le recapitulatif d'en-tete redit ce que « Acces directs »
+                         montre juste en dessous — meme proprietaire, meme badge,
+                         meme decompte. Pour qui gere le partage, le panneau
+                         s'ouvre donc directement sur « Ajouter un membre ».
+                         Un lecteur, lui, n'a pas cette liste : le recapitulatif
+                         reste sa seule lecture de qui accede au dossier. --}}
+                    @unless($canManageMembers)
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div class="flex items-center gap-4">
                             <div class="flex -space-x-2">
@@ -1945,10 +1952,11 @@
                             </div>
                         </div>
                     </div>
+                    @endunless
 
                     {{-- Gestion dans le panneau unique (owner only) --}}
                     @if($canManageMembers)
-                        <div class="mt-6 border-t border-gray-200 pt-5 dark:border-gray-700">
+                        <div>
                             <div>
                                 <div class="flex items-center justify-between mb-4">
                                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.addMember"></h3>
