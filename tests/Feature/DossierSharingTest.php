@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Dossier;
 use App\Models\DossierMember;
+use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -459,15 +460,18 @@ class DossierSharingTest extends TestCase
         $this->assertNull($response->json('members.0.email'));
     }
 
-    public function test_owner_sees_manage_modal_html(): void
+    public function test_owner_manages_members_inside_the_single_share_panel(): void
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'My folder');
 
         $this->actingAs($this->ownerA)
             ->get($this->orgRoute('dossiers.show', $dossier))
             ->assertOk()
-            ->assertSee('showManageModal')
-            ->assertSee('manage-members-title');
+            ->assertDontSee('showManageModal')
+            ->assertDontSee('manage-members-title')
+            ->assertSee(__('dossiers.direct_access_title'))
+            ->assertSee(__('dossiers.inherited_access_title'))
+            ->assertSee(__('dossiers.add_member'));
     }
 
     public function test_editor_does_not_see_manage_modal_html(): void
@@ -646,7 +650,7 @@ class DossierSharingTest extends TestCase
     {
         $dossier = $this->dossier($this->orgA, $this->ownerA, 'A partager');
 
-        $boucle = \App\Models\Loop::factory()->create([
+        $boucle = Loop::factory()->create([
             'organization_id' => $this->orgA->id,
             'status' => 'active',
             'type' => 'general',
