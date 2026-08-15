@@ -2837,12 +2837,13 @@ function registerDossierMembersCard() {
 
     Alpine.data('dossierMembersCard', (config) => ({
         members: [],
-        showSearch: false,
+        inheritedMembers: [],
         searchQuery: '',
         searchResults: [],
         searchLoading: false,
-        showManageModal: false,
-        showRemoveModal: false,
+        addingMemberId: null,
+        updatingMemberId: null,
+        removing: false,
         removeTarget: null,
         message: '',
         messageType: 'success',
@@ -2855,61 +2856,44 @@ function registerDossierMembersCard() {
         currentUserId: config.currentUserId,
         canManage: config.canManage || false,
         i18n: config.i18n,
-        _trapTrigger: null,
-        _trapHandler: null,
-
-        _activateFocusTrap(containerSelector) {
-            const el = document.querySelector(containerSelector);
-            if (!el) return;
-            const nodes = focusableNodes(el);
-            if (nodes.length) nodes[0].focus();
-            this._trapHandler = (e) => {
-                if (e.key !== 'Tab') return;
-                const list = focusableNodes(el);
-                if (!list.length) return;
-                const first = list[0], last = list[list.length - 1];
-                if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-                else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-            };
-            el.addEventListener('keydown', this._trapHandler);
-        },
-
-        _destroyFocusTrap(containerSelector) {
-            const el = document.querySelector(containerSelector);
-            if (el && this._trapHandler) el.removeEventListener('keydown', this._trapHandler);
-            this._trapHandler = null;
-            if (this._trapTrigger && this._trapTrigger.isConnected) this._trapTrigger.focus();
-            this._trapTrigger = null;
-        },
-
         init() {
             this.loadMembers();
             document.addEventListener('keydown', (ev) => {
-                if (ev.key === 'Escape') {
-                    if (this.showRemoveModal) { this.showRemoveModal = false; this.removeTarget = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="remove-member-title"]'); }); }
-                    else if (this.showManageModal) { this.showManageModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="manage-members-title"]'); }); }
-                }
+                if (ev.key === 'Escape' && this.removeTarget) this.removeTarget = null;
             });
-            this.$watch('showManageModal', (val) => {
-                if (val) { this._trapTrigger = document.activeElement; this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="manage-members-title"]'); }); }
-                else { this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="manage-members-title"]'); }); }
+        },
+
+        mapMember(member) {
+            return {
+                ...member,
+                isYou: String(member.id) === String(this.currentUserId),
+                displayName: `${member.first_name || ''} ${(member.name || '').toUpperCase()}`.trim(),
+                initial: (member.first_name || member.name || '?').charAt(0).toUpperCase(),
+                roleLabel: member.role === 'reader' ? (this.i18n.roleReader || 'Reader') : (member.role === 'editor' ? (this.i18n.roleEditor || 'Editor') : member.role),
+            };
+        },
+
+        get allMembers() {
+            const unique = new Map();
+            [...this.members, ...this.inheritedMembers].forEach(member => {
+                if (member.id && !unique.has(String(member.id))) unique.set(String(member.id), member);
             });
-            this.$watch('showRemoveModal', (val) => { if (!val) this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="remove-member-title"]'); }); });
+            return [...unique.values()];
         },
 
         get displayMembers() {
-            return this.members.slice(0, 5);
+            return this.allMembers.slice(0, 5);
         },
 
         get overflowCount() {
-            return Math.max(0, this.members.length - 5);
+            return Math.max(0, this.allMembers.length - 5);
         },
 
         get currentRoleLabel() {
             if (String(this.currentUserId) === String(this.ownerId)) {
                 return this.i18n.ownerBadge || 'Owner';
             }
-            const m = this.members.find(m => String(m.id) === String(this.currentUserId));
+            const m = this.allMembers.find(m => String(m.id) === String(this.currentUserId));
             return m?.roleLabel || '';
         },
 
@@ -2918,13 +2902,8 @@ function registerDossierMembersCard() {
             fetch(url, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(r => r.json())
                 .then(data => {
-                    this.members = (data.members || []).map(m => ({
-                        ...m,
-                        isYou: String(m.id) === String(this.currentUserId),
-                        displayName: `${m.first_name || ''} ${(m.name || '').toUpperCase()}`.trim(),
-                        initial: (m.first_name || m.name || '?').charAt(0).toUpperCase(),
-                        roleLabel: m.role === 'reader' ? (this.i18n.roleReader || 'Reader') : (m.role === 'editor' ? (this.i18n.roleEditor || 'Editor') : m.role),
-                    }));
+                    this.members = (data.members || []).map(m => this.mapMember(m));
+                    this.inheritedMembers = (data.inherited_members || []).map(m => this.mapMember(m));
                 })
                 .catch(() => {});
         },
@@ -2940,7 +2919,6 @@ function registerDossierMembersCard() {
                         .map(u => ({
                             ...u,
                             displayName: `${u.first_name || ''} ${(u.name || '').toUpperCase()}`.trim(),
-                            _selectedRole: 'reader',
                         }));
                 })
                 .catch(() => {})
@@ -2948,6 +2926,7 @@ function registerDossierMembersCard() {
         },
 
         addMember(user) {
+            this.addingMemberId = user.id;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members`;
             fetch(url, {
                 method: 'POST',
@@ -2957,7 +2936,7 @@ function registerDossierMembersCard() {
                     'X-CSRF-TOKEN': this.csrfToken,
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify({ user_id: user.id, role: user._selectedRole }),
+                body: JSON.stringify({ user_id: user.id }),
             })
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
@@ -2965,20 +2944,19 @@ function registerDossierMembersCard() {
                         this.showMessage(data.message || this.i18n.memberAlready, 'error');
                         return;
                     }
-                    this.members.push({
-                        ...data.member,
-                        displayName: `${data.member.first_name || ''} ${(data.member.name || '').toUpperCase()}`.trim(),
-                        initial: (data.member.first_name || data.member.name || '?').charAt(0).toUpperCase(),
-                        roleLabel: data.member.role === 'reader' ? (this.i18n.roleReader || 'Reader') : (this.i18n.roleEditor || 'Editor'),
-                    });
+                    this.members.push(this.mapMember(data.member));
+                    this.inheritedMembers = this.inheritedMembers.filter(member => String(member.id) !== String(data.member.id));
                     this.searchQuery = '';
                     this.searchResults = [];
                     this.showMessage(data.message || this.i18n.memberAdded, 'success');
                 })
-                .catch(() => { this.showMessage(this.i18n.memberAlready, 'error'); });
+                .catch(() => { this.showMessage(this.i18n.memberAlready, 'error'); })
+                .finally(() => { this.addingMemberId = null; });
         },
 
         updateRole(member, newRole) {
+            const previousRole = member.role;
+            this.updatingMemberId = member.id;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members/${member.id}`;
             fetch(url, {
                 method: 'PATCH',
@@ -2993,6 +2971,7 @@ function registerDossierMembersCard() {
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
                     if (!ok) {
+                        member.role = previousRole;
                         this.showMessage(data.message || this.i18n.memberRoleUpdated, 'error');
                         return;
                     }
@@ -3000,19 +2979,14 @@ function registerDossierMembersCard() {
                     member.roleLabel = newRole === 'reader' ? (this.i18n.roleReader || 'Reader') : (this.i18n.roleEditor || 'Editor');
                     this.showMessage(data.message || this.i18n.memberRoleUpdated, 'success');
                 })
-                .catch(() => {});
-        },
-
-        openRemoveModal(member) {
-            this._trapTrigger = document.activeElement;
-            this.removeTarget = member;
-            this.showRemoveModal = true;
-            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="remove-member-title"]'); });
+                .catch(() => { member.role = previousRole; })
+                .finally(() => { this.updatingMemberId = null; });
         },
 
         confirmRemove() {
             if (!this.removeTarget) return;
             const member = this.removeTarget;
+            this.removing = true;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members/${member.id}`;
             fetch(url, {
                 method: 'DELETE',
@@ -3029,15 +3003,15 @@ function registerDossierMembersCard() {
                         return;
                     }
                     this.members = this.members.filter(m => m.id !== member.id);
-                    this.showRemoveModal = false;
                     this.removeTarget = null;
                     this.showMessage(data.message || this.i18n.memberRemoved, 'success');
                 })
-                .catch(() => {});
+                .catch(() => {})
+                .finally(() => { this.removing = false; });
         },
 
         removeMember(member) {
-            this.openRemoveModal(member);
+            this.removeTarget = member;
         },
 
         showMessage(msg, type) {

@@ -104,13 +104,28 @@ class TASK1140SharedOwnerDisplayTest extends TestCase
 
     private function partager(Dossier $cible, string $role = 'reader', ?User $qui = null): void
     {
+        $membre = $qui ?? $this->invite;
+
         $this->actingAs($this->proprietaire)->postJson(
             route('organization.dossiers.members.store', [
                 'organization' => $this->org->slug,
                 'dossier' => $cible->getKey(),
             ]),
-            ['user_id' => ($qui ?? $this->invite)->getKey(), 'role' => $role],
+            ['user_id' => $membre->getKey()],
         )->assertSuccessful();
+
+        // TASK-1141 : tout nouvel acces commence en Lecteur. Le passage
+        // eventuel a Editeur est une seconde action autosauvegardee.
+        if ($role === 'editor') {
+            $this->actingAs($this->proprietaire)->patchJson(
+                route('organization.dossiers.members.update', [
+                    'organization' => $this->org->slug,
+                    'dossier' => $cible->getKey(),
+                    'member' => $membre->getKey(),
+                ]),
+                ['role' => 'editor'],
+            )->assertSuccessful();
+        }
     }
 
     private function retirer(Dossier $cible): void

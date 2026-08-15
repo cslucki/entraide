@@ -1807,19 +1807,17 @@
             </div>
         @endcan
 
-        {{-- « Partager » (TASK-1130 UX finale) : un seul mot, deux contenus,
-             toujours resolus sur la racine gouvernante — jamais sur l'enfant
-             precis, qui n'a ni owner_id ni dossier_members a lui. Le bouton
-             vit desormais dans la barre du Drive ; ce bloc n'est plus que le
-             modal qu'il ouvre (contenu fonctionnel inchange, en x-show pour
-             que dossierMembersCard s'initialise au chargement comme avant). --}}
+        {{-- La gouvernance (proprietaire/regime) vient de governingDossier(),
+             mais le partage reste projete depuis le Dossier ouvert : acces
+             directs sur lui, acces herites depuis sharingAnchorIds(). --}}
         @php
             $gouvernant = $governingDossier;
         @endphp
-        {{-- `?partage=1` ouvre le panneau a l'arrivee : c'est le lien que porte
-             « Gerer » depuis la vue Partages, pour aller du constat au geste
-             sans chercher. --}}
-        <div x-data="{ open: {{ request()->boolean('partage') ? 'true' : 'false' }} }" @open-share-panel.window="open = true" x-on:keydown.escape.window="open = false">
+        {{-- Le deep-link `?partage=1` ouvre une fois le panneau puis le
+             parametre est retire sans navigation : un reload reste ferme. --}}
+        <div x-data="{ open: {{ request()->boolean('partage') ? 'true' : 'false' }} }"
+             x-init="if (open) { const url = new URL(window.location.href); url.searchParams.delete('partage'); history.replaceState({}, '', url.pathname + url.search + url.hash); }"
+             @open-share-panel.window="open = true" x-on:keydown.escape.window="open = false">
             <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4"
                  @click.self="open = false" role="dialog" aria-modal="true" aria-labelledby="share-panel-title">
                 <div class="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800">
@@ -1868,20 +1866,9 @@
                              'csrfToken' => csrf_token(),
                              // Le dossier OUVERT, pas la racine gouvernante.
                              //
-                             // Les cinq endpoints membres remontent deja au
-                             // gouvernant apres avoir autorise (`$dossier =
-                             // $dossier->governingDossier();`) : l'ecriture
-                             // atterrit donc au meme endroit qu'avant. Ce qui
-                             // change, c'est le dossier SUR LEQUEL on demande
-                             // l'autorisation.
-                             //
-                             // Adresser la racine la faisait echouer des que
-                             // celle-ci etait « Mes documents » : `manageMembers`
-                             // refuse la racine systeme — partager tout l'espace
-                             // personnel d'un coup n'a pas de sens — et le
-                             // panneau recevait 403 sur `members/search`, donc
-                             // aucun resultat. L'interface promettait un geste
-                             // que le serveur refusait.
+                             // Les mutations directes ciblent ce Dossier. La
+                             // liste ajoute seulement une projection read-only
+                             // des memberships portes par ses ancetres.
                              'dossierId' => $dossier->getKey(),
                              'orgParam' => $orgParam,
                              'ownerId' => $gouvernant->owner_id,
@@ -1895,8 +1882,10 @@
                                   'memberRoleUpdated' => __('dossiers.member_role_updated'),
                                   'memberRemoved' => __('dossiers.member_removed'),
                                   'memberAlready' => __('dossiers.member_already'),
+                                  'accessUpdated' => __('dossiers.access_updated'),
                                   'roleReader' => __('dossiers.role_reader'),
                                   'roleEditor' => __('dossiers.role_editor'),
+                                  'memberRoleLabel' => __('dossiers.member_role_label'),
                                   'ownerBadge' => __('dossiers.owner_badge'),
                                   'yourRole' => __('dossiers.your_role_label'),
                                   'personSingular' => __('dossiers.person_singular'),
@@ -1910,10 +1899,15 @@
                                  'addMember' => __('dossiers.add_member'),
                                  'addMemberHelp' => __('dossiers.add_member_help'),
                                  'searchPlaceholder' => __('dossiers.member_search_placeholder'),
+                                 'searchLoading' => __('dossiers.member_search_loading'),
                                  'noMembers' => __('dossiers.no_members'),
+                                 'directAccessTitle' => __('dossiers.direct_access_title'),
+                                 'inheritedAccessTitle' => __('dossiers.inherited_access_title'),
+                                 'inheritedFrom' => __('dossiers.inherited_from'),
+                                 'noInheritedAccess' => __('dossiers.no_inherited_access'),
                              ] : []),
                          ]))">
-                    <div x-show="message" x-transition
+                    <div x-show="message" x-transition role="status" aria-live="polite"
                          :class="messageType === 'error' ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-900/60 dark:text-red-200' : 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-900/60 dark:text-emerald-200'"
                          class="mb-4 rounded-xl border px-4 py-3 text-sm font-medium">
                         <span x-text="message"></span>
@@ -1943,41 +1937,32 @@
                                     <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" x-text="i18n.ownerBadge"></span>
                                 </div>
                                 <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                    <span x-text="(members.length + 1) + ' ' + ((members.length + 1) === 1 ? i18n.personSingular : i18n.personPlural)"></span>
+                                    <span x-text="(allMembers.length + 1) + ' ' + ((allMembers.length + 1) === 1 ? i18n.personSingular : i18n.personPlural)"></span>
                                     <span class="mx-1">·</span>
                                     <span x-text="i18n.yourRole"></span>
                                     <span class="font-medium" x-text="currentRoleLabel"></span>
                                 </p>
                             </div>
                         </div>
-                        @if($canManageMembers)
-                            <button @click="showManageModal = true" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                <span x-text="i18n.manageMembers"></span>
-                            </button>
-                        @endif
                     </div>
 
-                    {{-- Management Modal (owner only) --}}
+                    {{-- Gestion dans le panneau unique (owner only) --}}
                     @if($canManageMembers)
-                    <template x-if="showManageModal">
-                        <div class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4" @click.self="showManageModal = false" role="dialog" aria-modal="true" aria-labelledby="manage-members-title">
-                            <div class="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800 max-h-[90vh] overflow-y-auto">
+                        <div class="mt-6 border-t border-gray-200 pt-5 dark:border-gray-700">
+                            <div>
                                 <div class="flex items-center justify-between mb-4">
-                                    <h3 id="manage-members-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.manageMembers"></h3>
-                                    <button @click="showManageModal = false" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200" aria-label="{{ __('dossiers.cancel') }}">
-                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                                    </button>
+                                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.addMember"></h3>
                                 </div>
 
                                 <div class="mb-4">
                                     <p class="text-xs text-gray-500 dark:text-gray-400 mb-2" x-text="i18n.addMemberHelp"></p>
-                                    <input type="text" x-model="searchQuery" @input.debounce.300ms="searchUsers()" :placeholder="i18n.searchPlaceholder"
+                                    <label for="dossier-member-search" class="sr-only" x-text="i18n.searchPlaceholder"></label>
+                                    <input id="dossier-member-search" type="search" x-model="searchQuery" @input.debounce.300ms="searchUsers()" :placeholder="i18n.searchPlaceholder"
                                            class="block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" />
                                 </div>
 
                                 <template x-if="searchLoading">
-                                    <div class="text-xs text-gray-400 mb-3">...</div>
+                                    <div class="mb-3 text-xs text-gray-500 dark:text-gray-400" role="status" x-text="i18n.searchLoading"></div>
                                 </template>
 
                                 <template x-if="searchResults.length > 0">
@@ -1992,11 +1977,7 @@
                                                     </div>
                                                 </div>
                                                 <div class="flex w-full flex-col gap-2 sm:ml-4 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
-                                                    <select x-model="u._selectedRole" class="w-full rounded-lg border-gray-300 text-xs shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
-                                                        <option value="reader" x-text="i18n.roleReader"></option>
-                                                        <option value="editor" x-text="i18n.roleEditor"></option>
-                                                    </select>
-                                                    <button @click="addMember(u)" class="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 sm:w-auto">
+                                                    <button @click="addMember(u)" :disabled="addingMemberId === u.id" class="inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-60 sm:w-auto">
                                                         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
                                                         <span x-text="i18n.addMember"></span>
                                                     </button>
@@ -2006,7 +1987,8 @@
                                     </div>
                                 </template>
 
-                                <div class="space-y-2">
+                                <div class="mt-6 space-y-2">
+                                    <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400" x-text="i18n.directAccessTitle"></h3>
                                     <div class="flex items-center gap-3 rounded-xl bg-amber-50 px-4 py-3 dark:bg-amber-950/20">
                                         <div class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" x-text="ownerInitial"></div>
                                         <div class="flex-1">
@@ -2025,14 +2007,15 @@
                                                 </div>
                                             </div>
                                             <div class="flex w-full flex-col gap-2 sm:ml-4 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
-                                                <select :value="m.role" @change="updateRole(m, $event.target.value)"
-                                                        class="w-full rounded-lg border-gray-300 text-xs shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
+                                                <select :value="m.role" @change="updateRole(m, $event.target.value)" :disabled="updatingMemberId === m.id"
+                                                        :aria-label="i18n.memberRoleLabel + ' — ' + m.displayName"
+                                                        class="min-h-11 w-full rounded-lg border-gray-300 text-sm shadow-sm disabled:cursor-wait disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
                                                     <option value="reader" x-text="i18n.roleReader"></option>
                                                     <option value="editor" x-text="i18n.roleEditor"></option>
                                                 </select>
-                                                <button @click="openRemoveModal(m)"
-                                                        class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 sm:w-8"
-                                                        :title="i18n.removeMemberConfirm">
+                                                <button @click="removeMember(m)"
+                                                        class="inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 sm:min-w-11 sm:w-11"
+                                                        :title="i18n.removeMemberConfirm" :aria-label="i18n.removeMemberConfirm + ' — ' + m.displayName">
                                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                                                 </button>
                                             </div>
@@ -2044,26 +2027,40 @@
                                     </template>
                                 </div>
 
-                                <div class="mt-4 flex justify-end">
-                                    <button @click="showManageModal = false" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.cancel"></button>
+                                <div class="mt-6 space-y-2">
+                                    <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400" x-text="i18n.inheritedAccessTitle"></h3>
+                                    <template x-for="m in inheritedMembers" :key="'inherited-' + m.id">
+                                        <div class="flex flex-col gap-2 rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-900/40 sm:flex-row sm:items-center sm:justify-between">
+                                            <div class="flex items-center gap-3">
+                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300" x-text="m.initial"></div>
+                                                <div>
+                                                    <div class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="m.displayName"></div>
+                                                    <div class="text-xs text-gray-500 dark:text-gray-400" x-text="i18n.inheritedFrom.replace(':dossier', m.inherited_from?.name || '')"></div>
+                                                </div>
+                                            </div>
+                                            <span class="self-start rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300 sm:self-auto" x-text="m.roleLabel"></span>
+                                        </div>
+                                    </template>
+                                    <template x-if="inheritedMembers.length === 0">
+                                        <p class="text-sm text-gray-500 dark:text-gray-400" x-text="i18n.noInheritedAccess"></p>
+                                    </template>
                                 </div>
                             </div>
                         </div>
-                    </template>
                     @endif
 
-                    {{-- Remove Confirmation Modal (owner only) --}}
+                    {{-- Confirmation inline : aucun second popup. --}}
                     @if($canManageMembers)
-                    <template x-if="showRemoveModal">
-                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showRemoveModal = false" role="dialog" aria-modal="true" aria-labelledby="remove-member-title">
-                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800">
-                                <h3 id="remove-member-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.removeMemberTitle"></h3>
+                    <template x-if="removeTarget">
+                        <div class="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-950/30">
+                            <div>
+                                <h3 class="text-sm font-semibold text-red-900 dark:text-red-100" x-text="i18n.removeMemberTitle"></h3>
                                 <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
                                     <span x-text="removeTarget?.displayName"></span> — <span x-text="i18n.removeMemberBody"></span>
                                 </p>
                                 <div class="mt-4 flex justify-end gap-2">
-                                    <button @click="showRemoveModal = false; removeTarget = null" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.cancel"></button>
-                                    <button @click="confirmRemove()" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600" x-text="i18n.removeMemberConfirm"></button>
+                                    <button @click="removeTarget = null" class="min-h-11 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.cancel"></button>
+                                    <button @click="confirmRemove()" :disabled="removing" class="min-h-11 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-wait disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-600" x-text="i18n.removeMemberConfirm"></button>
                                 </div>
                             </div>
                         </div>
