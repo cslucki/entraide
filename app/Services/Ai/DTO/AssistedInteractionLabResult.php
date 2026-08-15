@@ -21,6 +21,8 @@ class AssistedInteractionLabResult
         public readonly string $scenario,
         public readonly string $scenarioLabel,
         public readonly string $originalPhrase = '',
+        public readonly ?array $suggestedCategory = null,
+        public readonly string $producer = 'unknown',
     ) {}
 
     public function toArray(): array
@@ -34,6 +36,7 @@ class AssistedInteractionLabResult
             'expected_help_type' => $this->expectedHelpType,
             'deadline' => $this->deadline,
             'suggested_loop' => $this->suggestedLoop,
+            'suggested_category' => $this->suggestedCategory,
             'tone' => $this->tone,
             'message_draft' => $this->messageDraft,
             'fallback' => $this->fallback,
@@ -42,6 +45,7 @@ class AssistedInteractionLabResult
             '_scenario' => $this->scenario,
             '_scenario_label' => $this->scenarioLabel,
             'original_phrase' => $this->originalPhrase,
+            '_producer' => $this->producer,
         ];
     }
 

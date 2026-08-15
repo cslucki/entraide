@@ -74,6 +74,7 @@
                 const form = document.querySelector('form[data-marketplace-validation]');
                 const title = form.querySelector('[name=\'title\']');
                 const description = form.querySelector('[name=\'description\']');
+                const category = form.querySelector('[name=\'category_id\']');
                 if (title && this.suggestion.title) {
                     title.value = this.suggestion.title;
                     title.dispatchEvent(new Event('input', { bubbles: true }));
@@ -81,6 +82,10 @@
                 if (description && this.suggestion.description) {
                     description.value = this.suggestion.description;
                     description.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                if (category && this.suggestion.category_id && category.querySelector(`option[value="${this.suggestion.category_id}"]`)) {
+                    category.value = this.suggestion.category_id;
+                    category.dispatchEvent(new Event('change', { bubbles: true }));
                 }
                 this.suggestion = null;
                 this.error = null;
@@ -106,6 +111,7 @@
                 <div class="mt-2 space-y-2 text-sm text-indigo-700 dark:text-indigo-300">
                     <p><strong>{{ __('marketplace.title') }} :</strong> <span x-text="suggestion?.title"></span></p>
                     <p class="whitespace-pre-line"><strong>{{ __('marketplace.description') }} :</strong> <span x-text="suggestion?.description"></span></p>
+                    <p x-show="suggestion?.category_id"><strong>{{ __('marketplace.category') }} :</strong> <span x-text="suggestion?.category_label"></span></p>
                 </div>
                 <div class="mt-3 flex flex-wrap gap-2">
                     <button type="button" @click="applySuggestion()" class="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700">{{ __('ai.request_apply_suggestion') }}</button>

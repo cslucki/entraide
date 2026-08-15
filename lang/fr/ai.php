@@ -114,6 +114,8 @@ return [
     'request_apply_suggestion' => 'Appliquer la suggestion',
     'request_dismiss_suggestion' => 'Annuler',
     'request_formulation_error' => 'L\'IA n\'a pas pu formuler la demande pour le moment. Veuillez réessayer.',
+    'request_formulation_unavailable' => 'L\'assistance IA est indisponible pour le moment. Vos champs restent inchangés.',
+    'request_formulation_no_improvement' => 'Aucune amélioration exploitable n\'a été proposée. Vos champs restent inchangés.',
     'request_formulation_intention_hint' => 'Renseignez au moins un titre ou une courte description.',
 
     // Tiptap Markdown WYSIWYG toolbar (TASK-1056)

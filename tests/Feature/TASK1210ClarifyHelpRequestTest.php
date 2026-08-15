@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Ai\Agents\HelpRequestClarifierAgent;
 use App\Ai\CapabilityRegistry;
+use App\Ai\Context\OrganizationCategoriesSource;
 use App\Ai\Context\UserLoopsSource;
+use App\Models\AdminAiPrompt;
 use App\Models\AiConfig;
 use App\Models\AiInteraction;
 use App\Models\Loop;
@@ -58,6 +60,14 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
         app()->instance('current_organization', $this->organization);
 
         AiConfig::set('clarification_enabled', true);
+        AdminAiPrompt::query()
+            ->where('scenario_id', 'clarify_help_request')
+            ->where('version', 2)
+            ->update([
+                'name' => 'Clarification de demande d’aide — test',
+                'prompt_text' => 'Reformule sans inventer et recopie uniquement les identifiants fournis.',
+                'is_active' => true,
+            ]);
         config([
             'ai.clarify.enabled' => true,
             'ai.providers.openai.driver' => 'openai',
@@ -182,11 +192,12 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
         });
     }
 
-    public function test_the_capability_declares_user_loops_only(): void
+    public function test_the_capability_declares_only_categories_and_user_loops(): void
     {
         $definition = app(CapabilityRegistry::class)->get(CapabilityRegistry::CLARIFY_HELP_REQUEST);
 
         $this->assertTrue($definition->allowsSource(UserLoopsSource::NAME));
+        $this->assertTrue($definition->allowsSource(OrganizationCategoriesSource::NAME));
         $this->assertFalse($definition->allowsSource(CapabilityRegistry::SOURCE_LOOP_MESSAGES));
         $this->assertFalse($definition->canWrite);
         $this->assertTrue($definition->requiresHumanConfirmation);

@@ -24,6 +24,8 @@ final class CapabilityRegistry
      */
     public const SOURCE_USER_LOOPS = 'user.loops';
 
+    public const SOURCE_ORGANIZATION_CATEGORIES = 'organization.categories';
+
     /** @var array<string, CapabilityDefinition> */
     private array $definitions;
 
@@ -51,9 +53,10 @@ final class CapabilityRegistry
             requiresHumanConfirmation: true,
             canWrite: false,
             allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
-            // Les Boucles de l'utilisateur, et rien d'autre : l'IA ne peut
-            // suggerer que ce que le serveur lui a donne.
-            allowedSources: [self::SOURCE_USER_LOOPS],
+            // Les categories du tenant et les Boucles actives dont
+            // l'utilisateur est membre. Les deux suggestions restent bornees
+            // aux identifiants exactement fournis par ces sources.
+            allowedSources: [self::SOURCE_ORGANIZATION_CATEGORIES, self::SOURCE_USER_LOOPS],
             maxOutput: 2000,
             promptKey: 'clarify_help_request',
             contextCharBudget: self::clarifyContextBudget(),
@@ -94,7 +97,7 @@ final class CapabilityRegistry
      */
     private static function clarifyContextBudget(): int
     {
-        $default = 4000;
+        $default = 8000;
 
         if (! function_exists('app') || ! app()->bound('config')) {
             return $default;

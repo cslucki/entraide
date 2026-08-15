@@ -114,6 +114,8 @@ return [
     'request_apply_suggestion' => 'Apply suggestion',
     'request_dismiss_suggestion' => 'Dismiss',
     'request_formulation_error' => 'AI could not formulate the request right now. Please try again.',
+    'request_formulation_unavailable' => 'AI assistance is currently unavailable. Your fields remain unchanged.',
+    'request_formulation_no_improvement' => 'No useful improvement was proposed. Your fields remain unchanged.',
     'request_formulation_intention_hint' => 'Enter at least a title or a short description.',
 
     // Tiptap Markdown WYSIWYG toolbar (TASK-1056)

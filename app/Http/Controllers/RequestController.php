@@ -10,6 +10,7 @@ use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\LoopMessageService;
+use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -81,7 +82,13 @@ class RequestController extends Controller
             $description !== '' ? 'Description actuelle : '.$description : null,
         ]));
 
-        $result = $this->clarifier->clarifyForOrganization($organization, $user, $intention);
+        try {
+            $result = $this->clarifier->clarifyForOrganization($organization, $user, $intention);
+        } catch (DomainException $exception) {
+            report($exception);
+
+            return response()->json(['error' => __('ai.request_formulation_unavailable')], 503);
+        }
 
         if ($result->isBlocked()) {
             return response()->json([
@@ -89,10 +96,31 @@ class RequestController extends Controller
             ], 422);
         }
 
+        if ($result->producer === 'deterministic_fallback') {
+            return response()->json(['error' => __('ai.request_formulation_unavailable')], 422);
+        }
+
+        $suggestedTitle = $this->nonDestructiveSuggestion($title, $result->title, true);
+        $suggestedDescription = $this->nonDestructiveSuggestion(
+            $description,
+            $result->messageDraft ?: $result->need,
+        );
+        $suggestedCategory = $result->suggestedCategory;
+
+        $hasImprovement = $this->normalizedSuggestion($suggestedTitle) !== $this->normalizedSuggestion($title)
+            || $this->normalizedSuggestion($suggestedDescription) !== $this->normalizedSuggestion($description)
+            || $suggestedCategory !== null;
+
+        if (! $hasImprovement) {
+            return response()->json(['error' => __('ai.request_formulation_no_improvement')], 422);
+        }
+
         return response()->json([
             'suggestion' => [
-                'title' => $result->title,
-                'description' => $result->messageDraft ?: $result->need,
+                'title' => $suggestedTitle,
+                'description' => $suggestedDescription,
+                'category_id' => $suggestedCategory['id'] ?? null,
+                'category_label' => $suggestedCategory['label'] ?? null,
             ],
         ]);
     }
@@ -308,6 +336,30 @@ class RequestController extends Controller
                 ->where('user_id', $user->id)
                 ->where('status', 'active'))
             ->first();
+    }
+
+    private function nonDestructiveSuggestion(string $current, ?string $candidate, bool $title = false): string
+    {
+        $candidate = trim((string) $candidate);
+
+        if ($candidate === '') {
+            return $current;
+        }
+
+        if ($title && in_array($this->normalizedSuggestion($candidate), [
+            'demande d’aide',
+            "demande d'aide",
+            'nouvelle demande',
+        ], true)) {
+            return $current;
+        }
+
+        return $candidate;
+    }
+
+    private function normalizedSuggestion(string $value): string
+    {
+        return mb_strtolower(Str::squish($value));
     }
 
     private function pointLimitRules(Organization $organization): array

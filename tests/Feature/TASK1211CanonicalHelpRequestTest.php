@@ -3,8 +3,12 @@
 namespace Tests\Feature;
 
 use App\Ai\Agents\HelpRequestClarifierAgent;
+use App\Ai\CapabilityRegistry;
+use App\Ai\Context\OrganizationCategoriesSource;
+use App\Ai\ContexteIa;
 use App\Jobs\GenerateAiAgentResponse;
 use App\Livewire\LoopChat;
+use App\Models\AdminAiPrompt;
 use App\Models\AiConfig;
 use App\Models\Category;
 use App\Models\Loop;
@@ -20,6 +24,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Laravel\Ai\Prompts\AgentPrompt;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\StructuredTextResponse;
@@ -50,6 +55,14 @@ class TASK1211CanonicalHelpRequestTest extends TestCase
         app()->instance('current_organization', $this->organization);
 
         AiConfig::set('clarification_enabled', true);
+        AdminAiPrompt::query()
+            ->where('scenario_id', 'clarify_help_request')
+            ->where('version', 2)
+            ->update([
+                'name' => 'Clarification de demande d’aide — test',
+                'prompt_text' => 'MARQUEUR PROMPT ADMIN CLARIFY.',
+                'is_active' => true,
+            ]);
         config([
             'ai.clarify.enabled' => true,
             'ai.providers.openai.driver' => 'openai',
@@ -201,12 +214,142 @@ class TASK1211CanonicalHelpRequestTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('suggestion.title', 'Faire relire mon dossier européen')
             ->assertJsonPath('suggestion.description', 'Je cherche une relecture structurée de mon dossier européen avant son dépôt.')
-            ->assertJsonMissingPath('suggestion.category_id')
+            ->assertJsonPath('suggestion.category_id', null)
             ->assertJsonMissingPath('suggestion.relay_loop_id');
 
         $this->assertDatabaseCount('service_requests', 0);
         $this->assertDatabaseCount('loop_messages', 0);
         Http::assertNothingSent();
+    }
+
+    public function test_deterministic_fallback_never_presents_a_false_or_destructive_improvement(): void
+    {
+        config(['ai.clarify.enabled' => false]);
+
+        $response = $this->actingAs($this->user)->postJson(
+            route('organization.requests.ai-formulate', $this->organization->slug),
+            [
+                'title' => 'Demande d’aide',
+                'description' => 'Je cherche de l’aide pour monter un dossier de financement européen.',
+            ],
+        );
+
+        $response->assertUnprocessable()
+            ->assertJsonStructure(['error'])
+            ->assertJsonMissingPath('suggestion');
+
+        $this->assertDatabaseCount('service_requests', 0);
+        $this->assertDatabaseCount('loop_messages', 0);
+        Http::assertNothingSent();
+    }
+
+    public function test_an_empty_ai_field_preserves_the_existing_user_value(): void
+    {
+        $this->fakeClarifier([
+            'title' => 'Monter un dossier de financement européen',
+            'clarified_request' => '',
+        ]);
+
+        $description = 'Je cherche de l’aide pour monter un dossier de financement européen.';
+        $this->actingAs($this->user)->postJson(
+            route('organization.requests.ai-formulate', $this->organization->slug),
+            ['title' => 'Demande d’aide', 'description' => $description],
+        )->assertOk()
+            ->assertJsonPath('suggestion.title', 'Monter un dossier de financement européen')
+            ->assertJsonPath('suggestion.description', $description);
+    }
+
+    public function test_a_category_offered_in_context_is_returned_for_human_selection(): void
+    {
+        $this->category->update([
+            'name_b2c' => 'Financement européen',
+            'name_b2b' => 'Montage de projets européens',
+            'service_1' => 'Recherche de financements',
+        ]);
+        $this->fakeClarifier(['suggested_category_id' => $this->category->id]);
+
+        $this->actingAs($this->user)->postJson(
+            route('organization.requests.ai-formulate', $this->organization->slug),
+            ['description' => 'Je cherche de l’aide pour monter un dossier de financement européen.'],
+        )->assertOk()
+            ->assertJsonPath('suggestion.category_id', $this->category->id)
+            ->assertJsonPath('suggestion.category_label', 'Financement européen');
+
+        HelpRequestClarifierAgent::assertPrompted(function (AgentPrompt $prompt): bool {
+            $instructions = (string) $prompt->agent->instructions();
+            $this->assertStringContainsString('MARQUEUR PROMPT ADMIN CLARIFY.', $instructions);
+            $this->assertLessThan(strpos($instructions, 'Capability: clarify_help_request'), strpos($instructions, 'Constitution BouclePro IA'));
+            $this->assertLessThan(strpos($instructions, 'MARQUEUR PROMPT ADMIN CLARIFY.'), strpos($instructions, 'Capability: clarify_help_request'));
+            $this->assertStringContainsString((string) $this->category->id, (string) $prompt->prompt);
+
+            return true;
+        });
+    }
+
+    public function test_an_invented_or_cross_tenant_category_is_never_returned(): void
+    {
+        $foreignOrganization = Organization::factory()->create();
+        $foreignCategory = Category::factory()->create(['organization_id' => $foreignOrganization->id]);
+
+        foreach ([$foreignCategory->id, fake()->uuid()] as $categoryId) {
+            $this->fakeClarifier(['suggested_category_id' => $categoryId]);
+
+            $this->actingAs($this->user)->postJson(
+                route('organization.requests.ai-formulate', $this->organization->slug),
+                ['description' => 'Je cherche une catégorie adaptée pour ma demande.'],
+            )->assertOk()->assertJsonPath('suggestion.category_id', null);
+        }
+    }
+
+    public function test_categories_context_is_tenant_scoped_and_uses_the_organization_vocabulary(): void
+    {
+        $this->organization->update(['transactions_naming' => 'b2b']);
+        $this->category->update([
+            'name_b2c' => 'Nom particuliers',
+            'name_b2b' => 'Nom professionnel',
+            'service_1' => 'Montage de dossiers',
+        ]);
+        $foreign = Category::factory()->create();
+
+        $fragment = app(OrganizationCategoriesSource::class)->collect(new ContexteIa(
+            organizationId: (string) $this->organization->id,
+            userId: (string) $this->user->id,
+            loopId: null,
+            locale: 'fr',
+            capability: CapabilityRegistry::CLARIFY_HELP_REQUEST,
+            correlationId: fake()->uuid(),
+            source: CapabilityRegistry::SOURCE_ORGANIZATION_CATEGORIES,
+        ), 4000);
+
+        $this->assertStringContainsString((string) $this->category->id, $fragment->text);
+        $this->assertStringContainsString('Nom professionnel', $fragment->text);
+        $this->assertStringContainsString('Montage de dossiers', $fragment->text);
+        $this->assertStringNotContainsString((string) $foreign->id, $fragment->text);
+    }
+
+    public function test_missing_active_admin_prompt_fails_explicitly_without_calling_a_provider(): void
+    {
+        AdminAiPrompt::query()->delete();
+        HelpRequestClarifierAgent::fake(function (): never {
+            throw new \RuntimeException('The SDK must not be called without an active DB prompt.');
+        });
+
+        $this->actingAs($this->user)->postJson(
+            route('organization.requests.ai-formulate', $this->organization->slug),
+            ['description' => 'Je cherche de l’aide pour monter un dossier européen.'],
+        )->assertStatus(503)->assertJsonStructure(['error']);
+
+        $this->assertDatabaseCount('ai_interactions', 0);
+    }
+
+    public function test_the_request_form_can_apply_a_valid_category_suggestion(): void
+    {
+        $this->actingAs($this->user)
+            ->get(route('organization.requests.create', $this->organization->slug))
+            ->assertOk()
+            ->assertSee('suggestion.category_id', false)
+            ->assertSee('suggestion?.category_label', false)
+            ->assertSee((string) $this->category->id);
     }
 
     public function test_projection_card_reads_the_canonical_request_and_handles_closed_or_missing(): void
@@ -332,18 +475,19 @@ class TASK1211CanonicalHelpRequestTest extends TestCase
         ], $overrides);
     }
 
-    private function fakeClarifier(): void
+    private function fakeClarifier(array $overrides = []): void
     {
-        $structured = [
+        $structured = array_merge([
             'title' => 'Faire relire mon dossier européen',
             'clarified_request' => 'Je cherche une relecture structurée de mon dossier européen avant son dépôt.',
             'help_type' => 'review',
+            'suggested_category_id' => '',
             'suggested_loop_id' => $this->loop->id,
             'suggestion_reason' => 'Cette Boucle réunit les membres concernés.',
             'questions_for_user' => [],
             'confidence' => 0.95,
             'needs_human_review' => false,
-        ];
+        ], $overrides);
 
         HelpRequestClarifierAgent::fake([
             new StructuredTextResponse(
