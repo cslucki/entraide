@@ -56,6 +56,15 @@ return [
     'share_shared' => 'Shared',
     'share_loop' => 'Loop',
     'share_inherited' => 'Inherited access',
+
+    // Access denial (TASK-1145). The copy says what the user CAN do, never
+    // why they were denied: naming the cause would confirm the folder still
+    // exists and that someone acted on it.
+    'access_denied_title' => 'Access unavailable',
+    'access_denied_message' => 'You do not have access to the contents of this folder.',
+    'access_denied_hint' => 'Your access may have been removed, or this content is not available for your account.',
+    'access_denied_back' => 'Back to my folders',
+    'access_denied_shared' => 'See folders shared with me',
     'share_shared_badge' => 'Shared folder',
     'index_empty_mine' => 'Nothing in My documents yet.',
     'index_empty_mine_help' => 'Create a folder to start organizing your files and Articles.',

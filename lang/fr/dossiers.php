@@ -56,6 +56,15 @@ return [
     'share_shared' => 'Partagé',
     'share_loop' => 'Boucle',
     'share_inherited' => 'Accès hérité',
+
+    // Refus d'acces (TASK-1145). Le texte dit ce que l'utilisateur PEUT
+    // faire, jamais pourquoi il est refuse : nommer la cause reviendrait a
+    // confirmer que le Dossier existe encore et que quelqu'un a agi.
+    'access_denied_title' => 'Accès impossible',
+    'access_denied_message' => "Vous n'avez pas accès au contenu de ce dossier.",
+    'access_denied_hint' => "Votre accès a peut-être été retiré ou ce contenu n'est pas disponible pour votre compte.",
+    'access_denied_back' => 'Retour à mes dossiers',
+    'access_denied_shared' => 'Voir les dossiers partagés avec moi',
     'share_shared_badge' => 'Dossier partagé',
     'index_empty_mine' => 'Rien dans Mes documents pour le moment.',
     'index_empty_mine_help' => 'Créez un dossier pour commencer à ranger vos fichiers et vos Articles.',
