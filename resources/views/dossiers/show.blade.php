@@ -1164,11 +1164,6 @@
                                             <a href="{{ $blogShowRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_open') }}</a>
                                             @if($canManageArticles)
                                                 <a href="{{ $blogEditRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_edit_article') }}</a>
-                                                {{-- Un Article ne se partage pas seul : le partage vit sur
-                                                     le Dossier qui le contient, et l'entree le dit. --}}
-                                                @unless($dossier->isPersonalDocumentsRoot())
-                                                    <button type="button" @click="open = false; window.dispatchEvent(new CustomEvent('open-share-panel'))" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_the_folder') }}</button>
-                                                @endunless
                                                 @if($moveTargets->isNotEmpty())
                                                     <button type="button" @click="open = false; selectionner({!! $itemArticle($post) !!}); openMoveLot()" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_move') }}</button>
                                                 @endif
@@ -1265,10 +1260,6 @@
                                                 <button type="button" @click="open = false; openMoveModal(file)"
                                                         class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_move') }}</button>
                                             @endif
-                                            @unless($dossier->isPersonalDocumentsRoot())
-                                                <button type="button" @click="open = false; window.dispatchEvent(new CustomEvent('open-share-panel'))"
-                                                        class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_the_folder') }}</button>
-                                            @endunless
                                             @if($canDeleteFiles)
                                                 <button type="button" @click="open = false; openDeleteModal(file)" :disabled="saving"
                                                         class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.file_delete') }}</button>
@@ -1481,10 +1472,6 @@
                                             <button type="button" @click="open = false; openMoveModal(file)"
                                                     class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_move') }}</button>
                                         @endif
-                                        @unless($dossier->isPersonalDocumentsRoot())
-                                            <button type="button" @click="open = false; window.dispatchEvent(new CustomEvent('open-share-panel'))"
-                                                    class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_the_folder') }}</button>
-                                        @endunless
                                         @if($canDeleteFiles)
                                             <button type="button" @click="open = false; openDeleteModal(file)" :disabled="saving"
                                                     class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.file_delete') }}</button>

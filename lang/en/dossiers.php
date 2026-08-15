@@ -334,7 +334,6 @@ return [
     'file_rename' => 'Rename',
     'file_rename_title' => 'Rename “:name”',
     'file_rename_label' => 'New name',
-    'share_the_folder' => 'Share the folder…',
     'file_move' => 'Move to…',
     'file_moved' => 'File moved.',
     'file_move_failed' => 'Error moving the file.',
