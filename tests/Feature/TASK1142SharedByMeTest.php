@@ -347,6 +347,29 @@ class TASK1142SharedByMeTest extends TestCase
     }
 
     /**
+     * Un dossier partage porte le meme marqueur d'icone qu'ailleurs.
+     *
+     * Il l'avait dans « Mes documents » et pas dans « Partages » : le meme
+     * dossier changeait d'apparence selon l'ecran ou on le rencontrait
+     * (TASK-1146).
+     */
+    public function test_a_listed_dossier_carries_the_shared_marker(): void
+    {
+        $this->partager($this->a, $this->m4);
+
+        foreach (['par-moi' => $this->m3, 'avec-moi' => $this->m4] as $vue => $acteur) {
+            $this->actingAs($acteur)
+                ->get(route('organization.dossiers.index', [
+                    'organization' => $this->org->slug,
+                    'espace' => 'partages',
+                    'vue' => $vue,
+                ]))
+                ->assertOk()
+                ->assertSee(__('dossiers.share_shared_badge'));
+        }
+    }
+
+    /**
      * La regression que le correctif ne doit pas introduire : une racine
      * ordinaire possedee (racine heritee d'avant « Mes documents ») reste
      * listee quand elle porte un partage.
