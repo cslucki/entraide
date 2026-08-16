@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Yaml\Yaml;
 use Tests\TestCase;
 
@@ -93,12 +94,158 @@ class TASK1112CiCoverageTest extends TestCase
     {
         // Un `continue-on-error: true` desactive une etape sans la retirer.
         // Le depot a deja porte un job `legacy-feature-tests` ainsi neutralise.
+        //
+        // TASK-1150 (GO MASTER) : une seule forme de `if:` est toleree ici,
+        // et aucune autre. `steps.level.outputs.mode == 'full'` est calculee
+        // par l'etape "Determine validation level", qui resout `full` par
+        // defaut et ne bascule en `light` que si la PR porte le label
+        // `validation:micro-ux` ou `validation:no-app-ci` — jamais par
+        // defaut, jamais silencieusement (voir
+        // test_the_ci_mode_resolution_is_fail_safe, qui EXECUTE ce calcul
+        // plutot que de le lire). Toute autre condition doit continuer a
+        // faire echouer ce test.
+        $conditionAutorisee = "steps.level.outputs.mode == 'full'";
+
         foreach (['phpunit.ci-minimal.xml', 'phpunit.ci-feature.xml'] as $config) {
             $etape = $this->etapeQuiLance($config);
 
             $this->assertNotNull($etape, $config);
             $this->assertArrayNotHasKey('continue-on-error', $etape, $config.' n’est plus bloquante');
-            $this->assertArrayNotHasKey('if', $etape, $config.' est conditionnee');
+
+            $condition = $etape['if'] ?? null;
+            $this->assertTrue(
+                $condition === null || $condition === $conditionAutorisee,
+                $config.' porte une condition non autorisee : '.var_export($condition, true),
+            );
+        }
+    }
+
+    // ── TASK-1150 : la resolution du mode CI est fail-safe ──────────────────
+    //
+    // Les tests ci-dessus prouvent qu'une seule EXPRESSION est toleree sur les
+    // steps historiques. Ceux-ci prouvent que cette expression, une fois
+    // EXECUTEE (pas seulement lue comme texte), se resout toujours vers
+    // `full` sauf dans les deux cas explicitement voulus. Meme idiome que
+    // `nombreDeTestsSelectionnes()` plus haut : mesurer ce qui se passe
+    // reellement, pas ce que le fichier a l'air de dire.
+
+    /** @return array<string, array{0: string, 1: string}> Les deux gates requis. */
+    private static function gatesRequis(): array
+    {
+        return [
+            'SQLite Regression Gate (blocking)' => ['.github/workflows/ci-sqlite.yml', 'sqlite-regression-gate'],
+            'Quality Gate (blocking)' => [self::WORKFLOW, 'quality-gate'],
+        ];
+    }
+
+    private function etapeNommee(string $chemin, string $job, string $nom): ?array
+    {
+        $jobs = Yaml::parseFile(base_path($chemin))['jobs'] ?? [];
+
+        foreach ($jobs[$job]['steps'] ?? [] as $etape) {
+            if (($etape['name'] ?? null) === $nom) {
+                return $etape;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Substitue les deux seules expressions GitHub Actions que le script
+     * utilise, puis EXECUTE reellement le script bash extrait du YAML — la
+     * seule facon de prouver un comportement plutot qu'une apparence.
+     */
+    private function resoudreLeMode(string $chemin, string $job, string $event, array $labels): string
+    {
+        $etape = $this->etapeNommee($chemin, $job, 'Determine validation level');
+        $this->assertNotNull($etape, "etape 'Determine validation level' absente de {$job} ({$chemin})");
+
+        $script = $etape['run'] ?? '';
+
+        $script = str_replace('${{ github.event_name }}', $event, $script);
+        $script = str_replace(
+            '${{ toJson(github.event.pull_request.labels.*.name) }}',
+            json_encode($labels),
+            $script,
+        );
+
+        $this->assertStringNotContainsString(
+            '${{',
+            $script,
+            'expression GitHub non substituee : le test ne prouverait rien',
+        );
+
+        $sortie = tempnam(sys_get_temp_dir(), 'gh-output-');
+        $scriptPath = tempnam(sys_get_temp_dir(), 'ci-mode-');
+        file_put_contents($scriptPath, $script);
+
+        exec(sprintf(
+            'GITHUB_OUTPUT=%s bash %s 2>&1',
+            escapeshellarg($sortie),
+            escapeshellarg($scriptPath),
+        ), $out, $code);
+
+        unlink($scriptPath);
+
+        $this->assertSame(0, $code, "le script a echoue : ".implode("\n", $out));
+
+        $contenu = file_get_contents($sortie) ?: '';
+        unlink($sortie);
+
+        $this->assertMatchesRegularExpression(
+            '/^mode=(full|light)$/m',
+            $contenu,
+            "sortie GITHUB_OUTPUT inattendue : {$contenu}",
+        );
+
+        preg_match('/^mode=(full|light)$/m', $contenu, $m);
+
+        return $m[1];
+    }
+
+    /** @return array<string, array{0: string, 1: array<int, string>, 2: string}> */
+    public static function scenariosDeResolution(): array
+    {
+        return [
+            'pull_request sans label -> full (defaut fail-safe)' => ['pull_request', [], 'full'],
+            'pull_request label micro-ux -> light' => ['pull_request', ['validation:micro-ux'], 'light'],
+            'pull_request label no-app-ci -> light' => ['pull_request', ['validation:no-app-ci'], 'light'],
+            'pull_request label standard -> full' => ['pull_request', ['validation:standard'], 'full'],
+            'pull_request label sensitive -> full' => ['pull_request', ['validation:sensitive'], 'full'],
+            'pull_request labels multiples dont micro-ux -> light' => ['pull_request', ['bug', 'validation:micro-ux'], 'light'],
+            'push develop/main -> full, meme avec un label residuel' => ['push', ['validation:micro-ux'], 'full'],
+            'workflow_dispatch -> full' => ['workflow_dispatch', [], 'full'],
+        ];
+    }
+
+    #[DataProvider('scenariosDeResolution')]
+    public function test_the_ci_mode_resolution_is_fail_safe(string $event, array $labels, string $attendu): void
+    {
+        foreach (self::gatesRequis() as $nomJob => [$chemin, $job]) {
+            $this->assertSame(
+                $attendu,
+                $this->resoudreLeMode($chemin, $job, $event, $labels),
+                "{$nomJob} : event={$event} labels=".json_encode($labels),
+            );
+        }
+    }
+
+    public function test_the_required_jobs_are_never_conditional(): void
+    {
+        // Le risque documente par MASTER (TASK-1148, workflow_dispatch) :
+        // un job entierement skippe peut laisser un required check `Pending`
+        // indefiniment. Seule la charge INTERNE d'un job peut varier — jamais
+        // son existence.
+        foreach (self::gatesRequis() as $nomJob => [$chemin, $job]) {
+            $jobs = Yaml::parseFile(base_path($chemin))['jobs'] ?? [];
+
+            $this->assertArrayHasKey($job, $jobs, "{$nomJob} a disparu de {$chemin}");
+            $this->assertArrayNotHasKey(
+                'if',
+                $jobs[$job],
+                "{$nomJob} porte une condition au niveau JOB — required check jamais garanti",
+            );
         }
     }
 
