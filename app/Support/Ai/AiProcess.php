@@ -51,6 +51,7 @@ final class AiProcess
         'chatloop_ai_answer' => 'chatloop.answer',
         'chatloop_ai_ask' => 'chatloop.ask',
         'chatloop_ai_summarize' => 'chatloop.summarize',
+        'loop_knowledge_answer' => 'loop_knowledge.answer',
     ];
 
     /**
@@ -77,6 +78,7 @@ final class AiProcess
     private const SCENARIO_MAP = [
         'supervision_content' => 'supervision.content',
         'clarify_help_request' => 'help_request.clarify',
+        'loop_knowledge_answer' => 'loop_knowledge.answer',
         'service_offer_master' => 'service_offer.master',
         'bounded_member_presentation' => 'member_profile.bounded_presentation',
         'inline_member_presentation' => self::MEMBER_PROFILE_INLINE_PRESENTATION,

@@ -31,6 +31,12 @@ final class ContexteIa
         public readonly string $capability,
         public readonly string $correlationId,
         public readonly ?string $source = null,
+        /**
+         * TASK-1213 : la question de l'utilisateur, quand la capability en a
+         * une. Sert aux sources qui recherchent (retrieval) ; jamais un
+         * secret, jamais un contenu d'un autre tenant.
+         */
+        public readonly ?string $query = null,
     ) {
         if (! self::isUuid($organizationId)) {
             throw new InvalidArgumentException('An AI context requires a valid organization ID.');

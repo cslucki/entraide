@@ -13,6 +13,7 @@ use App\Models\Referral;
 use App\Models\User;
 use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\Ai\Contracts\AiProvider;
+use App\Services\Ai\LoopKnowledgeAnswerService;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopGovernanceService;
 use App\Services\LoopMessageService;
@@ -26,6 +27,7 @@ use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -1048,6 +1050,49 @@ class LoopController extends Controller
         $this->helpRequestHandoff->store($user, $loop, $analysis, $data['intention']);
 
         return redirect($this->loopRoute('loops.show', $loop));
+    }
+
+    /**
+     * TASK-1213 (RAG V1) : reponse documentaire sourcee, read-only, JSON.
+     * L'appartenance active a la Boucle et l'Organization sont verifiees ici et
+     * a nouveau dans le service ; les sources viennent du Context Builder.
+     */
+    public function knowledge(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): JsonResponse
+    {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
+
+        if ($loop->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $user = $request->user();
+
+        $isMember = LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->exists();
+
+        if (! $isMember) {
+            abort(404);
+        }
+
+        if (! config('ai.chatloop.enabled', true)) {
+            abort(404);
+        }
+
+        $data = $request->validate([
+            'question' => ['required', 'string', 'min:3', 'max:500'],
+        ]);
+
+        try {
+            $answer = app(LoopKnowledgeAnswerService::class)->answer($loop, $user, $data['question']);
+        } catch (\RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 422);
+        }
+
+        return response()->json($answer->toArray());
     }
 
     public function prepareHelpRequest(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
