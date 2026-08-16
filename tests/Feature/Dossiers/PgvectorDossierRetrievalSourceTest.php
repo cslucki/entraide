@@ -16,8 +16,10 @@ use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Dossiers\DossierArticleIndexer;
 use App\Services\Dossiers\DossierFileIndexer;
+use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Services\LoopService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Ai\Embeddings;
@@ -343,6 +345,82 @@ class PgvectorDossierRetrievalSourceTest extends TestCase
         sort($sourceTypes);
 
         $this->assertSame(['article', 'file'], $sourceTypes);
+    }
+
+    /**
+     * Revue MASTER (TASK-1216) : un fichier deplace A->B garde son id ;
+     * seul `dossier_files.dossier_id` change. Avant que le job de nettoyage
+     * asynchrone (dispatch sur l'observer `updated()`) n'ait tourne, le
+     * chunk perime reste en base avec `dossier_chunks.dossier_id = A`.
+     * `Queue::fake()` intercepte ce dispatch pour figer exactement cette
+     * fenetre : le retrieval de A ne doit JAMAIS servir un contenu qui
+     * appartient desormais a B, meme si le chunk stale est encore present.
+     */
+    public function test_a_file_moved_to_another_dossier_is_not_served_by_the_original_dossier_during_the_async_cleanup_window(): void
+    {
+        Storage::fake('dossier_files');
+        Queue::fake();
+
+        $organization = Organization::factory()->create();
+        $owner = User::factory()->create(['organization_id' => $organization->id]);
+        app()->instance('current_organization', $organization);
+
+        OrganizationAiSetting::factory()->create([
+            'organization_id' => $organization->id,
+            'provider' => 'openai',
+            'api_key' => 'sk-tenant-move-window',
+        ]);
+        config([
+            'ai.providers.openai.driver' => 'openai',
+            'ai.providers.openai.key' => 'platform-should-not-be-used',
+            'ai.default_for_embeddings' => 'openai',
+            'ai.caching.embeddings.cache' => false,
+            'ai.providers.openai.models.embeddings.default' => 'text-embedding-3-small',
+            'ai.providers.openai.models.embeddings.dimensions' => 1536,
+            'ai.dossiers.semantic_search.enabled' => true,
+            'ai.dossiers.semantic_search.organization_ids' => [$organization->id],
+            'ai.knowledge.max_distance' => 2.0,
+        ]);
+        Embeddings::fake(fn (EmbeddingsPrompt $prompt): array => array_map(fn (): array => $this->vector(0.0), $prompt->inputs))
+            ->preventStrayEmbeddings();
+
+        $dossierA = $this->dossier($organization, $owner, Dossier::VISIBILITY_PRIVATE, 'Source A');
+        $dossierB = $this->dossier($organization, $owner, Dossier::VISIBILITY_PRIVATE, 'Cible B');
+
+        $content = 'Contenu confidentiel qui ne doit plus sortir du Dossier A une fois deplace.';
+        $path = 'dossier-files/'.$dossierA->id.'/moved.txt';
+        Storage::disk('dossier_files')->put($path, $content);
+        $file = DossierFile::create([
+            'organization_id' => $organization->id,
+            'dossier_id' => $dossierA->id,
+            'uploaded_by' => $owner->id,
+            'disk' => 'dossier_files',
+            'path' => $path,
+            'original_name' => 'moved.txt',
+            'display_name' => 'moved.txt',
+            'mime_type' => 'text/plain',
+            'size_bytes' => strlen($content),
+            'checksum_sha256' => hash('sha256', $content),
+            'source' => 'upload',
+        ]);
+
+        // Indexation reelle dans A (appel direct au service, pas via job).
+        $count = app(DossierFileIndexer::class)->synchronize($organization->id, $dossierA->id, $file->id);
+        $this->assertSame(1, $count);
+        $this->assertSame(1, DossierChunk::query()->where('dossier_id', $dossierA->id)->where('dossier_file_id', $file->id)->count());
+
+        // Deplacement A -> B : Queue::fake() empeche le job de nettoyage de
+        // l'observer de s'executer -> le chunk stale reste dossier_id=A.
+        $file->update(['dossier_id' => $dossierB->id]);
+        $this->assertSame($dossierB->id, $file->fresh()->dossier_id);
+        $this->assertSame(1, DossierChunk::query()->where('dossier_id', $dossierA->id)->where('dossier_file_id', $file->id)->count(), 'le chunk perime doit encore exister : c\'est la fenetre qu\'on teste');
+
+        // Le retrieval de A ne doit rien servir malgre le chunk stale.
+        $resultsA = app(DossierSemanticSearchService::class)->search($organization->id, $dossierA->id, 'confidentiel');
+        $this->assertCount(0, $resultsA);
+
+        $resultsAcrossA = app(DossierSemanticSearchService::class)->searchAcrossDossiers($organization->id, [$dossierA->id], 'confidentiel');
+        $this->assertCount(0, $resultsAcrossA);
     }
 
     private function dossier(Organization $organization, User $owner, string $visibility, string $name): Dossier

@@ -79,7 +79,17 @@ class DossierSemanticSearchService
                     ->where('dossier_blog_posts.organization_id', '=', $organizationId)
                     ->where('dossier_blog_posts.dossier_id', '=', $dossierId);
             })
-            ->leftJoin('dossier_files', 'dossier_files.id', '=', 'dossier_chunks.dossier_file_id')
+            ->leftJoin('dossier_files', function ($join) {
+                // Garde staleness (revue MASTER, TASK-1216) : un fichier
+                // deplace A->B garde son id, seul dossier_id change. Sans
+                // cette egalite, un chunk pas encore nettoye par le job
+                // async (dossier_chunks.dossier_id = A) rejoindrait quand
+                // meme le fichier maintenant dans B et servirait un contenu
+                // qui n'appartient plus a ce Dossier pendant la fenetre
+                // async. L'etat COURANT de dossier_files doit primer.
+                $join->on('dossier_files.id', '=', 'dossier_chunks.dossier_file_id')
+                    ->on('dossier_files.dossier_id', '=', 'dossier_chunks.dossier_id');
+            })
             ->join('dossiers', function ($join) use ($organizationId, $dossierId) {
                 $join->on('dossiers.id', '=', 'dossier_chunks.dossier_id')
                     ->where('dossiers.organization_id', '=', $organizationId)
@@ -196,7 +206,11 @@ class DossierSemanticSearchService
                     ->on('dossier_blog_posts.dossier_id', '=', 'dossier_chunks.dossier_id')
                     ->where('dossier_blog_posts.organization_id', '=', $organizationId);
             })
-            ->leftJoin('dossier_files', 'dossier_files.id', '=', 'dossier_chunks.dossier_file_id')
+            ->leftJoin('dossier_files', function ($join) {
+                // Meme garde staleness que search() (revue MASTER, TASK-1216).
+                $join->on('dossier_files.id', '=', 'dossier_chunks.dossier_file_id')
+                    ->on('dossier_files.dossier_id', '=', 'dossier_chunks.dossier_id');
+            })
             ->join('dossiers', function ($join) use ($organizationId) {
                 $join->on('dossiers.id', '=', 'dossier_chunks.dossier_id')
                     ->where('dossiers.organization_id', '=', $organizationId)
