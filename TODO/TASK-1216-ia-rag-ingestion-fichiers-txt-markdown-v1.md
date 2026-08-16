@@ -35,8 +35,8 @@ lock:
 handoff: false
 
 pr:
-  status: NOT_READY
-  url: null
+  status: OPEN_DRAFT
+  url: https://github.com/cslucki/entraide/pull/220
 ---
 
 # Objective
@@ -110,8 +110,12 @@ consommation IA, pricing embeddings, User BYOK, legacy migration.
 - [x] Playwright WSL (TXT + Markdown + lifecycle + cross-tenant)
 - [x] Chrome spot-check final (5-10 min)
 - [x] Pint scoped + git diff --check
-- [x] bump VERSION, DONE/UNLOCKED, check-task, finalize-task, push, PR,
-      label validation:sensitive, CI SQLite+PostgreSQL SUCCESS
+- [x] bump VERSION (1.160), DONE/UNLOCKED, check-task PASS, finalize-task
+      (push `816b0cc`), PR #220 draft ouverte
+      (https://github.com/cslucki/entraide/pull/220), label
+      validation:sensitive appliqué
+- [ ] CI SQLite+PostgreSQL SUCCESS sur `816b0cc` — en attente (lancée,
+      pas encore confirmée au moment de cette mise à jour)
 - [x] STOP avant merge — rapport MASTER
 
 ---
