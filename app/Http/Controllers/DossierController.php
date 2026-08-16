@@ -15,6 +15,7 @@ use App\Support\Loops\LoopRoleRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -190,11 +191,25 @@ class DossierController extends Controller
         return view('dossiers.create');
     }
 
-    public function show(Request $request, DossierSemanticSearchGate $semanticSearchGate): View
+    public function show(Request $request, DossierSemanticSearchGate $semanticSearchGate): View|Response
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
-        $this->authorize('view', $dossier);
+
+        // Le refus devient une REPONSE, pas une exception generique. Un lecteur
+        // dont le partage vient d'etre retire rechargeait son ancienne URL et
+        // tombait sur la page « Forbidden » nue du framework : pas de marque,
+        // pas un mot de francais, aucune sortie (TASK-1145).
+        //
+        // Le statut ne bouge pas — c'est bien 403, et il le reste. Seul le
+        // rendu change. La vue ne recoit PAS `$dossier` : elle ne peut donc
+        // rien divulguer de ce qui a ete demande, et `driveSurface()` n'est
+        // jamais atteint, donc rien du Dossier n'est meme charge pour l'ecran.
+        if ($request->user()->cannot('view', $dossier)) {
+            return response()->view('dossiers.acces-refuse', [
+                'organizationRouteParam' => $request->route('organization'),
+            ], 403);
+        }
 
         return view('dossiers.show', $this->driveSurface($request, $dossier, $semanticSearchGate) + [
             'legacyRoots' => collect(),
