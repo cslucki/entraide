@@ -10,12 +10,15 @@ use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Models\DossierChunk;
+use App\Models\DossierFile;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Dossiers\DossierArticleIndexer;
+use App\Services\Dossiers\DossierFileIndexer;
 use App\Services\LoopService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Ai\Embeddings;
 use Laravel\Ai\Prompts\EmbeddingsPrompt;
@@ -178,6 +181,168 @@ class PgvectorDossierRetrievalSourceTest extends TestCase
         $this->assertStringContainsString('37 balises orange', $borne->text);
         // La requete aussi passe par l'instance tenant.
         $this->assertContains('org:'.$organization->id.':openai', $seen);
+    }
+
+    public function test_a_file_ingested_via_the_tenant_instance_is_retrievable_end_to_end(): void
+    {
+        Storage::fake('dossier_files');
+
+        $organization = Organization::factory()->create();
+        $owner = User::factory()->create(['organization_id' => $organization->id]);
+        $loop = (new LoopService)->createLoop($owner, 'Boucle ingestion fichier pgvector');
+        app()->instance('current_organization', $organization);
+
+        OrganizationAiSetting::factory()->create([
+            'organization_id' => $organization->id,
+            'provider' => 'openai',
+            'model' => 'gpt-4o-mini',
+            'api_key' => 'sk-tenant-file-e2e',
+        ]);
+        config([
+            'ai.providers.openai.driver' => 'openai',
+            'ai.providers.openai.key' => 'platform-should-not-be-used',
+            'ai.default_for_embeddings' => 'openai',
+            'ai.caching.embeddings.cache' => false,
+            'ai.providers.openai.models.embeddings.default' => 'text-embedding-3-small',
+            'ai.providers.openai.models.embeddings.dimensions' => 1536,
+            'ai.dossiers.semantic_search.enabled' => true,
+            'ai.dossiers.semantic_search.organization_ids' => [$organization->id],
+            'ai.knowledge.max_distance' => 2.0,
+        ]);
+
+        $seen = [];
+        Embeddings::fake(function (EmbeddingsPrompt $prompt) use (&$seen): array {
+            $seen[] = $prompt->provider->name();
+
+            return array_map(fn (): array => $this->vector(0.0), $prompt->inputs);
+        })->preventStrayEmbeddings();
+
+        $dossier = $this->dossier($organization, $owner, Dossier::VISIBILITY_PRIVATE, 'Ingestion fichier e2e');
+        $content = 'The Orion Station has exactly 23 violet panels and its inspection takes place on Tuesday morning.';
+        $path = 'dossier-files/'.$dossier->id.'/orion.txt';
+        Storage::disk('dossier_files')->put($path, $content);
+        $file = DossierFile::create([
+            'organization_id' => $organization->id,
+            'dossier_id' => $dossier->id,
+            'uploaded_by' => $owner->id,
+            'disk' => 'dossier_files',
+            'path' => $path,
+            'original_name' => 'orion.txt',
+            'display_name' => 'orion.txt',
+            'mime_type' => 'text/plain',
+            'size_bytes' => strlen($content),
+            'checksum_sha256' => hash('sha256', $content),
+            'source' => 'upload',
+        ]);
+
+        $count = app(DossierFileIndexer::class)->synchronize($organization->id, $dossier->id, $file->id);
+        $this->assertGreaterThan(0, $count);
+        $this->assertContains('org:'.$organization->id.':openai', $seen);
+
+        $borne = app(ContextBuilder::class)->build(new ContexteIa(
+            organizationId: $organization->id,
+            userId: $owner->id,
+            loopId: $loop->id,
+            locale: 'fr',
+            capability: CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER,
+            correlationId: (string) Str::uuid(),
+            source: CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL,
+            query: 'How many panels does the Orion Station have?',
+        ), app(CapabilityRegistry::class)->get(CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER));
+
+        $provenance = $borne->provenanceFor(DossierRetrievalSource::NAME);
+        $this->assertNotEmpty($provenance);
+        $this->assertSame('file', $provenance[0]['source_type']);
+        $this->assertSame('orion.txt', $provenance[0]['title']);
+        $this->assertSame($file->id, $provenance[0]['dossier_file_id']);
+        $this->assertNull($provenance[0]['blog_post_id']);
+        $this->assertStringContainsString('/dossiers/'.$dossier->id.'/files/'.$file->id, (string) $provenance[0]['url']);
+        $this->assertStringContainsString('23 violet panels', $borne->text);
+        $this->assertContains('org:'.$organization->id.':openai', $seen);
+    }
+
+    public function test_article_and_file_sources_coexist_in_the_same_retrieval(): void
+    {
+        Storage::fake('dossier_files');
+
+        $organization = Organization::factory()->create();
+        $owner = User::factory()->create(['organization_id' => $organization->id]);
+        $loop = (new LoopService)->createLoop($owner, 'Boucle mixte pgvector');
+        app()->instance('current_organization', $organization);
+
+        OrganizationAiSetting::factory()->create([
+            'organization_id' => $organization->id,
+            'provider' => 'openai',
+            'api_key' => 'sk-tenant-mixed',
+        ]);
+        config([
+            'ai.providers.openai.driver' => 'openai',
+            'ai.providers.openai.key' => 'platform-should-not-be-used',
+            'ai.default_for_embeddings' => 'openai',
+            'ai.caching.embeddings.cache' => false,
+            'ai.providers.openai.models.embeddings.default' => 'text-embedding-3-small',
+            'ai.providers.openai.models.embeddings.dimensions' => 1536,
+            'ai.dossiers.semantic_search.enabled' => true,
+            'ai.dossiers.semantic_search.organization_ids' => [$organization->id],
+            'ai.knowledge.max_distance' => 2.0,
+        ]);
+
+        Embeddings::fake(fn (EmbeddingsPrompt $prompt): array => array_map(fn (): array => $this->vector(0.0), $prompt->inputs))
+            ->preventStrayEmbeddings();
+
+        $dossier = $this->dossier($organization, $owner, Dossier::VISIBILITY_PRIVATE, 'Mixte');
+
+        $post = BlogPost::create([
+            'organization_id' => $organization->id,
+            'user_id' => $owner->id,
+            'title' => 'Article mixte',
+            'slug' => 'article-mixte-'.Str::uuid(),
+            'content' => '<p>Contenu Article mixte.</p>',
+            'status' => 'published',
+            'published_at' => now()->subMinute(),
+        ]);
+        DossierBlogPost::create([
+            'organization_id' => $organization->id,
+            'dossier_id' => $dossier->id,
+            'blog_post_id' => $post->id,
+            'added_by' => $owner->id,
+            'position' => 1,
+        ]);
+        app(DossierArticleIndexer::class)->synchronize($organization->id, $dossier->id, $post->id);
+
+        $path = 'dossier-files/'.$dossier->id.'/mixte.txt';
+        Storage::disk('dossier_files')->put($path, 'Contenu fichier mixte.');
+        $file = DossierFile::create([
+            'organization_id' => $organization->id,
+            'dossier_id' => $dossier->id,
+            'uploaded_by' => $owner->id,
+            'disk' => 'dossier_files',
+            'path' => $path,
+            'original_name' => 'mixte.txt',
+            'display_name' => 'mixte.txt',
+            'mime_type' => 'text/plain',
+            'size_bytes' => 21,
+            'checksum_sha256' => hash('sha256', 'Contenu fichier mixte.'),
+            'source' => 'upload',
+        ]);
+        app(DossierFileIndexer::class)->synchronize($organization->id, $dossier->id, $file->id);
+
+        $borne = app(ContextBuilder::class)->build(new ContexteIa(
+            organizationId: $organization->id,
+            userId: $owner->id,
+            loopId: $loop->id,
+            locale: 'fr',
+            capability: CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER,
+            correlationId: (string) Str::uuid(),
+            source: CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL,
+            query: 'mixte',
+        ), app(CapabilityRegistry::class)->get(CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER));
+
+        $provenance = $borne->provenanceFor(DossierRetrievalSource::NAME);
+        $sourceTypes = array_unique(array_column($provenance, 'source_type'));
+        sort($sourceTypes);
+
+        $this->assertSame(['article', 'file'], $sourceTypes);
     }
 
     private function dossier(Organization $organization, User $owner, string $visibility, string $name): Dossier

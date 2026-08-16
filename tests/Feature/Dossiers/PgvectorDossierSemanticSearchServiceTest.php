@@ -30,7 +30,8 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
 
         $this->assertSame($near->blog_post_id, $results[0]['blog_post_id']);
         $this->assertSame($far->blog_post_id, $results[1]['blog_post_id']);
-        $this->assertSame(['blog_post_id', 'title', 'slug', 'chunk_index', 'content', 'distance'], array_keys($results[0]));
+        $this->assertSame(['source_type', 'blog_post_id', 'title', 'slug', 'dossier_file_id', 'filename', 'chunk_index', 'content', 'distance'], array_keys($results[0]));
+        $this->assertSame('article', $results[0]['source_type']);
         $this->assertSame(0, $results[0]['chunk_index']);
         $this->assertSame('Near chunk', $results[0]['content']);
         $this->assertIsFloat($results[0]['distance']);
