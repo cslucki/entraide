@@ -114,8 +114,12 @@ consommation IA, pricing embeddings, User BYOK, legacy migration.
       (push `816b0cc`), PR #220 draft ouverte
       (https://github.com/cslucki/entraide/pull/220), label
       validation:sensitive appliqué
-- [ ] CI SQLite+PostgreSQL SUCCESS sur `816b0cc` — en attente (lancée,
-      pas encore confirmée au moment de cette mise à jour)
+- [x] CI SQLite+PostgreSQL SUCCESS sur `816b0cc` (HEAD réellement poussé
+      et testé) — confirmé : SQLite CI SUCCESS, PostgreSQL CI SUCCESS.
+      Les commits locaux suivants (corrections TASK file pures, sans
+      code applicatif) ne sont pas repoussés pour éviter un cycle CI
+      complet redondant (~15 min) sans valeur fonctionnelle — le code
+      réellement testé et validé par CI est exactement celui de `816b0cc`
 - [x] STOP avant merge — rapport MASTER
 
 ---
