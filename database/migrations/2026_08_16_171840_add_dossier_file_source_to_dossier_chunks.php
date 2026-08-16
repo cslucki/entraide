@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -47,8 +48,20 @@ return new class extends Migration
 
     public function down(): void
     {
+        // Revue MASTER (TASK-1216) : une ligne de chunk fichier a
+        // `blog_post_id` NULL. Remettre `blog_post_id` NOT NULL avec de
+        // telles lignes encore presentes echoue (ou pire, corromprait des
+        // lignes fichier en leur inventant un blog_post_id). Ce rollback
+        // n'a jamais vocation a migrer un chunk fichier vers un Article —
+        // il retire seulement ce que cette migration a rendu possible.
+        DB::table('dossier_chunks')->whereNotNull('dossier_file_id')->delete();
+
         Schema::table('dossier_chunks', function (Blueprint $table) {
             $table->dropUnique('dossier_chunks_unique_file_chunk_identity');
+            // SQLite reconstruit la table pour un DROP COLUMN : l'index
+            // simple pose par `up()` doit disparaitre avant la colonne, sinon
+            // la reconstruction echoue en cherchant une colonne deja partie.
+            $table->dropIndex(['dossier_file_id']);
             $table->dropConstrainedForeignId('dossier_file_id');
             $table->uuid('blog_post_id')->nullable(false)->change();
         });
