@@ -6,14 +6,20 @@
 # Usage:
 #   ./ai/scripts/run-full-ci.sh [--dry-run] [--wait] [--allow-protected]
 #
-# L'UNIQUE commande standard pour demander les deux suites completes sur le
-# HEAD final d'une TASK.
+# La commande standard pour demander les deux suites completes sur un SHA
+# precis : relance ciblee, verification d'un HEAD final, diagnostic.
 #
-# Depuis TASK-1148, `ci-sqlite.yml` et `ci-postgresql.yml` ne se declenchent
-# plus automatiquement sur `develop` : chaque poussee intermediaire lancait une
-# vingtaine de minutes de PostgreSQL sur des commits que personne n'allait
-# merger. Les gates se demandent desormais UNE FOIS, volontairement, quand le
-# HEAD est final.
+# ATTENTION — ce script ne remplace PAS les declencheurs automatiques.
+#
+# TASK-1148 voulait retirer `develop` des declencheurs pour ne payer les suites
+# qu'une fois sur le HEAD final. La mesure faite sur la PR #214 l'a refuse : une
+# paire lancee par `workflow_dispatch` produit bien les deux check-runs verts
+# sur le SHA exact, mais GitHub ne les fait pas remonter dans le
+# `statusCheckRollup` de la PR — `gh pr checks` repond « no checks reported » et
+# le merge state reste `BLOCKED`. Le ruleset « Required CI checks » n'est donc
+# pas satisfait. Les declencheurs automatiques sont conserves.
+#
+# Ce script reste utile pour obtenir une paire a la demande sur un SHA donne.
 #
 # Ce que ce script garantit :
 #   - la branche est bien une branche de TASK (jamais develop/main par defaut) ;
@@ -67,7 +73,7 @@ echo ""
 
 # ── 1. Outils ────────────────────────────────────────────────────────────────
 if ! command -v gh &> /dev/null; then
-    rouge "ERREUR : le CLI `gh` est absent — impossible de declencher un workflow."
+    rouge "ERREUR : le CLI gh est absent — impossible de declencher un workflow."
     exit 1
 fi
 
@@ -290,7 +296,7 @@ if [ "$CONCLUSION_SQLITE" = "success" ] && [ "$CONCLUSION_PG" = "success" ]; the
     echo ""
     echo "  Sur le SHA : $SHA"
     echo ""
-    echo "  `merge-task.sh` acceptera ce commit. Tout commit ajoute ensuite"
+    echo "  merge-task.sh acceptera ce commit. Tout commit ajoute ensuite"
     echo "  change le HEAD et exige une nouvelle paire."
     echo ""
     exit 0

@@ -8,25 +8,33 @@ name: SQLite CI
 # deux fois — environ 30 s, en parallele, contre une lecture nettement plus
 # simple quand un gate rougit a 2 h du matin.
 
-# Automatique vers `main` seulement ; manuel partout ailleurs (TASK-1148).
+# TASK-1148 a tente de retirer `develop` de ces declencheurs, pour ne payer les
+# suites completes qu'une fois sur le HEAD final. **La tentative a echoue, et
+# le declencheur automatique est conserve.**
 #
-# Chaque poussee sur une PR `develop` declenchait les deux suites completes —
-# une vingtaine de minutes pour PostgreSQL — y compris sur des commits
-# intermediaires que personne n'allait merger. Les gates sont desormais
-# demandes UNE FOIS, volontairement, sur le HEAD final :
+# Mesure faite sur la PR #214, commit `d557456` :
 #
-#     ai/scripts/run-full-ci.sh --wait
+#   - le ruleset actif « Required CI checks » exige sur `develop` les checks
+#     `Quality Gate (blocking)` et `SQLite Regression Gate (blocking)` ;
+#   - une paire declenchee par `workflow_dispatch` produit bien ces deux
+#     check-runs, verts, sur le SHA exact, et l'API les rattache meme a la PR
+#     (`pull_requests=[214]`) ;
+#   - MAIS `gh pr checks` repond « no checks reported », le
+#     `statusCheckRollup` de la PR reste vide, et le merge state reste
+#     `BLOCKED`.
 #
-# Un commit ajoute ensuite change le HEAD et invalide la preuve : il faut
-# relancer. C'est exactement ce que verifie `merge-task.sh`, qui exige les deux
-# gates verts sur le SHA EXACT du commit a merger.
+# Autrement dit GitHub ne fait pas remonter un check-run issu de
+# `workflow_dispatch` dans l'agregat qui satisfait un required status check.
+# Retirer `develop` d'ici bloquerait donc toute PR vers develop.
 #
-# Les PR de release vers `main` gardent la securite automatique complete.
+# `ai/scripts/run-full-ci.sh` reste utile pour demander une paire a la demande
+# (relance ciblee, verification d'un SHA precis), mais ne peut pas se
+# substituer a ce declencheur tant que ce comportement GitHub n'a pas change.
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 # **Groupe distinct de celui du workflow PostgreSQL.** Partager le groupe
