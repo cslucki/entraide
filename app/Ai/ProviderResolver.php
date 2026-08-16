@@ -107,6 +107,85 @@ final class ProviderResolver
     }
 
     /**
+     * TASK-1214 : instance SDK d'embedding pour l'INGESTION d'une Organization.
+     *
+     * La famille/modele d'embedding est l'identite de l'index (partagee par
+     * l'ingestion et la requete via `ai.default_for_embeddings`) : on ne la
+     * derive PAS du provider de chat du tenant. Seul le CREDENTIAL devient
+     * celui de l'Organization.
+     *
+     * Retourne le nom d'instance a passer a `DossierChunkEmbeddingService::embed`
+     * quand l'Organization peut produire des embeddings, ou `null` quand elle ne
+     * le peut pas — auquel cas l'appelant ne doit PLUS jamais retomber sur la
+     * cle plateforme (doctrine P4 : aucun fallback silencieux). Un `null`
+     * signifie « pas d'embedding tenant disponible », jamais « utilise la
+     * plateforme ».
+     *
+     * `null` est renvoye quand : aucune configuration IA utilisable ; le
+     * provider du tenant n'appartient pas a la famille d'embedding de l'index
+     * (une cle d'une autre famille ne peut pas signer cet index) ; ou aucun
+     * credential alors que le driver en exige un. Une erreur de configuration
+     * plateforme (famille d'embedding sans `ai.providers.*`) reste une
+     * DomainException : c'est un defaut d'exploitation, pas une Organization.
+     */
+    public function resolveEmbeddingInstance(string $organizationId): ?string
+    {
+        $family = trim((string) config('ai.default_for_embeddings', 'openai'));
+
+        if ($family === '') {
+            throw new DomainException('No embedding provider family is configured (ai.default_for_embeddings).');
+        }
+
+        $base = config('ai.providers.'.$family);
+
+        if (! is_array($base) || $base === []) {
+            throw new DomainException("Embedding provider family [{$family}] has no [ai.providers.{$family}] configuration.");
+        }
+
+        $driver = is_string($base['driver'] ?? null) ? trim($base['driver']) : '';
+
+        if ($driver === '') {
+            throw new DomainException("Embedding provider family [{$family}] has no driver configured.");
+        }
+
+        $instance = self::instanceName($organizationId, $family);
+
+        // Driver local sans cle (ollama) : aucune configuration tenant requise.
+        if (in_array($driver, self::KEYLESS_DRIVERS, true)) {
+            $this->registerInstance($instance, $base, null);
+
+            return $instance;
+        }
+
+        $setting = OrganizationAiSetting::query()
+            ->where('organization_id', $organizationId)
+            ->first();
+
+        // Pas de configuration IA utilisable = pas de nouvel embedding. Aucun
+        // repli plateforme.
+        if ($setting === null || ! $setting->isUsable()) {
+            return null;
+        }
+
+        // La cle du tenant vaut pour SA famille. Si sa famille ne coincide pas
+        // avec celle de l'index, elle ne peut pas signer cet index — et on ne
+        // bascule pas sur la plateforme pour combler l'ecart.
+        if (trim((string) $setting->provider) !== $family) {
+            return null;
+        }
+
+        $key = trim((string) $setting->api_key);
+
+        if ($key === '') {
+            return null;
+        }
+
+        $this->registerInstance($instance, $base, $key);
+
+        return $instance;
+    }
+
+    /**
      * Nom de l'instance SDK d'un tenant : deterministe, sans secret dedans.
      */
     public static function instanceName(string $organizationId, string $provider): string

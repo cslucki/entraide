@@ -37,6 +37,22 @@ class RecordSdkEmbeddingsInvocation
 
     public const TRACE_CONTEXT_KEY = 'ai_sdk_trace_context';
 
+    /**
+     * `org:{organizationId}:{famille}` -> `{famille}`. L'organizationId est un
+     * UUID (sans deux-points), donc la famille est le segment apres le dernier
+     * deux-points. Tout autre nom est rendu tel quel.
+     */
+    public static function normalizeProviderFamily(?string $name): ?string
+    {
+        if ($name === null || ! str_starts_with($name, 'org:')) {
+            return $name;
+        }
+
+        $position = strrpos($name, ':');
+
+        return $position === false ? $name : substr($name, $position + 1);
+    }
+
     public function handle(GeneratingEmbeddings|EmbeddingsGenerated $event): void
     {
         if ($event instanceof GeneratingEmbeddings) {
@@ -46,11 +62,18 @@ class RecordSdkEmbeddingsInvocation
         }
 
         $usage = AiUsage::of($event->response->tokens, null);
-        $cost = AiPricingCatalog::cost($event->provider->name(), $event->model, $usage);
+        // TASK-1214 : une invocation tenant part sur une instance nommee
+        // `org:{id}:{famille}`. La trace et le catalogue de prix raisonnent par
+        // FAMILLE (openai, openrouter…), pas par instance : sans normalisation,
+        // le provider enregistre porterait l'id d'Organization (deja en
+        // colonne) et le tarif ne serait jamais trouve. La preuve que l'instance
+        // tenant a servi vit ailleurs (prompt SDK, config d'instance).
+        $provider = self::normalizeProviderFamily($event->provider->name());
+        $cost = AiPricingCatalog::cost($provider, $event->model, $usage);
 
         $this->write(
             invocationId: $event->invocationId,
-            provider: $event->provider->name(),
+            provider: $provider,
             model: $event->model,
             status: 'success',
             latencyMs: $this->consumePending($event->invocationId),
