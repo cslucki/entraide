@@ -958,7 +958,7 @@
                                         $nomProprietaire = $estDunAutre
                                             ? ($folder->owner->isDisplayableIn(currentOrganization()) ? $folder->owner->publicDisplayName() : __('profile.deactivated_user'))
                                             : null;
-                                        $nbElements = $folder->files_count + $folder->dossier_blog_posts_count;
+                                        $nbElements = $folder->files_count + $folder->dossier_blog_posts_count + ($folder->children_count ?? 0);
                                         // Une ligne qui porte sa propre gouvernance (une racine)
                                         // dit SON etat ; une ligne gouvernee par le Dossier
                                         // ouvert herite du sien.
@@ -1296,7 +1296,7 @@
                                     $nomProprietaire = $estDunAutre
                                         ? ($folder->owner->isDisplayableIn(currentOrganization()) ? $folder->owner->publicDisplayName() : __('profile.deactivated_user'))
                                         : null;
-                                    $nbElements = $folder->files_count + $folder->dossier_blog_posts_count;
+                                    $nbElements = $folder->files_count + $folder->dossier_blog_posts_count + ($folder->children_count ?? 0);
                                 @endphp
                                 <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}"
                                    @click="clicElement($event, {!! $itemDossier($folder) !!})" @dblclick="ouvrir({!! $itemDossier($folder) !!})" @touchstart="debutAppui({!! $itemDossier($folder) !!})" @touchend="finAppui()" @touchmove="finAppui()"
@@ -1555,7 +1555,7 @@
                         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showRenameModal = false" @keydown.escape.window="showRenameModal = false" role="dialog" aria-modal="true" aria-labelledby="rename-file-title">
                             <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
                                 <h3 id="rename-file-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100"
-                                    x-text="(i18n.renameTitle || '').replace(':name', renameTarget.display_name || renameTarget.original_name)"></h3>
+                                    x-text="(i18n.renameTitle || '').replace(':name', (renameTarget?.display_name || renameTarget?.original_name || ''))"></h3>
                                 <div class="mt-4">
                                     <label for="rename-file-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300" x-text="i18n.renameLabel"></label>
                                     <input id="rename-file-input" type="text" x-model="renameValue" maxlength="255" @keydown.enter="confirmRename()"
