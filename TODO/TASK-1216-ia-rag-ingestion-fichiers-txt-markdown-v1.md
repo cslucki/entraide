@@ -23,14 +23,14 @@ validation_level: SENSITIVE
 priority: MEDIUM
 
 created_at: 2026-08-16 17:10:52 Europe/Paris
-updated_at: 2026-08-16 18:15:00 Europe/Paris
+updated_at: 2026-08-16 19:45:00 Europe/Paris
 
 labels: []
 
 lock:
   status: UNLOCKED
   agent: OPUS
-  since: 2026-08-16 18:15:00 Europe/Paris
+  since: 2026-08-16 19:45:00 Europe/Paris
 
 handoff: false
 
@@ -209,6 +209,46 @@ IN_PROGRESS
   résiduel (vérifié par requête SQL), `dossier_chunks` = 11 (baseline
   identique avant/après).
 
+## 2026-08-16 — Corrections pré-merge (revue MASTER sur PR #220)
+
+Deux failles réelles identifiées par revue MASTER, corrigées et testées
+rigoureusement (test confirmé rouge sans le correctif, vert avec) :
+
+**B. Garde staleness fenêtre async (déplacement fichier A→B)** —
+`DossierSemanticSearchService::search()`/`searchAcrossDossiers()`
+joignaient `dossier_files` uniquement sur `id = dossier_chunks.dossier_file_id`,
+sans vérifier `dossier_files.dossier_id = dossier_chunks.dossier_id`. Un
+fichier déplacé A→B avant que le job de nettoyage asynchrone
+(`DossierFileObserver::updated()` → `IndexDossierFileChunks`) n'ait tourné
+laissait un chunk stale (`dossier_chunks.dossier_id = A`) que le retrieval
+de A pouvait quand même servir, avec le contenu désormais rattaché à B.
+Fix : condition `ON` supplémentaire `dossier_files.dossier_id =
+dossier_chunks.dossier_id` sur les deux jointures — l'état courant de la
+source prime toujours. Test ajouté
+(`PgvectorDossierRetrievalSourceTest::test_a_file_moved_to_another_dossier_is_not_served_by_the_original_dossier_during_the_async_cleanup_window`,
+`Queue::fake()` fige la fenêtre avant nettoyage) : rouge sans le fix
+(1 résultat retourné au lieu de 0), vert avec.
+
+**C. Rollback migration impossible avec chunks fichier existants** —
+`down()` remettait `blog_post_id` NOT NULL sans retirer d'abord les lignes
+`dossier_file_id IS NOT NULL` (`blog_post_id` NULL) : rollback aurait
+échoué avec un vrai fichier indexé. Fix : `DELETE` des chunks fichier
+avant les opérations de schéma. Un second bug latent SQLite découvert au
+passage (`dropConstrainedForeignId` échouait à la reconstruction de table
+sans `dropIndex(['dossier_file_id'])` explicite avant) — corrigé aussi.
+Test ajouté (`TASK1216MigrationRollbackTest`, driver-agnostique,
+`RefreshDatabase`+DDL transactionnel pour ne rien laisser derrière) :
+`down()` avec chunk fichier existant → 0 exception, chunk stale retiré ;
+`up()` de nouveau → colonne restaurée, insertion fichier de nouveau
+possible. PASS sur SQLite et PostgreSQL réel.
+
+Régression ciblée rejouée (`Dossier|TASK121[3-6]|TASK1200`) : SQLite
+572 verts / 12 échecs = liste connue pgvector inchangée ; PostgreSQL réel
+568 verts / 2 échecs pré-existants hors scope (quota, TASK-1131) —
+identiques à avant ces corrections, aucune régression introduite. Pint
+scoped PASS, `git diff --check` PASS. Aucune recette Chrome/Playwright
+supplémentaire (aucune UI modifiée, spot-check précédent déjà vert).
+
 Status:
 DONE
 
@@ -216,7 +256,8 @@ DONE
 
 # Tests
 
-- [x] feature tests (14 TASK1216FileIngestionTest + 2 e2e pgvector, 100% verts)
+- [x] feature tests (14 TASK1216FileIngestionTest + 3 e2e pgvector dont
+      test fenêtre staleness A→B + 1 test rollback migration, 100% verts)
 - [x] browser validation (Playwright WSL complet + Chrome spot-check)
 - [x] responsive validation (non applicable — aucun changement UI/CSS)
 - [x] console inspection (0 erreur, 0 page error, 0 requestfailed inattendu)
