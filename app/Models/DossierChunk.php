@@ -18,6 +18,7 @@ class DossierChunk extends Model
         'organization_id',
         'dossier_id',
         'blog_post_id',
+        'dossier_file_id',
         'chunk_index',
         'content',
         'content_hash',
@@ -51,5 +52,10 @@ class DossierChunk extends Model
     public function blogPost(): BelongsTo
     {
         return $this->belongsTo(BlogPost::class);
+    }
+
+    public function dossierFile(): BelongsTo
+    {
+        return $this->belongsTo(DossierFile::class);
     }
 }

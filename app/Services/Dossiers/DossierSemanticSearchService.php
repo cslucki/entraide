@@ -18,7 +18,13 @@ class DossierSemanticSearchService
     ) {}
 
     /**
-     * @return array<int, array{blog_post_id: string, title: string, slug: string, chunk_index: int, content: string, distance: float}>
+     * TASK-1216 : une ligne peut desormais provenir d'un Article
+     * (`source_type = 'article'`, `blog_post_id` renseigne) ou d'un fichier
+     * TXT/Markdown (`source_type = 'file'`, `dossier_file_id` renseigne) —
+     * jamais les deux. `title`/`slug` restent vides cote fichier ;
+     * `filename`/`dossier_file_id` restent vides cote Article.
+     *
+     * @return array<int, array{source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, chunk_index: int, content: string, distance: float}>
      */
     public function search(string $organizationId, string $dossierId, string $query, int $limit = 5): array
     {
@@ -67,11 +73,22 @@ class DossierSemanticSearchService
         }
 
         return DB::table('dossier_chunks')
-            ->join('blog_posts', 'blog_posts.id', '=', 'dossier_chunks.blog_post_id')
-            ->join('dossier_blog_posts', function ($join) use ($organizationId, $dossierId) {
-                $join->on('dossier_blog_posts.blog_post_id', '=', 'blog_posts.id')
+            ->leftJoin('blog_posts', 'blog_posts.id', '=', 'dossier_chunks.blog_post_id')
+            ->leftJoin('dossier_blog_posts', function ($join) use ($organizationId, $dossierId) {
+                $join->on('dossier_blog_posts.blog_post_id', '=', 'dossier_chunks.blog_post_id')
                     ->where('dossier_blog_posts.organization_id', '=', $organizationId)
                     ->where('dossier_blog_posts.dossier_id', '=', $dossierId);
+            })
+            ->leftJoin('dossier_files', function ($join) {
+                // Garde staleness (revue MASTER, TASK-1216) : un fichier
+                // deplace A->B garde son id, seul dossier_id change. Sans
+                // cette egalite, un chunk pas encore nettoye par le job
+                // async (dossier_chunks.dossier_id = A) rejoindrait quand
+                // meme le fichier maintenant dans B et servirait un contenu
+                // qui n'appartient plus a ce Dossier pendant la fenetre
+                // async. L'etat COURANT de dossier_files doit primer.
+                $join->on('dossier_files.id', '=', 'dossier_chunks.dossier_file_id')
+                    ->on('dossier_files.dossier_id', '=', 'dossier_chunks.dossier_id');
             })
             ->join('dossiers', function ($join) use ($organizationId, $dossierId) {
                 $join->on('dossiers.id', '=', 'dossier_chunks.dossier_id')
@@ -83,15 +100,28 @@ class DossierSemanticSearchService
             ->where('dossier_chunks.dossier_id', $dossierId)
             ->where('dossier_chunks.embedding_provider', $embeddingResult['provider'])
             ->where('dossier_chunks.embedding_model', $embeddingResult['model'])
-            ->where('blog_posts.organization_id', $organizationId)
-            ->where('blog_posts.status', 'published')
-            ->whereNotNull('blog_posts.published_at')
-            ->where('blog_posts.published_at', '<=', now())
-            ->whereNull('blog_posts.deleted_at')
+            ->where(function ($outer) use ($organizationId) {
+                $outer->where(function ($article) use ($organizationId) {
+                    $article->whereNotNull('dossier_chunks.blog_post_id')
+                        ->whereNotNull('dossier_blog_posts.id')
+                        ->where('blog_posts.organization_id', $organizationId)
+                        ->where('blog_posts.status', 'published')
+                        ->whereNotNull('blog_posts.published_at')
+                        ->where('blog_posts.published_at', '<=', now())
+                        ->whereNull('blog_posts.deleted_at');
+                })->orWhere(function ($file) use ($organizationId) {
+                    $file->whereNotNull('dossier_chunks.dossier_file_id')
+                        ->where('dossier_files.organization_id', $organizationId)
+                        ->whereNull('dossier_files.deleted_at');
+                });
+            })
             ->select([
-                'blog_posts.id as blog_post_id',
+                'dossier_chunks.blog_post_id',
                 'blog_posts.title',
                 'blog_posts.slug',
+                'dossier_chunks.dossier_file_id',
+                'dossier_files.display_name as file_display_name',
+                'dossier_files.original_name as file_original_name',
                 'dossier_chunks.chunk_index',
                 'dossier_chunks.content',
             ])
@@ -99,14 +129,7 @@ class DossierSemanticSearchService
             ->orderByVectorDistance('dossier_chunks.embedding', $embedding)
             ->limit($limit)
             ->get()
-            ->map(fn (object $row): array => [
-                'blog_post_id' => (string) $row->blog_post_id,
-                'title' => (string) $row->title,
-                'slug' => (string) $row->slug,
-                'chunk_index' => (int) $row->chunk_index,
-                'content' => (string) $row->content,
-                'distance' => (float) $row->distance,
-            ])
+            ->map(fn (object $row): array => self::mapSourceRow($row))
             ->all();
     }
 
@@ -121,8 +144,12 @@ class DossierSemanticSearchService
      * `$embeddingInstance` : instance SDK du tenant (credential P4) ; null =
      * configuration d'embeddings de la plateforme (indexation, bench).
      *
+     * TASK-1216 : `source_type` distingue Article (`blog_post_id`/`title`/
+     * `slug`) de fichier (`dossier_file_id`/`filename`) — jamais les deux a
+     * la fois sur une meme ligne.
+     *
      * @param  list<string>  $dossierIds
-     * @return array<int, array{chunk_id: string, dossier_id: string, dossier_name: string, blog_post_id: string, title: string, slug: string, chunk_index: int, content: string, distance: float}>
+     * @return array<int, array{chunk_id: string, dossier_id: string, dossier_name: string, source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, chunk_index: int, content: string, distance: float}>
      */
     public function searchAcrossDossiers(
         string $organizationId,
@@ -173,11 +200,16 @@ class DossierSemanticSearchService
         }
 
         return DB::table('dossier_chunks')
-            ->join('blog_posts', 'blog_posts.id', '=', 'dossier_chunks.blog_post_id')
-            ->join('dossier_blog_posts', function ($join) use ($organizationId) {
-                $join->on('dossier_blog_posts.blog_post_id', '=', 'blog_posts.id')
+            ->leftJoin('blog_posts', 'blog_posts.id', '=', 'dossier_chunks.blog_post_id')
+            ->leftJoin('dossier_blog_posts', function ($join) use ($organizationId) {
+                $join->on('dossier_blog_posts.blog_post_id', '=', 'dossier_chunks.blog_post_id')
                     ->on('dossier_blog_posts.dossier_id', '=', 'dossier_chunks.dossier_id')
                     ->where('dossier_blog_posts.organization_id', '=', $organizationId);
+            })
+            ->leftJoin('dossier_files', function ($join) {
+                // Meme garde staleness que search() (revue MASTER, TASK-1216).
+                $join->on('dossier_files.id', '=', 'dossier_chunks.dossier_file_id')
+                    ->on('dossier_files.dossier_id', '=', 'dossier_chunks.dossier_id');
             })
             ->join('dossiers', function ($join) use ($organizationId) {
                 $join->on('dossiers.id', '=', 'dossier_chunks.dossier_id')
@@ -188,18 +220,31 @@ class DossierSemanticSearchService
             ->whereIn('dossier_chunks.dossier_id', $dossierIds)
             ->where('dossier_chunks.embedding_provider', $embeddingResult['provider'])
             ->where('dossier_chunks.embedding_model', $embeddingResult['model'])
-            ->where('blog_posts.organization_id', $organizationId)
-            ->where('blog_posts.status', 'published')
-            ->whereNotNull('blog_posts.published_at')
-            ->where('blog_posts.published_at', '<=', now())
-            ->whereNull('blog_posts.deleted_at')
+            ->where(function ($outer) use ($organizationId) {
+                $outer->where(function ($article) use ($organizationId) {
+                    $article->whereNotNull('dossier_chunks.blog_post_id')
+                        ->whereNotNull('dossier_blog_posts.id')
+                        ->where('blog_posts.organization_id', $organizationId)
+                        ->where('blog_posts.status', 'published')
+                        ->whereNotNull('blog_posts.published_at')
+                        ->where('blog_posts.published_at', '<=', now())
+                        ->whereNull('blog_posts.deleted_at');
+                })->orWhere(function ($file) use ($organizationId) {
+                    $file->whereNotNull('dossier_chunks.dossier_file_id')
+                        ->where('dossier_files.organization_id', $organizationId)
+                        ->whereNull('dossier_files.deleted_at');
+                });
+            })
             ->select([
                 'dossier_chunks.id as chunk_id',
                 'dossier_chunks.dossier_id',
                 'dossiers.name as dossier_name',
-                'blog_posts.id as blog_post_id',
+                'dossier_chunks.blog_post_id',
                 'blog_posts.title',
                 'blog_posts.slug',
+                'dossier_chunks.dossier_file_id',
+                'dossier_files.display_name as file_display_name',
+                'dossier_files.original_name as file_original_name',
                 'dossier_chunks.chunk_index',
                 'dossier_chunks.content',
             ])
@@ -207,17 +252,14 @@ class DossierSemanticSearchService
             ->orderByVectorDistance('dossier_chunks.embedding', $embedding)
             ->limit($limit)
             ->get()
-            ->map(fn (object $row): array => [
-                'chunk_id' => (string) $row->chunk_id,
-                'dossier_id' => (string) $row->dossier_id,
-                'dossier_name' => (string) $row->dossier_name,
-                'blog_post_id' => (string) $row->blog_post_id,
-                'title' => (string) $row->title,
-                'slug' => (string) $row->slug,
-                'chunk_index' => (int) $row->chunk_index,
-                'content' => (string) $row->content,
-                'distance' => (float) $row->distance,
-            ])
+            ->map(fn (object $row): array => array_merge(
+                [
+                    'chunk_id' => (string) $row->chunk_id,
+                    'dossier_id' => (string) $row->dossier_id,
+                    'dossier_name' => (string) $row->dossier_name,
+                ],
+                self::mapSourceRow($row)
+            ))
             ->all();
     }
 
@@ -227,5 +269,30 @@ class DossierSemanticSearchService
             ->whereKey($dossierId)
             ->where('organization_id', $organizationId)
             ->exists();
+    }
+
+    /**
+     * Traduit une ligne `dossier_chunks` (jointe Article + fichier) en
+     * tableau source-agnostique. Partagee par `search()` et
+     * `searchAcrossDossiers()` pour ne jamais laisser diverger la regle
+     * "exactement une des deux sources" entre les deux methodes.
+     *
+     * @return array{source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, chunk_index: int, content: string, distance: float}
+     */
+    private static function mapSourceRow(object $row): array
+    {
+        $isArticle = $row->blog_post_id !== null;
+
+        return [
+            'source_type' => $isArticle ? 'article' : 'file',
+            'blog_post_id' => $isArticle ? (string) $row->blog_post_id : null,
+            'title' => $isArticle ? (string) $row->title : null,
+            'slug' => $isArticle ? (string) $row->slug : null,
+            'dossier_file_id' => $isArticle ? null : (string) $row->dossier_file_id,
+            'filename' => $isArticle ? null : (string) ($row->file_display_name ?: $row->file_original_name),
+            'chunk_index' => (int) $row->chunk_index,
+            'content' => (string) $row->content,
+            'distance' => (float) $row->distance,
+        ];
     }
 }

@@ -14,6 +14,7 @@ use App\Models\AiConfig;
 use App\Models\BlogPost;
 use App\Models\BugReport;
 use App\Models\Dossier;
+use App\Models\DossierFile;
 use App\Models\EmailLog;
 use App\Models\FeedPost;
 use App\Models\Loop;
@@ -28,6 +29,7 @@ use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
 use App\Observers\BlogPostObserver;
+use App\Observers\DossierFileObserver;
 use App\Observers\DossierObserver;
 use App\Observers\ServiceObserver;
 use App\Observers\TransactionObserver;
@@ -203,6 +205,7 @@ class AppServiceProvider extends ServiceProvider
         TranslationOverride::observe(TranslationOverrideObserver::class);
         BlogPost::observe(BlogPostObserver::class);
         Dossier::observe(DossierObserver::class);
+        DossierFile::observe(DossierFileObserver::class);
 
         Event::listen(
             LoopMessageCreated::class,
