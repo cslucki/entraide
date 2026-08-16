@@ -23,7 +23,10 @@
             'cle' => 'boucles',
             'label' => __('dossiers.space_loops'),
             'url' => route('organization.dossiers.index', ['organization' => $orgParam, 'espace' => 'boucles']),
-            'icone' => 'M12.2 8a3.2 3.2 0 1 1-6.4 0 3.2 3.2 0 0 1 6.4 0Zm7.5 7.5a3.2 3.2 0 1 1-6.4 0 3.2 3.2 0 0 1 6.4 0ZM4.5 19c.6-2.6 2.4-4 4.5-4M19.5 8.5C19 6 17.2 4.8 15.4 4.8',
+            // La MEME icone que « Boucles » dans le rail global : deux dessins
+            // pour une seule destination faisaient douter qu'il s'agisse du
+            // meme endroit.
+            'icone' => 'M8 10h8M8 14h5m8-2a9 9 0 11-18 0 9 9 0 0118 0z',
         ],
     ];
 @endphp
@@ -35,7 +38,11 @@
 
          Emplacements futurs, hors scope : « Recents » et « Favoris » sous
          Boucles ; « Corbeille » et la jauge de stockage en bas de colonne. --}}
-    <aside class="hidden w-[198px] shrink-0 self-stretch border-r border-[var(--bp-border)] bg-[var(--bp-surface)] px-2.5 py-4 md:block"
+    {{-- `--bp-page`, pas `--bp-surface` : en clair les deux valent la meme
+         couleur, donc la colonne se fondait deja dans la page ; en sombre
+         `surface` est plus clair que `page` et la colonne se detachait en bloc.
+         Le fond suit desormais la page dans les deux themes (TASK-1146). --}}
+    <aside class="hidden w-[198px] shrink-0 self-stretch border-r border-[var(--bp-border)] bg-[var(--bp-page)] px-2.5 py-4 md:block"
            aria-label="{{ __('dossiers.module_navigation') }}">
         {{-- `z-40` : `position: sticky` cree un contexte d'empilement, et sans
              cote explicite la surface — placee apres dans le DOM — recouvrait

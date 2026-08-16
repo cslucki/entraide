@@ -33,6 +33,9 @@ return [
     'col_role' => 'Rôle',
     'shared_with_people' => '{0}Personne|{1}:count personne|[2,*]:count personnes',
     'loops_empty' => 'Vous n\'êtes membre d\'aucune Boucle pour l\'instant.',
+    // Un etat vide qui ne dit pas quoi faire laisse chercher : le lien mene
+    // la ou on rejoint une Boucle (TASK-1146).
+    'loops_empty_cta' => 'Découvrir les Boucles',
     'loop_activity' => 'activité le :date',
     'loop_visit' => 'Voir la Boucle',
     'loop_role_owner' => 'Propriétaire',
@@ -178,7 +181,11 @@ return [
     'article_not_attached' => 'Cet article n\'est pas rattaché à un dossier.',
     'shared_label' => 'Dossier partagé',
     'shared_badge' => 'Partagé',
-    'shared_with_me' => 'Partagés avec moi',
+    // « Partages avec moi » et « Partages par moi » ne differaient que par
+    // une preposition au milieu : en balayage, l'oeil ne les distinguait pas.
+    // « Recus » ne partage plus aucun mot avec l'autre onglet — le premier
+    // mot suffit desormais a savoir de quel cote on est (TASK-1146).
+    'shared_with_me' => 'Reçus',
     'shared_with_me_empty' => 'Aucun dossier n\'a encore été partagé avec toi.',
     'owned_by' => 'Propriétaire : :name',
     'your_role' => 'Ton rôle : :role',

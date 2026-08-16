@@ -85,8 +85,11 @@
         // `uploaded_by` pour un fichier et `added_by` pour le lien Article,
         // deux depots, pas deux proprietes (TASK-1143).
         $vueRecueEnPartage = ! $estDriveDeBoucle && ($isSharedSurface ?? false);
-        $colonneProprietaire = $estDriveDeBoucle;
-        $colonneAjoutePar = $vueRecueEnPartage;
+        // Le Drive de Boucle intitulait cette colonne « Proprietaire » alors
+        // qu'elle montrait l'uploader d'un fichier et l'auteur d'un Article —
+        // deux depots, pas deux proprietes (TASK-1146). Meme colonne, meme
+        // libelle exact que dans un Dossier recu en partage : « Ajoute par ».
+        $colonneAjoutePar = $estDriveDeBoucle || $vueRecueEnPartage;
         $colonnePartage = ! $estDriveDeBoucle && ! $vueRecueEnPartage;
 
         // Les deux gabarits s'ecrivent EN ENTIER, et non autour d'un ternaire.
@@ -123,11 +126,6 @@
             : (($couvertParUnPartage ?? false) || $governingDossier->dossierMembers->isNotEmpty()
                 ? __('dossiers.share_inherited')
                 : __('dossiers.share_private'));
-        $proprietaireHerite = $governingDossier->isLoopDossier()
-            ? ($governingDossier->loop?->name ?? '—')
-            : ($governingDossier->owner_id === auth()->id()
-                ? __('dossiers.owner_me')
-                : ($governingDossier->owner?->isDisplayableIn(currentOrganization()) ? $governingDossier->owner->publicDisplayName() : __('profile.deactivated_user')));
 
         // Mode Serie (TASK-1130, doctrine finale) : la projection SEQUENTIELLE de
         // chaque Serie — les contenus reels du Dossier avec un rang, jamais
@@ -915,7 +913,6 @@
                         <div class="hidden lg:block">
                             <div class="{{ $grilleDrive }} border-b border-gray-200 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:border-gray-700 dark:text-gray-500">
                                 <div>{{ __('dossiers.col_name') }}</div>
-                                @if($colonneProprietaire)<div>{{ __('dossiers.col_owner') }}</div>@endif
                                 @if($colonneAjoutePar)<div>{{ __('dossiers.col_added_by') }}</div>@endif
                                 <div>{{ __('dossiers.col_type') }}</div>
                                 @if($colonnePartage)<div>{{ __('dossiers.col_share') }}</div>@endif
@@ -965,13 +962,6 @@
                                         // Une ligne qui porte sa propre gouvernance (une racine)
                                         // dit SON etat ; une ligne gouvernee par le Dossier
                                         // ouvert herite du sien.
-                                        // Le proprietaire REEL de la ligne : le sien si elle
-                                        // porte sa propre gouvernance (une racine), celui du
-                                        // Dossier ouvert sinon.
-                                        $proprietaireDuDossier = $estPartageIci ? $folder->owner : $governingDossier->owner;
-                                        $proprietaireLibelle = $estPartageIci
-                                            ? ($folder->owner_id === auth()->id() ? __('dossiers.owner_me') : ($nomProprietaire ?? '—'))
-                                            : $proprietaireHerite;
                                         // Une ligne dit d'abord SON partage.
                                         // L'etat n'etait lu que sur les racines
                                         // (`$estPartageIci`) : un sous-dossier
@@ -1020,13 +1010,16 @@
                                             <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400">{{ $partageDuDossier }} · <span data-folder-count="{{ $folder->getKey() }}" data-count="{{ $nbElements }}">{{ trans_choice('dossiers.drive_folder_items', $nbElements, ['count' => $nbElements]) }}</span>@if($estDunAutre) · {{ __('dossiers.drive_shared_by', ['name' => $nomProprietaire]) }}@endif</span>
                                         </a>
                                     </div>
-                                    @if($colonneProprietaire || $colonneAjoutePar)
-                                        {{-- Un Dossier a un vrai proprietaire :
-                                             c'est lui qu'on montre, meme sous
-                                             l'en-tete « Ajoute par ». --}}
-                                        <div class="hidden min-w-0 items-center gap-2 lg:flex">
-                                            <x-user-avatar :user="$proprietaireDuDossier" size="xs" />
-                                            <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $proprietaireLibelle }}</span>
+                                    @if($colonneAjoutePar)
+                                        {{-- La table `dossiers` ne porte que
+                                             `owner_id` : aucun `added_by`, aucun
+                                             `created_by`. Sous cet en-tete, une
+                                             ligne Dossier n'a donc rien de vrai a
+                                             dire — elle se tait plutot que
+                                             d'afficher une propriete a la place
+                                             d'un depot (TASK-1146). --}}
+                                        <div class="hidden min-w-0 items-center lg:flex">
+                                            <span class="text-xs text-gray-400 dark:text-gray-500" aria-hidden="true">—</span>
                                         </div>
                                     @endif
                                     <div class="{{ $celluleLgDrive }}">{{ __('dossiers.drive_type_folder') }}</div>
@@ -1099,7 +1092,6 @@
                                     :class="estEnDeplacement('article', '{{ $post->id }}') ? 'opacity-40' : (estSelectionne('article', '{{ $post->id }}') ? '{{ $classeSelection }}' : '')"
                                     x-show="!searchQuery || {{ \Illuminate\Support\Js::from(mb_strtolower($post->title)) }}.includes(searchQuery.toLowerCase())">
                                     @php
-                                        $auteurArticle = $post->user?->isDisplayableIn(currentOrganization()) ? $post->user->publicDisplayName() : __('profile.deactivated_user');
                                         // Qui a range l'Article ici. Un lien
                                         // ancien peut n'avoir aucun `added_by` :
                                         // on l'admet plutot que d'attribuer le
@@ -1126,12 +1118,6 @@
                                             <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400">{{ $partageHerite }} · {{ __('dossiers.drive_article_badge') }} · {{ $post->updated_at?->isoFormat('L') }}</span>
                                         </a>
                                     </div>
-                                    @if($colonneProprietaire)
-                                        <div class="hidden min-w-0 items-center gap-2 lg:flex">
-                                            <x-user-avatar :user="$post->user" size="xs" />
-                                            <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $post->user_id === auth()->id() ? __('dossiers.owner_me') : $auteurArticle }}</span>
-                                        </div>
-                                    @endif
                                     @if($colonneAjoutePar)
                                         {{-- Qui a range CET Article ICI —
                                              `added_by` du lien, pas l'auteur du
@@ -1216,7 +1202,7 @@
                                         <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400" x-text="@js($partageHerite) + ' · ' + file.sizeFormatted + ' · ' + file.updatedAtFormatted"></span>
                                     </button>
                                     </div>
-                                    @if($colonneProprietaire || $colonneAjoutePar)
+                                    @if($colonneAjoutePar)
                                         {{-- `uploaded_by` est la seule attribution
                                              qu'un fichier possede : c'est bien
                                              « ajoute par », jamais un proprietaire. --}}

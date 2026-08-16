@@ -389,7 +389,15 @@ class TASK1143SharedContentReadabilityTest extends TestCase
     // 10 — le Drive de Boucle ne change pas
     // =====================================================================
 
-    public function test_a_loop_drive_keeps_its_owner_column_and_loop_label(): void
+    /**
+     * TASK-1143 figeait ici « Owner » — le Drive de Boucle etait alors hors
+     * scope. TASK-1146 a corrige cette colonne : elle montrait l'uploader d'un
+     * fichier et l'auteur d'un Article sous un en-tete « Proprietaire ». Le
+     * Drive de Boucle porte desormais le meme « Ajoute par » que les autres
+     * surfaces. Ce qui reste garde ici : il n'y a toujours pas de colonne
+     * « Partage » dans une Boucle, et ce Drive n'est pas une surface partagee.
+     */
+    public function test_a_loop_drive_uses_the_added_by_column(): void
     {
         $this->withSession(['locale' => 'en']);
 
@@ -415,10 +423,10 @@ class TASK1143SharedContentReadabilityTest extends TestCase
         $reponse = $this->ouvrir($this->m3, $racineBoucle)->assertOk();
         $enTetes = $this->enTetesDeColonnes($reponse->getContent());
 
-        // Le Drive de Boucle garde « Proprietaire » — ni « Partage », ni la
-        // nouvelle colonne : rien n'a bouge de ce cote.
-        $this->assertContains('Owner', $enTetes);
-        $this->assertNotContains('Added by', $enTetes);
+        $this->assertContains('Added by', $enTetes);
+        $this->assertNotContains('Owner', $enTetes);
+        // Dans une Boucle, une colonne « Partage » repeterait « Boucle » a
+        // chaque ligne : elle n'a jamais existe ici et n'apparait pas.
         $this->assertNotContains('Sharing', $enTetes);
         $this->assertFalse($reponse->viewData('isSharedSurface'));
     }
