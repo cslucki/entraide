@@ -7,6 +7,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
 class T347OrganizationScopedAuthTest extends TestCase
@@ -157,7 +158,7 @@ class T347OrganizationScopedAuthTest extends TestCase
     // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
     // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
     // n'est pas un endroit ou ranger un test qui gene.
-    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
+    #[Group('ci-known-red')]
     public function test_org_scoped_login_redirects_to_org_home(): void
     {
         $user = User::factory()->create([
@@ -203,21 +204,32 @@ class T347OrganizationScopedAuthTest extends TestCase
     // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
     // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
     // n'est pas un endroit ou ranger un test qui gene.
-    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
+    #[Group('ci-known-red')]
     public function test_admin_users_can_sort_by_name(): void
     {
-        User::factory()->create(['name' => 'AAA Aaron']);
-        User::factory()->create(['name' => 'ZZZ Zach']);
+        // Le tri applicatif porte sur `first_name` PUIS `name` — pas sur
+        // `name` seul. Le test ne renseignait que `name` et laissait Faker
+        // tirer les prenoms, puis comparait l'ordre rendu a un `sort()` PHP
+        // sur `name` : il ne passait que si les prenoms tires s'alignaient par
+        // hasard sur les noms. D'ou un echec quasi systematique en local et un
+        // passage chanceux en CI (TASK-1147).
+        $premier = User::factory()->create(['first_name' => 'AAA', 'name' => 'Aaron']);
+        $dernier = User::factory()->create(['first_name' => 'ZZZ', 'name' => 'Zach']);
 
         $response = $this->actingAs($this->superAdmin)
             ->get(route('admin.users', ['sort' => 'name', 'direction' => 'asc']));
 
-        $users = $response->viewData('users');
-        $names = $users->pluck('name')->toArray();
-        $sorted = $names;
-        sort($sorted);
+        $ids = $response->viewData('users')->pluck('id')->all();
 
-        $this->assertEquals($sorted, $names);
+        // L'ordre RELATIF des deux utilisateurs maitrises : c'est ce que le
+        // test veut prouver, et cela ne depend d'aucune donnee generee.
+        $this->assertContains($premier->id, $ids);
+        $this->assertContains($dernier->id, $ids);
+        $this->assertLessThan(
+            array_search($dernier->id, $ids, true),
+            array_search($premier->id, $ids, true),
+            'AAA doit preceder ZZZ quand on trie par nom en ordre croissant.',
+        );
     }
 
     public function test_admin_users_can_sort_by_email(): void
