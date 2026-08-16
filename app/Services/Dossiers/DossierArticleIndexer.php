@@ -2,6 +2,7 @@
 
 namespace App\Services\Dossiers;
 
+use App\Ai\ProviderResolver;
 use App\Listeners\RecordSdkEmbeddingsInvocation;
 use App\Models\BlogPost;
 use App\Models\Dossier;
@@ -19,6 +20,7 @@ class DossierArticleIndexer
         private readonly ArticleTextExtractor $extractor,
         private readonly ArticleChunker $chunker,
         private readonly DossierChunkEmbeddingService $embeddings,
+        private readonly ProviderResolver $providers,
     ) {}
 
     public function synchronize(string $organizationId, string $dossierId, string $blogPostId): int
@@ -45,8 +47,27 @@ class DossierArticleIndexer
             $provider = trim((string) config('ai.default_for_embeddings', 'openai'));
             $model = trim((string) config("ai.providers.{$provider}.models.embeddings.default", 'text-embedding-3-small'));
 
+            // Contenu inchange : on ne retouche rien, meme si le credential
+            // tenant est absent. Un index historique valide, de la meme famille
+            // d'embedding, reste servi — son ancien credential plateforme ne le
+            // rend pas obsolete (TASK-1214).
             if ($this->alreadyIndexed($organizationId, $dossierId, $blogPostId, $chunks, $provider, $model)) {
                 return count($chunks);
+            }
+
+            // TASK-1214 : l'ingestion passe par le credential de l'Organization
+            // (P4), jamais par la cle plateforme. Sans instance tenant, aucun
+            // nouvel embedding n'est produit.
+            $instance = $this->providers->resolveEmbeddingInstance($organizationId);
+
+            if ($instance === null) {
+                // Le contenu a change (alreadyIndexed est faux) mais on ne peut
+                // pas le reindexer : l'ancienne representation ne doit surtout
+                // pas continuer a etre servie comme si elle etait a jour. On la
+                // retire via le mecanisme de lifecycle existant. Elle sera
+                // reindexee quand un credential P4 sera disponible et que la
+                // source sera de nouveau synchronisee.
+                return $this->deleteChunks($organizationId, $dossierId, $blogPostId);
             }
 
             Context::add(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY, [
@@ -60,7 +81,14 @@ class DossierArticleIndexer
             ]);
 
             try {
-                $embeddingResult = $this->embeddings->embed(array_column($chunks, 'content'));
+                $embeddingResult = $this->embeddings->embed(array_column($chunks, 'content'), $instance);
+            } catch (\Throwable $exception) {
+                // Echec d'embedding APRES un changement detecte : la version
+                // stockee est desormais perimee. On ne la sert pas comme
+                // actuelle — on la retire, puis on relance pour l'observabilite
+                // et un eventuel retry (qui reindexera).
+                $this->deleteChunks($organizationId, $dossierId, $blogPostId);
+                throw $exception;
             } finally {
                 Context::forget(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY);
             }
