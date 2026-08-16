@@ -307,7 +307,10 @@ class TASK1145DossierAccessDeniedTest extends TestCase
         // Ni « retire par X », ni « demander l'acces », ni « contacter le
         // proprietaire » : chacune de ces formules confirmerait que le Dossier
         // existe encore et qu'un tiers a agi dessus.
-        $this->assertStringNotContainsString($this->m3->publicDisplayName(), $html);
+        // Forme echappee : c'est celle que le HTML porterait s'il fuyait. Sur
+        // la forme brute, un nom apostrophe rendrait l'assertion verte sans
+        // rien garantir (TASK-1147).
+        $this->assertStringNotContainsString(e($this->m3->publicDisplayName()), $html);
         $this->assertStringNotContainsString('demander', mb_strtolower($html));
         $this->assertStringNotContainsString('propriétaire', mb_strtolower($html));
     }

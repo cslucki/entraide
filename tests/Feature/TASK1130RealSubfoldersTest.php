@@ -9,6 +9,7 @@ use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -50,8 +51,24 @@ class TASK1130RealSubfoldersTest extends TestCase
         Organization::factory()->create(['is_active' => true, 'is_default' => true]);
         $this->org = Organization::factory()->create(['is_active' => true, 'loops_enabled' => true]);
 
-        $this->owner = User::factory()->create(['organization_id' => $this->org->id]);
-        $this->membre = User::factory()->create(['organization_id' => $this->org->id]);
+        // Des noms FIXES, et qui portent une apostrophe.
+        //
+        // `fake()->lastName()` en `en_US` rend un nom apostrophe environ 1,55 %
+        // du temps — O'Reilly, O'Hara, D'Amore. Blade echappe l'apostrophe en
+        // `&#039;`, si bien qu'une assertion comparant le nom BRUT au HTML
+        // echouait au hasard, environ une execution sur trente. C'est ce qui a
+        // rougi le gate PostgreSQL trois fois sans qu'aucun diff en soit la
+        // cause (TASK-1147).
+        //
+        // Le nom est fige pour supprimer le hasard, et il porte l'apostrophe
+        // pour que le chemin d'echappement soit TOUJOURS exerce plutot
+        // qu'evite.
+        $this->owner = User::factory()->create([
+            'organization_id' => $this->org->id, 'first_name' => 'Maureen', 'name' => "O'Connell",
+        ]);
+        $this->membre = User::factory()->create([
+            'organization_id' => $this->org->id, 'first_name' => 'Bastien', 'name' => "D'Amore",
+        ]);
 
         $this->loop = Loop::factory()->create([
             'organization_id' => $this->org->id, 'status' => 'active', 'type' => 'general',
@@ -75,7 +92,7 @@ class TASK1130RealSubfoldersTest extends TestCase
         app()->instance('current_organization', $this->org);
     }
 
-    private function creerEnfant(Dossier $parent, string $nom, ?User $acteur = null): \Illuminate\Testing\TestResponse
+    private function creerEnfant(Dossier $parent, string $nom, ?User $acteur = null): TestResponse
     {
         return $this->actingAs($acteur ?? $this->owner)->post(
             route('organization.dossiers.store', ['organization' => $this->org->slug]),
@@ -222,8 +239,11 @@ class TASK1130RealSubfoldersTest extends TestCase
             ->getContent();
 
         $this->assertStringContainsString(__('dossiers.share_loop_body'), $html);
-        $this->assertStringContainsString($this->owner->publicDisplayName(), $html);
-        $this->assertStringContainsString($this->membre->publicDisplayName(), $html);
+        // `e()` : le HTML porte le nom ECHAPPE. Comparer la forme brute
+        // revenait a chercher une chaine que Blade ne produit jamais des lors
+        // que le nom contient une apostrophe.
+        $this->assertStringContainsString(e($this->owner->publicDisplayName()), $html);
+        $this->assertStringContainsString(e($this->membre->publicDisplayName()), $html);
         // Le lien de gestion pointe vers la Boucle qui gouverne, pas vers
         // un dossier — la Boucle reste la seule source de verite.
         $this->assertStringContainsString(

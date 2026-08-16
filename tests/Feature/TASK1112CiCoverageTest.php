@@ -60,7 +60,7 @@ class TASK1112CiCoverageTest extends TestCase
     }
 
     /** Combien de tests une configuration selectionne reellement. */
-    private function testsSelectionnes(string $config): int
+    private function nombreDeTestsSelectionnes(string $config): int
     {
         $sortie = [];
         exec(
@@ -136,7 +136,7 @@ class TASK1112CiCoverageTest extends TestCase
         // et il faut dire quoi.
         $this->assertGreaterThanOrEqual(
             3870,
-            $this->testsSelectionnes('phpunit.ci-feature.xml'),
+            $this->nombreDeTestsSelectionnes('phpunit.ci-feature.xml'),
             'le gate couvre moins de tests qu’avant : qu’a-t-on retire ?',
         );
     }
@@ -149,6 +149,13 @@ class TASK1112CiCoverageTest extends TestCase
         //
         // **23 -> 22** : `UserDataLifecycleRegistryTest` est repare par
         // TASK-1114, qui a classe les trente cles etrangeres manquantes.
+        //
+        // **22 -> 21** : `T347OrganizationScopedAuthTest::test_admin_users_can_sort_by_name`
+        // est repare par TASK-1147. Il n'etait pas rouge par defaut produit
+        // mais indeterministe : l'application trie par `first_name` puis
+        // `name`, et le test comparait l'ordre rendu a un `sort()` PHP sur
+        // `name` seul, avec des prenoms tires par Faker. Il verifie desormais
+        // l'ordre relatif de deux utilisateurs entierement maitrises.
         $annotees = 0;
 
         $iterateur = new \RecursiveIteratorIterator(
@@ -171,7 +178,7 @@ class TASK1112CiCoverageTest extends TestCase
         }
 
         $this->assertSame(
-            22,
+            21,
             $annotees,
             'le groupe des tests deja rouges a change : s’il a grandi, expliquez-vous ; s’il a maigri, baissez ce nombre',
         );
