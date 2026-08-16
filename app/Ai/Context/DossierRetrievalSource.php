@@ -126,7 +126,8 @@ final class DossierRetrievalSource implements ContextSource
 
         foreach ($rows as $index => $row) {
             $ref = 'S'.($index + 1);
-            $header = "[{$ref}] {$row['title']} — Dossier « {$row['dossier_name']} »";
+            $displayTitle = $row['source_type'] === 'file' ? $row['filename'] : $row['title'];
+            $header = "[{$ref}] {$displayTitle} — Dossier « {$row['dossier_name']} »";
             $available = $charBudget - $used - mb_strlen($header) - 4;
 
             if ($available < 80) {
@@ -148,12 +149,16 @@ final class DossierRetrievalSource implements ContextSource
                 'chunk_index' => $row['chunk_index'],
                 'dossier_id' => $row['dossier_id'],
                 'dossier_name' => $row['dossier_name'],
+                'source_type' => $row['source_type'],
                 'blog_post_id' => $row['blog_post_id'],
-                'title' => $row['title'],
+                'dossier_file_id' => $row['dossier_file_id'],
+                'title' => $displayTitle,
                 'slug' => $row['slug'],
                 'distance' => round($row['distance'], 4),
                 'extrait' => mb_strimwidth($content, 0, 240, '…'),
-                'url' => $this->articleUrl($organizationSlug, $row['slug']),
+                'url' => $row['source_type'] === 'file'
+                    ? $this->fileUrl($organizationSlug, $row['dossier_id'], $row['dossier_file_id'])
+                    : $this->articleUrl($organizationSlug, $row['slug']),
             ];
         }
 
@@ -191,12 +196,29 @@ final class DossierRetrievalSource implements ContextSource
         return max(1, min(5, (int) config('ai.knowledge.top_k', 5)));
     }
 
-    private function articleUrl(?string $organizationSlug, string $postSlug): ?string
+    private function articleUrl(?string $organizationSlug, ?string $postSlug): ?string
     {
+        if ($postSlug === null) {
+            return null;
+        }
+
         if ($organizationSlug && Route::has('organization.blog.show')) {
             return route('organization.blog.show', ['organization' => $organizationSlug, 'post' => $postSlug]);
         }
 
         return Route::has('blog.show') ? route('blog.show', ['post' => $postSlug]) : null;
+    }
+
+    private function fileUrl(?string $organizationSlug, string $dossierId, ?string $fileId): ?string
+    {
+        if ($fileId === null || $organizationSlug === null || ! Route::has('organization.dossiers.files.show')) {
+            return null;
+        }
+
+        return route('organization.dossiers.files.show', [
+            'organization' => $organizationSlug,
+            'dossier' => $dossierId,
+            'file' => $fileId,
+        ]);
     }
 }
