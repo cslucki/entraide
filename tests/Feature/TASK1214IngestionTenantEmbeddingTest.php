@@ -42,7 +42,17 @@ class TASK1214IngestionTenantEmbeddingTest extends TestCase
         config()->set('ai.providers.openai.driver', 'openai');
         config()->set('ai.providers.openai.key', 'platform-should-not-be-used');
         config()->set('ai.providers.openai.models.embeddings.default', 'text-embedding-3-small');
-        config()->set('ai.providers.openai.models.embeddings.dimensions', 8);
+        config()->set('ai.providers.openai.models.embeddings.dimensions', $this->dimensions());
+    }
+
+    /**
+     * La colonne pgvector est typee vector(1536) : sur PostgreSQL les vecteurs
+     * doivent faire exactement cette taille ; sous SQLite, 8 suffit et allege
+     * les fixtures (meme regle que DossierArticleIndexerTest).
+     */
+    private function dimensions(): int
+    {
+        return config('database.default') === 'pgsql' ? 1536 : 8;
     }
 
     public function test_ingestion_uses_the_organization_instance_not_the_platform(): void
@@ -219,7 +229,7 @@ class TASK1214IngestionTenantEmbeddingTest extends TestCase
                 'content' => $chunk['content'],
                 'content_hash' => $chunk['content_hash'],
                 'token_count' => $chunk['token_count'],
-                'embedding' => array_fill(0, 8, 0.1),
+                'embedding' => array_fill(0, $this->dimensions(), 0.1),
                 'embedding_provider' => 'openai',
                 'embedding_model' => 'text-embedding-3-small',
                 'indexed_at' => now()->subDay(),
