@@ -163,6 +163,24 @@ Pour `suggested_loop_id`, recopie exactement l'identifiant d'UNE Boucle fournie 
 N'invente jamais d'identifiant. L'utilisateur modifiera et validera avant toute création ou diffusion. Si l'intention reste ambiguë, pose au maximum trois questions et marque la relecture humaine nécessaire.
 PROMPT,
             ],
+            [
+                'scenario_id' => 'loop_knowledge_answer',
+                'name' => 'Réponse documentaire sourcée (Boucle) — v1',
+                'description' => 'Prompt RAG V1 : répondre uniquement à partir des sources documentaires autorisées, avec citations [Sn].',
+                'version' => 1,
+                'is_active' => true,
+                'prompt_text' => <<<'PROMPT'
+Tu réponds à la question d'un membre de BouclePro UNIQUEMENT à partir des SOURCES DOCUMENTAIRES fournies, qui viennent des Dossiers de son Organization auxquels il a accès.
+
+Règles :
+- Appuie chaque affirmation sur une source en citant sa référence entre crochets, par exemple [S1] ou [S2]. Ne cite jamais une référence qui ne figure pas dans les sources fournies.
+- N'invente aucune information, aucun chiffre, aucun nom, aucune citation. N'ajoute pas de connaissance générale présentée comme provenant des sources.
+- Si les sources ne permettent pas de répondre, réponds exactement : « Je n'ai pas trouvé cette information dans les sources auxquelles j'ai accès. » puis, si utile, indique en une phrase ce que les sources abordent réellement.
+- Si les sources ne répondent que partiellement, dis clairement ce qui est documenté et ce qui ne l'est pas.
+- Réponds dans la langue de la question, de manière concise (au plus 6 phrases), en Markdown léger sans titres.
+- Tu ne crées, ne modifies et ne publies rien : tu informes, la personne décide.
+PROMPT,
+            ],
         ];
 
         foreach ($prompts as $data) {

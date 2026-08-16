@@ -265,6 +265,18 @@
                 {{ __('loops.ask_ai_button') }}
             </button>
 
+            {{-- TASK-1213 : reponse documentaire sourcee (RAG V1), read-only. Le
+                 modal vit dans loops/show et s'ouvre par evenement window. --}}
+            <button
+                type="button"
+                x-on:click="window.dispatchEvent(new CustomEvent('bp-open-knowledge'))"
+                data-knowledge-open
+                class="inline-flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50/70 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:border-sky-200 hover:bg-sky-100 dark:border-sky-800/50 dark:bg-sky-900/20 dark:text-sky-200 dark:hover:bg-sky-900/40"
+            >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>
+                {{ __('loops.knowledge_button') }}
+            </button>
+
             @if($clarificationEnabled)
                 <button
                     type="button"

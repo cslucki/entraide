@@ -38,11 +38,13 @@ final class ContextBuilder
         LoopMessagesSource $loopMessages,
         UserLoopsSource $userLoops,
         OrganizationCategoriesSource $organizationCategories,
+        DossierRetrievalSource $dossierRetrieval,
     ) {
         $this->sources = [
             $loopMessages->name() => $loopMessages,
             $userLoops->name() => $userLoops,
             $organizationCategories->name() => $organizationCategories,
+            $dossierRetrieval->name() => $dossierRetrieval,
         ];
     }
 
