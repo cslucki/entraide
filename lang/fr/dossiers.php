@@ -178,7 +178,11 @@ return [
     'article_not_attached' => 'Cet article n\'est pas rattaché à un dossier.',
     'shared_label' => 'Dossier partagé',
     'shared_badge' => 'Partagé',
-    'shared_with_me' => 'Partagés avec moi',
+    // « Partages avec moi » et « Partages par moi » ne differaient que par
+    // une preposition au milieu : en balayage, l'oeil ne les distinguait pas.
+    // « Recus » ne partage plus aucun mot avec l'autre onglet — le premier
+    // mot suffit desormais a savoir de quel cote on est (TASK-1146).
+    'shared_with_me' => 'Reçus',
     'shared_with_me_empty' => 'Aucun dossier n\'a encore été partagé avec toi.',
     'owned_by' => 'Propriétaire : :name',
     'your_role' => 'Ton rôle : :role',
