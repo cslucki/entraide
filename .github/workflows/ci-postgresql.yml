@@ -1,10 +1,24 @@
 name: PostgreSQL CI
 
+# Automatique vers `main` seulement ; manuel partout ailleurs (TASK-1148).
+#
+# Chaque poussee sur une PR `develop` declenchait les deux suites completes —
+# une vingtaine de minutes pour PostgreSQL — y compris sur des commits
+# intermediaires que personne n'allait merger. Les gates sont desormais
+# demandes UNE FOIS, volontairement, sur le HEAD final :
+#
+#     ai/scripts/run-full-ci.sh --wait
+#
+# Un commit ajoute ensuite change le HEAD et invalide la preuve : il faut
+# relancer. C'est exactement ce que verifie `merge-task.sh`, qui exige les deux
+# gates verts sur le SHA EXACT du commit a merger.
+#
+# Les PR de release vers `main` gardent la securite automatique complete.
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
   workflow_dispatch:
 
 # Une nouvelle poussee sur la meme branche annule la precedente : le job dure
