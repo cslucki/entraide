@@ -94,6 +94,13 @@ class LoopMessagesSource implements ContextSource
             ->with('sender')
             ->notDeleted()
             ->orderByDesc('created_at')
+            // Deux messages peuvent partager le meme `created_at` (meme
+            // seconde d'insertion) : sans second critere, l'ordre rendu par
+            // la base est indetermine, et le contexte transmis au modele
+            // pouvait presenter la conversation a l'envers (TASK-1218).
+            // `id` est un UUID v7, donc ordonnable dans le temps : il
+            // departage selon l'ordre de creation reel, il n'invente rien.
+            ->orderByDesc('id')
             ->limit((int) config('ai.chatloop.max_context_messages', 30))
             ->get()
             ->reverse()

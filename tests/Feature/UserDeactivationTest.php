@@ -43,10 +43,18 @@ class UserDeactivationTest extends TestCase
         ], $overrides));
     }
 
+    /**
+     * TASK-1218 : `UserFactory` tire le nom via `fake()->lastName()`, qui
+     * produit des noms courts et non uniques (« Le », « Roy »…). Cherches
+     * dans TOUT le HTML, ils entraient en collision avec le markup, un
+     * script inline ou l'autre utilisateur — d'ou un echec aleatoire en CI.
+     * Des sentinelles uniques rendent l'assertion sans ambiguite, sans
+     * toucher a la factory ni assouplir le test metier.
+     */
     public function test_deactivated_user_absent_from_members_page(): void
     {
-        $activeUser = $this->createUser(['banned_at' => null]);
-        $deactivatedUser = $this->createUser(['banned_at' => now()]);
+        $activeUser = $this->createUser(['banned_at' => null, 'name' => 'MemberActiveSentinelXYZ']);
+        $deactivatedUser = $this->createUser(['banned_at' => now(), 'name' => 'MemberDeactivatedSentinelXYZ']);
 
         $response = $this->get('/membres');
 
@@ -57,7 +65,7 @@ class UserDeactivationTest extends TestCase
 
     public function test_active_user_present_on_members_page(): void
     {
-        $activeUser = $this->createUser(['banned_at' => null]);
+        $activeUser = $this->createUser(['banned_at' => null, 'name' => 'MemberPresentSentinelXYZ']);
 
         $response = $this->get('/membres');
 
