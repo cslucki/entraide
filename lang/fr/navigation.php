@@ -108,6 +108,8 @@ return [
     'org_admin_ai_supervision' => 'Supervision IA',
     'org_admin_member_ai_profiles' => 'Profils IA membres',
     'org_admin_ai_interactions' => 'Interactions IA',
+    // TASK-1217 : console RAG read-only de l'Organization
+    'org_admin_ai_knowledge' => 'Mes connaissances IA',
     'org_admin_section_exchanges' => 'Échanges',
     'org_admin_section_content' => 'Contenu',
     'org_admin_section_community' => 'Communauté',

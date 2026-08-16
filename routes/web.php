@@ -996,6 +996,9 @@ Route::prefix('/org/{organization}')
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
                 Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');
                 Route::get('/ai-interactions', [OrgAdminController::class, 'aiInteractions'])->name('ai-interactions');
+                // TASK-1217 : console RAG read-only — ce que l'IA connait des
+                // Dossiers de cette Organization, et si l'index est sain.
+                Route::get('/ai-knowledge', [OrgAdminController::class, 'aiKnowledge'])->name('ai-knowledge');
 
                 // Stats
                 Route::get('/stats/login-history', [OrgAdminController::class, 'loginHistory'])->name('stats.login-history');

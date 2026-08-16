@@ -8,6 +8,7 @@ use App\Models\AiInteraction;
 use App\Models\BlogPost;
 use App\Models\BugReport;
 use App\Models\Category;
+use App\Models\Dossier;
 use App\Models\LoginLog;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
@@ -24,6 +25,7 @@ use App\Models\Theme;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
+use App\Services\Dossiers\OrganizationRagOverview;
 use App\Services\LoopGovernanceService;
 use App\Services\Loops\LoopCardCompositionService;
 use App\Services\Loops\LoopLifecycleService;
@@ -38,6 +40,7 @@ use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -1161,6 +1164,47 @@ class OrgAdminController extends Controller
     public function aiInteractions(Organization $organization): View
     {
         return $this->comingSoon($organization, __('navigation.org_admin_ai_interactions'));
+    }
+
+    /**
+     * Console RAG read-only (TASK-1217) : ce que l'IA connait des Dossiers de
+     * CETTE Organization, et si l'index est coherent.
+     *
+     * Le read model borne tout par `organization_id`. Ce qu'il ne decide pas,
+     * et qui se decide ici : le droit d'OUVRIR une source. Etre admin
+     * d'Organization ne donne aucun privilege sur `DossierPolicy` (verifie :
+     * `admin_id` n'y apparait pas) — un admin peut donc legitimement voir
+     * qu'un Dossier prive contient des connaissances indexees sans pouvoir en
+     * lire le contenu. « Portee != sujet » : on expose l'etat, jamais le
+     * contenu, et le lien n'apparait que si la policy l'autorise vraiment.
+     */
+    public function aiKnowledge(Organization $organization, OrganizationRagOverview $overview): View
+    {
+        $user = auth()->user();
+
+        $dossiers = Dossier::query()
+            ->where('organization_id', $organization->id)
+            ->whereNull('deleted_at')
+            ->get()
+            ->keyBy('id');
+
+        $openableDossierIds = $dossiers
+            ->filter(fn (Dossier $dossier): bool => $user !== null && Gate::forUser($user)->allows('view', $dossier))
+            ->keys()
+            ->flip();
+
+        $sources = array_map(function (array $source) use ($openableDossierIds): array {
+            $source['can_open'] = $openableDossierIds->has($source['dossier_id']);
+
+            return $source;
+        }, $overview->sources($organization->id));
+
+        return view('admin.org.ai-knowledge', [
+            'organization' => $organization,
+            'summary' => $overview->summary($organization->id),
+            'sources' => $sources,
+            'diagnostics' => $overview->diagnostics($organization->id),
+        ]);
     }
 
     // ── Design / Homepage ───────────────────────────────────────────────────────
