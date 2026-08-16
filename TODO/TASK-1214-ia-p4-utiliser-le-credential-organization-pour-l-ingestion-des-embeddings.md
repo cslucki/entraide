@@ -151,6 +151,18 @@ IN_PROGRESS
 - Banc restauré mode sûr : clarify=false, budget résumé 2.00, HTTP 200,
   1 worker actif (code TASK-1214), DB bouclepro_ai_validation.
 
+## 2026-08-16 — Exception protocole merge (MASTER)
+
+GitHub protège désormais `develop` avec règle PR obligatoire (« Changes must
+be made through a pull request »). `ai/scripts/merge-task.sh` échoue à son
+étape de push direct avec `GH013: Repository rule violations`. MASTER
+autorise pour TASK-1214 le merge serveur de la PR via `gh pr merge --merge`
+(merge commit, jamais squash/rebase). La protection GitHub est conservée,
+non contournée. Dette tooling : adapter `merge-task.sh` dans une TASK OPS
+dédiée pour router `check-task → finalize-task → gh pr ready → gh pr merge
+--merge → fetch → vérifier → parking detached`, sans jamais tenter de push
+direct sur develop ni de fallback vers test.laravel.
+
 # Handoffs
 
 # Tests
