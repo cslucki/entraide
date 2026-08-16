@@ -82,6 +82,31 @@ class TASK1209ContextBuilderTest extends TestCase
         );
     }
 
+    /**
+     * Regression TASK-1218 : a `created_at` strictement egaux — cas reel,
+     * deux messages postes dans la meme seconde — l'ordre ne doit plus
+     * dependre du hasard du moteur. `id` (UUID v7, ordonnable) departage
+     * selon l'ordre de creation effectif.
+     */
+    public function test_messages_sharing_the_same_timestamp_keep_a_deterministic_order(): void
+    {
+        $moment = now()->subMinutes(5);
+        $this->message('Message alpha', $moment);
+        $this->message('Message beta', $moment);
+        $this->message('Message gamma', $moment);
+
+        $borne = $this->build();
+
+        $this->assertLessThan(
+            strpos($borne->text, 'Message beta'),
+            strpos($borne->text, 'Message alpha'),
+        );
+        $this->assertLessThan(
+            strpos($borne->text, 'Message gamma'),
+            strpos($borne->text, 'Message beta'),
+        );
+    }
+
     public function test_deleted_messages_are_excluded(): void
     {
         $this->message('Message visible', now()->subMinutes(2));
@@ -454,15 +479,28 @@ class TASK1209ContextBuilderTest extends TestCase
         );
     }
 
+    /**
+     * `created_at` n'est PAS dans `LoopMessage::$fillable` : passe a `create()`
+     * il etait ignore en silence, et les trois messages du test recevaient le
+     * meme horodatage d'insertion. `selectMessages()` triant sur ce seul
+     * champ, l'ordre rendu devenait indetermine — d'ou un echec aleatoire en
+     * CI (TASK-1218).
+     *
+     * On force donc l'horodatage APRES creation, sans rendre `created_at`
+     * mass-assignable pour toute l'application : le besoin est local au test.
+     */
     private function message(string $body, ?Carbon $at = null): LoopMessage
     {
-        return LoopMessage::create([
+        $message = LoopMessage::create([
             'loop_id' => $this->loop->id,
             'sender_id' => $this->member->id,
             'body' => $body,
             'type' => 'user',
             'organization_id' => $this->loop->organization_id,
-            'created_at' => $at ?? now(),
         ]);
+
+        $message->forceFill(['created_at' => $at ?? now()])->saveQuietly();
+
+        return $message->refresh();
     }
 }
