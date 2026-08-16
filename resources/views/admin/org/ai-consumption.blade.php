@@ -205,6 +205,10 @@
                             <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_console_col_known_cost') }}</th>
                             <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_console_col_measured') }}</th>
                             <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_console_col_unknown') }}</th>
+                            {{-- Sans cette colonne, mesures + non mesurables ne feraient pas le
+                                 total des appels : une ligne de metrologie qui ne s'additionne
+                                 pas est exactement l'incoherence que cette console combat. --}}
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_console_col_unevaluated') }}</th>
                             <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_console_col_traces') }}</th>
                         </tr>
                     </thead>
@@ -215,6 +219,7 @@
                                 <td class="px-4 py-3 text-right tabular-nums text-gray-900 dark:text-gray-100">{{ $cost($row['known_cost_usd']) }}</td>
                                 <td class="px-4 py-3 text-right tabular-nums text-gray-500 dark:text-gray-400">{{ number_format($row['measured_count']) }}</td>
                                 <td class="px-4 py-3 text-right tabular-nums text-gray-500 dark:text-gray-400">{{ number_format($row['unknown_count']) }}</td>
+                                <td class="px-4 py-3 text-right tabular-nums text-gray-500 dark:text-gray-400">{{ number_format($row['unevaluated_count']) }}</td>
                                 <td class="px-4 py-3 text-right tabular-nums text-gray-900 dark:text-gray-100">{{ number_format($row['trace_count']) }}</td>
                             </tr>
                         @endforeach

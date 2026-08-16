@@ -316,6 +316,65 @@ class TASK1219AiConsumptionTest extends TestCase
         $this->assertSame(2.0, $rows[1]['known_cost_usd']);
     }
 
+    public function test_every_breakdown_row_adds_up_to_its_call_count(): void
+    {
+        [$org, $user] = $this->organizationWithAdmin();
+
+        $this->trace($org, $user, cost: 1.0, process: 'chatloop.answer', model: 'model-a', provider: 'openai');
+        $this->trace($org, $user, cost: null, unknown: true, process: 'chatloop.answer', model: 'model-a', provider: 'openai');
+        $this->trace($org, $user, cost: null, unknown: null, process: 'chatloop.ask', model: 'model-b', provider: null);
+
+        $consumption = $this->consumption();
+        $month = $this->thisMonth();
+
+        $breakdowns = [
+            'process' => $consumption->byProcess($org->id, $month),
+            'model' => $consumption->byModel($org->id, $month),
+            'provider' => $consumption->byProvider($org->id, $month),
+            'user' => $consumption->byUser($org->id, $month),
+            'day' => $consumption->byDay($org->id, $month),
+        ];
+
+        foreach ($breakdowns as $name => $rows) {
+            foreach ($rows as $row) {
+                // Une ligne de metrologie dont les parts ne font pas le total
+                // est exactement l'incoherence silencieuse que cette console
+                // combat : le lecteur croit qu'il manque des appels.
+                $this->assertSame(
+                    $row['trace_count'],
+                    $row['measured_count'] + $row['unknown_count'] + $row['unevaluated_count'],
+                    "la ventilation « {$name} » doit s'additionner",
+                );
+            }
+        }
+
+        $summary = $consumption->summary($org->id, $month);
+        $this->assertSame(
+            $summary['trace_count'],
+            $summary['measured_count'] + $summary['unknown_count'] + $summary['unevaluated_count'],
+        );
+    }
+
+    public function test_every_breakdown_table_shows_all_three_call_states(): void
+    {
+        [$organization, $admin] = $this->organizationWithAdmin();
+
+        $this->trace($organization, $admin, cost: 1.0);
+        $this->trace($organization, $admin, cost: null, unknown: true);
+        $this->trace($organization, $admin, cost: null, unknown: null);
+
+        $content = $this->actingAs($admin)->get($this->consoleUrl($organization))->assertOk()->getContent();
+
+        // Chaque tableau doit porter la colonne « non evalues », sinon ses
+        // lignes ne s'additionnent pas a l'ecran meme si le read model, lui,
+        // est juste.
+        $tables = substr_count($content, 'data-consumption-row=');
+        $unevaluatedHeaders = substr_count($content, __('ai.consumption_console_col_unevaluated'));
+
+        $this->assertGreaterThanOrEqual(5, $tables, 'les cinq ventilations doivent etre rendues');
+        $this->assertGreaterThanOrEqual(5, $unevaluatedHeaders, 'chaque ventilation doit exposer les trois etats');
+    }
+
     // ------------------------------------------------------------------
     // La page : permissions, tenant, honnetete de l'affichage
     // ------------------------------------------------------------------
