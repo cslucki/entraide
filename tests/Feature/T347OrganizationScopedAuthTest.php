@@ -201,10 +201,10 @@ class T347OrganizationScopedAuthTest extends TestCase
         }
     }
 
-    // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
-    // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
-    // n'est pas un endroit ou ranger un test qui gene.
-    #[Group('ci-known-red')]
+    // Etait `ci-known-red` — donc EXCLUE du gate PostgreSQL par
+    // `phpunit.ci-feature.xml`. Le groupe part avec la reparation : le laisser
+    // aurait garde le test hors du gate bloquant, repare mais jamais verifie
+    // par lui (TASK-1147). Le groupe doit se vider, c'est une ligne de moins.
     public function test_admin_users_can_sort_by_name(): void
     {
         // Le tri applicatif porte sur `first_name` PUIS `name` — pas sur
