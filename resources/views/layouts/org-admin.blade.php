@@ -157,6 +157,8 @@
                             ['route' => 'organization.admin.ai-supervision', 'label' => __('navigation.org_admin_ai_supervision'), 'icon' => 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z'],
                             // TASK-1217 : console RAG read-only
                             ['route' => 'organization.admin.ai-knowledge', 'label' => __('navigation.org_admin_ai_knowledge'), 'icon' => 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25'],
+                            // TASK-1219 : console de consommation IA read-only
+                            ['route' => 'organization.admin.ai-consumption', 'label' => __('navigation.org_admin_ai_consumption'), 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
                         ];
                         if ($organization->ai_profiles_enabled) {
                             $orgIaItems[] = ['route' => 'organization.admin.member-ai-profiles', 'label' => __('navigation.org_admin_member_ai_profiles'), 'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zm-4 7a5 5 0 00-5 5h10a5 5 0 00-5-5z'];

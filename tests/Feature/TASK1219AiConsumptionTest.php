@@ -317,6 +317,159 @@ class TASK1219AiConsumptionTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+    // La page : permissions, tenant, honnetete de l'affichage
+    // ------------------------------------------------------------------
+
+    public function test_a_non_admin_member_cannot_reach_the_console(): void
+    {
+        [$organization] = $this->organizationWithAdmin();
+        $member = User::factory()->create(['organization_id' => $organization->id]);
+
+        $this->actingAs($member)->get($this->consoleUrl($organization))->assertForbidden();
+    }
+
+    public function test_an_admin_of_another_organization_cannot_reach_this_console(): void
+    {
+        [$orgA] = $this->organizationWithAdmin();
+        [, $adminB] = $this->organizationWithAdmin();
+
+        $this->actingAs($adminB)->get($this->consoleUrl($orgA))->assertForbidden();
+    }
+
+    public function test_the_page_never_shows_another_organization_consumption(): void
+    {
+        [$orgA, $adminA] = $this->organizationWithAdmin();
+        [$orgB, $userB] = $this->organizationWithAdmin();
+
+        $this->trace($orgA, $adminA, cost: 1.0, model: 'model-of-a', provider: 'openai');
+        $this->trace($orgB, $userB, cost: 500.0, model: 'model-of-b', provider: 'ollama');
+
+        $response = $this->actingAs($adminA)->get($this->consoleUrl($orgA))->assertOk();
+
+        $response->assertSee('model-of-a');
+        $response->assertDontSee('model-of-b');
+        $response->assertDontSee($userB->name);
+        $this->assertSame(1.0, $response->viewData('summary')['known_cost_usd']);
+    }
+
+    public function test_the_page_renders_an_unmeasurable_cost_as_a_dash_never_as_zero(): void
+    {
+        [$organization, $admin] = $this->organizationWithAdmin();
+
+        $this->trace($organization, $admin, cost: null, unknown: true);
+
+        $response = $this->actingAs($admin)->get($this->consoleUrl($organization))->assertOk();
+
+        $this->assertNull($response->viewData('summary')['known_cost_usd']);
+        // Le montant de tete doit etre « — » : afficher $0.000000 ferait passer
+        // un cout non mesurable pour un appel gratuit.
+        $this->assertMatchesRegularExpression(
+            '/data-consumption-known-cost[^>]*>\s*—\s*</u',
+            $response->getContent(),
+        );
+        $response->assertSee(__('ai.consumption_console_unknown_hint'));
+    }
+
+    public function test_the_page_states_on_screen_what_it_does_not_measure(): void
+    {
+        [$organization, $admin] = $this->organizationWithAdmin();
+
+        $response = $this->actingAs($admin)->get($this->consoleUrl($organization))->assertOk();
+
+        // Ces limites ne doivent pas vivre seulement dans le code : un chiffre
+        // d'observabilite sans ses reserves se lit comme une certitude.
+        $response->assertSee(__('ai.consumption_console_scope_note'));
+        $response->assertSee(__('ai.consumption_console_limit_cost_origin'));
+        $response->assertSee(__('ai.consumption_console_limit_platform_price'));
+        $response->assertSee(__('ai.consumption_console_limit_tokens'));
+        $response->assertSee(__('ai.consumption_console_limit_credential'));
+    }
+
+    public function test_the_page_never_exposes_a_prompt_a_response_or_a_credential(): void
+    {
+        [$organization, $admin] = $this->organizationWithAdmin();
+
+        $trace = $this->trace($organization, $admin, cost: 1.0);
+        $trace->forceFill([
+            'prompt' => 'SECRET-PROMPT-SENTINEL',
+            'response' => 'SECRET-RESPONSE-SENTINEL',
+        ])->saveQuietly();
+
+        $organization->aiSetting()->create([
+            'provider' => 'openrouter',
+            'model' => 'deepseek-chat',
+            'api_key' => 'sk-SECRET-KEY-SENTINEL',
+            'monthly_budget_usd' => 25.00,
+        ]);
+
+        $response = $this->actingAs($admin)->get($this->consoleUrl($organization))->assertOk();
+
+        $response->assertDontSee('SECRET-PROMPT-SENTINEL');
+        $response->assertDontSee('SECRET-RESPONSE-SENTINEL');
+        $response->assertDontSee('SECRET-KEY-SENTINEL');
+        // Le budget, lui, est une donnee de cadrage legitime.
+        $response->assertSee('25.00');
+    }
+
+    public function test_the_period_filter_of_the_url_drives_the_page(): void
+    {
+        [$organization, $admin] = $this->organizationWithAdmin();
+
+        $this->traceAt($organization, $admin, CarbonImmutable::parse('2026-03-10 12:00:00'), cost: 7.0);
+        $this->traceAt($organization, $admin, CarbonImmutable::parse('2026-04-10 12:00:00'), cost: 99.0);
+
+        $response = $this->actingAs($admin)
+            ->get($this->consoleUrl($organization).'?from=2026-03-01&to=2026-03-31')
+            ->assertOk();
+
+        $this->assertSame(7.0, $response->viewData('summary')['known_cost_usd']);
+        $this->assertSame(1, $response->viewData('summary')['trace_count']);
+    }
+
+    public function test_an_unreadable_date_falls_back_to_the_current_month_without_breaking(): void
+    {
+        [$organization, $admin] = $this->organizationWithAdmin();
+
+        $this->trace($organization, $admin, cost: 4.0);
+
+        // Une console d'observabilite ne doit pas casser sur un parametre d'URL
+        // malforme, et ne doit pas deviner ce que l'utilisateur voulait dire.
+        $response = $this->actingAs($admin)
+            ->get($this->consoleUrl($organization).'?from=pas-une-date&to=non-plus')
+            ->assertOk();
+
+        $this->assertSame(4.0, $response->viewData('summary')['known_cost_usd']);
+    }
+
+    public function test_an_inverted_period_falls_back_to_the_current_month(): void
+    {
+        [$organization, $admin] = $this->organizationWithAdmin();
+
+        $this->trace($organization, $admin, cost: 4.0);
+
+        $response = $this->actingAs($admin)
+            ->get($this->consoleUrl($organization).'?from=2026-05-01&to=2026-01-01')
+            ->assertOk();
+
+        $this->assertSame(4.0, $response->viewData('summary')['known_cost_usd']);
+    }
+
+    public function test_the_console_is_reachable_from_the_organization_admin_navigation(): void
+    {
+        [$organization, $admin] = $this->organizationWithAdmin();
+
+        $this->actingAs($admin)
+            ->get($this->consoleUrl($organization))
+            ->assertOk()
+            ->assertSee(__('navigation.org_admin_ai_consumption'));
+    }
+
+    private function consoleUrl(Organization $organization): string
+    {
+        return route('organization.admin.ai-consumption', ['organization' => $organization->slug]);
+    }
+
+    // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
 

@@ -999,6 +999,9 @@ Route::prefix('/org/{organization}')
                 // TASK-1217 : console RAG read-only — ce que l'IA connait des
                 // Dossiers de cette Organization, et si l'index est sain.
                 Route::get('/ai-knowledge', [OrgAdminController::class, 'aiKnowledge'])->name('ai-knowledge');
+                // TASK-1219 : console de consommation IA read-only — ce que la
+                // garde economique compte deja pour cette Organization.
+                Route::get('/ai-consumption', [OrgAdminController::class, 'aiConsumption'])->name('ai-consumption');
 
                 // Stats
                 Route::get('/stats/login-history', [OrgAdminController::class, 'loginHistory'])->name('stats.login-history');

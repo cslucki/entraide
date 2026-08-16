@@ -25,6 +25,8 @@ use App\Models\Theme;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
+use App\Services\Ai\DTO\AiConsumptionFilters;
+use App\Services\Ai\OrganizationAiConsumption;
 use App\Services\Dossiers\OrganizationRagOverview;
 use App\Services\LoopGovernanceService;
 use App\Services\Loops\LoopCardCompositionService;
@@ -1204,6 +1206,38 @@ class OrgAdminController extends Controller
             'summary' => $overview->summary($organization->id),
             'sources' => $sources,
             'diagnostics' => $overview->diagnostics($organization->id),
+        ]);
+    }
+
+    /**
+     * Console « Consommation IA » (TASK-1219), read-only.
+     *
+     * Rend ce que la garde economique compte deja pour CETTE Organization :
+     * meme table, meme fenetre, meme forme en deux parts (cout connu d'un cote,
+     * appels non mesurables de l'autre). Le read model porte le tenant et la
+     * doctrine ; la page ne fait que choisir la periode et les dimensions.
+     *
+     * Le budget mensuel eventuel est lu depuis `organization_ai_settings` pour
+     * situer le cout connu — jamais pour completer un cout manquant.
+     */
+    public function aiConsumption(
+        Request $request,
+        Organization $organization,
+        OrganizationAiConsumption $consumption,
+    ): View {
+        $filters = AiConsumptionFilters::fromRequest($request);
+
+        return view('admin.org.ai-consumption', [
+            'organization' => $organization,
+            'filters' => $filters,
+            'summary' => $consumption->summary($organization->id, $filters),
+            'byProcess' => $consumption->byProcess($organization->id, $filters),
+            'byModel' => $consumption->byModel($organization->id, $filters),
+            'byProvider' => $consumption->byProvider($organization->id, $filters),
+            'byUser' => $consumption->byUser($organization->id, $filters),
+            'byDay' => $consumption->byDay($organization->id, $filters),
+            'available' => $consumption->availableFilters($organization->id, $filters),
+            'monthlyBudgetUsd' => $organization->aiSetting?->monthly_budget_usd,
         ]);
     }
 

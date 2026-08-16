@@ -196,13 +196,17 @@ class OrganizationAiConsumption
      * choisir un process ne doit pas faire disparaitre les modeles des autres
      * process de la liste, sinon on ne peut plus revenir en arriere.
      *
-     * @return array{processes: array<int, string>, models: array<int, string>, providers: array<int, string>}
+     * @return array{users: array<int, array{id: string, name: ?string}>, processes: array<int, string>, models: array<int, string>, providers: array<int, string>}
      */
     public function availableFilters(string $organizationId, AiConsumptionFilters $filters): array
     {
         $period = new AiConsumptionFilters($filters->from, $filters->to);
 
         return [
+            'users' => array_map(
+                static fn (array $row): array => ['id' => $row['user_id'], 'name' => $row['name']],
+                $this->byUser($organizationId, $period),
+            ),
             'processes' => $this->distinctValues($organizationId, $period, 'process'),
             'models' => $this->distinctValues($organizationId, $period, 'model'),
             'providers' => $this->distinctValues($organizationId, $period, $this->providerExpression(), raw: true),
