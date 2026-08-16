@@ -190,7 +190,20 @@
                          puisqu'il ne contiendrait qu'« Ouvrir ». --}}
                     <div class="mt-4">
                         @if($loopDossiers->isEmpty())
-                            <p class="py-14 text-center text-sm text-[var(--bp-muted)]">{{ __('dossiers.loops_empty') }}</p>
+                            {{-- Constater qu'on n'a pas de Boucle ne dit pas ou
+                                 aller en trouver une : la sortie est offerte
+                                 ici, pas laissee a chercher dans la
+                                 navigation. --}}
+                            <div class="py-14 text-center">
+                                <p class="text-sm text-[var(--bp-muted)]">{{ __('dossiers.loops_empty') }}</p>
+                                <a href="{{ route('organization.loops.index', ['organization' => $orgParam]) }}"
+                                   class="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M8 10h8M8 14h5m8-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    {{ __('dossiers.loops_empty_cta') }}
+                                </a>
+                            </div>
                         @else
                             @foreach($loopDossiers as $dossierDeBoucle)
                                 @php

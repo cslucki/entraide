@@ -35,6 +35,7 @@ return [
     'col_role' => 'Role',
     'shared_with_people' => '{0}Nobody|{1}:count person|[2,*]:count people',
     'loops_empty' => 'You are not a member of any Loop yet.',
+    'loops_empty_cta' => 'Browse the Loops',
     'loop_activity' => 'activity on :date',
     'loop_visit' => 'Open the Loop',
     'loop_role_owner' => 'Owner',

@@ -33,6 +33,9 @@ return [
     'col_role' => 'Rôle',
     'shared_with_people' => '{0}Personne|{1}:count personne|[2,*]:count personnes',
     'loops_empty' => 'Vous n\'êtes membre d\'aucune Boucle pour l\'instant.',
+    // Un etat vide qui ne dit pas quoi faire laisse chercher : le lien mene
+    // la ou on rejoint une Boucle (TASK-1146).
+    'loops_empty_cta' => 'Découvrir les Boucles',
     'loop_activity' => 'activité le :date',
     'loop_visit' => 'Voir la Boucle',
     'loop_role_owner' => 'Propriétaire',

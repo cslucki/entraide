@@ -308,6 +308,55 @@ class TASK1146LoopDriveAddedByTest extends TestCase
     }
 
     // =====================================================================
+    // Coherence visuelle du module (parentheses de la meme session)
+    // =====================================================================
+
+    /**
+     * La colonne du module suit le fond de la page.
+     *
+     * En clair, `--bp-page` et `--bp-surface` valent la meme couleur ; en
+     * sombre, `surface` est plus clair et la colonne se detachait en bloc.
+     */
+    public function test_the_module_sidebar_follows_the_page_background(): void
+    {
+        $html = $this->ouvrir($this->m3)->assertOk()->getContent();
+
+        $this->assertStringContainsString('bg-[var(--bp-page)]', $html);
+        $this->assertStringNotContainsString(
+            'self-stretch border-r border-[var(--bp-border)] bg-[var(--bp-surface)]',
+            $html,
+        );
+    }
+
+    /** Une seule destination, un seul dessin : le module reprend l'icone du rail. */
+    public function test_the_loops_icon_matches_the_global_rail(): void
+    {
+        $iconeDuRail = 'M8 10h8M8 14h5m8-2a9 9 0 11-18 0 9 9 0 0118 0z';
+
+        $html = $this->ouvrir($this->m3)->assertOk()->getContent();
+
+        $this->assertStringContainsString($iconeDuRail, $html);
+        // L'ancienne silhouette « personnes » ne sert plus a designer Boucles.
+        $this->assertStringNotContainsString('M12.2 8a3.2 3.2 0 1 1-6.4 0', $html);
+    }
+
+    /** Un etat vide doit dire ou aller, pas seulement ce qui manque. */
+    public function test_the_empty_loops_space_offers_a_way_to_find_one(): void
+    {
+        $sansBoucle = User::factory()->create(['organization_id' => $this->org->id]);
+
+        $this->actingAs($sansBoucle)
+            ->get(route('organization.dossiers.index', [
+                'organization' => $this->org->slug,
+                'espace' => 'boucles',
+            ]))
+            ->assertOk()
+            ->assertSee(__('dossiers.loops_empty'))
+            ->assertSee(__('dossiers.loops_empty_cta'))
+            ->assertSee(route('organization.loops.index', ['organization' => $this->org->slug]), false);
+    }
+
+    // =====================================================================
     // 9 — aucune fuite inter-Organization
     // =====================================================================
 
