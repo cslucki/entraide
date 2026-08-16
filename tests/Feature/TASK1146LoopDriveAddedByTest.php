@@ -213,9 +213,13 @@ class TASK1146LoopDriveAddedByTest extends TestCase
         // C'est LA cellule d'attribution qu'on lit, pas la page entiere : un
         // nom present dans un fil d'Ariane ou une barre laterale ne prouverait
         // rien. Le deposant y est, l'auteur n'y est pas.
-        $this->assertContains($this->m4->publicDisplayName(), $cellules,
+        // `e()` : les cellules sont extraites du HTML, donc echappees. Comparer
+        // la forme brute rendrait ces deux assertions dependantes du nom que
+        // Faker a tire — la positive echouerait au hasard, la negative
+        // passerait pour la mauvaise raison (TASK-1147).
+        $this->assertContains(e($this->m4->publicDisplayName()), $cellules,
             'La colonne doit montrer le deposant.');
-        $this->assertNotContains($this->m3->publicDisplayName(), $cellules,
+        $this->assertNotContains(e($this->m3->publicDisplayName()), $cellules,
             "La colonne ne doit pas montrer l'auteur du contenu.");
     }
 
@@ -374,7 +378,9 @@ class TASK1146LoopDriveAddedByTest extends TestCase
         ]));
 
         $this->assertContains($reponse->status(), [403, 404]);
-        $this->assertStringNotContainsString($this->m4->publicDisplayName(), $reponse->getContent());
+        // Forme echappee : chercher le nom brut ferait passer l'assertion des
+        // que le nom porte une apostrophe, sans rien prouver.
+        $this->assertStringNotContainsString(e($this->m4->publicDisplayName()), $reponse->getContent());
     }
 
     // =====================================================================
