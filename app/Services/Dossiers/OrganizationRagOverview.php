@@ -78,7 +78,16 @@ class OrganizationRagOverview
     /**
      * Diagnostics techniques — uniquement ce qui se calcule reellement.
      *
-     * @return array{chunks: int, distinct_articles: int, distinct_files: int, providers: list<string>, models: list<string>, index_family: string, index_model: string, family_mismatch: bool}
+     * L'identite d'un vecteur tient au COUPLE (famille, modele) : deux
+     * modeles d'une meme famille produisent des espaces vectoriels
+     * differents, tout autant que deux familles. Provider et modele sont
+     * donc verifies separement, et l'un suffit a rendre l'index incoherent.
+     *
+     * Aucune compatibilite n'est supposee entre deux modeles differents :
+     * « different » signifie « incoherent », jamais « probablement
+     * equivalent ».
+     *
+     * @return array{chunks: int, distinct_articles: int, distinct_files: int, providers: list<string>, models: list<string>, index_family: string, index_model: string, provider_mismatch: bool, model_mismatch: bool, index_mismatch: bool}
      */
     public function diagnostics(string $organizationId): array
     {
@@ -89,11 +98,11 @@ class OrganizationRagOverview
         $models = (clone $chunks)->distinct()->pluck('embedding_model')
             ->filter()->map(fn ($value): string => (string) $value)->values()->all();
 
-        // La famille d'embedding EST l'identite de l'index (TASK-1214) : des
-        // vecteurs produits par deux familles differentes ne se comparent pas.
-        // Plus d'une famille presente = incoherence reelle, pas une supposition.
         $indexFamily = trim((string) config('ai.default_for_embeddings', 'openai'));
         $indexModel = trim((string) config("ai.providers.{$indexFamily}.models.embeddings.default", ''));
+
+        $providerMismatch = $this->valuesDivergeFromConfigured($providers, $indexFamily);
+        $modelMismatch = $this->valuesDivergeFromConfigured($models, $indexModel);
 
         return [
             'chunks' => (clone $chunks)->count(),
@@ -103,9 +112,32 @@ class OrganizationRagOverview
             'models' => $models,
             'index_family' => $indexFamily,
             'index_model' => $indexModel,
-            'family_mismatch' => count($providers) > 1
-                || ($providers !== [] && $indexFamily !== '' && $providers !== [$indexFamily]),
+            'provider_mismatch' => $providerMismatch,
+            'model_mismatch' => $modelMismatch,
+            'index_mismatch' => $providerMismatch || $modelMismatch,
         ];
+    }
+
+    /**
+     * Deux facons, et deux seulement, de demontrer une incoherence :
+     * plusieurs valeurs distinctes stockees dans le meme index, ou une
+     * valeur stockee qui differe de la configuration COURANTE — cette
+     * seconde comparaison n'ayant de sens que si la configuration est
+     * effectivement connue. Configuration inconnue = rien a affirmer.
+     *
+     * @param  list<string>  $stored
+     */
+    private function valuesDivergeFromConfigured(array $stored, string $configured): bool
+    {
+        if (count($stored) > 1) {
+            return true;
+        }
+
+        if ($stored === [] || $configured === '') {
+            return false;
+        }
+
+        return $stored !== [$configured];
     }
 
     private function dossierCount(string $organizationId): int
@@ -119,6 +151,12 @@ class OrganizationRagOverview
     /**
      * Le nombre de sources REELLEMENT representees dans l'index, toutes
      * origines confondues.
+     *
+     * Volontairement NON filtre sur l'eligibilite courante (Dossier vivant,
+     * Article encore publie…) : ce compteur mesure ce qui occupe
+     * physiquement `dossier_chunks`. C'est precisement son interet — un
+     * ecart avec « Articles » + « Fichiers » revele un index qui contient
+     * encore des sources qui ne devraient plus y etre.
      */
     private function indexedSourceCount(string $organizationId): int
     {
@@ -129,10 +167,15 @@ class OrganizationRagOverview
     }
 
     /**
-     * Articles eligibles : publies ET attaches a un Dossier — exactement les
-     * criteres de `DossierArticleIndexer` (scope `published()`), pas ceux du
-     * SQL de retrieval, qui ignore `listed_in_blog`. C'est l'INGESTION que
-     * cette console decrit.
+     * Articles eligibles : publies ET attaches a un Dossier VIVANT —
+     * exactement les criteres de `DossierArticleIndexer` (scope
+     * `published()`), pas ceux du SQL de retrieval, qui ignore
+     * `listed_in_blog`. C'est l'INGESTION que cette console decrit.
+     *
+     * Le Dossier non supprime fait partie de l'eligibilite, ici et pas
+     * seulement dans `sources()` : sinon les compteurs de tete compteraient
+     * des sources que la liste, elle, n'affiche pas — l'ecran se
+     * contredirait lui-meme.
      */
     private function eligibleArticleQuery(string $organizationId)
     {
@@ -143,8 +186,11 @@ class OrganizationRagOverview
             ->whereExists(function ($query) use ($organizationId) {
                 $query->select(DB::raw(1))
                     ->from('dossier_blog_posts')
+                    ->join('dossiers', 'dossiers.id', '=', 'dossier_blog_posts.dossier_id')
                     ->whereColumn('dossier_blog_posts.blog_post_id', 'blog_posts.id')
-                    ->where('dossier_blog_posts.organization_id', $organizationId);
+                    ->where('dossier_blog_posts.organization_id', $organizationId)
+                    ->where('dossiers.organization_id', $organizationId)
+                    ->whereNull('dossiers.deleted_at');
             });
     }
 
@@ -154,6 +200,13 @@ class OrganizationRagOverview
             ->where('dossier_files.organization_id', $organizationId)
             ->whereNull('dossier_files.deleted_at')
             ->whereNotNull('dossier_files.dossier_id')
+            ->whereExists(function ($query) use ($organizationId) {
+                $query->select(DB::raw(1))
+                    ->from('dossiers')
+                    ->whereColumn('dossiers.id', 'dossier_files.dossier_id')
+                    ->where('dossiers.organization_id', $organizationId)
+                    ->whereNull('dossiers.deleted_at');
+            })
             ->where(function ($query) {
                 $query->whereIn('dossier_files.mime_type', self::INGESTIBLE_MIME_TYPES);
 

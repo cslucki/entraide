@@ -159,6 +159,9 @@ return [
     'knowledge_console_index_family' => 'Embedding family',
     'knowledge_console_index_model' => 'Embedding model',
     'knowledge_console_stored_providers' => 'Stored providers',
+    'knowledge_console_stored_models' => 'Stored models',
+    'knowledge_console_mismatch_provider' => 'Several embedding providers, or a provider different from the one configured today.',
+    'knowledge_console_mismatch_model' => 'Several embedding models, or a model different from the one configured today.',
     'knowledge_console_mismatch_warning' => 'The index contains excerpts produced by several embedding families. They cannot be compared with one another: reindexing is required to get reliable answers.',
     'knowledge_console_diagnostics_note' => 'Only provable states are shown. A source without excerpts appears as "not indexed": that does not mean it failed.',
 ];

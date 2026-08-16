@@ -159,6 +159,9 @@ return [
     'knowledge_console_index_family' => 'Famille d\'embedding',
     'knowledge_console_index_model' => 'Modèle d\'embedding',
     'knowledge_console_stored_providers' => 'Fournisseurs enregistrés',
+    'knowledge_console_stored_models' => 'Modèles enregistrés',
+    'knowledge_console_mismatch_provider' => "Plusieurs fournisseurs d'embedding, ou un fournisseur différent de celui configuré aujourd'hui.",
+    'knowledge_console_mismatch_model' => "Plusieurs modèles d'embedding, ou un modèle différent de celui configuré aujourd'hui.",
     'knowledge_console_mismatch_warning' => "L'index contient des extraits produits par plusieurs familles d'embedding. Ils ne se comparent pas entre eux : une réindexation est nécessaire pour retrouver des réponses fiables.",
     'knowledge_console_diagnostics_note' => "Seuls les états démontrables sont affichés. Une source sans extrait apparaît « non indexée » : cela ne signifie pas qu'elle est en erreur.",
 ];

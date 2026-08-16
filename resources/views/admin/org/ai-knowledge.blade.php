@@ -119,9 +119,17 @@
             {{ __('ai.knowledge_console_diagnostics') }}
         </summary>
         <div class="px-4 py-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
-            @if($diagnostics['family_mismatch'])
+            @if($diagnostics['index_mismatch'])
                 <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200" data-rag-mismatch>
                     {{ __('ai.knowledge_console_mismatch_warning') }}
+                    <ul class="mt-1 list-disc list-inside text-xs">
+                        @if($diagnostics['provider_mismatch'])
+                            <li data-rag-mismatch-provider>{{ __('ai.knowledge_console_mismatch_provider') }}</li>
+                        @endif
+                        @if($diagnostics['model_mismatch'])
+                            <li data-rag-mismatch-model>{{ __('ai.knowledge_console_mismatch_model') }}</li>
+                        @endif
+                    </ul>
                 </div>
             @endif
 
@@ -148,7 +156,11 @@
                 </div>
                 <div class="flex justify-between gap-3 border-b border-gray-100 dark:border-gray-700 py-1">
                     <dt class="text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_stored_providers') }}</dt>
-                    <dd class="text-gray-900 dark:text-gray-100 text-xs">{{ $diagnostics['providers'] ? implode(', ', $diagnostics['providers']) : '—' }}</dd>
+                    <dd class="text-gray-900 dark:text-gray-100 text-xs" data-rag-stored-providers>{{ $diagnostics['providers'] ? implode(', ', $diagnostics['providers']) : '—' }}</dd>
+                </div>
+                <div class="flex justify-between gap-3 border-b border-gray-100 dark:border-gray-700 py-1">
+                    <dt class="text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_stored_models') }}</dt>
+                    <dd class="text-gray-900 dark:text-gray-100 text-xs" data-rag-stored-models>{{ $diagnostics['models'] ? implode(', ', $diagnostics['models']) : '—' }}</dd>
                 </div>
             </dl>
 

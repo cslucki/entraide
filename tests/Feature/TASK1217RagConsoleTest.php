@@ -214,26 +214,127 @@ class TASK1217RagConsoleTest extends TestCase
 
     // ---- Diagnostics ----
 
-    public function test_diagnostics_report_real_providers_and_flag_a_real_family_mismatch(): void
+    public function test_diagnostics_report_a_coherent_index_as_healthy(): void
     {
         [$organization, $admin] = $this->organizationWithAdmin();
-        config()->set('ai.default_for_embeddings', 'openai');
-        config()->set('ai.providers.openai.models.embeddings.default', 'text-embedding-3-small');
+        $this->configureIndex('openai', 'text-embedding-3-small');
 
         $dossier = $this->dossier($organization, $admin, 'Dossier', Dossier::VISIBILITY_ORGANIZATION);
         $post = $this->attachedArticle($organization, $dossier, $admin, 'Article');
-        $this->chunkForArticle($organization, $dossier, $post, provider: 'openai');
+        $this->chunkForArticle($organization, $dossier, $post, provider: 'openai', model: 'text-embedding-3-small');
 
-        $coherent = app(OrganizationRagOverview::class)->diagnostics($organization->id);
-        $this->assertSame(['openai'], $coherent['providers']);
-        $this->assertFalse($coherent['family_mismatch']);
+        $diagnostics = app(OrganizationRagOverview::class)->diagnostics($organization->id);
 
-        // Deux familles dans le meme index : incoherence reellement demontree.
-        $this->chunkForArticle($organization, $dossier, $post, chunkIndex: 1, provider: 'openrouter');
+        $this->assertSame(['openai'], $diagnostics['providers']);
+        $this->assertSame(['text-embedding-3-small'], $diagnostics['models']);
+        $this->assertFalse($diagnostics['provider_mismatch']);
+        $this->assertFalse($diagnostics['model_mismatch']);
+        $this->assertFalse($diagnostics['index_mismatch']);
+    }
 
-        $mixed = app(OrganizationRagOverview::class)->diagnostics($organization->id);
-        $this->assertTrue($mixed['family_mismatch']);
-        $this->assertEqualsCanonicalizing(['openai', 'openrouter'], $mixed['providers']);
+    public function test_two_providers_in_the_same_index_are_reported_as_a_provider_mismatch(): void
+    {
+        [$organization, $admin] = $this->organizationWithAdmin();
+        $this->configureIndex('openai', 'text-embedding-3-small');
+
+        $dossier = $this->dossier($organization, $admin, 'Dossier', Dossier::VISIBILITY_ORGANIZATION);
+        $post = $this->attachedArticle($organization, $dossier, $admin, 'Article');
+        $this->chunkForArticle($organization, $dossier, $post, provider: 'openai', model: 'text-embedding-3-small');
+        $this->chunkForArticle($organization, $dossier, $post, chunkIndex: 1, provider: 'openrouter', model: 'text-embedding-3-small');
+
+        $diagnostics = app(OrganizationRagOverview::class)->diagnostics($organization->id);
+
+        $this->assertTrue($diagnostics['provider_mismatch']);
+        $this->assertFalse($diagnostics['model_mismatch'], 'le modele, lui, est bien homogene');
+        $this->assertTrue($diagnostics['index_mismatch']);
+        $this->assertEqualsCanonicalizing(['openai', 'openrouter'], $diagnostics['providers']);
+    }
+
+    /**
+     * Deux modeles d'une MEME famille produisent des espaces vectoriels
+     * differents : c'est une incoherence au meme titre qu'un changement de
+     * famille, et aucune compatibilite ne doit etre supposee entre eux.
+     */
+    public function test_two_models_of_the_same_provider_are_reported_as_a_model_mismatch(): void
+    {
+        [$organization, $admin] = $this->organizationWithAdmin();
+        $this->configureIndex('openai', 'text-embedding-3-small');
+
+        $dossier = $this->dossier($organization, $admin, 'Dossier', Dossier::VISIBILITY_ORGANIZATION);
+        $post = $this->attachedArticle($organization, $dossier, $admin, 'Article');
+        $this->chunkForArticle($organization, $dossier, $post, provider: 'openai', model: 'text-embedding-3-small');
+        $this->chunkForArticle($organization, $dossier, $post, chunkIndex: 1, provider: 'openai', model: 'text-embedding-3-large');
+
+        $diagnostics = app(OrganizationRagOverview::class)->diagnostics($organization->id);
+
+        $this->assertFalse($diagnostics['provider_mismatch'], 'le fournisseur, lui, est bien homogene');
+        $this->assertTrue($diagnostics['model_mismatch']);
+        $this->assertTrue($diagnostics['index_mismatch']);
+        $this->assertEqualsCanonicalizing(['text-embedding-3-small', 'text-embedding-3-large'], $diagnostics['models']);
+    }
+
+    public function test_a_stored_model_differing_from_the_configured_one_is_a_mismatch(): void
+    {
+        [$organization, $admin] = $this->organizationWithAdmin();
+        // L'index a ete produit avec un modele, la configuration en designe
+        // un autre aujourd'hui : les vecteurs stockes ne repondent plus a la
+        // configuration courante.
+        $this->configureIndex('openai', 'text-embedding-3-large');
+
+        $dossier = $this->dossier($organization, $admin, 'Dossier', Dossier::VISIBILITY_ORGANIZATION);
+        $post = $this->attachedArticle($organization, $dossier, $admin, 'Article');
+        $this->chunkForArticle($organization, $dossier, $post, provider: 'openai', model: 'text-embedding-3-small');
+
+        $diagnostics = app(OrganizationRagOverview::class)->diagnostics($organization->id);
+
+        $this->assertFalse($diagnostics['provider_mismatch']);
+        $this->assertTrue($diagnostics['model_mismatch']);
+        $this->assertTrue($diagnostics['index_mismatch']);
+        $this->assertSame('text-embedding-3-large', $diagnostics['index_model']);
+        $this->assertSame(['text-embedding-3-small'], $diagnostics['models']);
+    }
+
+    public function test_an_empty_index_is_never_reported_as_a_mismatch(): void
+    {
+        [$organization] = $this->organizationWithAdmin();
+        $this->configureIndex('openai', 'text-embedding-3-small');
+
+        $diagnostics = app(OrganizationRagOverview::class)->diagnostics($organization->id);
+
+        // Rien de stocke : il n'y a rien a comparer, donc rien a affirmer.
+        $this->assertSame([], $diagnostics['providers']);
+        $this->assertSame([], $diagnostics['models']);
+        $this->assertFalse($diagnostics['index_mismatch']);
+    }
+
+    // ---- Dossier supprime ----
+
+    /**
+     * Un Dossier supprime emporte ses sources hors du perimetre courant :
+     * la liste ET les compteurs doivent le refleter, sinon l'ecran se
+     * contredit lui-meme.
+     */
+    public function test_a_soft_deleted_dossier_removes_its_sources_from_the_list_and_the_counters(): void
+    {
+        [$organization, $admin] = $this->organizationWithAdmin();
+        $dossier = $this->dossier($organization, $admin, 'Dossier vivant', Dossier::VISIBILITY_ORGANIZATION);
+        $this->attachedArticle($organization, $dossier, $admin, 'Article du dossier');
+        $this->file($organization, $dossier, $admin, 'notes.txt', 'text/plain');
+
+        $overview = app(OrganizationRagOverview::class);
+
+        $before = $overview->summary($organization->id);
+        $this->assertSame(1, $before['articles']);
+        $this->assertSame(1, $before['files']);
+        $this->assertCount(2, $overview->sources($organization->id));
+
+        $dossier->delete();
+
+        $after = $overview->summary($organization->id);
+        $this->assertSame(0, $after['articles'], 'un Article dont le seul Dossier est supprime n’est plus une source actuelle');
+        $this->assertSame(0, $after['files'], 'un fichier d’un Dossier supprime n’est plus une source actuelle');
+        $this->assertSame(0, $after['dossiers']);
+        $this->assertSame([], $overview->sources($organization->id));
     }
 
     // ---- helpers ----
@@ -318,7 +419,13 @@ class TASK1217RagConsoleTest extends TestCase
         ]);
     }
 
-    private function chunkForArticle(Organization $organization, Dossier $dossier, BlogPost $post, int $chunkIndex = 0, string $provider = 'openai'): DossierChunk
+    private function configureIndex(string $family, string $model): void
+    {
+        config()->set('ai.default_for_embeddings', $family);
+        config()->set("ai.providers.{$family}.models.embeddings.default", $model);
+    }
+
+    private function chunkForArticle(Organization $organization, Dossier $dossier, BlogPost $post, int $chunkIndex = 0, string $provider = 'openai', string $model = 'text-embedding-3-small'): DossierChunk
     {
         return DossierChunk::create([
             'organization_id' => $organization->id,
@@ -327,11 +434,11 @@ class TASK1217RagConsoleTest extends TestCase
             'dossier_file_id' => null,
             'chunk_index' => $chunkIndex,
             'content' => 'contenu '.$chunkIndex,
-            'content_hash' => hash('sha256', $post->id.$chunkIndex.$provider),
+            'content_hash' => hash('sha256', $post->id.$chunkIndex.$provider.$model),
             'token_count' => 3,
             'embedding' => array_fill(0, $this->dimensions(), 0.1),
             'embedding_provider' => $provider,
-            'embedding_model' => 'text-embedding-3-small',
+            'embedding_model' => $model,
             'indexed_at' => now(),
         ]);
     }
