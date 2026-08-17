@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Ai\CapabilityRegistry;
+use App\Ai\Constitution;
 use App\Ai\ProviderResolver;
 use App\Http\Controllers\Controller;
+use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
 use App\Models\BlogPost;
 use App\Models\BugReport;
@@ -27,6 +30,7 @@ use App\Models\TranslationOverride;
 use App\Models\User;
 use App\Services\Ai\DTO\AiConsumptionFilters;
 use App\Services\Ai\OrganizationAiConsumption;
+use App\Services\Ai\OrganizationAiEconomicUsage;
 use App\Services\Dossiers\OrganizationRagOverview;
 use App\Services\LoopGovernanceService;
 use App\Services\Loops\LoopCardCompositionService;
@@ -40,6 +44,7 @@ use App\Services\UserDataLifecycleRegistry;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -1180,6 +1185,66 @@ class OrgAdminController extends Controller
      * lire le contenu. « Portee != sujet » : on expose l'etat, jamais le
      * contenu, et le lien n'apparait que si la policy l'autorise vraiment.
      */
+    /**
+     * Hub « IA & connaissances » (TASK-1223) : l'etat du systeme IA de
+     * l'Organization en une page — configuration, comportement, connaissances,
+     * consommation — avec des liens vers les consoles existantes. Read-only,
+     * vocabulaire humain, aucune cle affichee, « — » pour l'inconnu.
+     */
+    public function aiCockpit(Organization $organization, OrganizationRagOverview $overview, OrganizationAiEconomicUsage $economics): View
+    {
+        $setting = OrganizationAiSetting::query()
+            ->where('organization_id', $organization->id)
+            ->first();
+
+        $registry = app(CapabilityRegistry::class);
+        $capabilityIds = [
+            CapabilityRegistry::CLARIFY_HELP_REQUEST,
+            CapabilityRegistry::LOOP_SUMMARY,
+            CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER,
+        ];
+
+        // Un prompt est « actif » pour la capability si un AdminAiPrompt actif
+        // existe sur son scenario — la cascade summarize inclut ses variantes
+        // localisees, exactement comme la resolution reelle (TASK-1221).
+        $activeScenarios = AdminAiPrompt::query()
+            ->where('is_active', true)
+            ->pluck('scenario_id')
+            ->all();
+
+        $capabilities = array_map(static function (string $id) use ($registry, $activeScenarios): array {
+            $definition = $registry->get($id);
+            $promptActive = match ($id) {
+                CapabilityRegistry::LOOP_SUMMARY => (bool) array_intersect(
+                    ['chatloop_ai_summarize_fr', 'chatloop_ai_summarize_en', 'chatloop_ai_summarize'],
+                    $activeScenarios,
+                ),
+                default => in_array($definition->promptKey, $activeScenarios, true),
+            };
+
+            return [
+                'id' => $definition->id,
+                'human_validation' => $definition->requiresHumanConfirmation,
+                'read_only' => ! $definition->canWrite,
+                'sources' => $definition->allowedSources,
+                'prompt_active' => $promptActive,
+            ];
+        }, $capabilityIds);
+
+        $monthStart = CarbonImmutable::now()->startOfMonth();
+
+        return view('admin.org.ai-cockpit', [
+            'organization' => $organization,
+            'setting' => $setting,
+            'ready' => $setting?->isUsable() ?? false,
+            'constitutionVersion' => Constitution::VERSION,
+            'capabilities' => $capabilities,
+            'rag' => $overview->summary($organization->id),
+            'economics' => $economics->summary((string) $organization->id, $monthStart, $monthStart->addMonth()),
+            'monthlyBudgetUsd' => $setting?->monthly_budget_usd,
+        ]);
+    }
+
     public function aiKnowledge(Organization $organization, OrganizationRagOverview $overview): View
     {
         $user = auth()->user();

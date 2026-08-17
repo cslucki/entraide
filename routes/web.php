@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AdminAiBenchmarkController;
 use App\Http\Controllers\Admin\AdminAiConfigController;
 use App\Http\Controllers\Admin\AdminAiInteractionController;
+use App\Http\Controllers\Admin\AdminAiOrganizationsController;
 use App\Http\Controllers\Admin\AdminAiPromptController;
 use App\Http\Controllers\Admin\AdminAiReviewQueueController;
 use App\Http\Controllers\Admin\AdminAiSupervisionController;
@@ -82,6 +83,7 @@ use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\UserAiUsageController;
 use App\Http\Middleware\OrgAdminMiddleware;
 use App\Livewire\BoundedMemberAgent;
 use App\Livewire\CreateFeedPost;
@@ -301,6 +303,9 @@ Route::middleware('auth')->group(function () {
 
     // Profile
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
+    // TASK-1223 : « Mes usages IA » — transparence du ledger canonique,
+    // scope strict user courant + Organization courante.
+    Route::get('/profile/ai-usage', [UserAiUsageController::class, 'index'])->name('profile.ai-usage');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -577,6 +582,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // IA Usage by user (TASK-306)
     Route::get('/ia-usage-by-user', [AdminIaUsageByUserController::class, 'index'])->name('ia-usage-by-user');
+    // TASK-1223 : cockpit IA/RAG plateforme — metadonnees par Organization,
+    // jamais un contenu tenant ni une cle.
+    Route::get('/ai-organizations', [AdminAiOrganizationsController::class, 'index'])->name('ai-organizations');
 
     // Blog moderation
     Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog');
@@ -719,6 +727,9 @@ Route::prefix('/org/{organization}')
             Route::post('/bugs', [BugReportController::class, 'store'])->middleware('throttle:5,1')->name('bug-reports.store');
 
             Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
+            // TASK-1223 : « Mes usages IA » — transparence du ledger canonique,
+            // scope strict user courant + Organization courante.
+            Route::get('/profile/ai-usage', [UserAiUsageController::class, 'index'])->name('profile.ai-usage');
             Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
             Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
             Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -993,6 +1004,9 @@ Route::prefix('/org/{organization}')
                 Route::post('/themes/{theme}/assign', [OrgAdminController::class, 'themesAssign'])->name('themes.assign');
 
                 // AI
+                // TASK-1223 : hub « IA & connaissances » — l'etat du systeme
+                // IA de l'Organization en une page, liens vers les consoles.
+                Route::get('/ai-cockpit', [OrgAdminController::class, 'aiCockpit'])->name('ai-cockpit');
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
                 Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');
                 Route::get('/ai-interactions', [OrgAdminController::class, 'aiInteractions'])->name('ai-interactions');
