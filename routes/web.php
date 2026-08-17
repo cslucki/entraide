@@ -1007,6 +1007,13 @@ Route::prefix('/org/{organization}')
                 // TASK-1223 : hub « IA & connaissances » — l'etat du systeme
                 // IA de l'Organization en une page, liens vers les consoles.
                 Route::get('/ai-cockpit', [OrgAdminController::class, 'aiCockpit'])->name('ai-cockpit');
+                // TASK-1227 : « Comportement IA » — Constitution (lecture
+                // seule), doctrine de l'Organization (versionnee), couverture
+                // du systeme nerveux, bac a sable reel « tester sans publier ».
+                Route::get('/ai-behavior', [OrgAdminController::class, 'aiBehavior'])->name('ai-behavior');
+                Route::put('/ai-behavior/doctrine', [OrgAdminController::class, 'updateAiDoctrine'])->name('ai-behavior.doctrine.update');
+                Route::delete('/ai-behavior/doctrine', [OrgAdminController::class, 'withdrawAiDoctrine'])->name('ai-behavior.doctrine.withdraw');
+                Route::post('/ai-behavior/sandbox', [OrgAdminController::class, 'sandboxAiDoctrine'])->middleware('throttle:ai-doctrine-sandbox')->name('ai-behavior.sandbox');
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
                 Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');
                 Route::get('/ai-interactions', [OrgAdminController::class, 'aiInteractions'])->name('ai-interactions');

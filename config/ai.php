@@ -263,6 +263,23 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Doctrine de l'Organization (TASK-1227)
+    |--------------------------------------------------------------------------
+    |
+    | Texte editable par l'Admin Organization, compose par PromptRepository
+    | SOUS la Constitution. `max_chars` borne le champ (validation HTTP) et la
+    | composition (defensive). `sandbox_per_minute` limite les tests reels
+    | « tester sans publier » par utilisateur.
+    |
+    */
+
+    'doctrine' => [
+        'max_chars' => (int) env('AI_DOCTRINE_MAX_CHARS', 4000),
+        'sandbox_per_minute' => (int) env('AI_DOCTRINE_SANDBOX_PER_MINUTE', 6),
+    ],
+
     'chatloop' => [
         'enabled' => (bool) env('CHATLOOP_AI_ENABLED', true),
         'scenario' => env('CHATLOOP_AI_SCENARIO', 'chatloop_ai_answer'),

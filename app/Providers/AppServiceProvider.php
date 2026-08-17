@@ -246,6 +246,14 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(10)->by($request->ip());
         });
 
+        // TASK-1227 : le bac a sable de la doctrine emet un appel IA REEL et
+        // facture (credential de l'Organization) : quelques essais par minute
+        // et par utilisateur suffisent a une recette, jamais a une rafale.
+        RateLimiter::for('ai-doctrine-sandbox', function (Request $request) {
+            return Limit::perMinute((int) config('ai.doctrine.sandbox_per_minute', 6))
+                ->by('ai-doctrine-sandbox:'.($request->user()?->id ?: $request->ip()));
+        });
+
         Event::listen(
             Login::class,
             LoginListener::class,

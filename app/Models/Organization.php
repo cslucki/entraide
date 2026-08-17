@@ -143,6 +143,16 @@ class Organization extends Model
         return $this->hasOne(OrganizationAiSetting::class);
     }
 
+    /**
+     * TASK-1227 : toutes les versions de la doctrine IA de l'Organization
+     * (historique compris). La version active se lit via
+     * `OrganizationAiDoctrine::activeFor()`.
+     */
+    public function aiDoctrines(): HasMany
+    {
+        return $this->hasMany(OrganizationAiDoctrine::class);
+    }
+
     public function admin(): BelongsTo
     {
         return $this->belongsTo(User::class, 'admin_id');

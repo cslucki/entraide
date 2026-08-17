@@ -169,9 +169,12 @@ class ChatLoopAiService
             // plus aucun repli silencieux vers un prompt hardcode (meme regle que
             // clarify et knowledge). Le provisioning deploy-safe garantit qu'un
             // prompt actif existe des le deploiement.
+            // TASK-1227 : la doctrine active de l'Organization est composee
+            // sous la Constitution, au meme point que clarify et knowledge.
             $instructions = $this->prompts->compose(
                 $capability,
                 $this->resolveSummaryPromptOrFail($scenarioId, $locale),
+                (string) $organization->id,
             );
 
             // TASK-1209 : plus de construction ad hoc. La capability declare ses
