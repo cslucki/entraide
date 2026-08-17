@@ -107,7 +107,11 @@ class LoopKnowledgeAnswerService
 
         // Le prompt administrable est requis AVANT toute depense (embedding
         // compris) : sans lui, indisponibilite explicite.
-        $instructions = $this->prompts->compose($capability, $this->knowledgeInstructions());
+        // TASK-1227 : doctrine active de l'Organization composee sous la
+        // Constitution ; la regle « repondre depuis les sources [S] » reste
+        // appliquee en code (citations revalidees), la doctrine ne peut pas
+        // autoriser d'inventer.
+        $instructions = $this->prompts->compose($capability, $this->knowledgeInstructions(), (string) $organization->id);
 
         $borne = $this->contextBuilder->build($contexte, $definition);
         $consulted = $borne->provenanceFor(DossierRetrievalSource::NAME);

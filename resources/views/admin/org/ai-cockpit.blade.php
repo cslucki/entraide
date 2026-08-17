@@ -84,6 +84,14 @@
                     </li>
                 @endforeach
             </ul>
+            {{-- TASK-1227 : la doctrine de l'Organization, et le lien vers la page Comportement. --}}
+            <p class="text-xs mt-4 {{ $doctrine ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400' }}" data-cockpit-doctrine="{{ $doctrine ? 'v'.$doctrine->version : 'none' }}">
+                {{ $doctrine ? __('ai.cockpit_behavior_doctrine_active', ['version' => $doctrine->version]) : __('ai.cockpit_behavior_doctrine_none') }}
+            </p>
+            <a href="{{ route('organization.admin.ai-behavior', ['organization' => $organization->slug]) }}"
+               class="inline-block mt-2 text-sm text-sky-600 dark:text-sky-400 hover:underline" data-cockpit-behavior-open>
+                {{ __('ai.cockpit_behavior_open') }} →
+            </a>
         </div>
 
         {{-- 3. CONNAISSANCES --}}

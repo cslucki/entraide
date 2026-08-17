@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Ai\CapabilityRegistry;
 use App\Ai\Constitution;
+use App\Ai\NervousSystemCoverage;
 use App\Ai\ProviderResolver;
 use App\Http\Controllers\Controller;
 use App\Models\AdminAiPrompt;
@@ -18,6 +19,7 @@ use App\Models\LoopInvitation;
 use App\Models\LoopMember;
 use App\Models\Message;
 use App\Models\Organization;
+use App\Models\OrganizationAiDoctrine;
 use App\Models\OrganizationAiSetting;
 use App\Models\Referral;
 use App\Models\Service;
@@ -31,6 +33,7 @@ use App\Models\User;
 use App\Services\Ai\DTO\AiConsumptionFilters;
 use App\Services\Ai\OrganizationAiConsumption;
 use App\Services\Ai\OrganizationAiEconomicUsage;
+use App\Services\Ai\OrganizationDoctrineSandbox;
 use App\Services\Dossiers\OrganizationRagOverview;
 use App\Services\LoopGovernanceService;
 use App\Services\Loops\LoopCardCompositionService;
@@ -1240,10 +1243,139 @@ class OrgAdminController extends Controller
             'ready' => $setting?->isUsable() ?? false,
             'constitutionVersion' => Constitution::VERSION,
             'capabilities' => $capabilities,
+            // TASK-1227 : la doctrine active de l'Organization, ou aucune.
+            'doctrine' => OrganizationAiDoctrine::activeFor((string) $organization->id),
             'rag' => $overview->summary($organization->id),
             'economics' => $economics->summary((string) $organization->id, $monthStart, $monthStart->addMonth()),
             'monthlyBudgetUsd' => $setting?->monthly_budget_usd,
         ]);
+    }
+
+    /**
+     * Page « Comportement IA » (TASK-1227) : la Constitution BouclePro en
+     * lecture seule, la doctrine de l'Organization (editable, versionnee),
+     * les capabilities qui la suivent, la couverture du systeme nerveux et
+     * le bac a sable « tester sans publier ». Tout est borne a CETTE
+     * Organization ; aucune cle n'apparait.
+     */
+    public function aiBehavior(Organization $organization, NervousSystemCoverage $coverage): View
+    {
+        return view('admin.org.ai-behavior', $this->aiBehaviorViewData($organization, $coverage));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function aiBehaviorViewData(Organization $organization, NervousSystemCoverage $coverage): array
+    {
+        $active = OrganizationAiDoctrine::activeFor((string) $organization->id);
+
+        $history = OrganizationAiDoctrine::query()
+            ->where('organization_id', $organization->id)
+            ->with('author:id,name')
+            ->orderByDesc('version')
+            ->limit(20)
+            ->get();
+
+        return [
+            'organization' => $organization,
+            'constitutionVersion' => Constitution::VERSION,
+            'constitutionText' => app(Constitution::class)->text(),
+            'doctrine' => $active,
+            'doctrineHistory' => $history,
+            'doctrineHistoryTotal' => OrganizationAiDoctrine::query()->where('organization_id', $organization->id)->count(),
+            'doctrineMaxChars' => OrganizationAiDoctrine::maxChars(),
+            'coveredCapabilities' => $coverage->covered(),
+            'inheritedFunctions' => $coverage->inherited(),
+            'coveredCount' => $coverage->coveredCount(),
+            'totalCount' => $coverage->totalCount(),
+            'sandboxCapabilities' => OrganizationDoctrineSandbox::SUPPORTED,
+            // Le resultat flashe n'est rendu que pour l'Organization qui l'a
+            // produit (un admin de plusieurs Organizations ne le voit jamais
+            // ailleurs — revue PASS A).
+            'sandboxResult' => $this->sandboxResultFor($organization),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function sandboxResultFor(Organization $organization): ?array
+    {
+        $result = session('doctrine_sandbox');
+
+        if (! is_array($result) || ($result['organization_id'] ?? null) !== (string) $organization->id) {
+            return null;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Enregistre une NOUVELLE version de la doctrine et l'active. Un texte
+     * identique a la version active ne cree rien.
+     */
+    public function updateAiDoctrine(Request $request, Organization $organization): RedirectResponse
+    {
+        $data = $request->validate([
+            'body' => ['required', 'string', 'max:'.OrganizationAiDoctrine::maxChars()],
+        ]);
+
+        $before = OrganizationAiDoctrine::activeFor((string) $organization->id);
+        $doctrine = OrganizationAiDoctrine::activate($organization, $data['body'], $request->user());
+
+        $message = $before !== null && $before->is($doctrine)
+            ? __('ai.behavior_doctrine_unchanged', ['version' => $doctrine->version])
+            : __('ai.behavior_doctrine_saved', ['version' => $doctrine->version]);
+
+        return redirect()
+            ->route('organization.admin.ai-behavior', ['organization' => $organization->slug])
+            ->with('success', $message);
+    }
+
+    /**
+     * Retire la doctrine active : l'Organization revient a la composition
+     * sans doctrine (identique a l'avant-TASK). L'historique reste.
+     */
+    public function withdrawAiDoctrine(Organization $organization): RedirectResponse
+    {
+        $withdrawn = OrganizationAiDoctrine::withdraw($organization);
+
+        return redirect()
+            ->route('organization.admin.ai-behavior', ['organization' => $organization->slug])
+            ->with($withdrawn ? 'success' : 'info', $withdrawn
+                ? __('ai.behavior_doctrine_withdrawn')
+                : __('ai.behavior_doctrine_nothing_to_withdraw'));
+    }
+
+    /**
+     * « Tester sans publier » : appel IA REEL avec la doctrine candidate,
+     * comptabilise au ledger ; rien n'est active, aucune action metier.
+     * PRG : le resultat voyage en session, le brouillon revient par old().
+     */
+    public function sandboxAiDoctrine(
+        Request $request,
+        Organization $organization,
+        OrganizationDoctrineSandbox $sandbox,
+    ): RedirectResponse {
+        $data = $request->validate([
+            'body' => ['nullable', 'string', 'max:'.OrganizationAiDoctrine::maxChars()],
+            'capability' => ['required', 'string', Rule::in(OrganizationDoctrineSandbox::SUPPORTED)],
+            'question' => ['required', 'string', 'min:3', 'max:1000'],
+        ]);
+
+        $result = $sandbox->run(
+            $organization,
+            $request->user(),
+            $data['capability'],
+            (string) ($data['body'] ?? ''),
+            $data['question'],
+        );
+
+        return redirect()
+            ->route('organization.admin.ai-behavior', ['organization' => $organization->slug])
+            ->withInput($request->only(['body', 'capability', 'question']))
+            ->with('doctrine_sandbox', $result->toArray());
     }
 
     /**

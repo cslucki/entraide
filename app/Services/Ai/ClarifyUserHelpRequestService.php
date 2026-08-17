@@ -182,7 +182,9 @@ class ClarifyUserHelpRequestService implements AiProvider
             return $this->fallback->analyze($phrase);
         }
 
-        $instructions = $this->prompts->compose($capability, $this->clarifyInstructions());
+        // TASK-1227 : la doctrine active de l'Organization se compose ici,
+        // sous la Constitution — meme point que les deux autres capabilities.
+        $instructions = $this->prompts->compose($capability, $this->clarifyInstructions(), (string) $organization->id);
 
         $agent = new HelpRequestClarifierAgent(
             $instructions,

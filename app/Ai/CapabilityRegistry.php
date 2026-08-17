@@ -155,6 +155,19 @@ final class CapabilityRegistry
         return isset($this->definitions[$capability]);
     }
 
+    /**
+     * TASK-1227 : toutes les capabilities canoniques, dans l'ordre de
+     * declaration. C'est L'AUTORITE dont derive la liste « suit la doctrine de
+     * votre Organization » : une capability declaree ici passe par
+     * PromptRepository::compose(), donc par la Constitution et la doctrine.
+     *
+     * @return list<CapabilityDefinition>
+     */
+    public function all(): array
+    {
+        return array_values($this->definitions);
+    }
+
     public function get(string $capability): CapabilityDefinition
     {
         return $this->definitions[$capability]

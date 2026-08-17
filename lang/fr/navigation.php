@@ -301,5 +301,6 @@ return [
 
     // TASK-1223
     'org_admin_ai_cockpit' => 'IA & connaissances',
+    'org_admin_ai_behavior' => 'Comportement IA',
     'my_ai_usage' => 'Mes usages IA',
 ];
