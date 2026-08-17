@@ -49,7 +49,7 @@ class DossierChunkEmbeddingService
             // observer un échec réel, donc le seul qui peut l'enregistrer —
             // sans jamais changer le comportement fonctionnel : on relance
             // exactement l'exception d'origine, inchangée.
-            RecordSdkEmbeddingsInvocation::recordFailure($provider, $model);
+            RecordSdkEmbeddingsInvocation::recordFailure($provider, $model, $instance ?? $provider);
 
             throw $exception;
         }

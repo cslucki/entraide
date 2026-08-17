@@ -22,6 +22,7 @@ use App\Models\User;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\Ai\DTO\AssistedInteractionLabResult;
 use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiUsage;
 use DomainException;
@@ -38,6 +39,7 @@ class ClarifyUserHelpRequestService implements AiProvider
         private readonly ProviderResolver $providers,
         private readonly ContextBuilder $contextBuilder,
         private readonly AiEconomicGuard $economicGuard,
+        private readonly AiProviderInvocationLedger $ledger,
     ) {}
 
     public function analyze(string $phrase): AssistedInteractionLabResult
@@ -199,7 +201,7 @@ class ClarifyUserHelpRequestService implements AiProvider
         } catch (\Throwable $exception) {
             $this->recordInteraction(
                 $loop, $requester, $contexte, $definition, $resolved, $phrase,
-                null, AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null],
+                null, AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null,
                 'failed', $startedAt, null, $exception::class,
             );
 
@@ -219,7 +221,7 @@ class ClarifyUserHelpRequestService implements AiProvider
 
         $interaction = $this->recordInteraction(
             $loop, $requester, $contexte, $definition, $resolved, $phrase,
-            json_encode($structured, JSON_UNESCAPED_UNICODE), $usage, $cost->traceAttributes(),
+            json_encode($structured, JSON_UNESCAPED_UNICODE), $usage, $cost->traceAttributes(), $cost,
             'success', $startedAt, $response->invocationId, null,
         );
 
@@ -475,6 +477,13 @@ class ClarifyUserHelpRequestService implements AiProvider
      * meme regle que `loop_summary` : aucun listener SDK texte, sans quoi le
      * meme appel serait compte deux fois.
      *
+     * TASK-1220 : chaque appel ecrit AUSSI sa ligne canonique dans le ledger
+     * `ai_provider_invocations` — une tentative provider reelle = une ligne,
+     * succes comme echec. Les refus pre-provider (pas de configuration,
+     * budget atteint) n'atteignent jamais cette methode : aucun des deux
+     * registres ne recoit de consommation fictive. `$cost` est null quand
+     * l'appel a echoue avant toute evaluation economique.
+     *
      * @param  array{cost_usd: ?float, cost_unknown: ?bool}  $costAttributes
      */
     private function recordInteraction(
@@ -487,11 +496,27 @@ class ClarifyUserHelpRequestService implements AiProvider
         ?string $response,
         AiUsage $usage,
         array $costAttributes,
+        ?AiCost $cost,
         string $status,
         float $startedAt,
         ?string $sdkInvocationId,
         ?string $failure,
     ): AiInteraction {
+        $this->ledger->recordGeneration(
+            organizationId: $contexte->organizationId,
+            userId: (string) $requester->id,
+            capability: $definition->id,
+            process: $definition->process,
+            resolved: $resolved,
+            usage: $usage,
+            cost: $cost,
+            status: $status,
+            correlationId: $contexte->correlationId,
+            sdkInvocationId: $sdkInvocationId,
+            failureReason: $failure,
+            startedAtMicrotime: $startedAt,
+        );
+
         return AiInteraction::create([
             'user_id' => $requester->id,
             'organization_id' => $contexte->organizationId,

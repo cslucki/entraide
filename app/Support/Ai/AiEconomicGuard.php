@@ -95,7 +95,7 @@ final class AiEconomicGuard
 
         return $reported === null
             ? AiPricingCatalog::cost($provider, $model, $usage)
-            : AiCost::known($reported);
+            : AiCost::known($reported, AiCost::SOURCE_PROVIDER_REPORTED);
     }
 
     private function normalizeProviderReportedCost(mixed $cost): ?float

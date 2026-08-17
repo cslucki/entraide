@@ -18,6 +18,7 @@ use App\Models\LoopMember;
 use App\Models\User;
 use App\Services\Ai\DTO\KnowledgeAnswer;
 use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiUsage;
@@ -49,6 +50,7 @@ class LoopKnowledgeAnswerService
         private readonly ProviderResolver $providers,
         private readonly ContextBuilder $contextBuilder,
         private readonly AiEconomicGuard $economicGuard,
+        private readonly AiProviderInvocationLedger $ledger,
     ) {}
 
     public function answer(Loop $loop, User $requester, string $question): KnowledgeAnswer
@@ -139,7 +141,7 @@ class LoopKnowledgeAnswerService
             );
         } catch (\Throwable $exception) {
             $this->recordInteraction($loop, $requester, $contexte, $definition, $resolved, $prompt, null,
-                AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], 'failed', $startedAt, null,
+                AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null, 'failed', $startedAt, null,
                 $exception::class, $consulted, []);
 
             throw new RuntimeException(__('loops.ai_error'), 0, $exception);
@@ -162,7 +164,7 @@ class LoopKnowledgeAnswerService
         $cited = $this->citedSources($answer, $consulted);
 
         $interaction = $this->recordInteraction($loop, $requester, $contexte, $definition, $resolved, $prompt,
-            $answer, $usage, $cost->traceAttributes(), 'success', $startedAt, $response->invocationId, null,
+            $answer, $usage, $cost->traceAttributes(), $cost, 'success', $startedAt, $response->invocationId, null,
             $consulted, $cited);
 
         return new KnowledgeAnswer(
@@ -243,6 +245,7 @@ class LoopKnowledgeAnswerService
         ?string $response,
         AiUsage $usage,
         array $costAttributes,
+        ?AiCost $cost,
         string $status,
         float $startedAt,
         ?string $sdkInvocationId,
@@ -250,6 +253,23 @@ class LoopKnowledgeAnswerService
         array $consulted,
         array $cited,
     ): AiInteraction {
+        // TASK-1220 : ligne canonique du ledger, memes points que la trace P1
+        // (succes ET echec) ; les refus pre-provider n'arrivent jamais ici.
+        $this->ledger->recordGeneration(
+            organizationId: $contexte->organizationId,
+            userId: (string) $requester->id,
+            capability: $definition->id,
+            process: $definition->process,
+            resolved: $resolved,
+            usage: $usage,
+            cost: $cost,
+            status: $status,
+            correlationId: $contexte->correlationId,
+            sdkInvocationId: $sdkInvocationId,
+            failureReason: $failure,
+            startedAtMicrotime: $startedAt,
+        );
+
         $ids = static fn (array $sources): array => array_values(array_map(
             static fn (array $s): array => ['chunk_id' => $s['chunk_id'] ?? null, 'dossier_id' => $s['dossier_id'] ?? null, 'blog_post_id' => $s['blog_post_id'] ?? null],
             $sources,

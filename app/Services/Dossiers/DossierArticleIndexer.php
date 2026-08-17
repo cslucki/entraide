@@ -4,6 +4,7 @@ namespace App\Services\Dossiers;
 
 use App\Ai\ProviderResolver;
 use App\Listeners\RecordSdkEmbeddingsInvocation;
+use App\Models\AiProviderInvocation;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
@@ -73,6 +74,9 @@ class DossierArticleIndexer
             Context::add(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY, [
                 'organization_id' => $organizationId,
                 'scenario_id' => 'dossier_embeddings_index',
+                // TASK-1220 : declaration EXPLICITE pour le ledger canonique,
+                // jamais deduite du scenario_id.
+                'embedding_operation' => AiProviderInvocation::EMBEDDING_OPERATION_INGESTION,
                 'metadata' => [
                     'dossier_id' => $dossierId,
                     'blog_post_id' => $blogPostId,

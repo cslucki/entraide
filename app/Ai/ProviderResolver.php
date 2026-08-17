@@ -2,8 +2,10 @@
 
 namespace App\Ai;
 
+use App\Models\AiProviderInvocation;
 use App\Models\OrganizationAiSetting;
 use DomainException;
+use Illuminate\Support\Facades\Context;
 use Laravel\Ai\Ai;
 
 /**
@@ -30,6 +32,22 @@ use Laravel\Ai\Ai;
  */
 final class ProviderResolver
 {
+    /**
+     * TASK-1220 : registre `nom d'instance SDK -> source du credential`,
+     * porte par le `Context` Laravel de la requete/du job courant.
+     *
+     * C'est la PREUVE du credential pour le ledger canonique
+     * (`ai_provider_invocations`) : seule `registerInstance()` — la primitive
+     * qui pose reellement la cle dans la configuration d'instance — ecrit ici.
+     * `organization` quand la cle vient de `organization_ai_settings`, `none`
+     * quand le driver est keyless (ollama local). Une instance absente du
+     * registre (famille nue `openai`, dont la cle vient de la config
+     * plateforme) reste `unknown` : on ne DEDUIT jamais `platform` de la
+     * config — le jour ou une primitive plateforme existera, elle se
+     * declarera elle-meme.
+     */
+    public const CREDENTIAL_SOURCES_CONTEXT_KEY = 'ai_provider_credential_sources';
+
     /**
      * Drivers executes localement, qui n'ont legitimement aucune cle d'API.
      */
@@ -212,5 +230,31 @@ final class ProviderResolver
 
         config()->set('ai.providers.'.$instance, $config);
         Ai::forgetInstance($instance);
+
+        // TASK-1220 : la preuve du credential, posee au seul endroit qui sait.
+        // Les cles de CE resolver viennent exclusivement de
+        // `organization_ai_settings` ; un driver keyless n'en a aucune.
+        $sources = Context::get(self::CREDENTIAL_SOURCES_CONTEXT_KEY, []);
+        $sources[$instance] = $key !== null
+            ? AiProviderInvocation::CREDENTIAL_ORGANIZATION
+            : AiProviderInvocation::CREDENTIAL_NONE;
+        Context::add(self::CREDENTIAL_SOURCES_CONTEXT_KEY, $sources);
+    }
+
+    /**
+     * Source PROUVEE du credential d'une instance SDK, pour le ledger
+     * canonique. `unknown` pour toute instance que ce resolver n'a pas
+     * enregistree pendant la requete/le job courant.
+     */
+    public static function credentialSourceFor(?string $instance): string
+    {
+        if ($instance === null || $instance === '') {
+            return AiProviderInvocation::CREDENTIAL_UNKNOWN;
+        }
+
+        $sources = Context::get(self::CREDENTIAL_SOURCES_CONTEXT_KEY, []);
+        $source = is_array($sources) ? ($sources[$instance] ?? null) : null;
+
+        return is_string($source) ? $source : AiProviderInvocation::CREDENTIAL_UNKNOWN;
     }
 }

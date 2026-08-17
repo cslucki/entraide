@@ -128,7 +128,8 @@ final class AiPricingCatalog
         }
 
         if ($rate['free']) {
-            return AiCost::known(0.0);
+            // TASK-1220 : le zero est une affirmation du catalogue.
+            return AiCost::known(0.0, AiCost::SOURCE_CATALOG_ESTIMATED);
         }
 
         if (! $usage->isObserved()) {
@@ -138,7 +139,7 @@ final class AiPricingCatalog
         $cost = ($usage->inputTokensOrZero() / 1_000_000) * $rate['input_per_1m']
             + ($usage->outputTokensOrZero() / 1_000_000) * $rate['output_per_1m'];
 
-        return AiCost::known(round($cost, 8));
+        return AiCost::known(round($cost, 8), AiCost::SOURCE_CATALOG_ESTIMATED);
     }
 
     /**

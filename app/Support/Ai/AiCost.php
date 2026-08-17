@@ -18,19 +18,39 @@ namespace App\Support\Ai;
  */
 final class AiCost
 {
+    /**
+     * TASK-1220 : provenance d'un cout CONNU, pour le ledger canonique.
+     * `provider_reported` = le provider a communique ce montant ;
+     * `catalog_estimated` = calcule depuis `usage x tarif catalogue` (un tarif
+     * `free` du catalogue inclus : c'est le catalogue qui l'affirme).
+     * Un cout unknown n'a pas de provenance (`source` = null).
+     *
+     * Posee UNIQUEMENT par les deux primitives qui savent :
+     * `AiEconomicGuard::finalize()` (cout rapporte) et
+     * `AiPricingCatalog::cost()` (catalogue). Jamais reconstruite ailleurs —
+     * c'etait exactement la dette « provenance du cout » notee en TASK-1219.
+     */
+    public const SOURCE_PROVIDER_REPORTED = 'provider_reported';
+
+    public const SOURCE_CATALOG_ESTIMATED = 'catalog_estimated';
+
     private function __construct(
         public readonly ?float $costUsd,
         public readonly bool $costUnknown,
         public readonly ?string $reason,
+        public readonly ?string $source,
     ) {}
 
     /**
      * Cout mesure. Zero n'est accepte ici que parce que l'appelant a etabli que
      * le tarif est reellement nul (execution locale, reponse sans LLM).
+     *
+     * `$source` : provenance de la mesure (constantes SOURCE_*), null pour les
+     * appelants historiques qui ne la declarent pas encore.
      */
-    public static function known(float $costUsd): self
+    public static function known(float $costUsd, ?string $source = null): self
     {
-        return new self($costUsd, false, null);
+        return new self($costUsd, false, null, $source);
     }
 
     /**
@@ -39,7 +59,7 @@ final class AiCost
      */
     public static function unknown(string $reason): self
     {
-        return new self(null, true, $reason);
+        return new self(null, true, $reason, null);
     }
 
     public function isKnown(): bool

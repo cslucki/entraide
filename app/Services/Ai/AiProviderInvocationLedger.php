@@ -1,0 +1,191 @@
+<?php
+
+namespace App\Services\Ai;
+
+use App\Ai\ProviderResolver;
+use App\Ai\ResolvedModel;
+use App\Models\AiProviderInvocation;
+use App\Support\Ai\AiCost;
+use App\Support\Ai\AiUsage;
+use Carbon\CarbonImmutable;
+
+/**
+ * Writer UNIQUE du ledger canonique `ai_provider_invocations` (TASK-1220).
+ *
+ * Une ligne = UNE tentative/appel provider economiquement reel, generation ou
+ * embedding. Les regles que ce writer tient, et que personne d'autre ne peut
+ * contourner puisque personne d'autre n'ecrit :
+ *
+ *  - 0 != INCONNU. Tokens non observes -> NULL. Cout non observe -> NULL +
+ *    `cost_status` unknown. Un vrai zero -> 0 + known. `total_tokens` n'est
+ *    somme que si input ET output sont observes : une moitie manquante ne
+ *    fabrique pas un total.
+ *  - CREDENTIAL PROUVE OU UNKNOWN. La source vient du registre pose par
+ *    `ProviderResolver::registerInstance()` — la primitive qui pose la cle —
+ *    jamais d'une inference (modele, owner, .env, nom de provider).
+ *  - PAS DE LIGNE FICTIVE (NO P4). Ce writer n'est appele QUE lorsqu'un appel
+ *    provider a reellement ete tente. Un refus pre-provider (pas de
+ *    configuration tenant, budget atteint) n'ecrit RIEN ici.
+ *  - PAS DE DEDUP PAR CORRELATION. `correlation_id` est le parent METIER :
+ *    une operation qui provoque deux appels produit deux lignes. Une retry
+ *    reellement envoyee est une ligne de plus, jamais une ligne ecrasee.
+ *  - AUCUN SECRET, prompt ou contenu de reponse. `failure_reason` est une
+ *    classe d'exception, jamais un message.
+ *
+ * Pas de try/catch silencieux : comme pour les traces P1 existantes, une
+ * ecriture qui echoue est un vrai defaut qui doit se voir.
+ *
+ * Ce ledger ne porte PAS encore l'autorite economique : `AiEconomicGuard`
+ * continue de lire `ai_interactions` (compatibilite TASK-1219). La double
+ * ecriture n'est pas un double comptage tant qu'aucune lecture ne somme les
+ * deux tables — la bascule d'autorite sera une TASK future, avec preuve de
+ * couverture.
+ */
+final class AiProviderInvocationLedger
+{
+    /**
+     * Une tentative de GENERATION reellement envoyee au provider, reussie ou
+     * non. Le credential est prouve via l'instance SDK du `ResolvedModel` :
+     * elle a ete enregistree par `ProviderResolver` pendant cette meme
+     * requete, sans quoi la source retombe honnetement sur `unknown`.
+     */
+    public function recordGeneration(
+        string $organizationId,
+        ?string $userId,
+        ?string $capability,
+        ?string $process,
+        ResolvedModel $resolved,
+        AiUsage $usage,
+        ?AiCost $cost,
+        string $status,
+        ?string $correlationId,
+        ?string $sdkInvocationId,
+        ?string $failureReason,
+        ?float $startedAtMicrotime,
+    ): AiProviderInvocation {
+        $totalTokens = $usage->inputTokens !== null && $usage->outputTokens !== null
+            ? $usage->inputTokens + $usage->outputTokens
+            : null;
+
+        return AiProviderInvocation::create([
+            'organization_id' => $organizationId,
+            'user_id' => $userId,
+            'capability' => $capability,
+            'process' => $process,
+            'operation' => AiProviderInvocation::OPERATION_GENERATION,
+            'embedding_operation' => null,
+            'provider' => $resolved->provider,
+            'model' => $resolved->model,
+            'credential_source' => ProviderResolver::credentialSourceFor($resolved->instance),
+            'input_tokens' => $usage->inputTokens,
+            'output_tokens' => $usage->outputTokens,
+            'total_tokens' => $totalTokens,
+            ...$this->costColumns($cost),
+            'status' => $status,
+            'failure_reason' => $failureReason,
+            'correlation_id' => $correlationId,
+            'sdk_invocation_id' => $sdkInvocationId,
+            // laravel/ai v0.7.2 n'expose aucun identifiant PROVIDER : NULL,
+            // jamais l'uuid SDK a la place.
+            'provider_invocation_id' => null,
+            ...$this->timestampColumns($startedAtMicrotime),
+        ]);
+    }
+
+    /**
+     * Une tentative d'EMBEDDING reellement envoyee au provider (ingestion ou
+     * query), reussie ou non. Appelee par `RecordSdkEmbeddingsInvocation`, le
+     * seul observateur des invocations Embeddings du SDK.
+     *
+     * `$credentialSource` est resolue par l'appelant sur le nom d'instance
+     * BRUT de l'evenement (avant normalisation en famille), via
+     * `ProviderResolver::credentialSourceFor()`.
+     *
+     * Tokens : le SDK ne fournit qu'un TOTAL pour les embeddings —
+     * input/output restent NULL, on n'invente pas une repartition.
+     */
+    public function recordEmbedding(
+        string $organizationId,
+        ?string $userId,
+        ?string $capability,
+        ?string $process,
+        ?string $embeddingOperation,
+        ?string $provider,
+        ?string $model,
+        string $credentialSource,
+        ?int $totalTokens,
+        ?int $embeddingCount,
+        ?int $embeddingDimensions,
+        ?AiCost $cost,
+        string $status,
+        ?string $correlationId,
+        ?string $sdkInvocationId,
+        ?float $startedAtMicrotime,
+    ): AiProviderInvocation {
+        return AiProviderInvocation::create([
+            'organization_id' => $organizationId,
+            'user_id' => $userId,
+            'capability' => $capability,
+            'process' => $process,
+            'operation' => AiProviderInvocation::OPERATION_EMBEDDING,
+            'embedding_operation' => $embeddingOperation,
+            'provider' => $provider,
+            'model' => $model,
+            'credential_source' => $credentialSource,
+            'input_tokens' => null,
+            'output_tokens' => null,
+            'total_tokens' => $totalTokens,
+            'embedding_count' => $embeddingCount,
+            'embedding_dimensions' => $embeddingDimensions,
+            ...$this->costColumns($cost),
+            'status' => $status,
+            'failure_reason' => $status === AiProviderInvocation::STATUS_FAILED
+                ? 'embedding_provider_error'
+                : null,
+            'correlation_id' => $correlationId,
+            'sdk_invocation_id' => $sdkInvocationId,
+            'provider_invocation_id' => null,
+            ...$this->timestampColumns($startedAtMicrotime),
+        ]);
+    }
+
+    /**
+     * Projection d'un `AiCost` (ou de son absence) vers les colonnes du
+     * ledger. Un cout connu sans provenance declaree garde `cost_status`
+     * known mais `cost_source` unknown : on connait le montant, pas d'ou il
+     * vient — les deux affirmations restent independantes.
+     *
+     * @return array{provider_cost: ?float, currency: ?string, cost_status: string, cost_source: string}
+     */
+    private function costColumns(?AiCost $cost): array
+    {
+        if ($cost === null || $cost->costUnknown) {
+            return [
+                'provider_cost' => null,
+                'currency' => null,
+                'cost_status' => AiProviderInvocation::COST_UNKNOWN,
+                'cost_source' => AiProviderInvocation::COST_UNKNOWN,
+            ];
+        }
+
+        return [
+            'provider_cost' => $cost->costUsd,
+            'currency' => 'USD',
+            'cost_status' => AiProviderInvocation::COST_KNOWN,
+            'cost_source' => $cost->source ?? AiProviderInvocation::COST_UNKNOWN,
+        ];
+    }
+
+    /**
+     * @return array{started_at: ?CarbonImmutable, completed_at: CarbonImmutable}
+     */
+    private function timestampColumns(?float $startedAtMicrotime): array
+    {
+        return [
+            'started_at' => $startedAtMicrotime === null
+                ? null
+                : CarbonImmutable::createFromTimestamp($startedAtMicrotime, date_default_timezone_get()),
+            'completed_at' => CarbonImmutable::now(),
+        ];
+    }
+}
