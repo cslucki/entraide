@@ -5,9 +5,12 @@ namespace App\Services\Dossiers;
 use App\Listeners\RecordSdkEmbeddingsInvocation;
 use App\Models\AiProviderInvocation;
 use App\Models\Dossier;
+use App\Models\Organization;
 use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiEconomicGuard;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -16,7 +19,38 @@ class DossierSemanticSearchService
     public function __construct(
         private DossierSemanticSearchGate $gate,
         private DossierChunkEmbeddingService $embeddings,
+        private readonly AiEconomicGuard $economicGuard,
     ) {}
+
+    /**
+     * TASK-1222 : garde economique AVANT l'embedding de requete. Sans elle, le
+     * plafond mensuel compterait les query embeddings sans jamais pouvoir les
+     * arreter — la recherche serait le seul chemin restant ouvert une fois le
+     * budget atteint. Un refus rend une liste vide (aucune source ne peut etre
+     * consultee) et se journalise ; aucun appel provider, aucune ligne de
+     * ledger.
+     */
+    private function queryEmbeddingAllowed(string $organizationId): bool
+    {
+        $organization = Organization::query()->find($organizationId);
+
+        if ($organization === null) {
+            return false;
+        }
+
+        $verdict = $this->economicGuard->authorizeEmbeddings($organization);
+
+        if (! $verdict->allowed) {
+            Log::warning('Semantic query embedding refused by the economic guard.', [
+                'organization_id' => $organizationId,
+                'reason' => $verdict->reason,
+            ]);
+
+            return false;
+        }
+
+        return true;
+    }
 
     /**
      * TASK-1216 : une ligne peut desormais provenir d'un Article
@@ -49,6 +83,10 @@ class DossierSemanticSearchService
 
         if (DB::connection()->getDriverName() !== 'pgsql') {
             throw new RuntimeException('Dossier semantic search requires PostgreSQL pgvector.');
+        }
+
+        if (! $this->queryEmbeddingAllowed($organizationId)) {
+            return [];
         }
 
         AiCorrelation::id();
@@ -180,6 +218,10 @@ class DossierSemanticSearchService
 
         if (DB::connection()->getDriverName() !== 'pgsql') {
             throw new RuntimeException('Dossier semantic search requires PostgreSQL pgvector.');
+        }
+
+        if (! $this->queryEmbeddingAllowed($organizationId)) {
+            return [];
         }
 
         AiCorrelation::id();

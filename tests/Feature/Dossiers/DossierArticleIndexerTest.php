@@ -15,6 +15,7 @@ use App\Services\Dossiers\ArticleTextExtractor;
 use App\Services\Dossiers\DossierArticleIndexer;
 use App\Services\Dossiers\DossierChunkEmbeddingService;
 use App\Services\Dossiers\DossierSemanticSearchGate;
+use App\Support\Ai\AiEconomicGuard;
 use App\Support\Tenancy\CurrentOrganization;
 use Laravel\Ai\Embeddings;
 use Laravel\Ai\Prompts\EmbeddingsPrompt;
@@ -66,6 +67,7 @@ class DossierArticleIndexerTest extends TestCase
             app(ArticleChunker::class),
             app(DossierChunkEmbeddingService::class),
             app(ProviderResolver::class),
+            app(AiEconomicGuard::class),
         );
 
         $this->assertFalse(app()->bound('current_organization'));

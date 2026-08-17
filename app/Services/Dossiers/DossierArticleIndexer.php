@@ -10,8 +10,10 @@ use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Models\DossierChunk;
 use App\Models\Organization;
+use App\Support\Ai\AiEconomicGuard;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class DossierArticleIndexer
@@ -22,6 +24,7 @@ class DossierArticleIndexer
         private readonly ArticleChunker $chunker,
         private readonly DossierChunkEmbeddingService $embeddings,
         private readonly ProviderResolver $providers,
+        private readonly AiEconomicGuard $economicGuard,
     ) {}
 
     public function synchronize(string $organizationId, string $dossierId, string $blogPostId): int
@@ -54,6 +57,28 @@ class DossierArticleIndexer
             // rend pas obsolete (TASK-1214).
             if ($this->alreadyIndexed($organizationId, $dossierId, $blogPostId, $chunks, $provider, $model)) {
                 return count($chunks);
+            }
+
+            // TASK-1222 : garde economique AVANT tout appel provider. Elle
+            // n'est atteinte QUE lorsque le contenu a change (alreadyIndexed
+            // court-circuite avant) : l'index encore VALIDE est structurellement
+            // hors de sa portee. Sur un refus, la doctrine staleness TASK-1214
+            // s'applique a l'identique du credential absent — l'ancienne
+            // representation d'un contenu modifie ne doit JAMAIS continuer a
+            // etre servie comme si elle etait a jour, un paragraphe supprime
+            // par son auteur ne survit pas dans la recherche pour raison de
+            // budget. Aucun appel provider, aucune ligne de ledger.
+            $verdict = $this->economicGuard->authorizeEmbeddings($organization);
+
+            if (! $verdict->allowed) {
+                Log::warning('Dossier ingestion refused by the economic guard.', [
+                    'organization_id' => $organizationId,
+                    'dossier_id' => $dossierId,
+                    'blog_post_id' => $blogPostId,
+                    'reason' => $verdict->reason,
+                ]);
+
+                return $this->deleteChunks($organizationId, $dossierId, $blogPostId);
             }
 
             // TASK-1214 : l'ingestion passe par le credential de l'Organization
