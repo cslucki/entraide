@@ -165,9 +165,13 @@ class ChatLoopAiService
 
             // Constitution d'abord, instruction capability ensuite. AdminAiPrompt
             // reste la source de l'instruction, il ne remplace pas la Constitution.
+            // TASK-1221 : au point CANONIQUE, le prompt administrable est EXIGE —
+            // plus aucun repli silencieux vers un prompt hardcode (meme regle que
+            // clarify et knowledge). Le provisioning deploy-safe garantit qu'un
+            // prompt actif existe des le deploiement.
             $instructions = $this->prompts->compose(
                 $capability,
-                $this->resolvePrompt($scenarioId, $locale),
+                $this->resolveSummaryPromptOrFail($scenarioId, $locale),
             );
 
             // TASK-1209 : plus de construction ad hoc. La capability declare ses
@@ -645,6 +649,42 @@ class ChatLoopAiService
         return str_starts_with((string) $locale, 'en') ? 'en' : 'fr';
     }
 
+    /**
+     * Resolution STRICTE du prompt de la capability `loop_summary` (TASK-1221).
+     *
+     * Meme cascade DB que `resolvePrompt` (`{scenario}_{locale}` ->
+     * `{scenario}_fr` -> `{scenario}`), meme instruction de langue — mais
+     * AUCUN repli hardcode : sans prompt AdminAiPrompt actif, l'indisponibilite
+     * est explicite. Un admin qui desactive tous les prompts summarize doit le
+     * VOIR, pas etre rattrape en silence par un texte fige dans le code.
+     *
+     * Les chemins legacy (vieux scenarios ask/answer ChatLoop) conservent
+     * `resolvePrompt` et son fallback : cette exigence ne vaut que pour la
+     * capability canonique.
+     */
+    private function resolveSummaryPromptOrFail(string $scenarioId, string $locale): string
+    {
+        $prompt = $this->findActivePrompt($scenarioId.'_'.$locale)
+            ?? $this->findActivePrompt($scenarioId.'_fr')
+            ?? $this->findActivePrompt($scenarioId);
+
+        if ($prompt === null || trim($prompt) === '') {
+            throw new \RuntimeException(__('loops.ai_summary_prompt_missing'));
+        }
+
+        return $prompt.$this->languageInstruction($locale);
+    }
+
+    /**
+     * Instruction de langue commune aux deux resolutions de prompt ChatLoop.
+     */
+    private function languageInstruction(string $locale): string
+    {
+        return $locale === 'en'
+            ? "\n\nIMPORTANT: You MUST answer in English, whatever the language used in the conversation. Never reply in another language. Always finish your answer with a complete final sentence; never leave the answer unfinished or truncated."
+            : "\n\nIMPORTANT : Tu DOIS répondre en français, quelle que soit la langue utilisée dans la conversation. Ne réponds jamais dans une autre langue. Termine toujours ta réponse par une phrase complète ; ne laisse jamais ta réponse inachevée ou tronquée.";
+    }
+
     private function resolvePrompt(string $scenarioId, string $locale): string
     {
         $isAskScenario = $scenarioId === config('ai.chatloop.ask_scenario');
@@ -661,11 +701,7 @@ class ChatLoopAiService
             ?? $this->findActivePrompt($scenarioId)
             ?? $fallback;
 
-        $languageInstruction = $locale === 'en'
-            ? "\n\nIMPORTANT: You MUST answer in English, whatever the language used in the conversation. Never reply in another language. Always finish your answer with a complete final sentence; never leave the answer unfinished or truncated."
-            : "\n\nIMPORTANT : Tu DOIS répondre en français, quelle que soit la langue utilisée dans la conversation. Ne réponds jamais dans une autre langue. Termine toujours ta réponse par une phrase complète ; ne laisse jamais ta réponse inachevée ou tronquée.";
-
-        return $prompt.$languageInstruction;
+        return $prompt.$this->languageInstruction($locale);
     }
 
     private function askFallbackPrompt(string $locale): string

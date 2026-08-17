@@ -226,6 +226,7 @@ return [
     'knowledge_no_sources' => 'Je n\'ai pas trouvé cette information dans les sources auxquelles j\'ai accès.',
     'knowledge_question_required' => 'Posez une question pour lancer la recherche.',
     'knowledge_prompt_missing' => 'La réponse documentaire n\'est pas configurée (prompt administrable absent).',
+    'ai_summary_prompt_missing' => 'La synthèse IA n\'est pas configurée (prompt administrable absent).',
     'knowledge_error' => 'La réponse documentaire est indisponible pour le moment. Réessayez plus tard.',
     'knowledge_disclaimer' => 'Réponse générée par l\'IA à partir des seuls extraits cités : vérifiez les sources avant toute décision.',
     'knowledge_open_source' => 'Ouvrir',

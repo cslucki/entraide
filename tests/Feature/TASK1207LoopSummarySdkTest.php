@@ -205,11 +205,14 @@ class TASK1207LoopSummarySdkTest extends TestCase
 
     public function test_the_local_admin_prompt_instruction_is_preserved(): void
     {
+        // TASK-1221 : la v1 est desormais provisionnee par migration — la
+        // version admin du test prend une version superieure, et prouve du
+        // meme coup qu'elle PRIME sur la version provisionnee.
         AdminAiPrompt::create([
             'scenario_id' => 'chatloop_ai_summarize_fr',
             'name' => 'Résumé FR',
             'prompt_text' => 'INSTRUCTION ADMIN LOCALE FR.',
-            'version' => 1,
+            'version' => 5,
             'is_active' => true,
         ]);
         $this->fakeSummary();
