@@ -231,13 +231,13 @@
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ __('ai.behavior_coverage_help') }}</p>
             <ul class="divide-y divide-gray-100 dark:divide-gray-700 text-sm">
                 @foreach($coveredCapabilities as $capability)
-                    <li class="flex items-center justify-between gap-3 py-2" data-behavior-coverage-item="{{ $capability->id }}" data-behavior-coverage-kind="covered">
+                    <li class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 py-2" data-behavior-coverage-item="{{ $capability->id }}" data-behavior-coverage-kind="covered">
                         <span class="text-gray-900 dark:text-gray-100">{{ $capabilityLabel($capability->id) }}</span>
                         <span class="shrink-0 text-xs text-emerald-600 dark:text-emerald-400">✓ {{ __('ai.behavior_coverage_covered') }}</span>
                     </li>
                 @endforeach
                 @foreach($inheritedFunctions as $functionId)
-                    <li class="flex items-center justify-between gap-3 py-2" data-behavior-coverage-item="{{ $functionId }}" data-behavior-coverage-kind="inherited">
+                    <li class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 py-2" data-behavior-coverage-item="{{ $functionId }}" data-behavior-coverage-kind="inherited">
                         <span class="text-gray-700 dark:text-gray-300">{{ __('ai.inherited_label.'.$functionId) }}</span>
                         <span class="shrink-0 text-xs text-gray-500 dark:text-gray-400">— {{ __('ai.behavior_coverage_inherited') }}</span>
                     </li>
