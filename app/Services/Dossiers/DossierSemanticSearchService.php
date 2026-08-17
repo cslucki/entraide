@@ -61,8 +61,9 @@ class DossierSemanticSearchService
      *
      * @return array<int, array{source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, chunk_index: int, content: string, distance: float}>
      */
-    public function search(string $organizationId, string $dossierId, string $query, int $limit = 5): array
-    {
+    public function search(string $organizationId, string $dossierId, string $query, int $limit = 5,
+        ?string $embeddingInstance = null,
+    ): array {
         $query = trim($query);
 
         if ($query === '') {
@@ -102,7 +103,7 @@ class DossierSemanticSearchService
         ]);
 
         try {
-            $embeddingResult = $this->embeddings->embed([$query]);
+            $embeddingResult = $this->embeddings->embed([$query], $embeddingInstance);
         } finally {
             Context::forget(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY);
         }
