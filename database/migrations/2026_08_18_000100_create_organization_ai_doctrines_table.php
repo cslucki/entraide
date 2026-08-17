@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -33,6 +34,16 @@ return new class extends Migration
             $table->unique(['organization_id', 'version']);
             $table->index(['organization_id', 'status']);
         });
+
+        // Garantie au niveau base : au plus UNE version active par
+        // Organization (index unique partiel, PostgreSQL et SQLite). La
+        // primitive d'ecriture serialise deja les ecrivains ; ceci empeche
+        // qu'un chemin futur ou une course reintroduise deux actives.
+        if (in_array(DB::getDriverName(), ['pgsql', 'sqlite'], true)) {
+            DB::statement(
+                "CREATE UNIQUE INDEX organization_ai_doctrines_one_active_per_organization ON organization_ai_doctrines (organization_id) WHERE status = 'active'"
+            );
+        }
     }
 
     public function down(): void

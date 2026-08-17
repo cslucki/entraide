@@ -13,7 +13,9 @@ use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
 use App\Ai\ResolvedModel;
 use App\Models\AdminAiPrompt;
+use App\Models\AiConfig;
 use App\Models\AiInteraction;
+use App\Models\AiProviderInvocation;
 use App\Models\Organization;
 use App\Models\OrganizationAiDoctrine;
 use App\Models\User;
@@ -100,7 +102,7 @@ final class OrganizationDoctrineSandbox
         $doctrineLabel = $draft === '' ? null : 'draft';
 
         if (! in_array($capability, self::SUPPORTED, true)) {
-            return $this->refused($capability, $scope, $doctrineLabel, self::REASON_UNSUPPORTED_CAPABILITY);
+            return $this->refused($organization, $capability, $scope, $doctrineLabel, self::REASON_UNSUPPORTED_CAPABILITY);
         }
 
         $definition = $this->capabilities->get($capability);
@@ -108,8 +110,12 @@ final class OrganizationDoctrineSandbox
 
         // Memes coupe-circuits que le chemin canonique : une fonction
         // desactivee sur la plateforme ne s'appelle pas depuis le bac a sable.
-        if ($capability === CapabilityRegistry::CLARIFY_HELP_REQUEST && ! config('ai.clarify.enabled', false)) {
-            return $this->refused($capability, $scope, $doctrineLabel, self::REASON_FEATURE_DISABLED);
+        if ($capability === CapabilityRegistry::CLARIFY_HELP_REQUEST
+            && (! config('ai.clarify.enabled', false) || ! AiConfig::get('clarification_enabled', false))) {
+            // Les deux verrous que rencontre un membre (config plateforme ET
+            // drapeau administrable) : le bac a sable ne teste jamais une
+            // fonction que les membres n'ont pas.
+            return $this->refused($organization, $capability, $scope, $doctrineLabel, self::REASON_FEATURE_DISABLED);
         }
 
         $contexte = new ContexteIa(
@@ -127,7 +133,7 @@ final class OrganizationDoctrineSandbox
         try {
             $resolved = $this->providers->resolve($capability, $contexte);
         } catch (DomainException) {
-            return $this->refused($capability, $scope, $doctrineLabel, self::REASON_NOT_CONFIGURED);
+            return $this->refused($organization, $capability, $scope, $doctrineLabel, self::REASON_NOT_CONFIGURED);
         }
 
         [$budget, $unknownLimit] = $this->economicLimits($capability);
@@ -141,13 +147,13 @@ final class OrganizationDoctrineSandbox
                 AiEconomicGuard::REASON_ORGANIZATION_BUDGET_REACHED,
             ], true) ? self::REASON_BUDGET_REACHED : self::REASON_UNAVAILABLE;
 
-            return $this->refused($capability, $scope, $doctrineLabel, $reason);
+            return $this->refused($organization, $capability, $scope, $doctrineLabel, $reason);
         }
 
         $baseInstructions = $this->activeInstructions($definition);
 
         if ($baseInstructions === null) {
-            return $this->refused($capability, $scope, $doctrineLabel, self::REASON_PROMPT_MISSING);
+            return $this->refused($organization, $capability, $scope, $doctrineLabel, self::REASON_PROMPT_MISSING);
         }
 
         // La doctrine CANDIDATE, sous la Constitution, jamais lue en base.
@@ -159,8 +165,15 @@ final class OrganizationDoctrineSandbox
         $sourcesCount = count($borne->provenance);
 
         if ($capability === CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER && $borne->provenance === []) {
+            // Aucune generation — mais la recherche documentaire a pu emettre
+            // une requete d'embedding REELLE (ledger `embedding/query`) : on
+            // le dit tel quel, on n'annonce jamais « rien de comptabilise »
+            // sur la foi de l'absence de generation (revue PASS B).
+            $entries = $this->ledgerEntries($contexte);
+
             return new DoctrineSandboxResult(
                 status: DoctrineSandboxResult::STATUS_NO_SOURCES,
+                organizationId: (string) $organization->id,
                 capability: $capability,
                 scope: $scope,
                 constitutionVersion: Constitution::VERSION,
@@ -170,7 +183,8 @@ final class OrganizationDoctrineSandbox
                 sourcesCount: 0,
                 answer: null,
                 refusalReason: null,
-                ledgered: false,
+                ledgered: $entries > 0,
+                ledgerEntries: $entries,
                 interactionId: null,
             );
         }
@@ -191,6 +205,7 @@ final class OrganizationDoctrineSandbox
 
             return new DoctrineSandboxResult(
                 status: DoctrineSandboxResult::STATUS_FAILED,
+                organizationId: (string) $organization->id,
                 capability: $capability,
                 scope: $scope,
                 constitutionVersion: Constitution::VERSION,
@@ -201,6 +216,7 @@ final class OrganizationDoctrineSandbox
                 answer: null,
                 refusalReason: null,
                 ledgered: true,
+                ledgerEntries: $this->ledgerEntries($contexte),
                 interactionId: null,
             );
         }
@@ -212,6 +228,7 @@ final class OrganizationDoctrineSandbox
 
         return new DoctrineSandboxResult(
             status: DoctrineSandboxResult::STATUS_ANSWERED,
+            organizationId: (string) $organization->id,
             capability: $capability,
             scope: $scope,
             constitutionVersion: Constitution::VERSION,
@@ -222,8 +239,22 @@ final class OrganizationDoctrineSandbox
             answer: $answer,
             refusalReason: null,
             ledgered: true,
+            ledgerEntries: $this->ledgerEntries($contexte),
             interactionId: $interaction->id,
         );
+    }
+
+    /**
+     * Lignes du ledger canonique portees par la correlation de CE test :
+     * generation et requete d'embedding confondues. C'est ce que l'ecran
+     * annonce comme comptabilise — jamais une deduction.
+     */
+    private function ledgerEntries(ContexteIa $contexte): int
+    {
+        return AiProviderInvocation::query()
+            ->where('organization_id', $contexte->organizationId)
+            ->where('correlation_id', $contexte->correlationId)
+            ->count();
     }
 
     /**
@@ -321,10 +352,11 @@ final class OrganizationDoctrineSandbox
             ];
     }
 
-    private function refused(string $capability, string $scope, ?string $doctrineLabel, string $reason): DoctrineSandboxResult
+    private function refused(Organization $organization, string $capability, string $scope, ?string $doctrineLabel, string $reason): DoctrineSandboxResult
     {
         return new DoctrineSandboxResult(
             status: DoctrineSandboxResult::STATUS_REFUSED,
+            organizationId: (string) $organization->id,
             capability: $capability,
             scope: $scope,
             constitutionVersion: Constitution::VERSION,
@@ -335,6 +367,7 @@ final class OrganizationDoctrineSandbox
             answer: null,
             refusalReason: $reason,
             ledgered: false,
+            ledgerEntries: 0,
             interactionId: null,
         );
     }

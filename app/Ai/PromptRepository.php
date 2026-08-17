@@ -97,7 +97,14 @@ final class PromptRepository
         }
 
         $body = mb_substr($body, 0, OrganizationAiDoctrine::maxChars());
-        $body = str_replace([self::DOCTRINE_OPEN, self::DOCTRINE_CLOSE], '', $body);
+
+        // Jusqu'au point fixe : un delimiteur reconstitue par imbrication
+        // (« <<</doctrine_org<<</doctrine_organization>>>anization>>> ») ne
+        // survit pas a une passe unique — revue PASS A.
+        do {
+            $previous = $body;
+            $body = str_replace([self::DOCTRINE_OPEN, self::DOCTRINE_CLOSE], '', $body);
+        } while ($body !== $previous);
 
         $label = $version === null ? 'brouillon (non publié)' : "v{$version}";
 

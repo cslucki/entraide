@@ -88,7 +88,7 @@
                           placeholder="{{ __('ai.behavior_doctrine_placeholder') }}"
                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('body') border-red-500 @enderror"></textarea>
                 <div class="flex flex-wrap items-center justify-between gap-2 mt-1">
-                    <p class="text-xs text-gray-400" data-behavior-doctrine-counter x-text="'{{ __('ai.behavior_doctrine_chars', ['count' => '__C__', 'max' => '__M__']) }}'.replace('__C__', body.length).replace('__M__', max)"></p>
+                    <p class="text-xs text-gray-400" data-behavior-doctrine-counter x-text="@js(__('ai.behavior_doctrine_chars', ['count' => '__C__', 'max' => '__M__'])).replace('__C__', body.length).replace('__M__', max)"></p>
                     @error('body')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
                 </div>
                 <div class="flex flex-wrap items-center gap-3 mt-4">
@@ -134,7 +134,7 @@
             </div>
 
             <details class="mt-5 text-sm" data-behavior-history>
-                <summary class="cursor-pointer text-gray-700 dark:text-gray-300 font-medium">{{ __('ai.behavior_history_title') }} ({{ $doctrineHistory->count() }})</summary>
+                <summary class="cursor-pointer text-gray-700 dark:text-gray-300 font-medium">{{ __('ai.behavior_history_title') }} ({{ $doctrineHistoryTotal }})</summary>
                 @if($doctrineHistory->isEmpty())
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">{{ __('ai.behavior_history_empty') }}</p>
                 @else
@@ -208,7 +208,8 @@
                         <li>{{ __('ai.behavior_sandbox_capability_line', ['capability' => isset($sr['capability']) ? $capabilityLabel((string) $sr['capability']) : '—']) }}</li>
                         <li>{{ __('ai.behavior_sandbox_scope', ['scope' => __('ai.behavior_sandbox_scope_organization')]) }}</li>
                         <li data-behavior-sandbox-sources="{{ (int) ($sr['sources_count'] ?? 0) }}">{{ trans_choice('ai.behavior_sandbox_sources', (int) ($sr['sources_count'] ?? 0), ['count' => (int) ($sr['sources_count'] ?? 0)]) }}</li>
-                        <li class="{{ ($sr['ledgered'] ?? false) ? 'text-amber-700 dark:text-amber-300' : '' }}" data-behavior-sandbox-ledgered="{{ ($sr['ledgered'] ?? false) ? '1' : '0' }}">{{ ($sr['ledgered'] ?? false) ? __('ai.behavior_sandbox_ledgered') : __('ai.behavior_sandbox_not_ledgered') }}</li>
+                        @php $ledgerEntries = (int) ($sr['ledger_entries'] ?? 0); @endphp
+                        <li class="{{ $ledgerEntries > 0 ? 'text-amber-700 dark:text-amber-300' : '' }}" data-behavior-sandbox-ledgered="{{ $ledgerEntries > 0 ? '1' : '0' }}" data-behavior-sandbox-ledger-entries="{{ $ledgerEntries }}">{{ $ledgerEntries > 0 ? trans_choice('ai.behavior_sandbox_ledgered', $ledgerEntries, ['count' => $ledgerEntries]) : __('ai.behavior_sandbox_not_ledgered') }}</li>
                     </ul>
 
                     @if($srStatus === 'answered')
@@ -217,7 +218,16 @@
                     @elseif($srStatus === 'refused')
                         <p class="text-sm text-amber-700 dark:text-amber-300" data-behavior-sandbox-refusal="{{ $sr['refusal_reason'] ?? '' }}">{{ __('ai.behavior_sandbox_refused.'.($sr['refusal_reason'] ?? 'temporarily_unavailable')) }}</p>
                     @elseif($srStatus === 'no_sources')
+                        @php $denied = is_array($sr['sources_denied'] ?? null) ? $sr['sources_denied'] : []; @endphp
                         <p class="text-sm text-gray-700 dark:text-gray-300" data-behavior-sandbox-no-sources>{{ __('ai.behavior_sandbox_no_sources') }}</p>
+                        @if($denied !== [])
+                            {{-- La raison technique du refus de source, traduite quand elle est connue. --}}
+                            <ul class="mt-1 text-xs text-gray-500 dark:text-gray-400 list-disc list-inside" data-behavior-sandbox-denied>
+                                @foreach($denied as $sourceName => $reason)
+                                    <li>{{ \Illuminate\Support\Facades\Lang::has('ai.behavior_sandbox_source_denied.'.$reason) ? __('ai.behavior_sandbox_source_denied.'.$reason) : __('ai.behavior_sandbox_source_denied.other') }}</li>
+                                @endforeach
+                            </ul>
+                        @endif
                     @elseif($srStatus === 'failed')
                         <p class="text-sm text-red-700 dark:text-red-300" data-behavior-sandbox-failed>{{ __('ai.behavior_sandbox_failed') }}</p>
                     @endif

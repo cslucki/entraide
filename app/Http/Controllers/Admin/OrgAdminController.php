@@ -1283,14 +1283,32 @@ class OrgAdminController extends Controller
             'constitutionText' => app(Constitution::class)->text(),
             'doctrine' => $active,
             'doctrineHistory' => $history,
+            'doctrineHistoryTotal' => OrganizationAiDoctrine::query()->where('organization_id', $organization->id)->count(),
             'doctrineMaxChars' => OrganizationAiDoctrine::maxChars(),
             'coveredCapabilities' => $coverage->covered(),
             'inheritedFunctions' => $coverage->inherited(),
             'coveredCount' => $coverage->coveredCount(),
             'totalCount' => $coverage->totalCount(),
             'sandboxCapabilities' => OrganizationDoctrineSandbox::SUPPORTED,
-            'sandboxResult' => session('doctrine_sandbox'),
+            // Le resultat flashe n'est rendu que pour l'Organization qui l'a
+            // produit (un admin de plusieurs Organizations ne le voit jamais
+            // ailleurs — revue PASS A).
+            'sandboxResult' => $this->sandboxResultFor($organization),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function sandboxResultFor(Organization $organization): ?array
+    {
+        $result = session('doctrine_sandbox');
+
+        if (! is_array($result) || ($result['organization_id'] ?? null) !== (string) $organization->id) {
+            return null;
+        }
+
+        return $result;
     }
 
     /**

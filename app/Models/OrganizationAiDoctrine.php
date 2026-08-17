@@ -120,10 +120,15 @@ class OrganizationAiDoctrine extends Model
         }
 
         return DB::transaction(function () use ($organization, $body, $author): self {
+            // Les ecrivains d'UNE Organization sont serialises sur sa ligne
+            // tenant (revue PASS A) : deux enregistrements simultanes ne
+            // peuvent ni produire deux versions actives, ni se disputer
+            // `max(version) + 1`. Sans effet sur les autres Organizations.
+            self::lockTenantRow($organization);
+
             $current = self::query()
                 ->where('organization_id', $organization->id)
                 ->active()
-                ->lockForUpdate()
                 ->orderByDesc('version')
                 ->first();
 
@@ -133,12 +138,17 @@ class OrganizationAiDoctrine extends Model
 
             $now = now();
 
-            if ($current !== null) {
-                $current->forceFill([
+            // Toute version encore active (il ne doit y en avoir qu'une) passe
+            // `superseded` : l'invariant est retabli meme depuis un etat
+            // historique degrade.
+            self::query()
+                ->where('organization_id', $organization->id)
+                ->active()
+                ->update([
                     'status' => self::STATUS_SUPERSEDED,
                     'superseded_at' => $now,
-                ])->save();
-            }
+                    'updated_at' => $now,
+                ]);
 
             $nextVersion = ((int) self::query()
                 ->where('organization_id', $organization->id)
@@ -162,23 +172,29 @@ class OrganizationAiDoctrine extends Model
     public static function withdraw(Organization $organization): bool
     {
         return DB::transaction(function () use ($organization): bool {
-            $current = self::query()
+            self::lockTenantRow($organization);
+
+            $now = now();
+
+            return self::query()
                 ->where('organization_id', $organization->id)
                 ->active()
-                ->lockForUpdate()
-                ->first();
-
-            if ($current === null) {
-                return false;
-            }
-
-            $current->forceFill([
-                'status' => self::STATUS_SUPERSEDED,
-                'superseded_at' => now(),
-            ])->save();
-
-            return true;
+                ->update([
+                    'status' => self::STATUS_SUPERSEDED,
+                    'superseded_at' => $now,
+                    'updated_at' => $now,
+                ]) > 0;
         });
+    }
+
+    /**
+     * Verrou d'ecriture sur la ligne `organizations` du tenant, pour la duree
+     * de la transaction courante (PostgreSQL ; sans effet sur SQLite, dont
+     * les ecritures sont deja serialisees).
+     */
+    private static function lockTenantRow(Organization $organization): void
+    {
+        Organization::query()->whereKey($organization->id)->lockForUpdate()->first();
     }
 
     /**

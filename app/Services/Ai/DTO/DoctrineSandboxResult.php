@@ -26,6 +26,7 @@ final class DoctrineSandboxResult
      */
     public function __construct(
         public readonly string $status,
+        public readonly string $organizationId,
         public readonly string $capability,
         public readonly string $scope,
         public readonly string $constitutionVersion,
@@ -36,6 +37,12 @@ final class DoctrineSandboxResult
         public readonly ?string $answer,
         public readonly ?string $refusalReason,
         public readonly bool $ledgered,
+        /**
+         * Nombre de lignes du ledger canonique ecrites pour CE test (generation
+         * ET requete d'embedding de la recherche documentaire) : la verite
+         * economique, meme quand aucune generation n'a ete emise.
+         */
+        public readonly int $ledgerEntries,
         public readonly ?string $interactionId,
     ) {}
 
@@ -46,6 +53,7 @@ final class DoctrineSandboxResult
     {
         return [
             'status' => $this->status,
+            'organization_id' => $this->organizationId,
             'capability' => $this->capability,
             'scope' => $this->scope,
             'constitution_version' => $this->constitutionVersion,
@@ -56,6 +64,7 @@ final class DoctrineSandboxResult
             'answer' => $this->answer,
             'refusal_reason' => $this->refusalReason,
             'ledgered' => $this->ledgered,
+            'ledger_entries' => $this->ledgerEntries,
             'interaction_id' => $this->interactionId,
         ];
     }
