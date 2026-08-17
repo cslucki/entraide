@@ -43,6 +43,7 @@ use App\Policies\ServicePolicy;
 use App\Policies\ServiceRequestPolicy;
 use App\Policies\TransactionPolicy;
 use App\Scenarios\BoundedMemberScenario;
+use App\Services\Ai\AiProviderInvocationLedger;
 use App\Services\Ai\AiScenarioFactory;
 use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\Ai\Contracts\AiProvider;
@@ -106,6 +107,7 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(ProviderResolver::class),
                 $app->make(ContextBuilder::class),
                 $app->make(AiEconomicGuard::class),
+                $app->make(AiProviderInvocationLedger::class),
             );
         });
 

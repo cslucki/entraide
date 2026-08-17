@@ -3,6 +3,7 @@
 namespace App\Services\Dossiers;
 
 use App\Listeners\RecordSdkEmbeddingsInvocation;
+use App\Models\AiProviderInvocation;
 use App\Models\Dossier;
 use App\Support\Ai\AiCorrelation;
 use Illuminate\Support\Facades\Context;
@@ -55,6 +56,8 @@ class DossierSemanticSearchService
         Context::add(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY, [
             'organization_id' => $organizationId,
             'scenario_id' => 'dossier_embeddings_search',
+            // TASK-1220 : declaration EXPLICITE pour le ledger canonique.
+            'embedding_operation' => AiProviderInvocation::EMBEDDING_OPERATION_QUERY,
             'metadata' => [
                 'dossier_id' => $dossierId,
             ],
@@ -184,6 +187,8 @@ class DossierSemanticSearchService
         Context::add(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY, [
             'organization_id' => $organizationId,
             'scenario_id' => 'dossier_embeddings_search',
+            // TASK-1220 : declaration EXPLICITE pour le ledger canonique.
+            'embedding_operation' => AiProviderInvocation::EMBEDDING_OPERATION_QUERY,
             'metadata' => array_merge(['dossier_count' => count($dossierIds)], $traceMetadata),
         ]);
 

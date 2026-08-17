@@ -6,6 +6,7 @@ use App\Ai\CapabilityRegistry;
 use App\Ai\Context\ContextBuilder;
 use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
+use App\Services\Ai\AiProviderInvocationLedger;
 use App\Services\Ai\AiScenarioFactory;
 use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\Ai\Contracts\AiScenarioDefinition;
@@ -44,6 +45,7 @@ class ClarifyUserHelpRequestServiceTest extends TestCase
             app(ProviderResolver::class),
             app(ContextBuilder::class),
             app(AiEconomicGuard::class),
+            app(AiProviderInvocationLedger::class),
         );
     }
 

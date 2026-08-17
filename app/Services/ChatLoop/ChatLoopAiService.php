@@ -19,7 +19,9 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\User;
+use App\Services\Ai\AiProviderInvocationLedger;
 use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiProcess;
@@ -33,6 +35,7 @@ class ChatLoopAiService
 {
     public function __construct(
         private readonly AiEconomicGuard $economicGuard,
+        private readonly AiProviderInvocationLedger $ledger,
         private readonly CapabilityRegistry $capabilities,
         private readonly PromptRepository $prompts,
         private readonly ProviderResolver $providers,
@@ -284,8 +287,10 @@ class ChatLoopAiService
                 text: null,
                 usage: AiUsage::notObserved(),
                 costAttributes: ['cost_usd' => null, 'cost_unknown' => null],
+                cost: null,
                 status: 'failed',
                 latencyMs: $this->elapsedMs($startedAt),
+                startedAt: $startedAt,
                 sdkInvocationId: null,
                 failure: $exception::class,
             );
@@ -314,8 +319,10 @@ class ChatLoopAiService
             text: trim($response->text),
             usage: $usage,
             costAttributes: $cost->traceAttributes(),
+            cost: $cost,
             status: 'success',
             latencyMs: $this->elapsedMs($startedAt),
+            startedAt: $startedAt,
             sdkInvocationId: $response->invocationId,
             failure: null,
         );
@@ -335,11 +342,35 @@ class ChatLoopAiService
         ?string $text,
         AiUsage $usage,
         array $costAttributes,
+        ?AiCost $cost,
         string $status,
         int $latencyMs,
+        ?float $startedAt,
         ?string $sdkInvocationId,
         ?string $failure,
     ): AiInteraction {
+        // TASK-1220 : ligne canonique du ledger `ai_provider_invocations`,
+        // memes points que la trace P1 (succes ET echec). Les refus
+        // pre-provider (configuration absente, budget atteint) leverent avant
+        // tout appel SDK : ils n'ecrivent RIEN ici — aucune consommation
+        // fictive. Seul le chemin SDK canonique passe par cette methode ; le
+        // chemin HTTP legacy (vieux scenarios ChatLoop, cle plateforme) reste
+        // hors ledger, documente dans le TASK file.
+        $this->ledger->recordGeneration(
+            organizationId: $contexte->organizationId,
+            userId: (string) $requester->id,
+            capability: $definition->id,
+            process: $definition->process,
+            resolved: $resolved,
+            usage: $usage,
+            cost: $cost,
+            status: $status,
+            correlationId: $contexte->correlationId,
+            sdkInvocationId: $sdkInvocationId,
+            failureReason: $failure,
+            startedAtMicrotime: $startedAt,
+        );
+
         return AiInteraction::create([
             'user_id' => $requester->id,
             // Le tenant vient de la Boucle, pas du contexte de requete : une
