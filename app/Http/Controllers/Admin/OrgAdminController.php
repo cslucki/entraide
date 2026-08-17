@@ -47,6 +47,7 @@ use App\Support\Loops\LoopTypeRegistry;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -1245,9 +1246,52 @@ class OrgAdminController extends Controller
         ]);
     }
 
+    /**
+     * Observatoire des connaissances (TASK-1217 console, TASK-1226 vivant),
+     * read-only : la page complete.
+     */
     public function aiKnowledge(Organization $organization, OrganizationRagOverview $overview): View
     {
+        return view('admin.org.ai-knowledge', $this->knowledgeObservatory($organization, $overview) + [
+            'liveUrl' => route('organization.admin.ai-knowledge.live', ['organization' => $organization->slug]),
+        ]);
+    }
+
+    /**
+     * TASK-1226 : le fragment rafraichi par l'Observatoire (polling leger).
+     *
+     * Meme middleware, meme read model, meme partiel Blade que la page — une
+     * seule source de rendu, donc jamais deux verites. Read-only strict :
+     * aucun embedding, aucun appel provider, aucune lecture de fichier ; lire
+     * l'Observatoire coute 0 appel IA. `no-store` : un poll ne se met jamais
+     * en cache, ni cote navigateur ni cote proxy.
+     */
+    public function aiKnowledgeLive(Organization $organization, OrganizationRagOverview $overview): Response
+    {
+        $html = view('admin.org.partials.ai-knowledge-live', $this->knowledgeObservatory($organization, $overview))->render();
+
+        return response($html)
+            ->header('Content-Type', 'text/html; charset=UTF-8')
+            ->header('Cache-Control', 'no-cache, no-store, private');
+    }
+
+    /**
+     * Les donnees de l'Observatoire, partagees entre la page et le fragment.
+     *
+     * Le lien « Ouvrir » suit la `DossierPolicy` et elle seule : etre admin
+     * ne donne pas acces au contenu d'un Dossier prive (TASK-1217). La policy
+     * n'est evaluee que pour les Dossiers qui portent au moins une source, et
+     * ses relations (`parent`, `loop`, `sharedWithLoop`) sont pre-attachees
+     * depuis les Dossiers deja charges : `governingDossier()` et
+     * `sharingAnchorIds()` remontent l'arbre en memoire, sans requete par
+     * niveau. Le nombre de requetes ne depend donc pas du nombre de sources.
+     *
+     * @return array<string, mixed>
+     */
+    private function knowledgeObservatory(Organization $organization, OrganizationRagOverview $overview): array
+    {
         $user = auth()->user();
+        $sources = $overview->sources($organization->id);
 
         $dossiers = Dossier::query()
             ->where('organization_id', $organization->id)
@@ -1255,23 +1299,46 @@ class OrgAdminController extends Controller
             ->get()
             ->keyBy('id');
 
-        $openableDossierIds = $dossiers
-            ->filter(fn (Dossier $dossier): bool => $user !== null && Gate::forUser($user)->allows('view', $dossier))
-            ->keys()
-            ->flip();
+        $loopIds = $dossiers
+            ->flatMap(fn (Dossier $dossier): array => [$dossier->loop_id, $dossier->shared_with_loop_id])
+            ->filter()
+            ->unique()
+            ->values();
 
-        $sources = array_map(function (array $source) use ($openableDossierIds): array {
-            $source['can_open'] = $openableDossierIds->has($source['dossier_id']);
+        $loops = $loopIds->isEmpty()
+            ? collect()
+            : Loop::query()->where('organization_id', $organization->id)->whereIn('id', $loopIds->all())->get()->keyBy('id');
+
+        foreach ($dossiers as $dossier) {
+            $dossier->setRelation('parent', $dossier->parent_id !== null ? $dossiers->get($dossier->parent_id) : null);
+            $dossier->setRelation('loop', $dossier->loop_id !== null ? $loops->get($dossier->loop_id) : null);
+            $dossier->setRelation('sharedWithLoop', $dossier->shared_with_loop_id !== null ? $loops->get($dossier->shared_with_loop_id) : null);
+        }
+
+        $referencedDossierIds = array_unique(array_column($sources, 'dossier_id'));
+        $gate = $user !== null ? Gate::forUser($user) : null;
+        $openable = [];
+
+        foreach ($referencedDossierIds as $dossierId) {
+            $dossier = $dossiers->get($dossierId);
+            $openable[$dossierId] = $gate !== null && $dossier !== null && $gate->allows('view', $dossier);
+        }
+
+        $sources = array_map(function (array $source) use ($openable): array {
+            $source['can_open'] = $openable[$source['dossier_id']] ?? false;
 
             return $source;
-        }, $overview->sources($organization->id));
+        }, $sources);
 
-        return view('admin.org.ai-knowledge', [
+        return [
             'organization' => $organization,
             'summary' => $overview->summary($organization->id),
             'sources' => $sources,
+            'perimeters' => $overview->perimeters($sources),
+            'availability' => $overview->indexingAvailability($organization),
             'diagnostics' => $overview->diagnostics($organization->id),
-        ]);
+            'generatedAt' => CarbonImmutable::now(),
+        ];
     }
 
     /**
