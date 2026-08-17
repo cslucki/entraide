@@ -40,7 +40,7 @@ return [
     | Date du releve des tarifs ci-dessous. Tracee dans les diagnostics pour
     | qu'un cout mesure soit toujours rattachable a une version de catalogue.
     */
-    'version' => '2026-08-12',
+    'version' => '2026-08-17',
 
     'currency' => 'USD',
 
@@ -58,6 +58,10 @@ return [
         'openai' => [
             // Tarif public OpenAI releve le 2026-08-12.
             'gpt-4o-mini' => ['input_per_1m' => 0.15, 'output_per_1m' => 0.60],
+            // TASK-1222 : tarif public OpenAI des embeddings, releve le
+            // 2026-08-17. Un embedding n'a pas de tokens de sortie : le taux
+            // output est un VRAI zero de structure, pas un tarif inconnu.
+            'text-embedding-3-small' => ['input_per_1m' => 0.02, 'output_per_1m' => 0.0],
         ],
 
         'openrouter' => [
@@ -66,6 +70,11 @@ return [
             // leur tarif varie par modele et n'a pas ete releve. Ils valent
             // donc `cost_unknown`, jamais 0.
             'openai/gpt-4o-mini' => ['input_per_1m' => 0.15, 'output_per_1m' => 0.60],
+            // TASK-1222 : meme regle de passthrough que gpt-4o-mini ci-dessus,
+            // pour la famille d'embedding reellement active sur le banc. La
+            // clef porte l'identifiant OpenRouter REEL du modele (prefixe
+            // `openai/`, cf. ai.providers.openrouter.models.embeddings).
+            'openai/text-embedding-3-small' => ['input_per_1m' => 0.02, 'output_per_1m' => 0.0],
         ],
 
         'ollama' => [

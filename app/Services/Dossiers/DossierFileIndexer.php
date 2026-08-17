@@ -9,8 +9,10 @@ use App\Models\Dossier;
 use App\Models\DossierChunk;
 use App\Models\DossierFile;
 use App\Models\Organization;
+use App\Support\Ai\AiEconomicGuard;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
@@ -29,6 +31,7 @@ class DossierFileIndexer
         private readonly ArticleChunker $chunker,
         private readonly DossierChunkEmbeddingService $embeddings,
         private readonly ProviderResolver $providers,
+        private readonly AiEconomicGuard $economicGuard,
     ) {}
 
     public function synchronize(string $organizationId, string $dossierId, string $fileId): int
@@ -77,6 +80,23 @@ class DossierFileIndexer
             // TASK-1214 : l'ingestion passe par le credential de l'Organization
             // (P4), jamais par la cle plateforme. Sans instance tenant, aucun
             // nouvel embedding n'est produit.
+            // TASK-1222 : meme garde economique pre-provider que l'indexer
+            // d'Articles — et meme doctrine staleness sur refus : le contenu a
+            // change (alreadyIndexed est faux), son ancienne representation ne
+            // doit plus etre servie. Aucun appel, aucune ligne de ledger.
+            $verdict = $this->economicGuard->authorizeEmbeddings($organization);
+
+            if (! $verdict->allowed) {
+                Log::warning('Dossier file ingestion refused by the economic guard.', [
+                    'organization_id' => $organizationId,
+                    'dossier_id' => $dossierId,
+                    'dossier_file_id' => $fileId,
+                    'reason' => $verdict->reason,
+                ]);
+
+                return $this->deleteChunks($organizationId, $dossierId, $fileId);
+            }
+
             $instance = $this->providers->resolveEmbeddingInstance($organizationId);
 
             if ($instance === null) {

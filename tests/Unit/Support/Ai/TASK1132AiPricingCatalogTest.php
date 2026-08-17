@@ -216,14 +216,21 @@ class TASK1132AiPricingCatalogTest extends TestCase
      * La surcharge opérateur s'applique, mais ne peut pas déclarer un provider
      * gratuit : seul le catalogue versionné peut affirmer `free`.
      */
-    public function test_an_operator_override_prices_a_provider_but_cannot_make_it_free(): void
+    public function test_an_operator_override_prices_uncatalogued_models_but_cannot_make_them_free(): void
     {
         config(['ai_pricing.overrides' => [
             'paid_provider' => ['input_per_1m' => 1.0, 'output_per_1m' => 1.0],
         ]]);
 
+        // TASK-1222 : une entree MODELE explicite prime desormais sur la
+        // surcharge generique du provider — sans quoi une surcharge pensee
+        // pour la generation refacturerait les embeddings a son tarif.
         $cost = AiPricingCatalog::cost('paid_provider', 'paid-model', AiUsage::of(1_000_000, 0));
-        $this->assertSame(1.0, $cost->costUsd, 'The override must win over the catalog entry.');
+        $this->assertSame(2.0, $cost->costUsd, 'An explicit model entry beats the generic provider override.');
+
+        // La surcharge reste l'ultime recours des modeles HORS catalogue.
+        $uncatalogued = AiPricingCatalog::cost('paid_provider', 'some-other-model', AiUsage::of(1_000_000, 0));
+        $this->assertSame(1.0, $uncatalogued->costUsd, 'The override still prices uncatalogued models.');
 
         config(['ai_pricing.overrides' => [
             'paid_provider' => ['input_per_1m' => 0.0, 'output_per_1m' => 0.0],

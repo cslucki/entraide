@@ -99,7 +99,7 @@ class AiProviderInvocation extends Model
             'total_tokens' => 'integer',
             'embedding_count' => 'integer',
             'embedding_dimensions' => 'integer',
-            'provider_cost' => 'decimal:6',
+            'provider_cost' => 'decimal:10',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
         ];

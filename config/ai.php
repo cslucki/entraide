@@ -207,6 +207,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Embeddings — garde economique (TASK-1222)
+    |--------------------------------------------------------------------------
+    |
+    | L'ingestion documentaire est refusee AVANT tout appel provider quand le
+    | plafond mensuel de l'Organization est atteint (generation gardee dans
+    | `ai_interactions` + embeddings connus du ledger canonique), ou quand le
+    | compteur mensuel d'invocations embeddings a cout INCONNU depasse cette
+    | limite — un cout que le catalogue ne sait pas mesurer ne devient jamais
+    | un droit de consommation illimite.
+    */
+    'embeddings' => [
+        'economic_guard' => [
+            'monthly_unknown_limit' => (int) env('AI_EMBEDDINGS_MONTHLY_UNKNOWN_LIMIT', 50),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | ChatLoop AI — Persistent AI intervention in loops
     |--------------------------------------------------------------------------
     |

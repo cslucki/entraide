@@ -92,15 +92,21 @@ final class AiPricingCatalog
             return ['rate' => null, 'reason' => self::REASON_PROVIDER_UNIDENTIFIED];
         }
 
-        $override = self::overrideFor($providerKey);
-
-        if ($override !== null) {
-            return ['rate' => $override, 'reason' => null];
-        }
-
+        // TASK-1222 : une entree MODELE explicite prime sur la surcharge
+        // operateur au niveau provider. La surcharge corrige un tarif que le
+        // catalogue ne connait pas ; elle ne doit pas ecraser un tarif releve
+        // et versionne — sans cette precedence, une surcharge generique
+        // `openai` facturerait les embeddings (0.02/1M) au tarif generation
+        // (0.15/1M), soit 7,5x la depense reelle, en toute confiance.
         $entry = self::entryFor($providerKey, self::normalizeKey($model));
 
         if ($entry === null) {
+            $override = self::overrideFor($providerKey);
+
+            if ($override !== null) {
+                return ['rate' => $override, 'reason' => null];
+            }
+
             return ['rate' => null, 'reason' => self::REASON_MODEL_NOT_IN_CATALOG];
         }
 
@@ -139,7 +145,7 @@ final class AiPricingCatalog
         $cost = ($usage->inputTokensOrZero() / 1_000_000) * $rate['input_per_1m']
             + ($usage->outputTokensOrZero() / 1_000_000) * $rate['output_per_1m'];
 
-        return AiCost::known(round($cost, 8), AiCost::SOURCE_CATALOG_ESTIMATED);
+        return AiCost::known(round($cost, 10), AiCost::SOURCE_CATALOG_ESTIMATED);
     }
 
     /**
