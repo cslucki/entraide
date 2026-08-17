@@ -1321,7 +1321,16 @@ class OrgAdminController extends Controller
 
         foreach ($referencedDossierIds as $dossierId) {
             $dossier = $dossiers->get($dossierId);
-            $openable[$dossierId] = $gate !== null && $dossier !== null && $gate->allows('view', $dossier);
+
+            // Un Dossier dont la racine gouvernante ne se resout pas dans le
+            // perimetre (parent supprime, hors Organization, ou chaine plus
+            // profonde que la borne) n'est jamais ouvrable d'ici : sa
+            // `visibility` n'est qu'une copie faite a la creation, la
+            // policy ne peut pas y lire une autorisation fiable.
+            $openable[$dossierId] = $gate !== null
+                && $dossier !== null
+                && $this->governingRootIsResolved($dossier)
+                && $gate->allows('view', $dossier);
         }
 
         $sources = array_map(function (array $source) use ($openable): array {
@@ -1339,6 +1348,31 @@ class OrgAdminController extends Controller
             'diagnostics' => $overview->diagnostics($organization->id),
             'generatedAt' => CarbonImmutable::now(),
         ];
+    }
+
+    /**
+     * Vrai si la remontee `parent` (pre-attachee depuis le perimetre de
+     * l'Organization) atteint une vraie racine en moins de `Dossier::MAX_DEPTH`
+     * niveaux — c'est-a-dire si `governingDossier()` repond sur une donnee
+     * complete et non sur un enfant orphelin.
+     */
+    private function governingRootIsResolved(Dossier $dossier): bool
+    {
+        $current = $dossier;
+        $depth = 0;
+
+        while ($current->parent_id !== null && $depth < Dossier::MAX_DEPTH) {
+            $parent = $current->relationLoaded('parent') ? $current->parent : null;
+
+            if ($parent === null) {
+                return false;
+            }
+
+            $current = $parent;
+            $depth++;
+        }
+
+        return $current->parent_id === null;
     }
 
     /**

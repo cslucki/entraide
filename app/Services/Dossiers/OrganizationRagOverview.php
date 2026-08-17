@@ -10,6 +10,7 @@ use App\Models\Loop;
 use App\Models\Organization;
 use App\Support\Ai\AiEconomicGuard;
 use DomainException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -117,9 +118,9 @@ class OrganizationRagOverview
      *
      * TASK-1226 : chaque ligne porte aussi son `format` (article / txt /
      * markdown, depuis MIME + extension — la regle de FileContentExtractor),
-     * `created_at` (apparition dans CE Dossier : upload du fichier,
-     * attachement de l'Article) et son `scope` (perimetre reel, voir
-     * `dossierScopes()`).
+     * `created_at` (date d'upload du fichier / d'attachement de l'Article a
+     * ce Dossier — un deplacement de fichier ne la change pas) et son `scope`
+     * (perimetre reel, voir `dossierScopes()`).
      *
      * @return list<array{type: string, id: string, title: string, format: string, dossier_id: string, dossier_name: string, indexed: bool, chunks: int, embedding_provider: ?string, embedding_model: ?string, indexed_at: ?string, created_at: ?string, slug: ?string, scope: array{kind: string, loop_id: ?string, loop_name: ?string}}>
      */
@@ -207,9 +208,10 @@ class OrganizationRagOverview
      * logs, jamais impute a une source en particulier :
      * - `DossierSemanticSearchGate` : la recherche semantique est-elle
      *   activee pour ce tenant ;
-     * - `ProviderResolver::resolveEmbeddingInstance` : un credential
-     *   Organization capable de signer l'index existe-t-il (null = non ;
-     *   doctrine TASK-1214/1225, aucun repli plateforme) ;
+     * - `ProviderResolver::hasEmbeddingCredential` (meme decision que
+     *   `resolveEmbeddingInstance`, sans enregistrer d'instance) : un
+     *   credential Organization capable de signer l'index existe-t-il
+     *   (doctrine TASK-1214/1225, aucun repli plateforme) ;
      * - `AiEconomicGuard::authorizeEmbeddings` : le budget courant
      *   permet-il de nouvelles indexations.
      * Trois lectures locales (config, organization_ai_settings, sommes du
@@ -223,7 +225,9 @@ class OrganizationRagOverview
         $enabled = $this->gate->isEnabledFor($organizationId);
 
         try {
-            $credential = $this->providers->resolveEmbeddingInstance($organizationId) !== null;
+            // Le VERDICT seulement : aucune instance enregistree, aucun
+            // credential materialise pour un simple poll (revue TASK-1226).
+            $credential = $this->providers->hasEmbeddingCredential($organizationId);
         } catch (DomainException) {
             // Defaut de configuration PLATEFORME (famille d'embedding sans
             // provider) : aucun embedding n'est possible pour ce tenant non
@@ -286,14 +290,23 @@ class OrganizationRagOverview
 
         $scopes = [];
 
+        $private = ['kind' => self::SCOPE_PRIVATE, 'loop_id' => null, 'loop_name' => null];
+
         foreach ($rows as $id => $row) {
             $root = $row;
             $depth = 0;
+            $resolved = true;
 
             while ($root->parent_id !== null && $depth < Dossier::MAX_DEPTH) {
                 $parent = $rows->get((string) $root->parent_id);
 
                 if ($parent === null) {
+                    // Parent absent du perimetre (supprime, ou hors
+                    // Organization : donnee que assertValidParent refuse a
+                    // l'ecriture). La racine gouvernante est inconnue : on ne
+                    // s'appuie pas sur la `visibility` copiee de l'enfant.
+                    $resolved = false;
+
                     break;
                 }
 
@@ -301,17 +314,22 @@ class OrganizationRagOverview
                 $depth++;
             }
 
-            $scopes[(string) $id] = $this->scopeOfRoot($root, $loopNames);
+            // Chaine plus profonde que la borne : meme prudence.
+            if ($root->parent_id !== null) {
+                $resolved = false;
+            }
+
+            $scopes[(string) $id] = $resolved ? $this->scopeOfRoot($root, $loopNames) : $private;
         }
 
         return $scopes;
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<string, string>  $loopNames  Boucles de CETTE Organization uniquement
+     * @param  Collection<string, string>  $loopNames  Boucles de CETTE Organization uniquement
      * @return array{kind: string, loop_id: ?string, loop_name: ?string}
      */
-    private function scopeOfRoot(object $root, \Illuminate\Support\Collection $loopNames): array
+    private function scopeOfRoot(object $root, Collection $loopNames): array
     {
         $loopId = $root->loop_id !== null ? (string) $root->loop_id : null;
 

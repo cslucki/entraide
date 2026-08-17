@@ -23,7 +23,6 @@
                 error: @js(__('ai.observatory_auto_refresh_error')),
                 stopped: @js(__('ai.observatory_auto_refresh_stopped')),
                 lastChecked: @js(__('ai.observatory_last_checked')),
-                lastCheckedNever: @js(__('ai.observatory_last_checked_never')),
             },
         })"
         x-init="start()"
@@ -65,7 +64,7 @@
             </div>
         </div>
 
-        <div x-ref="live" data-knowledge-live>
+        <div x-ref="live" data-knowledge-live aria-live="polite" :aria-busy="busy ? 'true' : 'false'">
             @include('admin.org.partials.ai-knowledge-live')
         </div>
     </div>
@@ -81,6 +80,8 @@
                 busy: false,
                 timer: null,
                 ticker: null,
+                failures: 0,
+                currentIntervalMs: config.intervalMs || 2000,
                 lastCheckedAt: Date.now(),
                 secondsAgo: 0,
                 onVisibilityChange: null,
@@ -111,7 +112,8 @@
 
                 startTimer() {
                     this.stopTimer();
-                    this.timer = window.setInterval(() => this.refresh(), this.intervalMs);
+                    this.currentIntervalMs = Math.min(this.intervalMs * Math.pow(2, this.failures), 30000);
+                    this.timer = window.setInterval(() => this.refresh(), this.currentIntervalMs);
                 },
 
                 stopTimer() {
@@ -138,11 +140,28 @@
                             return;
                         }
                         if (!response.ok) throw new Error('HTTP ' + response.status);
-                        this.swap(await response.text());
+                        const html = await response.text();
+                        // Session expiree : le middleware `auth` repond par une
+                        // redirection vers /login (200 apres suivi). Un fragment
+                        // legitime porte toujours son horodatage serveur ; tout
+                        // autre contenu n'entre jamais dans l'Observatoire.
+                        if (response.redirected || !html.includes('data-knowledge-generated-at=')) {
+                            this.stopTimer();
+                            this.status = 'stopped';
+                            return;
+                        }
+                        this.swap(html);
                         this.lastCheckedAt = Date.now();
+                        this.failures = 0;
+                        if (this.timer && this.currentIntervalMs !== this.intervalMs) this.startTimer();
                         this.status = document.hidden ? 'paused' : 'live';
                     } catch (error) {
+                        // Panne serveur/reseau : on reessaie, de moins en moins
+                        // souvent (2 s -> 4 s -> ... -> 30 s max), sans jamais
+                        // fabriquer un etat.
+                        this.failures = Math.min(this.failures + 1, 6);
                         this.status = 'error';
+                        if (this.timer) this.startTimer();
                     } finally {
                         this.busy = false;
                         this.updateAgo();
@@ -196,7 +215,6 @@
                 },
 
                 lastCheckedLabel() {
-                    if (!this.lastCheckedAt) return this.labels.lastCheckedNever || '';
                     return (this.labels.lastChecked || ':seconds').replace(':seconds', String(this.secondsAgo));
                 },
             }));

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Ai\ProviderResolver;
 use App\Models\AiProviderInvocation;
 use App\Models\BlogPost;
 use App\Models\Dossier;
@@ -16,13 +17,14 @@ use App\Models\User;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Services\Dossiers\OrganizationRagOverview;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Laravel\Ai\Embeddings;
 use Laravel\Ai\Prompts\EmbeddingsPrompt;
-use Laravel\Ai\Responses\EmbeddingsResponse;
 use Laravel\Ai\Responses\Data\Meta;
+use Laravel\Ai\Responses\EmbeddingsResponse;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -155,6 +157,30 @@ class TASK1226KnowledgeObservatoryTest extends TestCase
         $this->assertSame(0, $perimeters['external']['sources']);
     }
 
+    /**
+     * Revue TASK-1226 (PASS A) : un enfant dont la racine gouvernante ne se
+     * resout pas dans le perimetre (parent supprime, ou hors Organization —
+     * donnee que assertValidParent refuse a l'ecriture) ne peut pas s'appuyer
+     * sur la `visibility` copiee a sa creation. Il est prive, et jamais
+     * ouvrable depuis l'Observatoire.
+     */
+    public function test_a_child_whose_parent_is_out_of_reach_is_private_and_never_openable(): void
+    {
+        [$organization, $admin] = $this->organizationWithAdmin();
+        $parent = $this->dossier($organization, $admin, 'Racine commune', Dossier::VISIBILITY_ORGANIZATION);
+        $child = $this->childDossier($organization, $parent, 'Enfant');
+        $file = $this->file($organization, $child, $admin, 'orphelin.txt', 'text/plain');
+        // Suppression directe de la racine (sans la cascade du controleur).
+        $parent->delete();
+
+        $sources = collect(app(OrganizationRagOverview::class)->sources($organization->id))->keyBy('title');
+        $this->assertSame(OrganizationRagOverview::SCOPE_PRIVATE, $sources['orphelin.txt']['scope']['kind']);
+
+        $html = $this->actingAs($admin)->get($this->liveUrl($organization))->assertOk()->getContent();
+        $this->assertStringContainsString('orphelin.txt', $html, 'l’etat reste visible');
+        $this->assertStringNotContainsString(route('organization.dossiers.files.show', ['organization' => $organization->slug, 'dossier' => $child->id, 'file' => $file->id]), $html);
+    }
+
     // ---- Formats / apparition ----
 
     public function test_files_expose_their_real_format_from_mime_and_extension(): void
@@ -184,7 +210,7 @@ class TASK1226KnowledgeObservatoryTest extends TestCase
         $sources = collect(app(OrganizationRagOverview::class)->sources($organization->id))->keyBy('title');
 
         $this->assertNotNull($sources['notes.txt']['created_at']);
-        $this->assertSame($file->created_at->format('Y-m-d H:i:s'), \Illuminate\Support\Carbon::parse($sources['notes.txt']['created_at'])->format('Y-m-d H:i:s'));
+        $this->assertSame($file->created_at->format('Y-m-d H:i:s'), Carbon::parse($sources['notes.txt']['created_at'])->format('Y-m-d H:i:s'));
         $this->assertNotNull($sources['Un article']['created_at']);
     }
 
@@ -314,6 +340,45 @@ class TASK1226KnowledgeObservatoryTest extends TestCase
         $response->assertDontSee('Dossier secret B');
         $response->assertDontSee('Boucle secrète B');
         $response->assertHeader('Cache-Control', 'no-cache, no-store, private');
+    }
+
+    public function test_the_live_fragment_requires_authentication_and_redirects_a_lost_session(): void
+    {
+        [$organization] = $this->organizationWithAdmin();
+
+        // Session perdue : le middleware `auth` redirige (le client arrete
+        // alors le poll au lieu d'injecter la page de login).
+        $this->get($this->liveUrl($organization))->assertRedirect();
+    }
+
+    /**
+     * Revue TASK-1226 (PASS B) : lire la disponibilite ne materialise jamais
+     * le credential du tenant dans la configuration d'execution — le poll
+     * n'a besoin que du verdict, pas d'une instance SDK.
+     */
+    public function test_reading_the_availability_never_registers_a_tenant_instance_nor_copies_the_key(): void
+    {
+        [$organization] = $this->organizationWithAdmin();
+        $this->enableSemanticSearchFor($organization);
+        config()->set('ai.default_for_embeddings', 'openai');
+        config()->set('ai.providers.openai.driver', 'openai');
+        OrganizationAiSetting::factory()->create([
+            'organization_id' => $organization->id,
+            'provider' => 'openai',
+            'model' => 'gpt-4o-mini',
+            'api_key' => 'sk-task1226-must-stay-encrypted',
+        ]);
+        $instanceKey = 'ai.providers.'.ProviderResolver::instanceName($organization->id, 'openai');
+
+        $availability = app(OrganizationRagOverview::class)->indexingAvailability($organization->fresh());
+
+        $this->assertTrue($availability['embedding_credential_available']);
+        $this->assertNull(config($instanceKey), 'aucune instance tenant enregistree par une simple lecture');
+        $this->assertStringNotContainsString('sk-task1226', json_encode(config('ai.providers')));
+
+        // Le verdict est bien celui de la resolution reelle.
+        $resolver = app(ProviderResolver::class);
+        $this->assertSame($resolver->resolveEmbeddingInstance($organization->id) !== null, $resolver->hasEmbeddingCredential($organization->id));
     }
 
     public function test_the_live_fragment_never_exposes_a_secret_a_path_or_rag_content(): void

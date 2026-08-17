@@ -148,6 +148,56 @@ final class ProviderResolver
      */
     public function resolveEmbeddingInstance(string $organizationId): ?string
     {
+        [$family, $base, $driver] = $this->embeddingFamilyConfig();
+
+        $instance = self::instanceName($organizationId, $family);
+
+        // Driver local sans cle (ollama) : aucune configuration tenant requise.
+        if (in_array($driver, self::KEYLESS_DRIVERS, true)) {
+            $this->registerInstance($instance, $base, null);
+
+            return $instance;
+        }
+
+        $key = $this->tenantEmbeddingKey($organizationId, $family);
+
+        if ($key === null) {
+            return null;
+        }
+
+        $this->registerInstance($instance, $base, $key);
+
+        return $instance;
+    }
+
+    /**
+     * TASK-1226 : la MEME decision que `resolveEmbeddingInstance()` — cette
+     * Organization peut-elle produire des embeddings pour l'index courant ? —
+     * mais en lecture pure : aucune instance SDK enregistree, aucun credential
+     * copie dans la configuration d'execution. C'est la forme a utiliser depuis
+     * un ecran ou un poll qui n'a besoin que du VERDICT, jamais de l'instance.
+     * Meme exceptions plateforme (DomainException) que la resolution.
+     */
+    public function hasEmbeddingCredential(string $organizationId): bool
+    {
+        [$family, , $driver] = $this->embeddingFamilyConfig();
+
+        if (in_array($driver, self::KEYLESS_DRIVERS, true)) {
+            return true;
+        }
+
+        return $this->tenantEmbeddingKey($organizationId, $family) !== null;
+    }
+
+    /**
+     * La famille d'embedding de l'index et sa configuration plateforme, ou une
+     * DomainException si la plateforme est mal configuree — un defaut
+     * d'exploitation, jamais imputable a une Organization.
+     *
+     * @return array{0: string, 1: array<string, mixed>, 2: string} [famille, config de base, driver]
+     */
+    private function embeddingFamilyConfig(): array
+    {
         $family = trim((string) config('ai.default_for_embeddings', 'openai'));
 
         if ($family === '') {
@@ -166,15 +216,17 @@ final class ProviderResolver
             throw new DomainException("Embedding provider family [{$family}] has no driver configured.");
         }
 
-        $instance = self::instanceName($organizationId, $family);
+        return [$family, $base, $driver];
+    }
 
-        // Driver local sans cle (ollama) : aucune configuration tenant requise.
-        if (in_array($driver, self::KEYLESS_DRIVERS, true)) {
-            $this->registerInstance($instance, $base, null);
-
-            return $instance;
-        }
-
+    /**
+     * Le credential de l'Organization capable de signer l'index, ou null :
+     * pas de configuration IA utilisable, famille du tenant differente de la
+     * famille de l'index (une cle d'une autre famille ne peut pas signer cet
+     * index), ou cle vide. Aucun repli plateforme, jamais.
+     */
+    private function tenantEmbeddingKey(string $organizationId, string $family): ?string
+    {
         $setting = OrganizationAiSetting::query()
             ->where('organization_id', $organizationId)
             ->first();
@@ -194,13 +246,7 @@ final class ProviderResolver
 
         $key = trim((string) $setting->api_key);
 
-        if ($key === '') {
-            return null;
-        }
-
-        $this->registerInstance($instance, $base, $key);
-
-        return $instance;
+        return $key === '' ? null : $key;
     }
 
     /**

@@ -19,13 +19,16 @@
         }
 
         try {
-            return \Illuminate\Support\Carbon::parse($timestamp)->diffInSeconds($generatedAt, true) <= $recentWindowSeconds;
+            $moment = \Illuminate\Support\Carbon::parse($timestamp);
         } catch (\Throwable) {
             return false;
         }
+
+        // Un horodatage dans le futur (derive d'horloge) n'est jamais « recent ».
+        return $moment->lte($generatedAt) && $moment->diffInSeconds($generatedAt) <= $recentWindowSeconds;
     };
     $secondsSince = static function (?string $timestamp) use ($generatedAt): int {
-        return $timestamp === null ? 0 : (int) max(0, \Illuminate\Support\Carbon::parse($timestamp)->diffInSeconds($generatedAt, true));
+        return $timestamp === null ? 0 : (int) max(0, \Illuminate\Support\Carbon::parse($timestamp)->diffInSeconds($generatedAt));
     };
     $scopeLabel = static function (array $scope): string {
         return match ($scope['kind']) {
@@ -291,8 +294,8 @@
                     <dt class="text-gray-500 dark:text-gray-400">{{ __('ai.observatory_corpus') }}</dt>
                     <dd class="text-right tabular-nums text-gray-900 dark:text-gray-100 text-xs" data-knowledge-corpus>
                         {{ trans_choice('ai.observatory_corpus_vectors', $summary['chunks'], ['count' => number_format($summary['chunks'])]) }}
-                        · {{ __('ai.observatory_corpus_tokens', ['count' => number_format($summary['corpus_tokens'])]) }}
-                        · {{ __('ai.observatory_corpus_characters', ['count' => number_format($summary['corpus_characters'])]) }}
+                        · {{ trans_choice('ai.observatory_corpus_tokens', $summary['corpus_tokens'], ['count' => number_format($summary['corpus_tokens'])]) }}
+                        · {{ trans_choice('ai.observatory_corpus_characters', $summary['corpus_characters'], ['count' => number_format($summary['corpus_characters'])]) }}
                     </dd>
                 </div>
                 <div class="flex justify-between gap-3 border-b border-gray-100 py-1 dark:border-gray-700">
