@@ -160,6 +160,7 @@
                         <x-dropdown-link :href="$dossiersHref" :active="request()->routeIs('organization.dossiers.*')">{{ __('navigation.my_dossiers') }}</x-dropdown-link>
                         @endif
                         <x-dropdown-link :href="route('profile.edit')">{{ __('navigation.settings') }}</x-dropdown-link>
+                        <x-dropdown-link :href="route('profile.ai-usage')">{{ __('navigation.my_ai_usage') }}</x-dropdown-link>
                         @if(Auth::user()->is_admin)
                         <div class="border-t border-gray-100 dark:border-gray-600 my-1"></div>
                         <x-dropdown-link :href="route('admin.dashboard')"><span class="text-purple-600 dark:text-purple-400 font-medium">{{ __('navigation.administration') }}</span></x-dropdown-link>
@@ -269,6 +270,7 @@
                 <x-responsive-nav-link :href="$dossiersHref" :active="request()->routeIs('organization.dossiers.*')">{{ __('navigation.my_dossiers') }}</x-responsive-nav-link>
                 @endif
                 <x-responsive-nav-link :href="route('profile.edit')">{{ __('navigation.settings') }}</x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('profile.ai-usage')">{{ __('navigation.my_ai_usage') }}</x-responsive-nav-link>
                 @if(Auth::user()->is_admin)
                 <x-responsive-nav-link :href="route('admin.dashboard')">{{ __('navigation.administration') }}</x-responsive-nav-link>
                 @endif

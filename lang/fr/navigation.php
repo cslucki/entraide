@@ -298,4 +298,8 @@ return [
     'org_admin_translation_reset_done' => 'Override(s) réinitialisé(s) avec succès.',
     'org_admin_translation_no_active' => 'Aucun override actif à réinitialiser.',
     'org_admin_translation_reset_confirm' => 'Réinitialiser tous les overrides de cette entrée ? Retour aux valeurs originales des fichiers lang/.',
+
+    // TASK-1223
+    'org_admin_ai_cockpit' => 'IA & connaissances',
+    'my_ai_usage' => 'Mes usages IA',
 ];

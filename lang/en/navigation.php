@@ -298,4 +298,8 @@ return [
     'org_admin_translation_reset_done' => 'Override(s) reset successfully.',
     'org_admin_translation_no_active' => 'No active override to reset.',
     'org_admin_translation_reset_confirm' => 'Reset all overrides for this entry? Reverting to original lang/ file values.',
+
+    // TASK-1223
+    'org_admin_ai_cockpit' => 'AI & knowledge',
+    'my_ai_usage' => 'My AI usage',
 ];

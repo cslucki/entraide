@@ -3,7 +3,13 @@
 
     <div class="space-y-6">
         <div class="flex items-center justify-between">
-            <h1 class="text-2xl font-bold dark:text-white">Utilisation IA par utilisateur</h1>
+            <div>
+                <h1 class="text-2xl font-bold dark:text-white">Utilisation IA par utilisateur</h1>
+                {{-- TASK-1223 : honnetete du cumul — deux registres de traces
+                     additionnes bruts ; le decompte canonique par invocation
+                     vit dans le cockpit IA / RAG. --}}
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Cumul brut des registres de traces historiques (un même appel peut y figurer deux fois). Décompte canonique par invocation : cockpit IA &amp; RAG.</p>
+            </div>
         </div>
 
         {{-- Filtres --}}
@@ -90,10 +96,10 @@
                             </a>
                         </th>
                         <th class="px-4 py-3 text-right">
-                            <a href="{{ route('admin.ia-usage-by-user', array_merge(request()->except(['sort', 'direction']), ['sort' => 'total_cost', 'direction' => request('sort') === 'total_cost' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}"
+                            <a href="{{ route('admin.ia-usage-by-user', array_merge(request()->except(['sort', 'direction']), ['sort' => 'known_cost', 'direction' => request('sort') === 'known_cost' && request('direction') === 'asc' ? 'desc' : 'asc'])) }}"
                                class="flex items-center gap-1 justify-end hover:text-gray-700 dark:hover:text-gray-200">
-                                Coût
-                                @if(request('sort') === 'total_cost')
+                                Coût connu
+                                @if(request('sort') === 'known_cost')
                                     <span>{{ request('direction') === 'asc' ? '↑' : '↓' }}</span>
                                 @endif
                             </a>
@@ -134,10 +140,14 @@
                                 {{ number_format($row->total_output_tokens) }}
                             </td>
                             <td class="px-4 py-3 text-right font-mono text-xs">
-                                @if((float) $row->total_cost > 0)
-                                    <span class="text-gray-900 dark:text-gray-100">${{ number_format((float) $row->total_cost, 6) }}</span>
+                                {{-- TASK-1223 : cout CONNU seulement — « — » n'est pas 0. --}}
+                                @if($row->known_cost !== null)
+                                    <span class="text-gray-900 dark:text-gray-100">${{ number_format((float) $row->known_cost, 6) }}</span>
                                 @else
-                                    <span class="text-gray-400">-</span>
+                                    <span class="text-gray-400">—</span>
+                                @endif
+                                @if((int) $row->unknown_count > 0)
+                                    <div class="text-amber-600 dark:text-amber-400">{{ (int) $row->unknown_count }} non mesuré(s)</div>
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-right text-xs text-gray-500">
