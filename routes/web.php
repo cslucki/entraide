@@ -1013,6 +1013,9 @@ Route::prefix('/org/{organization}')
                 // TASK-1217 : console RAG read-only — ce que l'IA connait des
                 // Dossiers de cette Organization, et si l'index est sain.
                 Route::get('/ai-knowledge', [OrgAdminController::class, 'aiKnowledge'])->name('ai-knowledge');
+                // TASK-1226 : fragment de rafraichissement de l'Observatoire
+                // (polling leger, read-only, meme middleware que la page).
+                Route::get('/ai-knowledge/live', [OrgAdminController::class, 'aiKnowledgeLive'])->middleware('throttle:120,1')->name('ai-knowledge.live');
                 // TASK-1219 : console de consommation IA read-only — ce que la
                 // garde economique compte deja pour cette Organization.
                 Route::get('/ai-consumption', [OrgAdminController::class, 'aiConsumption'])->name('ai-consumption');

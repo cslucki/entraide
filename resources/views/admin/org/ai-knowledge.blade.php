@@ -1,170 +1,224 @@
 {{--
-    Console RAG Organization V1 (TASK-1217), read-only.
+    Observatoire vivant des connaissances Organization (TASK-1217 console,
+    TASK-1226 vivant), read-only.
 
-    Deux niveaux volontairement separes : « Mes connaissances IA » repond a la
-    question humaine (qu'est-ce que l'IA connait, est-ce indexe), et
-    « Diagnostics techniques » reste en second plan pour qui veut verifier la
-    coherence de l'index. Aucun statut n'est devine : ce qui n'est pas
-    demontrable par une requete n'est pas affiche.
+    La page ne porte que l'enveloppe : titre, badge de mise a jour, bouton
+    « Actualiser », et le conteneur vivant. Tout le contenu (etat de
+    l'infrastructure, perimetres, compteurs, sources, diagnostics) vit dans le
+    partiel `partials/ai-knowledge-live`, rendu ici ET renvoye par l'endpoint
+    `ai-knowledge.live` : le poll remplace le conteneur, jamais la page.
+
+    Le poll est read-only et bon marche (0 appel IA). Il tourne toutes les
+    2 s quand l'onglet est visible, se met en pause quand il est masque, et
+    reprend immediatement au retour. Aucun statut n'est devine : ce qui n'est
+    pas demontrable par une requete n'est pas affiche.
 --}}
-<x-org-admin-layout :title="__('navigation.org_admin_ai_knowledge')" :organization="$organization">
-    <div class="mb-6">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('navigation.org_admin_ai_knowledge') }}</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('ai.knowledge_console_intro') }}</p>
-    </div>
+<x-org-admin-layout :title="__('ai.observatory_title')" :organization="$organization">
+    <div x-data="knowledgeObservatory({
+            url: @js($liveUrl),
+            intervalMs: 2000,
+            labels: {
+                live: @js(__('ai.observatory_auto_refresh')),
+                paused: @js(__('ai.observatory_auto_refresh_paused')),
+                error: @js(__('ai.observatory_auto_refresh_error')),
+                stopped: @js(__('ai.observatory_auto_refresh_stopped')),
+                lastChecked: @js(__('ai.observatory_last_checked')),
+            },
+        })"
+        x-init="start()"
+        data-knowledge-observatory
+        data-knowledge-live-url="{{ $liveUrl }}">
 
-    {{-- Resume --}}
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        @foreach ([
-            'knowledge_console_dossiers' => $summary['dossiers'],
-            'knowledge_console_articles' => $summary['articles'],
-            'knowledge_console_files' => $summary['files'],
-            'knowledge_console_indexed_sources' => $summary['indexed_sources'],
-            'knowledge_console_chunks' => $summary['chunks'],
-        ] as $labelKey => $value)
-            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3">
-                <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('ai.'.$labelKey) }}</div>
-                <div class="text-xl font-semibold text-gray-900 dark:text-gray-100 tabular-nums">{{ number_format($value) }}</div>
+        <div class="mb-6 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div class="min-w-0">
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100" data-knowledge-title>{{ __('ai.observatory_title') }}</h1>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('ai.observatory_intro') }}</p>
             </div>
-        @endforeach
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3">
-            <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_last_indexed') }}</div>
-            <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                @if($summary['last_indexed_at'])
-                    {{ \Illuminate\Support\Carbon::parse($summary['last_indexed_at'])->isoFormat('D MMM YYYY HH:mm') }}
-                @else
-                    <span class="text-xs text-gray-400">—</span>
-                @endif
+            <div class="flex flex-wrap items-center gap-2 md:justify-end" data-knowledge-status>
+                <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
+                      :class="{
+                          'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200': status === 'live',
+                          'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300': status === 'paused' || status === 'idle',
+                          'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200': status === 'error',
+                          'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200': status === 'stopped',
+                      }"
+                      data-knowledge-refresh-badge
+                      :data-status="status">
+                    <span class="relative flex h-2 w-2" aria-hidden="true">
+                        <span class="absolute inline-flex h-full w-full rounded-full opacity-75"
+                              :class="{ 'animate-ping bg-emerald-400': status === 'live', 'bg-gray-400': status !== 'live' }"></span>
+                        <span class="relative inline-flex h-2 w-2 rounded-full"
+                              :class="{ 'bg-emerald-500': status === 'live', 'bg-gray-400': status === 'paused' || status === 'idle', 'bg-amber-500': status === 'error', 'bg-red-500': status === 'stopped' }"></span>
+                    </span>
+                    <span x-text="badgeLabel()">{{ __('ai.observatory_auto_refresh') }}</span>
+                </span>
+                <span class="text-xs tabular-nums text-gray-500 dark:text-gray-400" data-knowledge-last-checked x-text="lastCheckedLabel()">{{ __('ai.observatory_last_checked', ['seconds' => 0]) }}</span>
+                <button type="button"
+                        @click="refresh(true)"
+                        :disabled="busy"
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                        data-knowledge-refresh-button>
+                    <svg class="h-3.5 w-3.5" :class="{ 'animate-spin': busy }" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+                    {{ __('ai.observatory_refresh_now') }}
+                </button>
             </div>
         </div>
-    </div>
 
-    {{-- Sources --}}
-    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden mb-6">
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead class="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.knowledge_console_col_source') }}</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.knowledge_console_col_type') }}</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.knowledge_console_col_dossier') }}</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.knowledge_console_col_state') }}</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.knowledge_console_col_chunks') }}</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.knowledge_console_col_model') }}</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.knowledge_console_col_indexed_at') }}</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.knowledge_console_col_open') }}</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-                    @forelse($sources as $source)
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-750" data-rag-source>
-                            <td class="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{{ $source['title'] }}</td>
-                            <td class="px-4 py-3 text-gray-600 dark:text-gray-400">
-                                {{ $source['type'] === 'article' ? __('ai.knowledge_console_type_article') : __('ai.knowledge_console_type_file') }}
-                            </td>
-                            <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ $source['dossier_name'] }}</td>
-                            <td class="px-4 py-3">
-                                @if($source['indexed'])
-                                    <span class="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">{{ __('ai.knowledge_console_state_indexed') }}</span>
-                                @else
-                                    <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ __('ai.knowledge_console_state_not_indexed') }}</span>
-                                @endif
-                            </td>
-                            <td class="px-4 py-3 tabular-nums text-gray-600 dark:text-gray-400">{{ $source['chunks'] }}</td>
-                            <td class="px-4 py-3 text-gray-600 dark:text-gray-400">
-                                @if($source['embedding_model'])
-                                    <span class="text-xs">{{ $source['embedding_model'] }}</span>
-                                @else
-                                    <span class="text-xs text-gray-400">—</span>
-                                @endif
-                            </td>
-                            <td class="px-4 py-3 text-gray-600 dark:text-gray-400">
-                                @if($source['indexed_at'])
-                                    <span class="text-xs">{{ \Illuminate\Support\Carbon::parse($source['indexed_at'])->isoFormat('D MMM YYYY HH:mm') }}</span>
-                                @else
-                                    <span class="text-xs text-gray-400">—</span>
-                                @endif
-                            </td>
-                            <td class="px-4 py-3">
-                                {{-- Le lien n'existe que si la DossierPolicy autorise
-                                     vraiment cet utilisateur a voir le Dossier : etre
-                                     admin ne donne pas acces au contenu prive. --}}
-                                @if($source['can_open'])
-                                    @if($source['type'] === 'article')
-                                        <a href="{{ route('organization.blog.show', ['organization' => $organization->slug, 'post' => $source['slug']]) }}"
-                                           target="_blank" rel="noopener"
-                                           class="text-indigo-600 dark:text-indigo-400 hover:underline text-xs">{{ __('ai.knowledge_console_open') }}</a>
-                                    @else
-                                        <a href="{{ route('organization.dossiers.files.show', ['organization' => $organization->slug, 'dossier' => $source['dossier_id'], 'file' => $source['id']]) }}"
-                                           class="text-indigo-600 dark:text-indigo-400 hover:underline text-xs">{{ __('ai.knowledge_console_download') }}</a>
-                                    @endif
-                                @else
-                                    <span class="text-xs text-gray-400" title="{{ __('ai.knowledge_console_open_denied_hint') }}">—</span>
-                                @endif
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_empty') }}</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+        <div x-ref="live" data-knowledge-live aria-live="polite" :aria-busy="busy ? 'true' : 'false'">
+            @include('admin.org.partials.ai-knowledge-live')
         </div>
     </div>
 
-    {{-- Diagnostics techniques, volontairement en second plan --}}
-    <details class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden" data-rag-diagnostics>
-        <summary class="px-4 py-3 cursor-pointer text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-750">
-            {{ __('ai.knowledge_console_diagnostics') }}
-        </summary>
-        <div class="px-4 py-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
-            @if($diagnostics['index_mismatch'])
-                <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200" data-rag-mismatch>
-                    {{ __('ai.knowledge_console_mismatch_warning') }}
-                    <ul class="mt-1 list-disc list-inside text-xs">
-                        @if($diagnostics['provider_mismatch'])
-                            <li data-rag-mismatch-provider>{{ __('ai.knowledge_console_mismatch_provider') }}</li>
-                        @endif
-                        @if($diagnostics['model_mismatch'])
-                            <li data-rag-mismatch-model>{{ __('ai.knowledge_console_mismatch_model') }}</li>
-                        @endif
-                    </ul>
-                </div>
-            @endif
+    @push('scripts')
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('knowledgeObservatory', (config) => ({
+                url: config.url,
+                intervalMs: config.intervalMs || 2000,
+                labels: config.labels || {},
+                status: 'idle',
+                busy: false,
+                timer: null,
+                ticker: null,
+                failures: 0,
+                currentIntervalMs: config.intervalMs || 2000,
+                lastCheckedAt: Date.now(),
+                secondsAgo: 0,
+                onVisibilityChange: null,
 
-            <dl class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-sm">
-                <div class="flex justify-between gap-3 border-b border-gray-100 dark:border-gray-700 py-1">
-                    <dt class="text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_chunks') }}</dt>
-                    <dd class="tabular-nums text-gray-900 dark:text-gray-100">{{ number_format($diagnostics['chunks']) }}</dd>
-                </div>
-                <div class="flex justify-between gap-3 border-b border-gray-100 dark:border-gray-700 py-1">
-                    <dt class="text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_distinct_articles') }}</dt>
-                    <dd class="tabular-nums text-gray-900 dark:text-gray-100">{{ number_format($diagnostics['distinct_articles']) }}</dd>
-                </div>
-                <div class="flex justify-between gap-3 border-b border-gray-100 dark:border-gray-700 py-1">
-                    <dt class="text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_distinct_files') }}</dt>
-                    <dd class="tabular-nums text-gray-900 dark:text-gray-100">{{ number_format($diagnostics['distinct_files']) }}</dd>
-                </div>
-                <div class="flex justify-between gap-3 border-b border-gray-100 dark:border-gray-700 py-1">
-                    <dt class="text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_index_family') }}</dt>
-                    <dd class="text-gray-900 dark:text-gray-100">{{ $diagnostics['index_family'] ?: '—' }}</dd>
-                </div>
-                <div class="flex justify-between gap-3 border-b border-gray-100 dark:border-gray-700 py-1">
-                    <dt class="text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_index_model') }}</dt>
-                    <dd class="text-gray-900 dark:text-gray-100 text-xs">{{ $diagnostics['index_model'] ?: '—' }}</dd>
-                </div>
-                <div class="flex justify-between gap-3 border-b border-gray-100 dark:border-gray-700 py-1">
-                    <dt class="text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_stored_providers') }}</dt>
-                    <dd class="text-gray-900 dark:text-gray-100 text-xs" data-rag-stored-providers>{{ $diagnostics['providers'] ? implode(', ', $diagnostics['providers']) : '—' }}</dd>
-                </div>
-                <div class="flex justify-between gap-3 border-b border-gray-100 dark:border-gray-700 py-1">
-                    <dt class="text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_stored_models') }}</dt>
-                    <dd class="text-gray-900 dark:text-gray-100 text-xs" data-rag-stored-models>{{ $diagnostics['models'] ? implode(', ', $diagnostics['models']) : '—' }}</dd>
-                </div>
-            </dl>
+                start() {
+                    this.onVisibilityChange = () => this.applyVisibility();
+                    document.addEventListener('visibilitychange', this.onVisibilityChange);
+                    this.ticker = window.setInterval(() => this.updateAgo(), 1000);
+                    this.applyVisibility();
+                },
 
-            <p class="text-xs text-gray-400 dark:text-gray-500">{{ __('ai.knowledge_console_diagnostics_note') }}</p>
-        </div>
-    </details>
+                destroy() {
+                    this.stopTimer();
+                    if (this.ticker) window.clearInterval(this.ticker);
+                    if (this.onVisibilityChange) document.removeEventListener('visibilitychange', this.onVisibilityChange);
+                },
+
+                applyVisibility() {
+                    if (this.status === 'stopped') return;
+                    if (document.hidden) {
+                        this.stopTimer();
+                        this.status = 'paused';
+                        return;
+                    }
+                    this.refresh();
+                    this.startTimer();
+                },
+
+                startTimer() {
+                    this.stopTimer();
+                    this.currentIntervalMs = Math.min(this.intervalMs * Math.pow(2, this.failures), 30000);
+                    this.timer = window.setInterval(() => this.refresh(), this.currentIntervalMs);
+                },
+
+                stopTimer() {
+                    if (this.timer) {
+                        window.clearInterval(this.timer);
+                        this.timer = null;
+                    }
+                },
+
+                async refresh(manual = false) {
+                    if (this.busy || this.status === 'stopped') return;
+                    if (!manual && document.hidden) return;
+                    this.busy = true;
+                    try {
+                        const response = await fetch(this.url, {
+                            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'text/html' },
+                            credentials: 'same-origin',
+                            cache: 'no-store',
+                        });
+                        if (response.status === 401 || response.status === 403 || response.status === 419) {
+                            // Session expiree ou droit retire : on n'insiste pas.
+                            this.stopTimer();
+                            this.status = 'stopped';
+                            return;
+                        }
+                        if (!response.ok) throw new Error('HTTP ' + response.status);
+                        const html = await response.text();
+                        // Session expiree : le middleware `auth` repond par une
+                        // redirection vers /login (200 apres suivi). Un fragment
+                        // legitime porte toujours son horodatage serveur ; tout
+                        // autre contenu n'entre jamais dans l'Observatoire.
+                        if (response.redirected || !html.includes('data-knowledge-generated-at=')) {
+                            this.stopTimer();
+                            this.status = 'stopped';
+                            return;
+                        }
+                        this.swap(html);
+                        this.lastCheckedAt = Date.now();
+                        this.failures = 0;
+                        if (this.timer && this.currentIntervalMs !== this.intervalMs) this.startTimer();
+                        this.status = document.hidden ? 'paused' : 'live';
+                    } catch (error) {
+                        // Panne serveur/reseau : on reessaie, de moins en moins
+                        // souvent (2 s -> 4 s -> ... -> 30 s max), sans jamais
+                        // fabriquer un etat.
+                        this.failures = Math.min(this.failures + 1, 6);
+                        this.status = 'error';
+                        if (this.timer) this.startTimer();
+                    } finally {
+                        this.busy = false;
+                        this.updateAgo();
+                    }
+                },
+
+                // Remplace le conteneur vivant en conservant l'ouverture des
+                // diagnostics, et signale visuellement (3 s) les lignes
+                // apparues ou dont l'etat/le nombre d'extraits a change —
+                // depuis les attributs data-* rendus par le serveur, jamais
+                // depuis un etat devine cote client.
+                swap(html) {
+                    const live = this.$refs.live;
+                    const before = this.snapshot(live);
+                    const wasOpen = live.querySelector('details[data-rag-diagnostics]')?.open === true;
+                    live.innerHTML = html;
+                    if (wasOpen) live.querySelector('details[data-rag-diagnostics]')?.setAttribute('open', '');
+                    live.querySelectorAll('tr[data-source-key]').forEach((row) => {
+                        const key = row.dataset.sourceKey;
+                        const previous = before.get(key);
+                        const changed = !previous
+                            || previous.indexed !== row.dataset.sourceIndexed
+                            || previous.chunks !== row.dataset.sourceChunks;
+                        if (changed) this.flash(row);
+                    });
+                },
+
+                snapshot(root) {
+                    const map = new Map();
+                    root.querySelectorAll('tr[data-source-key]').forEach((row) => {
+                        map.set(row.dataset.sourceKey, { indexed: row.dataset.sourceIndexed, chunks: row.dataset.sourceChunks });
+                    });
+                    return map;
+                },
+
+                flash(row) {
+                    row.classList.add('bg-emerald-50', 'dark:bg-emerald-900/20');
+                    row.setAttribute('data-source-changed', '1');
+                    window.setTimeout(() => {
+                        row.classList.remove('bg-emerald-50', 'dark:bg-emerald-900/20');
+                        row.removeAttribute('data-source-changed');
+                    }, 3000);
+                },
+
+                updateAgo() {
+                    this.secondsAgo = Math.max(0, Math.round((Date.now() - this.lastCheckedAt) / 1000));
+                },
+
+                badgeLabel() {
+                    return this.labels[this.status] || this.labels.live || '';
+                },
+
+                lastCheckedLabel() {
+                    return (this.labels.lastChecked || ':seconds').replace(':seconds', String(this.secondsAgo));
+                },
+            }));
+        });
+    </script>
+    @endpush
 </x-org-admin-layout>
