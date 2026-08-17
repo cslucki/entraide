@@ -7,6 +7,7 @@ use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Models\DossierChunk;
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -73,6 +74,12 @@ class PgvectorDossierSemanticSearchEndpointTest extends TestCase
     private function fixture(): array
     {
         $organization = Organization::factory()->create();
+        OrganizationAiSetting::factory()->create([
+            'organization_id' => $organization->id,
+            'provider' => 'openai',
+            'model' => 'gpt-4o-mini',
+            'api_key' => 'sk-test-1225-endpoint',
+        ]);
         $owner = User::factory()->create(['organization_id' => $organization->id]);
         $dossier = Dossier::create([
             'organization_id' => $organization->id,
@@ -147,7 +154,7 @@ class PgvectorDossierSemanticSearchEndpointTest extends TestCase
     {
         Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->inputs === ['needle']
             && count($prompt) === 1
-            && $prompt->provider->name() === 'openai'
+            && str_ends_with($prompt->provider->name(), ':openai')
             && $prompt->model === 'text-embedding-3-small'
             && $prompt->dimensions === 1536);
     }

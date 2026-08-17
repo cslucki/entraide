@@ -5,6 +5,7 @@ namespace Tests\Feature\Dossiers;
 use App\Models\Dossier;
 use App\Models\DossierMember;
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use GuzzleHttp\Psr7\Response as PsrResponse;
@@ -38,7 +39,7 @@ class DossierSemanticSearchControllerTest extends TestCase
         $this->mockSearchService()
             ->shouldReceive('search')
             ->once()
-            ->with($organization->id, $dossier->id, 'needle query', 5)
+            ->with($organization->id, $dossier->id, 'needle query', 5, \Mockery::pattern('/^org:.+:openai$/'))
             ->andReturn([
                 [
                     'blog_post_id' => 'post-uuid',
@@ -80,7 +81,7 @@ class DossierSemanticSearchControllerTest extends TestCase
         $this->mockSearchService()
             ->shouldReceive('search')
             ->once()
-            ->with($organization->id, $dossier->id, 'needle', 5)
+            ->with($organization->id, $dossier->id, 'needle', 5, \Mockery::pattern('/^org:.+:openai$/'))
             ->andReturn([]);
 
         $this->actingAs($member)
@@ -98,7 +99,7 @@ class DossierSemanticSearchControllerTest extends TestCase
         $this->mockSearchService()
             ->shouldReceive('search')
             ->once()
-            ->with($organization->id, $dossier->id, 'needle', 5)
+            ->with($organization->id, $dossier->id, 'needle', 5, \Mockery::pattern('/^org:.+:openai$/'))
             ->andReturn([]);
 
         $this->actingAs($member)
@@ -214,7 +215,7 @@ class DossierSemanticSearchControllerTest extends TestCase
         $this->mockSearchService()
             ->shouldReceive('search')
             ->once()
-            ->with($organization->id, $dossier->id, 'needle', 5)
+            ->with($organization->id, $dossier->id, 'needle', 5, \Mockery::pattern('/^org:.+:openai$/'))
             ->andThrow($exception);
 
         $response = $this->actingAs($owner)
@@ -238,6 +239,16 @@ class DossierSemanticSearchControllerTest extends TestCase
             'slug' => 'org-'.Str::uuid(),
             'is_active' => true,
         ]);
+        // TASK-1225 : la recherche semantique exige desormais un embedding
+        // TENANT (credential Organization) — plus jamais la cle plateforme.
+        OrganizationAiSetting::factory()->create([
+            'organization_id' => $organization->id,
+            'provider' => 'openai',
+            'model' => 'gpt-4o-mini',
+            'api_key' => 'sk-test-1225-controller',
+        ]);
+        config()->set('ai.default_for_embeddings', 'openai');
+        config()->set('ai.providers.openai.driver', 'openai');
         $owner = $this->user($organization);
 
         $dossier = Dossier::create([

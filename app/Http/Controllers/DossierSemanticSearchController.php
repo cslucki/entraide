@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Ai\ProviderResolver;
 use App\Models\Dossier;
 use App\Models\Organization;
 use App\Services\Dossiers\DossierSemanticSearchService;
@@ -15,6 +16,8 @@ use RuntimeException;
 
 class DossierSemanticSearchController extends Controller
 {
+    public function __construct(private readonly ProviderResolver $providers) {}
+
     public function __invoke(
         Request $request,
         Organization $organization,
@@ -36,8 +39,24 @@ class DossierSemanticSearchController extends Controller
         ]);
 
         try {
-            $results = $search->search($organization->id, $dossier->id, $validated['query'], 5);
-        } catch (AiException|ConnectionException|RequestException|RuntimeException $exception) {
+            // TASK-1225 : la recherche semantique d'un Dossier passe par le
+            // credential de l'ORGANIZATION, comme l'ingestion (TASK-1214) et
+            // le retrieval (TASK-1213). `null` signifie « pas d'embedding
+            // tenant disponible » : refus explicite, JAMAIS un repli vers la
+            // cle plateforme.
+            $embeddingInstance = $this->providers->resolveEmbeddingInstance((string) $organization->id);
+
+            if ($embeddingInstance === null) {
+                Log::warning('Dossier semantic search refused: no tenant embedding credential.', [
+                    'organization_id' => $organization->id,
+                    'dossier_id' => $dossier->id,
+                ]);
+
+                return response()->json(['code' => 'semantic_search_unavailable'], 503);
+            }
+
+            $results = $search->search($organization->id, $dossier->id, $validated['query'], 5, $embeddingInstance);
+        } catch (AiException|ConnectionException|RequestException|RuntimeException|\DomainException $exception) {
             Log::warning('Dossier semantic search unavailable.', [
                 'organization_id' => $organization->id,
                 'dossier_id' => $dossier->id,
