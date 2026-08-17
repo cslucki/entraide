@@ -4,7 +4,9 @@ namespace App\Services\Ai;
 
 use App\Services\Ai\DTO\AiConsumptionFilters;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Read model de la console « Consommation IA » d'une Organization (TASK-1219).
@@ -142,21 +144,43 @@ class OrganizationAiConsumption
      * `ai_interactions.user_id` est NOT NULL : l'attribution est PROUVEE par la
      * colonne, jamais reconstruite. Aucune heuristique d'attribution.
      *
-     * @return array<int, array{user_id: string, name: ?string, known_cost_usd: ?float, measured_count: int, unknown_count: int, unevaluated_count: int, trace_count: int}>
+     * DEFENSE TENANT — la trace et l'utilisateur sont bornes SEPAREMENT.
+     * `organization_id` et `user_id` sont deux colonnes independantes : rien en
+     * base n'interdit une ligne dont l'Organization est A et dont l'utilisateur
+     * appartient a B (incoherence historique, changement d'Organization,
+     * import). Joindre `users` sur le seul `id` rendrait alors le NOM et
+     * l'IDENTIFIANT d'un utilisateur d'une autre Organization dans la console
+     * de A.
+     *
+     * Le JOIN est donc borne sur `users.organization_id`, et le groupement se
+     * fait sur `users.id` RESOLU — pas sur `ai_interactions.user_id` brut :
+     * sans quoi l'UUID etranger ressortirait tel quel dans la ligne, et
+     * deviendrait une valeur d'option de filtre.
+     *
+     * Ce que cela donne, et c'est la doctrine voulue : la TRACE reste comptee
+     * dans les agregats de A — elle appartient reellement a A — mais son
+     * ATTRIBUTION devient inconnue (`user_id` et `name` a `null`, rendus
+     * « — »). On ne perd pas la consommation, on perd seulement le nom qu'on
+     * n'a pas le droit de dire.
+     *
+     * @return array<int, array{user_id: ?string, name: ?string, known_cost_usd: ?float, measured_count: int, unknown_count: int, unevaluated_count: int, trace_count: int}>
      */
     public function byUser(string $organizationId, AiConsumptionFilters $filters): array
     {
         $rows = $this->baseQuery($organizationId, $filters)
-            ->leftJoin('users', 'users.id', '=', 'ai_interactions.user_id')
-            ->selectRaw('ai_interactions.user_id as user_id')
+            ->leftJoin('users', function (JoinClause $join) use ($organizationId): void {
+                $join->on('users.id', '=', 'ai_interactions.user_id')
+                    ->where('users.organization_id', '=', $organizationId);
+            })
+            ->selectRaw('users.id as user_id')
             ->selectRaw('MAX(users.name) as name')
             ->selectRaw($this->economicSelect())
-            ->groupBy('ai_interactions.user_id')
+            ->groupBy('users.id')
             ->get();
 
         return $rows
             ->map(fn (object $row): array => [
-                'user_id' => (string) $row->user_id,
+                'user_id' => $row->user_id !== null ? (string) $row->user_id : null,
                 'name' => $row->name !== null ? (string) $row->name : null,
                 ...$this->economicRow($row),
             ])
@@ -203,10 +227,18 @@ class OrganizationAiConsumption
         $period = new AiConsumptionFilters($filters->from, $filters->to);
 
         return [
-            'users' => array_map(
+            // Les traces dont l'utilisateur n'appartient pas a cette
+            // Organization remontent avec `user_id = null` : elles forment la
+            // ligne « — » de la ventilation, jamais une option de filtre. On ne
+            // propose pas plus de filtrer sur l'inconnu ici que pour le
+            // provider.
+            'users' => array_values(array_map(
                 static fn (array $row): array => ['id' => $row['user_id'], 'name' => $row['name']],
-                $this->byUser($organizationId, $period),
-            ),
+                array_filter(
+                    $this->byUser($organizationId, $period),
+                    static fn (array $row): bool => $row['user_id'] !== null,
+                ),
+            )),
             'processes' => $this->distinctValues($organizationId, $period, 'process'),
             'models' => $this->distinctValues($organizationId, $period, 'model'),
             'providers' => $this->distinctValues($organizationId, $period, $this->providerExpression(), raw: true),
@@ -225,7 +257,26 @@ class OrganizationAiConsumption
             ->where('ai_interactions.created_at', '<', $filters->to);
 
         if ($filters->userId !== null) {
-            $query->where('ai_interactions.user_id', $filters->userId);
+            // Le filtre utilisateur est borne au tenant, comme le JOIN de
+            // `byUser()`. Un identifiant d'une AUTRE Organization ne selectionne
+            // rien : il ne peut donc pas servir a extraire, ligne par ligne, la
+            // consommation attribuee a quelqu'un qu'on n'a pas le droit de
+            // nommer. Un identifiant inexistant rend exactement la meme chose,
+            // si bien que l'ecran ne confirme meme pas l'existence de l'autre.
+            if (! Str::isUuid($filters->userId)) {
+                // `users.id` et `ai_interactions.user_id` sont de type `uuid` :
+                // sur PostgreSQL, comparer une chaine malformee leve une erreur
+                // 22P02 et l'ecran tombe en 500. Un parametre d'URL invalide ne
+                // doit pas casser une console d'observabilite.
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn('ai_interactions.user_id', function (Builder $sub) use ($filters, $organizationId): void {
+                    $sub->select('id')
+                        ->from('users')
+                        ->where('id', $filters->userId)
+                        ->where('organization_id', $organizationId);
+                });
+            }
         }
 
         if ($filters->process !== null) {

@@ -43,23 +43,40 @@ final class AiConsumptionFilters
     /**
      * Construit les filtres depuis la requete HTTP.
      *
-     * Une date illisible ne provoque pas d'erreur et ne se devine pas : elle est
-     * ignoree, et la periode retombe sur le mois courant. Une console
-     * d'observabilite ne doit pas se casser sur un parametre d'URL malforme.
+     * CONTRAT DES BORNES, tenu par le code et par les tests :
+     *
+     *   - aucune borne fournie                 -> mois courant ;
+     *   - une borne fournie mais illisible     -> mois courant pour LES DEUX ;
+     *   - bornes inversees                     -> mois courant ;
+     *   - deux dates `YYYY-MM-DD` valides      -> conservees, `to` INCLUSIF
+     *                                             cote utilisateur, converti en
+     *                                             intervalle technique
+     *                                             `[from, to + 1 jour[`.
+     *
+     * Une borne illisible invalide TOUTE la periode, pas seulement elle-meme :
+     * garder l'autre borne composerait une fenetre que l'utilisateur n'a jamais
+     * demandee, et les chiffres rendus porteraient son nom sans etre les siens.
+     *
+     * Le parsing est STRICT (cf. `parseStrictDate`) : `tomorrow` ou
+     * `next monday` sont des expressions que Carbon accepterait volontiers, et
+     * qui feraient dependre la periode affichee du jour de lecture.
      */
     public static function fromRequest(Request $request): self
     {
         $default = self::currentMonth();
 
-        $from = self::parseDate($request->query('from')) ?? $default->from;
-        $to = self::parseDate($request->query('to'));
+        $rawFrom = self::cleanString($request->query('from'));
+        $rawTo = self::cleanString($request->query('to'));
 
-        // `to` est exclusif : l'utilisateur saisit un jour de fin qu'il attend
-        // INCLUS, on borne donc au lendemain a minuit.
-        $to = $to !== null ? $to->addDay() : $default->to;
+        $from = $rawFrom === null ? $default->from : self::parseStrictDate($rawFrom);
 
-        // Un intervalle inverse ne rend rien de sense : on repart du mois courant.
-        if ($to <= $from) {
+        // `to` est exclusif en interne : l'utilisateur saisit un jour de fin
+        // qu'il attend INCLUS, on borne donc au lendemain a minuit.
+        $to = $rawTo === null ? $default->to : self::parseStrictDate($rawTo)?->addDay();
+
+        // Borne illisible, ou intervalle inverse : on repart du mois courant,
+        // sans deviner ce que l'utilisateur voulait dire.
+        if ($from === null || $to === null || $to <= $from) {
             $from = $default->from;
             $to = $default->to;
         }
@@ -93,17 +110,39 @@ final class AiConsumptionFilters
         ], static fn (?string $value): bool => $value !== null && $value !== '');
     }
 
-    private static function parseDate(mixed $value): ?CarbonImmutable
+    /**
+     * Parse STRICTEMENT le format des champs `<input type="date">` : `YYYY-MM-DD`.
+     *
+     * `CarbonImmutable::parse()` etait trop accueillant. Il accepte `tomorrow`,
+     * `next monday`, `+3 days` : la periode affichee aurait alors dependu du
+     * jour de lecture, et deux personnes ouvrant la meme URL auraient vu des
+     * chiffres differents sans qu'aucune ne puisse le savoir.
+     *
+     * Deux verrous, parce que le format seul ne suffit pas :
+     *   1. la FORME doit etre exactement `\d{4}-\d{2}-\d{2}` ;
+     *   2. la date doit exister vraiment — `createFromFormat` reporte
+     *      silencieusement les debordements (`2026-02-31` deviendrait le
+     *      3 mars). On exige donc que la date relue rende la chaine d'origine.
+     */
+    private static function parseStrictDate(string $value): ?CarbonImmutable
     {
-        if (! is_string($value) || trim($value) === '') {
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) !== 1) {
             return null;
         }
 
         try {
-            return CarbonImmutable::parse(trim($value))->startOfDay();
+            // `!` remet l'heure a 00:00:00 : sans lui, l'heure courante
+            // s'invite dans la borne et la fenetre glisse au fil de la journee.
+            $parsed = CarbonImmutable::createFromFormat('!Y-m-d', $value);
         } catch (\Throwable) {
             return null;
         }
+
+        if (! $parsed instanceof CarbonImmutable || $parsed->format('Y-m-d') !== $value) {
+            return null;
+        }
+
+        return $parsed;
     }
 
     private static function cleanString(mixed $value): ?string

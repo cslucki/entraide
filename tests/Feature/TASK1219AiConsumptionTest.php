@@ -9,6 +9,8 @@ use App\Services\Ai\DTO\AiConsumptionFilters;
 use App\Services\Ai\OrganizationAiConsumption;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -526,6 +528,212 @@ class TASK1219AiConsumptionTest extends TestCase
     private function consoleUrl(Organization $organization): string
     {
         return route('organization.admin.ai-consumption', ['organization' => $organization->slug]);
+    }
+
+    // ------------------------------------------------------------------
+    // Defense tenant sur l'utilisateur (revue MASTER, PRE-PR 2)
+    // ------------------------------------------------------------------
+
+    public function test_a_user_of_the_organization_is_attributed_normally(): void
+    {
+        [$org, $admin] = $this->organizationWithAdmin();
+
+        $this->trace($org, $admin, cost: 2.0);
+
+        $rows = $this->consumption()->byUser($org->id, $this->thisMonth());
+
+        $this->assertCount(1, $rows);
+        $this->assertSame($admin->id, $rows[0]['user_id']);
+        $this->assertSame($admin->name, $rows[0]['name']);
+        $this->assertSame(2.0, $rows[0]['known_cost_usd']);
+    }
+
+    public function test_a_trace_pointing_at_a_user_of_another_organization_keeps_its_cost_but_loses_its_attribution(): void
+    {
+        [$orgA, $adminA] = $this->organizationWithAdmin();
+        [, $userB] = $this->organizationWithAdmin();
+
+        $this->trace($orgA, $adminA, cost: 1.0);
+
+        // `organization_id` et `user_id` sont deux colonnes independantes :
+        // rien en base n'interdit cette incoherence (changement d'Organization,
+        // import, donnee historique).
+        $crossed = $this->trace($orgA, $adminA, cost: 4.0);
+        $crossed->forceFill(['user_id' => $userB->id])->saveQuietly();
+
+        $month = $this->thisMonth();
+        $consumption = $this->consumption();
+
+        // La TRACE appartient reellement a orgA : elle reste comptee.
+        $summary = $consumption->summary($orgA->id, $month);
+        $this->assertSame(2, $summary['trace_count']);
+        $this->assertSame(5.0, $summary['known_cost_usd']);
+
+        $rows = collect($consumption->byUser($orgA->id, $month));
+
+        // ... mais son ATTRIBUTION devient inconnue.
+        $unattributed = $rows->firstWhere('user_id', null);
+        $this->assertNotNull($unattributed, 'la trace croisee doit remonter en attribution inconnue');
+        $this->assertNull($unattributed['name']);
+        $this->assertSame(4.0, $unattributed['known_cost_usd']);
+
+        // Aucune donnee de l'utilisateur de l'autre Organization.
+        $this->assertNotContains($userB->id, $rows->pluck('user_id')->all());
+        $this->assertNotContains($userB->name, $rows->pluck('name')->all());
+
+        // ... et il n'est pas proposable comme filtre.
+        $userOptions = $consumption->availableFilters($orgA->id, $month)['users'];
+        $this->assertNotContains($userB->id, array_column($userOptions, 'id'));
+        $this->assertNotContains($userB->name, array_column($userOptions, 'name'));
+        $this->assertNotContains(null, array_column($userOptions, 'id'), 'on ne propose pas de filtrer sur l\'inconnu');
+    }
+
+    public function test_the_page_never_renders_the_name_or_the_id_of_a_user_of_another_organization(): void
+    {
+        [$orgA, $adminA] = $this->organizationWithAdmin();
+        [, $userB] = $this->organizationWithAdmin();
+        $userB->forceFill(['name' => 'ForeignUserSentinelXYZ'])->saveQuietly();
+
+        $crossed = $this->trace($orgA, $adminA, cost: 4.0);
+        $crossed->forceFill(['user_id' => $userB->id])->saveQuietly();
+
+        $response = $this->actingAs($adminA)->get($this->consoleUrl($orgA))->assertOk();
+
+        $response->assertDontSee('ForeignUserSentinelXYZ');
+        $response->assertDontSee($userB->id);
+        // La consommation, elle, reste visible : on perd le nom, pas le cout.
+        $this->assertSame(4.0, $response->viewData('summary')['known_cost_usd']);
+    }
+
+    public function test_filtering_on_a_user_of_another_organization_yields_nothing_exploitable(): void
+    {
+        [$orgA, $adminA] = $this->organizationWithAdmin();
+        [, $userB] = $this->organizationWithAdmin();
+
+        $this->trace($orgA, $adminA, cost: 1.0);
+        $crossed = $this->trace($orgA, $adminA, cost: 4.0);
+        $crossed->forceFill(['user_id' => $userB->id])->saveQuietly();
+
+        $month = $this->thisMonth();
+        $foreign = new AiConsumptionFilters($month->from, $month->to, userId: $userB->id);
+
+        $summary = $this->consumption()->summary($orgA->id, $foreign);
+
+        // Rien : ni le cout de la trace croisee, ni meme la confirmation que
+        // cet identifiant existe quelque part.
+        $this->assertSame(0, $summary['trace_count']);
+        $this->assertNull($summary['known_cost_usd']);
+        $this->assertSame([], $this->consumption()->byUser($orgA->id, $foreign));
+    }
+
+    public function test_a_never_seen_user_id_is_indistinguishable_from_a_foreign_one(): void
+    {
+        [$orgA, $adminA] = $this->organizationWithAdmin();
+        [, $userB] = $this->organizationWithAdmin();
+
+        $this->trace($orgA, $adminA, cost: 1.0);
+
+        $month = $this->thisMonth();
+        $foreign = new AiConsumptionFilters($month->from, $month->to, userId: $userB->id);
+        $unknown = new AiConsumptionFilters($month->from, $month->to, userId: (string) Str::uuid());
+
+        // Deux resultats identiques : l'ecran ne confirme pas l'existence de
+        // l'utilisateur d'une autre Organization.
+        $this->assertSame(
+            $this->consumption()->summary($orgA->id, $foreign),
+            $this->consumption()->summary($orgA->id, $unknown),
+        );
+    }
+
+    public function test_a_malformed_user_id_does_not_break_the_page(): void
+    {
+        [$org, $admin] = $this->organizationWithAdmin();
+
+        $this->trace($org, $admin, cost: 1.0);
+
+        // `user_id` est de type `uuid` : sur PostgreSQL, comparer une chaine
+        // malformee leve une 22P02 et la page tombe en 500.
+        $response = $this->actingAs($admin)
+            ->get($this->consoleUrl($org).'?user_id=pas-un-uuid')
+            ->assertOk();
+
+        $this->assertSame(0, $response->viewData('summary')['trace_count']);
+    }
+
+    // ------------------------------------------------------------------
+    // Contrat des dates (revue MASTER, PRE-PR 2)
+    // ------------------------------------------------------------------
+
+    public function test_two_valid_dates_are_kept_with_an_inclusive_end_bound(): void
+    {
+        $filters = $this->filtersFromQuery(['from' => '2026-03-01', 'to' => '2026-03-31']);
+
+        $this->assertSame('2026-03-01', $filters->from->toDateString());
+        // Borne utilisateur INCLUSIVE -> intervalle technique au lendemain.
+        $this->assertSame('2026-04-01', $filters->to->toDateString());
+        $this->assertSame('2026-03-31', $filters->toQuery()['to']);
+    }
+
+    public function test_an_invalid_from_bound_resets_both_bounds_to_the_current_month(): void
+    {
+        $default = AiConsumptionFilters::currentMonth();
+        $filters = $this->filtersFromQuery(['from' => 'pas-une-date', 'to' => '2026-03-31']);
+
+        // Garder le `to` composerait une fenetre que personne n'a demandee.
+        $this->assertSame($default->from->toDateString(), $filters->from->toDateString());
+        $this->assertSame($default->to->toDateString(), $filters->to->toDateString());
+    }
+
+    public function test_an_invalid_to_bound_resets_both_bounds_to_the_current_month(): void
+    {
+        $default = AiConsumptionFilters::currentMonth();
+        $filters = $this->filtersFromQuery(['from' => '2026-03-01', 'to' => '31/03/2026']);
+
+        $this->assertSame($default->from->toDateString(), $filters->from->toDateString());
+        $this->assertSame($default->to->toDateString(), $filters->to->toDateString());
+    }
+
+    public function test_inverted_bounds_fall_back_to_the_current_month(): void
+    {
+        $default = AiConsumptionFilters::currentMonth();
+        $filters = $this->filtersFromQuery(['from' => '2026-05-01', 'to' => '2026-01-01']);
+
+        $this->assertSame($default->from->toDateString(), $filters->from->toDateString());
+        $this->assertSame($default->to->toDateString(), $filters->to->toDateString());
+    }
+
+    public function test_no_bound_at_all_is_the_current_month(): void
+    {
+        $default = AiConsumptionFilters::currentMonth();
+        $filters = $this->filtersFromQuery([]);
+
+        $this->assertSame($default->from->toDateString(), $filters->from->toDateString());
+        $this->assertSame($default->to->toDateString(), $filters->to->toDateString());
+    }
+
+    /**
+     * Le point central de la correction : Carbon accepterait ces expressions,
+     * et la periode affichee dependrait alors du jour de lecture.
+     */
+    public function test_free_carbon_expressions_are_rejected(): void
+    {
+        $default = AiConsumptionFilters::currentMonth();
+
+        foreach (['tomorrow', 'next monday', '+3 days', 'yesterday', 'now', '2026-02-31', '2026-3-1'] as $expression) {
+            $filters = $this->filtersFromQuery(['from' => $expression, 'to' => '2026-12-31']);
+
+            $this->assertSame(
+                $default->from->toDateString(),
+                $filters->from->toDateString(),
+                "« {$expression} » ne doit pas etre accepte comme borne",
+            );
+            $this->assertSame($default->to->toDateString(), $filters->to->toDateString());
+        }
+    }
+
+    private function filtersFromQuery(array $query): AiConsumptionFilters
+    {
+        return AiConsumptionFilters::fromRequest(Request::create('/', 'GET', $query));
     }
 
     // ------------------------------------------------------------------
