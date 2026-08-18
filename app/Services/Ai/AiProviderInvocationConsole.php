@@ -108,8 +108,10 @@ final class AiProviderInvocationConsole
                     default => 'embedding_undeclared',
                 },
                 'process' => $row->process !== null ? (string) $row->process : null,
-                'feature' => null,
-                'sandbox' => false,
+                // TASK-1229 : la feature du ledger (recherche d'un essai de
+                // doctrine) — le libelle produit dit « essai de doctrine ».
+                'feature' => $row->feature !== null ? (string) $row->feature : null,
+                'sandbox' => $row->feature === OrganizationDoctrineSandbox::FEATURE,
                 'provider' => $row->provider !== null ? (string) $row->provider : null,
                 'model' => $row->model !== null ? (string) $row->model : null,
                 'cost_state' => $row->cost_status === AiProviderInvocation::COST_KNOWN ? 'known' : 'unknown',

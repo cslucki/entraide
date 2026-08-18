@@ -454,7 +454,7 @@ return [
         'blog_explorer_note' => 'Note Blog IA',
         'blog_method_selection' => 'Choix de méthode (Blog IA)',
         'dossier_embeddings_index' => 'Indexation documentaire',
-        'dossier.embeddings_search' => 'Recherche documentaire',
+        'dossier_embeddings_search' => 'Recherche documentaire',
         'other' => 'Autre',
     ],
     'activity_sandbox_label' => 'Essai de doctrine (bac à sable)',

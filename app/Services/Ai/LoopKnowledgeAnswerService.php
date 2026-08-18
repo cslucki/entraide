@@ -129,6 +129,9 @@ class LoopKnowledgeAnswerService
                 consulted: [],
                 grounded: false,
                 interactionId: null,
+                // TASK-1229 : la recherche documentaire a pu etre emise (une
+                // utilisation reelle) : le credit se lit ici aussi.
+                credit: $this->economicGuard->userCreditStatus($organization, $requester),
             );
         }
 

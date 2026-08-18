@@ -36,18 +36,23 @@ class DossierSemanticSearchService
      */
     private function queryEmbeddingAllowed(string $organizationId): bool
     {
-        return $this->queryEmbeddingVerdict($organizationId)?->allowed === true;
+        // Chemin RAG : la capability appelante a DEJA passe la garde avec son
+        // utilisateur (ou sans, pour le bac a sable de doctrine — hors
+        // credit) ; ici, seul le budget de l'Organization s'applique. Le
+        // credit ne s'applique qu'une fois, jamais deux.
+        return $this->queryEmbeddingVerdict($organizationId, withUser: false)?->allowed === true;
     }
 
     /**
-     * TASK-1229 : le verdict complet (raison, credit) — la MEME garde, avec
-     * l'utilisateur authentifie s'il y en a un : une recherche documentaire
-     * declenchee par un membre est une utilisation de SON credit IA (c'est
-     * aussi l'identite que le ledger attribue a l'invocation). Sans
-     * utilisateur (traitement hors session), seul le budget Organization
-     * s'applique. NULL = Organization introuvable.
+     * TASK-1229 : le verdict complet (raison, credit) — la MEME garde. Avec
+     * `$withUser`, l'utilisateur authentifie est passe a la garde : une
+     * recherche documentaire DIRECTE declenchee par un membre est une
+     * utilisation de SON credit IA (c'est aussi l'identite que le ledger
+     * attribue a l'invocation). Sans utilisateur (chemin RAG, traitement
+     * hors session), seul le budget Organization s'applique. NULL =
+     * Organization introuvable.
      */
-    private function queryEmbeddingVerdict(string $organizationId): ?AiEconomicVerdict
+    private function queryEmbeddingVerdict(string $organizationId, bool $withUser): ?AiEconomicVerdict
     {
         $organization = Organization::query()->find($organizationId);
 
@@ -55,7 +60,7 @@ class DossierSemanticSearchService
             return null;
         }
 
-        $user = Auth::user();
+        $user = $withUser ? Auth::user() : null;
         $verdict = $this->economicGuard->authorizeEmbeddings($organization, $user instanceof User ? $user : null);
 
         if (! $verdict->allowed) {
@@ -106,7 +111,7 @@ class DossierSemanticSearchService
         // Dossier), un refus economique se dit avec son code — credit
         // utilisateur epuise / budget Organization atteint — plutot que de
         // se deguiser en « aucun resultat ». Aucun appel, aucune ligne de ledger.
-        $verdict = $this->queryEmbeddingVerdict($organizationId);
+        $verdict = $this->queryEmbeddingVerdict($organizationId, withUser: true);
 
         if ($verdict === null) {
             return [];

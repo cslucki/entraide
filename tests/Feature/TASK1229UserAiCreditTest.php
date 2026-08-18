@@ -33,9 +33,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Laravel\Ai\Embeddings;
 use Laravel\Ai\Prompts\AgentPrompt;
+use Laravel\Ai\Prompts\EmbeddingsPrompt;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
+use Laravel\Ai\Responses\EmbeddingsResponse;
 use Laravel\Ai\Responses\TextResponse;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -312,6 +315,45 @@ class TASK1229UserAiCreditTest extends TestCase
         $response->assertStatus(429)->assertJsonPath('code', AiRefusedException::CODE_USER_CREDIT_EXHAUSTED);
         $this->assertNotNull($response->json('offers_url'));
         $this->assertSame($ledgerBefore, AiProviderInvocation::query()->count());
+    }
+
+    public function test_the_rag_search_of_an_already_authorized_capability_is_not_credit_gated_twice(): void
+    {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('Semantic search requires PostgreSQL pgvector.');
+        }
+
+        // Le credit s'applique UNE fois, au verdict de la capability (ou pas
+        // du tout pour le bac a sable de doctrine, hors credit) : le chemin
+        // RAG interne n'applique que le budget de l'Organization. Sinon un
+        // admin au plafond verrait ses essais de doctrine tourner « sans
+        // sources » — un refus deguise.
+        $this->platform(monthlyUses: 1);
+        $this->uses($this->adminA, 1);
+        $this->app->forgetInstance(DossierSemanticSearchService::class);
+        config()->set('ai.caching.embeddings.cache', false);
+        config()->set('ai.providers.openrouter.models.embeddings.default', 'openai/text-embedding-3-small');
+        config()->set('ai.providers.openrouter.models.embeddings.dimensions', 1536);
+        Embeddings::fake(function (EmbeddingsPrompt $prompt): EmbeddingsResponse {
+            $vectors = array_map(fn (): array => array_fill(0, 1536, 0.1), $prompt->inputs);
+
+            return new EmbeddingsResponse($vectors, count($prompt->inputs) * 3, new Meta($prompt->provider->name(), $prompt->model));
+        })->preventStrayEmbeddings();
+        $this->actingAs($this->adminA);
+        $ledgerBefore = AiProviderInvocation::query()->count();
+
+        // Chemin RAG : l'embedding de requete est EMIS malgre le credit epuise.
+        app(DossierSemanticSearchService::class)->searchAcrossDossiers((string) $this->orgA->id, [(string) $this->dossier->id], 'une question', 3);
+        $this->assertSame($ledgerBefore + 1, AiProviderInvocation::query()->count());
+
+        // Chemin DIRECT : refuse avec le code credit, rien d'emis.
+        try {
+            app(DossierSemanticSearchService::class)->search((string) $this->orgA->id, (string) $this->dossier->id, 'une question');
+            $this->fail('Expected a credit refusal on the direct path.');
+        } catch (AiRefusedException $exception) {
+            $this->assertSame(AiRefusedException::CODE_USER_CREDIT_EXHAUSTED, $exception->refusalCode);
+        }
+        $this->assertSame($ledgerBefore + 1, AiProviderInvocation::query()->count());
     }
 
     // =====================================================================
