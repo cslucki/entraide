@@ -83,9 +83,8 @@
             {{-- Au plafond : les actions sont REMPLACEES par le refus, sans
                  rien appeler — le refus reel vit dans AiEconomicGuard. --}}
             <div class="px-4 py-3 space-y-3" data-ai-fab-refusal>
-                <div class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-800/50 dark:bg-rose-900/20 dark:text-rose-200">
-                    <p class="font-semibold">{{ __('ai.credit_exhausted_title') }}</p>
-                    <p class="mt-1 text-xs leading-5">{{ $fab['refusal_message'] }}</p>
+                <div class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm leading-5 text-rose-800 dark:border-rose-800/50 dark:bg-rose-900/20 dark:text-rose-200">
+                    {{ $fab['refusal_message'] }}
                 </div>
                 @if($fab['offers_url'])
                     <a href="{{ $fab['offers_url'] }}" data-ai-fab-offers

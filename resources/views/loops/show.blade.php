@@ -61,6 +61,15 @@
         body:has(.loops-show-container) .loops-show-wrapper {
             padding: 0 !important;
         }
+        /* TASK-1231 : le FAB « + » est masque ici (au-dessus) et la rangee des
+           actions IA + le composeur occupent le bas de l'ecran : le FAB
+           BouclePro IA remonte au-dessus de cette rangee, sans la couvrir. */
+        body:has(.loops-show-container) [data-ai-fab-toggle] {
+            bottom: 14rem !important;
+        }
+        body:has(.loops-show-container) [data-ai-fab-panel] {
+            bottom: 17.5rem !important;
+        }
         body:has(.loops-show-container) .loops-show-container {
             height: calc(100dvh - 4rem - env(safe-area-inset-bottom, 0px));
         }

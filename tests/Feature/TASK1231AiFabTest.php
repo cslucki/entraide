@@ -270,22 +270,22 @@ class TASK1231AiFabTest extends TestCase
 
     public function test_the_fab_is_absent_from_guest_admin_and_org_admin_layouts(): void
     {
-        $this->get(route('login'))->assertOk()->assertDontSee('data-ai-fab', false);
+        $this->get(route('login'))->assertOk()->assertDontSee('data-ai-fab-page=', false);
 
-        $this->actingAs($this->superAdmin)->get(route('admin.ia-usage'))->assertOk()->assertDontSee('data-ai-fab', false);
+        $this->actingAs($this->superAdmin)->get(route('admin.ia-usage'))->assertOk()->assertDontSee('data-ai-fab-page=', false);
 
         $this->organization->update(['admin_id' => $this->owner->id]);
         $this->actingAs($this->owner)
             ->get(route('organization.admin.system-email-templates', ['organization' => $this->organization->slug]))
             ->assertOk()
-            ->assertDontSee('data-ai-fab', false);
+            ->assertDontSee('data-ai-fab-page=', false);
     }
 
     public function test_the_kill_switch_removes_the_fab(): void
     {
         config(['ai.fab.enabled' => false]);
 
-        $this->actingAs($this->member)->get($this->loopUrl())->assertOk()->assertDontSee('data-ai-fab', false);
+        $this->actingAs($this->member)->get($this->loopUrl())->assertOk()->assertDontSee('data-ai-fab-page=', false);
     }
 
     // =====================================================================
