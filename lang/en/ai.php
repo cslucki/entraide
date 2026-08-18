@@ -306,7 +306,7 @@ return [
     'cockpit_consumption_unevaluated' => 'never-evaluated trace|never-evaluated traces',
     'cockpit_consumption_open_console' => 'Open the consumption console',
     'cockpit_calls' => 'calls',
-    'platform_intro' => 'Metadata-only supervision across organizations: configuration, this month\'s invocations (canonical ledger), known cost, document index health. Never private content, never a key.',
+    'platform_intro' => 'AI economy across all organizations, by metadata: provider cost this month, budgets, AI users, generations, document searches and indexings, calls with unknown cost, index health. Never a private content, never a key.',
     'platform_card_organizations' => 'Organizations',
     'platform_card_configured' => 'AI configured',
     'platform_card_invocations' => 'Invocations this month',

@@ -131,9 +131,6 @@
                                         <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{{ $row['at']->format('d/m/Y H:i') }}</td>
                                         <td class="px-4 py-3 text-gray-900 dark:text-gray-100">
                                             {{ $processLabel($row['process'], $row['feature'], $row['sandbox']) }}
-                                            @if($row['sandbox'])
-                                                <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ __('ai.economy_nature_sandbox') }}</span>
-                                            @endif
                                         </td>
                                         <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ $kindLabel($row['kind']) }}</td>
                                         <td class="px-4 py-3 text-gray-600 dark:text-gray-400 font-mono text-xs">{{ $row['provider'] ?? '—' }}{{ $row['model'] ? ' / '.$row['model'] : '' }}</td>

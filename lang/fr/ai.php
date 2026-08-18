@@ -306,7 +306,7 @@ return [
     'cockpit_consumption_unevaluated' => 'trace jamais évaluée|traces jamais évaluées',
     'cockpit_consumption_open_console' => 'Ouvrir la console de consommation',
     'cockpit_calls' => 'appels',
-    'platform_intro' => 'Supervision par métadonnées, toutes organisations : configuration, invocations du mois (registre canonique), coût connu, santé de l\'index documentaire. Jamais un contenu privé, jamais une clé.',
+    'platform_intro' => 'Économie IA de toutes les organisations, par métadonnées : coût fournisseur du mois, budgets, utilisateurs IA, générations, recherches et indexations documentaires, appels au coût inconnu, santé de l\'index. Jamais un contenu privé, jamais une clé.',
     'platform_card_organizations' => 'Organisations',
     'platform_card_configured' => 'IA configurées',
     'platform_card_invocations' => 'Invocations du mois',
