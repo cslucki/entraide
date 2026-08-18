@@ -70,21 +70,27 @@ class SeedChatLoopAiPromptsTest extends TestCase
 
     public function test_it_never_overwrites_a_custom_active_prompt(): void
     {
+        // TASK-1233 : la version 1 de `chatloop_ai_answer_fr` est provisionnee
+        // par migration (deploy-safe). Un admin qui personnalise publie une
+        // NOUVELLE version active ; le seed ne doit ni l'ecraser ni la
+        // desactiver.
+        AdminAiPrompt::where('scenario_id', 'chatloop_ai_answer_fr')->update(['is_active' => false]);
         AdminAiPrompt::create([
             'scenario_id' => 'chatloop_ai_answer_fr',
             'name' => 'Custom FR',
             'description' => 'Customized by an admin.',
             'prompt_text' => 'Prompt personnalisé par l\'organisation.',
-            'version' => 1,
+            'version' => 2,
             'is_active' => true,
         ]);
 
         $this->artisan('ai:seed-chatloop-ai-prompts')->assertSuccessful();
 
         $frRows = AdminAiPrompt::where('scenario_id', 'chatloop_ai_answer_fr')->get();
+        $active = AdminAiPrompt::active()->where('scenario_id', 'chatloop_ai_answer_fr')->get();
 
-        $this->assertCount(1, $frRows);
-        $this->assertTrue($frRows->first()->is_active);
-        $this->assertSame('Prompt personnalisé par l\'organisation.', $frRows->first()->prompt_text);
+        $this->assertCount(2, $frRows);
+        $this->assertCount(1, $active);
+        $this->assertSame('Prompt personnalisé par l\'organisation.', $active->first()->prompt_text);
     }
 }
