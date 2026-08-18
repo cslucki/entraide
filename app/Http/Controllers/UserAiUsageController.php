@@ -33,7 +33,10 @@ class UserAiUsageController extends Controller
         OrganizationAiEconomicUsage $usage,
     ): View {
         $user = $request->user();
-        $organization = currentOrganization() ?? $user->organization;
+        // L'Organization de l'utilisateur d'abord : sur la route non prefixee,
+        // l'Organization « courante » est celle par defaut de la plateforme,
+        // pas la sienne (revue PASS A) — le releve doit rester le sien.
+        $organization = $user->organization ?? currentOrganization();
 
         abort_unless($organization !== null, 404);
 

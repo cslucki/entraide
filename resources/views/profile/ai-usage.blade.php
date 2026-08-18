@@ -19,7 +19,11 @@
             return __('ai.process_label.'.str_replace('.', '_', $process));
         }
 
-        return $process ?? $feature ?? '—';
+        if ($process === null || $process === 'unknown') {
+            return $feature ?? __('ai.process_label.other');
+        }
+
+        return $process;
     };
     $kindLabel = static fn (string $kind): string => match ($kind) {
         'generation' => __('ai.usage_type_generation'),
@@ -68,7 +72,7 @@
                         @endif
                     </div>
                     <div class="rounded-lg border p-4 {{ $usage['total_unknown_count'] > 0 ? 'border-amber-200 dark:border-amber-900/50 bg-amber-50/60 dark:bg-amber-900/10' : 'border-gray-100 dark:border-gray-700' }}" data-my-ai-usage-unknown="{{ $usage['total_unknown_count'] }}">
-                        <div class="text-xs uppercase {{ $usage['total_unknown_count'] > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-gray-400' }}">{{ __('ai.usage_col_cost') }}</div>
+                        <div class="text-xs uppercase {{ $usage['total_unknown_count'] > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-gray-400' }}">{{ __('ai.my_ai_usage_unknown_title') }}</div>
                         <div class="text-sm font-medium mt-1 {{ $usage['total_unknown_count'] > 0 ? 'text-amber-800 dark:text-amber-200' : 'text-gray-700 dark:text-gray-300' }}">
                             {{ trans_choice('ai.economy_unknown_count', $usage['total_unknown_count'], ['count' => $usage['total_unknown_count']]) }}
                         </div>
@@ -137,13 +141,17 @@
                                         <td class="px-4 py-3 text-right font-mono text-xs">
                                             @if($row['cost_state'] === 'known')
                                                 <span class="text-gray-900 dark:text-gray-100">{{ $cost($row['cost_usd']) }}</span>
-                                            @else
+                                            @elseif($row['cost_state'] === 'unknown')
                                                 <span class="text-amber-600 dark:text-amber-400" title="{{ trans_choice('ai.economy_unknown_count', 1, ['count' => 1]) }}">—</span>
+                                            @else
+                                                <span class="text-gray-400" title="{{ trans_choice('ai.economy_unevaluated_count', 1, ['count' => 1]) }}">—</span>
                                             @endif
                                         </td>
                                         <td class="px-4 py-3 text-right">
-                                            @if($row['status'] === null || $row['status'] === 'success')
+                                            @if($row['status'] === 'success')
                                                 <span class="text-xs text-emerald-600 dark:text-emerald-400">{{ __('ai.usage_status_success') }}</span>
+                                            @elseif($row['status'] === null)
+                                                <span class="text-xs text-gray-400">—</span>
                                             @else
                                                 <span class="text-xs text-red-500">{{ __('ai.usage_status_failed') }}</span>
                                             @endif

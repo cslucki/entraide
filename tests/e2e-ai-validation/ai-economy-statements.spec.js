@@ -82,12 +82,15 @@ async function userFigures(page) {
         search: num(await page.locator('[data-my-ai-usage-nature="embedding_query"]').getAttribute('data-my-ai-usage-nature-count')),
         unknown: num(await page.locator('[data-my-ai-usage-unknown]').getAttribute('data-my-ai-usage-unknown')),
         knownCost: (await page.locator('[data-my-ai-usage-known-cost]').innerText()).trim(),
+        searchLine: (await page.locator('[data-my-ai-usage-nature="embedding_query"]').innerText()).replace(/\s+/g, ' ').trim(),
+        unknownCardTitle: (await page.locator('[data-my-ai-usage-unknown] > div').first().innerText()).trim(),
     };
 }
 
 async function orgFigures(page) {
     await page.goto(ORG_PAGE);
     return {
+        searchLine: (await page.locator('[data-consumption-nature="embedding_query"]').innerText()).replace(/\s+/g, ' ').trim(),
         total: num(await page.locator('[data-consumption-breakdown]').getAttribute('data-consumption-total-count')),
         generation: num(await page.locator('[data-consumption-nature="generation"]').getAttribute('data-consumption-nature-count')),
         search: num(await page.locator('[data-consumption-nature="embedding_query"]').getAttribute('data-consumption-nature-count')),
@@ -160,6 +163,8 @@ test.describe('TASK-1228 Economie visible', () => {
         expect(platformGeneration).toBeGreaterThanOrEqual(orgAfter.generation);
         await orgRow.scrollIntoViewIfNeeded();
         await platformPage.screenshot({ path: path.join(CAPTURES, '05-coherence-ligne-organization-plateforme.png'), fullPage: false });
+        // Chiffres bruts lus a l'ecran (pour index.md : il decrit l'ecran, pas l'inverse).
+        fs.writeFileSync(path.join(CAPTURES, 'figures.json'), JSON.stringify({ userBefore, userAfter, orgBefore, orgAfter, platformKnownCost, platformUnknown, platformGeneration }, null, 2));
         fs.writeFileSync(path.join(CAPTURES, '05-coherence-chiffres.txt'), [
             `Organization (releve admin) : consomme ${orgAfter.consumed}, generations ${orgAfter.generation}, recherches ${orgAfter.search}, inconnus ${orgAfter.unknown}, total ${orgAfter.total}`,
             `Plateforme (ligne ArtSciLab) : consomme $${platformKnownCost}, inconnus ${platformUnknown}, generations plateforme ${platformGeneration}`,

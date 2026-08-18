@@ -36,7 +36,7 @@
                 ['label' => __('ai.platform_card_ai_users'), 'value' => number_format($totals['ai_users']), 'key' => 'ai-users', 'attr' => $totals['ai_users']],
                 ['label' => __('ai.platform_card_generation'), 'value' => number_format($totals['generation']), 'key' => 'generation', 'attr' => $totals['generation'], 'sub' => $totals['generation_sandbox'] > 0 ? __('ai.economy_nature_sandbox').' : '.number_format($totals['generation_sandbox']) : null],
                 ['label' => __('ai.platform_card_search'), 'value' => number_format($totals['embedding_query']), 'key' => 'search', 'attr' => $totals['embedding_query']],
-                ['label' => __('ai.platform_card_ingestion'), 'value' => number_format($totals['embedding_ingestion'] + $totals['embedding_undeclared']), 'key' => 'ingestion', 'attr' => $totals['embedding_ingestion'] + $totals['embedding_undeclared']],
+                ['label' => __('ai.platform_card_ingestion'), 'value' => number_format($totals['embedding_ingestion']), 'key' => 'ingestion', 'attr' => $totals['embedding_ingestion'], 'sub' => $totals['embedding_undeclared'] > 0 ? __('ai.economy_undeclared_suffix', ['count' => number_format($totals['embedding_undeclared'])]) : null],
                 ['label' => __('ai.platform_card_unknown_cost'), 'value' => number_format($totals['unknown_count']), 'key' => 'unknown', 'attr' => $totals['unknown_count'], 'warn' => $totals['unknown_count'] > 0, 'sub' => $totals['unevaluated_count'] > 0 ? trans_choice('ai.economy_unevaluated_count', $totals['unevaluated_count'], ['count' => $totals['unevaluated_count']]) : null],
                 ['label' => __('ai.platform_card_failed'), 'value' => number_format($totals['failed']), 'key' => 'failed', 'attr' => $totals['failed']],
             ] as $card)
@@ -109,7 +109,12 @@
                                         <span class="text-gray-400" title="{{ __('ai.economy_nature_sandbox') }}">({{ number_format($eco['generation_sandbox']['trace_count']) }})</span>
                                     @endif
                                 </td>
-                                <td class="px-4 py-3 text-right font-mono text-xs text-gray-900 dark:text-gray-100">{{ number_format($eco['embedding_query']['invocation_count'] ?? 0) }} / {{ number_format(($eco['embedding_ingestion']['invocation_count'] ?? 0) + ($eco['embedding_undeclared']['invocation_count'] ?? 0)) }}</td>
+                                <td class="px-4 py-3 text-right font-mono text-xs text-gray-900 dark:text-gray-100">
+                                    {{ number_format($eco['embedding_query']['invocation_count'] ?? 0) }} / {{ number_format($eco['embedding_ingestion']['invocation_count'] ?? 0) }}
+                                    @if(($eco['embedding_undeclared']['invocation_count'] ?? 0) > 0)
+                                        <span class="text-gray-400" title="{{ __('ai.economy_nature_embedding_undeclared') }}">{{ __('ai.economy_undeclared_suffix', ['count' => number_format($eco['embedding_undeclared']['invocation_count'])]) }}</span>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3 text-right font-mono text-xs {{ $unknownCount > 0 ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-gray-400' }}">{{ number_format($unknownCount) }}</td>
                                 <td class="px-4 py-3 text-right font-mono text-xs {{ ($meta['failed_count'] ?? 0) > 0 ? 'text-red-500' : 'text-gray-400' }}">{{ number_format($meta['failed_count'] ?? 0) }}</td>
                                 <td class="px-4 py-3 text-right font-mono text-xs text-gray-900 dark:text-gray-100">{{ $index !== null ? number_format($index['chunks']) : '0' }}</td>
@@ -122,6 +127,19 @@
                                 <td colspan="12" class="px-4 py-8 text-center text-gray-400">{{ __('ai.platform_empty') }}</td>
                             </tr>
                         @endforelse
+                        @if($deletedCount > 0)
+                            {{-- Organizations supprimees : hors de la liste, dans le total. --}}
+                            <tr class="bg-gray-50 dark:bg-gray-900/30" data-platform-deleted="{{ $deletedCount }}">
+                                <td class="px-4 py-3 text-gray-600 dark:text-gray-400 italic" colspan="3">{{ trans_choice('ai.platform_row_deleted', $deletedCount, ['count' => $deletedCount]) }}</td>
+                                <td class="px-4 py-3 text-right font-mono text-xs text-gray-900 dark:text-gray-100">{{ $cost($deleted['total_known_cost_usd']) }}</td>
+                                <td class="px-4 py-3 text-right font-mono text-xs text-gray-400">—</td>
+                                <td class="px-4 py-3 text-right font-mono text-xs text-gray-400">—</td>
+                                <td class="px-4 py-3 text-right font-mono text-xs text-gray-900 dark:text-gray-100">{{ number_format($deleted['generation_count']) }}</td>
+                                <td class="px-4 py-3 text-right font-mono text-xs text-gray-900 dark:text-gray-100">{{ number_format($deleted['embedding_query_count']) }} / {{ number_format($deleted['embedding_ingestion_count']) }}</td>
+                                <td class="px-4 py-3 text-right font-mono text-xs {{ $deleted['total_unknown_count'] > 0 ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-gray-400' }}">{{ number_format($deleted['total_unknown_count']) }}</td>
+                                <td class="px-4 py-3 text-right font-mono text-xs text-gray-400" colspan="3">—</td>
+                            </tr>
+                        @endif
                         @if($unattributedCount > 0)
                             {{-- Traces sans Organization : comptees, jamais reparties. --}}
                             <tr class="bg-gray-50 dark:bg-gray-900/30" data-platform-unattributed="{{ $unattributedCount }}">

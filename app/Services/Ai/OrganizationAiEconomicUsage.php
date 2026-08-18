@@ -168,7 +168,7 @@ final class OrganizationAiEconomicUsage
                 AiProviderInvocation::EMBEDDING_OPERATION_INGESTION => 'embedding_ingestion',
                 default => 'embedding_undeclared',
             };
-            $rows[$key][$bucket] = $this->embeddingRow($row);
+            $rows[$key][$bucket] = $this->mergeEmbeddingRows($rows[$key][$bucket], $this->embeddingRow($row));
         }
 
         $rows = array_map(fn (array $row): array => $this->withUserTotals($row), $rows);
@@ -239,7 +239,9 @@ final class OrganizationAiEconomicUsage
                 AiProviderInvocation::EMBEDDING_OPERATION_INGESTION => 'embedding_ingestion',
                 default => 'embedding_undeclared',
             };
-            $organizations[$key][$bucket] = $this->embeddingRow($row);
+            // Additif : plusieurs valeurs hors catalogue tombent dans le meme
+            // seau « non declaree » sans s'ecraser.
+            $organizations[$key][$bucket] = $this->mergeEmbeddingRows($organizations[$key][$bucket], $this->embeddingRow($row));
         }
 
         foreach ($users as $key => $count) {
@@ -290,17 +292,28 @@ final class OrganizationAiEconomicUsage
      */
     private function aiUsersByOrganization(CarbonImmutable $from, CarbonImmutable $to): array
     {
+        // MEME defense tenant que `byUser()` : seuls les utilisateurs qui
+        // appartiennent a l'Organization de la trace sont comptes ; une trace
+        // attribuee a un utilisateur d'une autre Organization n'est pas un
+        // « utilisateur IA » de celle-ci (elle reste comptee dans ses couts,
+        // ligne « non attribuable »).
         $generation = DB::table('ai_interactions')
-            ->select('organization_id', 'user_id')
-            ->where('created_at', '>=', $from)
-            ->where('created_at', '<', $to)
-            ->whereNotNull('user_id');
+            ->join('users', static function ($join): void {
+                $join->on('users.id', '=', 'ai_interactions.user_id')
+                    ->on('users.organization_id', '=', 'ai_interactions.organization_id');
+            })
+            ->select('ai_interactions.organization_id', 'ai_interactions.user_id')
+            ->where('ai_interactions.created_at', '>=', $from)
+            ->where('ai_interactions.created_at', '<', $to);
 
         $embedding = DB::table('ai_provider_invocations')
-            ->select('organization_id', 'user_id')
-            ->where('created_at', '>=', $from)
-            ->where('created_at', '<', $to)
-            ->whereNotNull('user_id');
+            ->join('users', static function ($join): void {
+                $join->on('users.id', '=', 'ai_provider_invocations.user_id')
+                    ->on('users.organization_id', '=', 'ai_provider_invocations.organization_id');
+            })
+            ->select('ai_provider_invocations.organization_id', 'ai_provider_invocations.user_id')
+            ->where('ai_provider_invocations.created_at', '>=', $from)
+            ->where('ai_provider_invocations.created_at', '<', $to);
 
         $rows = DB::query()
             ->fromSub($generation->union($embedding), 'ai_users')
@@ -409,6 +422,26 @@ final class OrganizationAiEconomicUsage
     }
 
     /**
+     * Somme de deux tranches embeddings (couts connus null-aware, comptes).
+     *
+     * @param  array{known_cost_usd: ?float, measured_count: int, unknown_count: int, invocation_count: int, failed_count: int}  $a
+     * @param  array{known_cost_usd: ?float, measured_count: int, unknown_count: int, invocation_count: int, failed_count: int}  $b
+     * @return array{known_cost_usd: ?float, measured_count: int, unknown_count: int, invocation_count: int, failed_count: int}
+     */
+    private function mergeEmbeddingRows(array $a, array $b): array
+    {
+        return [
+            'known_cost_usd' => $a['known_cost_usd'] === null && $b['known_cost_usd'] === null
+                ? null
+                : (float) ($a['known_cost_usd'] ?? 0) + (float) ($b['known_cost_usd'] ?? 0),
+            'measured_count' => $a['measured_count'] + $b['measured_count'],
+            'unknown_count' => $a['unknown_count'] + $b['unknown_count'],
+            'invocation_count' => $a['invocation_count'] + $b['invocation_count'],
+            'failed_count' => $a['failed_count'] + $b['failed_count'],
+        ];
+    }
+
+    /**
      * @return array{known_cost_usd: ?float, measured_count: int, unknown_count: int, invocation_count: int, failed_count: int}
      */
     private function embeddingRow(?object $row): array
@@ -456,12 +489,26 @@ final class OrganizationAiEconomicUsage
     ): array {
         $row = AiProviderInvocation::query()
             ->where('organization_id', $organizationId)
-            ->when($userId !== null, static fn ($query) => $query->where('user_id', $userId))
+            // Meme defense tenant que la tranche generation (1219) : un
+            // identifiant d'utilisateur d'une AUTRE Organization ne selectionne
+            // rien, meme sur des lignes deja bornees a ce tenant.
+            ->when($userId !== null, static fn ($query) => $query->whereIn('user_id', static function ($sub) use ($userId, $organizationId): void {
+                $sub->select('id')->from('users')->where('id', $userId)->where('organization_id', $organizationId);
+            }))
             ->where('operation', AiProviderInvocation::OPERATION_EMBEDDING)
             ->when(
                 $embeddingOperation !== null,
                 static fn ($query) => $query->where('embedding_operation', $embeddingOperation),
-                static fn ($query) => $query->whereNull('embedding_operation'),
+                // « Non declaree » = NULL ou valeur hors catalogue : la MEME
+                // definition que le seau `embedding_undeclared` des lectures
+                // groupees, pour que ligne == summary.
+                static fn ($query) => $query->where(static function ($inner): void {
+                    $inner->whereNull('embedding_operation')
+                        ->orWhereNotIn('embedding_operation', [
+                            AiProviderInvocation::EMBEDDING_OPERATION_QUERY,
+                            AiProviderInvocation::EMBEDDING_OPERATION_INGESTION,
+                        ]);
+                }),
             )
             ->where('created_at', '>=', $from)
             ->where('created_at', '<', $to)

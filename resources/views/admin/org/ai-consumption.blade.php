@@ -118,6 +118,9 @@
         @elseif($budget['monthly_usd'] === null)
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-3" data-consumption-budget-none>{{ __('ai.consumption_budget_none') }}</p>
         @endif
+        @if($economicsIgnoreDimensionFilters)
+            <p class="text-xs text-amber-700 dark:text-amber-300 mt-2" data-consumption-economics-org-wide>{{ __('ai.consumption_economics_org_wide') }}</p>
+        @endif
 
         {{-- Un cout non mesurable est COMPTE, a cote, visible. --}}
         <div class="mt-4 rounded-lg border p-3 text-sm {{ $economics['total_unknown_count'] > 0 || $economics['total_unevaluated_count'] > 0 ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200' : 'border-gray-100 dark:border-gray-700 text-gray-600 dark:text-gray-400' }}" data-consumption-economics-unknown="{{ $economics['total_unknown_count'] }}">
@@ -173,7 +176,12 @@
                             <td class="px-3 py-2 text-gray-900 dark:text-gray-100">{{ $row['user_id'] === null ? __('ai.economy_unattributed') : ($row['name'] ?? '—') }}</td>
                             <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{{ number_format($row['generation']['trace_count']) }}</td>
                             <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{{ number_format($row['embedding_query']['invocation_count']) }}</td>
-                            <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{{ number_format($row['embedding_ingestion']['invocation_count'] + $row['embedding_undeclared']['invocation_count']) }}</td>
+                            <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
+                                {{ number_format($row['embedding_ingestion']['invocation_count']) }}
+                                @if($row['embedding_undeclared']['invocation_count'] > 0)
+                                    <span class="text-gray-400" title="{{ __('ai.economy_nature_embedding_undeclared') }}">{{ __('ai.economy_undeclared_suffix', ['count' => number_format($row['embedding_undeclared']['invocation_count'])]) }}</span>
+                                @endif
+                            </td>
                             <td class="px-3 py-2 text-right tabular-nums text-gray-900 dark:text-gray-100">{{ $cost($row['total_known_cost_usd']) }}</td>
                             <td class="px-3 py-2 text-right tabular-nums {{ $row['total_unknown_count'] > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-gray-400' }}">{{ number_format($row['total_unknown_count']) }}</td>
                         </tr>

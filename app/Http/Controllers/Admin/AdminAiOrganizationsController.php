@@ -57,6 +57,18 @@ class AdminAiOrganizationsController extends Controller
             ->all();
 
         $economics = $usage->perOrganization($from, $to);
+
+        // Traces d'Organizations SUPPRIMEES (soft delete) : hors de la table
+        // par Organization, mais dans le total plateforme — rendues sur une
+        // ligne dediee pour que somme(lignes) + non attribuable + supprimees
+        // == cartes, a l'ecran comme dans l'autorite (revue PASS B).
+        $liveIds = $organizations->pluck('id')->map(static fn ($id): string => (string) $id)->all();
+        $deletedRows = array_diff_key($economics['organizations'], array_flip($liveIds));
+        $deleted = $this->sumRows(array_values($deletedRows));
+        $activeOrganizations = count(array_filter(
+            array_intersect_key($economics['organizations'], array_flip($liveIds)),
+            static fn (array $row): bool => $row['total_count'] > 0,
+        ));
         // Metadonnees ledger uniquement (echecs, derniere activite) : aucun
         // chiffre economique n'en est tire ici.
         $ledger = $console->platformPerOrganization($from, $to);
@@ -75,12 +87,14 @@ class AdminAiOrganizationsController extends Controller
             'settings' => $settings,
             'economics' => $economics['organizations'],
             'unattributed' => $economics['unattributed'],
+            'deleted' => $deleted,
+            'deletedCount' => count($deletedRows),
             'ledger' => $ledger,
             'rag' => $rag,
             'totals' => [
                 'organizations' => $organizations->count(),
                 'configured' => $configuredCount,
-                'active_organizations' => $economics['totals']['active_organizations_count'],
+                'active_organizations' => $activeOrganizations,
                 'ai_users' => $economics['totals']['ai_users_count'],
                 'generation' => $economics['totals']['generation_count'],
                 'generation_sandbox' => $economics['totals']['generation_sandbox_count'],
@@ -97,6 +111,31 @@ class AdminAiOrganizationsController extends Controller
                 'declared_budget_count' => count($budgetParts),
             ],
         ]);
+    }
+
+    /**
+     * Somme de lignes de l'autorite (couts connus null-aware, comptes) — pour
+     * la ligne « Organizations supprimees ».
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return array<string, mixed>
+     */
+    private function sumRows(array $rows): array
+    {
+        $known = array_filter(
+            array_map(static fn (array $r): ?float => $r['total_known_cost_usd'], $rows),
+            static fn (?float $v): bool => $v !== null,
+        );
+
+        return [
+            'total_known_cost_usd' => $known === [] ? null : array_sum($known),
+            'total_unknown_count' => array_sum(array_column($rows, 'total_unknown_count')),
+            'total_count' => array_sum(array_column($rows, 'total_count')),
+            'generation_count' => array_sum(array_map(static fn (array $r): int => $r['generation']['trace_count'], $rows)),
+            'embedding_query_count' => array_sum(array_map(static fn (array $r): int => $r['embedding_query']['invocation_count'], $rows)),
+            'embedding_ingestion_count' => array_sum(array_map(static fn (array $r): int => $r['embedding_ingestion']['invocation_count'], $rows)),
+            'embedding_undeclared_count' => array_sum(array_map(static fn (array $r): int => $r['embedding_undeclared']['invocation_count'], $rows)),
+        ];
     }
 
     /**

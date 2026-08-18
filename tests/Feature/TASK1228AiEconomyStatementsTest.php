@@ -112,8 +112,26 @@ class TASK1228AiEconomyStatementsTest extends TestCase
             0.0000001,
         );
         $this->assertSame(array_sum(array_column($rows, 'total_unknown_count')), $platform['totals']['unknown_count']);
-        $this->assertSame(array_sum(array_map(static fn (array $r): int => $r['generation']['trace_count'], $rows)), $platform['totals']['generation_count']);
-        $this->assertSame(array_sum(array_map(static fn (array $r): int => $r['embedding_query']['invocation_count'], $rows)), $platform['totals']['embedding_query_count']);
+        $this->assertSame(array_sum(array_column($rows, 'total_unevaluated_count')), $platform['totals']['unevaluated_count']);
+        foreach ([
+            'generation_count' => ['generation', 'trace_count'],
+            'generation_sandbox_count' => ['generation_sandbox', 'trace_count'],
+            'embedding_query_count' => ['embedding_query', 'invocation_count'],
+            'embedding_ingestion_count' => ['embedding_ingestion', 'invocation_count'],
+            'embedding_undeclared_count' => ['embedding_undeclared', 'invocation_count'],
+        ] as $total => [$bucket, $field]) {
+            $this->assertSame(array_sum(array_map(static fn (array $r): int => $r[$bucket][$field], $rows)), $platform['totals'][$total], $total);
+        }
+        // Les valeurs attendues du jeu : tous les seaux sont exerces.
+        $rowA = $platform['organizations'][(string) $this->orgA->id];
+        $this->assertSame(1, $rowA['generation_sandbox']['trace_count']);
+        $this->assertSame(1, $rowA['embedding_ingestion']['invocation_count']);
+        $this->assertSame(2, $rowA['embedding_undeclared']['invocation_count']);
+        $this->assertSame(1, $rowA['embedding_undeclared']['unknown_count']);
+        $this->assertSame(1, $rowA['total_unevaluated_count']);
+        // Utilisateurs IA de A : memberA, memberA2, adminA — jamais l'utilisateur
+        // de B auquel une trace de A est attribuee.
+        $this->assertSame(3, $rowA['ai_users_count']);
         // La trace historique sans Organization est comptee A PART, jamais repartie.
         $this->assertSame(1, $platform['unattributed']['generation']['trace_count']);
         $this->assertSame(0.7, (float) $platform['unattributed']['total_known_cost_usd']);
@@ -135,10 +153,22 @@ class TASK1228AiEconomyStatementsTest extends TestCase
             $summaryA['embedding_query']['invocation_count'],
         );
         $this->assertSame(array_sum(array_column($byUser, 'total_unknown_count')), $summaryA['total_unknown_count']);
-        // La ligne non attribuable existe (trace attribuee a un utilisateur de B).
+        $this->assertSame(array_sum(array_column($byUser, 'total_unevaluated_count')), $summaryA['total_unevaluated_count']);
+        foreach (['embedding_ingestion', 'embedding_undeclared'] as $bucket) {
+            $this->assertSame(
+                array_sum(array_map(static fn (array $r): int => $r[$bucket]['invocation_count'], $byUser)),
+                $summaryA[$bucket]['invocation_count'],
+                $bucket,
+            );
+        }
+        // La ligne non attribuable existe (generation ET embedding attribues a un
+        // utilisateur de B) : comptee, jamais nommee.
         $unattributed = array_values(array_filter($byUser, static fn (array $r): bool => $r['user_id'] === null));
         $this->assertCount(1, $unattributed);
+        $this->assertNull($unattributed[0]['name']);
         $this->assertSame(1, $unattributed[0]['generation']['trace_count']);
+        $this->assertSame(1, $unattributed[0]['embedding_query']['invocation_count']);
+        $this->assertNotContains('Membre Beta', array_column($byUser, 'name'));
 
         // 4. L'utilisateur voit exactement SA part de la MEME autorite.
         $mine = $usage->summary((string) $this->orgA->id, $period->from, $period->to, (string) $this->memberA->id);
@@ -164,6 +194,42 @@ class TASK1228AiEconomyStatementsTest extends TestCase
         $organization->assertOk();
         $organization->assertSee('$'.number_format($summaryA['total_known_cost_usd'], 6));
         $organization->assertSee('data-consumption-economics-unknown="'.$summaryA['total_unknown_count'].'"', false);
+        // L'utilisateur de B auquel une trace de A est attribuee n'est JAMAIS nomme.
+        $organization->assertDontSee('Membre Beta');
+        $organization->assertSee(__('ai.economy_unattributed'));
+    }
+
+    public function test_traces_of_a_deleted_organization_stay_in_the_platform_total_on_a_dedicated_line(): void
+    {
+        $superAdmin = User::factory()->create(['is_admin' => true, 'organization_id' => $this->orgA->id]);
+        $this->generation($this->orgA, $this->memberA, cost: 0.10);
+        $ghost = Organization::factory()->create(['name' => 'Org Fantome 1228']);
+        $ghostMember = User::factory()->create(['organization_id' => $ghost->id]);
+        $this->generation($ghost, $ghostMember, cost: 0.25);
+        $ghost->delete();
+
+        $page = $this->actingAs($superAdmin)->get(route('admin.ai-organizations'));
+        $page->assertOk();
+        // Le total plateforme contient la depense (elle est reelle)…
+        $page->assertSee('data-platform-card="known-cost" data-platform-card-value="0.35"', false);
+        // …sur une ligne dediee, pas dans une Organization vivante, ni « active ».
+        $page->assertSee('data-platform-deleted="1"', false);
+        $page->assertSee('$0.250000');
+        $page->assertSee('data-platform-card="active-organizations" data-platform-card-value="1"', false);
+        $page->assertDontSee('data-platform-org="'.$ghost->id.'"', false);
+    }
+
+    public function test_the_user_statement_is_the_users_organization_even_on_the_non_prefixed_route(): void
+    {
+        // memberB n'est pas dans l'Organization par defaut de la plateforme
+        // (orgA, premiere creee) : la route non prefixee doit quand meme
+        // rendre SON releve dans SON Organization.
+        $this->generation($this->orgB, $this->memberB, cost: 0.42);
+
+        $page = $this->actingAs($this->memberB)->get(route('profile.ai-usage'));
+        $page->assertOk();
+        $page->assertSee('data-my-ai-usage-month-count="1"', false);
+        $page->assertSee('$0.420000');
     }
 
     // =====================================================================
@@ -412,6 +478,17 @@ class TASK1228AiEconomyStatementsTest extends TestCase
         $page->assertSee('data-consumption-nature="embedding_ingestion" data-consumption-nature-count="1"', false);
         $page->assertSee('data-consumption-top-user="'.$this->memberA->id.'"', false);
 
+        // Sans aucune mesure mais avec budget : consomme « — », reste = budget, 0.0 % (regle de la garde).
+        $fresh = Organization::factory()->create();
+        OrganizationAiSetting::factory()->create(['organization_id' => $fresh->id, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'k', 'monthly_budget_usd' => 2.00]);
+        $freshAdmin = User::factory()->create(['organization_id' => $fresh->id]);
+        $fresh->update(['admin_id' => $freshAdmin->id]);
+        $this->generation($fresh, $freshAdmin, cost: null);
+        $freshPage = $this->actingAs($freshAdmin)->get($this->orgUrl($fresh));
+        $this->assertMatchesRegularExpression('/data-consumption-budget-consumed[^>]*>\s*—\s*</u', $freshPage->getContent());
+        $this->assertMatchesRegularExpression('/data-consumption-budget-remaining[^>]*>\s*\$2\.000000\s*</u', $freshPage->getContent());
+        $this->assertMatchesRegularExpression('/data-consumption-budget-percent[^>]*>\s*0\.0 %\s*</u', $freshPage->getContent());
+
         // Sans budget (Organization B) : « — » et la note, jamais 0.
         $this->generation($this->orgB, $this->memberB, cost: 0.10);
         $pageB = $this->actingAs($this->adminB)->get($this->orgUrl($this->orgB));
@@ -481,6 +558,14 @@ class TASK1228AiEconomyStatementsTest extends TestCase
         $this->embedding($this->orgA, $this->memberA, 'query', cost: 0.001);
         $this->embedding($this->orgA, $this->memberA, 'query', cost: null);
         $this->embedding($this->orgA, $this->memberA2, 'ingestion', cost: 0.002);
+        // Embedding de A attribue a un utilisateur de B : compte, jamais nomme.
+        $this->embedding($this->orgA, $this->memberB, 'query', cost: 0.005);
+        // Embedding sans operation declaree, et un autre hors catalogue : meme
+        // seau « non declaree », additif.
+        $this->embedding($this->orgA, $this->memberA, null, cost: 0.006);
+        $this->embedding($this->orgA, $this->memberA, 'legacy_op', cost: null);
+        // Trace historique jamais evaluee (cost_unknown NULL).
+        $this->generation($this->orgA, $this->memberA2, cost: null)->forceFill(['cost_unknown' => null])->saveQuietly();
         // Trace historique sans Organization.
         $legacy = $this->generation($this->orgA, $this->memberA, cost: 0.70);
         $legacy->forceFill(['organization_id' => null])->saveQuietly();
@@ -533,7 +618,7 @@ class TASK1228AiEconomyStatementsTest extends TestCase
         ]);
     }
 
-    private function embedding(Organization $organization, User $user, string $operation, ?float $cost): AiProviderInvocation
+    private function embedding(Organization $organization, User $user, ?string $operation, ?float $cost): AiProviderInvocation
     {
         return AiProviderInvocation::create([
             'organization_id' => $organization->id,

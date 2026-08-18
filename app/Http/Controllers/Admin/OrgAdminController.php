@@ -1544,15 +1544,22 @@ class OrgAdminController extends Controller
             'budget' => [
                 'monthly_usd' => $budget,
                 'consumed_usd' => $economics['total_known_cost_usd'],
-                // Reste = budget - CONNU ; les inconnus sont comptes a cote,
-                // jamais soustraits ni supposes nuls.
+                // Reste = budget - MESURE ; les inconnus sont comptes a cote,
+                // jamais soustraits ni supposes nuls. Sans aucune mesure, la
+                // garde n'a rien retranche : reste = budget, 0 % — une seule
+                // regle pour les deux chiffres (revue PASS B). Le pourcentage
+                // n'est PAS plafonne : 250 % consomme s'affiche 250 %.
                 'remaining_usd' => $isCurrentMonth && $budget !== null
                     ? $budget - (float) ($economics['total_known_cost_usd'] ?? 0.0)
                     : null,
-                'percent' => $isCurrentMonth && $budget !== null && $budget > 0 && $economics['total_known_cost_usd'] !== null
-                    ? min(100.0, round($economics['total_known_cost_usd'] / $budget * 100, 1))
+                'percent' => $isCurrentMonth && $budget !== null && $budget > 0
+                    ? round((float) ($economics['total_known_cost_usd'] ?? 0.0) / $budget * 100, 1)
                     : null,
             ],
+            // Le budget et la ventilation portent sur TOUTE l'Organization : les
+            // filtres de dimension (utilisateur, process, modele, fournisseur)
+            // ne s'y appliquent pas — l'ecran le dit quand ils sont poses.
+            'economicsIgnoreDimensionFilters' => $filters->userId !== null || $filters->process !== null || $filters->model !== null || $filters->provider !== null,
             'summary' => $consumption->summary($organization->id, $filters),
             'byProcess' => $consumption->byProcess($organization->id, $filters),
             'byModel' => $consumption->byModel($organization->id, $filters),
