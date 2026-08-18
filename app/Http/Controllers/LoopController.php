@@ -1304,6 +1304,20 @@ class LoopController extends Controller
             } else {
                 $this->chatLoopAiService->answer($loop, $request->user());
             }
+        } catch (AiRefusedException $e) {
+            // TASK-1231 (lot 0) : le refus de la garde porte son code et, si le
+            // credit personnel est epuise ET que la plateforme le propose, la
+            // porte de sortie « Voir les offres » — la meme que les trois
+            // surfaces de la 1229. Rien de neuf : offersUrl() decide.
+            $redirect = redirect($this->loopRoute('loops.show', $loop))
+                ->with('error', $e->getMessage())
+                ->with('ai_refusal_code', $e->refusalCode);
+
+            if (($offersUrl = $e->offersUrl($organization)) !== null) {
+                $redirect->with('ai_offers_url', $offersUrl);
+            }
+
+            return $redirect;
         } catch (\RuntimeException $e) {
             return redirect($this->loopRoute('loops.show', $loop))
                 ->with('error', $e->getMessage());

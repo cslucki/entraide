@@ -63,6 +63,7 @@ use App\Services\LoopTypeSettingsService;
 use App\Services\ReferralCodeGenerator;
 use App\Services\RewardDispatcher;
 use App\Support\Ai\AiEconomicGuard;
+use App\Support\Ai\AiFabContext;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -97,6 +98,9 @@ class AppServiceProvider extends ServiceProvider
         // des chemins chauds, et les vues resolvent le registre a chaque appel.
         // Sans singleton, le memo du catalogue serait recree — donc inutile.
         $this->app->singleton(LoopTypeRegistry::class);
+        // TASK-1231 : contexte du FAB « BouclePro IA » — memo par requete HTTP
+        // (une lecture du credit par requete), jamais partage entre requetes.
+        $this->app->scoped(AiFabContext::class);
         $this->app->bind(AiProvider::class, function ($app) {
             return new ClarifyUserHelpRequestService(
                 $app->make(SupervisionProviderResolver::class),

@@ -132,6 +132,9 @@
         <x-mobile-topbar title="{{ isset($title) && filled($title) ? $title : config('app.name') }}" :brand-name="$brandOrganizationName ?? null" />
         <x-mobile-bottom-nav />
         <x-mobile-fab />
+        {{-- TASK-1231 : FAB « BouclePro IA » — layout membre uniquement (jamais
+             guest / admin / org-admin). Contexte calcule cote serveur. --}}
+        <x-ai-fab />
 
         <x-app-side-nav />
 

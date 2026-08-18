@@ -225,6 +225,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | FAB « BouclePro IA » (TASK-1231)
+    |--------------------------------------------------------------------------
+    |
+    | Point d'entree unique et contextuel des capabilities IA existantes dans
+    | le layout membre. Il n'appelle jamais un provider : il ouvre des
+    | surfaces qui existent et affiche le credit utilisateur (autorite :
+    | AiEconomicGuard::userCreditStatus). Kill-switch plateforme, sans etat.
+    */
+    'fab' => [
+        'enabled' => (bool) env('AI_FAB_ENABLED', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Credit IA par utilisateur — defauts plateforme (TASK-1229)
     |--------------------------------------------------------------------------
     |
@@ -316,6 +330,15 @@ return [
         'summary_economic_guard' => [
             'monthly_budget_usd' => (float) env('CHATLOOP_AI_SUMMARY_MONTHLY_BUDGET_USD', 2.00),
             'monthly_unknown_limit' => (int) env('CHATLOOP_AI_SUMMARY_MONTHLY_UNKNOWN_LIMIT', 10),
+        ],
+        // TASK-1231 (lot 0) : « Demander a l'IA » (ask / answer, chemin herite)
+        // passe sous AiEconomicGuard comme le resume — meme autorite, meme
+        // demandeur, budget par process (chatloop.ask / chatloop.answer) et
+        // credit utilisateur, AVANT tout appel provider. N'ajoute que le
+        // blocage : ces chemins comptaient deja, ils ne comptent pas deux fois.
+        'economic_guard' => [
+            'monthly_budget_usd' => (float) env('CHATLOOP_AI_MONTHLY_BUDGET_USD', 2.00),
+            'monthly_unknown_limit' => (int) env('CHATLOOP_AI_MONTHLY_UNKNOWN_LIMIT', 10),
         ],
     ],
 

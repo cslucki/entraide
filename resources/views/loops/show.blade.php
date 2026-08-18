@@ -61,6 +61,15 @@
         body:has(.loops-show-container) .loops-show-wrapper {
             padding: 0 !important;
         }
+        /* TASK-1231 : le FAB « + » est masque ici (au-dessus) et la rangee des
+           actions IA + le composeur occupent le bas de l'ecran : le FAB
+           BouclePro IA remonte au-dessus de cette rangee, sans la couvrir. */
+        body:has(.loops-show-container) [data-ai-fab-toggle] {
+            bottom: 14rem !important;
+        }
+        body:has(.loops-show-container) [data-ai-fab-panel] {
+            bottom: 17.5rem !important;
+        }
         body:has(.loops-show-container) .loops-show-container {
             height: calc(100dvh - 4rem - env(safe-area-inset-bottom, 0px));
         }
@@ -271,9 +280,16 @@
             </div>
         @endif
         @if(session('error'))
-            <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 4000)"
-                 class="flex-shrink-0 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-2 text-sm">
+            {{-- TASK-1231 (lot 0) : un refus de la garde IA reste visible plus
+                 longtemps et porte « Voir les offres » quand le credit personnel
+                 est epuise (meme regle que les surfaces 1229). --}}
+            <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, {{ session('ai_refusal_code') ? 8000 : 4000 }})"
+                 class="flex-shrink-0 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-2 text-sm"
+                 @if(session('ai_refusal_code')) data-ai-refusal-code="{{ session('ai_refusal_code') }}" @endif>
                 {{ session('error') }}
+                @if(session('ai_offers_url'))
+                    <a href="{{ session('ai_offers_url') }}" class="ml-2 font-semibold underline" data-ai-offers-link>{{ __('ai.credit_see_offers') }}</a>
+                @endif
             </div>
         @endif
         @if(session('help_request_error'))
