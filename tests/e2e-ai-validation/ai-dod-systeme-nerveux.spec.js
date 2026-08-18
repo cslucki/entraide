@@ -112,8 +112,8 @@ function assertClean(w) {
 }
 
 // Lecture DB (APP_ENV=ai-validation, tinker) — read-only.
-function tinker(php) {
-    const out = execFileSync('php', ['artisan', 'tinker', '--execute', php], { env: { ...process.env, APP_ENV: 'ai-validation' }, encoding: 'utf8' });
+function tinker(php, extraEnv = {}) {
+    const out = execFileSync('php', ['artisan', 'tinker', '--execute', php], { env: { ...process.env, APP_ENV: 'ai-validation', ...extraEnv }, encoding: 'utf8' });
     const m = out.match(/\{[\s\S]*\}/);
     if (!m) throw new Error(`tinker: sortie inattendue: ${out}`);
     return JSON.parse(m[0]);
@@ -302,43 +302,131 @@ test.describe('TASK-1232 Recette DoD systeme nerveux IA V1', () => {
             await page.keyboard.press('Escape');
 
             // ── 05 Isolation tenant + P4 (§24) ──────────────────────────────────
+            // 05a — PERMISSIONS (pas RAG) : la route du fichier de A demandee par un membre de B.
+            //       P4 : B sans configuration -> refus explicite AVANT toute recherche
+            //       (aucune cle plateforme en silence). Ce refus N'EST PAS une preuve
+            //       d'isolation documentaire : la recherche n'a pas eu lieu.
             const foreign = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-            const fp = foreign.newPage ? await foreign.newPage() : null;
+            const fp = await foreign.newPage();
             const fwatch = watchConsole(fp);
             await login(fp, OTHER_ORG_SLUG, OTHER_MEMBER);
             const foreignSourceGet = (await fp.request.get(s1.url)).status();
             expect(foreignSourceGet).toBeGreaterThanOrEqual(400);
-            await fp.goto(OTHER_LOOP);
-            const hasKnowledge = await fp.locator('[data-knowledge-open]').count();
-            let q5 = null;
-            if (hasKnowledge) {
+            async function askInB(question) {
+                await fp.goto(OTHER_LOOP);
                 await fp.locator('[data-knowledge-open]').first().click();
                 await expect(fp.locator('[data-knowledge-dialog]')).toBeVisible();
-                await fp.fill('#knowledge-question', QUESTION);
-                const rp = fp.waitForResponse((r) => /\/knowledge$/.test(new URL(r.url()).pathname) && r.request().method() === 'POST', { timeout: 60000 });
+                await fp.fill('#knowledge-question', question);
+                const rp = fp.waitForResponse((r) => /\/knowledge$/.test(new URL(r.url()).pathname) && r.request().method() === 'POST', { timeout: 90000 });
                 await fp.locator('[data-knowledge-dialog] form button[type="submit"]').click();
                 const r = await rp; let p = null; try { p = await r.json(); } catch (e) { p = null; }
-                q5 = { status: r.status(), payload: p };
                 await fp.waitForTimeout(1200);
-                await fp.screenshot({ path: path.join(CAPTURES, '05a-isolation-tenant-org-b-refus-non-configure.png') });
-                // Aucune fuite : aucune source ArtSciLab, aucune reponse contenant le fait.
-                expect(JSON.stringify(p || {})).not.toContain(SENTINEL_V1);
-                expect(JSON.stringify(p || {})).not.toContain('TEST-dod-1232');
-                // org-b sans P4 : refus explicite, jamais une cle plateforme en silence.
-                expect(r.status()).toBe(422);
-                expect(p?.code).toBe('ai_not_configured');
+                return { status: r.status(), payload: p };
             }
-            note(`05 ISOLATION — org-b member1 : source ArtSciLab -> ${foreignSourceGet} ; question -> HTTP ${q5?.status} code=${q5?.payload?.code} (aucune fuite, aucune cle plateforme)`);
+            const q5a = await askInB(QUESTION);
+            expect(q5a.status).toBe(422);
+            expect(q5a.payload?.code).toBe('ai_not_configured');
+            await fp.screenshot({ path: path.join(CAPTURES, '05a-p4-org-b-sans-credential-refus-explicite.png') });
+            note(`05a P4/PERMISSIONS — member1(B) GET ${s1.url} -> ${foreignSourceGet} (permissions, pas RAG) ; question sans P4 -> HTTP ${q5a.status} code=${q5a.payload?.code} (refus AVANT recherche : pas une preuve d'isolation RAG)`);
+
+            // 05b — ISOLATION RAG MESUREE : B REELLEMENT configuree (copie, le temps du
+            //       parcours, de la configuration chiffree d'ArtSciLab : meme cle de banc),
+            //       meme question -> une REPONSE qui ne trouve rien, provenance vide,
+            //       ledger embedding/query pour B, alors que le chunk de A existe.
+            const bConfigured = tinker(`
+                $a=\\App\\Models\\Organization::where('slug','${ORG_SLUG}')->firstOrFail();
+                $b=\\App\\Models\\Organization::where('slug','${OTHER_ORG_SLUG}')->firstOrFail();
+                $src=\\Illuminate\\Support\\Facades\\DB::table('organization_ai_settings')->where('organization_id',$a->id)->first();
+                $existing=\\Illuminate\\Support\\Facades\\DB::table('organization_ai_settings')->where('organization_id',$b->id)->first();
+                if (! $existing) {
+                    $row=(array)$src; unset($row['id']); $row['organization_id']=$b->id; $row['created_at']=now(); $row['updated_at']=now();
+                    $row['id']=(string)\\Illuminate\\Support\\Str::uuid7();
+                    \\Illuminate\\Support\\Facades\\DB::table('organization_ai_settings')->insert($row);
+                }
+                $b->unsetRelation('aiSetting');
+                echo json_encode(['inserted' => ! $existing, 'b_org_id' => $b->id, 'a_org_id' => $a->id]);`);
+            note(`05b CONFIG B — organization_ai_settings copie sur org-b (inserted=${bConfigured.inserted}) : provider/modele/cle identiques a ArtSciLab, le temps du parcours`);
+            let q5b = null; let ledgerB = null; let sqlScope = null; let ledgerBSvc = null;
+            try {
+                const since5b = new Date().toISOString();
+                q5b = await askInB(QUESTION);
+                await fp.screenshot({ path: path.join(CAPTURES, '05b-isolation-rag-org-b-configuree-ne-trouve-rien.png') });
+                ledgerB = tinker(`
+                    $b=\\App\\Models\\Organization::where('slug','${OTHER_ORG_SLUG}')->firstOrFail();
+                    $rows=\\App\\Models\\AiProviderInvocation::where('organization_id',$b->id)->where('created_at','>=','${since5b}')->orderBy('created_at')->get();
+                    echo json_encode(['count'=>$rows->count(),'rows'=>$rows->map(fn($r)=>['operation'=>$r->operation,'embedding_operation'=>$r->embedding_operation,'capability'=>$r->capability,'credential_source'=>$r->credential_source,'status'=>$r->status])->all()]);`);
+                // Sur ce banc, B n'est pas dans le pilote de recherche semantique et member1
+                // n'a aucun Dossier accessible : la source RAG est refusee AVANT la requete
+                // (SourceDenied). La reponse « ne trouve rien » de B n'est donc PAS, a elle
+                // seule, une preuve d'isolation RAG. La preuve MESUREE est au niveau du
+                // service de recherche : meme requete, meme credential (copie), le pilote
+                // ouvert a B pour ce seul processus, en passant a B les Dossiers de A —
+                // la requete SQL est bornee par organization_id et rend ZERO chunk, alors
+                // que la meme recherche sous A rend le chunk inedit.
+                sqlScope = tinker(`
+                    $a=\\App\\Models\\Organization::where('slug','${ORG_SLUG}')->firstOrFail();
+                    $b=\\App\\Models\\Organization::where('slug','${OTHER_ORG_SLUG}')->firstOrFail();
+                    $svc=app(\\App\\Services\\Dossiers\\DossierSemanticSearchService::class);
+                    $dossiersA=\\App\\Models\\Dossier::where('organization_id',$a->id)->pluck('id')->map(fn($v)=>(string)$v)->all();
+                    $dossiersB=\\App\\Models\\Dossier::where('organization_id',$b->id)->pluck('id')->map(fn($v)=>(string)$v)->all();
+                    $q='${QUESTION.replace(/'/g, "\\'")}';
+                    $pr=app(\\App\\Ai\\ProviderResolver::class);
+                    $instB=$pr->resolveEmbeddingInstance((string)$b->id);
+                    $instA=$pr->resolveEmbeddingInstance((string)$a->id);
+                    $rowsB=$svc->searchAcrossDossiers((string)$b->id, array_merge($dossiersA,$dossiersB), $q, 5, $instB, ['task' => 'TASK-1232 isolation measure']);
+                    $rowsA=$svc->searchAcrossDossiers((string)$a->id, ['${DOSSIER_ID}'], $q, 5, $instA, ['task' => 'TASK-1232 isolation measure']);
+                    $db=\\Illuminate\\Support\\Facades\\DB::table('dossier_chunks');
+                    echo json_encode([
+                        'gate_b' => app(\\App\\Services\\Dossiers\\DossierSemanticSearchGate::class)->isEnabledFor((string)$b->id),
+                        'embedding_instance_b' => $instB, 'embedding_instance_a' => $instA,
+                        'search_under_B_with_A_dossiers' => ['rows' => count($rowsB), 'contains_test' => str_contains(json_encode($rowsB, JSON_UNESCAPED_UNICODE), 'HÉLIOTROPE-7')],
+                        'search_under_A' => ['rows' => count($rowsA), 'contains_test' => str_contains(json_encode($rowsA, JSON_UNESCAPED_UNICODE), 'HÉLIOTROPE-7')],
+                        'a_test_file_chunks' => (clone $db)->where('organization_id',$a->id)->where('dossier_file_id','${createdFileId}')->count(),
+                        'test_chunk_visible_from_b_scope' => (clone $db)->where('organization_id',$b->id)->where('dossier_file_id','${createdFileId}')->count(),
+                        'b_chunks_total' => (clone $db)->where('organization_id',$b->id)->count(),
+                    ]);`, { DOSSIER_SEMANTIC_SEARCH_ORGANIZATION_SLUGS: `${ORG_SLUG},${OTHER_ORG_SLUG}`, DOSSIER_SEMANTIC_SEARCH_ENABLED: 'true' });
+                ledgerBSvc = tinker(`
+                    $b=\\App\\Models\\Organization::where('slug','${OTHER_ORG_SLUG}')->firstOrFail();
+                    $rows=\\App\\Models\\AiProviderInvocation::where('organization_id',$b->id)->where('created_at','>=','${since5b}')->orderBy('created_at')->get();
+                    echo json_encode(['count'=>$rows->count(),'rows'=>$rows->map(fn($r)=>['operation'=>$r->operation,'embedding_operation'=>$r->embedding_operation,'capability'=>$r->capability,'credential_source'=>$r->credential_source,'status'=>$r->status])->all()]);`);
+            } finally {
+                // Restauration : org-b revient a « aucune configuration ».
+                const restored = tinker(`
+                    $b=\\App\\Models\\Organization::where('slug','${OTHER_ORG_SLUG}')->firstOrFail();
+                    $n=${bConfigured.inserted ? 1 : 0} ? \\Illuminate\\Support\\Facades\\DB::table('organization_ai_settings')->where('organization_id',$b->id)->delete() : 0;
+                    echo json_encode(['deleted'=>$n]);`);
+                note(`05b RESTAURATION — configuration org-b retiree (deleted=${restored.deleted})`);
+            }
+            expect(q5b.status, JSON.stringify(q5b.payload)).toBe(200);
+            expect(JSON.stringify(q5b.payload)).not.toContain(SENTINEL_V1);
+            expect(JSON.stringify(q5b.payload)).not.toContain('TEST-dod-1232');
+            expect((q5b.payload.sources || []).length).toBe(0);
+            // Preuve MESUREE de la borne organization_id au niveau du service :
+            expect(sqlScope.gate_b, 'pilote ouvert a B pour ce processus de mesure').toBe(true);
+            expect(sqlScope.search_under_A.rows).toBeGreaterThanOrEqual(1);
+            expect(sqlScope.search_under_A.contains_test).toBe(true);
+            expect(sqlScope.search_under_B_with_A_dossiers.rows).toBe(0);
+            expect(sqlScope.a_test_file_chunks).toBe(1);
+            expect(sqlScope.test_chunk_visible_from_b_scope).toBe(0);
+            // La recherche sous B a REELLEMENT eu lieu (embedding de la requete avec le credential de B).
+            expect(ledgerBSvc.rows.some((r) => r.operation === 'embedding' && r.embedding_operation === 'query' && r.credential_source === 'organization'), 'embedding de requete emis pour B').toBe(true);
+            note(`05b ISOLATION RAG — UI B configuree : HTTP ${q5b.status}, grounded=${q5b.payload.grounded}, sources=${(q5b.payload.sources || []).length} (source RAG refusee avant requete sur ce banc : pilote/dossier accessible) ; ledger UI B: ${JSON.stringify(ledgerB.rows)} ; SERVICE (pilote ouvert a B, meme requete, Dossiers de A passes a B) : ${JSON.stringify(sqlScope)} ; ledger B apres service : ${JSON.stringify(ledgerBSvc.rows)}`);
             assertClean(fwatch);
             await foreign.close();
-            // P4 : la page reglages IA de Maya montre le credential Organization (masque).
+
+            // 05c — P4 : la page reglages IA de Maya montre le credential Organization (masque).
             await login(page, ORG_SLUG, MAYA);
             await page.goto(ORG_AI_PAGE);
             await expect(page.locator('form[action$="/admin/ai"]').first()).toBeVisible();
             await page.waitForTimeout(1000);
-            await page.screenshot({ path: path.join(CAPTURES, '05b-p4-credential-organization-maya.png'), fullPage: true });
-            const p4 = tinker(`$org=\\App\\Models\\Organization::where('slug','${ORG_SLUG}')->firstOrFail(); $s=\\App\\Models\\OrganizationAiSetting::where('organization_id',$org->id)->first(); $ob=\\App\\Models\\Organization::where('slug','${OTHER_ORG_SLUG}')->firstOrFail(); $sb=\\App\\Models\\OrganizationAiSetting::where('organization_id',$ob->id)->first(); echo json_encode(['artscilab'=>['provider'=>$s->provider,'model'=>$s->model,'has_key'=>filled($s->api_key),'enabled'=>(bool)$s->is_enabled], 'org_b'=>$sb ? ['provider'=>$sb->provider,'has_key'=>filled($sb->api_key)] : null]);`);
-            figures.tenant = { foreign_source_get: foreignSourceGet, org_b_question: q5, p4 };
+            await page.screenshot({ path: path.join(CAPTURES, '05c-p4-credential-organization-maya.png'), fullPage: true });
+            const p4 = tinker(`$org=\\App\\Models\\Organization::where('slug','${ORG_SLUG}')->firstOrFail(); $s=\\App\\Models\\OrganizationAiSetting::where('organization_id',$org->id)->first(); $ob=\\App\\Models\\Organization::where('slug','${OTHER_ORG_SLUG}')->firstOrFail(); $sb=\\App\\Models\\OrganizationAiSetting::where('organization_id',$ob->id)->first(); echo json_encode(['artscilab'=>['provider'=>$s->provider,'model'=>$s->model,'has_key'=>filled($s->api_key),'enabled'=>(bool)$s->is_enabled], 'org_b_after_restore'=>$sb ? ['provider'=>$sb->provider,'has_key'=>filled($sb->api_key)] : null]);`);
+            figures.tenant = {
+                permissions: { foreign_source_get: foreignSourceGet, route: s1.url, requested_by: OTHER_MEMBER },
+                p4_without_credential: q5a,
+                rag_isolation_b_configured: { ui_question: q5b, ledger_b_ui: ledgerB, service_measure: sqlScope, ledger_b_after_service: ledgerBSvc },
+                p4,
+            };
 
             // ── 06 Mise a jour (61 minutes) -> reindexation -> question ─────────
             const csrf = await page.evaluate(() => document.querySelector('meta[name=csrf-token]')?.content || '');
