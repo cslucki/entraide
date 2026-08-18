@@ -275,6 +275,33 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
             ->assertSee(__('ai.credit_see_offers'));
     }
 
+    public function test_the_ask_ai_endpoint_is_strictly_unchanged_for_an_authorized_user_with_credit(): void
+    {
+        $this->platformQuota(null); // pas de plafond
+        $before = $this->counters();
+
+        $response = $this->actingAs($this->member)
+            ->post(route('organization.loops.ai', ['organization' => $this->organization, 'loop' => $this->loop]), [
+                'action' => 'ask',
+                'question' => 'Quel prix pratiquer ?',
+            ]);
+
+        // Comportement historique, tel quel : redirection vers la Boucle,
+        // flash de succes, aucun flash d'erreur ni de refus.
+        $response->assertRedirect(route('organization.loops.show', ['organization' => $this->organization, 'loop' => $this->loop]))
+            ->assertSessionHas('success', __('loops.ai_question_requested'))
+            ->assertSessionMissing('error')
+            ->assertSessionMissing('ai_refusal_code')
+            ->assertSessionMissing('ai_offers_url');
+
+        Http::assertSentCount(1);
+        $after = $this->counters();
+        $this->assertSame($before['interactions'] + 1, $after['interactions']);
+        $this->assertSame($before['ledger'], $after['ledger']);
+        $this->assertSame($before['messages'] + 2, $after['messages']);
+        $this->assertDatabaseHas('loop_messages', ['loop_id' => $this->loop->id, 'type' => 'ai', 'body' => 'Reponse de l\'IA.']);
+    }
+
     public function test_the_ask_ai_endpoint_offers_nothing_when_the_platform_does_not_offer_a_subscription(): void
     {
         app(AiUserCreditSettings::class)->updatePlatform([
