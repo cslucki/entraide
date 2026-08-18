@@ -28,6 +28,7 @@ use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
+use App\Http\Controllers\Admin\AdminScenarioPackController;
 use App\Http\Controllers\Admin\AdminSystemEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminTagController;
 use App\Http\Controllers\Admin\AdminThemeController;
@@ -577,6 +578,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/ai-config', [AdminAiConfigController::class, 'update'])->name('ai-config.update');
     Route::post('/ai-config/blog', [AdminAiConfigController::class, 'updateBlogConfig'])->name('ai-config.blog');
     Route::post('/ai-config/profile', [AdminAiConfigController::class, 'updateProfileConfig'])->name('ai-config.profile');
+
+    // Scenario packs (TASK-1240/TASK-1241) : un seul couple (pack, Organization)
+    // a la fois, jamais d'action globale non bornee.
+    Route::get('/scenario-packs', [AdminScenarioPackController::class, 'index'])->name('scenario-packs');
+    Route::post('/scenario-packs/load', [AdminScenarioPackController::class, 'load'])->name('scenario-packs.load');
+    Route::post('/scenario-packs/reset', [AdminScenarioPackController::class, 'reset'])->name('scenario-packs.reset');
+    Route::post('/scenario-packs/delete', [AdminScenarioPackController::class, 'delete'])->name('scenario-packs.delete');
 
     // IA Usage dashboard (TASK-306 Lot 3)
     Route::get('/ia-usage', [AdminAiUsageController::class, 'index'])->name('ia-usage');
