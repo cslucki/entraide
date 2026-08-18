@@ -225,6 +225,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | FAB « BouclePro IA » (TASK-1231)
+    |--------------------------------------------------------------------------
+    |
+    | Point d'entree unique et contextuel des capabilities IA existantes dans
+    | le layout membre. Il n'appelle jamais un provider : il ouvre des
+    | surfaces qui existent et affiche le credit utilisateur (autorite :
+    | AiEconomicGuard::userCreditStatus). Kill-switch plateforme, sans etat.
+    */
+    'fab' => [
+        'enabled' => (bool) env('AI_FAB_ENABLED', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Credit IA par utilisateur — defauts plateforme (TASK-1229)
     |--------------------------------------------------------------------------
     |

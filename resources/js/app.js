@@ -3758,6 +3758,19 @@ function registerDossierFilesCard() {
             } catch (e) { /* localStorage indisponible (navigation privee, quota) : reste sur 'list' */ }
 
             this.loadFiles();
+            // TASK-1231 : le FAB « BouclePro IA » demande « Rechercher dans ce
+            // Dossier » — on revient a la vue Documents (le bloc de recherche
+            // n'existe que la) et on donne le focus au champ EXISTANT. Aucune
+            // recherche n'est lancee ici : l'appel reste celui du bloc.
+            window.addEventListener('bp-open-dossier-search', () => {
+                if (this.vue === 'serie') this.quitSerieMode();
+                this.$nextTick(() => {
+                    const field = document.getElementById('dossier-semantic-search-query');
+                    if (!field) return;
+                    field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    field.focus();
+                });
+            });
             // Ecran tactile : `hover: none` distingue un doigt d'une souris
             // mieux que la largeur de la fenetre.
             this.tactile = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
