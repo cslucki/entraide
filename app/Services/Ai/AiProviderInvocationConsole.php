@@ -2,6 +2,7 @@
 
 namespace App\Services\Ai;
 
+use App\Models\AiInteraction;
 use App\Models\AiProviderInvocation;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -42,6 +43,85 @@ final class AiProviderInvocationConsole
             ->orderByDesc('created_at')
             ->limit(max(1, min(200, $limit)))
             ->get();
+    }
+
+    /**
+     * TASK-1228 : l'historique recent d'UN utilisateur, en langage produit,
+     * depuis les DEUX registres de l'autorite 1222 — sans overlap structurel :
+     *  - generation : `ai_interactions` (feature/process, cout tri-etat) —
+     *    ce que la garde compte ;
+     *  - embeddings : le ledger canonique (recherche documentaire,
+     *    indexation).
+     * Aucune generation n'est relue depuis le ledger. Aucun prompt, aucune
+     * reponse, aucun document, aucune cle : des metadonnees d'usage.
+     *
+     * @return list<array{
+     *   at: CarbonImmutable, kind: string, process: ?string, feature: ?string, sandbox: bool,
+     *   model: ?string, provider: ?string, cost_state: string, cost_usd: ?float, status: ?string
+     * }>
+     */
+    public function recentActivityForUser(string $organizationId, string $userId, int $limit = 20): array
+    {
+        $limit = max(1, min(100, $limit));
+
+        $generation = AiInteraction::query()
+            ->where('organization_id', $organizationId)
+            ->where('user_id', $userId)
+            ->orderByDesc('created_at')
+            ->limit($limit)
+            ->get(['id', 'created_at', 'process', 'feature', 'model', 'cost_usd', 'cost_unknown', 'metadata'])
+            ->map(static function (AiInteraction $row): array {
+                $model = (string) $row->model;
+                $slash = strpos($model, '/');
+
+                return [
+                    'at' => CarbonImmutable::parse((string) $row->created_at),
+                    'kind' => 'generation',
+                    'process' => $row->process !== null ? (string) $row->process : null,
+                    'feature' => $row->feature !== null ? (string) $row->feature : null,
+                    'sandbox' => $row->feature === OrganizationDoctrineSandbox::FEATURE,
+                    // `ai_interactions.model` = "{provider}/{model}" (ResolvedModel::trace()).
+                    'provider' => is_string($row->metadata['provider'] ?? null)
+                        ? $row->metadata['provider']
+                        : ($slash !== false ? substr($model, 0, $slash) : null),
+                    'model' => $slash !== false ? substr($model, $slash + 1) : ($model !== '' ? $model : null),
+                    // Tri-etat 1132 : connu (0 legitime inclus) / inconnu / jamais evalue.
+                    'cost_state' => $row->cost_unknown === null ? 'unevaluated' : ($row->cost_unknown ? 'unknown' : 'known'),
+                    'cost_usd' => $row->cost_unknown === false && $row->cost_usd !== null ? (float) $row->cost_usd : null,
+                    'status' => is_string($row->metadata['status'] ?? null) ? $row->metadata['status'] : null,
+                ];
+            })
+            ->all();
+
+        $embeddings = AiProviderInvocation::query()
+            ->where('organization_id', $organizationId)
+            ->where('user_id', $userId)
+            ->where('operation', AiProviderInvocation::OPERATION_EMBEDDING)
+            ->orderByDesc('created_at')
+            ->limit($limit)
+            ->get()
+            ->map(static fn (AiProviderInvocation $row): array => [
+                'at' => CarbonImmutable::parse((string) $row->created_at),
+                'kind' => match ($row->embedding_operation) {
+                    AiProviderInvocation::EMBEDDING_OPERATION_QUERY => 'embedding_query',
+                    AiProviderInvocation::EMBEDDING_OPERATION_INGESTION => 'embedding_ingestion',
+                    default => 'embedding_undeclared',
+                },
+                'process' => $row->process !== null ? (string) $row->process : null,
+                'feature' => null,
+                'sandbox' => false,
+                'provider' => $row->provider !== null ? (string) $row->provider : null,
+                'model' => $row->model !== null ? (string) $row->model : null,
+                'cost_state' => $row->cost_status === AiProviderInvocation::COST_KNOWN ? 'known' : 'unknown',
+                'cost_usd' => $row->cost_status === AiProviderInvocation::COST_KNOWN && $row->provider_cost !== null ? (float) $row->provider_cost : null,
+                'status' => $row->status !== null ? (string) $row->status : null,
+            ])
+            ->all();
+
+        $rows = [...$generation, ...$embeddings];
+        usort($rows, static fn (array $a, array $b): int => $b['at'] <=> $a['at']);
+
+        return array_slice($rows, 0, $limit);
     }
 
     /**

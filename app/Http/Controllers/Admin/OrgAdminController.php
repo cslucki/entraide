@@ -1522,12 +1522,44 @@ class OrgAdminController extends Controller
         Request $request,
         Organization $organization,
         OrganizationAiConsumption $consumption,
+        OrganizationAiEconomicUsage $usage,
     ): View {
         $filters = AiConsumptionFilters::fromRequest($request);
+        $month = AiConsumptionFilters::currentMonth();
+
+        // TASK-1228 : le budget mensuel n'a de sens que sur la fenetre de la
+        // garde ; sur une periode personnalisee, « consomme » reste vrai mais
+        // « reste » n'est pas calcule.
+        $isCurrentMonth = $filters->from->equalTo($month->from) && $filters->to->equalTo($month->to);
+        $economics = $usage->summary((string) $organization->id, $filters->from, $filters->to);
+        $budget = $organization->aiSetting?->monthly_budget_usd;
+        $budget = $budget !== null ? (float) $budget : null;
 
         return view('admin.org.ai-consumption', [
             'organization' => $organization,
             'filters' => $filters,
+            'isCurrentMonth' => $isCurrentMonth,
+            'economics' => $economics,
+            'economicsByUser' => $usage->byUser((string) $organization->id, $filters->from, $filters->to),
+            'budget' => [
+                'monthly_usd' => $budget,
+                'consumed_usd' => $economics['total_known_cost_usd'],
+                // Reste = budget - MESURE ; les inconnus sont comptes a cote,
+                // jamais soustraits ni supposes nuls. Sans aucune mesure, la
+                // garde n'a rien retranche : reste = budget, 0 % — une seule
+                // regle pour les deux chiffres (revue PASS B). Le pourcentage
+                // n'est PAS plafonne : 250 % consomme s'affiche 250 %.
+                'remaining_usd' => $isCurrentMonth && $budget !== null
+                    ? $budget - (float) ($economics['total_known_cost_usd'] ?? 0.0)
+                    : null,
+                'percent' => $isCurrentMonth && $budget !== null && $budget > 0
+                    ? round((float) ($economics['total_known_cost_usd'] ?? 0.0) / $budget * 100, 1)
+                    : null,
+            ],
+            // Le budget et la ventilation portent sur TOUTE l'Organization : les
+            // filtres de dimension (utilisateur, process, modele, fournisseur)
+            // ne s'y appliquent pas — l'ecran le dit quand ils sont poses.
+            'economicsIgnoreDimensionFilters' => $filters->userId !== null || $filters->process !== null || $filters->model !== null || $filters->provider !== null,
             'summary' => $consumption->summary($organization->id, $filters),
             'byProcess' => $consumption->byProcess($organization->id, $filters),
             'byModel' => $consumption->byModel($organization->id, $filters),

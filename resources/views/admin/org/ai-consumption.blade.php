@@ -74,7 +74,128 @@
         </div>
     </form>
 
-    {{-- Resume --}}
+    {{-- TASK-1228 : BUDGET PROVIDER DU MOIS + VENTILATION (autorite 1222) --}}
+    @php
+        $econTotalCount = $economics['generation']['trace_count']
+            + $economics['embedding_query']['invocation_count']
+            + $economics['embedding_ingestion']['invocation_count']
+            + $economics['embedding_undeclared']['invocation_count'];
+        $processLabel = static fn (?string $key): string => $key !== null && \Illuminate\Support\Facades\Lang::has('ai.process_label.'.str_replace('.', '_', $key))
+            ? __('ai.process_label.'.str_replace('.', '_', $key))
+            : ($key ?? '—');
+    @endphp
+    <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6" data-consumption-budget-block>
+        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.consumption_budget_title') }}</h2>
+            <span class="text-xs text-gray-500 dark:text-gray-400" data-consumption-period>{{ __('ai.economy_period_label', ['from' => $filters->from->format('d/m/Y'), 'to' => $filters->to->subSecond()->format('d/m/Y')]) }}</span>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="rounded-lg border border-gray-100 dark:border-gray-700 px-4 py-3">
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('ai.consumption_budget_monthly') }}</div>
+                <div class="text-xl font-semibold tabular-nums text-gray-900 dark:text-gray-100" data-consumption-budget-monthly>{{ $budget['monthly_usd'] !== null ? '$'.number_format($budget['monthly_usd'], 2) : '—' }}</div>
+            </div>
+            <div class="rounded-lg border border-gray-100 dark:border-gray-700 px-4 py-3">
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('ai.consumption_budget_consumed') }}</div>
+                <div class="text-xl font-semibold tabular-nums text-gray-900 dark:text-gray-100" data-consumption-budget-consumed>{{ $cost($budget['consumed_usd']) }}</div>
+            </div>
+            <div class="rounded-lg border border-gray-100 dark:border-gray-700 px-4 py-3">
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('ai.consumption_budget_remaining') }}</div>
+                <div class="text-xl font-semibold tabular-nums {{ $budget['remaining_usd'] !== null && $budget['remaining_usd'] <= 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100' }}" data-consumption-budget-remaining>{{ $budget['remaining_usd'] !== null ? '$'.number_format($budget['remaining_usd'], 6) : '—' }}</div>
+            </div>
+            <div class="rounded-lg border border-gray-100 dark:border-gray-700 px-4 py-3">
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('ai.consumption_budget_percent') }}</div>
+                <div class="text-xl font-semibold tabular-nums text-gray-900 dark:text-gray-100" data-consumption-budget-percent>{{ $budget['percent'] !== null ? number_format($budget['percent'], 1).' %' : '—' }}</div>
+                @if($budget['percent'] !== null)
+                    <div class="mt-2 h-1.5 w-full rounded-full bg-gray-100 dark:bg-gray-700" aria-hidden="true">
+                        <div class="h-1.5 rounded-full {{ $budget['percent'] >= 100 ? 'bg-red-500' : ($budget['percent'] >= 80 ? 'bg-amber-500' : 'bg-emerald-500') }}" style="width: {{ min(100, $budget['percent']) }}%"></div>
+                    </div>
+                @endif
+            </div>
+        </div>
+        @if(! $isCurrentMonth)
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-3" data-consumption-budget-custom>{{ __('ai.consumption_budget_custom_period') }}</p>
+        @elseif($budget['monthly_usd'] === null)
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-3" data-consumption-budget-none>{{ __('ai.consumption_budget_none') }}</p>
+        @endif
+        @if($economicsIgnoreDimensionFilters)
+            <p class="text-xs text-amber-700 dark:text-amber-300 mt-2" data-consumption-economics-org-wide>{{ __('ai.consumption_economics_org_wide') }}</p>
+        @endif
+
+        {{-- Un cout non mesurable est COMPTE, a cote, visible. --}}
+        <div class="mt-4 rounded-lg border p-3 text-sm {{ $economics['total_unknown_count'] > 0 || $economics['total_unevaluated_count'] > 0 ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200' : 'border-gray-100 dark:border-gray-700 text-gray-600 dark:text-gray-400' }}" data-consumption-economics-unknown="{{ $economics['total_unknown_count'] }}">
+            {{ trans_choice('ai.economy_unknown_count', $economics['total_unknown_count'], ['count' => $economics['total_unknown_count']]) }}
+            @if($economics['total_unevaluated_count'] > 0)
+                · {{ trans_choice('ai.economy_unevaluated_count', $economics['total_unevaluated_count'], ['count' => $economics['total_unevaluated_count']]) }}
+            @endif
+        </div>
+
+        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mt-6 mb-2">{{ __('ai.consumption_breakdown_title') }}</h3>
+        <ul class="divide-y divide-gray-100 dark:divide-gray-700 text-sm" data-consumption-breakdown data-consumption-total-count="{{ $econTotalCount }}">
+            @foreach ([
+                ['key' => 'generation', 'label' => __('ai.economy_nature_generation'), 'count' => $economics['generation']['trace_count'], 'known' => $economics['generation']['known_cost_usd'], 'unknown' => $economics['generation']['unknown_count']],
+                ['key' => 'embedding_ingestion', 'label' => __('ai.economy_nature_embedding_ingestion'), 'count' => $economics['embedding_ingestion']['invocation_count'], 'known' => $economics['embedding_ingestion']['known_cost_usd'], 'unknown' => $economics['embedding_ingestion']['unknown_count']],
+                ['key' => 'embedding_query', 'label' => __('ai.economy_nature_embedding_query'), 'count' => $economics['embedding_query']['invocation_count'], 'known' => $economics['embedding_query']['known_cost_usd'], 'unknown' => $economics['embedding_query']['unknown_count']],
+                ['key' => 'embedding_undeclared', 'label' => __('ai.economy_nature_embedding_undeclared'), 'count' => $economics['embedding_undeclared']['invocation_count'], 'known' => $economics['embedding_undeclared']['known_cost_usd'], 'unknown' => $economics['embedding_undeclared']['unknown_count']],
+            ] as $nature)
+                @if($nature['count'] > 0 || $nature['key'] !== 'embedding_undeclared')
+                    <li class="flex flex-wrap items-center justify-between gap-2 py-2" data-consumption-nature="{{ $nature['key'] }}" data-consumption-nature-count="{{ $nature['count'] }}">
+                        <span class="text-gray-900 dark:text-gray-100">{{ $nature['label'] }}</span>
+                        <span class="tabular-nums text-xs text-gray-700 dark:text-gray-300">
+                            {{ number_format($nature['count']) }} · {{ $cost($nature['known']) }}
+                            @if($nature['unknown'] > 0)
+                                · <span class="text-amber-700 dark:text-amber-300">{{ trans_choice('ai.economy_unknown_count', $nature['unknown'], ['count' => $nature['unknown']]) }}</span>
+                            @endif
+                        </span>
+                    </li>
+                @endif
+            @endforeach
+            <li class="flex flex-wrap items-center justify-between gap-2 py-2 pl-4 text-gray-600 dark:text-gray-400" data-consumption-nature="sandbox" data-consumption-nature-count="{{ $economics['generation_sandbox']['trace_count'] }}">
+                <span>{{ __('ai.economy_nature_sandbox') }}</span>
+                <span class="tabular-nums text-xs">{{ number_format($economics['generation_sandbox']['trace_count']) }} · {{ $cost($economics['generation_sandbox']['known_cost_usd']) }}</span>
+            </li>
+        </ul>
+
+        {{-- Utilisateurs les plus consommateurs (attribution prouvee ; non attribuable a part). --}}
+        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mt-6 mb-2">{{ __('ai.consumption_top_users_title') }}</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm" data-consumption-top-users>
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_user') }}</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_generation') }}</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_search') }}</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_indexing') }}</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_known_cost') }}</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_unknown') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    @forelse(array_slice($economicsByUser, 0, 10) as $row)
+                        <tr data-consumption-top-user="{{ $row['user_id'] ?? 'unattributed' }}">
+                            <td class="px-3 py-2 text-gray-900 dark:text-gray-100">{{ $row['user_id'] === null ? __('ai.economy_unattributed') : ($row['name'] ?? '—') }}</td>
+                            <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{{ number_format($row['generation']['trace_count']) }}</td>
+                            <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{{ number_format($row['embedding_query']['invocation_count']) }}</td>
+                            <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
+                                {{ number_format($row['embedding_ingestion']['invocation_count']) }}
+                                @if($row['embedding_undeclared']['invocation_count'] > 0)
+                                    <span class="text-gray-400" title="{{ __('ai.economy_nature_embedding_undeclared') }}">{{ __('ai.economy_undeclared_suffix', ['count' => number_format($row['embedding_undeclared']['invocation_count'])]) }}</span>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2 text-right tabular-nums text-gray-900 dark:text-gray-100">{{ $cost($row['total_known_cost_usd']) }}</td>
+                            <td class="px-3 py-2 text-right tabular-nums {{ $row['total_unknown_count'] > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-gray-400' }}">{{ number_format($row['total_unknown_count']) }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="6" class="px-3 py-4 text-center text-gray-400">{{ __('ai.consumption_console_empty') }}</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-4">{{ __('ai.economy_authority_note') }}</p>
+    </section>
+
+    {{-- Detail des GENERATIONS (console 1219) --}}
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">{{ __('ai.consumption_generation_detail_title') }}</h2>
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
         <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3">
             <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('ai.consumption_console_known_cost') }}</div>
@@ -144,7 +265,11 @@
                                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750" data-consumption-row="{{ $table['attr'] }}">
                                     <td class="px-4 py-3 text-gray-900 dark:text-gray-100">
                                         {{-- Valeur absente : « — », jamais devinee depuis une autre colonne. --}}
-                                        {{ $row['key'] ?? '—' }}
+                                        @if($table['attr'] === 'process' && $row['key'] !== null)
+                                            {{ $processLabel($row['key']) }} <span class="text-xs text-gray-400 font-mono">{{ $row['key'] }}</span>
+                                        @else
+                                            {{ $row['key'] ?? '—' }}
+                                        @endif
                                     </td>
                                     <td class="px-4 py-3 text-right tabular-nums text-gray-900 dark:text-gray-100">{{ $cost($row['known_cost_usd']) }}</td>
                                     <td class="px-4 py-3 text-right tabular-nums text-gray-500 dark:text-gray-400">{{ number_format($row['measured_count']) }}</td>

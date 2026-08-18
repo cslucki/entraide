@@ -296,6 +296,28 @@ class TASK1223CockpitsTest extends TestCase
         ?string $embeddingOperation = null,
         ?float $cost = 0.001,
     ): AiProviderInvocation {
+        // TASK-1228 : comme chaque ecrivain canonique reel (TASK-1220), une
+        // GENERATION ecrit AUSSI sa trace `ai_interactions` — c'est ce
+        // registre que la garde et l'autorite economique 1222 comptent pour
+        // la generation, le ledger n'etant l'autorite que des embeddings.
+        if ($operation === 'generation') {
+            AiInteraction::create([
+                'user_id' => $user->id,
+                'organization_id' => $organization->id,
+                'correlation_id' => (string) Str::uuid(),
+                'process' => 'help_request.clarify',
+                'feature' => $capability,
+                'model' => 'openai/gpt-4o-mini',
+                'prompt' => 'p',
+                'response' => 'r',
+                'input_tokens' => 100,
+                'output_tokens' => 50,
+                'cost_usd' => $cost,
+                'cost_unknown' => $cost === null,
+                'metadata' => ['provider' => 'openai', 'status' => 'success', 'capability' => $capability],
+            ]);
+        }
+
         return AiProviderInvocation::create([
             'organization_id' => $organization->id,
             'user_id' => $user->id,
