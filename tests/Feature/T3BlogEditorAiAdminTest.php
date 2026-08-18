@@ -31,16 +31,28 @@ class T3BlogEditorAiAdminTest extends TestCase
 
         config(['ai.openai.api_key' => 'test-key']);
 
-        $this->organization = Organization::factory()->create(['is_active' => true]);
+        // TASK-1230 : noms DETERMINISTES (Faker `company()`, `firstName()`,
+        // `lastName()` sinon) — /admin/ia-usage rend `full_name` de l'auteur
+        // et le nom de l'Organization sur chaque ligne, plus le nom de l'admin
+        // dans la barre ; `assertDontSee('Correction')` fouille tout le HTML.
+        // Meme correction a la racine que TASK-1218 / TASK-1228.
+        $this->organization = Organization::factory()->create([
+            'is_active' => true,
+            'name' => 'Blog Sentinel Org',
+        ]);
 
         $this->admin = User::factory()->create([
             'organization_id' => $this->organization->id,
             'is_admin' => true,
+            'name' => 'Admin',
+            'first_name' => 'Sentinel',
         ]);
 
         $this->user = User::factory()->create([
             'organization_id' => $this->organization->id,
             'is_admin' => false,
+            'name' => 'Author',
+            'first_name' => 'Sentinel',
         ]);
 
         $this->category = Category::create([
