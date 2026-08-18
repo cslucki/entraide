@@ -57,10 +57,26 @@ class BugReportTest extends TestCase
         ]);
     }
 
+    /**
+     * TASK-1230 : noms DETERMINISTES — la page /bugs rend le nom de
+     * l'Organization (Faker `company()` dans la factory) et le HTML est
+     * fouille en entier par `assertDontSee('Doublon')`. Meme correction a la
+     * racine que TASK-1218 / TASK-1228 : aucun tirage Faker rendu sur la page,
+     * assertion metier inchangee.
+     */
     public function test_public_bug_list_shows_fixed_notes_and_hides_dismissed_bugs(): void
     {
-        $organization = Organization::factory()->create(['is_default' => true, 'is_active' => true]);
-        $user = User::factory()->create(['organization_id' => $organization->id]);
+        $organization = Organization::factory()->create([
+            'is_default' => true,
+            'is_active' => true,
+            'name' => 'Bug Report Sentinel Org',
+            'description' => 'Organisation de test des signalements.',
+        ]);
+        $user = User::factory()->create([
+            'organization_id' => $organization->id,
+            'name' => 'Reporter',
+            'first_name' => 'Sentinel',
+        ]);
 
         BugReport::create([
             'organization_id' => $organization->id,

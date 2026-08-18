@@ -29,7 +29,15 @@ class SystemEmailTemplateTest extends TestCase
     {
         parent::setUp();
         Mail::fake();
-        $this->org = Organization::factory()->create(['is_active' => true, 'locale' => 'fr', 'slug' => 'main']);
+        // TASK-1230 : nom DETERMINISTE (Faker `company()` sinon) — ce nom est
+        // rendu sur les pages admin (filtre + tableau) fouillees par
+        // assertDontSee(), et cherche tel quel par assertDontSee($this->org->name).
+        $this->org = Organization::factory()->create([
+            'is_active' => true,
+            'locale' => 'fr',
+            'slug' => 'main',
+            'name' => 'Main Sentinel Org',
+        ]);
         $this->user = User::factory()->complete()->create([
             'name' => 'Martin',
             'first_name' => 'Alice',
@@ -533,10 +541,21 @@ class SystemEmailTemplateTest extends TestCase
         $response->assertDontSee('Only B');
     }
 
+    /**
+     * TASK-1230 : admin a nom DETERMINISTE — la page admin rend `full_name`
+     * (Faker `firstName()`/`lastName()` dans UserFactory) et
+     * `assertDontSee('Bienvenue')` fouille tout le HTML. L'Organization de
+     * setUp() porte deja un nom fixe (voir setUp). Meme correction a la
+     * racine que TASK-1218 / TASK-1228.
+     */
     public function test_superadmin_filters_by_locale(): void
     {
         $this->seed(SystemEmailTemplateSeeder::class);
-        $admin = User::factory()->create(['is_admin' => true]);
+        $admin = User::factory()->create([
+            'is_admin' => true,
+            'name' => 'Superadmin',
+            'first_name' => 'Sentinel',
+        ]);
 
         $response = $this->actingAs($admin)->get(route('admin.system-email-templates', ['locale' => 'en']));
 
