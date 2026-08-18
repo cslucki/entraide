@@ -192,6 +192,9 @@ class ChatLoopAiService
                 $this->resolvePromptOrFail($scenarioId, $locale, 'loops.ai_summary_prompt_missing'),
                 (string) $organization->id,
             );
+            // TASK-1236 : version de doctrine reellement composee ci-dessus,
+            // tracee sur l'interaction plutot que reconstituee a posteriori.
+            $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
 
             // TASK-1209 : plus de construction ad hoc. La capability declare ses
             // sources, le Context Builder decide ce qu'elle a le droit de lire.
@@ -234,6 +237,7 @@ class ChatLoopAiService
                 $scenarioId,
                 $instructions,
                 $context,
+                $doctrineVersion,
             );
 
             $summary = LoopSummary::fromInteraction(
@@ -274,6 +278,7 @@ class ChatLoopAiService
         string $scenarioId,
         string $instructions,
         string $context,
+        ?int $doctrineVersion,
     ): AiInteraction {
         $agent = new LoopSummaryAgent(
             $instructions,
@@ -291,6 +296,7 @@ class ChatLoopAiService
             scenarioId: $scenarioId,
             prompt: $context,
             extraMetadata: [],
+            doctrineVersion: $doctrineVersion,
         );
     }
 
@@ -313,6 +319,7 @@ class ChatLoopAiService
         string $scenarioId,
         string $prompt,
         array $extraMetadata,
+        ?int $doctrineVersion,
     ): AiInteraction {
         $startedAt = microtime(true);
 
@@ -350,6 +357,7 @@ class ChatLoopAiService
                 startedAt: $startedAt,
                 sdkInvocationId: null,
                 failure: $exception::class,
+                doctrineVersion: $doctrineVersion,
             );
 
             throw new \RuntimeException(__('loops.ai_error'), 0, $exception);
@@ -383,6 +391,7 @@ class ChatLoopAiService
             startedAt: $startedAt,
             sdkInvocationId: $response->invocationId,
             failure: null,
+            doctrineVersion: $doctrineVersion,
         );
     }
 
@@ -408,6 +417,7 @@ class ChatLoopAiService
         ?float $startedAt,
         ?string $sdkInvocationId,
         ?string $failure,
+        ?int $doctrineVersion,
     ): AiInteraction {
         // TASK-1220 : ligne canonique du ledger `ai_provider_invocations`,
         // memes points que la trace P1 (succes ET echec). Les refus
@@ -455,7 +465,11 @@ class ChatLoopAiService
                 'sdk_invocation_id' => $sdkInvocationId,
                 'failure' => $failure,
                 ...$extraMetadata,
-            ], static fn ($value): bool => $value !== null),
+            ], static fn ($value): bool => $value !== null)
+                // TASK-1236 : cle toujours presente, meme a null (aucune doctrine
+                // active) — sa PRESENCE distingue une interaction tracee d'une
+                // ligne anterieure au mecanisme, ce qu'un array_filter effacerait.
+                + ['doctrine_version' => $doctrineVersion],
         ]);
     }
 
@@ -643,6 +657,9 @@ class ChatLoopAiService
             $this->resolvePromptOrFail($scenarioId, $locale, 'loops.ai_answer_prompt_missing'),
             (string) $organization->id,
         );
+        // TASK-1236 : version de doctrine reellement composee ci-dessus,
+        // tracee sur l'interaction plutot que reconstituee a posteriori.
+        $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
 
         // Le contexte vient du Context Builder : la capability declare ses
         // sources, le Builder decide ce qu'elle a le droit de lire, et la
@@ -711,6 +728,7 @@ class ChatLoopAiService
                 'sources_denied' => $borne->sourcesDenied,
                 'question' => $question,
             ],
+            doctrineVersion: $doctrineVersion,
         );
 
         return [

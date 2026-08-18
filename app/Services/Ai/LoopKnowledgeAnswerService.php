@@ -116,6 +116,9 @@ class LoopKnowledgeAnswerService
         // appliquee en code (citations revalidees), la doctrine ne peut pas
         // autoriser d'inventer.
         $instructions = $this->prompts->compose($capability, $this->knowledgeInstructions(), (string) $organization->id);
+        // TASK-1236 : version de doctrine reellement composee ci-dessus, tracee
+        // sur l'interaction enregistree plutot que reconstituee a posteriori.
+        $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
 
         $borne = $this->contextBuilder->build($contexte, $definition);
         $consulted = $borne->provenanceFor(DossierRetrievalSource::NAME);
@@ -153,7 +156,7 @@ class LoopKnowledgeAnswerService
         } catch (\Throwable $exception) {
             $this->recordInteraction($loop, $requester, $contexte, $definition, $resolved, $prompt, null,
                 AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null, 'failed', $startedAt, null,
-                $exception::class, $consulted, []);
+                $exception::class, $consulted, [], $doctrineVersion);
 
             throw new RuntimeException(__('loops.ai_error'), 0, $exception);
         }
@@ -176,7 +179,7 @@ class LoopKnowledgeAnswerService
 
         $interaction = $this->recordInteraction($loop, $requester, $contexte, $definition, $resolved, $prompt,
             $answer, $usage, $cost->traceAttributes(), $cost, 'success', $startedAt, $response->invocationId, null,
-            $consulted, $cited);
+            $consulted, $cited, $doctrineVersion);
 
         return new KnowledgeAnswer(
             answer: $answer,
@@ -267,6 +270,7 @@ class LoopKnowledgeAnswerService
         ?string $failure,
         array $consulted,
         array $cited,
+        ?int $doctrineVersion,
     ): AiInteraction {
         // TASK-1220 : ligne canonique du ledger, memes points que la trace P1
         // (succes ET echec) ; les refus pre-provider n'arrivent jamais ici.
@@ -312,7 +316,11 @@ class LoopKnowledgeAnswerService
                 'sdk_invocation_id' => $sdkInvocationId,
                 'failure' => $failure,
                 'retrieval' => ['consulted' => $ids($consulted), 'cited' => $ids($cited)],
-            ], static fn ($value): bool => $value !== null),
+            ], static fn ($value): bool => $value !== null)
+                // TASK-1236 : cle toujours presente, meme a null (aucune doctrine
+                // active) — sa PRESENCE distingue une interaction tracee d'une
+                // ligne anterieure au mecanisme, ce qu'un array_filter effacerait.
+                + ['doctrine_version' => $doctrineVersion],
         ]);
     }
 }
