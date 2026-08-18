@@ -52,6 +52,20 @@ final class PromptRepository
     }
 
     /**
+     * Version de la doctrine ACTIVE de l'Organization au moment de l'appel,
+     * ou null (aucune Organization / aucune doctrine active) — TASK-1236.
+     *
+     * Meme resolution que `compose()`, appelee separement : un appelant qui a
+     * besoin de tracer sur l'interaction enregistree la version reellement
+     * composee l'invoque a cote de `compose()`, sans changer la signature de
+     * `compose()` ni son contrat byte-identique existant (teste TASK-1227).
+     */
+    public function activeDoctrineVersion(?string $organizationId): ?int
+    {
+        return $organizationId === null ? null : OrganizationAiDoctrine::activeFor($organizationId)?->version;
+    }
+
+    /**
      * Composition avec une doctrine CANDIDATE, non lue en base : le bac a
      * sable « tester sans publier » (version null = brouillon) et les tests
      * d'invariants. Un corps vide ou blanc = aucune doctrine.

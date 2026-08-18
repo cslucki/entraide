@@ -190,6 +190,9 @@ class ClarifyUserHelpRequestService implements AiProvider
         // TASK-1227 : la doctrine active de l'Organization se compose ici,
         // sous la Constitution — meme point que les deux autres capabilities.
         $instructions = $this->prompts->compose($capability, $this->clarifyInstructions(), (string) $organization->id);
+        // TASK-1236 : version de doctrine reellement composee ci-dessus, tracee
+        // sur l'interaction enregistree plutot que reconstituee a posteriori.
+        $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
 
         $agent = new HelpRequestClarifierAgent(
             $instructions,
@@ -209,7 +212,7 @@ class ClarifyUserHelpRequestService implements AiProvider
             $this->recordInteraction(
                 $loop, $requester, $contexte, $definition, $resolved, $phrase,
                 null, AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null,
-                'failed', $startedAt, null, $exception::class,
+                'failed', $startedAt, null, $exception::class, $doctrineVersion,
             );
 
             // Un echec ne bloque pas le membre : il retombe sur la clarification
@@ -229,7 +232,7 @@ class ClarifyUserHelpRequestService implements AiProvider
         $interaction = $this->recordInteraction(
             $loop, $requester, $contexte, $definition, $resolved, $phrase,
             json_encode($structured, JSON_UNESCAPED_UNICODE), $usage, $cost->traceAttributes(), $cost,
-            'success', $startedAt, $response->invocationId, null,
+            'success', $startedAt, $response->invocationId, null, $doctrineVersion,
         );
 
         return $this->mapStructuredToDto(
@@ -508,6 +511,7 @@ class ClarifyUserHelpRequestService implements AiProvider
         float $startedAt,
         ?string $sdkInvocationId,
         ?string $failure,
+        ?int $doctrineVersion,
     ): AiInteraction {
         $this->ledger->recordGeneration(
             organizationId: $contexte->organizationId,
@@ -545,7 +549,11 @@ class ClarifyUserHelpRequestService implements AiProvider
                 'status' => $status,
                 'sdk_invocation_id' => $sdkInvocationId,
                 'failure' => $failure,
-            ], static fn ($value): bool => $value !== null),
+            ], static fn ($value): bool => $value !== null)
+                // TASK-1236 : cle toujours presente, meme a null (aucune doctrine
+                // active) — sa PRESENCE distingue une interaction tracee d'une
+                // ligne anterieure au mecanisme, ce qu'un array_filter effacerait.
+                + ['doctrine_version' => $doctrineVersion],
         ]);
     }
 }
