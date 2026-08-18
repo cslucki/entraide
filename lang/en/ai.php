@@ -505,7 +505,7 @@ return [
 
     // ── TASK-1229: per-user AI credit (uses, never dollars) ──
     'credit_title' => 'AI credit this month',
-    'credit_intro' => 'Your BouclePro access includes a number of AI uses per month. One use = one generation (summary, clarification, question to the Folders) or one document search. Indexings and doctrine tests are outside the credit.',
+    'credit_intro' => 'Your BouclePro access includes a number of AI uses per month. One use = one generation (summary, clarification, question to the Folders) or one document search — an attempt actually sent counts, even if the provider fails or its cost could not be measured. Indexings and doctrine tests are outside the credit.',
     'credit_unlimited' => 'Included, no limit',
     'credit_unlimited_help' => 'No cap on uses applies to your account this month.',
     'credit_used_of_quota' => ':used of :quota uses',
@@ -537,4 +537,5 @@ return [
     'offers_contact_admin' => 'Contact the Organization administrator',
     'offers_back' => 'Back to my AI usage',
     'offers_no_payment' => 'Information page — no payment, no card entry.',
+    'refusal_temporarily_unavailable' => 'AI is temporarily unavailable for this Organization.',
 ];

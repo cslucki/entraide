@@ -30,7 +30,11 @@
     $changeLabel = static function (array $changes): string {
         $parts = [];
         foreach ($changes as $field => $delta) {
-            $format = static fn ($v): string => $v === null ? '∞' : (is_bool($v) ? ($v ? 'on' : 'off') : (string) $v);
+            // « ∞ » = illimite, seulement pour le quota plateforme ; pour la
+            // valeur propre d'Organization, null = « pas de valeur » (—).
+            $format = static fn ($v): string => $v === null
+                ? ($field === 'monthly_uses' ? '∞' : '—')
+                : (is_bool($v) ? ($v ? 'on' : 'off') : (string) $v);
             $parts[] = $field.' : '.$format($delta['from'] ?? null).' → '.$format($delta['to'] ?? null);
         }
 

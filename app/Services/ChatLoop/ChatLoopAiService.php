@@ -207,7 +207,7 @@ class ChatLoopAiService
             // Un refus est un refus : aucun appel SDK n'est emis. Trois etats,
             // trois messages, trois codes.
             if (! $verdict->allowed) {
-                throw AiRefusedException::fromVerdict($verdict);
+                throw AiRefusedException::fromVerdict($verdict, 'loops.ai_summary_temporarily_unavailable');
             }
 
             $interaction = $this->generateSummaryViaSdk(

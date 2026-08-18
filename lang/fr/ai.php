@@ -505,7 +505,7 @@ return [
 
     // ── TASK-1229 : credit IA par utilisateur (utilisations, jamais des dollars) ──
     'credit_title' => 'Crédit IA du mois',
-    'credit_intro' => 'Votre accès BouclePro inclut un nombre d\'utilisations IA par mois. Une utilisation = une génération (résumé, clarification, question aux Dossiers) ou une recherche documentaire. Les indexations et les essais de doctrine sont hors crédit.',
+    'credit_intro' => 'Votre accès BouclePro inclut un nombre d\'utilisations IA par mois. Une utilisation = une génération (résumé, clarification, question aux Dossiers) ou une recherche documentaire — une tentative réellement émise compte, même si le fournisseur échoue ou si son coût n\'a pas pu être mesuré. Les indexations et les essais de doctrine sont hors crédit.',
     'credit_unlimited' => 'Inclus, sans limite',
     'credit_unlimited_help' => 'Aucun plafond d\'utilisations ne s\'applique à votre compte ce mois-ci.',
     'credit_used_of_quota' => ':used sur :quota utilisations',
@@ -537,4 +537,5 @@ return [
     'offers_contact_admin' => 'Contacter l\'administrateur de l\'Organization',
     'offers_back' => 'Retour à mes usages IA',
     'offers_no_payment' => 'Page d\'information — aucun paiement, aucune saisie de carte.',
+    'refusal_temporarily_unavailable' => 'L\'IA est temporairement indisponible pour cette Organization.',
 ];

@@ -18,8 +18,8 @@
     @if($errorMessage)
         <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200" data-ai-summary-error @if($errorCode) data-ai-refusal-code="{{ $errorCode }}" @endif>
             {{ $errorMessage }}
-            @if($errorCode === \App\Support\Ai\AiRefusedException::CODE_USER_CREDIT_EXHAUSTED)
-                <a href="{{ aiOffersUrl($loop->organization) }}" class="ml-1 font-semibold underline underline-offset-2 hover:no-underline" data-ai-credit-offers-link>{{ __('ai.credit_see_offers') }}</a>
+            @if($offersUrl)
+                <a href="{{ $offersUrl }}" class="ml-1 font-semibold underline underline-offset-2 hover:no-underline" data-ai-credit-offers-link>{{ __('ai.credit_see_offers') }}</a>
             @endif
         </div>
     @endif

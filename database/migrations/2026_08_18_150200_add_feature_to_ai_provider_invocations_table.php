@@ -30,11 +30,12 @@ return new class extends Migration
         DB::table('ai_provider_invocations')
             ->whereNull('feature')
             ->whereNotNull('correlation_id')
-            ->whereIn('correlation_id', static function ($query): void {
-                $query->select('correlation_id')
+            ->whereExists(static function ($query): void {
+                $query->selectRaw('1')
                     ->from('ai_interactions')
-                    ->where('feature', 'ai_doctrine_sandbox')
-                    ->whereNotNull('correlation_id');
+                    ->whereColumn('ai_interactions.correlation_id', 'ai_provider_invocations.correlation_id')
+                    ->whereColumn('ai_interactions.organization_id', 'ai_provider_invocations.organization_id')
+                    ->where('ai_interactions.feature', 'ai_doctrine_sandbox');
             })
             ->update(['feature' => 'ai_doctrine_sandbox']);
     }

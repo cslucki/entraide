@@ -42,7 +42,8 @@
                     @if($subscriptionsUrl)
                         <a href="{{ $subscriptionsUrl }}" class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700" data-ai-offers-subscriptions>{{ __('ai.offers_subscriptions_link') }}</a>
                     @endif
-                    @if($organization->admin?->email)
+                    {{-- Le mail de l'admin n'est propose que s'il le rend visible (preference show_email). --}}
+                    @if($organization->admin?->email && $organization->admin->show_email)
                         <a href="mailto:{{ $organization->admin->email }}" class="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700" data-ai-offers-contact>{{ __('ai.offers_contact_admin') }}</a>
                     @endif
                     <a href="{{ $usageUrl }}" class="inline-flex items-center rounded-lg px-4 py-2 text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:underline">{{ __('ai.offers_back') }}</a>

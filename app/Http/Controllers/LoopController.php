@@ -1097,9 +1097,7 @@ class LoopController extends Controller
             return response()->json([
                 'error' => $exception->getMessage(),
                 'code' => $exception->refusalCode,
-                'offers_url' => $exception->refusalCode === AiRefusedException::CODE_USER_CREDIT_EXHAUSTED
-                    ? aiOffersUrl($organization)
-                    : null,
+                'offers_url' => $exception->offersUrl($organization),
             ], 422);
         } catch (\RuntimeException $exception) {
             return response()->json(['error' => $exception->getMessage()], 422);

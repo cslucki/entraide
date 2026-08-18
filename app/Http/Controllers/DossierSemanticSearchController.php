@@ -64,9 +64,7 @@ class DossierSemanticSearchController extends Controller
             return response()->json([
                 'code' => $exception->refusalCode,
                 'message' => $exception->getMessage(),
-                'offers_url' => $exception->refusalCode === AiRefusedException::CODE_USER_CREDIT_EXHAUSTED
-                    ? aiOffersUrl($organization)
-                    : null,
+                'offers_url' => $exception->offersUrl($organization),
             ], 429);
         } catch (AiException|ConnectionException|RequestException|RuntimeException|\DomainException $exception) {
             Log::warning('Dossier semantic search unavailable.', [

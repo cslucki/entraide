@@ -36,6 +36,9 @@ class LoopAiSummaryCard extends Component
      */
     public ?string $errorCode = null;
 
+    /** TASK-1229 : URL « Voir les offres », seulement si la plateforme le propose. */
+    public ?string $offersUrl = null;
+
     public function mount(ChatLoopAiService $service): void
     {
         $this->canGenerate = $this->userCanGenerate();
@@ -53,6 +56,7 @@ class LoopAiSummaryCard extends Component
         $this->autoGenerate = false;
         $this->errorMessage = null;
         $this->errorCode = null;
+        $this->offersUrl = null;
 
         if (! $this->userCanGenerate()) {
             return;
@@ -79,6 +83,7 @@ class LoopAiSummaryCard extends Component
             // Non-blocking, avec son code : le message dit QUEL etat refuse.
             $this->errorMessage = $e->getMessage();
             $this->errorCode = $e->refusalCode;
+            $this->offersUrl = $e->offersUrl($this->loop->organization);
         } catch (\RuntimeException $e) {
             // Non-blocking: keep the previous summary visible if any.
             $this->errorMessage = $e->getMessage();

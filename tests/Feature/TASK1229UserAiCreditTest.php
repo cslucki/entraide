@@ -411,10 +411,18 @@ class TASK1229UserAiCreditTest extends TestCase
         $offers = $this->actingAs($this->memberA)->get(aiOffersUrl($this->orgA));
         $offers->assertOk()->assertSee(__('ai.offers_title'))->assertSee(__('ai.offers_no_payment'));
 
-        // « Proposer un abonnement » desactive : plus de bouton, refus toujours clair.
+        // « Proposer un abonnement » desactive : plus de bouton, refus toujours clair —
+        // sur la page ET sur le refus JSON (offers_url null).
         $this->platform(monthlyUses: 10, offerSubscription: false);
         $page = $this->actingAs($this->memberA)->get(route('organization.profile.ai-usage', ['organization' => $this->orgA->slug]));
         $page->assertOk()->assertSee(__('ai.credit_exhausted_title'))->assertDontSee(__('ai.credit_see_offers'));
+        $this->fakeKnowledgeAgent('jamais');
+        $refused = $this->actingAs($this->memberA)->postJson(
+            route('organization.loops.knowledge.ask', ['organization' => $this->orgA->slug, 'loop' => $this->loop->id]),
+            ['question' => 'Que doit contenir une installation itinérante ?'],
+        );
+        $refused->assertStatus(422)->assertJsonPath('code', AiRefusedException::CODE_USER_CREDIT_EXHAUSTED);
+        $this->assertNull($refused->json('offers_url'));
     }
 
     // =====================================================================

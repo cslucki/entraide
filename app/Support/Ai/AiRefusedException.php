@@ -2,6 +2,7 @@
 
 namespace App\Support\Ai;
 
+use App\Models\Organization;
 use RuntimeException;
 
 /**
@@ -31,6 +32,12 @@ class AiRefusedException extends RuntimeException
         public readonly string $refusalCode,
         string $message,
         ?\Throwable $previous = null,
+        /**
+         * TASK-1229 : sur un refus « credit epuise », proposer ou non les
+         * offres — le reglage plateforme « a quota atteint : proposer un
+         * abonnement », lu sur la politique du verdict, jamais suppose.
+         */
+        public readonly bool $offerSubscription = false,
     ) {
         parent::__construct($message, 0, $previous);
     }
@@ -38,8 +45,12 @@ class AiRefusedException extends RuntimeException
     /**
      * Le message produit d'un verdict economique refuse, et son code — UNE
      * seule table de correspondance pour tous les chemins de generation.
+     *
+     * @param  string  $unavailableKey  cle i18n de l'indisponibilite generique
+     *                                  (quota d'inconnus…), neutre par defaut ;
+     *                                  le resume ChatLoop garde la sienne.
      */
-    public static function fromVerdict(AiEconomicVerdict $verdict): self
+    public static function fromVerdict(AiEconomicVerdict $verdict, string $unavailableKey = 'ai.refusal_temporarily_unavailable'): self
     {
         return match ($verdict->reason) {
             AiEconomicGuard::REASON_USER_CREDIT_EXHAUSTED => new self(
@@ -51,14 +62,27 @@ class AiRefusedException extends RuntimeException
                         'date' => $verdict->userCredit->renewsAt->format('d/m/Y'),
                     ])
                     : __('ai.credit_refusal_user_exhausted_short'),
+                null,
+                $verdict->userCredit?->policy->offerSubscription ?? false,
             ),
             AiEconomicGuard::REASON_ORGANIZATION_BUDGET_REACHED,
             AiEconomicGuard::REASON_MONTHLY_BUDGET_REACHED => new self(
                 self::CODE_ORGANIZATION_BUDGET_REACHED,
                 __('loops.ai_summary_monthly_budget_reached'),
             ),
-            default => new self(self::CODE_UNAVAILABLE, __('loops.ai_summary_temporarily_unavailable')),
+            default => new self(self::CODE_UNAVAILABLE, __($unavailableKey)),
         };
+    }
+
+    /**
+     * Le bouton « Voir les offres » n'a de sens que pour le credit epuise ET
+     * si la plateforme le propose.
+     */
+    public function offersUrl(?Organization $organization = null): ?string
+    {
+        return $this->refusalCode === self::CODE_USER_CREDIT_EXHAUSTED && $this->offerSubscription
+            ? aiOffersUrl($organization)
+            : null;
     }
 
     public static function notConfigured(?\Throwable $previous = null): self
