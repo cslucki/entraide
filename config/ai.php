@@ -225,6 +225,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Credit IA par utilisateur — defauts plateforme (TASK-1229)
+    |--------------------------------------------------------------------------
+    |
+    | Le credit commercial d'un utilisateur se compte en NOMBRE D'UTILISATIONS
+    | par mois (fenetre UTC du budget), jamais en monnaie. Ces valeurs ne
+    | servent que tant que le SuperAdmin n'a rien enregistre dans « Monetisation
+    | IA » (`ai_configs`, cles `user_credit.*`) ; une Organization peut ensuite
+    | les surcharger (valeur propre / illimite). `monthly_uses` vide = illimite :
+    | par defaut, rien ne bloque.
+    */
+    'user_credit' => [
+        'free_enabled' => (bool) env('AI_USER_CREDIT_FREE_ENABLED', true),
+        'monthly_uses' => env('AI_USER_CREDIT_MONTHLY_USES'),
+        'alert_percent' => (int) env('AI_USER_CREDIT_ALERT_PERCENT', 80),
+        'offer_subscription' => (bool) env('AI_USER_CREDIT_OFFER_SUBSCRIPTION', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | ChatLoop AI — Persistent AI intervention in loops
     |--------------------------------------------------------------------------
     |

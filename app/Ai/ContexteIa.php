@@ -37,6 +37,14 @@ final class ContexteIa
          * secret, jamais un contenu d'un autre tenant.
          */
         public readonly ?string $query = null,
+        /**
+         * TASK-1229 : la fonction produit emettrice quand elle differe de la
+         * capability (ex. essais de doctrine `ai_doctrine_sandbox`) — propagee
+         * jusqu'au ledger des invocations declenchees par le contexte
+         * (recherche documentaire), pour que le credit utilisateur les
+         * distingue. NULL = la capability elle-meme.
+         */
+        public readonly ?string $feature = null,
     ) {
         if (! self::isUuid($organizationId)) {
             throw new InvalidArgumentException('An AI context requires a valid organization ID.');

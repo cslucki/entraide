@@ -437,9 +437,11 @@
                     question: '',
                     loading: false,
                     error: null,
+                    errorCode: null,
+                    offersUrl: null,
                     result: null,
                     endpoint: @js($_loopRoute('knowledge.ask', ['loop' => $currentLoop])),
-                    reset() { this.error = null; this.result = null; },
+                    reset() { this.error = null; this.errorCode = null; this.offersUrl = null; this.result = null; },
                     async ask() {
                         const q = this.question.trim();
                         if (q.length < 3 || this.loading) return;
@@ -452,7 +454,7 @@
                                 body: JSON.stringify({ question: q })
                             });
                             const data = await response.json();
-                            if (!response.ok) { this.error = data.error || (data.errors && Object.values(data.errors).flat()[0]) || @js(__('loops.knowledge_error')); return; }
+                            if (!response.ok) { this.error = data.error || (data.errors && Object.values(data.errors).flat()[0]) || @js(__('loops.knowledge_error')); this.errorCode = data.code || null; this.offersUrl = data.offers_url || null; return; }
                             this.result = data;
                         } catch (e) {
                             this.error = @js(__('loops.knowledge_error'));
@@ -491,7 +493,14 @@
                                     </button>
                                 </form>
 
-                                <div x-show="error" x-cloak class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200" data-knowledge-error x-text="error"></div>
+                                {{-- TASK-1229 : le refus porte son code (credit utilisateur epuise / budget
+                                     Organization / IA non configuree) ; seul le credit propose « Voir les offres ». --}}
+                                <div x-show="error" x-cloak class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200" data-knowledge-error :data-ai-refusal-code="errorCode || null">
+                                    <span x-text="error"></span>
+                                    <div x-show="errorCode === 'user_credit_exhausted' && offersUrl" x-cloak class="mt-2">
+                                        <a :href="offersUrl" class="inline-flex items-center rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700" data-ai-credit-offers-link>{{ __('ai.credit_see_offers') }}</a>
+                                    </div>
+                                </div>
 
                                 <template x-if="result">
                                     <div class="space-y-3" data-knowledge-result>
@@ -499,6 +508,11 @@
                                             <p class="text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300 mb-1">{{ __('loops.knowledge_answer_title') }}</p>
                                             <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-line" data-knowledge-answer x-text="result.answer"></p>
                                         </div>
+                                        {{-- TASK-1229 : alerte de seuil, calme et informative, juste sous la reponse — l'action n'a pas ete bloquee. --}}
+                                        <template x-if="result.credit && result.credit.alert">
+                                            <p class="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-800/50 dark:bg-sky-900/20 dark:text-sky-200" data-ai-credit-alert
+                                               x-text="@js(__('ai.credit_alert_remaining')).replace(':remaining', result.credit.remaining).replace(':used', result.credit.used).replace(':quota', result.credit.quota)"></p>
+                                        </template>
                                         <div x-show="result.sources && result.sources.length" data-knowledge-sources>
                                             <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1" x-text="result.grounded ? @js(__('loops.knowledge_sources_title')) : @js(__('loops.knowledge_consulted_title'))"></p>
                                             <ul class="space-y-2">

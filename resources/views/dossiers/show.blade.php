@@ -570,7 +570,11 @@
 
                         <div class="mt-4" aria-live="polite">
                             <p x-show="validationError" x-cloak class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200" x-text="validationError"></p>
-                            <p x-show="error" x-cloak class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200" x-text="error"></p>
+                            <div x-show="error" x-cloak class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200" data-semantic-search-error :data-ai-refusal-code="errorCode || null">
+                                <span x-text="error"></span>
+                                {{-- TASK-1229 : seul le refus « credit utilisateur epuise » propose les offres. --}}
+                                <a x-show="errorCode === 'user_credit_exhausted' && offersUrl" x-cloak :href="offersUrl" class="ml-2 font-semibold underline underline-offset-2 hover:no-underline" data-ai-credit-offers-link>{{ __('ai.credit_see_offers') }}</a>
+                            </div>
                             <p x-show="loading" x-cloak class="text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.semantic_search_loading') }}</p>
                         </div>
 

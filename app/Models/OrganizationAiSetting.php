@@ -20,12 +20,31 @@ class OrganizationAiSetting extends Model
     use HasFactory;
     use HasUuids;
 
+    /**
+     * TASK-1229 : override d'Organization du credit IA par utilisateur.
+     * NULL ou `platform` = reglage plateforme ; `custom` = valeur propre
+     * (`user_credit_monthly_uses`) ; `unlimited` = inclus, jamais bloque.
+     */
+    public const USER_CREDIT_MODE_PLATFORM = 'platform';
+
+    public const USER_CREDIT_MODE_CUSTOM = 'custom';
+
+    public const USER_CREDIT_MODE_UNLIMITED = 'unlimited';
+
+    public const USER_CREDIT_MODES = [
+        self::USER_CREDIT_MODE_PLATFORM,
+        self::USER_CREDIT_MODE_CUSTOM,
+        self::USER_CREDIT_MODE_UNLIMITED,
+    ];
+
     protected $fillable = [
         'organization_id',
         'provider',
         'model',
         'api_key',
         'monthly_budget_usd',
+        'user_credit_mode',
+        'user_credit_monthly_uses',
         'is_enabled',
         'api_key_updated_at',
     ];
@@ -37,6 +56,7 @@ class OrganizationAiSetting extends Model
         return [
             'api_key' => 'encrypted',
             'monthly_budget_usd' => 'decimal:2',
+            'user_credit_monthly_uses' => 'integer',
             'is_enabled' => 'boolean',
             'api_key_updated_at' => 'datetime',
         ];

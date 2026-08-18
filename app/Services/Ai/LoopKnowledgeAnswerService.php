@@ -21,6 +21,7 @@ use App\Support\Ai\AiCorrelation;
 use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiMarkdownSanitizer;
+use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiUsage;
 use DomainException;
 use RuntimeException;
@@ -81,12 +82,17 @@ class LoopKnowledgeAnswerService
         );
 
         // P4 : sans configuration IA d'Organization, aucun appel, aucun repli.
+        // TASK-1229 : etat « credential absent », code stable, distinct des
+        // deux refus economiques ci-dessous.
         try {
             $resolved = $this->providers->resolve($capability, $contexte);
         } catch (DomainException $exception) {
-            throw new RuntimeException(__('loops.ai_not_configured_for_organization'), 0, $exception);
+            throw AiRefusedException::notConfigured($exception);
         }
 
+        // TASK-1229 : le demandeur est passe a la garde — son credit IA du
+        // mois (utilisations) s'applique ICI, dans l'autorite existante, avant
+        // toute recherche documentaire et toute generation.
         $verdict = $this->economicGuard->authorize(
             $organization,
             $definition->process,
@@ -94,15 +100,13 @@ class LoopKnowledgeAnswerService
             $resolved->model,
             (float) config('ai.knowledge.economic_guard.monthly_budget_usd', 2.00),
             (int) config('ai.knowledge.economic_guard.monthly_unknown_limit', 10),
+            $requester,
         );
 
         if (! $verdict->allowed) {
-            throw new RuntimeException(in_array($verdict->reason, [
-                AiEconomicGuard::REASON_MONTHLY_BUDGET_REACHED,
-                AiEconomicGuard::REASON_ORGANIZATION_BUDGET_REACHED,
-            ], true)
-                ? __('loops.ai_summary_monthly_budget_reached')
-                : __('loops.ai_summary_temporarily_unavailable'));
+            // Trois etats, trois messages, trois codes : credit utilisateur
+            // epuise / budget Organization atteint / autre indisponibilite.
+            throw AiRefusedException::fromVerdict($verdict);
         }
 
         // Le prompt administrable est requis AVANT toute depense (embedding
@@ -125,6 +129,9 @@ class LoopKnowledgeAnswerService
                 consulted: [],
                 grounded: false,
                 interactionId: null,
+                // TASK-1229 : la recherche documentaire a pu etre emise (une
+                // utilisation reelle) : le credit se lit ici aussi.
+                credit: $this->economicGuard->userCreditStatus($organization, $requester),
             );
         }
 
@@ -177,6 +184,10 @@ class LoopKnowledgeAnswerService
             consulted: $consulted,
             grounded: $cited !== [],
             interactionId: $interaction->id,
+            // TASK-1229 : le credit APRES cette reponse (recherche + generation
+            // decomptees) — l'alerte de seuil se lit ici, l'action n'a pas
+            // ete bloquee.
+            credit: $this->economicGuard->userCreditStatus($organization, $requester),
         );
     }
 

@@ -67,6 +67,7 @@ class AiProviderInvocation extends Model
         'organization_id',
         'user_id',
         'capability',
+        'feature',
         'process',
         'operation',
         'embedding_operation',

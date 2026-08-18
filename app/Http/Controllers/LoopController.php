@@ -20,6 +20,7 @@ use App\Services\LoopMessageService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Services\Loops\LoopPresetConfigurator;
 use App\Services\LoopService;
+use App\Support\Ai\AiRefusedException;
 use App\Support\Loops\HelpRequestHandoff;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
@@ -1088,6 +1089,16 @@ class LoopController extends Controller
 
         try {
             $answer = app(LoopKnowledgeAnswerService::class)->answer($loop, $user, $data['question']);
+        } catch (AiRefusedException $exception) {
+            // TASK-1229 : refus AVANT appel, avec son code stable (credit
+            // utilisateur epuise / budget Organization atteint / IA non
+            // configuree) — l'ecran choisit le bon message et, pour le credit,
+            // le bouton « Voir les offres ».
+            return response()->json([
+                'error' => $exception->getMessage(),
+                'code' => $exception->refusalCode,
+                'offers_url' => $exception->offersUrl($organization),
+            ], 422);
         } catch (\RuntimeException $exception) {
             return response()->json(['error' => $exception->getMessage()], 422);
         }

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AdminAiBenchmarkController;
 use App\Http\Controllers\Admin\AdminAiConfigController;
 use App\Http\Controllers\Admin\AdminAiInteractionController;
+use App\Http\Controllers\Admin\AdminAiMonetizationController;
 use App\Http\Controllers\Admin\AdminAiOrganizationsController;
 use App\Http\Controllers\Admin\AdminAiPromptController;
 use App\Http\Controllers\Admin\AdminAiReviewQueueController;
@@ -306,6 +307,8 @@ Route::middleware('auth')->group(function () {
     // TASK-1223 : « Mes usages IA » — transparence du ledger canonique,
     // scope strict user courant + Organization courante.
     Route::get('/profile/ai-usage', [UserAiUsageController::class, 'index'])->name('profile.ai-usage');
+    // TASK-1229 : « Voir les offres » — page d'information (aucun paiement).
+    Route::get('/profile/ai-usage/offers', [UserAiUsageController::class, 'offers'])->name('profile.ai-offers');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -585,6 +588,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // TASK-1223 : cockpit IA/RAG plateforme — metadonnees par Organization,
     // jamais un contenu tenant ni une cle.
     Route::get('/ai-organizations', [AdminAiOrganizationsController::class, 'index'])->name('ai-organizations');
+    // TASK-1229 : « Monetisation IA » — credit IA par utilisateur (plateforme) :
+    // IA gratuite, quota mensuel en utilisations, seuil d'alerte, offre.
+    Route::get('/ai-monetization', [AdminAiMonetizationController::class, 'index'])->name('ai-monetization');
+    Route::post('/ai-monetization', [AdminAiMonetizationController::class, 'update'])->name('ai-monetization.update');
 
     // Blog moderation
     Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog');
@@ -730,6 +737,7 @@ Route::prefix('/org/{organization}')
             // TASK-1223 : « Mes usages IA » — transparence du ledger canonique,
             // scope strict user courant + Organization courante.
             Route::get('/profile/ai-usage', [UserAiUsageController::class, 'index'])->name('profile.ai-usage');
+            Route::get('/profile/ai-usage/offers', [UserAiUsageController::class, 'offers'])->name('profile.ai-offers');
             Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
             Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
             Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -989,6 +997,9 @@ Route::prefix('/org/{organization}')
                 // TASK-1212 : configuration IA du tenant (provider, modele, credential, budget)
                 Route::get('/ai', [OrgAdminController::class, 'ai'])->name('ai');
                 Route::put('/ai', [OrgAdminController::class, 'updateAi'])->name('ai.update');
+                // TASK-1229 : override d'Organization du credit IA par utilisateur
+                // (reglage plateforme / valeur propre / illimite), trace.
+                Route::put('/ai/user-credit', [OrgAdminController::class, 'updateAiUserCredit'])->name('ai.user-credit.update');
 
                 // Design
                 Route::get('/homepage', [OrgAdminController::class, 'homepage'])->name('homepage');

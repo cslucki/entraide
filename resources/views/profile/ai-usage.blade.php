@@ -53,6 +53,75 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('ai.my_ai_usage_scope_note') }}</p>
             </div>
 
+            {{-- TASK-1229 : CREDIT IA DU MOIS — en UTILISATIONS, jamais en dollars.
+                 Le chiffre vient de la garde (AiEconomicGuard::userCreditStatus) :
+                 c'est celui qui bloque. Trois etats : sous le seuil (reste visible),
+                 seuil franchi (message calme, rien de bloque), plafond atteint
+                 (refus clair + « Voir les offres »). Essais de doctrine et
+                 indexations hors credit — l'ecran le dit. --}}
+            @php
+                $creditQuota = $credit->quota();
+                $creditState = $credit->isUnlimited() ? 'unlimited' : ($credit->isExhausted() ? 'exhausted' : ($credit->isAlerting() ? 'alert' : 'ok'));
+                $creditPercent = $credit->percent();
+                $creditBar = $creditPercent === null ? 0 : min(100, $creditPercent);
+                $creditTone = match ($creditState) {
+                    'exhausted' => 'border-red-200 dark:border-red-900/50 bg-red-50/60 dark:bg-red-900/10',
+                    'alert' => 'border-amber-200 dark:border-amber-900/50 bg-amber-50/60 dark:bg-amber-900/10',
+                    default => 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800',
+                };
+                $creditBarTone = match ($creditState) {
+                    'exhausted' => 'bg-red-500',
+                    'alert' => 'bg-amber-500',
+                    default => 'bg-emerald-500',
+                };
+            @endphp
+            <section class="rounded-xl border p-6 mb-6 {{ $creditTone }}" data-my-ai-credit data-my-ai-credit-state="{{ $creditState }}" data-my-ai-credit-used="{{ $credit->used }}" data-my-ai-credit-quota="{{ $creditQuota ?? '' }}" data-my-ai-credit-remaining="{{ $credit->remaining() ?? '' }}">
+                <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.credit_title') }}</h2>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ $credit->policy->source === \App\Support\Ai\AiUserCreditPolicy::SOURCE_ORGANIZATION ? __('ai.credit_source_organization') : __('ai.credit_source_platform') }}</span>
+                </div>
+
+                @if($credit->isUnlimited())
+                    <div class="text-2xl font-semibold text-gray-900 dark:text-gray-100" data-my-ai-credit-headline>{{ __('ai.credit_unlimited') }}</div>
+                    <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ __('ai.credit_unlimited_help') }}</p>
+                @else
+                    <div class="flex flex-wrap items-end justify-between gap-2">
+                        <div class="text-2xl font-semibold text-gray-900 dark:text-gray-100" data-my-ai-credit-headline>
+                            {{ __('ai.credit_used_of_quota', ['used' => number_format($credit->used), 'quota' => number_format((int) $creditQuota)]) }}
+                        </div>
+                        <div class="text-sm font-medium {{ $creditState === 'exhausted' ? 'text-red-700 dark:text-red-300' : ($creditState === 'alert' ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300') }}" data-my-ai-credit-remaining-label>
+                            {{ trans_choice('ai.credit_remaining', (int) $credit->remaining(), ['count' => number_format((int) $credit->remaining())]) }}
+                        </div>
+                    </div>
+                    <div class="mt-3 h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden" role="progressbar" aria-label="{{ __('ai.credit_progress_label') }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ (int) $creditBar }}">
+                        <div class="h-2 rounded-full {{ $creditBarTone }}" style="width: {{ $creditBar }}%"></div>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">{{ __('ai.credit_renews_at', ['date' => $credit->renewsAt->format('d/m/Y')]) }}</p>
+
+                    @if($creditState === 'exhausted')
+                        <div class="mt-4 rounded-lg border border-red-200 bg-white p-4 dark:border-red-900/50 dark:bg-gray-900/40" data-my-ai-credit-exhausted>
+                            <p class="text-sm font-semibold text-red-800 dark:text-red-200">{{ (int) $creditQuota === 0 ? __('ai.credit_none_included') : __('ai.credit_exhausted_title') }}</p>
+                            @if((int) $creditQuota > 0)
+                                <p class="text-sm text-gray-700 dark:text-gray-300 mt-1">{{ __('ai.credit_exhausted_body', ['quota' => number_format((int) $creditQuota), 'date' => $credit->renewsAt->format('d/m/Y')]) }}</p>
+                            @endif
+                            @if($credit->policy->offerSubscription)
+                                <a href="{{ $offersUrl }}" class="mt-3 inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700" data-ai-credit-offers-link>{{ __('ai.credit_see_offers') }}</a>
+                            @endif
+                        </div>
+                    @elseif($creditState === 'alert')
+                        <div class="mt-4 rounded-lg border border-amber-200 bg-white p-4 text-sm dark:border-amber-900/50 dark:bg-gray-900/40" data-my-ai-credit-alert>
+                            <p class="font-semibold text-amber-800 dark:text-amber-200">{{ __('ai.credit_alert_title') }}</p>
+                            <p class="text-gray-700 dark:text-gray-300 mt-1">{{ __('ai.credit_alert_remaining', ['remaining' => number_format((int) $credit->remaining()), 'used' => number_format($credit->used), 'quota' => number_format((int) $creditQuota)]) }}</p>
+                        </div>
+                    @endif
+                @endif
+
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-4">{{ __('ai.credit_intro') }}</p>
+                @if($usage['generation_sandbox']['trace_count'] > 0)
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" data-my-ai-credit-sandbox-excluded="{{ $usage['generation_sandbox']['trace_count'] }}">{{ trans_choice('ai.credit_out_of_scope_sandbox_count', $usage['generation_sandbox']['trace_count'], ['count' => number_format($usage['generation_sandbox']['trace_count'])]) }}</p>
+                @endif
+            </section>
+
             {{-- CE MOIS --}}
             <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6" data-my-ai-usage-month data-my-ai-usage-month-count="{{ $totalCount }}">
                 <div class="flex flex-wrap items-baseline justify-between gap-2 mb-4">
