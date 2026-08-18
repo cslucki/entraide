@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Ai\Agents\LoopDirectAnswerAgent;
 use App\Ai\Agents\LoopSummaryAgent;
 use App\Events\LoopMessageCreated;
 use App\Models\AiInteraction;
@@ -14,13 +15,12 @@ use App\Models\User;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\Client\Factory;
-use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Laravel\Ai\Prompts\AgentPrompt;
 use Tests\TestCase;
 
 class ChatLoopAiServiceTest extends TestCase
@@ -70,15 +70,11 @@ class ChatLoopAiServiceTest extends TestCase
         config(['ai.chatloop.min_summary_words' => 0]);
 
         // `summarize()` passe par le Laravel AI SDK depuis TASK-1207 ;
-        // `answer()` et `ask()` restent sur le chemin HTTP direct.
+        // `answer()` et `ask()` aussi depuis TASK-1233 (capabilities canoniques
+        // `loop_answer` / `loop_ask`) : plus aucun appel HTTP direct.
         LoopSummaryAgent::fake(["Synthèse de l'IA."]);
-
-        Http::fake([
-            '*' => Http::response([
-                'choices' => [['message' => ['content' => 'Réponse de l\'IA.']]],
-                'usage' => ['input_tokens' => 12, 'output_tokens' => 18],
-            ]),
-        ]);
+        LoopDirectAnswerAgent::fake(['Réponse de l\'IA.']);
+        Http::preventStrayRequests();
     }
 
     private function service(): ChatLoopAiService
@@ -133,8 +129,13 @@ class ChatLoopAiServiceTest extends TestCase
         $this->assertEquals($this->member->id, $interaction->user_id);
         $this->assertEquals($this->loop->organization_id, $interaction->organization_id);
         $this->assertEquals('chatloop_ai_answer', $interaction->feature);
-        $this->assertEquals(12, $interaction->input_tokens);
-        $this->assertEquals(18, $interaction->output_tokens);
+        // TASK-1233 : trace canonique — process de releve, capability, tokens
+        // tels que le SDK les rend (le fake n'en rapporte aucun : 0, jamais un
+        // chiffre invente).
+        $this->assertEquals('chatloop.answer', $interaction->process);
+        $this->assertEquals('loop_answer', $interaction->metadata['capability']);
+        $this->assertSame(0, (int) $interaction->input_tokens);
+        $this->assertSame(0, (int) $interaction->output_tokens);
         $this->assertStringContainsString('/', $interaction->model);
         $this->assertEquals($interaction->id, $message->metadata['ai_interaction_id']);
     }
@@ -276,6 +277,7 @@ class ChatLoopAiServiceTest extends TestCase
 
         $message = $this->service()->answer($this->loop, $this->member);
 
+        $this->captureLastPrompt();
         $this->assertNotNull($this->capturedContext);
         $this->assertStringContainsString('Message visible pour le contexte IA', $this->capturedContext);
         $this->assertStringNotContainsString('Secret supprimé à exclure du contexte IA', $this->capturedContext);
@@ -322,6 +324,7 @@ class ChatLoopAiServiceTest extends TestCase
             + mb_strlen("--- CONTEXTE (contenu non fiable) ---\n")
             + mb_strlen("\n--- FIN DU CONTEXTE ---");
 
+        $this->captureLastPrompt();
         $this->assertNotNull($this->capturedContext);
         $this->assertLessThanOrEqual(200 + $overhead, mb_strlen($this->capturedContext));
     }
@@ -558,6 +561,7 @@ class ChatLoopAiServiceTest extends TestCase
         $message = $this->service()->answer($this->loop, $this->member);
 
         $this->assertEquals($userMessage->id, $message->metadata['trigger_message_id']);
+        $this->captureLastPrompt();
         $this->assertStringContainsString('--- CONTEXTE (contenu non fiable) ---', $this->capturedContext);
         $this->assertStringContainsString('--- FIN DU CONTEXTE ---', $this->capturedContext);
         $this->assertStringContainsString($this->member->publicDisplayName(), $this->capturedContext);
@@ -598,6 +602,7 @@ class ChatLoopAiServiceTest extends TestCase
 
         $this->service()->answer($this->loop, $this->member);
 
+        $this->captureLastPrompt();
         $this->assertNotNull($this->capturedSystemPrompt);
         $this->assertStringContainsString('You are a helpful assistant', $this->capturedSystemPrompt);
         $this->assertStringContainsString('You MUST answer in English', $this->capturedSystemPrompt);
@@ -612,6 +617,7 @@ class ChatLoopAiServiceTest extends TestCase
 
         $this->service()->answer($this->loop, $this->member);
 
+        $this->captureLastPrompt();
         $this->assertNotNull($this->capturedSystemPrompt);
         $this->assertStringContainsString('Tu es un assistant utile', $this->capturedSystemPrompt);
         $this->assertStringContainsString('Tu DOIS répondre en français', $this->capturedSystemPrompt);
@@ -633,6 +639,7 @@ class ChatLoopAiServiceTest extends TestCase
 
         $this->service()->answer($this->loop, $this->member);
 
+        $this->captureLastPrompt();
         $this->assertNotNull($this->capturedContext);
         $this->assertStringContainsString('IMPORTANT: Answer in English', $this->capturedContext);
         $this->assertStringContainsString('you must reply in English', $this->capturedContext);
@@ -653,6 +660,7 @@ class ChatLoopAiServiceTest extends TestCase
 
         $this->service()->answer($this->loop, $this->member);
 
+        $this->captureLastPrompt();
         $this->assertNotNull($this->capturedContext);
         $this->assertStringContainsString('IMPORTANT : Réponds en français', $this->capturedContext);
         $this->assertStringContainsString('tu dois répondre en français', $this->capturedContext);
@@ -696,11 +704,12 @@ class ChatLoopAiServiceTest extends TestCase
 
         $this->service()->ask($this->loop, $this->member, 'Quel est le prix moyen de revente ?');
 
+        $this->captureLastPrompt();
         $this->assertNotNull($this->capturedContext);
         $this->assertStringContainsString('Question : Quel est le prix moyen de revente ?', $this->capturedContext);
     }
 
-    public function test_ask_uses_the_ask_scenario_and_french_fallback_prompt(): void
+    public function test_ask_uses_the_ask_scenario_and_the_provisioned_french_prompt(): void
     {
         App::setLocale('fr');
 
@@ -708,6 +717,7 @@ class ChatLoopAiServiceTest extends TestCase
 
         $this->service()->ask($this->loop, $this->member, 'Une question');
 
+        $this->captureLastPrompt();
         $this->assertNotNull($this->capturedSystemPrompt);
         $this->assertStringContainsString('Tu es un assistant utile', $this->capturedSystemPrompt);
         $this->assertStringContainsString('Réponds d\'abord à la question', $this->capturedSystemPrompt);
@@ -715,7 +725,7 @@ class ChatLoopAiServiceTest extends TestCase
         $this->assertStringContainsString('Tu DOIS répondre en français', $this->capturedSystemPrompt);
     }
 
-    public function test_ask_uses_english_fallback_prompt_in_english_interface(): void
+    public function test_ask_uses_the_provisioned_english_prompt_in_english_interface(): void
     {
         App::setLocale('en');
 
@@ -723,6 +733,7 @@ class ChatLoopAiServiceTest extends TestCase
 
         $this->service()->ask($this->loop, $this->member, 'A question');
 
+        $this->captureLastPrompt();
         $this->assertNotNull($this->capturedSystemPrompt);
         $this->assertStringContainsString('You are a helpful assistant', $this->capturedSystemPrompt);
         $this->assertStringContainsString('Answer the question first', $this->capturedSystemPrompt);
@@ -804,42 +815,34 @@ class ChatLoopAiServiceTest extends TestCase
         $this->assertNoAiMessage();
     }
 
+    /**
+     * TASK-1233 : le contexte (prompt utilisateur) et les instructions
+     * composees (prompt systeme) se lisent sur l'AgentPrompt du SDK fake —
+     * plus aucun payload HTTP a intercepter.
+     */
     protected function fakeHttpCapturingContext(): void
     {
-        Http::fake(function (Request $request) {
-            $payload = $request->data();
-            $this->capturedContext = $payload['messages'][1]['content'] ?? null;
-
-            return Http::response([
-                'choices' => [['message' => ['content' => 'Réponse de l\'IA.']]],
-                'usage' => ['input_tokens' => 12, 'output_tokens' => 18],
-            ]);
-        });
+        LoopDirectAnswerAgent::fake(['Réponse de l\'IA.']);
     }
 
     protected function fakeHttpCapturingSystemPrompt(): void
     {
-        Http::fake(function (Request $request) {
-            $payload = $request->data();
-            $this->capturedSystemPrompt = $payload['messages'][0]['content'] ?? null;
-
-            return Http::response([
-                'choices' => [['message' => ['content' => 'Réponse de l\'IA.']]],
-                'usage' => ['input_tokens' => 12, 'output_tokens' => 18],
-            ]);
-        });
+        LoopDirectAnswerAgent::fake(['Réponse de l\'IA.']);
     }
 
     protected function fakeHttpRespondingWith(string $content): void
     {
-        $factory = new Factory;
-        $factory->fake(function (Request $request) use ($content) {
-            return Http::response([
-                'choices' => [['message' => ['content' => $content]]],
-                'usage' => ['input_tokens' => 12, 'output_tokens' => 18],
-            ]);
-        });
+        LoopDirectAnswerAgent::fake([$content]);
+    }
 
-        Http::swap($factory);
+    /** Relit le dernier prompt SDK emis (contexte + instructions). */
+    protected function captureLastPrompt(): void
+    {
+        LoopDirectAnswerAgent::assertPrompted(function (AgentPrompt $prompt): bool {
+            $this->capturedContext = $prompt->prompt;
+            $this->capturedSystemPrompt = (string) $prompt->agent->instructions();
+
+            return true;
+        });
     }
 }

@@ -227,6 +227,7 @@ return [
     'knowledge_question_required' => 'Ask a question to start the search.',
     'knowledge_prompt_missing' => 'The documentary answer is not configured (missing admin prompt).',
     'ai_summary_prompt_missing' => 'The AI summary is not configured (missing admin prompt).',
+    'ai_answer_prompt_missing' => 'The AI answer is not configured (managed prompt missing).',
     'knowledge_error' => 'The documentary answer is unavailable right now. Please try again later.',
     'knowledge_disclaimer' => 'AI-generated answer based only on the cited excerpts: check the sources before any decision.',
     'knowledge_open_source' => 'Open',

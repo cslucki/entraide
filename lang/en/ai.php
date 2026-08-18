@@ -342,10 +342,11 @@ return [
         'clarify_help_request' => 'Request clarification',
         'loop_summary' => 'Loop summaries',
         'loop_knowledge_answer' => 'Questions to Folders',
+        'loop_answer' => 'AI answer in the Loop',
+        'loop_ask' => 'Question to the AI in the Loop',
     ],
     'inherited_label' => [
         'member_profile_agent' => 'Member AI profiles',
-        'chatloop_direct_answer' => 'Direct AI answer in ChatLoop',
         'blog_ai' => 'Blog AI',
         'service_offer_formulation' => 'Service offer formulation',
     ],
