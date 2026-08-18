@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Ai\Agents\LoopSummaryAgent;
+use App\Ai\CapabilityRegistry;
 use App\Livewire\LoopAiSummaryCard;
 use App\Models\AiConfig;
 use App\Models\AiCreditSettingChange;
@@ -16,6 +17,7 @@ use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Ai\AiUserCreditSettings;
 use App\Services\Ai\DTO\AiConsumptionFilters;
+use App\Services\Ai\DTO\DoctrineSandboxResult;
 use App\Services\Ai\OrganizationAiEconomicUsage;
 use App\Services\Ai\OrganizationDoctrineSandbox;
 use App\Services\Dossiers\DossierSemanticSearchService;
@@ -29,6 +31,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Laravel\Ai\Prompts\AgentPrompt;
 use Laravel\Ai\Responses\Data\Meta;
@@ -471,6 +474,37 @@ class TASK1229UserAiCreditTest extends TestCase
         $this->assertSame(AiEconomicGuard::REASON_ORGANIZATION_BUDGET_REACHED, $verdict->reason);
     }
 
+    public function test_the_document_search_of_a_doctrine_test_is_outside_the_credit_too_but_inside_the_budget(): void
+    {
+        $this->platform(monthlyUses: 3);
+        // Un essai de doctrine REEL (chemin knowledge) : sa recherche documentaire
+        // et sa generation partagent la correlation et portent la feature.
+        $this->fakeKnowledgeAgent('Réponse doctrine [S1].');
+        $creditBefore = $this->guard()->userCreditStatus($this->orgA, $this->adminA)->used;
+
+        $result = app(OrganizationDoctrineSandbox::class)->run(
+            $this->orgA, $this->adminA, CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER, 'brouillon 1229', 'Que contient la valise ?',
+        );
+
+        $this->assertSame(DoctrineSandboxResult::STATUS_ANSWERED, $result->status);
+        $this->assertSame(OrganizationDoctrineSandbox::FEATURE, $this->search->lastCall['traceMetadata']['feature'] ?? null);
+        $generation = AiProviderInvocation::query()->where('operation', AiProviderInvocation::OPERATION_GENERATION)->latest('created_at')->firstOrFail();
+        $this->assertSame(OrganizationDoctrineSandbox::FEATURE, $generation->feature);
+
+        // La recherche d'un essai, telle que le ledger la tague : hors credit.
+        $this->embedding($this->orgA, $this->adminA, 'query', 0.0001, feature: OrganizationDoctrineSandbox::FEATURE);
+        // Une recherche productive : dans le credit.
+        $this->embedding($this->orgA, $this->adminA, 'query', 0.0001);
+
+        $status = $this->guard()->userCreditStatus($this->orgA, $this->adminA);
+        $this->assertSame($creditBefore + 1, $status->used);
+
+        // …mais toutes deux dans le budget de l'Organization (autorite 1228).
+        $summary = app(OrganizationAiEconomicUsage::class)->summary((string) $this->orgA->id, $status->periodStart, $status->renewsAt);
+        $this->assertSame(2, $summary['embedding_query']['invocation_count']);
+        $this->assertSame(1, $summary['generation_sandbox']['trace_count']);
+    }
+
     public function test_the_counter_resets_on_the_same_window_as_the_budget(): void
     {
         $this->platform(monthlyUses: 2);
@@ -658,6 +692,55 @@ class TASK1229UserAiCreditTest extends TestCase
     }
 
     // =====================================================================
+    // G. MIGRATIONS — additives, reversibles, remplissage deterministe
+    // =====================================================================
+
+    public function test_the_three_migrations_roll_back_and_re_apply_and_the_backfill_follows_the_correlation(): void
+    {
+        $paths = [
+            database_path('migrations/2026_08_18_150000_add_user_credit_to_organization_ai_settings_table.php'),
+            database_path('migrations/2026_08_18_150100_create_ai_credit_setting_changes_table.php'),
+            database_path('migrations/2026_08_18_150200_add_feature_to_ai_provider_invocations_table.php'),
+        ];
+        $migrations = array_map(static fn (string $path) => require $path, $paths);
+
+        // Un essai de doctrine historique : generation taguee dans
+        // ai_interactions, recherche correlee NON taguee au ledger (avant 1229).
+        $correlation = (string) Str::uuid();
+        AiInteraction::create([
+            'user_id' => $this->adminA->id, 'organization_id' => $this->orgA->id, 'correlation_id' => $correlation,
+            'process' => 'loop_knowledge.answer', 'feature' => OrganizationDoctrineSandbox::FEATURE, 'model' => 'x', 'prompt' => 'p',
+            'input_tokens' => 1, 'output_tokens' => 1, 'cost_usd' => 0.01, 'cost_unknown' => false,
+        ]);
+        $sandboxSearch = $this->embedding($this->orgA, $this->adminA, 'query', 0.0001);
+        $sandboxSearch->forceFill(['correlation_id' => $correlation, 'feature' => null])->saveQuietly();
+        $productiveSearch = $this->embedding($this->orgA, $this->adminA, 'query', 0.0001);
+        $productiveSearch->forceFill(['correlation_id' => (string) Str::uuid(), 'feature' => null])->saveQuietly();
+
+        foreach (array_reverse($migrations) as $migration) {
+            $migration->down();
+        }
+
+        $this->assertFalse(Schema::hasColumn('organization_ai_settings', 'user_credit_mode'));
+        $this->assertFalse(Schema::hasTable('ai_credit_setting_changes'));
+        $this->assertFalse(Schema::hasColumn('ai_provider_invocations', 'feature'));
+
+        foreach ($migrations as $migration) {
+            $migration->up();
+        }
+
+        $this->assertTrue(Schema::hasColumn('organization_ai_settings', 'user_credit_monthly_uses'));
+        $this->assertTrue(Schema::hasTable('ai_credit_setting_changes'));
+        // Le remplissage suit la correlation : la recherche de l'essai est
+        // taguee, la recherche productive ne l'est pas.
+        $this->assertSame(OrganizationDoctrineSandbox::FEATURE, $sandboxSearch->fresh()->feature);
+        $this->assertNull($productiveSearch->fresh()->feature);
+        // Et le credit de l'admin ne compte que la recherche productive.
+        $this->platform(monthlyUses: 10);
+        $this->assertSame(1, $this->guard()->userCreditStatus($this->orgA, $this->adminA)->used);
+    }
+
+    // =====================================================================
     // Helpers
     // =====================================================================
 
@@ -742,12 +825,13 @@ class TASK1229UserAiCreditTest extends TestCase
         ]);
     }
 
-    private function embedding(Organization $organization, User $user, ?string $operation, ?float $cost): AiProviderInvocation
+    private function embedding(Organization $organization, User $user, ?string $operation, ?float $cost, ?string $feature = null): AiProviderInvocation
     {
         return AiProviderInvocation::create([
             'organization_id' => $organization->id,
             'user_id' => $user->id,
             'capability' => 'loop_knowledge_answer',
+            'feature' => $feature,
             'process' => $operation === 'query' ? 'dossier.embeddings_search' : 'dossier.embeddings_index',
             'operation' => AiProviderInvocation::OPERATION_EMBEDDING,
             'embedding_operation' => $operation,

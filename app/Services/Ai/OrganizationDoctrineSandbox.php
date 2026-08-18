@@ -127,6 +127,9 @@ final class OrganizationDoctrineSandbox
             correlationId: AiCorrelation::id(),
             source: self::FEATURE,
             query: $capability === CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER ? $question : null,
+            // TASK-1229 : la recherche documentaire de l'essai porte la meme
+            // feature au ledger — hors credit utilisateur, dans le budget.
+            feature: self::FEATURE,
         );
 
         // Credential de l'Organization, ou refus explicite — jamais la plateforme.
@@ -407,6 +410,7 @@ final class OrganizationDoctrineSandbox
             sdkInvocationId: $sdkInvocationId,
             failureReason: $failure,
             startedAtMicrotime: $startedAt,
+            feature: self::FEATURE,
         );
 
         return AiInteraction::create([

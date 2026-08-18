@@ -108,7 +108,9 @@ final class DossierRetrievalSource implements ContextSource
             $query,
             $this->topK(),
             $resolved->instance,
-            ['capability' => $contexte->capability, 'loop_id' => $contexte->loopId],
+            // TASK-1229 : la feature emettrice (essais de doctrine) suit la
+            // recherche jusqu'au ledger.
+            ['capability' => $contexte->capability, 'loop_id' => $contexte->loopId, 'feature' => $contexte->feature],
         );
 
         $maxDistance = (float) config('ai.knowledge.max_distance', 1.0);

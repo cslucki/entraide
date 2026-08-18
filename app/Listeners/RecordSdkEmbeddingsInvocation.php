@@ -237,6 +237,7 @@ class RecordSdkEmbeddingsInvocation
 
         $embeddingOperation = $trace['embedding_operation'] ?? null;
         $capability = $trace['metadata']['capability'] ?? null;
+        $feature = $trace['metadata']['feature'] ?? null;
 
         app(AiProviderInvocationLedger::class)->recordEmbedding(
             organizationId: (string) $trace['organization_id'],
@@ -255,6 +256,7 @@ class RecordSdkEmbeddingsInvocation
             correlationId: AiCorrelation::id(),
             sdkInvocationId: $invocationId,
             startedAtMicrotime: $startedAtMicrotime,
+            feature: is_string($feature) && $feature !== '' ? $feature : null,
         );
 
         AdminAiInteraction::create([

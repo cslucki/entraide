@@ -307,7 +307,22 @@ final class OrganizationAiEconomicUsage
         $filters = new AiConsumptionFilters($from, $to, $userId);
         $generation = $this->generationAuthority->summary($organizationId, $filters)['trace_count'];
         $sandbox = $this->generationAuthority->sandboxSummary($organizationId, $filters)['trace_count'];
-        $queries = $this->embeddingSlice($organizationId, $from, $to, AiProviderInvocation::EMBEDDING_OPERATION_QUERY, $userId)['invocation_count'];
+        // La recherche documentaire d'un essai de doctrine (ledger `feature =
+        // ai_doctrine_sandbox`, meme correlation que l'essai) est hors credit
+        // elle aussi ; elle reste une depense reelle du budget.
+        $queries = (int) AiProviderInvocation::query()
+            ->where('organization_id', $organizationId)
+            ->whereIn('user_id', static function ($sub) use ($userId, $organizationId): void {
+                $sub->select('id')->from('users')->where('id', $userId)->where('organization_id', $organizationId);
+            })
+            ->where('operation', AiProviderInvocation::OPERATION_EMBEDDING)
+            ->where('embedding_operation', AiProviderInvocation::EMBEDDING_OPERATION_QUERY)
+            ->where(static function ($query): void {
+                $query->whereNull('feature')->orWhere('feature', '!=', OrganizationDoctrineSandbox::FEATURE);
+            })
+            ->where('created_at', '>=', $from)
+            ->where('created_at', '<', $to)
+            ->count();
 
         return max(0, $generation - $sandbox) + $queries;
     }
@@ -349,6 +364,10 @@ final class OrganizationAiEconomicUsage
             ->where('ai_provider_invocations.organization_id', $organizationId)
             ->where('ai_provider_invocations.operation', AiProviderInvocation::OPERATION_EMBEDDING)
             ->where('ai_provider_invocations.embedding_operation', AiProviderInvocation::EMBEDDING_OPERATION_QUERY)
+            ->where(static function ($query): void {
+                $query->whereNull('ai_provider_invocations.feature')
+                    ->orWhere('ai_provider_invocations.feature', '!=', OrganizationDoctrineSandbox::FEATURE);
+            })
             ->where('ai_provider_invocations.created_at', '>=', $from)
             ->where('ai_provider_invocations.created_at', '<', $to)
             ->selectRaw('ai_provider_invocations.user_id as user_id, COUNT(*) as uses')
@@ -402,6 +421,10 @@ final class OrganizationAiEconomicUsage
             })
             ->where('ai_provider_invocations.operation', AiProviderInvocation::OPERATION_EMBEDDING)
             ->where('ai_provider_invocations.embedding_operation', AiProviderInvocation::EMBEDDING_OPERATION_QUERY)
+            ->where(static function ($query): void {
+                $query->whereNull('ai_provider_invocations.feature')
+                    ->orWhere('ai_provider_invocations.feature', '!=', OrganizationDoctrineSandbox::FEATURE);
+            })
             ->where('ai_provider_invocations.created_at', '>=', $from)
             ->where('ai_provider_invocations.created_at', '<', $to)
             ->selectRaw('ai_provider_invocations.organization_id as organization_id, ai_provider_invocations.user_id as user_id, COUNT(*) as uses')

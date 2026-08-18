@@ -62,6 +62,7 @@ final class AiProviderInvocationLedger
         ?string $sdkInvocationId,
         ?string $failureReason,
         ?float $startedAtMicrotime,
+        ?string $feature = null,
     ): AiProviderInvocation {
         $totalTokens = $usage->inputTokens !== null && $usage->outputTokens !== null
             ? $usage->inputTokens + $usage->outputTokens
@@ -71,6 +72,10 @@ final class AiProviderInvocationLedger
             'organization_id' => $organizationId,
             'user_id' => $userId,
             'capability' => $capability,
+            // TASK-1229 : fonction produit emettrice (semantique de
+            // `ai_interactions.feature`), renseignee seulement quand elle
+            // differe de la capability (essais de doctrine).
+            'feature' => $feature,
             'process' => $process,
             'operation' => AiProviderInvocation::OPERATION_GENERATION,
             'embedding_operation' => null,
@@ -121,11 +126,15 @@ final class AiProviderInvocationLedger
         ?string $correlationId,
         ?string $sdkInvocationId,
         ?float $startedAtMicrotime,
+        ?string $feature = null,
     ): AiProviderInvocation {
         return AiProviderInvocation::create([
             'organization_id' => $organizationId,
             'user_id' => $userId,
             'capability' => $capability,
+            // TASK-1229 : voir recordGeneration() — la recherche documentaire
+            // d'un essai de doctrine porte `ai_doctrine_sandbox`.
+            'feature' => $feature,
             'process' => $process,
             'operation' => AiProviderInvocation::OPERATION_EMBEDDING,
             'embedding_operation' => $embeddingOperation,
