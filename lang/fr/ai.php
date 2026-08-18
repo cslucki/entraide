@@ -342,10 +342,11 @@ return [
         'clarify_help_request' => 'Clarification des demandes',
         'loop_summary' => 'Résumé des Boucles',
         'loop_knowledge_answer' => 'Questions aux Dossiers',
+        'loop_answer' => 'Réponse IA dans la Boucle',
+        'loop_ask' => 'Question à l\'IA dans la Boucle',
     ],
     'inherited_label' => [
         'member_profile_agent' => 'IA des profils membres',
-        'chatloop_direct_answer' => 'Réponse IA directe dans ChatLoop',
         'blog_ai' => 'Blog IA',
         'service_offer_formulation' => 'Formulation d\'une offre de service',
     ],

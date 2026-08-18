@@ -38,6 +38,19 @@ final class CapabilityRegistry
      */
     public const LOOP_KNOWLEDGE_ANSWER = 'loop_knowledge_answer';
 
+    /**
+     * TASK-1233 : « Demander a l'IA » dans une Boucle — intervention spontanee
+     * (`loop_answer`, prompt `chatloop_ai_answer`) et question d'un membre
+     * (`loop_ask`, prompt `chatloop_ai_ask`). Ex-chemin herite
+     * `chatloop_direct_answer` : memes prompts administrables, meme process de
+     * releve (`chatloop.answer` / `chatloop.ask`), meme surface (la reponse est
+     * PUBLIEE dans la Boucle comme message `ai` : `canWrite=true`, declare tel
+     * quel — c'est le comportement historique, pas une nouveaute).
+     */
+    public const LOOP_ANSWER = 'loop_answer';
+
+    public const LOOP_ASK = 'loop_ask';
+
     /** @var array<string, CapabilityDefinition> */
     private array $definitions;
 
@@ -90,10 +103,39 @@ final class CapabilityRegistry
             contextCharBudget: self::knowledgeContextBudget(),
         );
 
+        // TASK-1233 : les deux faces de « Demander a l'IA », desormais
+        // canoniques. Meme source que le resume (les messages de la Boucle),
+        // meme budget de contexte que `buildContext()` lisait avant.
+        $loopAnswer = new CapabilityDefinition(
+            id: self::LOOP_ANSWER,
+            process: AiProcess::fromFeature('chatloop_ai_answer'),
+            requiresHumanConfirmation: false,
+            canWrite: true,
+            allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
+            allowedSources: [self::SOURCE_LOOP_MESSAGES],
+            maxOutput: 8000,
+            promptKey: 'chatloop_ai_answer',
+            contextCharBudget: self::loopSummaryContextBudget(),
+        );
+
+        $loopAsk = new CapabilityDefinition(
+            id: self::LOOP_ASK,
+            process: AiProcess::fromFeature('chatloop_ai_ask'),
+            requiresHumanConfirmation: false,
+            canWrite: true,
+            allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
+            allowedSources: [self::SOURCE_LOOP_MESSAGES],
+            maxOutput: 8000,
+            promptKey: 'chatloop_ai_ask',
+            contextCharBudget: self::loopSummaryContextBudget(),
+        );
+
         $this->definitions = [
             $loopSummary->id => $loopSummary,
             $clarifyHelpRequest->id => $clarifyHelpRequest,
             $loopKnowledgeAnswer->id => $loopKnowledgeAnswer,
+            $loopAnswer->id => $loopAnswer,
+            $loopAsk->id => $loopAsk,
         ];
     }
 

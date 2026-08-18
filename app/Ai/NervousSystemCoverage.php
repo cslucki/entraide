@@ -34,7 +34,8 @@ final class NervousSystemCoverage
      */
     public const INHERITED = [
         'member_profile_agent' => 'App\Services\Ai\MemberProfileAgentResponder',
-        'chatloop_direct_answer' => 'App\Services\ChatLoop\ChatLoopAiService::answer/ask',
+        // TASK-1233 : `chatloop_direct_answer` (ChatLoopAiService::answer/ask)
+        // est sorti d'ici — capabilities canoniques `loop_answer` / `loop_ask`.
         'blog_ai' => 'App\Services\BlogAiService',
         'service_offer_formulation' => 'App\Http\Controllers\ServiceController::formulate',
     ];

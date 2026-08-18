@@ -33,10 +33,16 @@ class AdminAiPromptTest extends TestCase
         $response = $this->actingAs($admin)->get(route('admin.ai-prompts'));
 
         $response->assertOk();
-        $response->assertSee('Supervision de contenu — v1');
-        $response->assertSee('Clarification de demande d\'aide');
-        $response->assertSee('Agent de profil IA — Chat visiteur v1');
-        $response->assertSee('Agent de profil IA — Chat visiteur');
+        // TASK-1233 : la liste est paginee (25) et triee par scenario ; les
+        // prompts provisionnes par migration (chatloop_*, clarify, knowledge…)
+        // precedent alphabetiquement ceux du seeder — on verifie chaque prompt
+        // par la recherche, pas par sa presence en premiere page.
+        foreach (['Supervision de contenu — v1', 'Clarification de demande d\'aide', 'Agent de profil IA — Chat visiteur v1', 'Agent de profil IA — Chat visiteur'] as $name) {
+            $this->actingAs($admin)
+                ->get(route('admin.ai-prompts', ['search' => mb_substr($name, 0, 24)]))
+                ->assertOk()
+                ->assertSee($name);
+        }
     }
 
     public function test_ai_prompt_seeder_creates_visitor_chat_prompt(): void

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\AiConfig;
+use App\Ai\Agents\LoopDirectAnswerAgent;
 use App\Models\AiInteraction;
 use App\Models\AiProviderInvocation;
 use App\Models\Loop;
@@ -22,8 +22,12 @@ use Tests\TestCase;
 
 /**
  * TASK-1231 — lot 0 : « Demander a l'IA » (`ChatLoopAiService::ask` /
- * `::answer`, chemin herite) passe sous `AiEconomicGuard`, comme `summarize()`
- * depuis TASK-1229.
+ * `::answer`) passe sous `AiEconomicGuard`, comme `summarize()` depuis
+ * TASK-1229. TASK-1233 : le chemin est devenu CANONIQUE (`loop_answer` /
+ * `loop_ask`, SDK, provider Organization, ledger) — ces contrats economiques
+ * restent les memes ; ce qui change ici : le fake est celui du SDK, et un
+ * succes ecrit desormais UNE ligne de ledger (comme summarize), toujours une
+ * seule trace et un seul credit.
  *
  * Contrats verifies :
  *  - le refus vit AVANT l'appel provider : zero requete HTTP, zero ligne
@@ -58,7 +62,7 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
         parent::setUp();
 
         $this->organization = Organization::factory()->create(['is_active' => true, 'slug' => 'org-1231', 'name' => 'Org Lot Zero']);
-        // Le chemin herite resout provider/modele via AiConfig plateforme ;
+        // TASK-1233 : provider et credential de l'Organization (P4-lite) ;
         // l'OrganizationAiSetting ne sert ici qu'au budget Organization.
         OrganizationAiSetting::factory()->create([
             'organization_id' => $this->organization->id,
@@ -87,18 +91,15 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
 
         config([
             'ai.openai.api_key' => 'test-key',
+            'ai.providers.openai.driver' => 'openai',
+            'ai.providers.openai.key' => 'test-key',
             'ai.chatloop.min_summary_words' => 0,
             'ai.chatloop.enabled' => true,
         ]);
-        AiConfig::set('default_provider', 'openai');
-        AiConfig::set('default_model', 'gpt-4o-mini');
 
-        Http::fake([
-            '*' => Http::response([
-                'choices' => [['message' => ['content' => 'Reponse de l\'IA.']]],
-                'usage' => ['prompt_tokens' => 12, 'completion_tokens' => 18],
-            ]),
-        ]);
+        // TASK-1233 : chemin canonique — SDK fake, aucun appel HTTP direct.
+        Http::preventStrayRequests();
+        LoopDirectAnswerAgent::fake(['Reponse de l\'IA.']);
     }
 
     // =====================================================================
@@ -119,7 +120,7 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
             $this->assertNotNull($e->offersUrl($this->organization));
         }
 
-        Http::assertNothingSent();
+        LoopDirectAnswerAgent::assertNeverPrompted();
         $this->assertSame($before, $this->counters(), 'Un refus n\'ecrit rien : ni trace, ni ledger, ni message.');
         $this->assertSame(1, $this->guard()->userCreditStatus($this->organization, $this->member)->used);
     }
@@ -137,7 +138,7 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
             $this->assertSame(AiRefusedException::CODE_USER_CREDIT_EXHAUSTED, $e->refusalCode);
         }
 
-        Http::assertNothingSent();
+        LoopDirectAnswerAgent::assertNeverPrompted();
         $this->assertSame($before, $this->counters());
     }
 
@@ -160,7 +161,7 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
             $this->assertNull($e->offersUrl($this->organization), 'Le budget Organization n\'offre jamais un abonnement utilisateur.');
         }
 
-        Http::assertNothingSent();
+        LoopDirectAnswerAgent::assertNeverPrompted();
         $this->assertSame($before, $this->counters());
         // Le credit du membre est intact : ce n'est pas lui qui bloque.
         $this->assertSame(0, $this->guard()->userCreditStatus($this->organization, $this->member)->used);
@@ -178,22 +179,22 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
 
         $message = $this->service()->ask($this->loop, $this->member, 'Quel prix pratiquer ?');
 
-        Http::assertSentCount(1);
         $this->assertSame('ai', $message->type);
         $this->assertSame('Reponse de l\'IA.', $message->body);
         $this->assertSame('ask', $message->metadata['action']);
 
         $after = $this->counters();
-        // Exactement UNE trace ai_interactions de plus, ZERO ligne de ledger de
-        // plus (comme avant le lot 0 : callAi() ne passe pas par le ledger),
-        // deux messages de Boucle (question + reponse).
+        // Exactement UNE trace ai_interactions de plus, UNE ligne de ledger de
+        // plus (TASK-1233 : chemin canonique, comme summarize — une invocation
+        // = une ligne, jamais deux), deux messages de Boucle (question + reponse).
         $this->assertSame($before['interactions'] + 1, $after['interactions']);
-        $this->assertSame($before['ledger'], $after['ledger']);
+        $this->assertSame($before['ledger'] + 1, $after['ledger']);
         $this->assertSame($before['messages'] + 2, $after['messages']);
 
         $interaction = AiInteraction::query()->latest('id')->first();
         $this->assertSame('chatloop_ai_ask', $interaction->feature);
         $this->assertSame('chatloop.ask', $interaction->process);
+        $this->assertSame('loop_ask', $interaction->metadata['capability']);
         $this->assertSame($this->member->id, $interaction->user_id);
         $this->assertSame($this->organization->id, $interaction->organization_id);
 
@@ -208,11 +209,10 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
 
         $message = $this->service()->answer($this->loop, $this->member);
 
-        Http::assertSentCount(1);
         $this->assertSame('answer', $message->metadata['action']);
         $after = $this->counters();
         $this->assertSame($before['interactions'] + 1, $after['interactions']);
-        $this->assertSame($before['ledger'], $after['ledger']);
+        $this->assertSame($before['ledger'] + 1, $after['ledger']);
         $this->assertSame($before['messages'] + 1, $after['messages']);
         $this->assertSame(1, $this->guard()->userCreditStatus($this->organization, $this->member)->used);
     }
@@ -224,7 +224,6 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
 
         $this->service()->ask($this->loop, $this->member, 'Encore une question.');
 
-        Http::assertSentCount(1);
         $status = $this->guard()->userCreditStatus($this->organization, $this->member);
         $this->assertSame(3, $status->used);
         $this->assertTrue($status->isExhausted(), 'La troisieme utilisation consomme le credit ; la suivante sera refusee.');
@@ -236,7 +235,6 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
         } catch (AiRefusedException $e) {
             $this->assertSame(AiRefusedException::CODE_USER_CREDIT_EXHAUSTED, $e->refusalCode);
         }
-        Http::assertSentCount(1);
     }
 
     // =====================================================================
@@ -265,7 +263,7 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
         // les offres » que les trois surfaces de la 1229 (reglage plateforme).
         $response->assertSessionHas('ai_refusal_code', AiRefusedException::CODE_USER_CREDIT_EXHAUSTED);
         $response->assertSessionHas('ai_offers_url', aiOffersUrl($this->organization));
-        Http::assertNothingSent();
+        LoopDirectAnswerAgent::assertNeverPrompted();
         $this->assertSame($before, $this->counters());
 
         // Et la page rend le lien, dans le bandeau d'erreur existant.
@@ -294,10 +292,9 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
             ->assertSessionMissing('ai_refusal_code')
             ->assertSessionMissing('ai_offers_url');
 
-        Http::assertSentCount(1);
         $after = $this->counters();
         $this->assertSame($before['interactions'] + 1, $after['interactions']);
-        $this->assertSame($before['ledger'], $after['ledger']);
+        $this->assertSame($before['ledger'] + 1, $after['ledger']);
         $this->assertSame($before['messages'] + 2, $after['messages']);
         $this->assertDatabaseHas('loop_messages', ['loop_id' => $this->loop->id, 'type' => 'ai', 'body' => 'Reponse de l\'IA.']);
     }
@@ -315,7 +312,7 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
         $response->assertRedirect()
             ->assertSessionHas('ai_refusal_code', AiRefusedException::CODE_USER_CREDIT_EXHAUSTED)
             ->assertSessionMissing('ai_offers_url');
-        Http::assertNothingSent();
+        LoopDirectAnswerAgent::assertNeverPrompted();
     }
 
     public function test_the_ask_ai_endpoint_never_offers_a_subscription_for_an_organization_budget_refusal(): void
@@ -329,7 +326,7 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
         $response->assertRedirect()
             ->assertSessionHas('ai_refusal_code', AiRefusedException::CODE_ORGANIZATION_BUDGET_REACHED)
             ->assertSessionMissing('ai_offers_url');
-        Http::assertNothingSent();
+        LoopDirectAnswerAgent::assertNeverPrompted();
     }
 
     // =====================================================================
