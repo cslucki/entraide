@@ -261,8 +261,48 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
             trans_choice('ai.credit_refusal_user_exhausted', 1, ['used' => 1, 'quota' => 1, 'date' => now()->startOfMonth()->addMonth()->format('d/m/Y')]),
             (string) session('error'),
         );
+        // Le refus n'est pas borgne : meme code, meme porte de sortie « Voir
+        // les offres » que les trois surfaces de la 1229 (reglage plateforme).
+        $response->assertSessionHas('ai_refusal_code', AiRefusedException::CODE_USER_CREDIT_EXHAUSTED);
+        $response->assertSessionHas('ai_offers_url', aiOffersUrl($this->organization));
         Http::assertNothingSent();
         $this->assertSame($before, $this->counters());
+
+        // Et la page rend le lien, dans le bandeau d'erreur existant.
+        $page = $this->actingAs($this->member)->get(route('organization.loops.show', ['organization' => $this->organization, 'loop' => $this->loop]));
+        $page->assertOk()
+            ->assertSee('data-ai-offers-link', false)
+            ->assertSee(__('ai.credit_see_offers'));
+    }
+
+    public function test_the_ask_ai_endpoint_offers_nothing_when_the_platform_does_not_offer_a_subscription(): void
+    {
+        app(AiUserCreditSettings::class)->updatePlatform([
+            'free_enabled' => true, 'monthly_uses' => 1, 'alert_percent' => 80, 'offer_subscription' => false,
+        ], $this->superAdmin);
+        $this->uses($this->member, 1);
+
+        $response = $this->actingAs($this->member)
+            ->post(route('organization.loops.ai', ['organization' => $this->organization, 'loop' => $this->loop]), ['action' => 'answer']);
+
+        $response->assertRedirect()
+            ->assertSessionHas('ai_refusal_code', AiRefusedException::CODE_USER_CREDIT_EXHAUSTED)
+            ->assertSessionMissing('ai_offers_url');
+        Http::assertNothingSent();
+    }
+
+    public function test_the_ask_ai_endpoint_never_offers_a_subscription_for_an_organization_budget_refusal(): void
+    {
+        OrganizationAiSetting::query()->where('organization_id', $this->organization->id)->update(['monthly_budget_usd' => 0.0005]);
+        $this->generation($this->owner, 0.001);
+
+        $response = $this->actingAs($this->member)
+            ->post(route('organization.loops.ai', ['organization' => $this->organization, 'loop' => $this->loop]), ['action' => 'answer']);
+
+        $response->assertRedirect()
+            ->assertSessionHas('ai_refusal_code', AiRefusedException::CODE_ORGANIZATION_BUDGET_REACHED)
+            ->assertSessionMissing('ai_offers_url');
+        Http::assertNothingSent();
     }
 
     // =====================================================================
