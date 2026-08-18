@@ -255,7 +255,11 @@
 
     @if($isMember && $canContribute && config('ai.chatloop.enabled', true))
         @php $clarificationEnabled = \App\Models\AiConfig::get('clarification_enabled', false); @endphp
-        <div class="flex-shrink-0 flex flex-wrap items-center gap-2 px-3 pt-2" x-data="{ askOpen: false, asking: false }">
+        {{-- TASK-1237 : le FAB dispatche `bp-open-ask-ai` pour ouvrir ce MEME
+             formulaire (route loops.ai canonique depuis TASK-1233) — aucun
+             second formulaire, aucune variante. --}}
+        <div class="flex-shrink-0 flex flex-wrap items-center gap-2 px-3 pt-2" x-data="{ askOpen: false, asking: false }"
+             @bp-open-ask-ai.window="askOpen = true; $nextTick(() => $refs.askQuestion?.focus())">
             <button
                 type="button"
                 x-on:click="askOpen = true"
@@ -298,7 +302,7 @@
                         @csrf
                         <input type="hidden" name="action" value="ask">
                         <label for="ai-question" class="block text-sm font-medium text-gray-800 dark:text-gray-200">{{ __('loops.ask_question') }}</label>
-                        <input id="ai-question" type="text" name="question" required maxlength="500"
+                        <input id="ai-question" x-ref="askQuestion" type="text" name="question" required maxlength="500"
                                placeholder="{{ __('loops.ask_question_placeholder') }}"
                                class="mt-2 w-full rounded-lg border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
                         <div class="mt-4 flex items-center justify-end gap-2">

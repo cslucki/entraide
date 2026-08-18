@@ -23,8 +23,10 @@ use Illuminate\Support\Facades\Route;
  * n'appelle JAMAIS un provider et ne compose aucun prompt : chaque action
  * ouvre une surface qui existe deja (evenement window) ou suit un lien —
  * les endpoints qu'elle atteint passent deja par `CapabilityRegistry` et
- * `AiEconomicGuard`. Le chemin herite « Demander a l'IA » n'est expose dans
- * aucun cas.
+ * `AiEconomicGuard`. « Demander a l'IA » (loop_ask, ChatLoopAiService::ask,
+ * migre dans le systeme nerveux canonique par TASK-1233) est expose depuis
+ * TASK-1237 — au meme titre que les autres actions, avec les memes gardes
+ * que le bouton historique de loop-chat.blade.php.
  *
  * Regle : le FAB ne propose jamais une capability sans page qui la porte,
  * et il reprend EXACTEMENT les gardes des boutons existants de la page
@@ -36,6 +38,8 @@ use Illuminate\Support\Facades\Route;
  */
 final class AiFabContext
 {
+    public const ACTION_LOOP_ASK = 'loop_ask';
+
     public const ACTION_LOOP_KNOWLEDGE = 'loop_knowledge';
 
     public const ACTION_LOOP_SUMMARY = 'loop_summary';
@@ -157,9 +161,9 @@ final class AiFabContext
     }
 
     /**
-     * Page Boucle : les gardes sont celles de loop-chat (« Consulter les
-     * Dossiers », « Qui peut m'aider ») et de header-actions (Resume) — un
-     * membre actif, une Boucle ouverte, ChatLoop actif.
+     * Page Boucle : les gardes sont celles de loop-chat (« Demander a l'IA »,
+     * « Consulter les Dossiers », « Qui peut m'aider ») et de header-actions
+     * (Resume) — un membre actif, une Boucle ouverte, ChatLoop actif.
      *
      * @return list<array<string, mixed>>
      */
@@ -177,7 +181,20 @@ final class AiFabContext
             return [];
         }
 
+        // « Demander a l'IA » (loop_ask, TASK-1233 : capability canonique) :
+        // meme garde que ci-dessus, exactement celle du bouton historique
+        // (LoopChat::canContribute()). Le FAB ne fait qu'ouvrir le MEME
+        // formulaire (evenement `bp-open-ask-ai` ecoute dans loop-chat.blade.php,
+        // qui poste vers la route `loops.ai` deja canonique) — aucune capability,
+        // aucun credit, aucun controle nouveau.
         $actions = [[
+            'key' => self::ACTION_LOOP_ASK,
+            'label' => __('ai.fab_action_loop_ask'),
+            'hint' => __('ai.fab_action_loop_ask_hint'),
+            'kind' => 'event',
+            'event' => 'bp-open-ask-ai',
+            'detail' => null,
+        ], [
             'key' => self::ACTION_LOOP_KNOWLEDGE,
             'label' => __('ai.fab_action_loop_knowledge'),
             'hint' => __('ai.fab_action_loop_knowledge_hint'),

@@ -552,6 +552,8 @@ return [
     'fab_credit_included' => 'Inclus',
     'fab_credit_alert' => 'Vous approchez de votre crédit du mois.',
     'fab_usage_link' => 'Mes usages IA',
+    'fab_action_loop_ask' => 'Demander à l\'IA',
+    'fab_action_loop_ask_hint' => 'Poser une question à l\'IA facilitatrice de la Boucle.',
     'fab_action_loop_knowledge' => 'Consulter les Dossiers',
     'fab_action_loop_knowledge_hint' => 'Une réponse sourcée dans les documents de la Boucle.',
     'fab_action_loop_summary' => 'Résumer la Boucle',
