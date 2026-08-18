@@ -71,6 +71,9 @@ class ChatLoopAiService
 
             [$context, $contextMessageIds, $triggerMessageId] = $this->buildContext($loop, $locale);
 
+            // TASK-1231 (lot 0) : garde economique + credit AVANT l'appel.
+            $this->authorizeLegacyCall($loop, $requester, $scenarioId);
+
             $ai = $this->callAi($loop, $requester, $scenarioId, $systemPrompt, $context);
 
             $answer = AiMarkdownSanitizer::sanitize(
@@ -479,6 +482,9 @@ class ChatLoopAiService
                 $userContent = $context."\n\n".'Question : '.$userContent;
             }
 
+            // TASK-1231 (lot 0) : garde economique + credit AVANT l'appel.
+            $this->authorizeLegacyCall($loop, $requester, $scenarioId);
+
             $ai = $this->callAi($loop, $requester, $scenarioId, $systemPrompt, $userContent);
 
             $answer = AiMarkdownSanitizer::sanitize(
@@ -816,6 +822,40 @@ class ChatLoopAiService
      * du Laravel AI SDK. Les deux parametres `resolvedProvider`/`resolvedModel`
      * n'existaient que pour lui et ont disparu avec son appel.
      */
+    /**
+     * TASK-1231 (lot 0) : « Demander a l'IA » (`ask()` / `answer()`) passe sous
+     * `AiEconomicGuard`, exactement comme `summarize()` depuis TASK-1229 —
+     * meme autorite, meme demandeur, meme fenetre mensuelle, AVANT tout appel
+     * provider. Un refus est un refus : aucune requete HTTP, aucune ligne
+     * `ai_interactions`, aucune ligne de ledger, aucun credit decompte
+     * (`authorize()` n'ecrit rien). Le succes, lui, ne change pas : `callAi()`
+     * trace UNE ligne `ai_interactions` comme avant — le lot 0 ajoute le
+     * blocage, pas un compteur.
+     *
+     * Chemin herite assume : pas de `CapabilityRegistry`, pas de
+     * `PromptRepository` — il reste `INHERITED` dans `NervousSystemCoverage`
+     * tant qu'il n'est pas migre ; le FAB (TASK-1231) ne l'expose pas.
+     */
+    private function authorizeLegacyCall(Loop $loop, User $requester, string $scenarioId): void
+    {
+        $organization = $loop->organization()->firstOrFail();
+        [$provider, $model] = $this->resolveProviderAndModel();
+
+        $verdict = $this->economicGuard->authorize(
+            $organization,
+            AiProcess::fromFeature($scenarioId),
+            $provider,
+            $model,
+            (float) config('ai.chatloop.economic_guard.monthly_budget_usd', 2.00),
+            (int) config('ai.chatloop.economic_guard.monthly_unknown_limit', 10),
+            $requester,
+        );
+
+        if (! $verdict->allowed) {
+            throw AiRefusedException::fromVerdict($verdict);
+        }
+    }
+
     private function callAi(
         Loop $loop,
         User $user,
