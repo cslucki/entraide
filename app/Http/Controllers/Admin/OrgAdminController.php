@@ -1522,12 +1522,37 @@ class OrgAdminController extends Controller
         Request $request,
         Organization $organization,
         OrganizationAiConsumption $consumption,
+        OrganizationAiEconomicUsage $usage,
     ): View {
         $filters = AiConsumptionFilters::fromRequest($request);
+        $month = AiConsumptionFilters::currentMonth();
+
+        // TASK-1228 : le budget mensuel n'a de sens que sur la fenetre de la
+        // garde ; sur une periode personnalisee, « consomme » reste vrai mais
+        // « reste » n'est pas calcule.
+        $isCurrentMonth = $filters->from->equalTo($month->from) && $filters->to->equalTo($month->to);
+        $economics = $usage->summary((string) $organization->id, $filters->from, $filters->to);
+        $budget = $organization->aiSetting?->monthly_budget_usd;
+        $budget = $budget !== null ? (float) $budget : null;
 
         return view('admin.org.ai-consumption', [
             'organization' => $organization,
             'filters' => $filters,
+            'isCurrentMonth' => $isCurrentMonth,
+            'economics' => $economics,
+            'economicsByUser' => $usage->byUser((string) $organization->id, $filters->from, $filters->to),
+            'budget' => [
+                'monthly_usd' => $budget,
+                'consumed_usd' => $economics['total_known_cost_usd'],
+                // Reste = budget - CONNU ; les inconnus sont comptes a cote,
+                // jamais soustraits ni supposes nuls.
+                'remaining_usd' => $isCurrentMonth && $budget !== null
+                    ? $budget - (float) ($economics['total_known_cost_usd'] ?? 0.0)
+                    : null,
+                'percent' => $isCurrentMonth && $budget !== null && $budget > 0 && $economics['total_known_cost_usd'] !== null
+                    ? min(100.0, round($economics['total_known_cost_usd'] / $budget * 100, 1))
+                    : null,
+            ],
             'summary' => $consumption->summary($organization->id, $filters),
             'byProcess' => $consumption->byProcess($organization->id, $filters),
             'byModel' => $consumption->byModel($organization->id, $filters),

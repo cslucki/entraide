@@ -3,6 +3,7 @@
 namespace App\Services\Ai;
 
 use App\Services\Ai\DTO\AiConsumptionFilters;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
@@ -98,6 +99,54 @@ class OrganizationAiConsumption
             'first_trace_at' => $row?->first_trace_at,
             'last_trace_at' => $row?->last_trace_at,
         ];
+    }
+
+    /**
+     * TASK-1228 : le sous-ensemble « essais de doctrine » (bac a sable
+     * TASK-1227, `feature = ai_doctrine_sandbox`) de la MEME fenetre et des
+     * MEMES filtres. C'est un SOUS-ENSEMBLE de `summary()`, jamais un
+     * ajout : la depense est reelle et compte dans le budget, l'ecran la
+     * distingue de l'usage metier sans la retrancher.
+     *
+     * @return array{known_cost_usd: ?float, measured_count: int, unknown_count: int, unevaluated_count: int, trace_count: int}
+     */
+    public function sandboxSummary(string $organizationId, AiConsumptionFilters $filters): array
+    {
+        $row = $this->baseQuery($organizationId, $filters)
+            ->where('ai_interactions.feature', OrganizationDoctrineSandbox::FEATURE)
+            ->selectRaw($this->economicSelect())
+            ->first();
+
+        return $this->economicRow($row);
+    }
+
+    /**
+     * TASK-1228 : les MEMES agregats, groupes par Organization, pour le
+     * cockpit plateforme — une seule requete, la meme definition du « cout
+     * connu » que `summary()`. Les traces sans Organization (`organization_id`
+     * NULL, historiques) sortent sous la cle `''` : elles ne sont
+     * rattachables a personne, elles ne sont ni perdues ni reparties.
+     *
+     * @return array<string, array{known_cost_usd: ?float, measured_count: int, unknown_count: int, unevaluated_count: int, trace_count: int}>
+     */
+    public function byOrganization(CarbonImmutable $from, CarbonImmutable $to, bool $sandboxOnly = false): array
+    {
+        $rows = DB::table('ai_interactions')
+            ->where('created_at', '>=', $from)
+            ->where('created_at', '<', $to)
+            ->when($sandboxOnly, static fn ($query) => $query->where('feature', OrganizationDoctrineSandbox::FEATURE))
+            ->selectRaw('organization_id')
+            ->selectRaw($this->economicSelect())
+            ->groupBy('organization_id')
+            ->get();
+
+        $result = [];
+
+        foreach ($rows as $row) {
+            $result[$row->organization_id !== null ? (string) $row->organization_id : ''] = $this->economicRow($row);
+        }
+
+        return $result;
     }
 
     /**
