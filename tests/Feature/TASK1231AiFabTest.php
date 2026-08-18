@@ -29,7 +29,8 @@ use Tests\TestCase;
  *  - la liste des actions est calculee cote serveur, avec les MEMES gardes
  *    que les boutons de la page (membre actif, Boucle ouverte, ChatLoop actif,
  *    Card resume placee, clarification activee, pilote recherche Dossier) ;
- *  - jamais de capability sans page qui la porte ; jamais « Demander a l'IA » ;
+ *  - jamais de capability sans page qui la porte ; « Demander a l'IA »
+ *    (loop_ask) est exposee depuis TASK-1237, migree canonique par TASK-1233 ;
  *  - credit : AiEconomicGuard::userCreditStatus, une lecture par requete ;
  *    ambre a l'alerte ; au plafond, actions REMPLACEES par le refus + « Voir
  *    les offres » sans aucun appel (zero ligne de ledger, zero trace) ;
@@ -81,7 +82,7 @@ class TASK1231AiFabTest extends TestCase
     // Page Boucle : les actions suivent les gardes de la page
     // =====================================================================
 
-    public function test_on_a_loop_page_an_active_member_gets_the_loop_actions_and_never_ask_ai(): void
+    public function test_on_a_loop_page_an_active_member_gets_the_loop_actions_including_ask_ai(): void
     {
         AiConfig::set('clarification_enabled', true);
 
@@ -89,8 +90,10 @@ class TASK1231AiFabTest extends TestCase
 
         $page->assertOk()
             ->assertSee('data-ai-fab-page="loop"', false)
+            ->assertSee('data-ai-fab-action="'.AiFabContext::ACTION_LOOP_ASK.'"', false)
             ->assertSee('data-ai-fab-action="'.AiFabContext::ACTION_LOOP_KNOWLEDGE.'"', false)
             ->assertSee('data-ai-fab-action="'.AiFabContext::ACTION_HELP_REQUEST.'"', false)
+            ->assertSee(__('ai.fab_action_loop_ask'))
             ->assertSee(__('ai.fab_action_loop_knowledge'))
             ->assertSee(__('ai.fab_action_help_request'));
 
@@ -103,12 +106,15 @@ class TASK1231AiFabTest extends TestCase
             $page->assertDontSee('data-ai-fab-action="'.AiFabContext::ACTION_LOOP_SUMMARY.'"', false);
         }
 
-        // Le contexte serveur ne connait que les quatre actions canoniques :
-        // « Demander a l'IA » (chemin herite) n'y figure dans aucun cas.
+        // Le contexte serveur ne connait que les cinq actions canoniques —
+        // TASK-1237 : « Demander a l'IA » (loop_ask) y figure desormais,
+        // migree dans le systeme nerveux canonique par TASK-1233. Elle route
+        // vers l'evenement `bp-open-ask-ai`, jamais un formulaire nouveau.
         $context = $this->contextFor($this->member, $this->loopUrl());
         $this->assertSame('loop', $context['page']);
         foreach ($context['actions'] as $action) {
             $this->assertContains($action['key'], [
+                AiFabContext::ACTION_LOOP_ASK,
                 AiFabContext::ACTION_LOOP_KNOWLEDGE,
                 AiFabContext::ACTION_LOOP_SUMMARY,
                 AiFabContext::ACTION_HELP_REQUEST,
@@ -116,7 +122,10 @@ class TASK1231AiFabTest extends TestCase
             ]);
             $this->assertSame('event', $action['kind']);
         }
-        $this->assertStringNotContainsString('ask-ai', json_encode($context));
+        $askAction = collect($context['actions'])->firstWhere('key', AiFabContext::ACTION_LOOP_ASK);
+        $this->assertNotNull($askAction);
+        $this->assertSame('bp-open-ask-ai', $askAction['event']);
+        $this->assertNull($askAction['detail']);
     }
 
     public function test_help_request_is_not_proposed_when_clarification_is_disabled(): void

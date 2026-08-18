@@ -552,6 +552,8 @@ return [
     'fab_credit_included' => 'Included',
     'fab_credit_alert' => 'You are getting close to your monthly credit.',
     'fab_usage_link' => 'My AI usage',
+    'fab_action_loop_ask' => 'Ask the AI',
+    'fab_action_loop_ask_hint' => 'Ask the Loop\'s AI facilitator a question.',
     'fab_action_loop_knowledge' => 'Ask the Folders',
     'fab_action_loop_knowledge_hint' => 'A sourced answer from the Loop documents.',
     'fab_action_loop_summary' => 'Summarize the Loop',
