@@ -6,6 +6,7 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\User;
 use App\Services\ChatLoop\ChatLoopAiService;
+use App\Support\Ai\AiRefusedException;
 use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Component;
 
@@ -28,6 +29,13 @@ class LoopAiSummaryCard extends Component
 
     public ?string $errorMessage = null;
 
+    /**
+     * TASK-1229 : code stable du refus (credit utilisateur epuise / budget
+     * Organization / IA non configuree) — la carte propose « Voir les offres »
+     * uniquement pour le credit.
+     */
+    public ?string $errorCode = null;
+
     public function mount(ChatLoopAiService $service): void
     {
         $this->canGenerate = $this->userCanGenerate();
@@ -44,6 +52,7 @@ class LoopAiSummaryCard extends Component
         // A single wire:init attempt at most; never loop.
         $this->autoGenerate = false;
         $this->errorMessage = null;
+        $this->errorCode = null;
 
         if (! $this->userCanGenerate()) {
             return;
@@ -66,6 +75,10 @@ class LoopAiSummaryCard extends Component
         try {
             $service->summarize($this->loop, $user);
             $this->loadSummary($service);
+        } catch (AiRefusedException $e) {
+            // Non-blocking, avec son code : le message dit QUEL etat refuse.
+            $this->errorMessage = $e->getMessage();
+            $this->errorCode = $e->refusalCode;
         } catch (\RuntimeException $e) {
             // Non-blocking: keep the previous summary visible if any.
             $this->errorMessage = $e->getMessage();

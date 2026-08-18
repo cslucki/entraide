@@ -2755,6 +2755,8 @@ function registerDossierSemanticArticleSearch() {
         results: [],
         searched: false,
         error: '',
+        errorCode: '',
+        offersUrl: '',
         validationError: '',
         endpoint: config.endpoint,
         i18n: config.i18n || {},
@@ -2764,6 +2766,8 @@ function registerDossierSemanticArticleSearch() {
 
             const trimmedQuery = this.query.trim();
             this.error = '';
+            this.errorCode = '';
+            this.offersUrl = '';
             this.validationError = '';
 
             if (trimmedQuery.length < 2) {
@@ -2796,6 +2800,17 @@ function registerDossierSemanticArticleSearch() {
 
                 if (response.status === 422) {
                     this.validationError = this.i18n.validationTooShort;
+                    return;
+                }
+
+                // TASK-1229 : refus economique avant appel, avec son code
+                // (credit utilisateur epuise / budget Organization atteint).
+                if (response.status === 429) {
+                    let payload = null;
+                    try { payload = await response.json(); } catch (e) { payload = null; }
+                    this.error = (payload && payload.message) || this.i18n.unavailable;
+                    this.errorCode = (payload && payload.code) || '';
+                    this.offersUrl = (payload && payload.offers_url) || '';
                     return;
                 }
 

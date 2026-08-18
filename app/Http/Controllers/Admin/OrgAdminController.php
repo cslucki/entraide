@@ -30,6 +30,7 @@ use App\Models\Theme;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
+use App\Services\Ai\AiUserCreditSettings;
 use App\Services\Ai\DTO\AiConsumptionFilters;
 use App\Services\Ai\OrganizationAiConsumption;
 use App\Services\Ai\OrganizationAiEconomicUsage;
@@ -1054,7 +1055,7 @@ class OrgAdminController extends Controller
      * credential n'est jamais renvoye a la vue : seul son etat (definie / non
      * definie, date de mise a jour) est affiche.
      */
-    public function ai(Organization $organization): View
+    public function ai(Organization $organization, AiUserCreditSettings $creditSettings, OrganizationAiEconomicUsage $usage): View
     {
         $setting = $organization->aiSetting;
 
@@ -1072,7 +1073,95 @@ class OrgAdminController extends Controller
             'providers' => ProviderResolver::ALLOWED_PROVIDERS,
             'monthlyCost' => $monthlyCost,
             'defaultModel' => (string) (config('ai.default_model') ?: config('ai.openrouter.model', 'openai/gpt-4o-mini')),
+            // TASK-1229 : credit IA par utilisateur — reglage plateforme,
+            // override d'Organization, politique effective, membres qui
+            // approchent leur limite (des comptes et des noms de MEMBRES de
+            // cette Organization, jamais un autre tenant).
+            ...$this->userCreditViewData($organization, $creditSettings, $usage),
         ]);
+    }
+
+    /**
+     * TASK-1229 : donnees du bloc « Credit IA par utilisateur » (page de
+     * configuration IA de l'Organization).
+     *
+     * @return array<string, mixed>
+     */
+    private function userCreditViewData(Organization $organization, AiUserCreditSettings $creditSettings, OrganizationAiEconomicUsage $usage): array
+    {
+        $organization->unsetRelation('aiSetting');
+        $platform = $creditSettings->platform();
+        $policy = $creditSettings->policyFor($organization);
+        $period = AiConsumptionFilters::currentMonth();
+        $setting = $organization->aiSetting;
+
+        $members = [];
+
+        if (! $policy->isUnlimited()) {
+            $uses = $usage->creditUsesByUser((string) $organization->id, $period->from, $period->to);
+            $quota = (int) $policy->monthlyUses;
+            $threshold = $quota > 0 ? $quota * $policy->alertPercent / 100 : 0;
+            $near = array_filter($uses, static fn (int $count): bool => $count >= $threshold);
+
+            if ($near !== []) {
+                $names = User::query()
+                    ->where('organization_id', $organization->id)
+                    ->whereIn('id', array_keys($near))
+                    ->pluck('name', 'id');
+
+                foreach ($near as $userId => $count) {
+                    if (! $names->has($userId)) {
+                        continue;
+                    }
+
+                    $members[] = [
+                        'user_id' => (string) $userId,
+                        'name' => (string) $names->get($userId),
+                        'used' => $count,
+                        'quota' => $quota,
+                        'blocked' => $count >= $quota,
+                    ];
+                }
+
+                usort($members, static fn (array $a, array $b): int => $b['used'] <=> $a['used']);
+            }
+        }
+
+        return [
+            'creditPlatform' => $platform,
+            'creditPolicy' => $policy,
+            'creditMode' => $setting?->user_credit_mode ?? OrganizationAiSetting::USER_CREDIT_MODE_PLATFORM,
+            'creditCustomUses' => $setting?->user_credit_monthly_uses,
+            'creditPeriod' => $period,
+            'creditMembersNearLimit' => $members,
+            'creditLastChange' => $creditSettings->lastChange($organization),
+        ];
+    }
+
+    /**
+     * TASK-1229 : override d'Organization du credit IA par utilisateur —
+     * reglage plateforme / valeur propre / illimite (inclus). Trace (auteur,
+     * horodatage) par `AiUserCreditSettings`.
+     */
+    public function updateAiUserCredit(Request $request, Organization $organization, AiUserCreditSettings $creditSettings): RedirectResponse
+    {
+        $data = $request->validate([
+            'user_credit_mode' => ['required', Rule::in(OrganizationAiSetting::USER_CREDIT_MODES)],
+            'user_credit_monthly_uses' => [
+                Rule::requiredIf(($request->input('user_credit_mode')) === OrganizationAiSetting::USER_CREDIT_MODE_CUSTOM),
+                'nullable', 'integer', 'min:0', 'max:1000000',
+            ],
+        ]);
+
+        $creditSettings->updateOrganization(
+            $organization,
+            $data['user_credit_mode'],
+            isset($data['user_credit_monthly_uses']) && $data['user_credit_monthly_uses'] !== '' ? (int) $data['user_credit_monthly_uses'] : null,
+            $request->user(),
+        );
+
+        return redirect()->route('organization.admin.ai', ['organization' => $organization->slug])
+            ->with('success', __('admin.organization_ai_user_credit_saved'));
     }
 
     public function updateAi(Request $request, Organization $organization): RedirectResponse
@@ -1535,12 +1624,23 @@ class OrgAdminController extends Controller
         $budget = $organization->aiSetting?->monthly_budget_usd;
         $budget = $budget !== null ? (float) $budget : null;
 
+        // TASK-1229 : credit IA par utilisateur — politique effective de
+        // l'Organization et utilisations creditees de chaque membre sur le
+        // mois courant (jamais sur une periode personnalisee : le credit n'a
+        // de sens que sur la fenetre du budget).
+        $creditPolicy = app(AiUserCreditSettings::class)->policyFor($organization);
+        $creditUses = $isCurrentMonth
+            ? $usage->creditUsesByUser((string) $organization->id, $filters->from, $filters->to)
+            : null;
+
         return view('admin.org.ai-consumption', [
             'organization' => $organization,
             'filters' => $filters,
             'isCurrentMonth' => $isCurrentMonth,
             'economics' => $economics,
             'economicsByUser' => $usage->byUser((string) $organization->id, $filters->from, $filters->to),
+            'creditPolicy' => $creditPolicy,
+            'creditUses' => $creditUses,
             'budget' => [
                 'monthly_usd' => $budget,
                 'consumed_usd' => $economics['total_known_cost_usd'],

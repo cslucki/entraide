@@ -2,6 +2,8 @@
 
 namespace App\Services\Ai\DTO;
 
+use App\Support\Ai\AiUserCreditStatus;
+
 /**
  * Reponse documentaire sourcee (TASK-1213 / RAG V1).
  *
@@ -21,6 +23,11 @@ final class KnowledgeAnswer
         public readonly array $consulted,
         public readonly bool $grounded,
         public readonly ?string $interactionId,
+        /**
+         * TASK-1229 : etat du credit IA du demandeur APRES cette reponse (ce
+         * qu'il lui reste, alerte de seuil) — jamais un chiffre d'Organization.
+         */
+        public readonly ?AiUserCreditStatus $credit = null,
     ) {}
 
     /**
@@ -41,6 +48,7 @@ final class KnowledgeAnswer
             'grounded' => $this->grounded,
             'sources' => array_map($public, $this->sources),
             'consulted' => array_map($public, $this->consulted),
+            'credit' => $this->credit?->toArray(),
         ];
     }
 }

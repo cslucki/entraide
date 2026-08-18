@@ -3,6 +3,7 @@
 use App\Models\Organization;
 use App\Services\TranslationOverrideService;
 use App\Support\Tenancy\CurrentOrganization;
+use Illuminate\Support\Facades\Route;
 use League\CommonMark\CommonMarkConverter;
 use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
 
@@ -26,6 +27,30 @@ if (! function_exists('organizationRoute')) {
     function organizationRoute(string $name, array $parameters = []): string
     {
         return route($name, $parameters);
+    }
+}
+
+if (! function_exists('aiOffersUrl')) {
+    /**
+     * TASK-1229 : URL de la page « Voir les offres » (information, sans
+     * paiement), dans le prefixe d'Organization courant quand il y en a un —
+     * meme regle que les autres liens de profil (`profile.ai-usage`).
+     */
+    function aiOffersUrl(?Organization $organization = null): string
+    {
+        $slug = request()->route('organization');
+
+        if ($slug instanceof Organization) {
+            $slug = $slug->slug;
+        }
+
+        $slug = $slug ?: $organization?->slug;
+
+        if ($slug && ! (currentOrganization()?->is_default ?? false) && Route::has('organization.profile.ai-offers')) {
+            return route('organization.profile.ai-offers', ['organization' => $slug]);
+        }
+
+        return route('profile.ai-offers');
     }
 }
 

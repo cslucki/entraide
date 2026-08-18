@@ -284,6 +284,144 @@ final class OrganizationAiEconomicUsage
     }
 
     /**
+     * TASK-1229 : UTILISATIONS creditees d'un utilisateur sur la fenetre —
+     * le compteur que `AiEconomicGuard` compare au credit commercial.
+     *
+     * Une utilisation = une invocation reellement emise et attribuee a
+     * l'utilisateur, dans les MEMES registres et avec les MEMES predicats
+     * tenant-safe que `summary(..., userId)` :
+     *   - generations (`ai_interactions`), HORS essais de doctrine
+     *     (`feature = ai_doctrine_sandbox`) : gouverner l'IA de son
+     *     Organization n'est pas un usage productif — ces appels restent
+     *     comptes dans le BUDGET de l'Organization ;
+     *   - recherches documentaires (ledger, `embedding_operation = query`).
+     * Les indexations (maintenance de la base de connaissances) et les
+     * embeddings non declares ne sont pas des utilisations creditees.
+     *
+     * Un appel au cout NON MESURABLE compte une utilisation comme les autres :
+     * le credit est immunise contre l'inconnu. Un compte, jamais une somme de
+     * couts, jamais deduit d'une absence de ligne.
+     */
+    public function userCreditUses(string $organizationId, CarbonImmutable $from, CarbonImmutable $to, string $userId): int
+    {
+        $filters = new AiConsumptionFilters($from, $to, $userId);
+        $generation = $this->generationAuthority->summary($organizationId, $filters)['trace_count'];
+        $sandbox = $this->generationAuthority->sandboxSummary($organizationId, $filters)['trace_count'];
+        $queries = $this->embeddingSlice($organizationId, $from, $to, AiProviderInvocation::EMBEDDING_OPERATION_QUERY, $userId)['invocation_count'];
+
+        return max(0, $generation - $sandbox) + $queries;
+    }
+
+    /**
+     * TASK-1229 : le MEME compteur, pour tous les utilisateurs d'une
+     * Organization en deux requetes groupees (ecrans d'administration :
+     * « qui approche sa limite »). Cle = user_id ; seuls les utilisateurs
+     * appartenant a l'Organization sont rendus (meme defense tenant que
+     * `byUser()`) ; les traces non attribuables n'y figurent pas — elles ne
+     * sont le credit de personne.
+     *
+     * @return array<string, int>
+     */
+    public function creditUsesByUser(string $organizationId, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $generation = DB::table('ai_interactions')
+            ->join('users', static function ($join) use ($organizationId): void {
+                $join->on('users.id', '=', 'ai_interactions.user_id')
+                    ->where('users.organization_id', '=', $organizationId);
+            })
+            ->where('ai_interactions.organization_id', $organizationId)
+            ->where('ai_interactions.created_at', '>=', $from)
+            ->where('ai_interactions.created_at', '<', $to)
+            ->where(static function ($query): void {
+                $query->whereNull('ai_interactions.feature')
+                    ->orWhere('ai_interactions.feature', '!=', OrganizationDoctrineSandbox::FEATURE);
+            })
+            ->selectRaw('ai_interactions.user_id as user_id, COUNT(*) as uses')
+            ->groupBy('ai_interactions.user_id')
+            ->pluck('uses', 'user_id')
+            ->all();
+
+        $queries = DB::table('ai_provider_invocations')
+            ->join('users', static function ($join) use ($organizationId): void {
+                $join->on('users.id', '=', 'ai_provider_invocations.user_id')
+                    ->where('users.organization_id', '=', $organizationId);
+            })
+            ->where('ai_provider_invocations.organization_id', $organizationId)
+            ->where('ai_provider_invocations.operation', AiProviderInvocation::OPERATION_EMBEDDING)
+            ->where('ai_provider_invocations.embedding_operation', AiProviderInvocation::EMBEDDING_OPERATION_QUERY)
+            ->where('ai_provider_invocations.created_at', '>=', $from)
+            ->where('ai_provider_invocations.created_at', '<', $to)
+            ->selectRaw('ai_provider_invocations.user_id as user_id, COUNT(*) as uses')
+            ->groupBy('ai_provider_invocations.user_id')
+            ->pluck('uses', 'user_id')
+            ->all();
+
+        $result = [];
+
+        foreach ([$generation, $queries] as $rows) {
+            foreach ($rows as $userId => $uses) {
+                $key = (string) $userId;
+                $result[$key] = ($result[$key] ?? 0) + (int) $uses;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * TASK-1229 : le MEME compteur pour TOUTES les Organizations en deux
+     * requetes groupees (ecran plateforme « Monetisation IA » : combien
+     * d'utilisateurs approchent ou ont atteint leur credit, par
+     * Organization). Meme defense tenant que `aiUsersByOrganization()` :
+     * un utilisateur n'est compte que dans l'Organization a laquelle il
+     * appartient. Aucun nom, aucun contenu : des comptes.
+     *
+     * @return array<string, array<string, int>> [organization_id][user_id] => utilisations
+     */
+    public function creditUsesByOrganizationAndUser(CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $generation = DB::table('ai_interactions')
+            ->join('users', static function ($join): void {
+                $join->on('users.id', '=', 'ai_interactions.user_id')
+                    ->on('users.organization_id', '=', 'ai_interactions.organization_id');
+            })
+            ->where('ai_interactions.created_at', '>=', $from)
+            ->where('ai_interactions.created_at', '<', $to)
+            ->where(static function ($query): void {
+                $query->whereNull('ai_interactions.feature')
+                    ->orWhere('ai_interactions.feature', '!=', OrganizationDoctrineSandbox::FEATURE);
+            })
+            ->selectRaw('ai_interactions.organization_id as organization_id, ai_interactions.user_id as user_id, COUNT(*) as uses')
+            ->groupBy('ai_interactions.organization_id', 'ai_interactions.user_id')
+            ->get();
+
+        $queries = DB::table('ai_provider_invocations')
+            ->join('users', static function ($join): void {
+                $join->on('users.id', '=', 'ai_provider_invocations.user_id')
+                    ->on('users.organization_id', '=', 'ai_provider_invocations.organization_id');
+            })
+            ->where('ai_provider_invocations.operation', AiProviderInvocation::OPERATION_EMBEDDING)
+            ->where('ai_provider_invocations.embedding_operation', AiProviderInvocation::EMBEDDING_OPERATION_QUERY)
+            ->where('ai_provider_invocations.created_at', '>=', $from)
+            ->where('ai_provider_invocations.created_at', '<', $to)
+            ->selectRaw('ai_provider_invocations.organization_id as organization_id, ai_provider_invocations.user_id as user_id, COUNT(*) as uses')
+            ->groupBy('ai_provider_invocations.organization_id', 'ai_provider_invocations.user_id')
+            ->get();
+
+        $result = [];
+
+        foreach ([$generation, $queries] as $rows) {
+            foreach ($rows as $row) {
+                $organizationId = (string) $row->organization_id;
+                $userId = (string) $row->user_id;
+                $result[$organizationId][$userId] = ($result[$organizationId][$userId] ?? 0) + (int) $row->uses;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Utilisateurs IA distincts par Organization sur la fenetre : union des
      * `user_id` des deux registres (generation + embeddings). Compte, jamais
      * un nom. Cle `''` pour les traces sans Organization.

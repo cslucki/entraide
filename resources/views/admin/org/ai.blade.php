@@ -111,5 +111,86 @@
                 </a>
             </div>
         </form>
+
+        {{-- TASK-1229 : credit IA par utilisateur — override d'Organization.
+             Trois notions distinctes : cout fournisseur, budget Organization
+             (ci-dessus, en monnaie), credit utilisateur (ici, en utilisations). --}}
+        @php
+            $platformValueLabel = ! $creditPlatform['free_enabled']
+                ? __('admin.organization_ai_user_credit_platform_disabled')
+                : ($creditPlatform['monthly_uses'] === null
+                    ? __('admin.organization_ai_user_credit_platform_unlimited')
+                    : trans_choice('admin.organization_ai_user_credit_platform_uses', (int) $creditPlatform['monthly_uses'], ['count' => number_format((int) $creditPlatform['monthly_uses'])]));
+            $effectiveLabel = $creditPolicy->isUnlimited()
+                ? __('admin.organization_ai_user_credit_platform_unlimited')
+                : trans_choice('admin.organization_ai_user_credit_platform_uses', (int) $creditPolicy->monthlyUses, ['count' => number_format((int) $creditPolicy->monthlyUses)]);
+        @endphp
+        <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-5" data-ai-user-credit data-ai-user-credit-mode="{{ $creditMode }}" data-ai-user-credit-effective="{{ $creditPolicy->isUnlimited() ? 'unlimited' : $creditPolicy->monthlyUses }}">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('admin.organization_ai_user_credit_title') }}</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('admin.organization_ai_user_credit_description') }}</p>
+                <p class="text-xs text-gray-600 dark:text-gray-300 mt-2" data-ai-user-credit-platform>{{ __('admin.organization_ai_user_credit_platform_value', ['value' => $platformValueLabel, 'percent' => $creditPlatform['alert_percent']]) }}</p>
+                <p class="text-xs font-medium text-indigo-700 dark:text-indigo-300 mt-1" data-ai-user-credit-effective-label>{{ __('admin.organization_ai_user_credit_effective', ['value' => $effectiveLabel]) }}</p>
+            </div>
+
+            <form method="POST" action="{{ route('organization.admin.ai.user-credit.update', $organization) }}" class="space-y-4" x-data="{ mode: @js(old('user_credit_mode', $creditMode)) }" data-ai-user-credit-form>
+                @csrf
+                @method('PUT')
+
+                <div class="space-y-2">
+                    @foreach([\App\Models\OrganizationAiSetting::USER_CREDIT_MODE_PLATFORM => __('admin.organization_ai_user_credit_mode_platform'), \App\Models\OrganizationAiSetting::USER_CREDIT_MODE_CUSTOM => __('admin.organization_ai_user_credit_mode_custom'), \App\Models\OrganizationAiSetting::USER_CREDIT_MODE_UNLIMITED => __('admin.organization_ai_user_credit_mode_unlimited')] as $mode => $label)
+                        <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
+                            <input type="radio" name="user_credit_mode" value="{{ $mode }}" x-model="mode" class="w-4 h-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" data-ai-user-credit-mode-input="{{ $mode }}">
+                            <span>{{ $label }}</span>
+                        </label>
+                    @endforeach
+                </div>
+
+                <div x-show="mode === 'custom'" x-cloak>
+                    <label for="ai-user-credit-uses" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.organization_ai_user_credit_custom_label') }}</label>
+                    <input id="ai-user-credit-uses" type="number" min="0" step="1" name="user_credit_monthly_uses" value="{{ old('user_credit_monthly_uses', $creditCustomUses) }}"
+                        class="w-full max-w-xs px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm @error('user_credit_monthly_uses') border-red-500 @enderror" data-ai-user-credit-uses-input>
+                    @error('user_credit_monthly_uses')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                </div>
+                @error('user_credit_mode')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
+
+                <div class="flex flex-wrap items-center gap-3">
+                    <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition">
+                        {{ __('admin.organization_ai_user_credit_save') }}
+                    </button>
+                    <span class="text-xs text-gray-500 dark:text-gray-400" data-ai-user-credit-last-change>
+                        @if($creditLastChange)
+                            {{ __('admin.organization_ai_user_credit_last_change', ['author' => $creditLastChange->author?->name ?? __('admin.ai_monetization_history_author_unknown'), 'date' => $creditLastChange->created_at->format('d/m/Y H:i')]) }}
+                        @endif
+                    </span>
+                </div>
+            </form>
+
+            <div data-ai-user-credit-near-limit>
+                <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">{{ __('admin.organization_ai_user_credit_near_limit_title') }}</h4>
+                @if($creditPolicy->isUnlimited())
+                    <p class="text-sm text-gray-400">{{ __('admin.organization_ai_user_credit_near_limit_unlimited') }}</p>
+                @elseif($creditMembersNearLimit === [])
+                    <p class="text-sm text-gray-400">{{ __('admin.organization_ai_user_credit_near_limit_empty') }}</p>
+                @else
+                    <ul class="divide-y divide-gray-100 dark:divide-gray-700 text-sm">
+                        @foreach($creditMembersNearLimit as $member)
+                            <li class="flex items-center justify-between gap-2 py-2" data-ai-user-credit-member data-ai-user-credit-member-used="{{ $member['used'] }}" data-ai-user-credit-member-blocked="{{ $member['blocked'] ? 1 : 0 }}">
+                                <span class="text-gray-900 dark:text-gray-100">{{ $member['name'] }}</span>
+                                <span class="flex items-center gap-2">
+                                    <span class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ __('ai.credit_used_of_quota', ['used' => number_format($member['used']), 'quota' => number_format($member['quota'])]) }}</span>
+                                    @if($member['blocked'])
+                                        <span class="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-300">{{ __('admin.organization_ai_user_credit_blocked_badge') }}</span>
+                                    @else
+                                        <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">{{ __('admin.organization_ai_user_credit_alert_badge') }}</span>
+                                    @endif
+                                </span>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-3">{{ __('admin.organization_ai_user_credit_sandbox_note') }}</p>
+            </div>
+        </section>
     </div>
 </x-org-admin-layout>

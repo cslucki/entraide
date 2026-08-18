@@ -5,6 +5,10 @@ namespace App\Support\Ai;
 use App\Models\AiInteraction;
 use App\Models\AiProviderInvocation;
 use App\Models\Organization;
+use App\Models\User;
+use App\Services\Ai\AiUserCreditSettings;
+use App\Services\Ai\OrganizationAiEconomicUsage;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 
 final class AiEconomicGuard
@@ -33,6 +37,32 @@ final class AiEconomicGuard
      */
     public const REASON_EMBEDDING_UNKNOWN_QUOTA_REACHED = 'embedding_unknown_quota_reached';
 
+    /**
+     * TASK-1229 : le CREDIT IA du mois de l'UTILISATEUR est epuise. Troisieme
+     * notion, distincte du budget Organization (`organization_monthly_budget_
+     * reached`, une depense reelle en monnaie) et du credential absent (refus
+     * du resolveur, avant meme cette garde) : un utilisateur peut etre bloque
+     * par son credit alors que l'Organization a du budget, et l'inverse.
+     * Compte en UTILISATIONS, jamais en dollars.
+     */
+    public const REASON_USER_CREDIT_EXHAUSTED = 'user_monthly_credit_exhausted';
+
+    /**
+     * Dependances resolues paresseusement : la garde reste constructible sans
+     * argument (`new AiEconomicGuard`), comme avant TASK-1229.
+     */
+    public function __construct(
+        private ?AiUserCreditSettings $creditSettings = null,
+        private ?OrganizationAiEconomicUsage $usage = null,
+    ) {}
+
+    /**
+     * @param  User|null  $user  TASK-1229 : l'utilisateur dont le CREDIT est
+     *                           evalue. NULL = aucun credit applique (bac a
+     *                           sable de doctrine, ingestion, traitements sans
+     *                           utilisateur) — jamais un contournement pour un
+     *                           chemin utilisateur.
+     */
     public function authorize(
         Organization $organization,
         string $process,
@@ -40,9 +70,16 @@ final class AiEconomicGuard
         string $model,
         float $monthlyBudgetUsd,
         int $monthlyUnknownLimit,
+        ?User $user = null,
     ): AiEconomicVerdict {
         $monthStart = now()->startOfMonth();
         $nextMonthStart = $monthStart->copy()->addMonth();
+
+        // Evalue une fois, rendu sur tous les verdicts (alerte de seuil
+        // comprise) ; applique en DERNIER : quand l'Organization elle-meme ne
+        // peut plus travailler, le message parle de l'Organization, jamais du
+        // credit personnel — s'abonner n'y changerait rien.
+        $credit = $user !== null ? $this->userCreditStatus($organization, $user, $monthStart, $nextMonthStart) : null;
 
         $organizationBudget = $organization->aiSetting?->monthly_budget_usd;
 
@@ -55,6 +92,7 @@ final class AiEconomicGuard
                     $organizationMonthlyCost,
                     0,
                     AiPricingCatalog::hasRate($provider, $model),
+                    $credit,
                 );
             }
         }
@@ -81,6 +119,7 @@ final class AiEconomicGuard
                 $knownMonthlyCost,
                 $successfulUnknownCount,
                 $pricingKnown,
+                $credit,
             );
         }
 
@@ -90,10 +129,24 @@ final class AiEconomicGuard
                 $knownMonthlyCost,
                 $successfulUnknownCount,
                 $pricingKnown,
+                $credit,
             );
         }
 
-        return AiEconomicVerdict::allow($knownMonthlyCost, $successfulUnknownCount, $pricingKnown);
+        // TASK-1229 : le credit de l'utilisateur, en dernier. Un refus ici
+        // n'ecrit rien : ni trace, ni ligne de ledger, ni utilisation
+        // decomptee — un appel qui n'est pas parti n'est pas une utilisation.
+        if ($credit !== null && $credit->isExhausted()) {
+            return AiEconomicVerdict::refuse(
+                self::REASON_USER_CREDIT_EXHAUSTED,
+                $knownMonthlyCost,
+                $successfulUnknownCount,
+                $pricingKnown,
+                $credit,
+            );
+        }
+
+        return AiEconomicVerdict::allow($knownMonthlyCost, $successfulUnknownCount, $pricingKnown, $credit);
     }
 
     /**
@@ -110,10 +163,15 @@ final class AiEconomicGuard
      * detruit pas l'index existant : l'appelant conserve les chunks en place
      * (contrainte temporaire de budget != credential disparu).
      */
-    public function authorizeEmbeddings(Organization $organization): AiEconomicVerdict
+    public function authorizeEmbeddings(Organization $organization, ?User $user = null): AiEconomicVerdict
     {
         $monthStart = now()->startOfMonth();
         $nextMonthStart = $monthStart->copy()->addMonth();
+
+        // TASK-1229 : credit de l'utilisateur (recherche documentaire
+        // declenchee par un membre) — jamais pour l'ingestion, qui est une
+        // maintenance de la base de connaissances de l'Organization.
+        $credit = $user !== null ? $this->userCreditStatus($organization, $user, $monthStart, $nextMonthStart) : null;
 
         $knownCost = $this->organizationMonthlyKnownCost($organization, $monthStart, $nextMonthStart);
 
@@ -145,6 +203,7 @@ final class AiEconomicGuard
                 $knownCost,
                 $unknownCount,
                 $pricingKnown,
+                $credit,
             );
         }
 
@@ -162,10 +221,65 @@ final class AiEconomicGuard
                 $knownCost,
                 $unknownCount,
                 $pricingKnown,
+                $credit,
             );
         }
 
-        return AiEconomicVerdict::allow($knownCost, $unknownCount, $pricingKnown);
+        if ($credit !== null && $credit->isExhausted()) {
+            return AiEconomicVerdict::refuse(
+                self::REASON_USER_CREDIT_EXHAUSTED,
+                $knownCost,
+                $unknownCount,
+                $pricingKnown,
+                $credit,
+            );
+        }
+
+        return AiEconomicVerdict::allow($knownCost, $unknownCount, $pricingKnown, $credit);
+    }
+
+    /**
+     * TASK-1229 : etat du CREDIT IA d'un utilisateur dans une Organization —
+     * politique effective (cascade plateforme -> override Organization) +
+     * utilisations deja emises sur la fenetre du budget (mois UTC, la MEME
+     * que `authorize()`). Une seule definition, lue par la garde pour
+     * bloquer et par les ecrans pour afficher : le chiffre montre est celui
+     * qui bloque.
+     *
+     * Le compte vient de l'autorite 1228 (`OrganizationAiEconomicUsage`) :
+     * generations hors essais de doctrine + recherches documentaires,
+     * attribuees a l'utilisateur, tenant-safe. Jamais un log, jamais une
+     * absence de ligne.
+     */
+    public function userCreditStatus(
+        Organization $organization,
+        User $user,
+        ?Carbon $monthStart = null,
+        ?Carbon $nextMonthStart = null,
+    ): AiUserCreditStatus {
+        $monthStart ??= now()->startOfMonth();
+        $nextMonthStart ??= $monthStart->copy()->addMonth();
+
+        $from = CarbonImmutable::instance($monthStart);
+        $to = CarbonImmutable::instance($nextMonthStart);
+
+        $policy = $this->creditSettings()->policyFor($organization);
+
+        // Illimite : aucun compte a tenir n'est necessaire pour decider, mais
+        // l'ecran montre quand meme ce qui a ete utilise — une seule lecture.
+        $used = $this->usage()->userCreditUses((string) $organization->id, $from, $to, (string) $user->id);
+
+        return new AiUserCreditStatus($policy, $used, $from, $to);
+    }
+
+    private function creditSettings(): AiUserCreditSettings
+    {
+        return $this->creditSettings ??= app(AiUserCreditSettings::class);
+    }
+
+    private function usage(): OrganizationAiEconomicUsage
+    {
+        return $this->usage ??= app(OrganizationAiEconomicUsage::class);
     }
 
     /**

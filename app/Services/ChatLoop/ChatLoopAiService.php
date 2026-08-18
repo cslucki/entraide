@@ -25,6 +25,7 @@ use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiProcess;
+use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiUsage;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
@@ -184,12 +185,15 @@ class ChatLoopAiService
 
             // TASK-1212 : pas de configuration IA pour cette Organization =
             // indisponibilite explicite, avant tout appel, sans repli plateforme.
+            // TASK-1229 : etat « credential absent », code stable (AiRefusedException).
             try {
                 $resolved = $this->providers->resolve($capability, $contexte);
             } catch (\DomainException $exception) {
-                throw new \RuntimeException(__('loops.ai_not_configured_for_organization'), 0, $exception);
+                throw AiRefusedException::notConfigured($exception);
             }
 
+            // TASK-1229 : le demandeur est passe a la garde — son credit IA du
+            // mois s'applique ici, dans l'autorite existante.
             $verdict = $this->economicGuard->authorize(
                 $organization,
                 $definition->process,
@@ -197,16 +201,13 @@ class ChatLoopAiService
                 $resolved->model,
                 (float) config('ai.chatloop.summary_economic_guard.monthly_budget_usd', 2.00),
                 (int) config('ai.chatloop.summary_economic_guard.monthly_unknown_limit', 10),
+                $requester,
             );
 
-            // Un refus est un refus : aucun appel SDK n'est emis.
+            // Un refus est un refus : aucun appel SDK n'est emis. Trois etats,
+            // trois messages, trois codes.
             if (! $verdict->allowed) {
-                throw new \RuntimeException(in_array($verdict->reason, [
-                    AiEconomicGuard::REASON_MONTHLY_BUDGET_REACHED,
-                    AiEconomicGuard::REASON_ORGANIZATION_BUDGET_REACHED,
-                ], true)
-                    ? __('loops.ai_summary_monthly_budget_reached')
-                    : __('loops.ai_summary_temporarily_unavailable'));
+                throw AiRefusedException::fromVerdict($verdict);
             }
 
             $interaction = $this->generateSummaryViaSdk(

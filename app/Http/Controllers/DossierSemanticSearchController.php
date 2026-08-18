@@ -6,6 +6,7 @@ use App\Ai\ProviderResolver;
 use App\Models\Dossier;
 use App\Models\Organization;
 use App\Services\Dossiers\DossierSemanticSearchService;
+use App\Support\Ai\AiRefusedException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
@@ -56,6 +57,17 @@ class DossierSemanticSearchController extends Controller
             }
 
             $results = $search->search($organization->id, $dossier->id, $validated['query'], 5, $embeddingInstance);
+        } catch (AiRefusedException $exception) {
+            // TASK-1229 : refus economique AVANT tout appel (credit utilisateur
+            // epuise / budget Organization atteint), dit avec son code — jamais
+            // un « aucun resultat » ni un « indisponible » generique.
+            return response()->json([
+                'code' => $exception->refusalCode,
+                'message' => $exception->getMessage(),
+                'offers_url' => $exception->refusalCode === AiRefusedException::CODE_USER_CREDIT_EXHAUSTED
+                    ? aiOffersUrl($organization)
+                    : null,
+            ], 429);
         } catch (AiException|ConnectionException|RequestException|RuntimeException|\DomainException $exception) {
             Log::warning('Dossier semantic search unavailable.', [
                 'organization_id' => $organization->id,

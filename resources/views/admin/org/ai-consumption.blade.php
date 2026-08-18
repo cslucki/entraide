@@ -168,11 +168,21 @@
                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_indexing') }}</th>
                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_known_cost') }}</th>
                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_unknown') }}</th>
+                        {{-- TASK-1229 : credit IA de chaque membre (utilisations creditees / quota effectif), mois courant seulement. --}}
+                        @if($creditUses !== null)
+                            <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('admin.consumption_col_credit') }}</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse(array_slice($economicsByUser, 0, 10) as $row)
-                        <tr data-consumption-top-user="{{ $row['user_id'] ?? 'unattributed' }}">
+                        @php
+                            $creditUsed = $row['user_id'] !== null ? ($creditUses[$row['user_id']] ?? 0) : null;
+                            $creditQuota = $creditPolicy->isUnlimited() ? null : (int) $creditPolicy->monthlyUses;
+                            $creditBlocked = $creditUsed !== null && $creditQuota !== null && $creditUsed >= $creditQuota;
+                            $creditAlert = $creditUsed !== null && $creditQuota !== null && $creditQuota > 0 && ! $creditBlocked && $creditUsed >= $creditQuota * $creditPolicy->alertPercent / 100;
+                        @endphp
+                        <tr data-consumption-top-user="{{ $row['user_id'] ?? 'unattributed' }}" @if($creditUsed !== null) data-consumption-credit-used="{{ $creditUsed }}" @endif>
                             <td class="px-3 py-2 text-gray-900 dark:text-gray-100">{{ $row['user_id'] === null ? __('ai.economy_unattributed') : ($row['name'] ?? '—') }}</td>
                             <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{{ number_format($row['generation']['trace_count']) }}</td>
                             <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{{ number_format($row['embedding_query']['invocation_count']) }}</td>
@@ -184,9 +194,20 @@
                             </td>
                             <td class="px-3 py-2 text-right tabular-nums text-gray-900 dark:text-gray-100">{{ $cost($row['total_known_cost_usd']) }}</td>
                             <td class="px-3 py-2 text-right tabular-nums {{ $row['total_unknown_count'] > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-gray-400' }}">{{ number_format($row['total_unknown_count']) }}</td>
+                            @if($creditUses !== null)
+                                <td class="px-3 py-2 text-right tabular-nums text-xs {{ $creditBlocked ? 'text-red-600 dark:text-red-400 font-semibold' : ($creditAlert ? 'text-amber-700 dark:text-amber-300' : 'text-gray-700 dark:text-gray-300') }}">
+                                    @if($creditUsed === null)
+                                        —
+                                    @elseif($creditQuota === null)
+                                        {{ number_format($creditUsed) }} · {{ __('admin.consumption_credit_unlimited') }}
+                                    @else
+                                        {{ __('ai.credit_used_of_quota', ['used' => number_format($creditUsed), 'quota' => number_format($creditQuota)]) }}
+                                    @endif
+                                </td>
+                            @endif
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="px-3 py-4 text-center text-gray-400">{{ __('ai.consumption_console_empty') }}</td></tr>
+                        <tr><td colspan="{{ $creditUses !== null ? 7 : 6 }}" class="px-3 py-4 text-center text-gray-400">{{ __('ai.consumption_console_empty') }}</td></tr>
                     @endforelse
                 </tbody>
             </table>

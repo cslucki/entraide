@@ -169,6 +169,10 @@ class ClarifyUserHelpRequestService implements AiProvider
 
         // Budget mensuel de l'Organization et de la capability : un refus est
         // un refus, aucun appel SDK n'est emis.
+        // TASK-1229 : le credit IA du demandeur s'applique aussi ici (meme
+        // autorite) ; un refus, quel qu'en soit l'etat, retombe sur la
+        // clarification deterministe — aucun appel, aucune trace, aucune
+        // utilisation decomptee.
         $verdict = $this->economicGuard->authorize(
             $organization,
             $definition->process,
@@ -176,6 +180,7 @@ class ClarifyUserHelpRequestService implements AiProvider
             $resolved->model,
             (float) config('ai.clarify.economic_guard.monthly_budget_usd', 2.00),
             (int) config('ai.clarify.economic_guard.monthly_unknown_limit', 10),
+            $requester,
         );
 
         if (! $verdict->allowed) {

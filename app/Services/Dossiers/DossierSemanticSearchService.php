@@ -6,8 +6,12 @@ use App\Listeners\RecordSdkEmbeddingsInvocation;
 use App\Models\AiProviderInvocation;
 use App\Models\Dossier;
 use App\Models\Organization;
+use App\Models\User;
 use App\Support\Ai\AiCorrelation;
 use App\Support\Ai\AiEconomicGuard;
+use App\Support\Ai\AiEconomicVerdict;
+use App\Support\Ai\AiRefusedException;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -32,24 +36,36 @@ class DossierSemanticSearchService
      */
     private function queryEmbeddingAllowed(string $organizationId): bool
     {
+        return $this->queryEmbeddingVerdict($organizationId)?->allowed === true;
+    }
+
+    /**
+     * TASK-1229 : le verdict complet (raison, credit) — la MEME garde, avec
+     * l'utilisateur authentifie s'il y en a un : une recherche documentaire
+     * declenchee par un membre est une utilisation de SON credit IA (c'est
+     * aussi l'identite que le ledger attribue a l'invocation). Sans
+     * utilisateur (traitement hors session), seul le budget Organization
+     * s'applique. NULL = Organization introuvable.
+     */
+    private function queryEmbeddingVerdict(string $organizationId): ?AiEconomicVerdict
+    {
         $organization = Organization::query()->find($organizationId);
 
         if ($organization === null) {
-            return false;
+            return null;
         }
 
-        $verdict = $this->economicGuard->authorizeEmbeddings($organization);
+        $user = Auth::user();
+        $verdict = $this->economicGuard->authorizeEmbeddings($organization, $user instanceof User ? $user : null);
 
         if (! $verdict->allowed) {
             Log::warning('Semantic query embedding refused by the economic guard.', [
                 'organization_id' => $organizationId,
                 'reason' => $verdict->reason,
             ]);
-
-            return false;
         }
 
-        return true;
+        return $verdict;
     }
 
     /**
@@ -86,8 +102,18 @@ class DossierSemanticSearchService
             throw new RuntimeException('Dossier semantic search requires PostgreSQL pgvector.');
         }
 
-        if (! $this->queryEmbeddingAllowed($organizationId)) {
+        // TASK-1229 : sur le chemin DIRECT (un membre qui cherche dans un
+        // Dossier), un refus economique se dit avec son code — credit
+        // utilisateur epuise / budget Organization atteint — plutot que de
+        // se deguiser en « aucun resultat ». Aucun appel, aucune ligne de ledger.
+        $verdict = $this->queryEmbeddingVerdict($organizationId);
+
+        if ($verdict === null) {
             return [];
+        }
+
+        if (! $verdict->allowed) {
+            throw AiRefusedException::fromVerdict($verdict);
         }
 
         AiCorrelation::id();
@@ -221,6 +247,9 @@ class DossierSemanticSearchService
             throw new RuntimeException('Dossier semantic search requires PostgreSQL pgvector.');
         }
 
+        // Chemin RAG (retrieval d'une capability deja passee a la garde avec
+        // son utilisateur) : un refus rend une liste vide et se journalise —
+        // aucun appel provider, aucune ligne de ledger.
         if (! $this->queryEmbeddingAllowed($organizationId)) {
             return [];
         }
