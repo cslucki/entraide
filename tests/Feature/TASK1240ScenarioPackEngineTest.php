@@ -77,7 +77,7 @@ class TASK1240ScenarioPackEngineTest extends TestCase
         $this->assertSame(4, $result->totalEntities());
         $this->assertEquals(['persona' => 1, 'loop' => 1, 'folder' => 1, 'interaction' => 1], $result->entityCountsByType);
 
-        $this->assertSame(1, User::query()->where('organization_id', $this->organization->id)->where('email', 'fixture-persona@task1240-demo.test')->count());
+        $this->assertSame(1, User::query()->where('organization_id', $this->organization->id)->where('email', FixtureScenarioPack::personaEmail($this->organization))->count());
         $this->assertSame(1, Loop::query()->where('organization_id', $this->organization->id)->where('slug', 'task1240-fixture-loop')->count());
         $this->assertSame(1, Dossier::query()->where('organization_id', $this->organization->id)->where('name', 'Fixture Dossier')->count());
         $this->assertSame(1, LoopMessage::query()->where('organization_id', $this->organization->id)->count());
@@ -107,7 +107,7 @@ class TASK1240ScenarioPackEngineTest extends TestCase
 
         $this->assertSame(1, ScenarioPackLoad::query()->count());
         $this->assertSame(4, ScenarioPackEntity::query()->count());
-        $this->assertSame(1, User::query()->where('email', 'fixture-persona@task1240-demo.test')->count());
+        $this->assertSame(1, User::query()->where('email', FixtureScenarioPack::personaEmail($this->organization))->count());
         $this->assertSame(1, Loop::query()->where('slug', 'task1240-fixture-loop')->count());
 
         $firstEntityIds = ScenarioPackEntity::query()->where('scenario_pack_load_id', $first->load->id)->pluck('entity_id', 'internal_key');
@@ -229,7 +229,7 @@ class TASK1240ScenarioPackEngineTest extends TestCase
         // L'outsider survit intact.
         $this->assertTrue(Loop::query()->whereKey($outsider->id)->exists());
         // Les autres entites du pack (non orphelines) restent.
-        $this->assertSame(1, User::query()->where('email', 'fixture-persona@task1240-demo.test')->count());
+        $this->assertSame(1, User::query()->where('email', FixtureScenarioPack::personaEmail($this->organization))->count());
         $this->assertSame(1, Loop::query()->where('slug', 'task1240-fixture-loop')->count());
     }
 
@@ -262,7 +262,7 @@ class TASK1240ScenarioPackEngineTest extends TestCase
 
         $this->assertSame(0, ScenarioPackLoad::query()->count());
         $this->assertSame(0, ScenarioPackEntity::query()->count());
-        $this->assertSame(0, User::query()->where('email', 'fixture-persona@task1240-demo.test')->count());
+        $this->assertSame(0, User::query()->where('email', FixtureScenarioPack::personaEmail($this->organization))->count());
         $this->assertSame(0, Loop::query()->where('slug', 'task1240-fixture-loop')->count());
         $this->assertSame(0, LoopMessage::query()->where('organization_id', $this->organization->id)->count());
 

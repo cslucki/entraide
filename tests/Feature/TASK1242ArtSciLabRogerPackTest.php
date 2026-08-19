@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\BlogPost;
+use App\Models\Category;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Models\DossierFile;
@@ -51,12 +52,11 @@ use Tests\TestCase;
  *  C. le pack refuse d'ecrire dans toute autre Organization, meme
  *     allowlistee par ailleurs (S3 : jamais devinee depuis le contexte) ;
  *  D. la suppression bornee retire TOUT ce que le pack a cree, sans laisser
- *     une seule ligne active orpheline, dans TOUTES les tables touchees par
- *     le seeder — la preuve empirique que le chainage de cascades FK
- *     (Loop -> loop_members/messages/events/polls/decisions/roadmap ;
- *     User -> marketplace/blog/dossiers/profils) couvre bien tout, y compris
- *     les tables sans organization_id propre (loop_poll_options,
- *     loop_poll_vote_options, loop_roadmap_item_user) ;
+ *     une seule ligne PHYSIQUE orpheline (soft-supprimees comprises, TASK-1245)
+ *     ni un fichier storage, dans TOUTES les tables touchees par le seeder,
+ *     y compris les tables sans organization_id propre (loop_poll_options,
+ *     loop_poll_vote_options, loop_roadmap_item_user) nettoyees par cascade
+ *     depuis un parent reellement supprime ;
  *  E. le reset rejoue sans erreur.
  */
 class TASK1242ArtSciLabRogerPackTest extends TestCase
@@ -164,35 +164,31 @@ class TASK1242ArtSciLabRogerPackTest extends TestCase
         $this->assertSame(0, ScenarioPackLoad::query()->count());
         $this->assertSame(0, ScenarioPackEntity::query()->count());
 
-        // Category n'est volontairement pas trackee par le pack (voir
-        // ArtSciLabScenarioSeeder::categories()) : services.category_id est
-        // une FK RESTRICT et Service (SoftDeletes) survit physiquement a un
-        // remove(), ce qui bloquerait la suppression de Category. Les 4
-        // libelles de taxonomie fictifs survivent donc a `remove()` — un
-        // compromis assume, hors du perimetre de ce test.
+        // TASK-1245 : Category est desormais trackee (ownership `created`)
+        // et purgee FK-safe (inscrite avant Service/ServiceRequest, donc
+        // supprimee apres eux) ; le remover purge PHYSIQUEMENT
+        // (`forceDelete` borne a ownership=created), y compris les modeles
+        // SoftDeletes — DossierFile compris, ligne DB et fichier storage.
+        // Le compte est donc fait sans global scopes (soft-supprimees
+        // comprises) : "plus une seule ligne physique", pas seulement "plus
+        // aucune ligne active". Preuves detaillees par type et par
+        // ownership : TASK1245ScenarioPackOwnershipRemovalTest.
         $scopedModels = [
             User::class, Loop::class, LoopMember::class, LoopMessage::class,
             ServiceRequest::class, Service::class, Transaction::class, PointLedger::class,
             BlogPost::class, Dossier::class, DossierMember::class, DossierBlogPost::class,
             DossierFile::class, MemberAiProfile::class, LoopEvent::class, LoopEventResponse::class,
             LoopPoll::class, LoopPollVote::class, LoopDecision::class, LoopRoadmapItem::class,
+            Category::class,
         ];
-        // Requete par defaut (pas withoutGlobalScopes) : pour les modeles
-        // SoftDeletes, la garantie reelle offerte par le remover T1240
-        // generique est "plus aucune ligne ACTIVE" (delete() y est un soft
-        // delete), pas "plus une seule ligne physique". DossierFile est le
-        // seul type du pack ou aucune cascade FK ne convertit ensuite ce
-        // soft delete en suppression physique (dossier_id et uploaded_by
-        // sont nullOnDelete, pas cascade) : ses lignes survivent
-        // physiquement, invisibles par defaut, meme organization — deja
-        // signale a Cyril comme limite connue a traiter par T1243.
         foreach ($scopedModels as $modelClass) {
             $this->assertSame(
                 0,
-                $modelClass::where('organization_id', $organizationId)->count(),
-                "{$modelClass} left an active row for artscilab-demo after removal."
+                $modelClass::query()->withoutGlobalScopes()->where('organization_id', $organizationId)->count(),
+                "{$modelClass} left a physical row for artscilab-demo after removal."
             );
         }
+        $this->assertSame([], Storage::disk('dossier_files')->allFiles('artscilab-demo'));
 
         // Tables filles sans organization_id propre (nettoyees par cascade
         // FK depuis loop_polls/loop_poll_votes/loop_roadmap_items, deja

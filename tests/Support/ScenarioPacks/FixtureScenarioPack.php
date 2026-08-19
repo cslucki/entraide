@@ -49,10 +49,24 @@ class FixtureScenarioPack implements ScenarioPackDefinition
         return 'Exercer le moteur de chargement de scenario pack sans donnees demonstratives reelles.';
     }
 
+    /**
+     * Email du persona du pack pour une Organization donnee. Organization-
+     * specifique depuis TASK-1245 : `users.email` est unique globalement, et
+     * un email partage faisait "voler" a l'Organization B le persona deja
+     * cree pour A (`updateOrCreate` le rattachait a B) — une mutation d'une
+     * entite reutilisee, desormais refusee par le registrar
+     * (`ScenarioPackReusedEntityMutatedException`). Chaque Organization a
+     * donc son propre persona, reellement `created`.
+     */
+    public static function personaEmail(Organization $organization): string
+    {
+        return 'fixture-persona-'.$organization->slug.'@task1240-demo.test';
+    }
+
     public function apply(Organization $organization, ScenarioPackEntityRegistrar $registrar): void
     {
         $persona = User::query()->updateOrCreate(
-            ['email' => 'fixture-persona@task1240-demo.test'],
+            ['email' => self::personaEmail($organization)],
             [
                 'organization_id' => $organization->id,
                 'name' => 'Fixture Persona',
