@@ -15,7 +15,23 @@ class LoggingSupervisionProvider implements SupervisionProvider
         private readonly AiBenchmarkLogger $logger,
         private readonly AdminAiInteractionPersistence $persistence,
         private readonly string $providerName = 'unknown',
+        /**
+         * TASK-1250 : tenant EXPLICITE de la trace `admin_ai_interactions`.
+         * NULL = resolution historique de la persistence (`current_organization`,
+         * sinon l'Organization de l'utilisateur connecte).
+         */
+        private readonly ?string $organizationId = null,
     ) {}
+
+    /**
+     * TASK-1250 : la meme instance, dont la trace operationnelle est imputee
+     * au tenant donne — celui du perimetre economique — plutot qu'a un
+     * contexte implicite.
+     */
+    public function forTenant(string $organizationId): self
+    {
+        return new self($this->inner, $this->logger, $this->persistence, $this->providerName, $organizationId);
+    }
 
     public function supervise(string $content, ?string $model = null): AiSupervisionResult
     {
@@ -40,6 +56,7 @@ class LoggingSupervisionProvider implements SupervisionProvider
         ]);
 
         $this->persistence->persist([
+            'organization_id' => $this->organizationId,
             'scenario_id' => 'supervision_content',
             'provider' => $this->providerName,
             'model' => $result->model,
@@ -102,6 +119,7 @@ class LoggingSupervisionProvider implements SupervisionProvider
         ]);
 
         $this->persistence->persist([
+            'organization_id' => $this->organizationId,
             'scenario_id' => $scenario->id(),
             'provider' => $this->providerName,
             'model' => $model,

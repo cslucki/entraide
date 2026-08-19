@@ -15,7 +15,9 @@ class AdminAiInteractionPersistence
             $scenarioId = $data['scenario_id'] ?? 'unknown';
 
             $record = [
-                'organization_id' => $this->resolveOrganizationId(),
+                // TASK-1250 : un tenant EXPLICITE fourni par l'appelant gagne
+                // sur la resolution implicite (contexte, puis utilisateur).
+                'organization_id' => $data['organization_id'] ?? $this->resolveOrganizationId(),
                 'user_id' => $this->resolveUserId(),
                 'correlation_id' => AiCorrelation::id(),
                 'process' => $data['process'] ?? AiProcess::fromScenarioId($scenarioId),

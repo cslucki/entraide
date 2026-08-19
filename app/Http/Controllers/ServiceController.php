@@ -11,7 +11,9 @@ use App\Models\Skill;
 use App\Models\Tag;
 use App\Services\Ai\AiScenarioFactory;
 use App\Services\Ai\Exceptions\SupervisionException;
+use App\Services\Ai\SupervisionEconomicScope;
 use App\Services\Ai\SupervisionProviderResolver;
+use App\Support\Ai\AiRefusedException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -179,9 +181,36 @@ class ServiceController extends Controller
             return response()->json(['error' => __('ai.service_formulation_unavailable')], 503);
         }
 
+        // TASK-1250 : AUTORITE ECONOMIQUE du chemin herite (gap #13 T1246).
+        // Tenant EXPLICITE = l'Organization courante, celle dont les categories
+        // et les bornes de points viennent d'etre lues et dans laquelle le
+        // service sera cree ; demandeur = le membre connecte, dont le credit
+        // IA (T1229) s'applique comme sur le Blog (T1247). Cle plateforme
+        // declaree, garde AVANT provider, ledger succes ET echec : tout est
+        // porte par `resolveUnderEconomicAuthority()`.
+        $user = $request->user();
+
         try {
-            $provider = app(SupervisionProviderResolver::class)->resolve($providerName);
+            $provider = app(SupervisionProviderResolver::class)->resolveUnderEconomicAuthority(
+                $providerName,
+                new SupervisionEconomicScope(
+                    organization: $organization,
+                    actor: $user,
+                    creditUser: $user,
+                    feature: 'service_offer_formulation',
+                ),
+            );
             $result = $provider->runScenario($scenario, $promptContent);
+        } catch (AiRefusedException $e) {
+            // Refus economique AVANT tout appel provider : rien n'est parti,
+            // rien n'est ecrit. Reponse STRUCTUREE, meme contrat JSON que
+            // `BlogController` (T1247) : 429 `{error, code, offers_url}` —
+            // jamais la forme `{suggestion}` d'une reponse IA.
+            return response()->json([
+                'error' => $e->getMessage(),
+                'code' => $e->refusalCode,
+                'offers_url' => $e->offersUrl($organization),
+            ], 429);
         } catch (SupervisionException $e) {
             Log::error('AI formulation failed', [
                 'scenario' => 'service_offer_master',

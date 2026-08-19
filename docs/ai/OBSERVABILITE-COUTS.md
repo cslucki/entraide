@@ -122,7 +122,7 @@ est encore décidable : une génération réelle ne consomme jamais 0 token
 d'entrée ET 0 de sortie. Ce couple signe un usage non rapporté, donc UNKNOWN —
 jamais un coût de 0.
 
-### Couverture de la garde (état après TASK-1248)
+### Couverture de la garde (état après TASK-1250)
 
 Le paragraphe historique de P2 (« la garde ne couvre que `loop_summary` »)
 n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
@@ -150,11 +150,48 @@ n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
   seulement ; tenant = Organization de l'article. Un refus est rendu **429
   `{error, code, offers_url}`** — jamais la forme `200 {text}` d'une réponse
   IA. Le throttle `20,1` (fréquence) reste en place à côté, non fusionné.
-  Ferme G4 (CRITICAL) du gap analysis T1246.
+  Ferme G4 (CRITICAL) du gap analysis T1246 ;
+- **TASK-1250 : les trois chemins AUTHENTIFIÉS passant par
+  `SupervisionProviderResolver`** (famille C du gap analysis T1246, gaps #13,
+  #17, #18 — G5/G9, G7/G8 pour ces chemins). Même patron, posé UNE fois en
+  décorateur (`EconomicSupervisionProvider`, obtenu par
+  `SupervisionProviderResolver::resolveUnderEconomicAuthority()`) : clé
+  plateforme vérifiée et **déclarée** (`declarePlatformCredential()`, absente =
+  `ai_not_configured` avant tout appel), garde AVANT provider avec budget de
+  process (`config('ai.supervision_resolver.economic_guard')`, appliqué par
+  process) et budget de l'Organization de record, une ligne
+  `ai_provider_invocations` par appel tenté (succès ET échec, `capability` NULL,
+  `credential_source = platform` ou `none` pour ollama). Tenant et crédit,
+  chemin par chemin :
+  - `ServiceController::formulate()` (#13, `service_offer.master`, `feature =
+    service_offer_formulation`) : tenant = Organization courante (celle de
+    l'offre), crédit IA du membre appliqué, refus 429 JSON `{error, code,
+    offers_url}` ;
+  - `AdminMemberAiProfileController::testLlm()` (#17,
+    `member_profile.admin_llm_test`) : tenant = Organization du **profil**
+    testé (jamais celle de l'administrateur), aucun crédit (banc
+    d'administration), usage observé (chat/completions, ollama) → coût
+    catalogue ; la trace `admin_ai_interactions` porte désormais tokens,
+    `cost_usd` et `cost_unknown` ; refus rendu dans la page avec son code,
+    HTTP 429 ;
+  - `AdminAiSupervisionController::analyze()` (#18, banc SuperAdmin,
+    `feature = admin_ai_supervision_bench`) : tenant de record = Organization
+    **plateforme** (`DefaultOrganizationResolver`, `is_default`) — plus jamais
+    l'Organization personnelle de l'admin connecté, qui n'est pas le payeur ;
+    aucun crédit ; la trace `admin_ai_interactions` suit le même tenant
+    (`LoggingSupervisionProvider::forTenant()`). `supervise()` → tokens + coût
+    catalogue ; `runScenario()` → usage non exposé par le contrat, donc
+    `unknown` (honnête, jamais 0).
+  Limite connue, assumée : ces trois chemins n'écrivent pas `ai_interactions`
+  (trace produit) ; le budget par process et le crédit utilisateur, qui lisent
+  encore cette table, ne voient donc pas leur propre consommation — ils les
+  refusent quand d'autres chemins ont épuisé le budget ou le crédit. La
+  bascule de l'autorité sur le ledger (G11) comblera cet angle mort.
 
-Reste hors garde à cette date : les chemins `SupervisionProviderResolver` /
-`MemberProfileAgentResponder` et le chat visiteur public anonyme — voir
-`GAP-ANALYSIS-ECONOMIQUE-T1246.md`, famille C (TASK dédiée après T1248).
+Reste hors garde à cette date : `MemberProfileAgentResponder` (réponse
+automatique de l'agent de profil dans une Boucle agent, #14), la configuration
+conversationnelle de l'agent (#16) et le chat visiteur public anonyme (#15) —
+voir `GAP-ANALYSIS-ECONOMIQUE-T1246.md`, famille C (TASK dédiées, T1251/T1252).
 
 ## Instrumentation des invocations Laravel AI SDK (P1-3)
 

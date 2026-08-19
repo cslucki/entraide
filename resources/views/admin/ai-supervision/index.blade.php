@@ -43,6 +43,18 @@
             </div>
         @endif
 
+        {{-- TASK-1250 : refus ECONOMIQUE (avant tout appel provider) — distinct d'une erreur provider, jamais un resultat --}}
+        @if (!empty($economicRefusal))
+            <div class="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 px-4 py-3 rounded-lg text-sm" data-economic-refusal="{{ $economicRefusal['code'] }}">
+                <p class="font-semibold">Refus économique — aucun appel provider n'est parti, rien n'a été écrit.</p>
+                <p class="mt-1">{{ $economicRefusal['message'] }}</p>
+                @if (!empty($economicRefusal['detail']))
+                    <p class="mt-1 text-xs opacity-80">{{ $economicRefusal['detail'] }}</p>
+                @endif
+                <p class="mt-1 text-xs font-mono opacity-80">code : {{ $economicRefusal['code'] }}</p>
+            </div>
+        @endif
+
         {{-- Errors --}}
         @if (!empty($supervisionError))
             <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
