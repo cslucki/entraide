@@ -313,6 +313,27 @@ return [
         'sandbox_per_minute' => (int) env('AI_DOCTRINE_SANDBOX_PER_MINUTE', 6),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Blog IA — autorite economique (TASK-1247)
+    |--------------------------------------------------------------------------
+    |
+    | `BlogAiService` (generation, correction, methode sur selection) passe
+    | sous `AiEconomicGuard` AVANT tout appel provider : budget mensuel de
+    | l'Organization, budget/quota d'inconnus par process (`blog.*`) et credit
+    | IA du demandeur — la meme autorite que les capabilities canoniques.
+    | Chemin HERITE : cle plateforme (declaree telle quelle au ledger), pas de
+    | Constitution/doctrine ; la migration BYOK est hors V1 (BLOC E).
+    |
+    */
+
+    'blog' => [
+        'economic_guard' => [
+            'monthly_budget_usd' => (float) env('BLOG_AI_MONTHLY_BUDGET_USD', 2.00),
+            'monthly_unknown_limit' => (int) env('BLOG_AI_MONTHLY_UNKNOWN_LIMIT', 10),
+        ],
+    ],
+
     'chatloop' => [
         'enabled' => (bool) env('CHATLOOP_AI_ENABLED', true),
         'scenario' => env('CHATLOOP_AI_SCENARIO', 'chatloop_ai_answer'),
