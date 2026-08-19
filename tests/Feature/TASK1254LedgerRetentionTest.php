@@ -269,6 +269,10 @@ class TASK1254LedgerRetentionTest extends TestCase
     {
         $organization = Organization::factory()->create();
         $actor = User::factory()->create(['organization_id' => $organization->id]);
+        // Cle PLATEFORME declaree explicitement (la CI n'a aucun .env) : la
+        // preuve `platform` exige qu'une cle existe, et elle ne doit JAMAIS
+        // apparaitre dans la ligne ecrite.
+        config(['ai.openrouter.api_key' => 'sk-or-task1254-platform-key-never-recorded']);
         $resolver = app(SupervisionProviderResolver::class);
         $authority = $resolver->economicAuthority(new SupervisionEconomicScope($organization, $actor, $actor, 'task1254_probe'));
         $resolved = new ResolvedModel('openrouter', 'openai/gpt-4o-mini', $resolver->declarePlatformCredential('openrouter'));
@@ -297,6 +301,7 @@ class TASK1254LedgerRetentionTest extends TestCase
 
         $serialized = json_encode($line->getAttributes(), JSON_UNESCAPED_UNICODE);
         $this->assertStringNotContainsString('sk-or-task1254', $serialized);
+        $this->assertStringNotContainsString('platform-key-never-recorded', $serialized);
         $this->assertStringNotContainsString('texte prive', $serialized);
     }
 
