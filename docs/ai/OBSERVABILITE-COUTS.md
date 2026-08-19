@@ -122,7 +122,7 @@ est encore décidable : une génération réelle ne consomme jamais 0 token
 d'entrée ET 0 de sortie. Ce couple signe un usage non rapporté, donc UNKNOWN —
 jamais un coût de 0.
 
-### Couverture de la garde (état après TASK-1250)
+### Couverture de la garde (état après TASK-1251)
 
 Le paragraphe historique de P2 (« la garde ne couvre que `loop_summary` »)
 n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
@@ -186,12 +186,41 @@ n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
   (trace produit) ; le budget par process et le crédit utilisateur, qui lisent
   encore cette table, ne voient donc pas leur propre consommation — ils les
   refusent quand d'autres chemins ont épuisé le budget ou le crédit. La
-  bascule de l'autorité sur le ledger (G11) comblera cet angle mort.
+  bascule de l'autorité sur le ledger (G11) comblera cet angle mort ;
+- **TASK-1251 : la réponse AUTOMATIQUE de l'agent de profil dans une Boucle
+  agent** (famille C, gap #14 — G2 CRITICAL, G10 HIGH) : listener
+  `LoopMessageCreated` → job `GenerateAiAgentResponse` →
+  `MemberProfileAgentResponder::answerUnderEconomicAuthority()`. La logique
+  garde + tentative + ledger du décorateur T1250 est extraite dans
+  `SupervisionEconomicAuthority` (le décorateur y délègue ; le responder, qui
+  fait ses propres appels HTTP et n'emprunte pas le contrat
+  `SupervisionProvider`, l'utilise directement — rien n'est recopié). La
+  garde s'exécute **dans le job**, juste avant l'appel provider (pas au
+  dispatch) : budget de process `member_profile.loop_agent_reply` (même
+  `config('ai.supervision_resolver.economic_guard')`), budget de
+  l'Organization de record, crédit T1229 de l'expéditeur ; clé plateforme
+  déclarée (`ai_not_configured` sinon). Une ligne `ai_provider_invocations`
+  par tentative (succès ET échec, `credential_source = platform` / `none`,
+  usage désormais **observé** → coût catalogue, sinon `unknown`). Identité
+  économique, décision provisoire jusqu'à T1253 : **tenant = Organization du
+  PROFIL** (jamais celle d'un visiteur ; la Boucle doit lui appartenir, sinon
+  le job ne fait rien et le dit), **acteur = crédit = l'expéditeur du
+  message** (chemin membre, jamais sans crédit ; celui qui interroge l'IA
+  consomme son crédit, le propriétaire ne porte pas celui des visiteurs),
+  `feature = member_profile_agent_loop_reply`, capability NULL. **Refus en
+  asynchrone** : pas de crash, pas de retry, aucun `LoopMessage` (ni faux
+  assistant ni repli rule-based), Boucle non touchée, log métier, ligne
+  `member_ai_profile_interactions` `status = refused` (réponse NULL, coût
+  NULL/NULL) visible par le propriétaire (« Échanges avec mon agent IA »,
+  badge). Échec provider : ligne `failed` (coût NULL) puis repli rule-based
+  comme avant, `metadata.fallback_after_provider_failure` sur la trace. Même
+  limite assumée que T1250 (pas d'`ai_interactions`, compteurs aveugles à
+  leur propre consommation jusqu'à G11).
 
-Reste hors garde à cette date : `MemberProfileAgentResponder` (réponse
-automatique de l'agent de profil dans une Boucle agent, #14), la configuration
-conversationnelle de l'agent (#16) et le chat visiteur public anonyme (#15) —
-voir `GAP-ANALYSIS-ECONOMIQUE-T1246.md`, famille C (TASK dédiées, T1251/T1252).
+Reste hors garde à cette date : la configuration conversationnelle de
+l'agent de profil (#16, `chatWithSetupPrompt()`) et le chat visiteur public
+anonyme (#15, `AiAgentChat` → `answerWithDefaultProvider()`) — voir
+`GAP-ANALYSIS-ECONOMIQUE-T1246.md`, famille C (TASK dédiée, T1252).
 
 ## Instrumentation des invocations Laravel AI SDK (P1-3)
 
