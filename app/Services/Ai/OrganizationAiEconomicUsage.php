@@ -284,6 +284,29 @@ final class OrganizationAiEconomicUsage
     }
 
     /**
+     * TASK-1257 : les GENERATIONS d'un utilisateur ventilees par CATEGORIE
+     * D'USAGE (`process`, rendu en langage produit par l'ecran) sur la
+     * fenetre — delegation PURE a l'autorite 1219 `byProcess()`, avec le MEME
+     * filtre tenant-safe que `summary(..., userId)` (un identifiant d'une
+     * autre Organization ne selectionne rien). Aucun SQL nouveau : c'est la
+     * meme lecture que la tranche `generation` de `summary()`, groupee — la
+     * somme des lignes rendues EST `generation` (trace_count, cout connu,
+     * inconnus, non evalues). Les essais de doctrine y restent sous le
+     * process de la capability essayee : ils sont un sous-ensemble des
+     * generations (`generation_sandbox`), jamais une categorie a part.
+     *
+     * Ne couvre que les generations : les natures documentaires (recherche,
+     * indexation, non declaree) SONT deja les categories des embeddings dans
+     * `summary()`.
+     *
+     * @return list<array{key: ?string, known_cost_usd: ?float, measured_count: int, unknown_count: int, unevaluated_count: int, trace_count: int}>
+     */
+    public function userGenerationByProcess(string $organizationId, CarbonImmutable $from, CarbonImmutable $to, string $userId): array
+    {
+        return $this->generationAuthority->byProcess($organizationId, new AiConsumptionFilters($from, $to, $userId));
+    }
+
+    /**
      * TASK-1229 : UTILISATIONS creditees d'un utilisateur sur la fenetre —
      * le compteur que `AiEconomicGuard` compare au credit commercial.
      *

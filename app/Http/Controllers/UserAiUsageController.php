@@ -30,6 +30,16 @@ use Illuminate\View\View;
  * `AiEconomicGuard::userCreditStatus()` — l'autorite qui BLOQUE : le chiffre
  * affiche est celui qui refuse. En utilisations, jamais en dollars ; essais
  * de doctrine et indexations hors credit, l'ecran le dit.
+ *
+ * TASK-1257 — V2 (gap analysis dans le TASK file) : les CATEGORIES D'USAGE
+ * du mois (`OrganizationAiEconomicUsage::userGenerationByProcess()`, meme
+ * autorite 1219/1222, meme filtre tenant-safe, sous-lignes qui SOMMENT la
+ * ligne « Generations ») ; le cout en $ est nomme pour ce qu'il est — cout
+ * FOURNISSEUR mesure, a titre d'information, jamais un prix facture au
+ * membre (le credit reste la seule unite de son acces) ; le statut d'une
+ * ligne d'historique sans parole de l'ecrivain est complete par le ledger
+ * de la meme correlation (console) ; les exclusions du credit (indexations,
+ * autres traitements, essais) sont chiffrees sous la carte credit.
  */
 class UserAiUsageController extends Controller
 {
@@ -53,6 +63,7 @@ class UserAiUsageController extends Controller
             'organization' => $organization,
             'period' => $period,
             'usage' => $usage->summary((string) $organization->id, $period->from, $period->to, (string) $user->id),
+            'categories' => $usage->userGenerationByProcess((string) $organization->id, $period->from, $period->to, (string) $user->id),
             'activity' => $console->recentActivityForUser((string) $organization->id, (string) $user->id, 20),
             'credit' => $guard->userCreditStatus($organization, $user),
             'offersUrl' => aiOffersUrl($organization),

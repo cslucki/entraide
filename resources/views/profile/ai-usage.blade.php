@@ -7,6 +7,11 @@
     registre des interactions ; recherches/indexations : registre canonique).
     Aucun chiffre a l'echelle de l'Organization. « — » = non mesure, jamais
     « 0 ». Aucun prompt, aucune reponse, aucun document, aucune cle.
+
+    TASK-1257 (V2) : categories d'usage du mois (sous-lignes de « Generations »,
+    meme autorite, elles SOMMENT la ligne) ; le $ est nomme cout FOURNISSEUR
+    mesure, a titre d'information — jamais un prix facture (le credit est la
+    seule unite de l'acces) ; exclusions du credit chiffrees sous la carte.
 --}}
 @php
     $cost = static fn ($value): string => $value === null ? '—' : '$'.number_format((float) $value, 10);
@@ -117,8 +122,17 @@
                 @endif
 
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-4">{{ __('ai.credit_intro') }}</p>
+                {{-- TASK-1257 : ce que « Ce mois » compte et que le credit ne compte
+                     pas, chiffre (comptes deja charges par summary()) — pour que
+                     « Ce mois N » et « M sur Q » se lisent l'un par l'autre. --}}
                 @if($usage['generation_sandbox']['trace_count'] > 0)
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" data-my-ai-credit-sandbox-excluded="{{ $usage['generation_sandbox']['trace_count'] }}">{{ trans_choice('ai.credit_out_of_scope_sandbox_count', $usage['generation_sandbox']['trace_count'], ['count' => number_format($usage['generation_sandbox']['trace_count'])]) }}</p>
+                @endif
+                @if($usage['embedding_ingestion']['invocation_count'] > 0)
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" data-my-ai-credit-ingestion-excluded="{{ $usage['embedding_ingestion']['invocation_count'] }}">{{ trans_choice('ai.credit_out_of_scope_ingestion_count', $usage['embedding_ingestion']['invocation_count'], ['count' => number_format($usage['embedding_ingestion']['invocation_count'])]) }}</p>
+                @endif
+                @if($usage['embedding_undeclared']['invocation_count'] > 0)
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" data-my-ai-credit-undeclared-excluded="{{ $usage['embedding_undeclared']['invocation_count'] }}">{{ trans_choice('ai.credit_out_of_scope_undeclared_count', $usage['embedding_undeclared']['invocation_count'], ['count' => number_format($usage['embedding_undeclared']['invocation_count'])]) }}</p>
                 @endif
             </section>
 
@@ -139,6 +153,8 @@
                         @if($usage['total_known_cost_usd'] === null)
                             <div class="text-xs text-gray-400 mt-1">{{ __('ai.economy_no_measured_cost') }}</div>
                         @endif
+                        {{-- TASK-1257 : cout FOURNISSEUR, information — jamais un prix facture. --}}
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-2" data-my-ai-usage-provider-cost-note>{{ __('ai.my_ai_usage_provider_cost_note') }}</div>
                     </div>
                     <div class="rounded-lg border p-4 {{ $usage['total_unknown_count'] > 0 ? 'border-amber-200 dark:border-amber-900/50 bg-amber-50/60 dark:bg-amber-900/10' : 'border-gray-100 dark:border-gray-700' }}" data-my-ai-usage-unknown="{{ $usage['total_unknown_count'] }}">
                         <div class="text-xs uppercase {{ $usage['total_unknown_count'] > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-gray-400' }}">{{ __('ai.my_ai_usage_unknown_title') }}</div>
@@ -164,6 +180,27 @@
                                     @endif
                                 </span>
                             </li>
+                            {{-- TASK-1257 : CATEGORIES D'USAGE — les generations du mois par
+                                 fonction, en langage produit (meme autorite 1219, groupee par
+                                 process) : les sous-lignes SOMMENT la ligne « Generations ». --}}
+                            @if($nature['key'] === 'generation' && $categories !== [])
+                                <li class="py-1 pl-4" data-my-ai-usage-categories data-my-ai-usage-categories-count="{{ count($categories) }}">
+                                    <div class="text-xs uppercase text-gray-500 dark:text-gray-400 mb-1">{{ __('ai.my_ai_usage_categories_title') }}</div>
+                                    <ul class="space-y-1">
+                                        @foreach($categories as $category)
+                                            <li class="flex flex-wrap items-center justify-between gap-2 text-gray-700 dark:text-gray-300" data-my-ai-usage-category="{{ $category['key'] ?? 'other' }}" data-my-ai-usage-category-count="{{ $category['trace_count'] }}">
+                                                <span>{{ $processLabel($category['key'], null, false) }}</span>
+                                                <span class="font-mono text-xs">
+                                                    {{ number_format($category['trace_count']) }} · {{ $costShort($category['known_cost_usd']) }}
+                                                    @if($category['unknown_count'] > 0)
+                                                        · <span class="text-amber-700 dark:text-amber-300">{{ trans_choice('ai.economy_unknown_count', $category['unknown_count'], ['count' => $category['unknown_count']]) }}</span>
+                                                    @endif
+                                                </span>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </li>
+                            @endif
                         @endif
                     @endforeach
                     @if($usage['generation_sandbox']['trace_count'] > 0)

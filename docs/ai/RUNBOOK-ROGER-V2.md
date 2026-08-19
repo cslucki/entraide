@@ -254,6 +254,22 @@ statut). Ce qu'elle ne montre **jamais**, c'est un chiffre à l'échelle de
 l'Organization (budget, consommation globale) — la nuance est entre
 « personnel » et « Organization », pas entre « rien » et « coût ».
 
+*V2 (TASK-1257)* : la page ventile en plus les générations du mois **par
+catégorie d'usage** en langage produit (sous-lignes de « Générations »,
+`OrganizationAiEconomicUsage::userGenerationByProcess()` = délégation à
+`OrganizationAiConsumption::byProcess()` bornée tenant + utilisateur, dont
+la somme EST la ligne « Générations ») ; le montant en $ est nommé « Coût
+fournisseur mesuré » avec la mention explicite qu'il n'est **pas un prix
+facturé** (l'accès se mesure en utilisations — le crédit ne porte aucun $) ;
+le statut d'une ligne d'historique sans `metadata.status` (Blog IA) est
+complété par la ligne ledger `generation` de la même `correlation_id`
+(même Organization, même utilisateur — `AiProviderInvocationConsole`,
+enrichissement de statut, aucune ligne ni compte emprunté au ledger) ; les
+exclusions du crédit (essais de doctrine, indexations, traitements non
+déclarés) sont chiffrées sous la carte crédit. Limite inchangée (G11) : les
+générations « famille C » (ledger + `admin_ai_interactions` seulement)
+n'apparaissent ni dans ce relevé ni dans le crédit.
+
 **Refus au plafond** : le crédit est vérifié en dernier dans
 `authorize()` (§5) — zéro écriture, `offersUrl()` conditionné au réglage
 plateforme `offer_subscription`.
