@@ -9,6 +9,7 @@ use App\Models\AdminAiInteraction;
 use App\Models\AiProviderInvocation;
 use App\Models\MemberAiProfile;
 use App\Models\Organization;
+use App\Models\User;
 use App\Services\Ai\AiProviderInvocationLedger;
 use App\Services\Ai\SupervisionProviderResolver;
 use App\Support\Ai\AiCorrelation;
@@ -222,6 +223,12 @@ class AdminMemberAiProfileController extends Controller
             ], 429);
         }
 
+        // TASK-1253 : l'ACTEUR (l'administrateur qui a declenche le test) est
+        // EXPLICITE, comme sur tous les autres writers du ledger — le writer
+        // ne le devine plus depuis `auth()`. Aucun credit (banc d'administration).
+        /** @var User $actor */
+        $actor = $request->user();
+
         $startedAt = microtime(true);
         $correlationId = AiCorrelation::id();
         $answer = null;
@@ -234,7 +241,7 @@ class AdminMemberAiProfileController extends Controller
         } catch (\Throwable $e) {
             // L'appel est PARTI : tentative economiquement reelle, ligne de
             // ledger `failed` (cout NULL/unknown, jamais 0 invente).
-            $this->recordLedger($organization, $process, $resolved, AiUsage::notObserved(), null,
+            $this->recordLedger($organization, $actor, $process, $resolved, AiUsage::notObserved(), null,
                 AiProviderInvocation::STATUS_FAILED, $correlationId, $e::class, $startedAt);
 
             $error = $e instanceof ConnectionException
@@ -245,7 +252,7 @@ class AdminMemberAiProfileController extends Controller
         if ($error === null) {
             // TASK-1132 : le catalogue tranche (usage observe x tarif), sinon UNKNOWN.
             $cost = AiPricingCatalog::cost($resolved->provider, $resolved->model, $usage);
-            $this->recordLedger($organization, $process, $resolved, $usage, $cost,
+            $this->recordLedger($organization, $actor, $process, $resolved, $usage, $cost,
                 AiProviderInvocation::STATUS_SUCCESS, $correlationId, null, $startedAt);
         }
 
@@ -254,7 +261,7 @@ class AdminMemberAiProfileController extends Controller
 
         AdminAiInteraction::create([
             'organization_id' => $organization->id,
-            'user_id' => auth()->id(),
+            'user_id' => $actor->id,
             'correlation_id' => $correlationId,
             'process' => $process,
             'scenario_id' => self::LLM_TEST_SCENARIO,
@@ -325,10 +332,13 @@ class AdminMemberAiProfileController extends Controller
      * Ligne canonique du ledger `ai_provider_invocations` — une par appel
      * provider reellement tente. `capability` NULL (pas une capability
      * canonique, dit tel quel) ; `feature` = le scenario du banc ;
-     * `user_id` = l'administrateur qui a declenche le test.
+     * `user_id` = l'ACTEUR recu explicitement (l'administrateur qui a
+     * declenche le test — TASK-1253 : plus de lecture de `auth()` ici) ;
+     * aucun credit (banc d'administration, regle d'attribution canonique).
      */
     private function recordLedger(
         Organization $organization,
+        User $actor,
         string $process,
         ResolvedModel $resolved,
         AiUsage $usage,
@@ -340,7 +350,7 @@ class AdminMemberAiProfileController extends Controller
     ): void {
         $this->ledger->recordGeneration(
             organizationId: (string) $organization->id,
-            userId: auth()->id() !== null ? (string) auth()->id() : null,
+            userId: (string) $actor->id,
             capability: null,
             process: $process,
             resolved: $resolved,

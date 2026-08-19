@@ -359,6 +359,7 @@ return [
     'inherited_label' => [
         'member_profile_agent' => 'IA des profils membres',
         'blog_ai' => 'Blog IA',
+        'blog_explorer' => 'Explorer IA d\'un article de blog',
         'service_offer_formulation' => 'Formulation d\'une offre de service',
     ],
     'behavior_title' => 'Comportement IA',

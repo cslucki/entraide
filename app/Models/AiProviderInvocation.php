@@ -47,11 +47,24 @@ class AiProviderInvocation extends Model
     public const COST_UNKNOWN = 'unknown';
 
     /**
-     * Sources de credential PROUVEES par la primitive qui pose la cle
-     * (`ProviderResolver::registerInstance`), jamais inferees. `none` couvre
-     * les drivers keyless (ollama local) : il est demontrable qu'aucun
-     * credential n'existe — `unknown` serait un mensonge inverse. `platform`
-     * et `user` sont reserves : aucune primitive ne les prouve encore.
+     * Sources de credential PROUVEES par la primitive qui pose la cle, jamais
+     * inferees : `organization` par `ProviderResolver::registerInstance()`
+     * (cle BYOK du tenant, chemins canoniques) ; `platform` par
+     * `ProviderResolver::declareLegacyPlatformCredential()` (TASK-1247, cle
+     * lue dans la configuration plateforme et DECLAREE telle quelle par le
+     * writer herite — Blog, Explorer, famille `SupervisionProviderResolver`,
+     * agent de profil) ; `none` couvre les drivers keyless (ollama local) :
+     * il est demontrable qu'aucun credential n'existe — `unknown` serait un
+     * mensonge inverse. `user` reste reserve : aucune primitive ne le prouve.
+     *
+     * ATTRIBUTION (TASK-1253, regle canonique dans `SupervisionEconomicScope`) :
+     * `organization_id` = tenant de record (l'Organization de l'objet sur
+     * lequel l'IA travaille — son budget s'applique), distinct du payeur de la
+     * facture provider (`credential_source`) ; `user_id` = l'ACTEUR qui a
+     * declenche l'appel, et, quand un credit T1229 s'applique, c'est le sien
+     * (NULL = traitement sans utilisateur ; bancs d'administration : acteur
+     * sans credit) ; `capability` = capability canonique du registre ou NULL
+     * (chemin herite), la fonction produit se lit `COALESCE(feature, capability)`.
      */
     public const CREDENTIAL_ORGANIZATION = 'organization';
 

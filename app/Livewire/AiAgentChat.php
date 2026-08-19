@@ -44,7 +44,9 @@ use Livewire\Component;
  *    (T1251) — cle plateforme DECLAREE, garde `AiEconomicGuard` AVANT
  *    provider, UNE ligne ledger `ai_provider_invocations` par tentative
  *    (succes ET echec, usage observe, cout catalogue ou NULL — jamais 0
- *    invente). IDENTITE ECONOMIQUE (provisoire, en attendant T1253) :
+ *    invente). IDENTITE ECONOMIQUE (posee en T1252, confirmee DEFINITIVE par
+ *    l'attribution canonique TASK-1253 — regle commune a tous les writers du
+ *    ledger, voir `SupervisionEconomicScope`) :
  *      · tenant de record = l'Organization du PROFIL visite
  *        (`member_ai_profiles.organization_id`), posee EXPLICITEMENT — jamais
  *        `current_organization` (la requete Livewire ne repasse pas par
@@ -52,7 +54,10 @@ use Livewire\Component;
  *        l'agent de CE profil, dans CETTE Organization, qui travaille ;
  *      · acteur = credit (T1229) = le visiteur authentifie : chemin MEMBRE,
  *        celui qui pose la question consomme son credit (le proprietaire qui
- *        teste son propre agent est son propre visiteur) ;
+ *        teste son propre agent est son propre visiteur) ; un visiteur d'une
+ *        autre Organization consomme son credit evalue dans la politique de
+ *        l'Organization du PROFIL (compteur tenant x visiteur, jamais une
+ *        lecture dans son Organization d'origine) ;
  *      · feature `member_profile_agent_visitor_chat`, process
  *        `member_profile.agent_visitor_chat` (celui de la trace
  *        `admin_ai_interactions`, inchange), capability NULL.
