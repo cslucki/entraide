@@ -315,14 +315,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Blog IA — autorite economique (TASK-1247)
+    | Blog IA — autorite economique (TASK-1247, TASK-1248)
     |--------------------------------------------------------------------------
     |
-    | `BlogAiService` (generation, correction, methode sur selection) passe
-    | sous `AiEconomicGuard` AVANT tout appel provider : budget mensuel de
-    | l'Organization, budget/quota d'inconnus par process (`blog.*`) et credit
-    | IA du demandeur — la meme autorite que les capabilities canoniques.
-    | Chemin HERITE : cle plateforme (declaree telle quelle au ledger), pas de
+    | `BlogAiService` (generation, correction, methode sur selection — T1247)
+    | et `BlogExplorerController` (dialogue Explorer, note d'analyse — T1248)
+    | passent sous `AiEconomicGuard` AVANT tout appel provider : budget mensuel
+    | de l'Organization, budget/quota d'inconnus PAR PROCESS (`blog.*` :
+    | article_generate, article_correct, method_selection, explorer_dialogue,
+    | explorer_note — le budget ci-dessous s'applique a chacun separement) et
+    | credit IA du demandeur — la meme autorite que les capabilities canoniques.
+    | Chemins HERITES : cle plateforme (declaree telle quelle au ledger), pas de
     | Constitution/doctrine ; la migration BYOK est hors V1 (BLOC E).
     |
     */

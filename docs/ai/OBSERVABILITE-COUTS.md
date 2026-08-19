@@ -122,7 +122,7 @@ est encore décidable : une génération réelle ne consomme jamais 0 token
 d'entrée ET 0 de sortie. Ce couple signe un usage non rapporté, donc UNKNOWN —
 jamais un coût de 0.
 
-### Couverture de la garde (état après TASK-1247)
+### Couverture de la garde (état après TASK-1248)
 
 Le paragraphe historique de P2 (« la garde ne couvre que `loop_summary` »)
 n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
@@ -138,11 +138,23 @@ n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
   tenté (succès et échec) avec `credential_source = platform` **déclaré** par
   `ProviderResolver::declareLegacyPlatformCredential()` (la clé est lue dans la
   configuration plateforme, jamais déduite) ; tenant = Organization de
-  l'article. Chemin toujours hors Constitution/doctrine et hors BYOK (BLOC E).
+  l'article. Chemin toujours hors Constitution/doctrine et hors BYOK (BLOC E) ;
+- **TASK-1248 : le chemin hérité `BlogExplorerController`** (dialogue Explorer
+  deep-chat, note d'analyse générée ; alias de routes Organization compris) —
+  même patron que T1247, un seul point de passage `callProvider()` : garde
+  AVANT provider avec budget de process `blog.explorer_dialogue` /
+  `blog.explorer_note` (même `config('ai.blog.economic_guard')`, appliqué par
+  process), crédit utilisateur T1229 et budget Organization ; ligne
+  `ai_provider_invocations` sur chaque appel tenté (succès et échec,
+  `credential_source = platform` déclaré) ; `ai_interactions` sur succès
+  seulement ; tenant = Organization de l'article. Un refus est rendu **429
+  `{error, code, offers_url}`** — jamais la forme `200 {text}` d'une réponse
+  IA. Le throttle `20,1` (fréquence) reste en place à côté, non fusionné.
+  Ferme G4 (CRITICAL) du gap analysis T1246.
 
-Reste hors garde à cette date : `BlogExplorerController` (T1248) et les
-chemins `SupervisionProviderResolver` / `MemberProfileAgentResponder` — voir
-`GAP-ANALYSIS-ECONOMIQUE-T1246.md`, familles B et C.
+Reste hors garde à cette date : les chemins `SupervisionProviderResolver` /
+`MemberProfileAgentResponder` et le chat visiteur public anonyme — voir
+`GAP-ANALYSIS-ECONOMIQUE-T1246.md`, famille C (TASK dédiée après T1248).
 
 ## Instrumentation des invocations Laravel AI SDK (P1-3)
 
