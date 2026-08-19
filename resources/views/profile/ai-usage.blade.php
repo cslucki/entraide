@@ -9,13 +9,19 @@
     « 0 ». Aucun prompt, aucune reponse, aucun document, aucune cle.
 
     TASK-1257 (V2) : categories d'usage du mois (sous-lignes de « Generations »,
-    meme autorite, elles SOMMENT la ligne) ; le $ est nomme cout FOURNISSEUR
-    mesure, a titre d'information — jamais un prix facture (le credit est la
-    seule unite de l'acces) ; exclusions du credit chiffrees sous la carte.
+    meme autorite, elles SOMMENT la ligne) ; exclusions du credit chiffrees
+    sous la carte. CORRECTION M1 (arbitrage Cyril, inverse T1228) : AUCUN
+    MONTANT EN DOLLARS cote membre — le cout fournisseur (mesure ou estime)
+    n'appartient qu'aux surfaces Admin Organization / SuperAdmin. L'ecran
+    garde la NOTION (mesure / non mesurable / non evalue, comptes), jamais le
+    chiffre ; le credit reste en utilisations.
 --}}
 @php
-    $cost = static fn ($value): string => $value === null ? '—' : '$'.number_format((float) $value, 10);
-    $costShort = static fn ($value): string => $value === null ? '—' : '$'.number_format((float) $value, 6);
+    $costStateLabel = static fn (string $state): string => match ($state) {
+        'known' => __('ai.usage_cost_state_known'),
+        'unknown' => __('ai.usage_cost_state_unknown'),
+        default => __('ai.usage_cost_state_unevaluated'),
+    };
     $processLabel = static function (?string $process, ?string $feature, bool $sandbox): string {
         if ($sandbox) {
             return __('ai.activity_sandbox_label');
@@ -41,10 +47,10 @@
         + $usage['embedding_ingestion']['invocation_count']
         + $usage['embedding_undeclared']['invocation_count'];
     $natures = [
-        ['key' => 'generation', 'label' => __('ai.economy_nature_generation'), 'count' => $usage['generation']['trace_count'], 'known' => $usage['generation']['known_cost_usd'], 'unknown' => $usage['generation']['unknown_count']],
-        ['key' => 'embedding_query', 'label' => __('ai.economy_nature_embedding_query'), 'count' => $usage['embedding_query']['invocation_count'], 'known' => $usage['embedding_query']['known_cost_usd'], 'unknown' => $usage['embedding_query']['unknown_count']],
-        ['key' => 'embedding_ingestion', 'label' => __('ai.economy_nature_embedding_ingestion'), 'count' => $usage['embedding_ingestion']['invocation_count'], 'known' => $usage['embedding_ingestion']['known_cost_usd'], 'unknown' => $usage['embedding_ingestion']['unknown_count']],
-        ['key' => 'embedding_undeclared', 'label' => __('ai.economy_nature_embedding_undeclared'), 'count' => $usage['embedding_undeclared']['invocation_count'], 'known' => $usage['embedding_undeclared']['known_cost_usd'], 'unknown' => $usage['embedding_undeclared']['unknown_count']],
+        ['key' => 'generation', 'label' => __('ai.economy_nature_generation'), 'count' => $usage['generation']['trace_count'], 'unknown' => $usage['generation']['unknown_count']],
+        ['key' => 'embedding_query', 'label' => __('ai.economy_nature_embedding_query'), 'count' => $usage['embedding_query']['invocation_count'], 'unknown' => $usage['embedding_query']['unknown_count']],
+        ['key' => 'embedding_ingestion', 'label' => __('ai.economy_nature_embedding_ingestion'), 'count' => $usage['embedding_ingestion']['invocation_count'], 'unknown' => $usage['embedding_ingestion']['unknown_count']],
+        ['key' => 'embedding_undeclared', 'label' => __('ai.economy_nature_embedding_undeclared'), 'count' => $usage['embedding_undeclared']['invocation_count'], 'unknown' => $usage['embedding_undeclared']['unknown_count']],
     ];
 @endphp
 
@@ -142,19 +148,14 @@
                     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.my_ai_usage_month_title') }}</h2>
                     <span class="text-xs text-gray-500 dark:text-gray-400" data-my-ai-usage-period>{{ __('ai.economy_period_label', ['from' => $period->from->format('d/m/Y'), 'to' => $period->to->subSecond()->format('d/m/Y')]) }}</span>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {{-- CORRECTION M1 TASK-1257 : plus de tuile de montant — le cout
+                     fournisseur en $ n'est jamais montre au membre (surfaces Admin
+                     Organization / SuperAdmin seulement). Reste le COMPTE des appels
+                     au cout non mesurable : une notion, pas un chiffre en dollars. --}}
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div class="rounded-lg border border-gray-100 dark:border-gray-700 p-4">
                         <div class="text-xs uppercase text-gray-500 dark:text-gray-400">{{ __('ai.my_ai_usage_month_title') }}</div>
                         <div class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">{{ trans_choice('ai.my_ai_usage_month_count', $totalCount, ['count' => number_format($totalCount)]) }}</div>
-                    </div>
-                    <div class="rounded-lg border border-gray-100 dark:border-gray-700 p-4">
-                        <div class="text-xs uppercase text-gray-500 dark:text-gray-400">{{ __('ai.my_ai_usage_known_cost') }}</div>
-                        <div class="text-2xl font-semibold font-mono text-gray-900 dark:text-gray-100 mt-1" data-my-ai-usage-known-cost>{{ $costShort($usage['total_known_cost_usd']) }}</div>
-                        @if($usage['total_known_cost_usd'] === null)
-                            <div class="text-xs text-gray-400 mt-1">{{ __('ai.economy_no_measured_cost') }}</div>
-                        @endif
-                        {{-- TASK-1257 : cout FOURNISSEUR, information — jamais un prix facture. --}}
-                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-2" data-my-ai-usage-provider-cost-note>{{ __('ai.my_ai_usage_provider_cost_note') }}</div>
                     </div>
                     <div class="rounded-lg border p-4 {{ $usage['total_unknown_count'] > 0 ? 'border-amber-200 dark:border-amber-900/50 bg-amber-50/60 dark:bg-amber-900/10' : 'border-gray-100 dark:border-gray-700' }}" data-my-ai-usage-unknown="{{ $usage['total_unknown_count'] }}">
                         <div class="text-xs uppercase {{ $usage['total_unknown_count'] > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-gray-400' }}">{{ __('ai.my_ai_usage_unknown_title') }}</div>
@@ -174,7 +175,7 @@
                             <li class="flex flex-wrap items-center justify-between gap-2 py-2" data-my-ai-usage-nature="{{ $nature['key'] }}" data-my-ai-usage-nature-count="{{ $nature['count'] }}">
                                 <span class="text-gray-900 dark:text-gray-100">{{ $nature['label'] }}</span>
                                 <span class="font-mono text-xs text-gray-700 dark:text-gray-300">
-                                    {{ number_format($nature['count']) }} · {{ $costShort($nature['known']) }}
+                                    {{ number_format($nature['count']) }}
                                     @if($nature['unknown'] > 0)
                                         · <span class="text-amber-700 dark:text-amber-300">{{ trans_choice('ai.economy_unknown_count', $nature['unknown'], ['count' => $nature['unknown']]) }}</span>
                                     @endif
@@ -191,7 +192,7 @@
                                             <li class="flex flex-wrap items-center justify-between gap-2 text-gray-700 dark:text-gray-300" data-my-ai-usage-category="{{ $category['key'] ?? 'other' }}" data-my-ai-usage-category-count="{{ $category['trace_count'] }}">
                                                 <span>{{ $processLabel($category['key'], null, false) }}</span>
                                                 <span class="font-mono text-xs">
-                                                    {{ number_format($category['trace_count']) }} · {{ $costShort($category['known_cost_usd']) }}
+                                                    {{ number_format($category['trace_count']) }}
                                                     @if($category['unknown_count'] > 0)
                                                         · <span class="text-amber-700 dark:text-amber-300">{{ trans_choice('ai.economy_unknown_count', $category['unknown_count'], ['count' => $category['unknown_count']]) }}</span>
                                                     @endif
@@ -206,7 +207,7 @@
                     @if($usage['generation_sandbox']['trace_count'] > 0)
                         <li class="flex flex-wrap items-center justify-between gap-2 py-2 pl-4 text-gray-600 dark:text-gray-400" data-my-ai-usage-nature="sandbox" data-my-ai-usage-nature-count="{{ $usage['generation_sandbox']['trace_count'] }}">
                             <span>{{ __('ai.economy_nature_sandbox') }}</span>
-                            <span class="font-mono text-xs">{{ number_format($usage['generation_sandbox']['trace_count']) }} · {{ $costShort($usage['generation_sandbox']['known_cost_usd']) }}</span>
+                            <span class="font-mono text-xs">{{ number_format($usage['generation_sandbox']['trace_count']) }}</span>
                         </li>
                     @endif
                 </ul>
@@ -244,13 +245,15 @@
                                         </td>
                                         <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ $kindLabel($row['kind']) }}</td>
                                         <td class="px-4 py-3 text-gray-600 dark:text-gray-400 font-mono text-xs">{{ $row['provider'] ?? '—' }}{{ $row['model'] ? ' / '.$row['model'] : '' }}</td>
-                                        <td class="px-4 py-3 text-right font-mono text-xs">
+                                        {{-- CORRECTION M1 TASK-1257 : la NOTION (mesure / non mesurable /
+                                             non evalue), jamais le montant. --}}
+                                        <td class="px-4 py-3 text-right text-xs">
                                             @if($row['cost_state'] === 'known')
-                                                <span class="text-gray-900 dark:text-gray-100">{{ $cost($row['cost_usd']) }}</span>
+                                                <span class="text-gray-700 dark:text-gray-300">{{ $costStateLabel('known') }}</span>
                                             @elseif($row['cost_state'] === 'unknown')
-                                                <span class="text-amber-600 dark:text-amber-400" title="{{ trans_choice('ai.economy_unknown_count', 1, ['count' => 1]) }}">—</span>
+                                                <span class="text-amber-600 dark:text-amber-400" title="{{ trans_choice('ai.economy_unknown_count', 1, ['count' => 1]) }}">{{ $costStateLabel('unknown') }}</span>
                                             @else
-                                                <span class="text-gray-400" title="{{ trans_choice('ai.economy_unevaluated_count', 1, ['count' => 1]) }}">—</span>
+                                                <span class="text-gray-400" title="{{ trans_choice('ai.economy_unevaluated_count', 1, ['count' => 1]) }}">{{ $costStateLabel('unevaluated') }}</span>
                                             @endif
                                         </td>
                                         <td class="px-4 py-3 text-right">

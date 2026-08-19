@@ -25,10 +25,11 @@ use Tests\TestCase;
  *  G1. CATEGORIES D'USAGE — les generations du mois ventilees par fonction en
  *      langage produit ; les sous-lignes SOMMENT la ligne « Generations » ;
  *      jamais une categorie d'un autre membre ni d'une autre Organization.
- *  G2. COUT FOURNISSEUR, PAS PRIX CLIENT — le $ est nomme cout fournisseur
- *      mesure, accompagne de « ce n'est pas un prix qui vous est facture » ;
- *      la carte credit ne porte aucun $ (utilisations seulement) ; le montant
- *      lui-meme reste affiche (arbitrage MASTER T1228).
+ *  G2. AUCUN MONTANT EN DOLLARS cote membre (CORRECTION M1 : arbitrage
+ *      Cyril/M1, inverse assume de T1228) — la NOTION de mesure reste
+ *      (mesure / non mesurable / non evalue, comptes), le credit est en
+ *      utilisations ; le cout fournisseur en $ n'appartient qu'aux surfaces
+ *      Admin Organization / SuperAdmin.
  *  G3. STATUT PAR LIGNE — une generation sans parole de l'ecrivain prend le
  *      statut de la ligne ledger `generation` de sa correlation (meme
  *      Organization, meme utilisateur) ; sinon « — » ; la parole de
@@ -106,12 +107,13 @@ class TASK1257UserAiStatementV2Test extends TestCase
             ->assertSee('data-my-ai-usage-nature="generation" data-my-ai-usage-nature-count="4"', false)
             ->assertSee('data-my-ai-usage-month-count="5"', false);
 
-        // L'inconnu reste un COMPTE sur sa categorie, jamais un 0 somme.
+        // L'inconnu reste un COMPTE sur sa categorie, jamais un 0 somme — et
+        // (correction M1) aucun montant en dollars nulle part.
         $content = $page->getContent();
         $summarize = substr($content, strpos($content, 'data-my-ai-usage-category="chatloop.summarize"'));
         $summarize = substr($summarize, 0, strpos($summarize, '</li>'));
-        $this->assertStringContainsString('—', $summarize);
         $this->assertStringContainsString(trans_choice('ai.economy_unknown_count', 1, ['count' => 1]), $summarize);
+        $this->assertDoesNotMatchRegularExpression('/\$\d/', $summarize);
 
         // AUTORITE : les lignes par categorie SOMMENT exactement la tranche generation de summary().
         $usage = app(OrganizationAiEconomicUsage::class);
@@ -171,35 +173,40 @@ class TASK1257UserAiStatementV2Test extends TestCase
     // G2. Cout fournisseur, jamais prix client ; credit en utilisations
     // =====================================================================
 
-    public function test_the_provider_cost_is_named_as_such_with_an_explicit_not_a_price_note_and_the_credit_card_carries_no_dollar(): void
+    public function test_no_dollar_amount_is_ever_shown_to_the_member_only_the_measurement_notion_and_the_credit_in_uses(): void
     {
+        // CORRECTION M1 TASK-1257 (arbitrage Cyril/M1, inverse assume de T1228) :
+        // le cout fournisseur en $ n'appartient qu'aux surfaces Admin / SuperAdmin.
         app(AiUserCreditSettings::class)->updatePlatform([
             'free_enabled' => true, 'monthly_uses' => 10, 'alert_percent' => 80, 'offer_subscription' => true,
         ], $this->superAdmin);
         $this->generation($this->memberA, cost: 0.10);
+        $this->generation($this->memberA, cost: null, feature: 'chatloop_ai_summarize', process: 'chatloop.summarize');
 
         $page = $this->actingAs($this->memberA)->get(route('profile.ai-usage'));
         $page->assertOk()
-            ->assertSee(__('ai.my_ai_usage_known_cost'))
+            // La NOTION de mesure reste (colonne, tuile « non mesurable »), jamais le chiffre.
             ->assertSee(__('ai.usage_col_cost'))
-            ->assertSee(__('ai.my_ai_usage_provider_cost_note'))
-            ->assertSee('data-my-ai-usage-provider-cost-note', false)
-            // Le montant fournisseur reste affiche (arbitrage MASTER T1228).
-            ->assertSee('$0.100000')
+            ->assertSee(__('ai.usage_cost_state_known'))
+            ->assertSee(__('ai.usage_cost_state_unknown'))
+            ->assertSee('data-my-ai-usage-unknown="1"', false)
+            ->assertDontSee('$0.100000')
+            ->assertDontSee('$0.1000000000')
             // Le credit : en utilisations.
-            ->assertSee(__('ai.credit_used_of_quota', ['used' => 1, 'quota' => 10]))
-            ->assertSee(trans_choice('ai.credit_remaining', 9, ['count' => 9]));
+            ->assertSee(__('ai.credit_used_of_quota', ['used' => 2, 'quota' => 10]))
+            ->assertSee(trans_choice('ai.credit_remaining', 8, ['count' => 8]));
 
-        // La carte credit ne contient AUCUN montant en dollars.
+        // AUCUN montant en dollars sur toute la page rendue (ni tuile, ni ventilation,
+        // ni historique, ni carte credit).
         $content = $page->getContent();
-        $card = substr($content, strpos($content, 'data-my-ai-credit '));
-        $card = substr($card, 0, strpos($card, '</section>'));
-        $this->assertStringNotContainsString('$', $card);
-        // Les libelles du cout ne se lisent jamais comme un prix.
-        $this->assertStringContainsStringIgnoringCase('fournisseur', __('ai.my_ai_usage_known_cost', [], 'fr'));
-        $this->assertStringContainsStringIgnoringCase('provider', __('ai.my_ai_usage_known_cost', [], 'en'));
-        $this->assertStringContainsStringIgnoringCase('fournisseur', __('ai.usage_col_cost', [], 'fr'));
-        $this->assertStringContainsStringIgnoringCase('provider', __('ai.usage_col_cost', [], 'en'));
+        $main = substr($content, strpos($content, 'data-my-ai-credit '));
+        $main = substr($main, 0, strpos($main, 'data-my-ai-usage-note'));
+        $this->assertDoesNotMatchRegularExpression('/\$\s?\d/', $main);
+        $this->assertStringNotContainsString('data-my-ai-usage-known-cost', $content);
+        // Les libelles ne parlent pas d'un montant.
+        foreach (['fr', 'en'] as $locale) {
+            $this->assertDoesNotMatchRegularExpression('/\$/', __('ai.usage_col_cost', [], $locale));
+        }
     }
 
     // =====================================================================

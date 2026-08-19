@@ -81,7 +81,8 @@ async function userFigures(page) {
         generation: num(await page.locator('[data-my-ai-usage-nature="generation"]').getAttribute('data-my-ai-usage-nature-count')),
         search: num(await page.locator('[data-my-ai-usage-nature="embedding_query"]').getAttribute('data-my-ai-usage-nature-count')),
         unknown: num(await page.locator('[data-my-ai-usage-unknown]').getAttribute('data-my-ai-usage-unknown')),
-        knownCost: (await page.locator('[data-my-ai-usage-known-cost]').innerText()).trim(),
+        // CORRECTION M1 TASK-1257 : plus aucun montant en dollars cote membre (la tuile n'existe plus).
+        knownCost: (await page.locator('[data-my-ai-usage-known-cost]').count()) ? 'TUILE-$-INATTENDUE' : 'aucun $ (membre)',
         searchLine: (await page.locator('[data-my-ai-usage-nature="embedding_query"]').innerText()).replace(/\s+/g, ' ').trim(),
         unknownCardTitle: (await page.locator('[data-my-ai-usage-unknown] > div').first().innerText()).trim(),
     };
@@ -181,7 +182,8 @@ test.describe('TASK-1228 Economie visible', () => {
         await expect(unknownCard).toContainText(/non mesurable|unmeasurable/i);
         const unknownRow = page.locator('[data-my-ai-usage-row][data-my-ai-usage-cost-state="unknown"]').first();
         await expect(unknownRow).toBeVisible();
-        await expect(unknownRow).toContainText('—');
+        // CORRECTION M1 TASK-1257 : la notion « non mesurable », jamais un montant.
+        await expect(unknownRow).toContainText(/non mesurable|unmeasurable/i);
         await expect(unknownRow).not.toContainText('$0.0000000000');
         // Page entiere : la carte ambre « N appel(s) au cout non mesurable » ET la
         // ligne « — » (jamais $0) sur la meme capture.

@@ -5,11 +5,13 @@
 // sur le banc (pack retire T1243/T1245) : parcours sur org-a, en FR.
 //
 //   01 member1 (generations Blog Explorer reelles du 19/08) : la page V2 —
-//      credit en utilisations (aucun $ dans la carte), « Cout fournisseur
-//      mesure » + note « ce n'est pas un prix qui vous est facture »,
-//      « Par categorie d'usage » sous « Generations » (sommes egales), colonne
-//      Statut = « Reussi » (empruntee au ledger de la meme correlation — ces
-//      lignes Blog IA n'ont pas de metadata.status).
+//      credit en utilisations, AUCUN montant en dollars sur la page
+//      (correction M1 : le cout fournisseur en $ n'appartient qu'aux surfaces
+//      Admin / SuperAdmin ; la colonne « Cout fournisseur » ne porte que la
+//      notion mesure / non mesurable / non evalue), « Par categorie d'usage »
+//      sous « Generations » (sommes egales), colonne Statut = « Reussi »
+//      (empruntee au ledger de la meme correlation — ces lignes Blog IA n'ont
+//      pas de metadata.status).
 //   02 Une VRAIE generation de note Blog IA sur l'article de member1
 //      (blog.explorer_note, cle plateforme T1248, ~0.0003 $) -> une DEUXIEME
 //      categorie apparait, « Generations » et « Ce mois » +1, credit +1.
@@ -18,7 +20,7 @@
 //   03 member2 (aucun usage) : pas de bloc categories, « — » jamais 0.
 //   04 Mobile 390x844 (member1).
 //   05 Isolation : member1 de l'org B ne voit rien de l'org A.
-//   06 EN : libelles « Measured provider cost » / note en anglais.
+//   06 EN : libelles en anglais, aucun $.
 //
 // LIVRABLE VISUEL : PNG 01..06 + video dans _local/captures/TASK-1257/.
 //
@@ -127,8 +129,6 @@ async function figures(page, slug) {
         categories: cats,
         rowCount: await rows.count(),
         statuses,
-        costTile: clean(await page.locator('[data-my-ai-usage-known-cost]').innerText()),
-        costNote: clean(await page.locator('[data-my-ai-usage-provider-cost-note]').innerText()),
         bodyText: clean(await page.locator('main').innerText().catch(() => page.evaluate(() => document.body.innerText))),
     };
 }
@@ -143,12 +143,13 @@ test('01 — member1 : V2 (categories, cout fournisseur, statut par ligne, credi
     const f = await figures(page, ORG_A);
     report.before = f;
 
-    // Credit : en utilisations, AUCUN montant en $ dans la carte.
+    // Credit : en utilisations ; AUCUN montant en dollars sur toute la page
+    // (correction M1 — inverse T1228) ; la notion de mesure reste.
     expect(f.creditCardText).not.toContain('$');
     expect(f.creditCardText).toMatch(/utilisations?/);
-    // Cout fournisseur, pas prix client.
-    expect(lower(f.bodyText)).toContain('coût fournisseur mesuré');
-    expect(f.costNote).toContain("Ce n'est pas un prix qui vous est facturé");
+    expect(f.bodyText).not.toMatch(/\$\s?\d/);
+    expect(lower(f.bodyText)).toContain('coût fournisseur');
+    expect(f.bodyText).toContain('Mesuré');
     // Categories : sous « Generations », la somme EST la ligne.
     const sum = Object.values(f.categories).reduce((a, b) => a + b, 0);
     expect(Object.keys(f.categories).length).toBeGreaterThan(0);
@@ -199,7 +200,10 @@ test('02 — une VRAIE generation de note Blog IA (blog.explorer_note) -> deuxie
     expect(after.generation).toBe(before.generation + 1);
     expect(after.monthCount).toBe(before.monthCount + 1);
     expect(after.creditUsed).toBe(before.creditUsed + 1);
-    expect(Object.keys(after.categories).length).toBe(Object.keys(before.categories).length + 1);
+    // Rejouable : la categorie « Note Blog IA » apparait au premier passage (+1
+    // categorie) et s'incremente ensuite — dans les deux cas la somme reste la ligne.
+    expect(Object.keys(after.categories).length).toBeGreaterThanOrEqual(Object.keys(before.categories).length);
+    expect(Object.keys(after.categories)).toContain('blog.explorer_note');
     expect(after.categories['blog.explorer_note']).toBe((before.categories['blog.explorer_note'] || 0) + 1);
     expect(after.bodyText).toContain('Note Blog IA');
     const sum = Object.values(after.categories).reduce((a, b) => a + b, 0);
@@ -216,7 +220,8 @@ test('03 — member2 (aucun usage) : pas de bloc categories, « — » jamais 0'
     await login(page, ORG_A, MEMBER2_A);
     await page.goto(userPage(ORG_A));
     await expect(page.locator('[data-my-ai-usage-categories]')).toHaveCount(0);
-    expect(clean(await page.locator('[data-my-ai-usage-known-cost]').innerText())).toBe('—');
+    await expect(page.locator('[data-my-ai-usage-known-cost]')).toHaveCount(0);
+    expect(clean(await page.locator('main').innerText())).not.toMatch(/\$\s?\d/);
     await expect(page.locator('[data-my-ai-usage-empty]')).toBeVisible();
     await page.screenshot({ path: path.join(CAPTURES, '03-member2-empty.png'), fullPage: true });
     assertClean(watch);
@@ -262,8 +267,9 @@ test('06 — EN : libelles alignes', async ({ page }) => {
     await switchLocale(page, 'en');
     await page.goto(userPage(ORG_A));
     const body = clean(await page.locator('main').innerText().catch(() => page.evaluate(() => document.body.innerText)));
-    expect(lower(body)).toContain('measured provider cost');
-    expect(body).toContain('This is not a price billed to you');
+    expect(lower(body)).toContain('provider cost');
+    expect(body).toContain('Measured');
+    expect(body).not.toMatch(/\$\s?\d/);
     expect(lower(body)).toContain('by usage category');
     await page.screenshot({ path: path.join(CAPTURES, '06-member1-en.png'), fullPage: true });
     fs.writeFileSync(path.join(CAPTURES, 'figures.json'), JSON.stringify(report, null, 2));

@@ -274,7 +274,11 @@ return [
     'usage_col_type' => 'Type',
     'usage_col_provider_model' => 'Provider / model',
     'usage_col_tokens' => 'Tokens',
-    'usage_col_cost' => 'Measured provider cost',
+    'usage_col_cost' => 'Provider cost',
+    // CORRECTION M1 TASK-1257: the notion only, never an amount on the member side.
+    'usage_cost_state_known' => 'Measured',
+    'usage_cost_state_unknown' => 'Unmeasurable',
+    'usage_cost_state_unevaluated' => 'Not evaluated',
     'usage_col_status' => 'Status',
     'usage_type_generation' => 'Generation',
     'usage_type_embedding_ingestion' => 'Document indexing',
@@ -473,9 +477,6 @@ return [
     'activity_sandbox_label' => 'Doctrine test (sandbox)',
     'my_ai_usage_month_title' => 'This month',
     'my_ai_usage_month_count' => ':count use|:count uses',
-    'my_ai_usage_known_cost' => 'Measured provider cost',
-    // TASK-1257: the $ figure is a provider cost, never a price billed to the member.
-    'my_ai_usage_provider_cost_note' => 'Amount paid to the AI provider for your calls, for information only. This is not a price billed to you: your access is measured in uses (credit above).',
     'my_ai_usage_categories_title' => 'By usage category',
     'my_ai_usage_unknown_title' => 'Unmeasurable cost',
     'my_ai_usage_breakdown_title' => 'By nature',

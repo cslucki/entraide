@@ -274,7 +274,11 @@ return [
     'usage_col_type' => 'Type',
     'usage_col_provider_model' => 'Fournisseur / modèle',
     'usage_col_tokens' => 'Jetons',
-    'usage_col_cost' => 'Coût fournisseur mesuré',
+    'usage_col_cost' => 'Coût fournisseur',
+    // CORRECTION M1 TASK-1257 : la notion seulement, jamais un montant cote membre.
+    'usage_cost_state_known' => 'Mesuré',
+    'usage_cost_state_unknown' => 'Non mesurable',
+    'usage_cost_state_unevaluated' => 'Non évalué',
     'usage_col_status' => 'Statut',
     'usage_type_generation' => 'Génération',
     'usage_type_embedding_ingestion' => 'Indexation documentaire',
@@ -473,9 +477,6 @@ return [
     'activity_sandbox_label' => 'Essai de doctrine (bac à sable)',
     'my_ai_usage_month_title' => 'Ce mois',
     'my_ai_usage_month_count' => ':count utilisation|:count utilisations',
-    'my_ai_usage_known_cost' => 'Coût fournisseur mesuré',
-    // TASK-1257 : le $ est un cout fournisseur, jamais un prix facture au membre.
-    'my_ai_usage_provider_cost_note' => 'Montant payé au fournisseur d\'IA pour vos appels, à titre d\'information. Ce n\'est pas un prix qui vous est facturé : votre accès se mesure en utilisations (crédit ci-dessus).',
     'my_ai_usage_categories_title' => 'Par catégorie d\'usage',
     'my_ai_usage_unknown_title' => 'Coût non mesurable',
     'my_ai_usage_breakdown_title' => 'Par nature',
