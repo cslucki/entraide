@@ -7,6 +7,7 @@ use App\Models\ScenarioPackEntity;
 use App\Models\ScenarioPackLoad;
 use App\Support\ScenarioPacks\Contracts\ScenarioPackDefinition;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 /**
  * Charge un scenario pack dans une Organization (TASK-1240), conforme au
@@ -44,7 +45,17 @@ class ScenarioPackLoader
             $load->save();
 
             $registrar = new ScenarioPackEntityRegistrar($load);
-            $pack->apply($organization, $registrar);
+            try {
+                $pack->apply($organization, $registrar);
+            } catch (Throwable $e) {
+                // La transaction DB s'annule ; le storage, non. Efface ce que
+                // ce passage a ecrit sur des chemins qui etaient libres, sinon
+                // la garde de collision (TASK-1245) refuserait tout nouvel
+                // essai. Aucun fichier preexistant n'est concerne.
+                $registrar->discardStoragePathsClaimedThisRun();
+
+                throw $e;
+            }
 
             $counts = ScenarioPackEntity::query()
                 ->where('scenario_pack_load_id', $load->id)

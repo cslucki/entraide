@@ -75,7 +75,7 @@ class ArtSciLabScenarioSeeder extends Seeder
 
         $organization = $this->organization();
         $users = $this->users($organization, $registrar);
-        $categories = $this->categories($organization);
+        $categories = $this->categories($organization, $registrar);
         $loops = $this->loops($organization, $users, $registrar);
 
         $this->membersAndMessages($organization, $users, $loops, $registrar);
@@ -180,7 +180,7 @@ class ArtSciLabScenarioSeeder extends Seeder
     }
 
     /** @return array<int, Category> */
-    private function categories(Organization $organization): array
+    private function categories(Organization $organization, ?ScenarioPackEntityRegistrar $registrar): array
     {
         $definitions = [
             ['Creative Technology', 'creative-technology', '#7c3aed'],
@@ -189,20 +189,24 @@ class ArtSciLabScenarioSeeder extends Seeder
             ['Production & Events', 'production-events', '#be123c'],
         ];
 
-        // Pas de track() registrar : `services.category_id` et
-        // `service_requests.category_id` sont des FK RESTRICT (sans
-        // onDelete) vers categories, et Service utilise SoftDeletes — sa
-        // ligne survit physiquement a un `remove()` du registrar (soft
-        // delete), ce qui bloquerait ensuite la suppression de la Category
-        // par violation de contrainte. Quatre libelles de taxonomie
-        // fictifs, sans donnee sensible : rester non trackes (recrees/
-        // remis a jour de facon idempotente, jamais supprimes par le pack)
-        // est le compromis correct plutot que de changer la semantique du
-        // remover generique T1240 pour ce seul cas.
-        return array_map(fn (array $item) => Category::updateOrCreate(
-            ['slug' => 'artscilab-'.$item[1]],
-            ['organization_id' => $organization->id, 'name_b2c' => $item[0], 'name_b2b' => $item[0], 'color' => $item[2]],
-        ), $definitions);
+        // TASK-1245 : trackees (elles ne l'etaient pas en T1242, ou le
+        // remover soft-supprimait Service et aurait bute sur la FK RESTRICT
+        // de `services.category_id`). Le remover purge desormais
+        // physiquement (forceDelete borne) dans l'ordre inverse
+        // d'inscription : `categories()` s'execute AVANT `marketplace()`,
+        // donc les Category ont une sequence plus basse que Service et
+        // ServiceRequest et sont supprimees APRES eux — FK-safe sans rien
+        // d'autre. Ownership : `created` si ce chargement cree la ligne,
+        // `reused` (jamais supprimee) si un slug `artscilab-*` preexistait.
+        return array_map(function (array $item) use ($organization, $registrar) {
+            $category = Category::updateOrCreate(
+                ['slug' => 'artscilab-'.$item[1]],
+                ['organization_id' => $organization->id, 'name_b2c' => $item[0], 'name_b2b' => $item[0], 'color' => $item[2]],
+            );
+            $registrar?->track('category', $item[1], $category);
+
+            return $category;
+        }, $definitions);
     }
 
     /** @param array<string, User> $users @return array<string, Loop> */
@@ -607,6 +611,12 @@ class ArtSciLabScenarioSeeder extends Seeder
         $userValues = array_values($users);
         foreach ($files as $i => [$name, $contents]) {
             $path = 'artscilab-demo/'.str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT).'-'.$name;
+            // TASK-1245 : un fichier deja present a ce chemin qui n'est pas
+            // celui de ce chargement (rejeu) est un fichier preexistant ->
+            // refus explicite, jamais ecrase (le remover ne le supprimerait
+            // pas non plus). Sans registrar (`db:seed` direct, hors moteur
+            // de pack) : comportement historique conserve.
+            $registrar?->assertStoragePathAvailable('folder_file', Str::slug($name), 'dossier_files', $path);
             if (! Storage::disk('dossier_files')->put($path, $contents)) {
                 throw new RuntimeException("Unable to write ArtSciLab dossier file {$path}.");
             }
