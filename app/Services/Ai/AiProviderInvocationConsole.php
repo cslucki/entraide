@@ -55,6 +55,16 @@ final class AiProviderInvocationConsole
      * Aucune generation n'est relue depuis le ledger. Aucun prompt, aucune
      * reponse, aucun document, aucune cle : des metadonnees d'usage.
      *
+     * TASK-1257 — STATUT d'une generation : la parole de l'ecrivain
+     * (`ai_interactions.metadata.status`, chaine canonique) prime ; quand
+     * elle manque (Blog IA T1247/T1248, lignes anterieures), le statut est
+     * lu sur la ligne ledger `operation = generation` de la MEME
+     * `correlation_id`, bornee a la meme Organization et au meme utilisateur
+     * (une requete groupee). C'est un ENRICHISSEMENT de statut : aucune ligne
+     * ni aucun compte ne vient du ledger pour les generations ; sans
+     * correlation ou sans ligne ledger, le statut reste « — » (inconnu, jamais
+     * fabrique).
+     *
      * @return list<array{
      *   at: CarbonImmutable, kind: string, process: ?string, feature: ?string, sandbox: bool,
      *   model: ?string, provider: ?string, cost_state: string, cost_usd: ?float, status: ?string
@@ -69,7 +79,7 @@ final class AiProviderInvocationConsole
             ->where('user_id', $userId)
             ->orderByDesc('created_at')
             ->limit($limit)
-            ->get(['id', 'created_at', 'process', 'feature', 'model', 'cost_usd', 'cost_unknown', 'metadata'])
+            ->get(['id', 'created_at', 'process', 'feature', 'model', 'cost_usd', 'cost_unknown', 'metadata', 'correlation_id'])
             ->map(static function (AiInteraction $row): array {
                 $model = (string) $row->model;
                 $slash = strpos($model, '/');
@@ -89,9 +99,12 @@ final class AiProviderInvocationConsole
                     'cost_state' => $row->cost_unknown === null ? 'unevaluated' : ($row->cost_unknown ? 'unknown' : 'known'),
                     'cost_usd' => $row->cost_unknown === false && $row->cost_usd !== null ? (float) $row->cost_usd : null,
                     'status' => is_string($row->metadata['status'] ?? null) ? $row->metadata['status'] : null,
+                    'correlation_id' => $row->correlation_id !== null ? (string) $row->correlation_id : null,
                 ];
             })
             ->all();
+
+        $generation = $this->withLedgerStatuses($organizationId, $userId, $generation);
 
         $embeddings = AiProviderInvocation::query()
             ->where('organization_id', $organizationId)
@@ -124,6 +137,51 @@ final class AiProviderInvocationConsole
         usort($rows, static fn (array $a, array $b): int => $b['at'] <=> $a['at']);
 
         return array_slice($rows, 0, $limit);
+    }
+
+    /**
+     * TASK-1257 : complete le statut des generations qui n'en portent pas
+     * (`metadata.status` absent) avec celui de la ligne ledger `generation`
+     * de la meme correlation — meme Organization, meme utilisateur. Une seule
+     * requete pour toutes les lignes ; en cas de plusieurs lignes ledger sur
+     * une correlation (nouvelle tentative), la plus recente parle. Les lignes
+     * rendues restent EXACTEMENT celles de `ai_interactions` : rien n'est
+     * ajoute, rien n'est compte. `correlation_id` ne sort pas de la classe.
+     *
+     * @param  list<array<string, mixed>>  $generation
+     * @return list<array<string, mixed>>
+     */
+    private function withLedgerStatuses(string $organizationId, string $userId, array $generation): array
+    {
+        $missing = array_values(array_unique(array_filter(array_map(
+            static fn (array $row): ?string => $row['status'] === null ? $row['correlation_id'] : null,
+            $generation,
+        ))));
+
+        $statuses = $missing === []
+            ? []
+            : AiProviderInvocation::query()
+                ->where('organization_id', $organizationId)
+                ->where('user_id', $userId)
+                ->where('operation', AiProviderInvocation::OPERATION_GENERATION)
+                ->whereIn('correlation_id', $missing)
+                ->whereNotNull('status')
+                ->orderBy('created_at')
+                ->get(['correlation_id', 'status'])
+                // Cle ecrasee par la plus recente (tri croissant) : la derniere
+                // tentative de la correlation donne le statut.
+                ->pluck('status', 'correlation_id')
+                ->all();
+
+        return array_map(static function (array $row) use ($statuses): array {
+            if ($row['status'] === null && $row['correlation_id'] !== null && isset($statuses[$row['correlation_id']])) {
+                $row['status'] = (string) $statuses[$row['correlation_id']];
+            }
+
+            unset($row['correlation_id']);
+
+            return $row;
+        }, $generation);
     }
 
     /**

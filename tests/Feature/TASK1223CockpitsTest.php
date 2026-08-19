@@ -97,9 +97,15 @@ class TASK1223CockpitsTest extends TestCase
         $response = $this->actingAs($this->member)->get(route('profile.ai-usage'));
 
         $response->assertOk();
-        // Le zero mesure s'affiche en dollars, l'inconnu s'affiche « — ».
-        $response->assertSee('$0.0000000000');
-        $response->assertSee('—');
+        // CORRECTION M1 TASK-1257 : plus aucun montant en dollars cote membre
+        // (inverse assume de T1228) — le zero mesure et l'inconnu restent
+        // DISTINCTS par leur etat (mesure / non mesurable), jamais confondus.
+        $response->assertDontSee('$0.0000000000');
+        $response->assertDontSee('$0.000000');
+        $response->assertSee('data-my-ai-usage-cost-state="known"', false);
+        $response->assertSee('data-my-ai-usage-cost-state="unknown"', false);
+        $response->assertSee(__('ai.usage_cost_state_known'));
+        $response->assertSee(__('ai.usage_cost_state_unknown'));
     }
 
     public function test_the_user_page_never_contains_the_api_key(): void

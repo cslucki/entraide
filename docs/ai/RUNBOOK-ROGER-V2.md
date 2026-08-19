@@ -245,14 +245,31 @@ embedding de requête) — jamais les indexations. Objet de valeur
 `renewsAt`.
 
 **Page « Mes usages IA »** (`profile.ai-usage` /
-`organization.profile.ai-usage`, `UserAiUsageController`) — **précision
-importante** : elle affiche le crédit personnel **et** le coût mesuré
-personnel de chaque utilisation (« Coût connu » / historique détaillé par
-action) — vérifié en direct sur le banc (86 utilisations, coût mesuré
-`$0.008951`, détail par ligne : question, type, provider/modèle, coût,
-statut). Ce qu'elle ne montre **jamais**, c'est un chiffre à l'échelle de
-l'Organization (budget, consommation globale) — la nuance est entre
-« personnel » et « Organization », pas entre « rien » et « coût ».
+`organization.profile.ai-usage`, `UserAiUsageController`) — elle affiche le
+crédit personnel (en utilisations), « Ce mois » (utilisations, ventilation
+par nature et, V2, par catégorie d'usage), le compte des appels au coût non
+mesurable, et l'historique récent par ligne (action, type, fournisseur /
+modèle, **notion** de coût — mesuré / non mesurable / non évalué —, statut).
+**Correction M1 TASK-1257 (arbitrage Cyril, inverse assumé de T1228)** :
+**aucun montant en dollars côté membre** — le coût fournisseur (mesuré ou
+estimé) n'appartient qu'aux surfaces Admin Organization (« Consommation et
+budget IA ») et SuperAdmin ; l'écran membre garde la notion de mesure,
+jamais le chiffre. Elle ne montre jamais non plus un chiffre à l'échelle de
+l'Organization (budget, consommation globale).
+
+*V2 (TASK-1257)* : ventilation des générations du mois **par catégorie
+d'usage** en langage produit (sous-lignes de « Générations »,
+`OrganizationAiEconomicUsage::userGenerationByProcess()` = délégation à
+`OrganizationAiConsumption::byProcess()` bornée tenant + utilisateur, dont la
+somme EST la ligne « Générations ») ; le statut d'une ligne d'historique sans
+`metadata.status` (Blog IA) est complété par la ligne ledger `generation` de
+la même `correlation_id` (même Organization, même utilisateur —
+`AiProviderInvocationConsole`, enrichissement de statut, aucune ligne ni
+compte emprunté au ledger) ; les exclusions du crédit (essais de doctrine,
+indexations, traitements non déclarés) sont chiffrées sous la carte crédit.
+Limite inchangée (G11) : les générations « famille C » (ledger +
+`admin_ai_interactions` seulement) n'apparaissent ni dans ce relevé ni dans
+le crédit.
 
 **Refus au plafond** : le crédit est vérifié en dernier dans
 `authorize()` (§5) — zéro écriture, `offersUrl()` conditionné au réglage

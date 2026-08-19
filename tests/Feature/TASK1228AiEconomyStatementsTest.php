@@ -229,7 +229,9 @@ class TASK1228AiEconomyStatementsTest extends TestCase
         $page = $this->actingAs($this->memberB)->get(route('profile.ai-usage'));
         $page->assertOk();
         $page->assertSee('data-my-ai-usage-month-count="1"', false);
-        $page->assertSee('$0.420000');
+        // CORRECTION M1 TASK-1257 : aucun montant en dollars cote membre (inverse T1228).
+        $page->assertDontSee('$0.420000');
+        $page->assertSee('data-my-ai-usage-cost-state="known"', false);
     }
 
     // =====================================================================
@@ -411,7 +413,10 @@ class TASK1228AiEconomyStatementsTest extends TestCase
         $page->assertOk();
         $this->assertSame(1, substr_count($page->getContent(), 'data-my-ai-usage-row'));
         $page->assertSee('data-my-ai-usage-month-count="1"', false);
-        $page->assertSee('$0.100000');
+        // CORRECTION M1 TASK-1257 : son propre cout non plus — aucun montant en
+        // dollars cote membre (inverse assume de T1228) ; la NOTION reste.
+        $page->assertDontSee('$0.100000');
+        $page->assertSee('data-my-ai-usage-cost-state="known"', false);
         // Ni le total de l'Organization (1.00), ni le budget (5.00), ni un autre membre.
         $page->assertDontSee('$1.000000');
         $page->assertDontSee('$5.00');
