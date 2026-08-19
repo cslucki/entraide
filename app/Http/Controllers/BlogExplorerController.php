@@ -7,6 +7,7 @@ use App\Ai\ResolvedModel;
 use App\Models\AdminAiPrompt;
 use App\Models\AiConfig;
 use App\Models\AiInteraction;
+use App\Models\AiInteractionFeedback;
 use App\Models\AiProviderInvocation;
 use App\Models\BlogAnalysisNote;
 use App\Models\BlogPost;
@@ -65,6 +66,17 @@ use Illuminate\Validation\Rule;
  * code `BlogExplorerFacilitation::defaultPrompt()`, jamais vide) + regles de
  * facilitation communes (l'IA propose, l'humain agit) + article. Sans
  * `method_code`, le prompt generique historique est conserve tel quel.
+ *
+ * TASK-1256 (Human Feedback V1) : `chat()` renvoie desormais
+ * `{text, ai_interaction_id}` (meme contrat que
+ * `BlogAiService::methodSelection()`) et `storeFeedback()` enregistre le
+ * jugement de l'humain sur CETTE reponse (`ai_interaction_feedbacks`, verdict
+ * `helpful` | `improve`, commentaire et meilleure reponse optionnels) — apres
+ * le MEME controle d'acces que le dialogue (`canAccessPostExplorer`) ET la
+ * preuve que l'interaction appartient au tenant courant et a cet article.
+ * Revision volontaire de T1249 : la trace `ai_interactions` du dialogue porte
+ * `metadata.method_code` (une cle, `null` pour le dialogue libre) pour que le
+ * feedback soit attribuable par methode ; le ledger, lui, reste IDENTIQUE.
  */
 class BlogExplorerController extends Controller implements HasMiddleware
 {
@@ -128,7 +140,7 @@ class BlogExplorerController extends Controller implements HasMiddleware
         $userMessage = $data['message'];
 
         try {
-            $text = $this->callAiForDialogue($post, $user, $systemPrompt, $conversationMessages, $userMessage);
+            $interaction = $this->callAiForDialogue($post, $user, $systemPrompt, $conversationMessages, $userMessage, $methodCode);
         } catch (AiRefusedException $e) {
             // TASK-1248 : refus economique AVANT tout appel provider. Jamais
             // rendu en `200 {text}` — cette forme est celle d'une reponse IA
@@ -137,8 +149,87 @@ class BlogExplorerController extends Controller implements HasMiddleware
             return $this->refusedResponse($e, $organization);
         }
 
+        // TASK-1256 : l'id de la trace atteint le navigateur — c'est ce que
+        // le feedback « Utile / A ameliorer » referencera (precedent exact :
+        // `methodSelection()`).
         return response()->json([
-            'text' => $text,
+            'text' => (string) $interaction->response,
+            'ai_interaction_id' => $interaction->id,
+        ]);
+    }
+
+    /**
+     * TASK-1256 : le jugement de l'humain sur UNE reponse Explorer.
+     *
+     * Controle d'acces STRICT, AVANT toute ecriture :
+     *  1. le tenant courant est celui de l'article (404 sinon, comme partout
+     *     ici) et l'acteur a les droits sur la surface Explorer de l'article
+     *     (`canAccessPostExplorer`, la MEME verification que `chat()`) ;
+     *  2. l'interaction referencee est resolue SOUS SCOPE : elle doit
+     *     appartenir au tenant courant, etre une reponse du dialogue Explorer
+     *     et porter CET article. Sinon 404 propre — une interaction d'un
+     *     autre tenant (ou d'un autre article) n'existe pas pour l'appelant,
+     *     rien n'est revele (R2 de l'audit T1255 : jamais de `Rule::exists`
+     *     sans scope).
+     *
+     * Un feedback par (interaction, acteur) : redonner un verdict met a jour
+     * la meme ligne (le dernier envoi, complet, fait foi — le client envoie
+     * toujours verdict + commentaire + suggestion tels qu'affiches).
+     * `organization_id` est la copie explicite du tenant de l'interaction.
+     */
+    public function storeFeedback(Request $request, BlogPost $post): JsonResponse
+    {
+        $organization = currentOrganization();
+        if (! $organization || $post->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $user = $request->user();
+
+        if (! $this->canAccessPostExplorer($post, $user, $organization)) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'ai_interaction_id' => ['required', 'uuid'],
+            'verdict' => ['required', 'string', Rule::in(AiInteractionFeedback::VERDICTS)],
+            'comment' => ['nullable', 'string', 'max:2000'],
+            'suggested_response' => ['nullable', 'string', 'max:6000'],
+        ]);
+
+        $interaction = AiInteraction::query()
+            ->whereKey($data['ai_interaction_id'])
+            ->where('organization_id', $organization->id)
+            ->where('feature', 'blog_explorer')
+            ->first();
+
+        if (! $interaction || (string) ($interaction->metadata['blog_post_id'] ?? '') !== (string) $post->id) {
+            return response()->json([
+                'message' => __('blog.explorer_feedback_not_found'),
+            ], 404);
+        }
+
+        $comment = trim((string) ($data['comment'] ?? ''));
+        $suggested = trim((string) ($data['suggested_response'] ?? ''));
+
+        $feedback = AiInteractionFeedback::query()->updateOrCreate(
+            [
+                'ai_interaction_id' => $interaction->id,
+                'user_id' => $user->id,
+            ],
+            [
+                'organization_id' => $interaction->organization_id,
+                'verdict' => $data['verdict'],
+                'comment' => $comment !== '' ? $comment : null,
+                'suggested_response' => $suggested !== '' ? $suggested : null,
+            ],
+        );
+
+        return response()->json([
+            'id' => $feedback->id,
+            'ai_interaction_id' => $feedback->ai_interaction_id,
+            'verdict' => $feedback->verdict,
+            'message' => __('blog.explorer_feedback_saved'),
         ]);
     }
 
@@ -355,6 +446,11 @@ class BlogExplorerController extends Controller implements HasMiddleware
         return $this->generateNote($request, $post);
     }
 
+    public function orgStoreFeedback(Request $request, string $org, BlogPost $post): JsonResponse
+    {
+        return $this->storeFeedback($request, $post);
+    }
+
     public function orgIndexNotes(Request $request, string $org, BlogPost $post): JsonResponse
     {
         return $this->indexNotes($request, $post);
@@ -493,12 +589,17 @@ class BlogExplorerController extends Controller implements HasMiddleware
      * Dialogue Explorer : l'historique deep-chat + le nouveau message, sous
      * l'autorite economique via `callProvider()`.
      *
+     * TASK-1256 : renvoie la trace `AiInteraction` (id + reponse) et y ecrit
+     * `metadata.method_code` — la methode de Roger de la conversation, ou
+     * `null` (cle presente) pour le dialogue libre. C'est la seule cle
+     * ajoutee ; le ledger n'en sait rien.
+     *
      * @param  list<array{role: string, text: string}>  $conversationMessages
      *
      * @throws AiRefusedException refus economique AVANT l'appel (code stable)
      * @throws \RuntimeException echec provider (deja tente, ledger ecrit)
      */
-    private function callAiForDialogue(BlogPost $post, User $user, string $systemPrompt, array $conversationMessages, string $newMessage): string
+    private function callAiForDialogue(BlogPost $post, User $user, string $systemPrompt, array $conversationMessages, string $newMessage, ?string $methodCode = null): AiInteraction
     {
         $messages = [
             ['role' => 'system', 'content' => $systemPrompt],
@@ -522,7 +623,9 @@ class BlogExplorerController extends Controller implements HasMiddleware
             $ollamaPrompt .= ($m['role'] === 'system' ? $m['content'] : "{$m['role']}: {$m['content']}\n\n");
         }
 
-        return $this->callProvider($post, $user, 'blog_explorer', $messages, $ollamaPrompt, $newMessage);
+        return $this->callProvider($post, $user, 'blog_explorer', $messages, $ollamaPrompt, $newMessage, [
+            'method_code' => $methodCode,
+        ]);
     }
 
     /**
@@ -539,14 +642,14 @@ class BlogExplorerController extends Controller implements HasMiddleware
             ['role' => 'user', 'content' => $prompt],
         ];
 
-        return $this->callProvider(
+        return (string) $this->callProvider(
             $post,
             $user,
             $feature,
             $messages,
             self::SIMPLE_SYSTEM_PROMPT."\n\n{$prompt}",
             mb_substr($prompt, 0, 2000),
-        );
+        )->response;
     }
 
     /**
@@ -557,14 +660,21 @@ class BlogExplorerController extends Controller implements HasMiddleware
      * GARDE (aucun appel si refus, rien d'ecrit) -> appel HTTP -> ledger
      * (succes ou echec) -> trace produit (succes seulement).
      *
+     * TASK-1256 : renvoie la trace produit ecrite (`AiInteraction`, dont
+     * `response` = le texte renvoye tel quel) et accepte des cles de
+     * `metadata` supplementaires propres a la fonction appelante
+     * (`method_code` du dialogue) — ajoutees a la trace SEULEMENT ; le ledger
+     * ne voit toujours que l'enveloppe economique.
+     *
      * @param  list<array{role: string, content: string}>  $messages  messages chat/completions (systeme inclus)
      * @param  string  $ollamaPrompt  la meme conversation aplatie pour `/api/generate`
      * @param  string  $tracePrompt  ce que la trace produit `ai_interactions` conserve comme prompt
+     * @param  array<string, mixed>  $traceMetadata  cles de metadata propres a la fonction (trace seulement)
      *
      * @throws AiRefusedException refus economique AVANT l'appel (code stable)
      * @throws \RuntimeException echec provider (deja tente, ledger ecrit)
      */
-    private function callProvider(BlogPost $post, User $user, string $feature, array $messages, string $ollamaPrompt, string $tracePrompt): string
+    private function callProvider(BlogPost $post, User $user, string $feature, array $messages, string $ollamaPrompt, string $tracePrompt, array $traceMetadata = []): AiInteraction
     {
         // Tenant EXPLICITE : l'Organization de l'article explore — jamais
         // `currentOrganization() ?? user.organization_id`.
@@ -706,7 +816,7 @@ class BlogExplorerController extends Controller implements HasMiddleware
 
         $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
 
-        AiInteraction::create([
+        return AiInteraction::create([
             'user_id' => $user->id,
             'organization_id' => $organization->id,
             'correlation_id' => $correlationId,
@@ -719,6 +829,10 @@ class BlogExplorerController extends Controller implements HasMiddleware
             'output_tokens' => $usage->outputTokensOrZero(),
             ...$cost->traceAttributes(),
             'metadata' => [
+                // TASK-1256 : cles propres a la fonction appelante (dialogue :
+                // `method_code`) — d'abord, pour que les cles communes
+                // ci-dessous ne puissent jamais etre ecrasees.
+                ...$traceMetadata,
                 'blog_post_id' => $post->id,
                 'latency_ms' => $latencyMs,
                 'provider' => $provider,
@@ -726,8 +840,6 @@ class BlogExplorerController extends Controller implements HasMiddleware
                 'credential_source' => ProviderResolver::credentialSourceFor($resolved->instance),
             ],
         ]);
-
-        return $text;
     }
 
     /**

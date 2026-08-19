@@ -179,7 +179,9 @@ async function askWithMethod(page, method, screenshotName, bucket) {
     expect(ch.feature).toBe('blog_explorer');
     expect(ch.process).toBe('blog.explorer_dialogue');
     expect(ch.organization_id).toBe(ch.post_organization_id);
-    expect(ch.metadata).not.toHaveProperty('method_code');
+    // TASK-1256 : la trace porte desormais `metadata.method_code` (revision
+    // volontaire de T1249) ; le ledger, lui, reste vierge de toute methode.
+    expect(ch.metadata.method_code).toBe(method.key);
     expect(ch.ledger.length).toBe(1);
     expect(ch.ledger[0]).toMatchObject({ operation: 'generation', capability: null, feature: 'blog_explorer', process: 'blog.explorer_dialogue', credential_source: 'platform', status: 'success' });
     bucket[method.key] = {
@@ -187,7 +189,7 @@ async function askWithMethod(page, method, screenshotName, bucket) {
         cost_status: ch.ledger[0].cost_status, provider_cost: ch.ledger[0].provider_cost, correlation_id: ch.correlation_id, answer: json.text,
         method_prompts_in_db: after.method_prompts_in_db,
     };
-    note(`${method.label} (${method.key}) -> reponse REELLE ${ch.ledger[0].provider}/${ch.ledger[0].model} (${json.text.length} car., cout ${ch.ledger[0].cost_status} ${ch.ledger[0].provider_cost ?? 'NULL'}) ; ledger +1 blog.explorer_dialogue, trace +1, aucun method_code en metadata ; prompts admin en base = ${after.method_prompts_in_db} (fallback code)`);
+    note(`${method.label} (${method.key}) -> reponse REELLE ${ch.ledger[0].provider}/${ch.ledger[0].model} (${json.text.length} car., cout ${ch.ledger[0].cost_status} ${ch.ledger[0].provider_cost ?? 'NULL'}) ; ledger +1 blog.explorer_dialogue, trace +1, metadata.method_code = ${ch.metadata.method_code} (T1256) ; prompts admin en base = ${after.method_prompts_in_db} (fallback code)`);
     return json.text;
 }
 

@@ -1,8 +1,9 @@
 # Les quatre méthodes de facilitation de Roger — chat Explorer d'article
 
-État **réellement livré** par TASK-1249 (2026-08-19). Cette page décrit ce
-que le code fait ; elle ne remplace ni les références méthodologiques, ni le
-TASK file.
+État **réellement livré** par TASK-1249 (2026-08-19), complété par TASK-1256
+(feedback humain V1 + `method_code` en métadonnées de trace, même jour). Cette
+page décrit ce que le code fait ; elle ne remplace ni les références
+méthodologiques, ni le TASK file.
 
 ## Ce que c'est
 
@@ -36,10 +37,15 @@ bouton (Alpine `blogExplorerModal.methodCode`, état de la conversation,
       │       puis repli `_fr`, puis fallback CODE — jamais vide
       ├─ + BlogExplorerFacilitation::facilitationRules($locale)  (bloc code, TOUJOURS présent)
       └─ + article (articleContext) + règle impérative (inchangé)
-  → callProvider()  — INCHANGÉ (garde économique T1248, ledger, trace :
-                      même feature `blog_explorer`, même process
-                      `blog.explorer_dialogue`, aucun `method_code` en metadata)
-  → intervention IA courte → l'humain répond.
+  → callProvider()  — garde économique T1248, ledger, trace : même feature
+                      `blog_explorer`, même process `blog.explorer_dialogue` ;
+                      depuis TASK-1256 la TRACE `ai_interactions` porte
+                      `metadata.method_code` (la méthode, ou `null` pour le
+                      dialogue libre — clé toujours présente sur un tour de
+                      dialogue, absente sur la note) ; le LEDGER
+                      `ai_provider_invocations`, lui, reste identique
+  → réponse `{text, ai_interaction_id}` → intervention IA courte, bloc
+    « Utile / À améliorer » sous la bulle (TASK-1256) → l'humain répond.
 ```
 
 Sans `method_code` (ou `null`) : le scénario générique historique
@@ -123,11 +129,56 @@ plus complet (documenté dans le RAA T999, hors V1).
 - `tests/e2e-ai-validation/blog-explorer-facilitation-methods.spec.js` —
   banc 8010, desktop + mobile, 4 boutons visibles au-dessus du chat, une
   réponse réelle distincte par méthode, reset à chaque conversation.
+- `tests/Feature/TASK1256ExplorerHumanFeedbackTest.php` — contrat
+  `{text, ai_interaction_id}`, `method_code` en métadonnées (4 méthodes +
+  `null`, note sans clé, aucune colonne nouvelle, ledger identique), création
+  / upsert du feedback, contrôle d'accès (tenant, droits, interaction d'un
+  autre tenant / article / surface → 404), rétention en cascade (interaction,
+  acteur, tenant), schéma fermé, registre de cycle de vie.
+
+## Feedback humain V1 sur une réponse (TASK-1256)
+
+Sous chaque bulle de réponse IA du dialogue Explorer : « Utile » / « À
+améliorer », puis, après le clic, une disclosure facultative (pourquoi / quoi
+améliorer ; quelle aurait été une meilleure intervention). Rien d'autre : ni
+fine-tuning, ni apprentissage automatique, ni export. **Un verdict n'est pas
+un consentement d'entraînement** (règle centrale de l'audit T1255).
+
+- `chat()` renvoie `{text, ai_interaction_id}` — même contrat que
+  `BlogAiService::methodSelection()` ; c'est cet id que le bloc référence.
+- Table fille `ai_interaction_feedbacks` (`App\Models\AiInteractionFeedback`) :
+  `ai_interaction_id` FK `ai_interactions` **CASCADE** (le feedback hérite
+  exactement la rétention de l'interaction — registre `UserDataLifecycleRegistry`
+  DELETE), `organization_id` copie explicite du tenant de l'interaction (FK
+  CASCADE), `user_id` FK users CASCADE, `verdict` fermé `helpful | improve`,
+  `comment` et `suggested_response` (le contenu de l'HUMAIN), timestamps,
+  unique (`ai_interaction_id`, `user_id`). **Aucune** colonne export /
+  training / consent ; **aucune** copie de prompt / réponse (liste de colonnes
+  fermée par test).
+- `POST …/explorer/feedback` (`blog.explorer.feedback.store`, alias
+  Organization) → `BlogExplorerController::storeFeedback()` : même contrôle
+  d'accès que le dialogue (`canAccessPostExplorer` : auteur, co-auteur, admin
+  plateforme du tenant de l'article), puis résolution de l'interaction SOUS
+  SCOPE (tenant courant + `feature = blog_explorer` + `metadata.blog_post_id`
+  = l'article) — 404 propre sinon, rien d'écrit, rien de révélé. Un feedback
+  par (interaction, acteur) : le redonner met à jour la même ligne.
+- UI : message deep-chat `html` attaché à la réponse (texte conservé pour
+  l'historique), boutons reliés par `htmlClassUtilities`, styles dans
+  `auxiliaryStyle` — aucune bibliothèque nouvelle. Un clic enregistre le
+  verdict tout de suite ; le formulaire complète la même ligne.
+- Attribution par méthode : `ai_interaction_feedbacks → ai_interactions.metadata.method_code`
+  (révision volontaire de la décision T1249, métadonnées seulement).
+
+Hors de cette V1 (TASKs dédiées futures) : identifiant de conversation /
+index de tour, version `AdminAiPrompt` dans la trace, toute file de relecture,
+export, agrégation cross-tenant, extension à ChatLoop / agent de profil,
+modèle de consentement.
 
 ## Hors périmètre V1
 
 Note d'analyse (`generateNote`) non affectée par la méthode ; suggestion sur
-passage (`methodSelection`) inchangée ; pas de `method_code` dans le ledger ou
-la trace (décision T1249 : la méthode n'influence que le prompt système) ;
-pas de migration vers `PromptRepository` / Constitution / Doctrine /
-CapabilityRegistry (chemin hérité assumé, T1247/T1248).
+passage (`methodSelection`) inchangée ; pas de `method_code` dans le ledger
+(la méthode n'influence que le prompt système et, depuis TASK-1256, une clé de
+métadonnées de la trace produit) ; pas de migration vers `PromptRepository` /
+Constitution / Doctrine / CapabilityRegistry (chemin hérité assumé,
+T1247/T1248).

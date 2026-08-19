@@ -6526,6 +6526,8 @@ function registerBlogExplorerModal() {
         chatUrl: config.chatUrl,
         noteGenerateUrl: config.noteGenerateUrl,
         notesStoreUrl: config.notesStoreUrl,
+        // TASK-1256 : feedback humain « Utile / A ameliorer » sur une reponse.
+        feedbackUrl: config.feedbackUrl || null,
         csrfToken: config.csrfToken,
         i18n: config.i18n || {},
 
@@ -6611,7 +6613,28 @@ function registerBlogExplorerModal() {
                 if (response && response.error) {
                     throw new Error(response.error);
                 }
-                return { text: response?.text || '' };
+                const text = response?.text || '';
+                // TASK-1256 : la reponse porte l'id de sa trace
+                // (`ai_interaction_id`) ; le bloc de feedback s'affiche SOUS la
+                // bulle (html du meme message deep-chat, texte conserve pour
+                // l'historique) et le reference. Sans id (article non
+                // sauvegarde…) : bulle texte seule, comme avant.
+                const interactionId = this.feedbackInteractionId(response);
+                if (!interactionId || !this.feedbackUrl) {
+                    return { text };
+                }
+                return {
+                    text,
+                    html: this.feedbackHtml(interactionId),
+                    custom: { ai_interaction_id: interactionId },
+                };
+            };
+
+            // TASK-1256 : les boutons du bloc de feedback vivent dans le shadow
+            // DOM de deep-chat ; c'est son mecanisme officiel pour les relier.
+            dc.htmlClassUtilities = {
+                'bp-fb-verdict': { events: { click: (event) => this.onFeedbackVerdict(event) } },
+                'bp-fb-send': { events: { click: (event) => this.onFeedbackSend(event) } },
             };
 
             dc.introMessage = {
@@ -6728,14 +6751,197 @@ function registerBlogExplorerModal() {
                         color: dark ? '#fecaca' : '#991b1b',
                     },
                 },
+                // TASK-1256 : le bloc de feedback (message html) n'est pas une
+                // bulle : transparent, colle sous la bulle texte.
+                html: {
+                    shared: {
+                        bubble: {
+                            backgroundColor: 'transparent',
+                            padding: '0',
+                            marginTop: '-4px',
+                            maxWidth: '78%',
+                            color: muted,
+                        },
+                    },
+                },
             };
 
+            const fbAccent = dark ? '#c4b5fd' : '#6d28d9';
+            const fbAccentBg = dark ? 'rgba(124, 58, 237, 0.18)' : '#f5f3ff';
             dc.auxiliaryStyle = `
                 ::-webkit-scrollbar { width: 10px; }
                 ::-webkit-scrollbar-track { background: ${surface}; }
                 ::-webkit-scrollbar-thumb { background: ${dark ? '#4b5563' : '#cbd5e1'}; border-radius: 999px; border: 2px solid ${surface}; }
                 ::-webkit-scrollbar-thumb:hover { background: ${dark ? '#6b7280' : '#94a3b8'}; }
+                .bp-fb { font-size: 12px; line-height: 1.4; color: ${muted}; padding: 2px 4px 6px; }
+                .bp-fb-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+                .bp-fb-q { margin-right: 2px; }
+                .bp-fb-btn { font: inherit; font-size: 12px; line-height: 1; cursor: pointer; border: 1px solid ${border}; border-radius: 999px; padding: 5px 10px; background: ${surface}; color: ${text}; transition: border-color .15s, background-color .15s, color .15s; }
+                .bp-fb-btn:hover { border-color: ${fbAccent}; color: ${fbAccent}; }
+                .bp-fb-btn:disabled { cursor: default; opacity: .6; }
+                .bp-fb-btn[aria-pressed="true"] { border-color: ${fbAccent}; background: ${fbAccentBg}; color: ${fbAccent}; font-weight: 600; }
+                .bp-fb-status { color: ${fbAccent}; }
+                .bp-fb-status[data-kind="error"] { color: ${dark ? '#fca5a5' : '#b91c1c'}; }
+                .bp-fb-form { margin-top: 8px; display: grid; gap: 6px; }
+                .bp-fb-form[hidden] { display: none; }
+                .bp-fb-hint { color: ${muted}; }
+                .bp-fb-label { display: block; color: ${text}; font-weight: 500; margin-bottom: 2px; }
+                .bp-fb-input { font: inherit; font-size: 12px; line-height: 1.4; width: 100%; box-sizing: border-box; min-height: 48px; resize: vertical; border: 1px solid ${border}; border-radius: 8px; padding: 6px 8px; background: ${surfaceSoft}; color: ${text}; }
+                .bp-fb-input:focus { outline: none; border-color: #8b5cf6; }
+                .bp-fb-actions { display: flex; align-items: center; gap: 8px; }
+                .bp-fb-send { font: inherit; font-size: 12px; line-height: 1; cursor: pointer; border: 0; border-radius: 8px; padding: 6px 12px; background: ${dark ? '#6d28d9' : '#7c3aed'}; color: #fff; font-weight: 600; }
+                .bp-fb-send:hover { background: ${dark ? '#7c3aed' : '#6d28d9'}; }
+                .bp-fb-send:disabled { opacity: .6; cursor: default; }
             `;
+        },
+
+        // ------------------------------------------------------------------
+        // TASK-1256 : feedback humain sur une reponse (Utile / A ameliorer,
+        // puis disclosure facultative : pourquoi / quoi ameliorer / quelle
+        // meilleure intervention). Un clic enregistre le verdict tout de
+        // suite ; le formulaire, optionnel, complete la MEME ligne.
+        // ------------------------------------------------------------------
+        feedbackInteractionId(response) {
+            const id = response && typeof response.ai_interaction_id === 'string' ? response.ai_interaction_id : '';
+            return /^[0-9a-fA-F-]{36}$/.test(id) ? id : null;
+        },
+
+        feedbackEscape(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        },
+
+        feedbackHtml(interactionId) {
+            const t = (key, fallback) => this.feedbackEscape(this.i18n[key] || fallback);
+            return `
+<div class="bp-fb" data-interaction-id="${this.feedbackEscape(interactionId)}" data-verdict="">
+  <div class="bp-fb-row">
+    <span class="bp-fb-q">${t('feedbackQuestion', 'Cette intervention vous a-t-elle aidé ?')}</span>
+    <button type="button" class="bp-fb-btn bp-fb-verdict" data-verdict="helpful" aria-pressed="false">${t('feedbackHelpful', 'Utile')}</button>
+    <button type="button" class="bp-fb-btn bp-fb-verdict" data-verdict="improve" aria-pressed="false">${t('feedbackImprove', 'À améliorer')}</button>
+    <span class="bp-fb-status" aria-live="polite"></span>
+  </div>
+  <div class="bp-fb-form" hidden>
+    <span class="bp-fb-hint">${t('feedbackDetailsHint', 'Facultatif : dites-nous en plus.')}</span>
+    <label>
+      <span class="bp-fb-label">${t('feedbackCommentLabel', 'Pourquoi ? Que faudrait-il améliorer ?')}</span>
+      <textarea class="bp-fb-input bp-fb-comment" rows="2" maxlength="2000" placeholder="${t('feedbackCommentPlaceholder', '')}"></textarea>
+    </label>
+    <label>
+      <span class="bp-fb-label">${t('feedbackSuggestLabel', 'Quelle aurait été une meilleure intervention ?')}</span>
+      <textarea class="bp-fb-input bp-fb-suggest" rows="3" maxlength="6000" placeholder="${t('feedbackSuggestPlaceholder', '')}"></textarea>
+    </label>
+    <div class="bp-fb-actions">
+      <button type="button" class="bp-fb-send">${t('feedbackSend', 'Envoyer')}</button>
+    </div>
+  </div>
+</div>`;
+        },
+
+        feedbackRoot(event) {
+            const el = event && (event.currentTarget || event.target);
+            return el && el.closest ? el.closest('.bp-fb') : null;
+        },
+
+        feedbackSetStatus(root, message, kind) {
+            const status = root.querySelector('.bp-fb-status');
+            if (!status) return;
+            status.textContent = message || '';
+            if (kind) {
+                status.setAttribute('data-kind', kind);
+            } else {
+                status.removeAttribute('data-kind');
+            }
+        },
+
+        async onFeedbackVerdict(event) {
+            const root = this.feedbackRoot(event);
+            const button = event.currentTarget || event.target;
+            if (!root || !button) return;
+            const verdict = button.getAttribute('data-verdict');
+            if (verdict !== 'helpful' && verdict !== 'improve') return;
+
+            root.setAttribute('data-verdict', verdict);
+            root.querySelectorAll('.bp-fb-verdict').forEach((b) => {
+                b.setAttribute('aria-pressed', b === button ? 'true' : 'false');
+            });
+
+            const ok = await this.postFeedback(root, verdict, false);
+            if (ok) {
+                const form = root.querySelector('.bp-fb-form');
+                if (form) form.hidden = false;
+            }
+        },
+
+        async onFeedbackSend(event) {
+            const root = this.feedbackRoot(event);
+            if (!root) return;
+            const verdict = root.getAttribute('data-verdict');
+            if (verdict !== 'helpful' && verdict !== 'improve') return;
+            await this.postFeedback(root, verdict, true);
+        },
+
+        async postFeedback(root, verdict, withDetails) {
+            const interactionId = root.getAttribute('data-interaction-id');
+            if (!interactionId || !this.feedbackUrl) return false;
+
+            const comment = (root.querySelector('.bp-fb-comment')?.value || '').trim();
+            const suggested = (root.querySelector('.bp-fb-suggest')?.value || '').trim();
+            const sendButton = root.querySelector('.bp-fb-send');
+            const verdictButtons = root.querySelectorAll('.bp-fb-verdict');
+
+            verdictButtons.forEach((b) => { b.disabled = true; });
+            if (sendButton) {
+                sendButton.disabled = true;
+                if (withDetails) sendButton.textContent = this.i18n.feedbackSending || 'Envoi…';
+            }
+            this.feedbackSetStatus(root, '', null);
+
+            try {
+                const response = await fetch(this.feedbackUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        ai_interaction_id: interactionId,
+                        verdict,
+                        comment: comment || null,
+                        suggested_response: suggested || null,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    this.feedbackSetStatus(root, data.message || this.i18n.feedbackError || 'Erreur.', 'error');
+                    return false;
+                }
+
+                this.feedbackSetStatus(
+                    root,
+                    withDetails
+                        ? (this.i18n.feedbackDetailsSaved || 'Merci, vos précisions sont enregistrées.')
+                        : (this.i18n.feedbackSaved || 'Merci, c’est noté.'),
+                    'ok',
+                );
+                return true;
+            } catch (_) {
+                this.feedbackSetStatus(root, this.i18n.feedbackError || 'Erreur de connexion.', 'error');
+                return false;
+            } finally {
+                verdictButtons.forEach((b) => { b.disabled = false; });
+                if (sendButton) {
+                    sendButton.disabled = false;
+                    sendButton.textContent = this.i18n.feedbackSend || 'Envoyer';
+                }
+            }
         },
 
         get canGenerateNote() {

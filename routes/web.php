@@ -193,6 +193,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Blog Explorer endpoints
     Route::post('/blog/{post:slug}/explorer/chat', [BlogExplorerController::class, 'chat'])->name('blog.explorer.chat');
     Route::post('/blog/{post:slug}/explorer/note', [BlogExplorerController::class, 'generateNote'])->name('blog.explorer.note.generate');
+    // TASK-1256 : feedback humain sur une reponse Explorer (Utile / A ameliorer)
+    Route::post('/blog/{post:slug}/explorer/feedback', [BlogExplorerController::class, 'storeFeedback'])->name('blog.explorer.feedback.store');
     Route::get('/blog/{post:slug}/explorer/notes', [BlogExplorerController::class, 'indexNotes'])->name('blog.explorer.notes.index');
     Route::post('/blog/{post:slug}/explorer/notes', [BlogExplorerController::class, 'storeNote'])->name('blog.explorer.notes.store');
     Route::put('/blog/{post:slug}/explorer/notes/{note}', [BlogExplorerController::class, 'updateNote'])->name('blog.explorer.notes.update');
@@ -903,6 +905,7 @@ Route::prefix('/org/{organization}')
                 // Blog Explorer endpoints (org-scoped)
                 Route::post('/blog/{post:slug}/explorer/chat', [BlogExplorerController::class, 'orgChat'])->name('blog.explorer.chat');
                 Route::post('/blog/{post:slug}/explorer/note', [BlogExplorerController::class, 'orgGenerateNote'])->name('blog.explorer.note.generate');
+                Route::post('/blog/{post:slug}/explorer/feedback', [BlogExplorerController::class, 'orgStoreFeedback'])->name('blog.explorer.feedback.store');
                 Route::get('/blog/{post:slug}/explorer/notes', [BlogExplorerController::class, 'orgIndexNotes'])->name('blog.explorer.notes.index');
                 Route::post('/blog/{post:slug}/explorer/notes', [BlogExplorerController::class, 'orgStoreNote'])->name('blog.explorer.notes.store');
                 Route::put('/blog/{post:slug}/explorer/notes/{note}', [BlogExplorerController::class, 'orgUpdateNote'])->name('blog.explorer.notes.update');
