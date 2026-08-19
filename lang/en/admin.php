@@ -279,6 +279,7 @@ return [
     'user_data_bug_reports' => 'Bug reports',
     'user_data_login_logs' => 'Login history',
     'user_data_ai_interactions' => 'AI interactions',
+    'user_data_ai_interaction_feedbacks' => 'Human feedback on AI responses (Explorer)',
     'user_data_referrals_made' => 'Referrals made',
     'user_lifecycle_transferable' => 'Transferable data',
     'user_lifecycle_detachable' => 'Detachable data',

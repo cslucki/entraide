@@ -30,7 +30,9 @@ neutralisations), restent la référence opérationnelle : `TODO/ARCHIVES/`
 - [`METHODES-FACILITATION-EXPLORER.md`](./METHODES-FACILITATION-EXPLORER.md) —
   les quatre méthodes de facilitation de Roger dans le chat Explorer
   d'article (TASK-1249) : `method_code`, résolution via `AdminAiPrompt`,
-  règles de facilitation, références méthodologiques privées.
+  règles de facilitation, références méthodologiques privées ; feedback
+  humain V1 « Utile / À améliorer » sous chaque réponse et `method_code` en
+  métadonnées de trace (TASK-1256).
 
 ## Prochaine cible
 

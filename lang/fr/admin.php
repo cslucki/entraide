@@ -279,6 +279,7 @@ return [
     'user_data_bug_reports' => 'Rapports bugs',
     'user_data_login_logs' => 'Connexions',
     'user_data_ai_interactions' => 'Interactions IA',
+    'user_data_ai_interaction_feedbacks' => 'Jugements humains sur des réponses IA (Explorer)',
     'user_data_referrals_made' => 'Parrainages',
     'user_lifecycle_transferable' => 'Données transférables',
     'user_lifecycle_detachable' => 'Données détachables',

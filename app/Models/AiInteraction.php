@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AiInteraction extends Model
 {
@@ -50,5 +51,14 @@ class AiInteraction extends Model
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    /**
+     * TASK-1256 : jugements humains portes sur cette reponse (un par
+     * personne), supprimes avec elle (FK CASCADE).
+     */
+    public function feedbacks(): HasMany
+    {
+        return $this->hasMany(AiInteractionFeedback::class, 'ai_interaction_id');
     }
 }

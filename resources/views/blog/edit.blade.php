@@ -1627,6 +1627,8 @@
             chatUrl: @js($_blogRoute('explorer.chat', ['post' => $post])),
             noteGenerateUrl: @js($_blogRoute('explorer.note.generate', ['post' => $post])),
             notesStoreUrl: @js($_blogRoute('explorer.notes.store', ['post' => $post])),
+            {{-- TASK-1256 : feedback humain « Utile / A ameliorer » sur une reponse Explorer --}}
+            feedbackUrl: @js($_blogRoute('explorer.feedback.store', ['post' => $post])),
             csrfToken: @js(csrf_token()),
             noteMaxChars: 3000,
             {{-- TASK-1249 : methodes de facilitation de Roger — identifiants canoniques de BlogAiService::METHOD_SELECTION_METHODS --}}
@@ -1657,6 +1659,19 @@
                 deepChatError: @js(__('blog.explorer_deep_chat_error')),
                 introMessage: @js(__('blog.explorer_intro_message')),
                 articleNotSaved: @js(__('blog.explorer_article_not_saved')),
+                feedbackQuestion: @js(__('blog.explorer_feedback_question')),
+                feedbackHelpful: @js(__('blog.explorer_feedback_helpful')),
+                feedbackImprove: @js(__('blog.explorer_feedback_improve')),
+                feedbackSaved: @js(__('blog.explorer_feedback_saved')),
+                feedbackDetailsHint: @js(__('blog.explorer_feedback_details_hint')),
+                feedbackCommentLabel: @js(__('blog.explorer_feedback_comment_label')),
+                feedbackCommentPlaceholder: @js(__('blog.explorer_feedback_comment_placeholder')),
+                feedbackSuggestLabel: @js(__('blog.explorer_feedback_suggest_label')),
+                feedbackSuggestPlaceholder: @js(__('blog.explorer_feedback_suggest_placeholder')),
+                feedbackSend: @js(__('blog.explorer_feedback_send')),
+                feedbackSending: @js(__('blog.explorer_feedback_sending')),
+                feedbackDetailsSaved: @js(__('blog.explorer_feedback_details_saved')),
+                feedbackError: @js(__('blog.explorer_feedback_error')),
             },
         })"
         x-show="open"
