@@ -6,6 +6,14 @@
     autrement : « 0 » dit « ca n'a rien coute », « — » dit « on ne sait pas ».
     Les appels non mesurables ont donc leur propre colonne, a cote du cout,
     jamais fondus dedans.
+
+    TASK-1258 (Releve Organization V2, Option B) : fonctions produit
+    (« Fonctions les plus consommatrices », meme autorite groupee par process,
+    langage produit, cle technique hors du texte visible), echecs par nature
+    documentaire (`failed_count` de l'autorite 1222, enfin rendu), vocabulaire
+    « cout fournisseur » partout ou un montant est nomme (le montant $ reste
+    cote Admin), note de limites corrigee (la source de credential EST tracee
+    au registre canonique, cette console ne la ventile pas encore).
 --}}
 @php
     /**
@@ -16,6 +24,10 @@
     $cost = static function (?float $value): string {
         return $value === null ? '—' : '$'.number_format($value, 6);
     };
+    /** Libelle produit d'un process (TASK-1219/1228) ; la cle brute si aucun libelle, « — » si absent. */
+    $processLabel = static fn (?string $key): string => $key !== null && \Illuminate\Support\Facades\Lang::has('ai.process_label.'.str_replace('.', '_', $key))
+        ? __('ai.process_label.'.str_replace('.', '_', $key))
+        : ($key ?? '—');
 @endphp
 
 <x-org-admin-layout :title="__('navigation.org_admin_ai_consumption')" :organization="$organization">
@@ -59,7 +71,9 @@
                     <select id="{{ $name }}" name="{{ $name }}" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-sm">
                         <option value="">{{ __('ai.consumption_console_all') }}</option>
                         @foreach ($config['options'] as $option)
-                            <option value="{{ $option }}" @selected($config['current'] === $option)>{{ $option }}</option>
+                            {{-- TASK-1258 : une fonction se lit en langage produit ; la valeur
+                                 (contrat d'URL `?process=`) reste la cle. --}}
+                            <option value="{{ $option }}" @selected($config['current'] === $option)>{{ $name === 'process' ? $processLabel($option) : $option }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -80,9 +94,6 @@
             + $economics['embedding_query']['invocation_count']
             + $economics['embedding_ingestion']['invocation_count']
             + $economics['embedding_undeclared']['invocation_count'];
-        $processLabel = static fn (?string $key): string => $key !== null && \Illuminate\Support\Facades\Lang::has('ai.process_label.'.str_replace('.', '_', $key))
-            ? __('ai.process_label.'.str_replace('.', '_', $key))
-            : ($key ?? '—');
     @endphp
     <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6" data-consumption-budget-block>
         <div class="flex flex-wrap items-baseline justify-between gap-2 mb-4">
@@ -133,18 +144,23 @@
         <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mt-6 mb-2">{{ __('ai.consumption_breakdown_title') }}</h3>
         <ul class="divide-y divide-gray-100 dark:divide-gray-700 text-sm" data-consumption-breakdown data-consumption-total-count="{{ $econTotalCount }}">
             @foreach ([
-                ['key' => 'generation', 'label' => __('ai.economy_nature_generation'), 'count' => $economics['generation']['trace_count'], 'known' => $economics['generation']['known_cost_usd'], 'unknown' => $economics['generation']['unknown_count']],
-                ['key' => 'embedding_ingestion', 'label' => __('ai.economy_nature_embedding_ingestion'), 'count' => $economics['embedding_ingestion']['invocation_count'], 'known' => $economics['embedding_ingestion']['known_cost_usd'], 'unknown' => $economics['embedding_ingestion']['unknown_count']],
-                ['key' => 'embedding_query', 'label' => __('ai.economy_nature_embedding_query'), 'count' => $economics['embedding_query']['invocation_count'], 'known' => $economics['embedding_query']['known_cost_usd'], 'unknown' => $economics['embedding_query']['unknown_count']],
-                ['key' => 'embedding_undeclared', 'label' => __('ai.economy_nature_embedding_undeclared'), 'count' => $economics['embedding_undeclared']['invocation_count'], 'known' => $economics['embedding_undeclared']['known_cost_usd'], 'unknown' => $economics['embedding_undeclared']['unknown_count']],
+                ['key' => 'generation', 'label' => __('ai.economy_nature_generation'), 'count' => $economics['generation']['trace_count'], 'known' => $economics['generation']['known_cost_usd'], 'unknown' => $economics['generation']['unknown_count'], 'failed' => null],
+                ['key' => 'embedding_ingestion', 'label' => __('ai.economy_nature_embedding_ingestion'), 'count' => $economics['embedding_ingestion']['invocation_count'], 'known' => $economics['embedding_ingestion']['known_cost_usd'], 'unknown' => $economics['embedding_ingestion']['unknown_count'], 'failed' => $economics['embedding_ingestion']['failed_count']],
+                ['key' => 'embedding_query', 'label' => __('ai.economy_nature_embedding_query'), 'count' => $economics['embedding_query']['invocation_count'], 'known' => $economics['embedding_query']['known_cost_usd'], 'unknown' => $economics['embedding_query']['unknown_count'], 'failed' => $economics['embedding_query']['failed_count']],
+                ['key' => 'embedding_undeclared', 'label' => __('ai.economy_nature_embedding_undeclared'), 'count' => $economics['embedding_undeclared']['invocation_count'], 'known' => $economics['embedding_undeclared']['known_cost_usd'], 'unknown' => $economics['embedding_undeclared']['unknown_count'], 'failed' => $economics['embedding_undeclared']['failed_count']],
             ] as $nature)
                 @if($nature['count'] > 0 || $nature['key'] !== 'embedding_undeclared')
-                    <li class="flex flex-wrap items-center justify-between gap-2 py-2" data-consumption-nature="{{ $nature['key'] }}" data-consumption-nature-count="{{ $nature['count'] }}">
+                    <li class="flex flex-wrap items-center justify-between gap-2 py-2" data-consumption-nature="{{ $nature['key'] }}" data-consumption-nature-count="{{ $nature['count'] }}"@if($nature['failed'] !== null) data-consumption-nature-failed="{{ $nature['failed'] }}"@endif>
                         <span class="text-gray-900 dark:text-gray-100">{{ $nature['label'] }}</span>
                         <span class="tabular-nums text-xs text-gray-700 dark:text-gray-300">
                             {{ number_format($nature['count']) }} · {{ $cost($nature['known']) }}
                             @if($nature['unknown'] > 0)
                                 · <span class="text-amber-700 dark:text-amber-300">{{ trans_choice('ai.economy_unknown_count', $nature['unknown'], ['count' => $nature['unknown']]) }}</span>
+                            @endif
+                            {{-- TASK-1258 : les ECHECS (tentatives reelles, comptees a part par
+                                 l'autorite 1222), enfin visibles — jamais deguises en « inconnu ». --}}
+                            @if(($nature['failed'] ?? 0) > 0)
+                                · <span class="text-red-600 dark:text-red-400">{{ trans_choice('ai.economy_failed_count', $nature['failed'], ['count' => $nature['failed']]) }}</span>
                             @endif
                         </span>
                     </li>
@@ -168,6 +184,8 @@
                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_indexing') }}</th>
                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_known_cost') }}</th>
                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_unknown') }}</th>
+                        {{-- TASK-1258 : echecs des appels documentaires (somme des trois seaux de byUser()). --}}
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_failed') }}</th>
                         {{-- TASK-1229 : credit IA de chaque membre (utilisations creditees / quota effectif), mois courant seulement. --}}
                         @if($creditUses !== null)
                             <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('admin.consumption_col_credit') }}</th>
@@ -181,6 +199,7 @@
                             $creditQuota = $creditPolicy->isUnlimited() ? null : (int) $creditPolicy->monthlyUses;
                             $creditBlocked = $creditUsed !== null && $creditQuota !== null && $creditUsed >= $creditQuota;
                             $creditAlert = $creditUsed !== null && $creditQuota !== null && $creditQuota > 0 && ! $creditBlocked && $creditUsed >= $creditQuota * $creditPolicy->alertPercent / 100;
+                            $rowFailed = $row['embedding_query']['failed_count'] + $row['embedding_ingestion']['failed_count'] + $row['embedding_undeclared']['failed_count'];
                         @endphp
                         <tr data-consumption-top-user="{{ $row['user_id'] ?? 'unattributed' }}" @if($creditUsed !== null) data-consumption-credit-used="{{ $creditUsed }}" @endif>
                             <td class="px-3 py-2 text-gray-900 dark:text-gray-100">{{ $row['user_id'] === null ? __('ai.economy_unattributed') : ($row['name'] ?? '—') }}</td>
@@ -194,6 +213,7 @@
                             </td>
                             <td class="px-3 py-2 text-right tabular-nums text-gray-900 dark:text-gray-100">{{ $cost($row['total_known_cost_usd']) }}</td>
                             <td class="px-3 py-2 text-right tabular-nums {{ $row['total_unknown_count'] > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-gray-400' }}">{{ number_format($row['total_unknown_count']) }}</td>
+                            <td class="px-3 py-2 text-right tabular-nums {{ $rowFailed > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400' }}" data-consumption-top-user-failed="{{ $rowFailed }}">{{ number_format($rowFailed) }}</td>
                             @if($creditUses !== null)
                                 <td class="px-3 py-2 text-right tabular-nums text-xs {{ $creditBlocked ? 'text-red-600 dark:text-red-400 font-semibold' : ($creditAlert ? 'text-amber-700 dark:text-amber-300' : 'text-gray-700 dark:text-gray-300') }}">
                                     @if($creditUsed === null)
@@ -207,7 +227,39 @@
                             @endif
                         </tr>
                     @empty
-                        <tr><td colspan="{{ $creditUses !== null ? 7 : 6 }}" class="px-3 py-4 text-center text-gray-400">{{ __('ai.consumption_console_empty') }}</td></tr>
+                        <tr><td colspan="{{ $creditUses !== null ? 8 : 7 }}" class="px-3 py-4 text-center text-gray-400">{{ __('ai.consumption_console_empty') }}</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        {{-- TASK-1258 : FONCTIONS les plus consommatrices — la MEME autorite (1219
+             byProcess via 1222), org-wide sur la periode, en LANGAGE PRODUIT : la
+             cle technique ne figure que dans l'attribut de donnees. Les lignes
+             somment la ligne « Generations » de la ventilation ci-dessus. --}}
+        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mt-6 mb-2">{{ __('ai.consumption_top_processes_title') }}</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm" data-consumption-top-processes data-consumption-top-processes-count="{{ count($economicsByProcess) }}">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_function') }}</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_generation') }}</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_known_cost') }}</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_col_unknown') }}</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('ai.consumption_console_col_unevaluated') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    @forelse(array_slice($economicsByProcess, 0, 10) as $row)
+                        <tr data-consumption-top-process="{{ $row['key'] ?? 'unknown' }}" data-consumption-top-process-count="{{ $row['trace_count'] }}">
+                            <td class="px-3 py-2 text-gray-900 dark:text-gray-100">{{ $processLabel($row['key']) }}</td>
+                            <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{{ number_format($row['trace_count']) }}</td>
+                            <td class="px-3 py-2 text-right tabular-nums text-gray-900 dark:text-gray-100">{{ $cost($row['known_cost_usd']) }}</td>
+                            <td class="px-3 py-2 text-right tabular-nums {{ $row['unknown_count'] > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-gray-400' }}">{{ number_format($row['unknown_count']) }}</td>
+                            <td class="px-3 py-2 text-right tabular-nums text-gray-500 dark:text-gray-400">{{ number_format($row['unevaluated_count']) }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5" class="px-3 py-4 text-center text-gray-400">{{ __('ai.consumption_console_empty') }}</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -287,7 +339,9 @@
                                     <td class="px-4 py-3 text-gray-900 dark:text-gray-100">
                                         {{-- Valeur absente : « — », jamais devinee depuis une autre colonne. --}}
                                         @if($table['attr'] === 'process' && $row['key'] !== null)
-                                            {{ $processLabel($row['key']) }} <span class="text-xs text-gray-400 font-mono">{{ $row['key'] }}</span>
+                                            {{-- TASK-1258 : langage produit ; la cle technique reste lisible
+                                                 au survol et dans l'attribut, jamais dans le texte. --}}
+                                            <span title="{{ $row['key'] }}" data-consumption-process-key="{{ $row['key'] }}">{{ $processLabel($row['key']) }}</span>
                                         @else
                                             {{ $row['key'] ?? '—' }}
                                         @endif
@@ -384,6 +438,8 @@
             <li>{{ __('ai.consumption_console_limit_platform_price') }}</li>
             <li>{{ __('ai.consumption_console_limit_tokens') }}</li>
             <li>{{ __('ai.consumption_console_limit_credential') }}</li>
+            {{-- TASK-1258 : les echecs de generation ne sont pas comptes par l'autorite de cette console. --}}
+            <li>{{ __('ai.consumption_console_limit_generation_failures') }}</li>
         </ul>
     </div>
 </x-org-admin-layout>

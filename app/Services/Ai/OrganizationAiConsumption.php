@@ -70,7 +70,14 @@ use Illuminate\Support\Str;
  *   fournisseur, rapporte ou estime », sans distinction possible.
  * - COUT PLATEFORME et PRIX CLIENT : n'existent pas dans le systeme (aucune
  *   marge, aucun prix, aucun credit). Ils ne sont pas inventes.
- * - SOURCE DE CREDENTIAL : aucune colonne ne relie une trace a la cle utilisee.
+ * - SOURCE DE CREDENTIAL : `ai_interactions` n'a pas de colonne qui relie la
+ *   trace a la cle utilisee (le Blog l'ecrit dans `metadata.credential_source`
+ *   depuis T1248). La source EST tracee par appel dans le ledger canonique
+ *   `ai_provider_invocations.credential_source` (organization / platform /
+ *   user / none / unknown, T1220) — cette console ne la ventile pas : son
+ *   autorite generation reste `ai_interactions` (bascule G11 a venir).
+ *   Corrige TASK-1258 (la phrase « aucune colonne ne relie une trace a la cle »
+ *   etait devenue fausse).
  *
  * --------------------------------------------------------------------------
  * TENANT

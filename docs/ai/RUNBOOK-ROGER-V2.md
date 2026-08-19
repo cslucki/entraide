@@ -271,6 +271,22 @@ Limite inchangée (G11) : les générations « famille C » (ledger +
 `admin_ai_interactions` seulement) n'apparaissent ni dans ce relevé ni dans
 le crédit.
 
+*Relevé Organization V2 (TASK-1258, Option B)* — console Admin Organization
+« Consommation IA » (`organization.admin.ai-consumption`,
+`OrgAdminController::aiConsumption()`) : « Fonctions les plus
+consommatrices » en langage produit (`OrganizationAiEconomicUsage::
+generationByProcess()` = délégation à `OrganizationAiConsumption::byProcess()`,
+org-wide sur la période, somme = ligne « Générations ») ; filtre et table
+« Par fonction » en langage produit (clé technique conservée comme valeur /
+attribut) ; échecs des appels documentaires (`failed_count` de l'autorité
+1222) par nature et par utilisateur — une génération échouée n'est pas
+comptée comme échec par ce registre (dit à l'écran) ; vocabulaire « coût
+fournisseur mesuré » partout où un montant est nommé (le montant reste côté
+Admin) ; la note « l'origine des identifiants n'est pas traçable » est
+remplacée par le vrai : tracée par appel dans le registre canonique
+(`credential_source`), non ventilée dans cette console (bascule G11 à venir,
+aucune ventilation par payeur ici).
+
 **Refus au plafond** : le crédit est vérifié en dernier dans
 `authorize()` (§5) — zéro écriture, `offersUrl()` conditionné au réglage
 plateforme `offer_subscription`.
