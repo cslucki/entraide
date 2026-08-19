@@ -22,6 +22,9 @@ return [
     'question' => 'Question',
     'response' => 'Réponse de l\'agent',
     'no_response' => 'Aucune réponse enregistrée.',
+    // TASK-1251 : l'echange existe mais la garde economique a refuse l'appel (status = refused).
+    'interaction_refused_badge' => 'Réponse non générée',
+    'interaction_refused_body' => 'L\'agent IA n\'a pas répondu : l\'appel a été refusé avant d\'être envoyé (:code). Aucun coût n\'a été engagé.',
     'my_agent_title' => 'Mon agent IA',
     'my_agent_subtitle' => 'Visualisez et testez votre profil d\'agent IA.',
     'my_agent_no_profile_body' => 'Configurez votre profil d\'agent IA pour être mieux orienté par l\'IA.',

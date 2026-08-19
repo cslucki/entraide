@@ -2,12 +2,15 @@
 
 namespace App\Services\Ai;
 
+use App\Ai\ResolvedModel;
 use App\Models\AdminAiPrompt;
 use App\Models\MemberAiProfile;
 use App\Services\Ai\Persistence\AdminAiInteractionPersistence;
 use App\Support\Ai\AiCost;
 use App\Support\Ai\AiPricingCatalog;
+use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiUsage;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
@@ -18,31 +21,143 @@ class MemberProfileAgentResponder
         private readonly AdminAiInteractionPersistence $logger,
     ) {}
 
+    /**
+     * Chemin HISTORIQUE, SANS autorite economique : encore emprunte par le chat
+     * visiteur public (`AiAgentChat`, #15) et la configuration conversationnelle
+     * (#16) — T1252. La reponse automatique dans une Boucle agent (#14) passe
+     * par `answerUnderEconomicAuthority()` depuis TASK-1251.
+     */
     public function answerWithDefaultProvider(MemberAiProfile $profile, string $question, string $scenarioId = 'profile_agent_master'): array
     {
-        $providers = $this->resolver->availableProviders();
-        $provider = $this->resolver->defaultProvider() ?? array_key_first($providers);
+        $selection = $this->defaultProviderSelection();
 
-        if (! $provider) {
+        if ($selection === null) {
             return $this->answerRuleBased($profile, $question);
         }
 
-        $model = array_key_first($providers[$provider]['models'] ?? [])
-            ?? $this->resolver->providerConfig($provider)['model'];
-
         try {
-            return $this->answerWithProvider($profile, $question, $provider, $model, $scenarioId);
+            return $this->answerWithProvider($profile, $question, $selection['provider'], $selection['model'], $scenarioId);
         } catch (\Throwable) {
             return $this->answerRuleBased($profile, $question);
         }
     }
 
+    /**
+     * TASK-1251 — la reponse de l'agent de profil SOUS AUTORITE ECONOMIQUE
+     * (gap #14 du gap analysis T1246, G2) : le chemin du job
+     * `GenerateAiAgentResponse`. Dans l'ordre, et dans le scope de l'appelant
+     * (requete OU job — rien n'est lu dans `auth()` / `current_organization`) :
+     *
+     *  1. provider/modele plateforme par defaut — aucun provider actif =
+     *     reponse rule-based, SANS evenement economique (aucun appel ne part,
+     *     rien a garder ni a tracer au ledger) ;
+     *  2. cle plateforme verifiee et DECLAREE (`declarePlatformCredential()`) :
+     *     absente = `AiRefusedException` `ai_not_configured` AVANT tout appel ;
+     *  3. GARDE (`SupervisionEconomicAuthority::authorize()` sur le perimetre
+     *     EXPLICITE `$scope`) : budget de l'Organization de record, budget/quota
+     *     d'inconnus du `$process`, credit du `creditUser`. Un refus est relance
+     *     TEL QUEL a l'appelant — c'est lui qui sait quoi faire d'un refus dans
+     *     son contexte (le job : pas de message, trace `refused`, log). Rien
+     *     n'est ecrit ici, aucun appel ne part ;
+     *  4. UNE tentative provider sous ledger (`attempt()`) : usage OBSERVE ->
+     *     cout catalogue ; echec apres depart = ligne `failed` (cout NULL),
+     *     puis repli rule-based — comportement produit inchange, mais la
+     *     reponse dit la verite : `fallback_after_provider_failure`
+     *     (provider, modele, classe d'exception) pour la trace de l'appelant.
+     *
+     * `$process` est celui de la trace operationnelle de l'appelant (le ledger
+     * et la trace portent le meme process, regle T1250) ; `$scope->feature` la
+     * fonction produit.
+     *
+     * @return array{response: string, fields: array<int, string>, provider: string, model: ?string, latency_ms: int, usage: AiUsage, fallback_after_provider_failure?: array{provider: string, model: string, failure: string}}
+     *
+     * @throws AiRefusedException refus AVANT tout appel (rien d'ecrit, rien de parti)
+     */
+    public function answerUnderEconomicAuthority(
+        MemberAiProfile $profile,
+        string $question,
+        SupervisionEconomicScope $scope,
+        string $process,
+        string $scenarioId = 'profile_agent_master',
+    ): array {
+        $selection = $this->defaultProviderSelection();
+
+        if ($selection === null) {
+            return $this->answerRuleBased($profile, $question);
+        }
+
+        $resolved = new ResolvedModel(
+            $selection['provider'],
+            $selection['model'],
+            $this->resolver->declarePlatformCredential($selection['provider']),
+        );
+
+        $authority = $this->resolver->economicAuthority($scope);
+        $authority->authorize($process, $resolved);
+
+        try {
+            return $authority->attempt(
+                $process,
+                $resolved,
+                fn (): array => $this->answerWithProvider($profile, $question, $resolved->provider, $resolved->model, $scenarioId),
+                fn (array $result): AiUsage => $result['usage'] ?? AiUsage::notObserved(),
+            );
+        } catch (QueryException $ledgerFailure) {
+            // Une ecriture du ledger qui echoue est un vrai defaut qui doit se
+            // voir (doctrine `AiProviderInvocationLedger`) : pas de repli qui
+            // la masquerait — l'appelant (le job) echoue et le dit.
+            throw $ledgerFailure;
+        } catch (\Throwable $failure) {
+            // L'appel est PARTI et a echoue : la ligne `failed` du ledger est
+            // deja ecrite par `attempt()`. Repli produit inchange (rule-based),
+            // mais dit tel quel a l'appelant.
+            return [
+                ...$this->answerRuleBased($profile, $question),
+                'fallback_after_provider_failure' => [
+                    'provider' => $resolved->provider,
+                    'model' => $resolved->model,
+                    'failure' => $failure::class,
+                ],
+            ];
+        }
+    }
+
+    /**
+     * Provider et modele PLATEFORME par defaut de l'agent de profil (le
+     * provider par defaut du resolveur, sinon le premier actif ; le premier
+     * modele propose, sinon celui de la configuration). `null` = aucun
+     * provider actif.
+     *
+     * @return array{provider: string, model: string}|null
+     */
+    public function defaultProviderSelection(): ?array
+    {
+        $providers = $this->resolver->availableProviders();
+        $provider = $this->resolver->defaultProvider() ?? array_key_first($providers);
+
+        if (! $provider) {
+            return null;
+        }
+
+        $model = array_key_first($providers[$provider]['models'] ?? [])
+            ?? $this->resolver->providerConfig($provider)['model'];
+
+        return ['provider' => (string) $provider, 'model' => (string) $model];
+    }
+
+    /**
+     * UN appel provider reel, avec l'usage OBSERVE de la reponse (TASK-1251 :
+     * `usage`, additif — `AiUsage::notObserved()` quand le provider ne
+     * rapporte rien, jamais un 0 fabrique).
+     *
+     * @return array{response: string, fields: array<int, string>, provider: string, model: string, latency_ms: int, usage: AiUsage}
+     */
     public function answerWithProvider(MemberAiProfile $profile, string $question, string $provider, string $model, string $scenarioId = 'profile_agent_master'): array
     {
         $config = $this->resolver->providerConfig($provider);
         $startedAt = (int) (microtime(true) * 1000);
 
-        $answer = match ($provider) {
+        ['text' => $answer, 'usage' => $usage] = match ($provider) {
             'ollama' => $this->callOllama($profile, $config, $model, $question, $scenarioId),
             'openrouter' => $this->callOpenRouter($profile, $config, $model, $question, $scenarioId),
             default => $this->callOpenAiCompatible($profile, $config, $model, $question, $scenarioId),
@@ -54,6 +169,7 @@ class MemberProfileAgentResponder
             'provider' => $provider,
             'model' => $model,
             'latency_ms' => (int) (microtime(true) * 1000) - $startedAt,
+            'usage' => $usage,
         ];
     }
 
@@ -214,7 +330,10 @@ class MemberProfileAgentResponder
         return trim((string) ($response->json('choices.0.message.content') ?? ''));
     }
 
-    private function callOllama(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master'): string
+    /**
+     * @return array{text: string, usage: AiUsage}
+     */
+    private function callOllama(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master'): array
     {
         $response = Http::timeout((int) ($config['timeout'] ?? 30))
             ->acceptJson()
@@ -234,10 +353,19 @@ class MemberProfileAgentResponder
             throw new \RuntimeException(sprintf('Réponse Ollama invalide (HTTP %d).', $response->status()));
         }
 
-        return trim((string) ($response->json('response') ?? $response->json('thinking') ?? ''));
+        $body = $response->json();
+
+        return [
+            'text' => trim((string) ($body['response'] ?? $body['thinking'] ?? '')),
+            // Ollama ne rapporte que `eval_count` (sortie) : l'entree reste NULL.
+            'usage' => AiUsage::fromOllamaGenerate($body),
+        ];
     }
 
-    private function callOpenRouter(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master'): string
+    /**
+     * @return array{text: string, usage: AiUsage}
+     */
+    private function callOpenRouter(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master'): array
     {
         if (empty($config['api_key'])) {
             throw new \RuntimeException('Clé API OpenRouter manquante.');
@@ -261,10 +389,16 @@ class MemberProfileAgentResponder
             throw new \RuntimeException(sprintf('Réponse OpenRouter invalide (HTTP %d).', $response->status()));
         }
 
-        return trim((string) ($response->json('choices.0.message.content') ?? ''));
+        return [
+            'text' => trim((string) ($response->json('choices.0.message.content') ?? '')),
+            'usage' => AiUsage::fromChatCompletions($response->json()),
+        ];
     }
 
-    private function callOpenAiCompatible(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master'): string
+    /**
+     * @return array{text: string, usage: AiUsage}
+     */
+    private function callOpenAiCompatible(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master'): array
     {
         if (empty($config['api_key'])) {
             throw new \RuntimeException('Clé API du provider manquante.');
@@ -280,7 +414,10 @@ class MemberProfileAgentResponder
             throw new \RuntimeException(sprintf('Réponse IA invalide (HTTP %d).', $response->status()));
         }
 
-        return trim((string) ($response->json('choices.0.message.content') ?? ''));
+        return [
+            'text' => trim((string) ($response->json('choices.0.message.content') ?? '')),
+            'usage' => AiUsage::fromChatCompletions($response->json()),
+        ];
     }
 
     private function chatPayload(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master'): array

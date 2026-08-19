@@ -3,18 +3,11 @@
 namespace App\Services\Ai\Providers;
 
 use App\Ai\ResolvedModel;
-use App\Models\AiProviderInvocation;
-use App\Services\Ai\AiProviderInvocationLedger;
 use App\Services\Ai\Contracts\AiScenarioDefinition;
 use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\DTO\AiSupervisionResult;
-use App\Services\Ai\SupervisionEconomicScope;
-use App\Support\Ai\AiCorrelation;
-use App\Support\Ai\AiCost;
-use App\Support\Ai\AiEconomicGuard;
-use App\Support\Ai\AiPricingCatalog;
+use App\Services\Ai\SupervisionEconomicAuthority;
 use App\Support\Ai\AiProcess;
-use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiUsage;
 
 /**
@@ -26,6 +19,12 @@ use App\Support\Ai\AiUsage;
  *   GARDE (`AiEconomicGuard::authorize()`, aucun appel si refus, rien d'ecrit)
  *     -> appel provider (inner : `LoggingSupervisionProvider` -> HTTP)
  *     -> LEDGER canonique `ai_provider_invocations` (succes ET echec).
+ *
+ * TASK-1251 : la logique garde + tentative + ledger vit desormais dans
+ * `SupervisionEconomicAuthority` (reutilisee par les chemins qui n'empruntent
+ * pas ce contrat — la reponse automatique de l'agent de profil) ; ce
+ * decorateur ne fait plus que l'appliquer au contrat `SupervisionProvider`.
+ * Son comportement est inchange.
  *
  * Ce decorateur ne sait rien du credential : il recoit le nom d'instance du
  * registre de preuve pose par `SupervisionProviderResolver::declarePlatformCredential()`
@@ -49,9 +48,7 @@ final class EconomicSupervisionProvider implements SupervisionProvider
 {
     public function __construct(
         private readonly SupervisionProvider $inner,
-        private readonly AiEconomicGuard $guard,
-        private readonly AiProviderInvocationLedger $ledger,
-        private readonly SupervisionEconomicScope $scope,
+        private readonly SupervisionEconomicAuthority $authority,
         /** Famille du provider (`openai`, `openrouter`, `ollama`) : trace + catalogue. */
         private readonly string $provider,
         /** Modele du provider quand l'appelant n'en impose pas (`providerConfig()['model']`). */
@@ -65,32 +62,17 @@ final class EconomicSupervisionProvider implements SupervisionProvider
         $process = AiProcess::fromScenarioId('supervision_content');
         $requested = $this->resolvedModel($model);
 
-        $this->authorize($process, $requested);
+        $this->authority->authorize($process, $requested);
 
-        $startedAt = microtime(true);
-        $correlationId = AiCorrelation::id();
-
-        try {
-            $result = $this->inner->supervise($content, $model);
-        } catch (\Throwable $exception) {
-            $this->record($process, $requested, AiUsage::notObserved(), null,
-                AiProviderInvocation::STATUS_FAILED, $correlationId, $exception::class, $startedAt);
-
-            throw $exception;
-        }
-
-        // Le modele RAPPORTE par le provider (celui que son propre calcul de
-        // cout a utilise), sinon le modele demande.
-        $reported = trim($result->model) !== ''
-            ? new ResolvedModel($this->provider, $result->model, $this->credentialInstance)
-            : $requested;
-        $usage = self::usageOf($result);
-        $cost = AiPricingCatalog::cost($this->provider, $reported->model, $usage);
-
-        $this->record($process, $reported, $usage, $cost,
-            AiProviderInvocation::STATUS_SUCCESS, $correlationId, null, $startedAt);
-
-        return $result;
+        return $this->authority->attempt(
+            $process,
+            $requested,
+            fn (): AiSupervisionResult => $this->inner->supervise($content, $model),
+            fn (AiSupervisionResult $result): AiUsage => self::usageOf($result),
+            // Le modele RAPPORTE par le provider (celui que son propre calcul
+            // de cout a utilise), sinon le modele demande.
+            fn (AiSupervisionResult $result): ?string => trim($result->model) !== '' ? $result->model : null,
+        );
     }
 
     public function runScenario(AiScenarioDefinition $scenario, string $content, ?string $model = null): array
@@ -98,54 +80,16 @@ final class EconomicSupervisionProvider implements SupervisionProvider
         $process = AiProcess::fromScenarioId($scenario->id());
         $resolved = $this->resolvedModel($model);
 
-        $this->authorize($process, $resolved);
+        $this->authority->authorize($process, $resolved);
 
-        $startedAt = microtime(true);
-        $correlationId = AiCorrelation::id();
-
-        try {
-            $result = $this->inner->runScenario($scenario, $content, $model);
-        } catch (\Throwable $exception) {
-            $this->record($process, $resolved, AiUsage::notObserved(), null,
-                AiProviderInvocation::STATUS_FAILED, $correlationId, $exception::class, $startedAt);
-
-            throw $exception;
-        }
-
-        // Usage structurellement NON observe sur ce contrat : le catalogue
-        // tranche (UNKNOWN, ou 0 connu pour un provider declare gratuit).
-        $usage = AiUsage::notObserved();
-        $cost = AiPricingCatalog::cost($this->provider, $resolved->model, $usage);
-
-        $this->record($process, $resolved, $usage, $cost,
-            AiProviderInvocation::STATUS_SUCCESS, $correlationId, null, $startedAt);
-
-        return $result;
-    }
-
-    /**
-     * GARDE AVANT PROVIDER : budget mensuel de l'Organization de record,
-     * budget/quota d'inconnus du process, credit du `creditUser` s'il y en a
-     * un. Un refus n'ecrit rien : ni ledger, ni trace — un appel qui n'est
-     * pas parti n'est pas une utilisation.
-     *
-     * @throws AiRefusedException
-     */
-    private function authorize(string $process, ResolvedModel $resolved): void
-    {
-        $verdict = $this->guard->authorize(
-            $this->scope->organization,
+        return $this->authority->attempt(
             $process,
-            $resolved->provider,
-            $resolved->model,
-            (float) config('ai.supervision_resolver.economic_guard.monthly_budget_usd', 2.00),
-            (int) config('ai.supervision_resolver.economic_guard.monthly_unknown_limit', 10),
-            $this->scope->creditUser,
+            $resolved,
+            fn (): array => $this->inner->runScenario($scenario, $content, $model),
+            // Usage structurellement NON observe sur ce contrat : le catalogue
+            // tranche (UNKNOWN, ou 0 connu pour un provider declare gratuit).
+            fn (): AiUsage => AiUsage::notObserved(),
         );
-
-        if (! $verdict->allowed) {
-            throw AiRefusedException::fromVerdict($verdict);
-        }
     }
 
     private function resolvedModel(?string $model): ResolvedModel
@@ -169,40 +113,6 @@ final class EconomicSupervisionProvider implements SupervisionProvider
         return AiUsage::of(
             $result->inputTokens > 0 ? $result->inputTokens : null,
             $result->outputTokens > 0 ? $result->outputTokens : null,
-        );
-    }
-
-    /**
-     * Ligne canonique du ledger — une par appel provider reellement tente.
-     * `capability` NULL : ce chemin n'est pas une capability canonique (il le
-     * dit tel quel) ; `process` = celui de la trace operationnelle (meme
-     * `AiProcess::fromScenarioId()`), `feature` = la fonction produit du
-     * perimetre.
-     */
-    private function record(
-        string $process,
-        ResolvedModel $resolved,
-        AiUsage $usage,
-        ?AiCost $cost,
-        string $status,
-        string $correlationId,
-        ?string $failureReason,
-        float $startedAt,
-    ): void {
-        $this->ledger->recordGeneration(
-            organizationId: (string) $this->scope->organization->id,
-            userId: $this->scope->actor?->id !== null ? (string) $this->scope->actor->id : null,
-            capability: null,
-            process: $process,
-            resolved: $resolved,
-            usage: $usage,
-            cost: $cost,
-            status: $status,
-            correlationId: $correlationId,
-            sdkInvocationId: null,
-            failureReason: $failureReason,
-            startedAtMicrotime: $startedAt,
-            feature: $this->scope->feature,
         );
     }
 }
