@@ -55,7 +55,13 @@ class BlogAiService
 
     private const TIMEOUT = 30;
 
-    private const METHOD_SELECTION_METHODS = ['explorer', 'clarifier', 'slow_down', 'invent'];
+    /**
+     * Les quatre methodes de Roger, identifiants CANONIQUES partages : la
+     * suggestion courte sur un passage (`methodSelection()`) ET la
+     * facilitation conversationnelle de l'Explorer d'article
+     * (`BlogExplorerController::chat()`, TASK-1249) — un seul nom par notion.
+     */
+    public const METHOD_SELECTION_METHODS = ['explorer', 'clarifier', 'slow_down', 'invent'];
 
     private const GENERATED_ARTICLE_START_TAGS = ['<article', '<section', '<div', '<h1', '<h2', '<h3', '<h4', '<p', '<ul', '<ol', '<blockquote'];
 

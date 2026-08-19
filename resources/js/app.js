@@ -6509,6 +6509,11 @@ function registerBlogExplorerModal() {
         phase: 'dialogue',
         dialogueCount: 0,
         maxDialogues: 50,
+        // TASK-1249 : methode de facilitation de Roger, portee par LA
+        // CONVERSATION (etat du composant, envoye avec chaque message ;
+        // remis a zero a chaque ouverture = nouvelle conversation).
+        methods: Array.isArray(config.methods) ? config.methods : [],
+        methodCode: null,
         maxNoteChars: config.maxNoteChars || 3000,
         noteContent: '',
         noteEditor: null,
@@ -6531,6 +6536,7 @@ function registerBlogExplorerModal() {
                 const unavailable = detail.hasSavedArticle === false || detail.hasUnsavedChanges === true;
                 this.phase = unavailable ? 'unavailable' : 'dialogue';
                 this.dialogueCount = 0;
+                this.methodCode = null;
                 this.noteContent = '';
                 this.noteTooLong = false;
                 this.error = '';
@@ -6539,6 +6545,24 @@ function registerBlogExplorerModal() {
                     this.$nextTick(() => this.setupDeepChat());
                 }
             });
+        },
+
+        get activeMethod() {
+            return this.methods.find((m) => m.key === this.methodCode) || null;
+        },
+
+        get activeMethodLabel() {
+            const m = this.activeMethod;
+            if (!m) return '';
+            return (this.i18n.methodActive || ':method — :hint')
+                .replace(':method', m.label || m.key)
+                .replace(':hint', m.hint || '');
+        },
+
+        // Un clic selectionne la methode de la conversation ; un second clic
+        // sur la methode active revient au questionnement libre.
+        selectMethod(key) {
+            this.methodCode = this.methodCode === key ? null : key;
         },
 
         setupDeepChat() {
@@ -6577,6 +6601,7 @@ function registerBlogExplorerModal() {
                     body: {
                         message: lastMsg?.text || '',
                         messages: history,
+                        method_code: this.methodCode,
                     },
                     headers: details.headers,
                 };

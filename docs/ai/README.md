@@ -27,6 +27,10 @@ neutralisations), restent la référence opérationnelle : `TODO/ARCHIVES/`
 - [`OBSERVABILITE-COUTS.md`](./OBSERVABILITE-COUTS.md) — catalogue tarifaire,
   `cost_unknown` tri-état, garde économique, instrumentation des invocations
   SDK, isolation Organization.
+- [`METHODES-FACILITATION-EXPLORER.md`](./METHODES-FACILITATION-EXPLORER.md) —
+  les quatre méthodes de facilitation de Roger dans le chat Explorer
+  d'article (TASK-1249) : `method_code`, résolution via `AdminAiPrompt`,
+  règles de facilitation, références méthodologiques privées.
 
 ## Prochaine cible
 

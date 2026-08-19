@@ -118,6 +118,16 @@ class AdminAiPromptController extends Controller
             'blog_method_selection_slow_down_en' => 'SuperBlog — Method AI selection — Slow down — EN',
             'blog_method_selection_invent_fr' => 'SuperBlog — Méthode IA sélection — Inventer — FR',
             'blog_method_selection_invent_en' => 'SuperBlog — Method AI selection — Invent — EN',
+            // TASK-1249 : definitions courtes des methodes de facilitation de
+            // l'Explorer d'article (chat) — fallback code si aucune ligne active.
+            'blog_explorer_method_explorer_fr' => 'Explorer d\'article — Facilitation — Explorer — FR',
+            'blog_explorer_method_explorer_en' => 'Article Explorer — Facilitation — Explore — EN',
+            'blog_explorer_method_slow_down_fr' => 'Explorer d\'article — Facilitation — Ralentir — FR',
+            'blog_explorer_method_slow_down_en' => 'Article Explorer — Facilitation — Slow down — EN',
+            'blog_explorer_method_clarifier_fr' => 'Explorer d\'article — Facilitation — Clarifier — FR',
+            'blog_explorer_method_clarifier_en' => 'Article Explorer — Facilitation — Clarify — EN',
+            'blog_explorer_method_invent_fr' => 'Explorer d\'article — Facilitation — Inventer — FR',
+            'blog_explorer_method_invent_en' => 'Article Explorer — Facilitation — Invent — EN',
             'profile_agent_master' => 'Agent de profil IA — Prompt master',
             'profile_agent_setup' => 'Agent de profil IA — Prompt setup',
             'profile_agent_visitor_chat' => 'Agent de profil IA — Chat visiteur',

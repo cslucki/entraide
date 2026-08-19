@@ -1629,8 +1629,18 @@
             notesStoreUrl: @js($_blogRoute('explorer.notes.store', ['post' => $post])),
             csrfToken: @js(csrf_token()),
             noteMaxChars: 3000,
+            {{-- TASK-1249 : methodes de facilitation de Roger — identifiants canoniques de BlogAiService::METHOD_SELECTION_METHODS --}}
+            methods: [
+                { key: 'explorer', label: @js(__('blog.method_explorer')), hint: @js(__('blog.explorer_method_explorer_hint')), inspiredBy: @js(__('blog.explorer_method_inspired_by', ['author' => __('blog.explorer_method_explorer_author')])) },
+                { key: 'slow_down', label: @js(__('blog.method_slow_down')), hint: @js(__('blog.explorer_method_slow_down_hint')), inspiredBy: @js(__('blog.explorer_method_inspired_by', ['author' => __('blog.explorer_method_slow_down_author')])) },
+                { key: 'clarifier', label: @js(__('blog.method_clarifier')), hint: @js(__('blog.explorer_method_clarifier_hint')), inspiredBy: @js(__('blog.explorer_method_inspired_by', ['author' => __('blog.explorer_method_clarifier_author')])) },
+                { key: 'invent', label: @js(__('blog.method_invent')), hint: @js(__('blog.explorer_method_invent_hint')), inspiredBy: @js(__('blog.explorer_method_inspired_by', ['author' => __('blog.explorer_method_invent_author')])) },
+            ],
             i18n: {
                 title: @js(__('blog.explorer_title')),
+                methodBarLabel: @js(__('blog.explorer_method_bar_label')),
+                methodBarHint: @js(__('blog.explorer_method_bar_hint')),
+                methodActive: @js(__('blog.explorer_method_active')),
                 chatPlaceholder: @js(__('blog.explorer_chat_placeholder')),
                 generateNote: @js(__('blog.explorer_generate_note')),
                 generatingNote: @js(__('blog.explorer_generating_note')),
@@ -1681,6 +1691,24 @@
 
             {{-- Dialogue phase --}}
             <div x-show="phase === 'dialogue'" class="flex-1 min-h-0 flex flex-col">
+                {{-- TASK-1249 : barre des methodes de facilitation de Roger — la methode vaut pour LA CONVERSATION (etat du composant, envoye avec chaque message) --}}
+                <div class="px-4 pt-3 pb-2 border-b border-gray-100 dark:border-gray-700" data-explorer-method-bar>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2" role="group" :aria-label="i18n.methodBarLabel">
+                        <template x-for="m in methods" :key="m.key">
+                            <button type="button"
+                                @click="selectMethod(m.key)"
+                                :aria-pressed="methodCode === m.key ? 'true' : 'false'"
+                                :data-explorer-method="m.key"
+                                :title="m.inspiredBy + ' — ' + m.hint"
+                                class="rounded-xl border px-3 py-2 text-left transition"
+                                :class="methodCode === m.key ? 'border-violet-300 bg-violet-50 text-violet-950 shadow-sm dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-100' : 'border-gray-200 bg-white text-gray-700 hover:border-violet-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-violet-800'">
+                                <span class="block text-sm font-semibold leading-5" x-text="m.label"></span>
+                                <span class="block text-[11px] leading-4 text-gray-500 dark:text-gray-400 truncate" x-text="m.inspiredBy"></span>
+                            </button>
+                        </template>
+                    </div>
+                    <p class="mt-2 text-xs leading-5" :class="activeMethod ? 'text-violet-800 dark:text-violet-200' : 'text-gray-500 dark:text-gray-400'" data-explorer-method-hint aria-live="polite" x-text="activeMethod ? activeMethodLabel : i18n.methodBarHint"></p>
+                </div>
                 <div class="flex-1 min-h-0 overflow-hidden p-4 flex">
                     <template x-if="open">
                         <deep-chat
