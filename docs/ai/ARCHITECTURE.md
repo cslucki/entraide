@@ -233,12 +233,19 @@ et peu structurés.
 Les trois partagent `correlation_id` et `process` (P1-1), `cost_usd`/
 `cost_unknown` (P1-2, voir `OBSERVABILITE-COUTS.md`).
 
-### Le ledger canonique `ai_provider_invocations` (TASK-1220 → TASK-1253)
+### Le ledger canonique `ai_provider_invocations` (TASK-1220 → TASK-1254)
 
 Quatrième table, d'une autre nature : **une ligne = une tentative provider
 économiquement réelle** (génération ou embedding, succès ET échec), sans
-prompt, sans réponse, sans credential, `user_id` sans FK (la ligne survit au
-compte). Writer unique `App\Services\Ai\AiProviderInvocationLedger`. Écrit par
+prompt, sans réponse, sans credential — structurellement : aucune colonne JSON
+libre, `failure_reason` = classe d'exception. **Rétention (TASK-1254)** :
+aucune FK sur les deux axes d'attribution — `user_id` sans FK (la ligne
+survit au compte, T1220), `organization_id` NOT NULL sans FK (la ligne survit
+au tenant de record, T1254 ; elle n'est ni effacée ni réécrite, l'uuid reste
+lisible) ; `UserDataLifecycleRegistry` la déclare RETAIN, et déclare
+`ai_interactions` DELETE parce que sa FK `user_id` cascade réellement (le
+contenu personnel suit la personne, l'économie vit dans le ledger). Writer
+unique `App\Services\Ai\AiProviderInvocationLedger`. Écrit par
 tous les chemins génération sous autorité économique (canoniques #1-#8 et
 hérités Blog/Explorer/famille `SupervisionProviderResolver`/agent de profil,
 T1247→T1252) et par l'observateur des embeddings SDK. L'autorité de la garde

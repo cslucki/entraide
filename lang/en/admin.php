@@ -355,6 +355,7 @@ return [
     'user_data_dossier_files_storage' => 'Folder file storage',
     'user_data_jobs_payloads' => 'Deferred jobs',
     'user_data_dossier_chunks' => 'Folder chunks and embeddings',
+    'user_data_ai_provider_invocations' => 'AI economic ledger (provider calls)',
     'user_data_profile_agent_messages' => 'Profile agent messages',
     'user_data_cache_keys' => 'Caches and locks',
 
