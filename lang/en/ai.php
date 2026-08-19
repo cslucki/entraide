@@ -22,6 +22,9 @@ return [
     'question' => 'Question',
     'response' => 'Agent response',
     'no_response' => 'No response recorded.',
+    // TASK-1251 : l'echange existe mais la garde economique a refuse l'appel (status = refused).
+    'interaction_refused_badge' => 'Response not generated',
+    'interaction_refused_body' => 'The AI agent did not answer: the call was refused before being sent (:code). No cost was incurred.',
     'my_agent_title' => 'My AI agent',
     'my_agent_subtitle' => 'View and test your AI agent profile.',
     'my_agent_no_profile_body' => 'Set up your AI agent profile to be better guided by AI.',

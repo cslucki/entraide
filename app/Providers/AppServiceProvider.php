@@ -238,6 +238,9 @@ class AppServiceProvider extends ServiceProvider
                     return;
                 }
 
+                // TASK-1251 : aucune garde economique ICI, volontairement — le
+                // dispatch peut etre retarde et le budget changer entre-temps.
+                // La garde s'applique DANS le job, juste avant l'appel provider.
                 dispatch(new GenerateAiAgentResponse($loop, $message));
             },
         );

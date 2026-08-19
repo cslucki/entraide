@@ -62,12 +62,29 @@ class SupervisionProviderResolver
 
         return new EconomicSupervisionProvider(
             $inner,
-            app(AiEconomicGuard::class),
-            app(AiProviderInvocationLedger::class),
-            $scope,
+            $this->economicAuthority($scope),
             $provider,
             (string) ($this->providerConfig($provider)['model'] ?? ''),
             $instance,
+        );
+    }
+
+    /**
+     * TASK-1251 : l'autorite economique d'un perimetre EXPLICITE (garde AVANT
+     * provider + ledger sur chaque tentative), pour les chemins herites qui
+     * N'EMPRUNTENT PAS le contrat `SupervisionProvider` et font leurs propres
+     * appels HTTP plateforme (`MemberProfileAgentResponder`). Le decorateur de
+     * `resolveUnderEconomicAuthority()` en est construit de la meme maniere :
+     * une seule logique, deux formes. Le credential reste a declarer par
+     * l'appelant via `declarePlatformCredential()` (le `ResolvedModel` passe a
+     * l'autorite porte l'instance declaree).
+     */
+    public function economicAuthority(SupervisionEconomicScope $scope): SupervisionEconomicAuthority
+    {
+        return new SupervisionEconomicAuthority(
+            app(AiEconomicGuard::class),
+            app(AiProviderInvocationLedger::class),
+            $scope,
         );
     }
 
