@@ -2,22 +2,55 @@
 
 namespace App\Services;
 
+use App\Ai\ProviderResolver;
+use App\Ai\ResolvedModel;
 use App\Models\AdminAiPrompt;
 use App\Models\AiConfig;
 use App\Models\AiInteraction;
+use App\Models\AiProviderInvocation;
 use App\Models\BlogAiConfig;
 use App\Models\BlogPost;
+use App\Models\Organization;
 use App\Models\User;
+use App\Services\Ai\AiProviderInvocationLedger;
 use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiCost;
+use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiPricingCatalog;
 use App\Support\Ai\AiProcess;
+use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiUsage;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
+/**
+ * Chemin IA HERITE du Blog (generation, correction, methode sur selection).
+ *
+ * TASK-1247 : l'AUTORITE ECONOMIQUE est fermee — et seulement elle. Avant tout
+ * appel provider : `AiEconomicGuard::authorize()` (budget mensuel de
+ * l'Organization, budget/quota d'inconnus par process `blog.*`, credit IA du
+ * demandeur — la meme autorite que les capabilities canoniques). Apres :
+ * une ligne du ledger canonique `ai_provider_invocations` par appel
+ * reellement tente (succes ET echec), avec le credential PROUVE `platform`
+ * (la cle est lue ici, dans la configuration plateforme, et declaree telle
+ * quelle — jamais deduite), et la trace produit `ai_interactions` sur succes
+ * comme avant (l'autorite de lecture 1219/1228 la lit deja : double ecriture,
+ * zero double comptage). Le tenant de la trace est l'Organization de
+ * l'ARTICLE, jamais celle de la requete.
+ *
+ * Ce que TASK-1247 ne fait PAS (hors V1, BLOC E) : ni CapabilityRegistry, ni
+ * Constitution/doctrine, ni ContextBuilder, ni credential BYOK Organization.
+ * Le quota produit par article (`BlogAiConfig`) reste une regle produit,
+ * distincte de l'autorite economique.
+ */
 class BlogAiService
 {
+    public function __construct(
+        private readonly AiEconomicGuard $economicGuard,
+        private readonly AiProviderInvocationLedger $ledger,
+    ) {}
+
     private const MAX_OUTPUT_TOKENS = 2048;
 
     private const TIMEOUT = 30;
@@ -160,8 +193,25 @@ class BlogAiService
         };
     }
 
+    /**
+     * Un appel provider, sous l'autorite economique (TASK-1247).
+     *
+     * Ordre garanti : tenant -> provider/modele/credential plateforme ->
+     * GARDE (aucun appel si refus, rien d'ecrit) -> appel HTTP -> ledger
+     * (succes ou echec) -> trace produit (succes seulement).
+     *
+     * @return array{content: string, provider: string, model: string, ai_interaction_id: string}
+     *
+     * @throws AiRefusedException refus economique AVANT l'appel (code stable)
+     * @throws \RuntimeException echec provider (deja tente, ledger ecrit)
+     */
     private function callAi(BlogPost $post, User $user, string $prompt, string $feature): array
     {
+        // Tenant EXPLICITE : l'Organization de l'article dont le contenu est
+        // lu/ecrit — jamais `currentOrganization() ?? user.organization_id`.
+        $organization = $this->tenantOf($post);
+        $process = AiProcess::fromFeature($feature);
+
         $provider = AiConfig::get('default_provider') ?: config('ai.default_provider', 'openai');
         $model = AiConfig::get('default_model')
             ?? config('ai.default_model')
@@ -177,9 +227,43 @@ class BlogAiService
             default => config('ai.openai'),
         };
 
-        $apiKey = $config['api_key'] ?? '';
+        $apiKey = (string) ($config['api_key'] ?? '');
         $baseUrl = $config['base_url'] ?? 'https://api.openai.com/v1';
         $timeout = (int) ($config['timeout'] ?? self::TIMEOUT);
+
+        // Une cle absente est une indisponibilite AVANT tout appel et avant
+        // toute ecriture — comme un credential tenant absent sur les chemins
+        // canoniques (code stable `ai_not_configured`).
+        if ($provider !== 'ollama' && trim($apiKey) === '') {
+            throw AiRefusedException::notConfigured(
+                new \RuntimeException('Cle API manquante pour le provider '.$provider.'.')
+            );
+        }
+
+        // Preuve du credential : la cle vient de la configuration PLATEFORME,
+        // lue ci-dessus — la primitive la declare, le ledger ne la deduit pas.
+        $resolved = new ResolvedModel(
+            (string) $provider,
+            (string) $model,
+            ProviderResolver::declareLegacyPlatformCredential((string) $provider, keyless: $provider === 'ollama'),
+        );
+
+        // GARDE AVANT PROVIDER : budget Organization, budget/quota du process,
+        // credit du demandeur. Un refus n'ecrit rien : ni ledger, ni trace,
+        // ni quota — un appel qui n'est pas parti n'est pas une utilisation.
+        $verdict = $this->economicGuard->authorize(
+            $organization,
+            $process,
+            $resolved->provider,
+            $resolved->model,
+            (float) config('ai.blog.economic_guard.monthly_budget_usd', 2.00),
+            (int) config('ai.blog.economic_guard.monthly_unknown_limit', 10),
+            $user,
+        );
+
+        if (! $verdict->allowed) {
+            throw AiRefusedException::fromVerdict($verdict);
+        }
 
         $payload = [
             'model' => $model,
@@ -191,7 +275,8 @@ class BlogAiService
             'temperature' => 0.7,
         ];
 
-        $startedAt = (int) (microtime(true) * 1000);
+        $startedAt = microtime(true);
+        $correlationId = AiCorrelation::id();
 
         try {
             if ($provider === 'ollama') {
@@ -215,7 +300,6 @@ class BlogAiService
                 // Ollama tourne en local : coût nul réel, déclaré `free` au
                 // catalogue (TASK-1132).
                 $usage = AiUsage::fromOllamaGenerate($response->json());
-                $cost = AiPricingCatalog::cost($provider, $model, $usage);
             } else {
                 $http = Http::timeout($timeout)->acceptJson()->asJson();
 
@@ -227,10 +311,6 @@ class BlogAiService
                     ]);
                 } else {
                     $http = $http->withToken($apiKey);
-                }
-
-                if (empty($apiKey)) {
-                    throw new \RuntimeException('Clé API manquante pour le provider '.$provider.'.');
                 }
 
                 $response = $http->post(rtrim($baseUrl, '/').'/chat/completions', $payload);
@@ -247,23 +327,38 @@ class BlogAiService
                 // coût de 0 dès que le provider n'était pas OpenAI, car seul le
                 // bloc `openai` portait un prix. Le catalogue tranche désormais.
                 $usage = AiUsage::fromChatCompletions($body);
-                $cost = AiPricingCatalog::cost($provider, $model, $usage);
             }
-        } catch (ConnectionException $e) {
-            throw new \RuntimeException('Connexion au service IA impossible.');
+        } catch (\Throwable $exception) {
+            // L'appel est PARTI : c'est une tentative economiquement reelle,
+            // elle a sa ligne de ledger (cout NULL / unknown, jamais 0 invente).
+            // Aucune trace produit ni quota article : un echec n'est pas un
+            // article genere. L'exception d'origine est conservee en cause.
+            $this->recordLedger($organization, $user, $process, $feature, $resolved,
+                AiUsage::notObserved(), null, AiProviderInvocation::STATUS_FAILED,
+                $correlationId, $exception::class, $startedAt);
+
+            if ($exception instanceof ConnectionException) {
+                throw new \RuntimeException('Connexion au service IA impossible.', 0, $exception);
+            }
+
+            throw $exception;
         }
 
-        $latencyMs = (int) (microtime(true) * 1000) - $startedAt;
+        // TASK-1132 : le catalogue tranche (usage observe x tarif), sinon UNKNOWN.
+        $cost = AiPricingCatalog::cost($provider, $model, $usage);
 
-        $organizationId = currentOrganization()?->id ?? $user->organization_id;
+        $this->recordLedger($organization, $user, $process, $feature, $resolved,
+            $usage, $cost, AiProviderInvocation::STATUS_SUCCESS, $correlationId, null, $startedAt);
+
+        $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
 
         $interaction = AiInteraction::create([
             'user_id' => $user->id,
-            'organization_id' => $organizationId,
-            'correlation_id' => AiCorrelation::id(),
-            'process' => AiProcess::fromFeature($feature),
+            'organization_id' => $organization->id,
+            'correlation_id' => $correlationId,
+            'process' => $process,
             'feature' => $feature,
-            'model' => $provider.'/'.$model,
+            'model' => $resolved->trace(),
             'prompt' => $prompt,
             'response' => $text,
             'input_tokens' => $usage->inputTokensOrZero(),
@@ -273,6 +368,8 @@ class BlogAiService
                 'blog_post_id' => $post->id,
                 'latency_ms' => $latencyMs,
                 'provider' => $provider,
+                // TASK-1247 : le payeur, lisible sur la trace produit aussi.
+                'credential_source' => ProviderResolver::credentialSourceFor($resolved->instance),
             ],
         ]);
 
@@ -282,6 +379,58 @@ class BlogAiService
             'model' => $model,
             'ai_interaction_id' => $interaction->id,
         ];
+    }
+
+    /**
+     * L'Organization de l'article : le tenant de toute trace de ce chemin.
+     * Un article sans Organization n'a pas de tenant, donc pas d'IA — c'est
+     * un defaut de l'appelant, pas un cas a deviner.
+     */
+    private function tenantOf(BlogPost $post): Organization
+    {
+        $organizationId = trim((string) $post->organization_id);
+
+        if ($organizationId === '') {
+            throw new \RuntimeException('Blog AI requires an article attached to an Organization.');
+        }
+
+        return Organization::query()->findOrFail($organizationId);
+    }
+
+    /**
+     * Ligne canonique du ledger `ai_provider_invocations` — une par appel
+     * provider reellement tente. `capability` NULL : ce chemin n'est pas une
+     * capability canonique (il le dit tel quel) ; `feature` porte la fonction
+     * Blog emettrice, `process` son identifiant stable.
+     */
+    private function recordLedger(
+        Organization $organization,
+        User $user,
+        string $process,
+        string $feature,
+        ResolvedModel $resolved,
+        AiUsage $usage,
+        ?AiCost $cost,
+        string $status,
+        string $correlationId,
+        ?string $failureReason,
+        float $startedAt,
+    ): void {
+        $this->ledger->recordGeneration(
+            organizationId: (string) $organization->id,
+            userId: (string) $user->id,
+            capability: null,
+            process: $process,
+            resolved: $resolved,
+            usage: $usage,
+            cost: $cost,
+            status: $status,
+            correlationId: $correlationId,
+            sdkInvocationId: null,
+            failureReason: $failureReason,
+            startedAtMicrotime: $startedAt,
+            feature: $feature,
+        );
     }
 
     private function resolveMethodLocale(BlogPost $post, User $user): string

@@ -122,17 +122,27 @@ est encore décidable : une génération réelle ne consomme jamais 0 token
 d'entrée ET 0 de sortie. Ce couple signe un usage non rapporté, donc UNKNOWN —
 jamais un coût de 0.
 
-### Limite actuelle, connue et assumée
+### Couverture de la garde (état après TASK-1247)
 
-**La garde économique ne couvre qu'une seule capability.**
-`AiEconomicGuard` n'est référencé que par `ChatLoopAiService`, et seulement
-pour `loop_summary`. Les autres call sites IA du produit calculent parfois leur
-coût, mais **aucun n'est plafonné**.
+Le paragraphe historique de P2 (« la garde ne couvre que `loop_summary` »)
+n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
+`organization_ai_settings.monthly_budget_usd`) et couvre :
 
-Conséquence à connaître avant d'ouvrir l'IA à des utilisateurs réels : le
-budget protège aujourd'hui la capability la moins coûteuse, pendant que la
-génération d'articles ne l'est pas. Généraliser la garde — et la rendre
-Organization-scoped — est l'objet de P4.
+- les cinq capabilities canoniques (`loop_summary`, `loop_answer`, `loop_ask`,
+  `clarify_help_request`, `loop_knowledge_answer`) et le bac à sable de doctrine ;
+- les embeddings (ingestion et requête, TASK-1222) ;
+- **TASK-1247 : le chemin hérité `BlogAiService`** (génération, correction,
+  méthode sur sélection) — garde AVANT provider avec budget de process
+  `blog.*` (`config('ai.blog.economic_guard')`), crédit utilisateur T1229 et
+  budget Organization ; ligne `ai_provider_invocations` sur chaque appel
+  tenté (succès et échec) avec `credential_source = platform` **déclaré** par
+  `ProviderResolver::declareLegacyPlatformCredential()` (la clé est lue dans la
+  configuration plateforme, jamais déduite) ; tenant = Organization de
+  l'article. Chemin toujours hors Constitution/doctrine et hors BYOK (BLOC E).
+
+Reste hors garde à cette date : `BlogExplorerController` (T1248) et les
+chemins `SupervisionProviderResolver` / `MemberProfileAgentResponder` — voir
+`GAP-ANALYSIS-ECONOMIQUE-T1246.md`, familles B et C.
 
 ## Instrumentation des invocations Laravel AI SDK (P1-3)
 

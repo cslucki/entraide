@@ -43,8 +43,9 @@ final class ProviderResolver
      * quand le driver est keyless (ollama local). Une instance absente du
      * registre (famille nue `openai`, dont la cle vient de la config
      * plateforme) reste `unknown` : on ne DEDUIT jamais `platform` de la
-     * config — le jour ou une primitive plateforme existera, elle se
-     * declarera elle-meme.
+     * config — TASK-1247 : la primitive plateforme existe desormais pour les
+     * appels HTTP herites (`declareLegacyPlatformCredential()`), et c'est
+     * elle seule qui pose `platform`.
      */
     public const CREDENTIAL_SOURCES_CONTEXT_KEY = 'ai_provider_credential_sources';
 
@@ -285,6 +286,33 @@ final class ProviderResolver
             ? AiProviderInvocation::CREDENTIAL_ORGANIZATION
             : AiProviderInvocation::CREDENTIAL_NONE;
         Context::add(self::CREDENTIAL_SOURCES_CONTEXT_KEY, $sources);
+    }
+
+    /**
+     * TASK-1247 : preuve du credential PLATEFORME d'un appel HTTP herite
+     * (BlogAiService), hors SDK. C'est la « primitive plateforme » annoncee
+     * par TASK-1220 : elle se DECLARE elle-meme, au seul endroit qui lit
+     * reellement la cle depuis la configuration plateforme
+     * (`config('ai.openai'|'ai.openrouter')`), juste avant l'appel — jamais
+     * deduite d'un nom de provider ou d'une absence de configuration tenant.
+     *
+     * Aucune configuration SDK n'est touchee : le nom retourne
+     * (`legacy:platform:{provider}`) n'est qu'une cle du registre de preuve,
+     * a passer comme `instance` du `ResolvedModel` du ledger. `none` pour un
+     * driver local sans cle (ollama), comme pour les instances tenant.
+     */
+    public static function declareLegacyPlatformCredential(string $provider, bool $keyless = false): string
+    {
+        $instance = 'legacy:platform:'.trim($provider);
+
+        $sources = Context::get(self::CREDENTIAL_SOURCES_CONTEXT_KEY, []);
+        $sources = is_array($sources) ? $sources : [];
+        $sources[$instance] = $keyless
+            ? AiProviderInvocation::CREDENTIAL_NONE
+            : AiProviderInvocation::CREDENTIAL_PLATFORM;
+        Context::add(self::CREDENTIAL_SOURCES_CONTEXT_KEY, $sources);
+
+        return $instance;
     }
 
     /**

@@ -10,6 +10,7 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\Tag;
 use App\Services\BlogAiService;
+use App\Support\Ai\AiRefusedException;
 use DOMDocument;
 use DOMXPath;
 use Illuminate\Http\JsonResponse;
@@ -690,6 +691,13 @@ class BlogController extends Controller implements HasMiddleware
                 $data['context_before'] ?? null,
                 $data['context_after'] ?? null,
             );
+        } catch (AiRefusedException $e) {
+            // TASK-1247 : refus economique AVANT tout appel, code stable.
+            return response()->json([
+                'error' => $e->getMessage(),
+                'code' => $e->refusalCode,
+                'offers_url' => $e->offersUrl($organization),
+            ], 429);
         } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
@@ -803,6 +811,19 @@ class BlogController extends Controller implements HasMiddleware
             return response()->json($response);
         } catch (HttpException $e) {
             throw $e;
+        } catch (AiRefusedException $e) {
+            // TASK-1247 : refus economique AVANT tout appel provider (credit
+            // utilisateur epuise / budget Organization atteint / IA non
+            // configuree), avec son code stable et, pour le credit, l'URL des
+            // offres — meme contrat JSON que `LoopController::knowledge()`.
+            // Rien n'a ete consomme, rien n'a ete ecrit.
+            return response()->json(array_filter([
+                'error' => $e->getMessage(),
+                'code' => $e->refusalCode,
+                'offers_url' => $e->offersUrl(currentOrganization()),
+                'post_id' => $isCreateFlow && $post?->exists ? $post->id : null,
+                'edit_url' => $isCreateFlow && $post?->exists ? $this->blogUrl('edit', ['post' => $post]) : null,
+            ], static fn ($value): bool => $value !== null), 429);
         } catch (\RuntimeException $e) {
             if ($isCreateFlow && $post?->exists) {
                 return response()->json([
