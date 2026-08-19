@@ -13,6 +13,7 @@ use App\Models\BlogPost;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\AiProviderInvocationLedger;
+use App\Services\BlogAiService;
 use App\Support\Ai\AiCorrelation;
 use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
@@ -20,12 +21,14 @@ use App\Support\Ai\AiPricingCatalog;
 use App\Support\Ai\AiProcess;
 use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiUsage;
+use App\Support\Ai\BlogExplorerFacilitation;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\Rule;
 
 /**
  * Explorer d'article (dialogue deep-chat + note d'analyse generee) — chemin
@@ -50,6 +53,18 @@ use Illuminate\Support\Facades\Http;
  * Constitution/doctrine, ni ContextBuilder, ni credential BYOK Organization.
  * Le chat visiteur public anonyme et la famille C du gap analysis T1246 sont
  * hors perimetre (TASK dediee).
+ *
+ * TASK-1249 : les quatre methodes de facilitation de Roger (`explorer`,
+ * `slow_down`, `clarifier`, `invent` — identifiants de
+ * `BlogAiService::METHOD_SELECTION_METHODS`, reutilises tels quels) arrivent
+ * dans `chat()` par un `method_code` EXPLICITE, choisi par un bouton et porte
+ * par la conversation. Il n'influence QUE le prompt systeme construit AVANT
+ * `callProvider()` : definition methodologique courte resolue par
+ * `resolvePrompt()` (repository `AdminAiPrompt`, scenario
+ * `blog_explorer_method_{method}_{locale}`, fallback `_fr`, puis fallback
+ * code `BlogExplorerFacilitation::defaultPrompt()`, jamais vide) + regles de
+ * facilitation communes (l'IA propose, l'humain agit) + article. Sans
+ * `method_code`, le prompt generique historique est conserve tel quel.
  */
 class BlogExplorerController extends Controller implements HasMiddleware
 {
@@ -101,11 +116,15 @@ class BlogExplorerController extends Controller implements HasMiddleware
             'messages' => ['sometimes', 'array', 'max:'.self::MAX_EXCHANGES],
             'messages.*.role' => ['required_with:messages', 'string', 'in:user,assistant'],
             'messages.*.text' => ['required_with:messages', 'string'],
+            // TASK-1249 : methode de facilitation de la CONVERSATION (bouton),
+            // identifiants canoniques partages avec la suggestion sur passage.
+            'method_code' => ['sometimes', 'nullable', 'string', Rule::in(BlogAiService::METHOD_SELECTION_METHODS)],
         ]);
 
         $conversationMessages = $data['messages'] ?? [];
+        $methodCode = $data['method_code'] ?? null;
 
-        $systemPrompt = $this->buildExplorerSystemPrompt($post);
+        $systemPrompt = $this->buildExplorerSystemPrompt($post, $methodCode);
         $userMessage = $data['message'];
 
         try {
@@ -379,11 +398,33 @@ class BlogExplorerController extends Controller implements HasMiddleware
         return (string) $user->organization_id === (string) $organization->id;
     }
 
-    private function buildExplorerSystemPrompt(BlogPost $post): string
+    /**
+     * Prompt systeme du dialogue Explorer.
+     *
+     * Sans methode : le scenario generique historique
+     * (`blog_explorer_dialogue_{locale}`), inchange. Avec une methode
+     * (TASK-1249) : la definition methodologique COURTE de la methode
+     * (scenario `blog_explorer_method_{method}_{locale}` du repository
+     * `AdminAiPrompt`, fallback `_fr`, puis fallback code, jamais vide),
+     * suivie des regles de facilitation communes — ajoutees par le code, donc
+     * toujours presentes quoi qu'un admin ecrive dans la definition —, puis
+     * l'article. Le `method_code` n'a aucun autre effet : `callProvider()`
+     * (garde economique, ledger, trace) ne le voit pas.
+     */
+    private function buildExplorerSystemPrompt(BlogPost $post, ?string $methodCode = null): string
     {
         $locale = app()->getLocale();
-        $scenarioId = 'blog_explorer_dialogue_'.$locale;
-        $promptTemplate = $this->resolvePrompt($scenarioId, 'blog_explorer_dialogue_fr');
+
+        if ($methodCode !== null && BlogExplorerFacilitation::isValid($methodCode)) {
+            $promptTemplate = $this->resolvePrompt(
+                BlogExplorerFacilitation::scenarioId($methodCode, $locale),
+                BlogExplorerFacilitation::scenarioId($methodCode, 'fr'),
+                BlogExplorerFacilitation::defaultPrompt($methodCode, $locale),
+            )."\n\n---\n\n".BlogExplorerFacilitation::facilitationRules($locale);
+        } else {
+            $scenarioId = 'blog_explorer_dialogue_'.$locale;
+            $promptTemplate = $this->resolvePrompt($scenarioId, 'blog_explorer_dialogue_fr');
+        }
 
         return $promptTemplate."\n\n---\n\nARTICLE SAUVEGARDÉ À ANALYSER\n\n".$this->articleContext($post)."\n\nRègle impérative : tu as déjà accès à cet article sauvegardé. Ne demande jamais à l'utilisateur de te le fournir. Tes réponses doivent s'appuyer explicitement sur son titre, son résumé et son contenu.";
     }
@@ -402,7 +443,13 @@ class BlogExplorerController extends Controller implements HasMiddleware
         return "Titre : {$title}\n\nRésumé : {$summary}\n\nContenu :\n{$content}";
     }
 
-    private function resolvePrompt(string $scenarioId, ?string $fallbackId = null): string
+    /**
+     * Le repository de prompts existant (`AdminAiPrompt`, version active la
+     * plus haute) : scenario demande, puis scenario de repli, puis `$default`
+     * code quand l'appelant en fournit un (TASK-1249), sinon le texte
+     * generique historique.
+     */
+    private function resolvePrompt(string $scenarioId, ?string $fallbackId = null, ?string $default = null): string
     {
         $prompt = AdminAiPrompt::where('scenario_id', $scenarioId)
             ->where('is_active', true)
@@ -418,6 +465,10 @@ class BlogExplorerController extends Controller implements HasMiddleware
 
         if ($prompt) {
             return $prompt->prompt_text;
+        }
+
+        if ($default !== null && trim($default) !== '') {
+            return $default;
         }
 
         return "Tu es un assistant d'écriture. Lis l'article ci-dessous et aide l'utilisateur à l'explorer en profondeur.\n\nArticle : %s\n\nContenu :\n%s";
