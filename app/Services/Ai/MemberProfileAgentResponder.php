@@ -8,6 +8,7 @@ use App\Models\MemberAiProfile;
 use App\Services\Ai\Persistence\AdminAiInteractionPersistence;
 use App\Support\Ai\AiCost;
 use App\Support\Ai\AiPricingCatalog;
+use App\Support\Ai\AiProcess;
 use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiUsage;
 use Illuminate\Database\QueryException;
@@ -22,31 +23,14 @@ class MemberProfileAgentResponder
     ) {}
 
     /**
-     * Chemin HISTORIQUE, SANS autorite economique : encore emprunte par le chat
-     * visiteur public (`AiAgentChat`, #15) et la configuration conversationnelle
-     * (#16) — T1252. La reponse automatique dans une Boucle agent (#14) passe
-     * par `answerUnderEconomicAuthority()` depuis TASK-1251.
-     */
-    public function answerWithDefaultProvider(MemberAiProfile $profile, string $question, string $scenarioId = 'profile_agent_master'): array
-    {
-        $selection = $this->defaultProviderSelection();
-
-        if ($selection === null) {
-            return $this->answerRuleBased($profile, $question);
-        }
-
-        try {
-            return $this->answerWithProvider($profile, $question, $selection['provider'], $selection['model'], $scenarioId);
-        } catch (\Throwable) {
-            return $this->answerRuleBased($profile, $question);
-        }
-    }
-
-    /**
-     * TASK-1251 — la reponse de l'agent de profil SOUS AUTORITE ECONOMIQUE
-     * (gap #14 du gap analysis T1246, G2) : le chemin du job
-     * `GenerateAiAgentResponse`. Dans l'ordre, et dans le scope de l'appelant
-     * (requete OU job — rien n'est lu dans `auth()` / `current_organization`) :
+     * TASK-1251 / TASK-1252 — la reponse de l'agent de profil SOUS AUTORITE
+     * ECONOMIQUE (gaps #14 et #15 du gap analysis T1246, G2 et G1) : le chemin
+     * du job `GenerateAiAgentResponse` ET celui du chat visiteur `AiAgentChat`
+     * (visiteur AUTHENTIFIE — un visiteur anonyme est refuse AVANT d'arriver
+     * ici, sans provider ni ledger). L'ancien `answerWithDefaultProvider()`
+     * (HTTP direct sans garde) n'a plus d'appelant et a ete supprime en T1252.
+     * Dans l'ordre, et dans le scope de l'appelant (requete OU job — rien
+     * n'est lu dans `auth()` / `current_organization`) :
      *
      *  1. provider/modele plateforme par defaut — aucun provider actif =
      *     reponse rule-based, SANS evenement economique (aucun appel ne part,
@@ -612,19 +596,41 @@ class MemberProfileAgentResponder
         ]);
     }
 
+    /**
+     * Trace operationnelle `admin_ai_interactions` d'une reponse du chat
+     * visiteur (TASK-1252) : le TENANT est EXPLICITE (l'Organization du
+     * profil, honoree par `AdminAiInteractionPersistence` depuis T1250 —
+     * jamais `current_organization`, qui n'est pas celle du profil dans une
+     * requete Livewire), l'usage est celui OBSERVE par l'appel (cout catalogue,
+     * sinon inconnu), et un repli apres echec provider est dit tel quel.
+     */
     public function logVisitorInteraction(
         string $question,
         string $response,
         array $result,
+        ?string $organizationId = null,
     ): void {
+        $usage = $result['usage'] ?? AiUsage::notObserved();
+
+        $metadata = [];
+
+        if (isset($result['fallback_after_provider_failure'])) {
+            $metadata['fallback_after_provider_failure'] = $result['fallback_after_provider_failure'];
+        }
+
         $this->logger->persist([
+            'organization_id' => $organizationId,
             'scenario_id' => 'profile_agent_visitor_chat',
+            'process' => AiProcess::MEMBER_PROFILE_AGENT_VISITOR_CHAT,
             'provider' => $result['provider'] ?? 'unknown',
             'model' => $result['model'] ?? null,
             'status' => 'success',
             'content' => $question,
             'result_summary' => $response,
             'latency_ms' => $result['latency_ms'] ?? null,
+            'input_tokens' => $usage->inputTokens,
+            'output_tokens' => $usage->outputTokens,
+            'metadata' => $metadata !== [] ? $metadata : null,
             ...$this->costFor($result)->traceAttributes(),
         ]);
     }
@@ -632,16 +638,19 @@ class MemberProfileAgentResponder
     /**
      * Verdict économique d'une réponse de l'agent de profil (TASK-1132).
      *
-     * Ce service ne remonte pas l'usage de ses appels : sans tokens observés, un
-     * provider distant produit un coût non mesurable, jamais un 0 inventé.
-     * Exposer l'usage suppose de changer le contrat de ce responder — P1-3.
+     * TASK-1252 : l'usage OBSERVE par `answerWithProvider()` (`result['usage']`)
+     * est lu quand il existe — un provider distant avec usage a un cout
+     * catalogue, sans usage un cout non mesurable, jamais un 0 inventé. Les
+     * resultats sans `usage` (`chatWithSetupPrompt()`, #16 ; rule-based)
+     * restent « non observes » : le catalogue tranche (nul et connu pour
+     * rule_based/ollama, inconnu pour un provider distant).
      */
     private function costFor(array $result): AiCost
     {
         return AiPricingCatalog::cost(
             $result['provider'] ?? null,
             $result['model'] ?? null,
-            AiUsage::notObserved(),
+            $result['usage'] ?? AiUsage::notObserved(),
         );
     }
 

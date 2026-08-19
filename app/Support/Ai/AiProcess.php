@@ -29,6 +29,13 @@ final class AiProcess
     public const MEMBER_PROFILE_LOOP_AGENT_REPLY = 'member_profile.loop_agent_reply';
 
     /**
+     * TASK-1252 : chat visiteur de l'agent de profil (`AiAgentChat`) — le
+     * process de sa trace `admin_ai_interactions` (`scenario_id =
+     * profile_agent_visitor_chat`), porte aussi par le ledger canonique.
+     */
+    public const MEMBER_PROFILE_AGENT_VISITOR_CHAT = 'member_profile.agent_visitor_chat';
+
+    /**
      * Écritures `admin_ai_interactions` pour les invocations Laravel AI SDK
      * (TASK-1200 / IA P1-3). Seul usage réel du SDK à ce jour : les
      * embeddings Dossiers. Ces `scenario_id` sont ceux posés par les call
@@ -84,7 +91,7 @@ final class AiProcess
         'inline_member_presentation' => self::MEMBER_PROFILE_INLINE_PRESENTATION,
         'member_ai_profile_llm_test' => 'member_profile.admin_llm_test',
         'profile_agent_setup' => 'member_profile.agent_setup',
-        'profile_agent_visitor_chat' => 'member_profile.agent_visitor_chat',
+        'profile_agent_visitor_chat' => self::MEMBER_PROFILE_AGENT_VISITOR_CHAT,
         'profile_agent_master' => 'member_profile.agent_master',
         'dossier_embeddings_index' => self::DOSSIER_EMBEDDINGS_INDEX,
         'dossier_embeddings_search' => self::DOSSIER_EMBEDDINGS_SEARCH,

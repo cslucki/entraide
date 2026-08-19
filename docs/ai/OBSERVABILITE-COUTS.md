@@ -122,7 +122,7 @@ est encore décidable : une génération réelle ne consomme jamais 0 token
 d'entrée ET 0 de sortie. Ce couple signe un usage non rapporté, donc UNKNOWN —
 jamais un coût de 0.
 
-### Couverture de la garde (état après TASK-1251)
+### Couverture de la garde (état après TASK-1252)
 
 Le paragraphe historique de P2 (« la garde ne couvre que `loop_summary` »)
 n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
@@ -215,12 +215,67 @@ n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
   badge). Échec provider : ligne `failed` (coût NULL) puis repli rule-based
   comme avant, `metadata.fallback_after_provider_failure` sur la trace. Même
   limite assumée que T1250 (pas d'`ai_interactions`, compteurs aveugles à
-  leur propre consommation jusqu'à G11).
+  leur propre consommation jusqu'à G11) ;
+- **TASK-1252 : le chat visiteur PUBLIC de l'agent de profil** (famille C,
+  gap #15 — **G1 CRITICAL**, la plateforme payait pour un anonyme) : route
+  `/profile/{user}/agent-ia` (hors `auth`) → Livewire
+  `AiAgentChat::sendMessage()`. Décision produit actée : **aucun appel
+  provider anonyme payé en silence par la plateforme**.
+  - **Visiteur non authentifié : refus V1 assumé, explicite et humain.**
+    Aucune conversation créée, aucun message écrit, aucun appel provider,
+    aucune ligne ledger, aucune trace admin. L'agent « répond » par une
+    invitation à se connecter / créer un compte (bulle reçue, pas une erreur),
+    le composer se verrouille ; encart d'invitation dès le montage. Code
+    stable `AiRefusedException::CODE_AUTHENTICATION_REQUIRED`
+    (`authentication_required`) — le refus passe par le même chemin que le
+    refus budgétaire. État visible du propriétaire : UNE ligne
+    `member_ai_profile_interactions` `status = refused`, `visitor_type =
+    guest`, provider/modèle NULL (aucun choisi — la vue ne fabrique plus
+    « rule_based »), coût NULL/NULL, badge ambre + corps dédié sur « Échanges
+    avec mon agent IA » ; bornée à une par session invité et par profil
+    (surface d'écriture anonyme strictement plus petite qu'avant). Le code
+    de refus ne révèle rien de l'état économique du tenant à un anonyme.
+  - **Visiteur authentifié** (membre de l'Organization du profil, compte d'une
+    autre Organization, ou le propriétaire qui teste son agent sur
+    `/agent-ia/test`) : `answerUnderEconomicAuthority()` (T1251) — clé
+    plateforme déclarée, garde AVANT provider (budget de process
+    `member_profile.agent_visitor_chat`, même
+    `config('ai.supervision_resolver.economic_guard')`, budget de
+    l'Organization de record, crédit
+    T1229 du visiteur), une ligne `ai_provider_invocations` par tentative
+    (succès ET échec, usage observé → coût catalogue, sinon `unknown`).
+    Identité économique, provisoire jusqu'à T1253 : **tenant = Organization
+    du PROFIL visité**, posée explicitement — jamais `current_organization`
+    (la requête Livewire ne repasse pas par `ProfileController`), jamais
+    l'Organization du visiteur ; **acteur = crédit = le visiteur** ;
+    `feature = member_profile_agent_visitor_chat`, capability NULL. La trace
+    `admin_ai_interactions` (`logVisitorInteraction()`) porte désormais le
+    tenant explicite et l'usage observé (tokens, coût catalogue ou
+    `unknown`) ; `costFor()` du responder lit l'usage quand il existe (#16
+    sans usage reste `unknown`, inchangé). Refus : aucune réponse de
+    substitution, message avec son code (`data-ai-refusal-code`) et lien
+    « Voir les offres » si le crédit est épuisé et proposé, la question
+    reste dans la conversation sans réponse, ligne
+    `member_ai_profile_interactions` `status = refused` (badge propriétaire).
+    Échec provider :
+    ligne `failed` (coût NULL) puis repli rule-based dit tel quel
+    (`fallback_after_provider_failure` sur le message et la trace).
+  - `MemberProfileAgentResponder::answerWithDefaultProvider()` (HTTP direct
+    sans garde) n'a plus d'appelant et est **supprimé**. La borne
+    `MAX_VISITOR_TURNS = 8` reste une borne UX de conversation (effaçable par
+    `resetConversation()`) : la borne durable est désormais le crédit du
+    visiteur + le budget de l'Organization du profil + le budget de process.
+    Même limite assumée que T1250/T1251 (pas d'`ai_interactions`, compteurs
+    aveugles à leur propre consommation jusqu'à G11).
 
-Reste hors garde à cette date : la configuration conversationnelle de
-l'agent de profil (#16, `chatWithSetupPrompt()`) et le chat visiteur public
-anonyme (#15, `AiAgentChat` → `answerWithDefaultProvider()`) — voir
-`GAP-ANALYSIS-ECONOMIQUE-T1246.md`, famille C (TASK dédiée, T1252).
+**Famille C du gap analysis T1246 : complète** (#13/#17/#18 T1250, #14 T1251,
+#15 T1252). Reste hors garde à cette date : la configuration conversationnelle
+de l'agent de profil (#16, `MemberAiProfileConversationalSetup` →
+`chatWithSetupPrompt()`) — chemin authentifié, borné à `MAX_TURNS = 10` par
+session de composant, non public, trace `admin_ai_interactions` coût
+`unknown` ; il n'a jamais emprunté `answerWithDefaultProvider()`. À traiter
+séparément (TASK dédiée ou avec T1253) : `SupervisionEconomicAuthority` est
+prête pour lui (tenant = Organization du membre, acteur = crédit = le membre).
 
 ## Instrumentation des invocations Laravel AI SDK (P1-3)
 

@@ -25,6 +25,8 @@ return [
     // TASK-1251 : l'echange existe mais la garde economique a refuse l'appel (status = refused).
     'interaction_refused_badge' => 'Response not generated',
     'interaction_refused_body' => 'The AI agent did not answer: the call was refused before being sent (:code). No cost was incurred.',
+    // TASK-1252 : internaute non connecte — refus V1, l'agent l'a invite a se connecter.
+    'interaction_refused_guest_body' => 'A visitor who was not logged in asked this question. Your AI agent does not answer visitors without an account: it invited them to log in. No AI call, no cost.',
     'my_agent_title' => 'My AI agent',
     'my_agent_subtitle' => 'View and test your AI agent profile.',
     'my_agent_no_profile_body' => 'Set up your AI agent profile to be better guided by AI.',
@@ -88,6 +90,12 @@ return [
     'visitor_chat_profile_missing' => 'This member has not published their AI profile yet.',
     'visitor_chat_generation_failed' => 'I could not generate a response right now.',
     'visitor_chat_error' => 'An error occurred. Please try again.',
+    // TASK-1252 : visiteur non connecte — l'agent ne repond pas (aucun appel IA anonyme paye par la plateforme), il invite a se connecter.
+    'visitor_chat_guest_notice' => 'To talk with this member\'s AI agent, log in or create an account. Without an account, the agent cannot answer you.',
+    'visitor_chat_guest_login' => 'Log in',
+    'visitor_chat_guest_register' => 'Create an account',
+    'visitor_chat_guest_refusal_message' => 'Thanks for your message! I’m :member_name’s AI agent and I can only answer people who are logged in. Log in or create an account: we’ll pick the conversation up right here, and :member_name will be able to read our exchange.',
+    'visitor_chat_guest_composer_disabled' => 'Log in to ask your question',
 
     'back_to_profile' => 'Back to profile',
     'available' => '● Available',

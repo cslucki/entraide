@@ -25,6 +25,8 @@ return [
     // TASK-1251 : l'echange existe mais la garde economique a refuse l'appel (status = refused).
     'interaction_refused_badge' => 'Réponse non générée',
     'interaction_refused_body' => 'L\'agent IA n\'a pas répondu : l\'appel a été refusé avant d\'être envoyé (:code). Aucun coût n\'a été engagé.',
+    // TASK-1252 : internaute non connecté — refus V1, l'agent l'a invité à se connecter.
+    'interaction_refused_guest_body' => 'Un internaute non connecté a posé cette question. Votre agent IA ne répond pas aux visiteurs sans compte : il l\'a invité à se connecter. Aucun appel IA, aucun coût.',
     'my_agent_title' => 'Mon agent IA',
     'my_agent_subtitle' => 'Visualisez et testez votre profil d\'agent IA.',
     'my_agent_no_profile_body' => 'Configurez votre profil d\'agent IA pour être mieux orienté par l\'IA.',
@@ -88,6 +90,12 @@ return [
     'visitor_chat_profile_missing' => 'Ce membre n\'a pas encore publié son profil IA.',
     'visitor_chat_generation_failed' => 'Je n\'ai pas pu générer une réponse pour le moment.',
     'visitor_chat_error' => 'Une erreur est survenue. Veuillez réessayer.',
+    // TASK-1252 : visiteur non connecté — l'agent ne répond pas (aucun appel IA anonyme payé par la plateforme), il invite à se connecter.
+    'visitor_chat_guest_notice' => 'Pour échanger avec l\'agent IA de ce membre, connectez-vous ou créez un compte. Sans compte, l\'agent ne peut pas vous répondre.',
+    'visitor_chat_guest_login' => 'Se connecter',
+    'visitor_chat_guest_register' => 'Créer un compte',
+    'visitor_chat_guest_refusal_message' => 'Merci pour votre message ! Je suis l’agent IA de :member_name et je ne peux répondre qu’aux personnes connectées. Connectez-vous ou créez un compte : nous reprendrons la conversation ici, et :member_name pourra lire notre échange.',
+    'visitor_chat_guest_composer_disabled' => 'Connectez-vous pour poser votre question',
 
     'back_to_profile' => 'Retour au profil',
     'available' => '● Disponible',

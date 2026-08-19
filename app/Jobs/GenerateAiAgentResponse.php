@@ -77,8 +77,8 @@ class GenerateAiAgentResponse implements ShouldQueue
     /** Fonction produit emettrice (`ai_provider_invocations.feature`). */
     public const FEATURE = 'member_profile_agent_loop_reply';
 
-    /** Statut de la trace operationnelle quand la garde a refuse l'appel. */
-    public const INTERACTION_STATUS_REFUSED = 'refused';
+    /** Statut de la trace operationnelle quand la garde a refuse l'appel (alias, cf. modele). */
+    public const INTERACTION_STATUS_REFUSED = MemberAiProfileInteraction::STATUS_REFUSED;
 
     /**
      * TASK-1131 — propagation asynchrone de la corrélation.
@@ -239,8 +239,9 @@ class GenerateAiAgentResponse implements ShouldQueue
 
     /**
      * Refus de la garde : log metier + etat de l'echange (`status = refused`,
-     * aucune reponse, cout non evalue). Rien au ledger, aucun message dans la
-     * Boucle — cf. docblock de classe.
+     * aucune reponse, cout non evalue — `MemberAiProfileInteraction::recordRefusal()`,
+     * meme forme que le chat visiteur T1252). Rien au ledger, aucun message dans
+     * la Boucle — cf. docblock de classe.
      *
      * @param  array{provider: string, model: string}|null  $attempted  provider/modele qui AURAIENT ete appeles
      */
@@ -257,32 +258,14 @@ class GenerateAiAgentResponse implements ShouldQueue
             'correlation_id' => AiCorrelation::id(),
         ]);
 
-        MemberAiProfileInteraction::create([
-            'organization_id' => $profile->organization_id,
-            'correlation_id' => AiCorrelation::id(),
-            'process' => AiProcess::MEMBER_PROFILE_LOOP_AGENT_REPLY,
-            'member_ai_profile_id' => $profile->id,
-            'profile_owner_user_id' => $profile->user_id,
-            'visitor_user_id' => $sender->id,
-            'visitor_type' => 'user',
-            'provider' => $attempted['provider'] ?? null,
-            'model' => $attempted['model'] ?? null,
-            'status' => self::INTERACTION_STATUS_REFUSED,
-            'question' => $this->message->body,
-            'response' => null,
-            'matched_fields' => [],
-            'metadata' => [
-                'economic_refusal' => [
-                    'code' => $refused->refusalCode,
-                    'feature' => self::FEATURE,
-                ],
-            ],
-            'latency_ms' => null,
-            'input_tokens' => null,
-            'output_tokens' => null,
-            // Aucun appel parti : rien a evaluer — NULL / NULL, jamais 0.
-            'cost_usd' => null,
-            'cost_unknown' => null,
-        ]);
+        MemberAiProfileInteraction::recordRefusal(
+            $profile,
+            AiProcess::MEMBER_PROFILE_LOOP_AGENT_REPLY,
+            self::FEATURE,
+            $refused,
+            $this->message->body,
+            $sender,
+            $attempted,
+        );
     }
 }
