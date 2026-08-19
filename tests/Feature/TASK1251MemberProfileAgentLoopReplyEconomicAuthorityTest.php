@@ -594,28 +594,11 @@ class TASK1251MemberProfileAgentLoopReplyEconomicAuthorityTest extends TestCase
     }
 
     // =====================================================================
-    // F. Les chemins voisins ne changent pas de contrat
+    // F. (TASK-1252) `answerWithDefaultProvider()` n'existe plus : le chat
+    //    visiteur (#15) est passe sous la meme autorite — voir
+    //    TASK1252VisitorChatEconomicAuthorityTest. Les deux tests de contrat
+    //    « inchange pour #15/#16 » n'ont donc plus d'objet.
     // =====================================================================
-
-    public function test_the_legacy_default_provider_path_keeps_its_contract_and_stays_out_of_the_ledger(): void
-    {
-        // #15/#16 (T1252) empruntent encore `answerWithDefaultProvider()` : meme
-        // contrat qu'avant (aucune garde, aucun ledger) — et l'usage est
-        // desormais expose, additif.
-        $this->fakeOpenRouterAnswer();
-        $result = app(MemberProfileAgentResponder::class)->answerWithDefaultProvider($this->profile, 'Bonjour');
-        $this->assertSame('openrouter', $result['provider']);
-        $this->assertSame(300, $result['usage']->inputTokens);
-        $this->assertSame(0, AiProviderInvocation::query()->count(), 'Hors perimetre T1251 : pas encore sous ledger (T1252).');
-    }
-
-    public function test_the_legacy_default_provider_path_still_falls_back_silently_on_failure(): void
-    {
-        $this->fakeOpenRouterFailure();
-        $fallback = app(MemberProfileAgentResponder::class)->answerWithDefaultProvider($this->profile, 'Bonjour');
-        $this->assertSame('rule_based', $fallback['provider']);
-        $this->assertSame(0, AiProviderInvocation::query()->count());
-    }
 
     private function assertNoAgentReplyAfter(Loop $loop, int $expectedAgentReplies): void
     {

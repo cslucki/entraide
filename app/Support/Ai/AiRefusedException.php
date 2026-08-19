@@ -13,6 +13,10 @@ use RuntimeException;
  *   CODE_ORGANIZATION_BUDGET_REACHED  -> le budget IA de l'Organization
  *   CODE_NOT_CONFIGURED               -> aucun credential pour l'Organization
  *   CODE_UNAVAILABLE                  -> autre indisponibilite (quota d'inconnus…)
+ *   CODE_AUTHENTICATION_REQUIRED      -> TASK-1252 : aucune identite pour porter le
+ *                                        credit (visiteur anonyme du chat de profil) —
+ *                                        la plateforme ne paie pas un appel anonyme
+ *                                        en silence ; refus V1 assume, AVANT tout appel
  *
  * Herite de RuntimeException : les appelants historiques qui attrapent
  * RuntimeException continuent de fonctionner ; ceux qui veulent le code
@@ -27,6 +31,8 @@ class AiRefusedException extends RuntimeException
     public const CODE_NOT_CONFIGURED = 'ai_not_configured';
 
     public const CODE_UNAVAILABLE = 'ai_unavailable';
+
+    public const CODE_AUTHENTICATION_REQUIRED = 'authentication_required';
 
     public function __construct(
         public readonly string $refusalCode,
