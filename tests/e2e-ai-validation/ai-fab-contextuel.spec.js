@@ -464,4 +464,68 @@ test.describe('TASK-1231 FAB BouclePro IA', () => {
         assertClean(watch);
         await context.close();
     });
+
+    // TASK-1244.BUG : le panneau #ai-fab-panel restait display:none malgre
+    // open=true quand document.hidden === true (onglet en arriere-plan/occlus) —
+    // Alpine.js fait dependre le basculement de `display` d'une sequence
+    // requestAnimationFrame des lors que des attributs x-transition:* sont
+    // presents, et Chrome gele ces callbacks pour un document non visible.
+    // Correctif : retrait des x-transition:* (memes garanties visuelles que
+    // les deux autres modaux de loops/show.blade.php, qui n'en ont jamais eu).
+    //
+    // Reproduire ici la vraie condition navigateur (document.hidden === true,
+    // occlusion OS reelle d'un onglet) s'est revele infaisable en CI :
+    // Playwright desactive deliberement le throttling des onglets en
+    // arriere-plan pour la determinisme des tests, et cet environnement
+    // (Xvfb sans vrai gestionnaire de fenetres) ne genere aucune occlusion
+    // reelle — page.bringToFront() sur un onglet-leurre laisse
+    // document.hidden a false. Un rAF neutralise artificiellement casse
+    // aussi des mecanismes internes a Alpine sans rapport avec ce bug,
+    // produisant un faux rouge. La preuve « document.hidden reel » a donc
+    // ete faite en Chrome reel (outil de navigation Claude Code), pas ici :
+    // panneau reste display:none/rect 0x0 sur l'ancien code, visible
+    // immediatement sur le nouveau, verifie sur Loop, dashboard, mobile,
+    // ouverture/fermeture/reouverture.
+    //
+    // Ce test verifie ce qui EST fiable et deterministe en CI : (1) la
+    // visibilite reelle (pas seulement aria-expanded) survit a un cycle
+    // ouverture/fermeture/reouverture, et (2) le panneau ne reintroduit pas
+    // les attributs x-transition:* qui sont la cause racine identifiee —
+    // un garde-fou direct contre la regression.
+    test('TASK-1244.BUG : panneau sans x-transition, visibilite reelle sur ouverture/fermeture/reouverture', async ({ page }) => {
+        await login(page, ORG_SLUG, JONAS);
+        await page.goto(LOOP);
+
+        const panel = page.locator('[data-ai-fab-panel]');
+        const toggle = page.locator('[data-ai-fab-toggle]');
+
+        const transitionAttrCount = await panel.evaluate((el) =>
+            [...el.attributes].filter((a) => a.name.startsWith('x-transition')).length
+        );
+        expect(transitionAttrCount, 'aucun x-transition:* sur #ai-fab-panel (cause racine TASK-1244.BUG)').toBe(0);
+
+        await toggle.click();
+        await expect(panel).toBeVisible();
+        let box = await panel.boundingBox();
+        expect(box.width).toBeGreaterThan(0);
+        expect(box.height).toBeGreaterThan(0);
+
+        await page.locator('[data-ai-fab-close]').click();
+        await expect(panel).toBeHidden();
+
+        await toggle.click();
+        await expect(panel).toBeVisible();
+        box = await panel.boundingBox();
+        expect(box.width).toBeGreaterThan(0);
+        expect(box.height).toBeGreaterThan(0);
+
+        // Meme verification sur le dashboard : le FAB vient de layouts/app.blade.php,
+        // partage par toutes les pages membre — pas seulement la Boucle.
+        await page.goto(`${ORG_ROOT}/dashboard`);
+        await toggle.click();
+        await expect(panel).toBeVisible();
+        box = await panel.boundingBox();
+        expect(box.width).toBeGreaterThan(0);
+        expect(box.height).toBeGreaterThan(0);
+    });
 });
