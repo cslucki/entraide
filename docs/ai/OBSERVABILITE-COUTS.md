@@ -239,8 +239,9 @@ n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
     autre Organization, ou le propriétaire qui teste son agent sur
     `/agent-ia/test`) : `answerUnderEconomicAuthority()` (T1251) — clé
     plateforme déclarée, garde AVANT provider (budget de process
-    `member_profile.agent_visitor_chat`, même `config('ai.supervision_
-    resolver.economic_guard')`, budget de l'Organization de record, crédit
+    `member_profile.agent_visitor_chat`, même
+    `config('ai.supervision_resolver.economic_guard')`, budget de
+    l'Organization de record, crédit
     T1229 du visiteur), une ligne `ai_provider_invocations` par tentative
     (succès ET échec, usage observé → coût catalogue, sinon `unknown`).
     Identité économique, provisoire jusqu'à T1253 : **tenant = Organization
@@ -254,8 +255,9 @@ n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
     sans usage reste `unknown`, inchangé). Refus : aucune réponse de
     substitution, message avec son code (`data-ai-refusal-code`) et lien
     « Voir les offres » si le crédit est épuisé et proposé, la question
-    reste dans la conversation sans réponse, ligne `member_ai_profile_
-    interactions` `status = refused` (badge propriétaire). Échec provider :
+    reste dans la conversation sans réponse, ligne
+    `member_ai_profile_interactions` `status = refused` (badge propriétaire).
+    Échec provider :
     ligne `failed` (coût NULL) puis repli rule-based dit tel quel
     (`fallback_after_provider_failure` sur le message et la trace).
   - `MemberProfileAgentResponder::answerWithDefaultProvider()` (HTTP direct
