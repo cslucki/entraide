@@ -337,6 +337,32 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Chemins herites SupervisionProviderResolver — autorite economique (TASK-1250)
+    |--------------------------------------------------------------------------
+    |
+    | Les chemins AUTHENTIFIES de la famille C du gap analysis T1246 passent
+    | sous `AiEconomicGuard` AVANT tout appel provider, avec le MEME budget
+    | applique PAR PROCESS : formulation d'offre de service
+    | (`service_offer.master`, credit IA du membre applique), test LLM d'un
+    | profil par un administrateur (`member_profile.admin_llm_test`, tenant =
+    | Organization du profil, sans credit) et banc de supervision SuperAdmin
+    | (`supervision.content` / `help_request.clarify`, tenant = Organization
+    | plateforme `is_default`, sans credit). Cle plateforme declaree telle
+    | quelle au ledger (`credential_source = platform`) ; ni Constitution ni
+    | BYOK (BLOC E). Le budget mensuel de l'Organization de record s'applique
+    | par-dessus, comme partout.
+    |
+    */
+
+    'supervision_resolver' => [
+        'economic_guard' => [
+            'monthly_budget_usd' => (float) env('AI_SUPERVISION_RESOLVER_MONTHLY_BUDGET_USD', 2.00),
+            'monthly_unknown_limit' => (int) env('AI_SUPERVISION_RESOLVER_MONTHLY_UNKNOWN_LIMIT', 10),
+        ],
+    ],
+
     'chatloop' => [
         'enabled' => (bool) env('CHATLOOP_AI_ENABLED', true),
         'scenario' => env('CHATLOOP_AI_SCENARIO', 'chatloop_ai_answer'),

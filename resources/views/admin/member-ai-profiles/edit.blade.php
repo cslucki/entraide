@@ -114,11 +114,25 @@
                             </div>
                         @endif
 
-                        <div class="mt-3 flex justify-start">
-                            <div class="max-w-3xl rounded-2xl rounded-tl-sm {{ ($llmTest['status'] ?? null) === 'error' ? 'bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100' }} px-4 py-3 text-sm leading-relaxed shadow-sm">
-                                {!! nl2br(e($llmTest['answer'] ?? $llmTest['error'] ?? 'Aucune réponse.')) !!}
+                        @if(($llmTest['status'] ?? null) === 'refused')
+                            {{-- TASK-1250 : refus ECONOMIQUE avant tout appel provider — distinct d'une reponse et d'une erreur provider --}}
+                            <div class="mt-3 flex justify-start">
+                                <div class="max-w-3xl rounded-2xl rounded-tl-sm border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-800 shadow-sm dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200" data-economic-refusal="{{ $llmTest['code'] ?? '' }}">
+                                    <p class="font-semibold">Refus économique — aucun appel provider n'est parti, rien n'a été écrit.</p>
+                                    <p class="mt-1">{{ $llmTest['error'] ?? '' }}</p>
+                                    @if(!empty($llmTest['detail']))
+                                        <p class="mt-1 text-xs opacity-80">{{ $llmTest['detail'] }}</p>
+                                    @endif
+                                    <p class="mt-1 font-mono text-xs opacity-80">code : {{ $llmTest['code'] ?? '' }}</p>
+                                </div>
                             </div>
-                        </div>
+                        @else
+                            <div class="mt-3 flex justify-start">
+                                <div class="max-w-3xl rounded-2xl rounded-tl-sm {{ ($llmTest['status'] ?? null) === 'error' ? 'bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100' }} px-4 py-3 text-sm leading-relaxed shadow-sm">
+                                    {!! nl2br(e($llmTest['answer'] ?? $llmTest['error'] ?? 'Aucune réponse.')) !!}
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 @endif
             @endif
