@@ -2,12 +2,14 @@
 
 namespace App\Services\Ai;
 
+use App\Ai\CapabilityRegistry;
 use App\Ai\ProviderResolver;
 use App\Ai\ResolvedModel;
 use App\Models\AiProviderInvocation;
 use App\Support\Ai\AiCost;
 use App\Support\Ai\AiUsage;
 use Carbon\CarbonImmutable;
+use DomainException;
 
 /**
  * Writer UNIQUE du ledger canonique `ai_provider_invocations` (TASK-1220).
@@ -31,6 +33,14 @@ use Carbon\CarbonImmutable;
  *    reellement envoyee est une ligne de plus, jamais une ligne ecrasee.
  *  - AUCUN SECRET, prompt ou contenu de reponse. `failure_reason` est une
  *    classe d'exception, jamais un message.
+ *  - CAPABILITY CANONIQUE OU NULL (TASK-1253). `capability` est soit une
+ *    capability du `CapabilityRegistry` (chemin canonique : Constitution +
+ *    doctrine), soit NULL (chemin herite, dit tel quel) — jamais une
+ *    etiquette inventee qui se ferait passer pour canonique. La fonction
+ *    produit d'une ligne se lit `COALESCE(feature, capability)` ;
+ *    `user_id` est l'ACTEUR (qui a declenche l'appel), et, quand un credit
+ *    s'applique, c'est le sien (`SupervisionEconomicScope`, regle
+ *    d'attribution canonique).
  *
  * Pas de try/catch silencieux : comme pour les traces P1 existantes, une
  * ecriture qui echoue est un vrai defaut qui doit se voir.
@@ -43,6 +53,8 @@ use Carbon\CarbonImmutable;
  */
 final class AiProviderInvocationLedger
 {
+    public function __construct(private readonly CapabilityRegistry $capabilities) {}
+
     /**
      * Une tentative de GENERATION reellement envoyee au provider, reussie ou
      * non. Le credential est prouve via l'instance SDK du `ResolvedModel` :
@@ -64,6 +76,8 @@ final class AiProviderInvocationLedger
         ?float $startedAtMicrotime,
         ?string $feature = null,
     ): AiProviderInvocation {
+        $this->assertCanonicalOrNull($capability);
+
         $totalTokens = $usage->inputTokens !== null && $usage->outputTokens !== null
             ? $usage->inputTokens + $usage->outputTokens
             : null;
@@ -128,6 +142,8 @@ final class AiProviderInvocationLedger
         ?float $startedAtMicrotime,
         ?string $feature = null,
     ): AiProviderInvocation {
+        $this->assertCanonicalOrNull($capability);
+
         return AiProviderInvocation::create([
             'organization_id' => $organizationId,
             'user_id' => $userId,
@@ -156,6 +172,20 @@ final class AiProviderInvocationLedger
             'provider_invocation_id' => null,
             ...$this->timestampColumns($startedAtMicrotime),
         ]);
+    }
+
+    /**
+     * TASK-1253 : `capability` = canonique (registre) ou NULL. Une valeur
+     * non NULL inconnue du registre est un defaut du writer appelant, pas
+     * une ligne a ecrire « quand meme ».
+     */
+    private function assertCanonicalOrNull(?string $capability): void
+    {
+        if ($capability !== null && ! $this->capabilities->has($capability)) {
+            throw new DomainException(
+                "Ledger capability [{$capability}] is not a canonical capability: pass NULL for an inherited path."
+            );
+        }
     }
 
     /**

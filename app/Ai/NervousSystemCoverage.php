@@ -33,10 +33,19 @@ final class NervousSystemCoverage
      * @var array<string, string>
      */
     public const INHERITED = [
+        // Couvre les trois surfaces de l'agent de profil (reponse automatique
+        // dans une Boucle agent, chat visiteur, configuration
+        // conversationnelle) : toutes passent par cette classe.
         'member_profile_agent' => 'App\Services\Ai\MemberProfileAgentResponder',
         // TASK-1233 : `chatloop_direct_answer` (ChatLoopAiService::answer/ask)
         // est sorti d'ici — capabilities canoniques `loop_answer` / `loop_ask`.
         'blog_ai' => 'App\Services\BlogAiService',
+        // TASK-1253 (G16 du gap analysis T1246) : l'Explorer d'article
+        // (dialogue deep-chat, note d'analyse) est une fonction IA visible de
+        // l'Organization qui n'emprunte pas la doctrine — il etait absent de
+        // cet inventaire, l'Admin Organization n'en etait pas informe. Sous
+        // autorite economique depuis TASK-1248, hors doctrine toujours.
+        'blog_explorer' => 'App\Http\Controllers\BlogExplorerController',
         'service_offer_formulation' => 'App\Http\Controllers\ServiceController::formulate',
     ];
 

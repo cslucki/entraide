@@ -359,6 +359,7 @@ return [
     'inherited_label' => [
         'member_profile_agent' => 'Member AI profiles',
         'blog_ai' => 'Blog AI',
+        'blog_explorer' => 'Blog article AI Explorer',
         'service_offer_formulation' => 'Service offer formulation',
     ],
     'behavior_title' => 'AI behaviour',

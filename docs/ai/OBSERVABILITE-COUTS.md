@@ -122,7 +122,7 @@ est encore décidable : une génération réelle ne consomme jamais 0 token
 d'entrée ET 0 de sortie. Ce couple signe un usage non rapporté, donc UNKNOWN —
 jamais un coût de 0.
 
-### Couverture de la garde (état après TASK-1252)
+### Couverture de la garde (état après TASK-1253)
 
 Le paragraphe historique de P2 (« la garde ne couvre que `loop_summary` »)
 n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
@@ -202,8 +202,8 @@ n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
   déclarée (`ai_not_configured` sinon). Une ligne `ai_provider_invocations`
   par tentative (succès ET échec, `credential_source = platform` / `none`,
   usage désormais **observé** → coût catalogue, sinon `unknown`). Identité
-  économique, décision provisoire jusqu'à T1253 : **tenant = Organization du
-  PROFIL** (jamais celle d'un visiteur ; la Boucle doit lui appartenir, sinon
+  économique (posée en T1251, **définitive** depuis TASK-1253) : **tenant =
+  Organization du PROFIL** (jamais celle d'un visiteur ; la Boucle doit lui appartenir, sinon
   le job ne fait rien et le dit), **acteur = crédit = l'expéditeur du
   message** (chemin membre, jamais sans crédit ; celui qui interroge l'IA
   consomme son crédit, le propriétaire ne porte pas celui des visiteurs),
@@ -244,8 +244,8 @@ n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
     l'Organization de record, crédit
     T1229 du visiteur), une ligne `ai_provider_invocations` par tentative
     (succès ET échec, usage observé → coût catalogue, sinon `unknown`).
-    Identité économique, provisoire jusqu'à T1253 : **tenant = Organization
-    du PROFIL visité**, posée explicitement — jamais `current_organization`
+    Identité économique (posée en T1252, **définitive** depuis TASK-1253) :
+    **tenant = Organization du PROFIL visité**, posée explicitement — jamais `current_organization`
     (la requête Livewire ne repasse pas par `ProfileController`), jamais
     l'Organization du visiteur ; **acteur = crédit = le visiteur** ;
     `feature = member_profile_agent_visitor_chat`, capability NULL. La trace
@@ -274,8 +274,60 @@ de l'agent de profil (#16, `MemberAiProfileConversationalSetup` →
 `chatWithSetupPrompt()`) — chemin authentifié, borné à `MAX_TURNS = 10` par
 session de composant, non public, trace `admin_ai_interactions` coût
 `unknown` ; il n'a jamais emprunté `answerWithDefaultProvider()`. À traiter
-séparément (TASK dédiée ou avec T1253) : `SupervisionEconomicAuthority` est
-prête pour lui (tenant = Organization du membre, acteur = crédit = le membre).
+en TASK dédiée (T1253 l'a laissé hors scope : c'est une fermeture de bypass,
+pas une uniformisation) : `SupervisionEconomicAuthority` est prête pour lui
+(tenant = Organization du membre, acteur = crédit = le membre).
+
+### Attribution canonique User / Organization / Capability (TASK-1253)
+
+Fiche roadmap « T1249 » du BLOC B, glissée à T1253 : « uniformiser les champs
+nécessaires à l'économie sans créer une seconde télémétrie ». Audit des neuf
+writers du ledger canonique `ai_provider_invocations` (chemins canoniques #1-#8
+et hérités #9-#18 sous autorité) : les champs sont uniformes en valeur ; la
+règle qu'ils suivent est écrite une fois pour toutes dans le docblock de
+`App\Services\Ai\SupervisionEconomicScope` et tenue par deux invariants de
+code. Aucune table, aucune colonne, aucun registre nouveau.
+
+**La règle.**
+
+| Champ du ledger | Règle | Source chemin par chemin |
+|---|---|---|
+| `organization_id` — tenant de record | l'Organization de l'**objet** sur lequel l'IA travaille : son budget mensuel s'applique, et c'est dans **sa** politique de crédit que le crédit de l'acteur est évalué (compteur tenant × acteur, jamais une lecture dans l'Organization d'origine de l'acteur). Distinct du **payeur de la facture provider** (`credential_source` : `organization` BYOK, `platform` déclaré, `none`), les deux coexistent en base. | Boucle (#1-#4), Dossier (#4b-#7), Organization administrée (#8), **article** (#9-#12), Organization courante = celle de l'offre à créer (#13), **profil** dont l'agent répond (#14, #15, #17), Organization **plateforme** pour le banc SuperAdmin (#18) |
+| `user_id` — acteur | l'humain authentifié qui a **déclenché** l'appel ; NULL seulement sans utilisateur (ingestion en job). Reçu explicitement par le writer, jamais lu depuis `auth()` dans le writer (T1253 aligne #17). | demandeur (#1-#4), admin (#8, #17, #18), auteur (#9-#12), membre (#13), **expéditeur** du message (#14), **visiteur** authentifié — le propriétaire qui teste son agent est son propre visiteur (#15) |
+| crédit T1229 (`creditUser` de la garde) | **l'acteur lui-même** sur tout chemin membre ; NULL sur les bancs d'administration (#8, #17, #18) et la maintenance (#6/#7). **Invariant** (`SupervisionEconomicScope`) : le crédit est porté par l'acteur ou par personne — le ledger n'a qu'un `user_id`, qui dit donc à la fois qui a agi et qui a payé son crédit. Un « propriétaire qui paierait pour ses visiteurs » exigerait une colonne de plus **et** la levée consciente de l'invariant. | G10 (#14) et #15, tranchés T1251/T1252, **confirmés définitifs** ici |
+| `capability` | une capability **canonique** du `CapabilityRegistry` (`loop_summary`, `clarify_help_request`, `loop_knowledge_answer`, `loop_answer`, `loop_ask` — toutes famille A, passage par `PromptRepository::compose()`), ou **NULL** sur un chemin hérité, dit tel quel. **Invariant** (`AiProviderInvocationLedger`) : une valeur non NULL inconnue du registre est refusée (`DomainException`) — aucune étiquette inventée (« `blog_ai_generation` ») ne peut se faire passer pour canonique. Aucune capability canonique n'existe pour Blog, Explorer, agent de profil, offre de service, bancs : leur NULL est la vérité, pas un branchement oublié. | #1-#4, #8 (capability essayée) : registre ; #9-#18 : NULL |
+| `feature` | la fonction produit émettrice, renseignée quand elle diffère de la capability (donc toujours sur les chemins hérités, et `ai_doctrine_sandbox` sur le bac à sable). **Fonction produit d'une ligne = `COALESCE(feature, capability)`.** `string(50)` ; la plus longue valeur écrite fait 34 caractères. | `blog_*`, `service_offer_formulation`, `member_ai_profile_llm_test`, `admin_ai_supervision_bench`, `member_profile_agent_loop_reply`, `member_profile_agent_visitor_chat` |
+| `process` | l'identifiant stable `AiProcess` de la trace opérationnelle du même chemin (ledger et trace portent le même process). | — |
+
+Couverture de doctrine (`NervousSystemCoverage::INHERITED`, G16) : l'Explorer
+d'article (`blog_explorer`, `BlogExplorerController`) est désormais déclaré
+hérité ; le chat visiteur et la configuration conversationnelle restent
+couverts par la clé `member_profile_agent` (même classe). Ce n'est pas un
+second registre : l'inventaire nomme une dette, il ne définit aucune
+capability.
+
+**Limite connue, à porter dans G11 (bascule de l'autorité sur le ledger).**
+Le compteur de crédit (`OrganizationAiEconomicUsage::userCreditUses()`, via
+`OrganizationAiConsumption::baseQuery()`) borne le filtre utilisateur aux
+**membres** du tenant (`users.organization_id = tenant`, protection contre
+l'extraction cross-tenant par identifiant). Pour un visiteur d'une **autre**
+Organization sur le chat de profil (#15, seul chemin où l'acteur peut ne pas
+être membre du tenant), ses utilisations ne sont donc jamais comptées : son
+crédit, évalué dans la politique du tenant, est inépuisable par construction
+— aujourd'hui sans effet (la famille C n'écrit pas `ai_interactions`, le
+compteur est aveugle à #15 quel que soit le visiteur), mais structurel. G11
+devra compter le ledger par (`organization_id`, `user_id`) sans jointure
+`users.organization_id` sur le chemin de **garde** (la ligne vit déjà dans le
+tenant : aucune lecture cross-tenant), ou le produit devra borner le chat aux
+membres. Décision renvoyée à G11, documentée ici pour ne pas être redécouverte.
+
+Hors scope T1253, suites logiques : #16 (TASK dédiée) ; unification du
+**mécanisme** des writers hérités (Blog/Explorer/testLlm portent chacun une
+copie garde inline + `recordLedger()` + `tenantOf()`, #13/#14/#15/#18 passent
+par `SupervisionEconomicScope` + `SupervisionEconomicAuthority` ; deux blocs de
+config `ai.blog.economic_guard` / `ai.supervision_resolver.economic_guard`) — à
+faire avec G11 qui touchera ces writers de toute façon ; `DossierChunkEmbeddingService::embed($instance)`
+optionnel (G14) ; lectures « par payeur » (relevés V2).
 
 ## Instrumentation des invocations Laravel AI SDK (P1-3)
 

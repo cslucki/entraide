@@ -233,6 +233,29 @@ et peu structurés.
 Les trois partagent `correlation_id` et `process` (P1-1), `cost_usd`/
 `cost_unknown` (P1-2, voir `OBSERVABILITE-COUTS.md`).
 
+### Le ledger canonique `ai_provider_invocations` (TASK-1220 → TASK-1253)
+
+Quatrième table, d'une autre nature : **une ligne = une tentative provider
+économiquement réelle** (génération ou embedding, succès ET échec), sans
+prompt, sans réponse, sans credential, `user_id` sans FK (la ligne survit au
+compte). Writer unique `App\Services\Ai\AiProviderInvocationLedger`. Écrit par
+tous les chemins génération sous autorité économique (canoniques #1-#8 et
+hérités Blog/Explorer/famille `SupervisionProviderResolver`/agent de profil,
+T1247→T1252) et par l'observateur des embeddings SDK. L'autorité de la garde
+(`AiEconomicGuard`) lit encore `ai_interactions` pour la génération (bascule =
+G11, TASK future avec preuve de couverture).
+
+Attribution canonique (TASK-1253, règle dans le docblock de
+`App\Services\Ai\SupervisionEconomicScope`, détail dans
+`OBSERVABILITE-COUTS.md` § « Attribution canonique ») : `organization_id` =
+tenant de record = l'Organization de l'objet sur lequel l'IA travaille (son
+budget, sa politique de crédit), distinct du payeur de la facture
+(`credential_source`) ; `user_id` = l'acteur qui a déclenché l'appel, et son
+crédit quand un crédit s'applique (invariant : crédit = acteur ou personne) ;
+`capability` = capability du `CapabilityRegistry` ou NULL (invariant du
+writer : jamais une étiquette inventée) ; fonction produit =
+`COALESCE(feature, capability)`.
+
 ### Pourquoi `admin_ai_interactions` a été réutilisée pour les embeddings SDK (P1-3)
 
 Aucune capability ne devait être migrée en P1-3 — seule l'instrumentation

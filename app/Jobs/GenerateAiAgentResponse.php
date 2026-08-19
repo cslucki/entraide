@@ -32,8 +32,10 @@ use Illuminate\Support\Facades\Log;
  * DECLAREE, usage observe, cout catalogue ou NULL — jamais 0 invente) ; un
  * refus n'ecrit rien au ledger et aucun appel ne part.
  *
- * IDENTITE ECONOMIQUE (G10 HIGH) — decision PROVISOIRE, tranchee ici en
- * attendant l'attribution canonique User/Organization/Capability (T1253) :
+ * IDENTITE ECONOMIQUE (G10 HIGH) — tranchee ici en T1251, CONFIRMEE
+ * DEFINITIVE par l'attribution canonique User/Organization/Capability
+ * (TASK-1253 : c'est la regle commune a tous les writers du ledger, voir
+ * `SupervisionEconomicScope`) :
  *
  *  - TENANT de record = l'Organization du PROFIL membre
  *    (`member_ai_profiles.organization_id`), celle du membre dont l'agent
@@ -50,7 +52,8 @@ use Illuminate\Support\Facades\Log;
  *    credit — doctrine `SupervisionEconomicScope`), et c'est celui qui pose
  *    la question a l'IA qui consomme son credit, comme « Demander a l'IA »
  *    dans une ChatLoop ou la formulation d'offre (#13). Le proprietaire ne
- *    porte pas le credit de chaque visiteur. T1253 pourra reattribuer.
+ *    porte pas le credit de chaque visiteur — acteur = credit est un
+ *    invariant du scope depuis T1253 (le ledger n'a qu'un `user_id`).
  *  - FEATURE = `member_profile_agent_loop_reply` ; PROCESS =
  *    `member_profile.loop_agent_reply` (celui de la trace operationnelle
  *    `member_ai_profile_interactions`, inchange : ledger et trace portent le
