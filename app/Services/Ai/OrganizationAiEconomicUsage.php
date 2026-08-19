@@ -303,6 +303,23 @@ final class OrganizationAiEconomicUsage
      */
     public function userGenerationByProcess(string $organizationId, CarbonImmutable $from, CarbonImmutable $to, string $userId): array
     {
+        return $this->generationByProcess($organizationId, $from, $to, $userId);
+    }
+
+    /**
+     * TASK-1258 : la MEME ventilation par CATEGORIE D'USAGE (`process`) a
+     * l'echelle de l'Organization — ce que le releve Organization montre sous
+     * « Fonctions les plus consommatrices » — delegation PURE a l'autorite 1219
+     * `byProcess()`, tenant pose par `baseQuery()` ; avec `$userId`, c'est
+     * exactement `userGenerationByProcess()` (T1257). La somme des lignes EST la
+     * tranche `generation` de `summary()` sur la meme fenetre (teste). Aucun
+     * SQL nouveau, aucune lecture du ledger : generations = `ai_interactions`,
+     * comme la garde.
+     *
+     * @return list<array{key: ?string, known_cost_usd: ?float, measured_count: int, unknown_count: int, unevaluated_count: int, trace_count: int}>
+     */
+    public function generationByProcess(string $organizationId, CarbonImmutable $from, CarbonImmutable $to, ?string $userId = null): array
+    {
         return $this->generationAuthority->byProcess($organizationId, new AiConsumptionFilters($from, $to, $userId));
     }
 

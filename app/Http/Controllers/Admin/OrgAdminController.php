@@ -1639,6 +1639,10 @@ class OrgAdminController extends Controller
             'isCurrentMonth' => $isCurrentMonth,
             'economics' => $economics,
             'economicsByUser' => $usage->byUser((string) $organization->id, $filters->from, $filters->to),
+            // TASK-1258 : « Fonctions les plus consommatrices » — la MEME autorite,
+            // groupee par process, org-wide sur la periode (comme le bloc budget :
+            // les filtres de dimension ne s'y appliquent pas).
+            'economicsByProcess' => $usage->generationByProcess((string) $organization->id, $filters->from, $filters->to),
             'creditPolicy' => $creditPolicy,
             'creditUses' => $creditUses,
             'budget' => [
