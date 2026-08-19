@@ -50,13 +50,13 @@
     </button>
 
     {{-- Panneau contextuel. --}}
+    {{-- TASK-1244.BUG : pas de x-transition ici. Alpine fait alors dependre le
+         basculement de `display` d'une sequence requestAnimationFrame, qui
+         reste bloquee tant que `document.hidden` est vrai (onglet en arriere-
+         plan/occlus) — le panneau restait display:none malgre open=true.
+         Meme motif (x-show/x-cloak sans transition) que les deux autres
+         modaux de loops/show.blade.php. --}}
     <div x-show="open" x-cloak
-         x-transition:enter="transition ease-out duration-100"
-         x-transition:enter-start="opacity-0 translate-y-2 scale-95"
-         x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-         x-transition:leave="transition ease-in duration-75"
-         x-transition:leave-start="opacity-100 translate-y-0 scale-100"
-         x-transition:leave-end="opacity-0 translate-y-2 scale-95"
          id="ai-fab-panel"
          role="dialog"
          aria-modal="false"
