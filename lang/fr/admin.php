@@ -355,6 +355,7 @@ return [
     'user_data_dossier_files_storage' => 'Stockage fichiers dossiers',
     'user_data_jobs_payloads' => 'Jobs différés',
     'user_data_dossier_chunks' => 'Chunks et embeddings dossiers',
+    'user_data_ai_provider_invocations' => 'Ledger économique IA (appels provider)',
     'user_data_profile_agent_messages' => 'Messages agent profil',
     'user_data_cache_keys' => 'Caches et verrous',
 

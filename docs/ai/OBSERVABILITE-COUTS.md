@@ -329,6 +329,67 @@ config `ai.blog.economic_guard` / `ai.supervision_resolver.economic_guard`) — 
 faire avec G11 qui touchera ces writers de toute façon ; `DossierChunkEmbeddingService::embed($instance)`
 optionnel (G14) ; lectures « par payeur » (relevés V2).
 
+### Rétention du ledger canonique (TASK-1254)
+
+Fiche roadmap « T1250 — Ledger d'invocation économique complet V1 », glissée à
+T1254 : « garantir provider / model / credential source / cost status /
+correlation / capability / user / org / result ». L'audit de complétude
+(TASK file T1254, §A) ne trouve aucun gap de **contenu** : chaque garantie est
+portée par construction (signature du writer unique, primitives de preuve du
+credential, `AiPricingCatalog::cost()` → `AiCost` qui refuse de fabriquer un
+zéro, `AiCorrelation::id()` toujours posé, invariants T1253) et prouvée par
+les suites T1220/T1222/T1229/T1247→T1253. Le seul gap était de **durée** :
+la garantie « org » ne tenait que tant que le tenant existait.
+
+**La règle (G12, exécutée, pas réinventée) : un ledger économique durable ne
+dépend ni de la vie du compte ni de celle du tenant.** Aucune FK sur les deux
+axes d'attribution de `ai_provider_invocations` :
+
+| Axe | Avant | Depuis T1254 | Pourquoi |
+|---|---|---|---|
+| `user_id` (acteur) | sans FK (T1220) | inchangé | la ligne survit à la suppression du compte ; l'uuid reste tel quel |
+| `organization_id` (tenant de record) | FK `ON DELETE CASCADE` — `AdminOrganizationController::destroy()` (`forceDelete()` réel) effaçait toute l'histoire économique du tenant, et la facture plateforme correspondante | **FK retirée** (migration `2026_08_19_150000`, purement additive : aucune ligne touchée, aucune valeur changée, colonne **NOT NULL** et index conservés) | la ligne n'est ni effacée ni réécrite ; l'uuid du tenant supprimé reste lisible (relevés, export, audit) |
+
+Pourquoi le retrait de la FK plutôt qu'un `SET NULL` : (1) symétrie exacte avec
+`user_id`, une seule règle ; (2) le registre est **append-only** (aucune mise à
+jour après écriture) — un `ON DELETE SET NULL` est une réécriture silencieuse
+du tenant de record par la base ; (3) avec `SET NULL`, tous les tenants
+supprimés se confondent en un « tenant NULL » et la facture plateforme d'un
+tenant disparu devient inattribuable ; (4) `organization_id` reste NOT NULL :
+chaque ligne écrite a un tenant de record (règle d'attribution T1253), le
+schéma continue de l'exiger. Aucune lecture ne joint `organizations` sur le
+ledger (toutes filtrent par `organization_id`) ; la relation Eloquent
+`organization()` rend `null` après suppression.
+
+**Le registre du cycle de vie dit la vérité (G13).** `UserDataLifecycleRegistry`
+est déclaratif (il classe, il n'exécute rien ; la suppression d'un User est un
+aperçu) — il doit donc décrire ce que le schéma fera le jour où un `DELETE`
+part :
+
+| Table | FK réelle | Registre avant | Registre depuis T1254 |
+|---|---|---|---|
+| `ai_interactions` (prompt + réponse complets, autorité économique actuelle) | `user_id` NOT NULL, **CASCADE** ; `organization_id` SET NULL | ANONYMIZE (« anonymisable » dans l'aperçu, que rien n'exécutait) | **DELETE** — le contenu personnel suit la personne ; la durabilité économique n'est pas le rôle de cette table mais du ledger. L'anonymisation « réelle » (colonne nullable + `nullOnDelete`) **n'est pas faite** : ce serait un changement de schéma de l'autorité budgétaire actuelle (les compteurs joignent `users`), c'est-à-dire le domaine de G11 |
+| `ai_provider_invocations` | aucune FK (ni `users`, ni `organizations`) | absent | **RETAIN**, entrée `non_sql` (surface sans FK, comme `sessions`), comptée par `user_id`, scope tenant `direct` ; libellé `admin.user_data_ai_provider_invocations` fr/en |
+
+**Métadonnées sans secret ni contenu privé — structurellement.** Le ledger n'a
+**aucune colonne JSON libre** : le champ `metadata.fallback_after_provider_failure`
+de T1251/T1252 vit sur les **traces** (`member_ai_profile_interactions`,
+`admin_ai_interactions`, `profile_agent_messages`) et son payload est
+`{provider, model, failure: classe d'exception}`. Le seul champ texte libre du
+ledger est `failure_reason` (255) : les huit writers qui écrivent un échec y
+mettent `$exception::class`, l'observateur embeddings une constante — jamais
+un message (qui pourrait porter un prompt ou une clé). Garde de test
+(`TASK1254LedgerRetentionTest`) : liste **fermée** des colonnes du ledger
+(ajouter une colonne exige d'y revenir consciemment), `fillable` = schéma, et
+une ligne `failed` d'un writer réel porte une classe existante.
+
+Suite logique, hors scope T1254 : **G11** — bascule de l'autorité de la garde
+(`AiEconomicGuard`, relevés, crédit) de `ai_interactions` vers le ledger, après
+preuve de couverture « chaque site d'appel = une ligne » (G7) ; c'est à ce
+moment que le compteur de crédit par (`organization_id`, `user_id`) sur le
+chemin de garde (limite T1253) et l'unification du mécanisme des writers
+hérités se traitent. `#16` (TASK dédiée), G14 : inchangés.
+
 ## Instrumentation des invocations Laravel AI SDK (P1-3)
 
 Cette section décrit l'instrumentation des **embeddings** Dossiers

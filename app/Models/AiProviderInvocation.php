@@ -18,7 +18,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Registre append-only : pas de `updated_at`, aucune mise a jour apres
  * ecriture — comme `AiInteraction`. Ecrit UNIQUEMENT par
  * `AiProviderInvocationLedger` ; aucun credential, prompt ni contenu de
- * reponse n'y entre.
+ * reponse n'y entre — structurellement : aucune colonne JSON libre, aucune
+ * colonne de contenu, `failure_reason` = classe d'exception.
+ *
+ * RETENTION (TASK-1220 / TASK-1254, G12) : aucune FK sur les deux axes
+ * d'attribution. `user_id` (sans FK) survit a la suppression du compte ;
+ * `organization_id` (NOT NULL, sans FK depuis TASK-1254) survit a la
+ * suppression du tenant de record — l'uuid reste tel quel, la ligne n'est
+ * ni effacee ni reecrite : un ledger economique durable ne depend ni de la
+ * vie du compte ni de celle du tenant. `UserDataLifecycleRegistry` le
+ * declare RETAIN. Les relations `organization()` / `user()` rendent `null`
+ * apres suppression.
  *
  * Ce ledger PREPARE l'autorite economique future. Il ne la porte pas encore :
  * `AiEconomicGuard` continue de lire `ai_interactions` (compatibilite

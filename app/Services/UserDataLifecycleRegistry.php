@@ -31,7 +31,13 @@ class UserDataLifecycleRegistry
         return [
             ['key' => 'admin_ai_interactions_reviewed_by', 'type' => 'sql', 'table' => 'admin_ai_interactions', 'column' => 'reviewed_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Admin AI review audit trail is retained.'],
             ['key' => 'admin_ai_interactions_user_id', 'type' => 'sql', 'table' => 'admin_ai_interactions', 'column' => 'user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Admin AI activity is platform audit data.'],
-            ['key' => 'ai_interactions', 'type' => 'sql', 'table' => 'ai_interactions', 'column' => 'user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'User AI usage may contain personal prompts.'],
+            // TASK-1254 (G13) : la FK reelle est NOT NULL + ON DELETE CASCADE
+            // (migration 2026_06_17_225905) ; la ligne porte le prompt et la
+            // reponse complets. Le registre dit ce que le schema fait : DELETE
+            // — pas l'ANONYMIZE qu'il declarait et que rien n'executait. La
+            // durabilite economique n'est pas le role de cette table mais celui
+            // du ledger `ai_provider_invocations` (sans contenu, sans FK).
+            ['key' => 'ai_interactions', 'type' => 'sql', 'table' => 'ai_interactions', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'User AI interactions carry the full personal prompt and response; the FK cascades (NOT NULL, ON DELETE CASCADE) and the registry says so. The economic fact of each call lives in the content-free ledger ai_provider_invocations, which survives (TASK-1254).'],
             ['key' => 'ai_credit_setting_changes_changed_by', 'type' => 'sql', 'table' => 'ai_credit_setting_changes', 'column' => 'changed_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'A change of the AI credit setting (platform or Organization) is administration audit, not personal data: it must outlive its author, who is simply detached (TASK-1229).'],
             ['key' => 'custom_loop_types_created_by', 'type' => 'sql', 'table' => 'custom_loop_types', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'A created Loop type is organization configuration, not personal data: it must outlive whoever created it, with the author simply detached.'],
             // TASK-1227 : la doctrine IA est une configuration editoriale de l'Organization ; l'auteur d'une version est un audit detachable (FK nullOnDelete).
@@ -104,6 +110,15 @@ class UserDataLifecycleRegistry
             ['key' => 'dossier_files_storage', 'type' => 'non_sql', 'surface' => 'dossier_files.disk/path', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_dossier', 'count' => ['table' => 'dossier_files', 'column' => 'uploaded_by'], 'justification' => 'Dossier file storage is classified only; file deletion is out of scope.'],
             ['key' => 'jobs_payloads', 'type' => 'non_sql', 'surface' => 'jobs.payload failed_jobs.payload/exception job_batches.options', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Deferred jobs may contain serialized user/model identifiers.'],
             ['key' => 'dossier_chunks', 'type' => 'non_sql', 'surface' => 'dossier_chunks.content/embedding', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'count' => ['table' => 'dossier_chunks', 'column' => 'organization_id', 'matches_organization' => true], 'justification' => 'Embeddings require a dedicated lifecycle policy.'],
+            // TASK-1254 (G13) : ledger economique canonique (TASK-1220). Declare
+            // en `non_sql` parce qu'il n'a, PAR CONCEPTION, aucune FK : ni vers
+            // `users` (T1220, « la ligne economique survit a la suppression du
+            // compte ») ni vers `organizations` (T1254, la ligne survit a la
+            // suppression du tenant de record). Une ligne = un appel provider
+            // reellement tente : provider, modele, tokens, cout, credential
+            // source — sans prompt, sans reponse, sans secret. RETAIN sur les
+            // deux axes : un ledger durable ne depend ni du compte ni du tenant.
+            ['key' => 'ai_provider_invocations', 'type' => 'non_sql', 'surface' => 'ai_provider_invocations.user_id/organization_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'count' => ['table' => 'ai_provider_invocations', 'column' => 'user_id'], 'justification' => 'Canonical economic ledger of provider calls (TASK-1220): no content, no secret. The line survives the deletion of the actor (no FK to users) and of the tenant of record (no FK to organizations since TASK-1254): a durable economic ledger cannot depend on the life of the account or of the tenant; the actor uuid stays as an orphan identifier, never re-attributed.'],
             ['key' => 'profile_agent_messages', 'type' => 'non_sql', 'surface' => 'profile_agent_messages.content/metadata', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_profile_agent_conversation', 'justification' => 'Profile agent messages are indirectly linked through conversations.'],
             ['key' => 'cache_keys', 'type' => 'non_sql', 'surface' => 'cache/cache_locks organization and indexing keys', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Cache keys are runtime/organization-scoped.'],
 
