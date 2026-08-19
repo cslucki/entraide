@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\ScenarioPacks\Packs\ArtSciLabRogerPack;
+
 return [
 
     /*
@@ -29,12 +31,10 @@ return [
     |--------------------------------------------------------------------------
     |
     | pack_id => classe implementant App\Support\ScenarioPacks\Contracts\ScenarioPackDefinition.
-    | Vide par TASK-1240 (moteur generique seul) ; TASK-1242 y ajoutera le
-    | premier pack reel (ArtSciLab/Roger).
     |
     */
     'definitions' => [
-        //
+        'artscilab-roger-demo' => ArtSciLabRogerPack::class,
     ],
 
 ];
