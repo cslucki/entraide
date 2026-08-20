@@ -35,8 +35,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * `AiEconomicGuard::LEDGER_AUTHORITY_SINCE_BY_PROCESS`, chacun a partir de
  * son cutover propre (perimetre a parite prouvee, TASK-1259) ;
  * `ai_interactions` reste
- * l'autorite avant cet instant et pour les familles heritees. Le credit
- * (G11-c) et les releves visibles (G11-d) n'ont pas encore bascule.
+ * l'autorite avant cet instant et pour les familles heritees. Depuis
+ * TASK-1261 (G11-c), le CREDIT membre (`OrganizationAiEconomicUsage::
+ * userCreditUses()` + les deux lectures groupees) bascule ici a partir de
+ * `OrganizationAiEconomicUsage::CREDIT_LEDGER_AUTHORITY_SINCE` (cutover
+ * global, liste fermee `CREDITABLE_PROCESSES`) ; avant ce cutover, `
+ * ai_interactions` reste l'autorite credit. Les releves visibles (G11-d)
+ * n'ont pas encore bascule.
  */
 class AiProviderInvocation extends Model
 {

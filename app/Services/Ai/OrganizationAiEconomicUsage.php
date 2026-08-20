@@ -6,6 +6,7 @@ use App\Models\AiProviderInvocation;
 use App\Services\Ai\DTO\AiConsumptionFilters;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Autorite economique V1 d'une Organization : generation + embeddings
@@ -40,6 +41,60 @@ final class OrganizationAiEconomicUsage
     public function __construct(
         private readonly OrganizationAiConsumption $generationAuthority,
     ) {}
+
+    /**
+     * TASK-1261 (G11-c) : cutover GLOBAL du CREDIT membre vers le ledger
+     * canonique. Date fixe FUTURE, frontiere de mois UTC, jamais deduite en
+     * runtime — meme motif que G11-b (`AiEconomicGuard::
+     * LEDGER_AUTHORITY_SINCE_BY_PROCESS`), mais UNE SEULE date pour les
+     * trois methodes credit : tous les appelants credit passent des mois
+     * UTC entiers (`AiConsumptionFilters::currentMonth()`, `monthStart`/
+     * `nextMonthStart`, ou `null` sinon), donc aucune fenetre a cheval n'est
+     * possible par construction — un mois est soit integralement avant,
+     * soit integralement a partir du cutover, jamais les deux.
+     */
+    public const CREDIT_LEDGER_AUTHORITY_SINCE = '2026-09-01T00:00:00+00:00';
+
+    /**
+     * TASK-1261 (G11-c) : liste FERMEE des `process` de GENERATION
+     * creditables, arbitree par M1 le 2026-08-20 — regle fermee :
+     * « operation IA reussie explicitement declenchee pour le benefice du
+     * membre ». Exclut par construction (jamais dans cette liste) : Admin/
+     * SuperAdmin, systeme, sandbox, ingestion — l'echec provider est exclu
+     * par le filtre `status = success` des requetes, pas par cette liste.
+     *
+     * DISTINCTE de `AiEconomicGuard::LEDGER_AUTHORITY_PROCESSES` (autorite
+     * de GARDE, G11-b) : les deux ensembles se recoupent mais ne sont PAS
+     * egaux — garde et credit sont deux semantiques independantes, ne
+     * jamais les fusionner.
+     *
+     * Le 15e seau creditable — `dossier.embeddings_search` (recherche
+     * documentaire) — n'est PAS dans cette liste : il est selectionne par
+     * `operation = embedding` + `embedding_operation = query`, jamais par
+     * `process` (doctrine T1229 inchangee).
+     *
+     * @var list<string>
+     */
+    public const CREDITABLE_PROCESSES = [
+        // canoniques — ledger complet depuis 2026-08-18 (T1260)
+        'chatloop.summarize',
+        'chatloop.answer',
+        'chatloop.ask',
+        'help_request.clarify',
+        'loop_knowledge.answer',
+        // blog — ledger complet depuis 2026-08-20 (T1260 / correctif S2)
+        'blog.article_generate',
+        'blog.article_correct',
+        'blog.method_selection',
+        'blog.explorer_dialogue',
+        'blog.explorer_note',
+        // herites, arbitrage M1 2026-08-20 — ledger depuis T1250/T1251/T1252
+        'service_offer.master',
+        'member_profile.loop_agent_reply',
+        'member_profile.agent_visitor_chat',
+        // #16, arbitrage M1 2026-08-20 — ledger depuis T1262
+        'member_profile.agent_setup',
+    ];
 
     /**
      * @return array{
@@ -347,6 +402,16 @@ final class OrganizationAiEconomicUsage
      */
     public function userCreditUses(string $organizationId, CarbonImmutable $from, CarbonImmutable $to, string $userId): int
     {
+        // TASK-1261 (G11-c) : a partir du cutover, lecture DIRECTE
+        // (organization_id, user_id) du ledger canonique, SANS jointure
+        // `users` — un visiteur cross-Organization reellement servi par CE
+        // tenant consomme SON compteur credit dans CE tenant (comportement
+        // CIBLE, arbitrage M1). Avant le cutover : semantique HISTORIQUE
+        // strictement inchangee (heterogeneites d'aout comprises).
+        if ($from->greaterThanOrEqualTo(CarbonImmutable::parse(self::CREDIT_LEDGER_AUTHORITY_SINCE))) {
+            return $this->userCreditUsesFromLedger($organizationId, $from, $to, $userId);
+        }
+
         $filters = new AiConsumptionFilters($from, $to, $userId);
         $generation = $this->generationAuthority->summary($organizationId, $filters)['trace_count'];
         $sandbox = $this->generationAuthority->sandboxSummary($organizationId, $filters)['trace_count'];
@@ -371,6 +436,63 @@ final class OrganizationAiEconomicUsage
     }
 
     /**
+     * TASK-1261 (G11-c) : le compteur credit d'un utilisateur, DEPUIS le
+     * cutover — deux seaux JAMAIS fusionnes en un DISTINCT global (une
+     * reponse RAG qui partage une correlation entre generation et
+     * recherche documentaire compte deux utilisations, voulu). Sur chaque
+     * seau, `COUNT(DISTINCT COALESCE(correlation_id, id))` : une tentative
+     * sans correlation est sa propre operation, un retry sous la meme
+     * correlation n'en est qu'une. Le sandbox est exclu par le filtre
+     * `feature` directement (le `max(0, generation - sandbox)` de la
+     * lecture historique disparait : plus necessaire, les lignes sandbox du
+     * ledger portent deja `feature = ai_doctrine_sandbox`).
+     *
+     * Garde `Str::isUuid` (meme motif que `OrganizationAiConsumption::
+     * baseQuery()`, TASK-1219) : `ai_provider_invocations.user_id` est
+     * `uuid` sur PostgreSQL — comparer une chaine malformee leve une 22P02.
+     * Tous les appelants passent un `User` modele (jamais un identifiant
+     * d'URL brut), mais la lecture directe n'a plus la sous-requete
+     * `users` qui absorbait implicitement ce risque : defense en
+     * profondeur, cout nul.
+     */
+    private function userCreditUsesFromLedger(string $organizationId, CarbonImmutable $from, CarbonImmutable $to, string $userId): int
+    {
+        if (! Str::isUuid($userId)) {
+            return 0;
+        }
+
+        $generationRow = AiProviderInvocation::query()
+            ->where('organization_id', $organizationId)
+            ->where('user_id', $userId)
+            ->where('operation', AiProviderInvocation::OPERATION_GENERATION)
+            ->whereIn('process', self::CREDITABLE_PROCESSES)
+            ->where('status', AiProviderInvocation::STATUS_SUCCESS)
+            ->where(static function ($query): void {
+                $query->whereNull('feature')->orWhere('feature', '!=', OrganizationDoctrineSandbox::FEATURE);
+            })
+            ->where('created_at', '>=', $from)
+            ->where('created_at', '<', $to)
+            ->selectRaw('COUNT(DISTINCT COALESCE(correlation_id, id)) as operations')
+            ->first();
+
+        $queryRow = AiProviderInvocation::query()
+            ->where('organization_id', $organizationId)
+            ->where('user_id', $userId)
+            ->where('operation', AiProviderInvocation::OPERATION_EMBEDDING)
+            ->where('embedding_operation', AiProviderInvocation::EMBEDDING_OPERATION_QUERY)
+            ->where('status', AiProviderInvocation::STATUS_SUCCESS)
+            ->where(static function ($query): void {
+                $query->whereNull('feature')->orWhere('feature', '!=', OrganizationDoctrineSandbox::FEATURE);
+            })
+            ->where('created_at', '>=', $from)
+            ->where('created_at', '<', $to)
+            ->selectRaw('COUNT(DISTINCT COALESCE(correlation_id, id)) as operations')
+            ->first();
+
+        return (int) ($generationRow->operations ?? 0) + (int) ($queryRow->operations ?? 0);
+    }
+
+    /**
      * TASK-1229 : le MEME compteur, pour tous les utilisateurs d'une
      * Organization en deux requetes groupees (ecrans d'administration :
      * « qui approche sa limite »). Cle = user_id ; seuls les utilisateurs
@@ -382,6 +504,13 @@ final class OrganizationAiEconomicUsage
      */
     public function creditUsesByUser(string $organizationId, CarbonImmutable $from, CarbonImmutable $to): array
     {
+        // TASK-1261 (G11-c) : SOURCE + semantique changent au cutover ; la
+        // jointure de RESTITUTION (seuls les membres ACTUELS de
+        // l'Organization sont rendus) et la forme du retour NE CHANGENT PAS.
+        if ($from->greaterThanOrEqualTo(CarbonImmutable::parse(self::CREDIT_LEDGER_AUTHORITY_SINCE))) {
+            return $this->creditUsesByUserFromLedger($organizationId, $from, $to);
+        }
+
         $generation = DB::table('ai_interactions')
             ->join('users', static function ($join) use ($organizationId): void {
                 $join->on('users.id', '=', 'ai_interactions.user_id')
@@ -431,6 +560,69 @@ final class OrganizationAiEconomicUsage
     }
 
     /**
+     * TASK-1261 (G11-c) : le meme compteur par utilisateur, DEPUIS le
+     * cutover — deux seaux ledger jamais fusionnes, meme jointure de
+     * RESTITUTION `users.organization_id = :org` CONSERVEE (un acteur
+     * cross-Organization ou supprime, COMPTE par la garde, N'APPARAIT PAS
+     * ici : il n'est le credit affichable de personne dans cette console).
+     *
+     * @return array<string, int>
+     */
+    private function creditUsesByUserFromLedger(string $organizationId, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $generation = DB::table('ai_provider_invocations')
+            ->join('users', static function ($join) use ($organizationId): void {
+                $join->on('users.id', '=', 'ai_provider_invocations.user_id')
+                    ->where('users.organization_id', '=', $organizationId);
+            })
+            ->where('ai_provider_invocations.organization_id', $organizationId)
+            ->where('ai_provider_invocations.operation', AiProviderInvocation::OPERATION_GENERATION)
+            ->whereIn('ai_provider_invocations.process', self::CREDITABLE_PROCESSES)
+            ->where('ai_provider_invocations.status', AiProviderInvocation::STATUS_SUCCESS)
+            ->where(static function ($query): void {
+                $query->whereNull('ai_provider_invocations.feature')
+                    ->orWhere('ai_provider_invocations.feature', '!=', OrganizationDoctrineSandbox::FEATURE);
+            })
+            ->where('ai_provider_invocations.created_at', '>=', $from)
+            ->where('ai_provider_invocations.created_at', '<', $to)
+            ->selectRaw('ai_provider_invocations.user_id as user_id, COUNT(DISTINCT COALESCE(ai_provider_invocations.correlation_id, ai_provider_invocations.id)) as uses')
+            ->groupBy('ai_provider_invocations.user_id')
+            ->pluck('uses', 'user_id')
+            ->all();
+
+        $queries = DB::table('ai_provider_invocations')
+            ->join('users', static function ($join) use ($organizationId): void {
+                $join->on('users.id', '=', 'ai_provider_invocations.user_id')
+                    ->where('users.organization_id', '=', $organizationId);
+            })
+            ->where('ai_provider_invocations.organization_id', $organizationId)
+            ->where('ai_provider_invocations.operation', AiProviderInvocation::OPERATION_EMBEDDING)
+            ->where('ai_provider_invocations.embedding_operation', AiProviderInvocation::EMBEDDING_OPERATION_QUERY)
+            ->where('ai_provider_invocations.status', AiProviderInvocation::STATUS_SUCCESS)
+            ->where(static function ($query): void {
+                $query->whereNull('ai_provider_invocations.feature')
+                    ->orWhere('ai_provider_invocations.feature', '!=', OrganizationDoctrineSandbox::FEATURE);
+            })
+            ->where('ai_provider_invocations.created_at', '>=', $from)
+            ->where('ai_provider_invocations.created_at', '<', $to)
+            ->selectRaw('ai_provider_invocations.user_id as user_id, COUNT(DISTINCT COALESCE(ai_provider_invocations.correlation_id, ai_provider_invocations.id)) as uses')
+            ->groupBy('ai_provider_invocations.user_id')
+            ->pluck('uses', 'user_id')
+            ->all();
+
+        $result = [];
+
+        foreach ([$generation, $queries] as $rows) {
+            foreach ($rows as $userId => $uses) {
+                $key = (string) $userId;
+                $result[$key] = ($result[$key] ?? 0) + (int) $uses;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * TASK-1229 : le MEME compteur pour TOUTES les Organizations en deux
      * requetes groupees (ecran plateforme « Monetisation IA » : combien
      * d'utilisateurs approchent ou ont atteint leur credit, par
@@ -442,6 +634,13 @@ final class OrganizationAiEconomicUsage
      */
     public function creditUsesByOrganizationAndUser(CarbonImmutable $from, CarbonImmutable $to): array
     {
+        // TASK-1261 (G11-c) : SOURCE + semantique changent au cutover ; la
+        // jointure de RESTITUTION `users.organization_id =
+        // invocations.organization_id` NE CHANGE PAS.
+        if ($from->greaterThanOrEqualTo(CarbonImmutable::parse(self::CREDIT_LEDGER_AUTHORITY_SINCE))) {
+            return $this->creditUsesByOrganizationAndUserFromLedger($from, $to);
+        }
+
         $generation = DB::table('ai_interactions')
             ->join('users', static function ($join): void {
                 $join->on('users.id', '=', 'ai_interactions.user_id')
@@ -471,6 +670,66 @@ final class OrganizationAiEconomicUsage
             ->where('ai_provider_invocations.created_at', '>=', $from)
             ->where('ai_provider_invocations.created_at', '<', $to)
             ->selectRaw('ai_provider_invocations.organization_id as organization_id, ai_provider_invocations.user_id as user_id, COUNT(*) as uses')
+            ->groupBy('ai_provider_invocations.organization_id', 'ai_provider_invocations.user_id')
+            ->get();
+
+        $result = [];
+
+        foreach ([$generation, $queries] as $rows) {
+            foreach ($rows as $row) {
+                $organizationId = (string) $row->organization_id;
+                $userId = (string) $row->user_id;
+                $result[$organizationId][$userId] = ($result[$organizationId][$userId] ?? 0) + (int) $row->uses;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * TASK-1261 (G11-c) : le meme compteur plateforme, DEPUIS le cutover —
+     * deux seaux ledger jamais fusionnes, meme jointure de RESTITUTION
+     * `users.organization_id = invocations.organization_id` CONSERVEE (un
+     * utilisateur n'est rendu que dans l'Organization a laquelle il
+     * appartient).
+     *
+     * @return array<string, array<string, int>>
+     */
+    private function creditUsesByOrganizationAndUserFromLedger(CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $generation = DB::table('ai_provider_invocations')
+            ->join('users', static function ($join): void {
+                $join->on('users.id', '=', 'ai_provider_invocations.user_id')
+                    ->on('users.organization_id', '=', 'ai_provider_invocations.organization_id');
+            })
+            ->where('ai_provider_invocations.operation', AiProviderInvocation::OPERATION_GENERATION)
+            ->whereIn('ai_provider_invocations.process', self::CREDITABLE_PROCESSES)
+            ->where('ai_provider_invocations.status', AiProviderInvocation::STATUS_SUCCESS)
+            ->where(static function ($query): void {
+                $query->whereNull('ai_provider_invocations.feature')
+                    ->orWhere('ai_provider_invocations.feature', '!=', OrganizationDoctrineSandbox::FEATURE);
+            })
+            ->where('ai_provider_invocations.created_at', '>=', $from)
+            ->where('ai_provider_invocations.created_at', '<', $to)
+            ->selectRaw('ai_provider_invocations.organization_id as organization_id, ai_provider_invocations.user_id as user_id, COUNT(DISTINCT COALESCE(ai_provider_invocations.correlation_id, ai_provider_invocations.id)) as uses')
+            ->groupBy('ai_provider_invocations.organization_id', 'ai_provider_invocations.user_id')
+            ->get();
+
+        $queries = DB::table('ai_provider_invocations')
+            ->join('users', static function ($join): void {
+                $join->on('users.id', '=', 'ai_provider_invocations.user_id')
+                    ->on('users.organization_id', '=', 'ai_provider_invocations.organization_id');
+            })
+            ->where('ai_provider_invocations.operation', AiProviderInvocation::OPERATION_EMBEDDING)
+            ->where('ai_provider_invocations.embedding_operation', AiProviderInvocation::EMBEDDING_OPERATION_QUERY)
+            ->where('ai_provider_invocations.status', AiProviderInvocation::STATUS_SUCCESS)
+            ->where(static function ($query): void {
+                $query->whereNull('ai_provider_invocations.feature')
+                    ->orWhere('ai_provider_invocations.feature', '!=', OrganizationDoctrineSandbox::FEATURE);
+            })
+            ->where('ai_provider_invocations.created_at', '>=', $from)
+            ->where('ai_provider_invocations.created_at', '<', $to)
+            ->selectRaw('ai_provider_invocations.organization_id as organization_id, ai_provider_invocations.user_id as user_id, COUNT(DISTINCT COALESCE(ai_provider_invocations.correlation_id, ai_provider_invocations.id)) as uses')
             ->groupBy('ai_provider_invocations.organization_id', 'ai_provider_invocations.user_id')
             ->get();
 
