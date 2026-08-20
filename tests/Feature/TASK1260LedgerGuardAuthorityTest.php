@@ -20,9 +20,11 @@ use Tests\TestCase;
  * TASK-1260 (G11-b) — bascule de l'autorite GARDE generation vers le ledger
  * canonique `ai_provider_invocations`, scope strict :
  *
- *  - `LEDGER_AUTHORITY_PROCESSES` (liste fermee, parite prouvee T1259) lu au
- *    ledger A PARTIR de `LEDGER_AUTHORITY_SINCE`, au registre historique
- *    `ai_interactions` AVANT — fenetres disjointes, jamais de chevauchement ;
+ *  - `LEDGER_AUTHORITY_SINCE_BY_PROCESS` (mapping ferme, parite prouvee
+ *    T1259) : chaque process lu au ledger A PARTIR de SON cutover
+ *    (canoniques 18/08, Blog/Explorer 20/08 — correctif signal S2), au
+ *    registre historique `ai_interactions` AVANT — fenetres disjointes PAR
+ *    PROCESS, jamais de chevauchement ;
  *  - les process HORS liste (familles Supervision / bancs SuperAdmin) gardent
  *    la lecture historique EXACTE, cutover ou pas ;
  *  - une ligne ledger d'un process hors liste ne change JAMAIS un verdict ;
@@ -249,7 +251,7 @@ class TASK1260LedgerGuardAuthorityTest extends TestCase
         // LES DEUX tables dans la meme methode.
         Carbon::setTestNow('2026-08-20 12:00:00');
 
-        foreach (AiEconomicGuard::LEDGER_AUTHORITY_PROCESSES as $process) {
+        foreach (AiEconomicGuard::ledgerAuthorityProcesses() as $process) {
             $this->interaction($process, 0.10, false, '2026-08-05 10:00:00');
             $this->ledgerGeneration($process, 0.10, '2026-08-05 10:00:00', correlationId: (string) Str::uuid());
 
@@ -257,7 +259,7 @@ class TASK1260LedgerGuardAuthorityTest extends TestCase
             $this->ledgerGeneration($process, 0.10, '2026-08-19 10:00:00', correlationId: (string) Str::uuid());
         }
 
-        foreach (AiEconomicGuard::LEDGER_AUTHORITY_PROCESSES as $process) {
+        foreach (AiEconomicGuard::ledgerAuthorityProcesses() as $process) {
             // L'ancienne autorite : la somme registre du mois entier.
             $legacyWholeMonth = (float) DB::table('ai_interactions')
                 ->where('organization_id', $this->organization->id)
@@ -309,6 +311,95 @@ class TASK1260LedgerGuardAuthorityTest extends TestCase
         $this->assertFalse($verdict->allowed);
         $this->assertSame(AiEconomicGuard::REASON_ORGANIZATION_BUDGET_REACHED, $verdict->reason);
         $this->assertSame(2.00, round($verdict->knownMonthlyCostUsd, 6));
+    }
+
+    // =====================================================================
+    // Correctif S2 — cutover PAR PROCESS (Blog 20/08, canoniques 18/08)
+    // =====================================================================
+
+    public function test_blog_registry_lines_between_the_two_cutovers_still_count(): void
+    {
+        Carbon::setTestNow('2026-08-20 12:00:00');
+
+        // Le scenario reel du 18-19/08 pour Blog : `ai_interactions` ecrite,
+        // AUCUNE jumelle ledger (T1247/T1248, qui ont commence le ledger
+        // Blog, n'etaient pas mergees). Un cutover Blog au 18/08 ferait
+        // disparaitre ce cout — la perte silencieuse visee par le signal S2.
+        $this->interaction('blog.explorer_dialogue', 2.00, false, '2026-08-19 10:00:00');
+
+        // (a) le verrou par process la compte toujours.
+        $refused = $this->authorize('blog.explorer_dialogue', budget: 2.00);
+        $this->assertSame(AiEconomicGuard::REASON_MONTHLY_BUDGET_REACHED, $refused->reason);
+        $this->assertSame(2.00, round($refused->knownMonthlyCostUsd, 6));
+
+        // (b) le plafond Organization la compte toujours.
+        OrganizationAiSetting::factory()->create([
+            'organization_id' => $this->organization->id,
+            'api_key' => 'sk-task1260',
+            'monthly_budget_usd' => 2.00,
+        ]);
+
+        $orgRefused = $this->authorize('blog.explorer_dialogue', budget: 100.0);
+        $this->assertSame(AiEconomicGuard::REASON_ORGANIZATION_BUDGET_REACHED, $orgRefused->reason);
+        $this->assertSame(2.00, round($orgRefused->knownMonthlyCostUsd, 6));
+    }
+
+    public function test_blog_line_at_the_blog_cutover_goes_to_the_ledger_only(): void
+    {
+        Carbon::setTestNow('2026-08-25 12:00:00');
+
+        // Jumelles ecrites PILE a l'instant du cutover BLOG (20/08, pas
+        // 18/08) : la ligne appartient au ledger (`>=`), jamais au registre
+        // (`<` strict) — comptee une fois (1.50), jamais deux, jamais zero.
+        $this->interaction('blog.explorer_note', 1.50, false, '2026-08-20 00:00:00');
+        $this->ledgerGeneration('blog.explorer_note', 1.50, '2026-08-20 00:00:00');
+
+        $verdict = $this->authorize('blog.explorer_note', budget: 10.00);
+        $this->assertTrue($verdict->allowed);
+        $this->assertSame(1.50, round($verdict->knownMonthlyCostUsd, 6));
+    }
+
+    public function test_mixed_cutovers_in_the_same_month_lose_nothing_and_double_count_nothing(): void
+    {
+        // Aout 2026, le cas le plus exigeant : canonique (cutover 18/08) et
+        // Blog (cutover 20/08) dans le MEME mois calendaire, chaque groupe
+        // avec ses deux fenetres propres a l'interieur de la somme org-wide.
+        Carbon::setTestNow('2026-08-25 12:00:00');
+
+        // Canonique : registre pre-18/08 compte…
+        $this->interaction('chatloop.summarize', 0.10, false, '2026-08-10 10:00:00');
+        // …jumelles post-18/08 : ledger compte, registre ignore.
+        $this->interaction('chatloop.summarize', 0.20, false, '2026-08-19 10:00:00');
+        $this->ledgerGeneration('chatloop.summarize', 0.20, '2026-08-19 10:00:00');
+
+        // Blog : registre SEUL du 19/08 (entre les deux cutovers) compte —
+        // c'est la ligne que le cutover unique du 18/08 aurait perdue…
+        $this->interaction('blog.explorer_note', 0.30, false, '2026-08-19 11:00:00');
+        // …jumelles post-20/08 : ledger compte, registre ignore.
+        $this->interaction('blog.explorer_note', 0.40, false, '2026-08-21 10:00:00');
+        $this->ledgerGeneration('blog.explorer_note', 0.40, '2026-08-21 10:00:00');
+
+        // Bruit qui ne doit jamais compter : ledger canonique pre-cutover
+        // (periode ou le registre est l'autorite du groupe canonique).
+        $this->ledgerGeneration('chatloop.summarize', 5.00, '2026-08-16 10:00:00');
+        // Ledger Blog du 19/08 : pre-cutover BLOG, ignore lui aussi.
+        $this->ledgerGeneration('blog.explorer_note', 5.00, '2026-08-19 11:30:00');
+
+        OrganizationAiSetting::factory()->create([
+            'organization_id' => $this->organization->id,
+            'api_key' => 'sk-task1260',
+            'monthly_budget_usd' => 1.00,
+        ]);
+
+        // 0.10 + 0.20 + 0.30 + 0.40 = 1.00 exactement : aucune perte (le
+        // 0.30 Blog inter-cutovers est la), aucun double comptage (chaque
+        // jumelle une fois), aucun bruit (les 5.00 absents).
+        $refused = $this->authorize('chatloop.summarize', budget: 100.0);
+        $this->assertSame(AiEconomicGuard::REASON_ORGANIZATION_BUDGET_REACHED, $refused->reason);
+        $this->assertSame(1.00, round($refused->knownMonthlyCostUsd, 6));
+
+        OrganizationAiSetting::query()->update(['monthly_budget_usd' => 1.01]);
+        $this->assertTrue($this->authorize('chatloop.summarize', budget: 100.0)->allowed);
     }
 
     // =====================================================================

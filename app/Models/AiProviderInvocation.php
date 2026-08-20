@@ -31,9 +31,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * apres suppression.
  *
  * AUTORITE ECONOMIQUE : depuis TASK-1260 (G11-b), `AiEconomicGuard` lit ses
- * generations ici a partir de `AiEconomicGuard::LEDGER_AUTHORITY_SINCE`, pour
- * les seuls process de `AiEconomicGuard::LEDGER_AUTHORITY_PROCESSES`
- * (perimetre a parite prouvee, TASK-1259) ; `ai_interactions` reste
+ * generations ici pour les seuls process de
+ * `AiEconomicGuard::LEDGER_AUTHORITY_SINCE_BY_PROCESS`, chacun a partir de
+ * son cutover propre (perimetre a parite prouvee, TASK-1259) ;
+ * `ai_interactions` reste
  * l'autorite avant cet instant et pour les familles heritees. Le credit
  * (G11-c) et les releves visibles (G11-d) n'ont pas encore bascule.
  */

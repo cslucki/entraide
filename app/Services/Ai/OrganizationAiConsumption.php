@@ -32,8 +32,8 @@ use Illuminate\Support\Str;
  * deux parts.
  *
  * TASK-1260 (G11-b) : la GARDE a bascule sa part generation vers le ledger
- * canonique a partir de `AiEconomicGuard::LEDGER_AUTHORITY_SINCE`, pour les
- * process de `AiEconomicGuard::LEDGER_AUTHORITY_PROCESSES` (parite exacte
+ * canonique, chaque process a partir de son cutover propre
+ * (`AiEconomicGuard::LEDGER_AUTHORITY_SINCE_BY_PROCESS`) (parite exacte
  * prouvee par TASK-1259 : les deux tables recoivent les memes appels sur ce
  * perimetre, les chiffres restent egaux). Cette console, elle, reste sur
  * `ai_interactions` SANS changement : la bascule des RELEVES visibles est

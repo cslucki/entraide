@@ -45,10 +45,10 @@ use DomainException;
  * Pas de try/catch silencieux : comme pour les traces P1 existantes, une
  * ecriture qui echoue est un vrai defaut qui doit se voir.
  *
- * AUTORITE ECONOMIQUE (TASK-1260, G11-b) : depuis
- * `AiEconomicGuard::LEDGER_AUTHORITY_SINCE`, la garde lit ses generations ICI
- * pour les process de `AiEconomicGuard::LEDGER_AUTHORITY_PROCESSES`
- * (perimetre a parite prouvee par TASK-1259) — et toujours dans
+ * AUTORITE ECONOMIQUE (TASK-1260, G11-b) : la garde lit ses generations ICI
+ * pour les process de `AiEconomicGuard::LEDGER_AUTHORITY_SINCE_BY_PROCESS`,
+ * chacun a partir de son cutover propre (perimetre a parite prouvee par
+ * TASK-1259) — et toujours dans
  * `ai_interactions` avant cet instant et pour les familles heritees. La
  * double ecriture n'est pas un double comptage : les fenetres de lecture
  * sont disjointes, aucune lecture ne somme les deux tables sur une meme
