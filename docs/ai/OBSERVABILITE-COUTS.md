@@ -278,9 +278,17 @@ n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
   observé, sinon inconnu — jamais `0/0` inventé. La trace
   `admin_ai_interactions` est conservée en succès et échec ; un refus
   pré-provider n'écrit aucune des deux traces et verrouille le retry dans le
-  wizard. Limite G11-b assumée : ce process reste hors
-  `LEDGER_AUTHORITY_PROCESSES`, donc sa propre ligne ne change encore ni le
-  compteur de crédit ni le budget Organization ; T1261 porte cette décision.
+  wizard. **TASK-1261 (G11-c)** a tranché la décision credit laissée en
+  attente par T1262 : `member_profile.agent_setup` fait partie de
+  `OrganizationAiEconomicUsage::CREDITABLE_PROCESSES`, donc une tentative
+  réussie de ce process **consomme le crédit du membre** à partir du
+  cutover global `CREDIT_LEDGER_AUTHORITY_SINCE` (2026-09-01T00:00:00Z) —
+  avant cette date, semantique crédit historique inchangée (le process
+  n'écrivait pas `ai_interactions`, donc 0 utilisation comptée). Limite
+  G11-b **toujours assumée, elle, inchangée** : ce process reste hors
+  `AiEconomicGuard::LEDGER_AUTHORITY_PROCESSES`, donc sa ligne ne pèse
+  jamais sur le **budget Organization** — crédit et budget sont deux
+  autorités distinctes, T1261 n'a tranché que la première.
 
 **Famille C du gap analysis T1246 : complète** (#13/#17/#18 T1250, #14 T1251,
 #15 T1252, #16 T1262).
