@@ -122,7 +122,7 @@ est encore décidable : une génération réelle ne consomme jamais 0 token
 d'entrée ET 0 de sortie. Ce couple signe un usage non rapporté, donc UNKNOWN —
 jamais un coût de 0.
 
-### Couverture de la garde (état après TASK-1253)
+### Couverture de la garde (état après TASK-1262)
 
 Le paragraphe historique de P2 (« la garde ne couvre que `loop_summary` »)
 n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
@@ -268,15 +268,22 @@ n'est plus vrai. La garde est Organization-scoped depuis TASK-1212 (plafond
     Même limite assumée que T1250/T1251 (pas d'`ai_interactions`, compteurs
     aveugles à leur propre consommation jusqu'à G11).
 
+- **TASK-1262 : la configuration conversationnelle du profil** (#16,
+  `MemberAiProfileConversationalSetup` → `chatWithSetupPrompt()`) : tenant
+  explicite = Organization de la relation du profil existant, sinon
+  Organization résolue au montage et réutilisée à la création du profil ;
+  acteur = crédit = membre ; `process = member_profile.agent_setup`, `feature
+  = member_profile_agent_setup`, capability NULL. La garde précède le
+  provider et chaque tentative écrit le ledger (succès ou échec) avec usage
+  observé, sinon inconnu — jamais `0/0` inventé. La trace
+  `admin_ai_interactions` est conservée en succès et échec ; un refus
+  pré-provider n'écrit aucune des deux traces et verrouille le retry dans le
+  wizard. Limite G11-b assumée : ce process reste hors
+  `LEDGER_AUTHORITY_PROCESSES`, donc sa propre ligne ne change encore ni le
+  compteur de crédit ni le budget Organization ; T1261 porte cette décision.
+
 **Famille C du gap analysis T1246 : complète** (#13/#17/#18 T1250, #14 T1251,
-#15 T1252). Reste hors garde à cette date : la configuration conversationnelle
-de l'agent de profil (#16, `MemberAiProfileConversationalSetup` →
-`chatWithSetupPrompt()`) — chemin authentifié, borné à `MAX_TURNS = 10` par
-session de composant, non public, trace `admin_ai_interactions` coût
-`unknown` ; il n'a jamais emprunté `answerWithDefaultProvider()`. À traiter
-en TASK dédiée (T1253 l'a laissé hors scope : c'est une fermeture de bypass,
-pas une uniformisation) : `SupervisionEconomicAuthority` est prête pour lui
-(tenant = Organization du membre, acteur = crédit = le membre).
+#15 T1252, #16 T1262).
 
 ### Attribution canonique User / Organization / Capability (TASK-1253)
 

@@ -8,6 +8,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\MemberProfileAgentResponder;
 use App\Services\Ai\Persistence\AdminAiInteractionPersistence;
+use App\Services\Ai\SupervisionEconomicScope;
 use Database\Seeders\AiPromptSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -64,6 +65,11 @@ class TASK934ConversationalSetupTest extends TestCase
         $this->mock(MemberProfileAgentResponder::class)
             ->shouldReceive('chatWithSetupPrompt')
             ->once()
+            ->withArgs(fn (array $messages, string $provider, string $model, SupervisionEconomicScope $scope) => $scope->organization->is($this->org)
+                && $scope->actor?->is($this->member)
+                && $scope->creditUser?->is($this->member)
+                && $scope->feature === 'member_profile_agent_setup'
+            )
             ->andReturn([
                 'response' => 'Bonjour ! Pour commencer, pouvez-vous vous présenter en quelques phrases ?',
                 'provider' => 'openai',
