@@ -8,9 +8,11 @@
                 {{ __('ai.setup_turns_left', ['count' => max(0, \App\Livewire\MemberAiProfileConversationalSetup::MAX_TURNS - $turnCount)]) }}
             </p>
         </div>
-        <button wire:click="restart" class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline">
-            {{ __('ai.setup_restart') }}
-        </button>
+        @unless($economicRefused)
+            <button wire:click="restart" class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline">
+                {{ __('ai.setup_restart') }}
+            </button>
+        @endunless
     </div>
 
     <div class="p-4 sm:p-6 space-y-4 max-h-96 overflow-y-auto" wire:loading.class="opacity-50 pointer-events-none">
@@ -36,7 +38,9 @@
     </div>
 
     <div class="p-4 sm:p-6 border-t border-gray-200 dark:border-gray-700">
-        @if($turnCount < \App\Livewire\MemberAiProfileConversationalSetup::MAX_TURNS)
+        @if($economicRefused)
+            {{-- Le message de refus économique affiché sous le chat se suffit. --}}
+        @elseif($turnCount < \App\Livewire\MemberAiProfileConversationalSetup::MAX_TURNS)
             <form wire:submit="send">
                 <div class="flex gap-3">
                     <input wire:model="currentInput"

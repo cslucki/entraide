@@ -3,9 +3,12 @@
 namespace App\Livewire;
 
 use App\Models\MemberAiProfile;
+use App\Models\Organization;
 use App\Services\Ai\JsonResponseParser;
 use App\Services\Ai\MemberProfileAgentResponder;
+use App\Services\Ai\SupervisionEconomicScope;
 use App\Services\Ai\SupervisionProviderResolver;
+use App\Support\Ai\AiRefusedException;
 use Livewire\Component;
 
 class MemberAiProfileConversationalSetup extends Component
@@ -19,6 +22,8 @@ class MemberAiProfileConversationalSetup extends Component
     public int $turnCount = 0;
 
     public ?MemberAiProfile $profile = null;
+
+    public ?Organization $organization = null;
 
     public ?array $previewData = null;
 
@@ -34,6 +39,10 @@ class MemberAiProfileConversationalSetup extends Component
 
     public ?string $error = null;
 
+    public ?string $errorCode = null;
+
+    public bool $economicRefused = false;
+
     public const MAX_TURNS = 10;
 
     public function mount(): void
@@ -45,8 +54,11 @@ class MemberAiProfileConversationalSetup extends Component
             return;
         }
 
+        $this->organization = $organization;
+
         $this->profile = MemberAiProfile::forUser($user)
             ->forOrganization($organization)
+            ->with('organization')
             ->first();
 
         $resolver = app(SupervisionProviderResolver::class);
@@ -60,9 +72,10 @@ class MemberAiProfileConversationalSetup extends Component
 
     public function start(): void
     {
-        $this->resetExcept(['profile', 'provider', 'model']);
+        $this->resetExcept(['profile', 'organization', 'provider', 'model']);
         $this->started = true;
         $this->isTyping = true;
+        $providerCallSucceeded = false;
 
         try {
             $responder = app(MemberProfileAgentResponder::class);
@@ -84,17 +97,32 @@ class MemberAiProfileConversationalSetup extends Component
                 ];
             }
 
-            $result = $responder->chatWithSetupPrompt($initialMessages, $this->provider, $this->model);
+            $tenant = $this->setupTenant();
+            $result = $responder->chatWithSetupPrompt(
+                $initialMessages,
+                $this->provider,
+                $this->model,
+                $this->economicScope($tenant),
+            );
+            $providerCallSucceeded = true;
 
             $responder->logSetupInteraction(
                 $initialMessages[0]['content'],
                 $result['response'],
                 $result,
                 $this->profile,
+                $tenant->id,
             );
 
             $this->messages[] = ['role' => 'assistant', 'content' => $result['response']];
+        } catch (AiRefusedException $e) {
+            $this->error = $e->getMessage();
+            $this->errorCode = $e->refusalCode;
+            $this->economicRefused = true;
         } catch (\Throwable $e) {
+            if (! $providerCallSucceeded) {
+                $this->logProviderFailure($initialMessages[0]['content'] ?? '', $e);
+            }
             $this->error = 'Impossible de démarrer la conversation. Vérifiez la configuration IA.';
         } finally {
             $this->isTyping = false;
@@ -104,6 +132,7 @@ class MemberAiProfileConversationalSetup extends Component
     public function send(): void
     {
         $this->error = null;
+        $this->errorCode = null;
 
         $input = trim($this->currentInput);
 
@@ -113,8 +142,8 @@ class MemberAiProfileConversationalSetup extends Component
 
         $this->messages[] = ['role' => 'user', 'content' => $input];
         $this->currentInput = '';
-        $this->turnCount++;
         $this->isTyping = true;
+        $providerCallSucceeded = false;
 
         try {
             $responder = app(MemberProfileAgentResponder::class);
@@ -124,19 +153,34 @@ class MemberAiProfileConversationalSetup extends Component
                 $this->messages,
             );
 
-            $result = $responder->chatWithSetupPrompt($chatMessages, $this->provider, $this->model);
+            $tenant = $this->setupTenant();
+            $result = $responder->chatWithSetupPrompt(
+                $chatMessages,
+                $this->provider,
+                $this->model,
+                $this->economicScope($tenant),
+            );
+            $providerCallSucceeded = true;
 
-            $responder->logSetupInteraction($input, $result['response'], $result, $this->profile);
+            $responder->logSetupInteraction($input, $result['response'], $result, $this->profile, $tenant->id);
 
             $responseText = $result['response'];
             $this->messages[] = ['role' => 'assistant', 'content' => $responseText];
+            $this->turnCount++;
 
             if ($this->turnCount >= self::MAX_TURNS) {
                 $this->enterPreviewFallback();
             } else {
                 $this->tryEnterPreview($responseText);
             }
+        } catch (AiRefusedException $e) {
+            $this->error = $e->getMessage();
+            $this->errorCode = $e->refusalCode;
+            $this->economicRefused = true;
         } catch (\Throwable $e) {
+            if (! $providerCallSucceeded) {
+                $this->logProviderFailure($input, $e);
+            }
             $this->error = 'Une erreur est survenue. Veuillez réessayer.';
         } finally {
             $this->isTyping = false;
@@ -191,6 +235,8 @@ class MemberAiProfileConversationalSetup extends Component
         $this->previewData = null;
         $this->showPreview = false;
         $this->error = null;
+        $this->errorCode = null;
+        $this->economicRefused = false;
         $this->started = false;
 
         $this->start();
@@ -252,5 +298,35 @@ class MemberAiProfileConversationalSetup extends Component
     public function render()
     {
         return view('livewire.member-ai-profile-conversational-setup');
+    }
+
+    private function setupTenant(): Organization
+    {
+        if ($this->profile) {
+            return $this->profile->loadMissing('organization')->organization;
+        }
+
+        return $this->organization;
+    }
+
+    private function economicScope(Organization $tenant): SupervisionEconomicScope
+    {
+        $actor = auth()->user();
+
+        return new SupervisionEconomicScope($tenant, $actor, $actor, 'member_profile_agent_setup');
+    }
+
+    private function logProviderFailure(string $question, \Throwable $failure): void
+    {
+        $tenant = $this->setupTenant();
+
+        app(MemberProfileAgentResponder::class)->logSetupInteraction(
+            $question,
+            '',
+            ['provider' => $this->provider, 'model' => $this->model, 'failure' => $failure::class],
+            $this->profile,
+            $tenant->id,
+            'failed',
+        );
     }
 }

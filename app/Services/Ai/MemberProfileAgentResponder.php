@@ -228,10 +228,22 @@ class MemberProfileAgentResponder
         ];
     }
 
-    public function chatWithSetupPrompt(array $messages, string $provider, string $model): array
-    {
+    public function chatWithSetupPrompt(
+        array $messages,
+        string $provider,
+        string $model,
+        SupervisionEconomicScope $scope,
+    ): array {
         $config = $this->resolver->providerConfig($provider);
         $startedAt = (int) (microtime(true) * 1000);
+
+        $resolved = new ResolvedModel(
+            $provider,
+            $model,
+            $this->resolver->declarePlatformCredential($provider),
+        );
+        $authority = $this->resolver->economicAuthority($scope);
+        $authority->authorize('member_profile.agent_setup', $resolved);
 
         $systemPrompt = $this->resolveSetupPrompt();
 
@@ -247,20 +259,29 @@ class MemberProfileAgentResponder
             'temperature' => 0.5,
         ];
 
-        $answer = match ($provider) {
-            'ollama' => $this->callOllamaChat($payload, $config),
-            default => $this->callChatCompletions($payload, $config, $provider),
-        };
+        return $authority->attempt(
+            'member_profile.agent_setup',
+            $resolved,
+            function () use ($provider, $payload, $config, $model, $startedAt): array {
+                ['text' => $answer, 'usage' => $usage] = match ($provider) {
+                    'ollama' => $this->callOllamaChat($payload, $config),
+                    default => $this->callChatCompletions($payload, $config, $provider),
+                };
 
-        return [
-            'response' => $answer,
-            'provider' => $provider,
-            'model' => $model,
-            'latency_ms' => (int) (microtime(true) * 1000) - $startedAt,
-        ];
+                return [
+                    'response' => $answer,
+                    'provider' => $provider,
+                    'model' => $model,
+                    'latency_ms' => (int) (microtime(true) * 1000) - $startedAt,
+                    'usage' => $usage,
+                ];
+            },
+            fn (array $result): AiUsage => $result['usage'] ?? AiUsage::notObserved(),
+        );
     }
 
-    private function callOllamaChat(array $payload, array $config): string
+    /** @return array{text: string, usage: AiUsage} */
+    private function callOllamaChat(array $payload, array $config): array
     {
         $response = Http::timeout((int) ($config['timeout'] ?? 30))
             ->acceptJson()
@@ -279,10 +300,16 @@ class MemberProfileAgentResponder
             throw new \RuntimeException(sprintf('Réponse Ollama invalide (HTTP %d).', $response->status()));
         }
 
-        return trim((string) ($response->json('message.content') ?? ''));
+        $body = $response->json();
+
+        return [
+            'text' => trim((string) ($body['message']['content'] ?? '')),
+            'usage' => AiUsage::fromOllamaGenerate($body),
+        ];
     }
 
-    private function callChatCompletions(array $payload, array $config, string $provider): string
+    /** @return array{text: string, usage: AiUsage} */
+    private function callChatCompletions(array $payload, array $config, string $provider): array
     {
         if (empty($config['api_key'])) {
             $label = $provider === 'openrouter' ? 'OpenRouter' : 'du provider';
@@ -311,7 +338,12 @@ class MemberProfileAgentResponder
             throw new \RuntimeException(sprintf('Réponse %s invalide (HTTP %d).', $provider, $response->status()));
         }
 
-        return trim((string) ($response->json('choices.0.message.content') ?? ''));
+        $body = $response->json();
+
+        return [
+            'text' => trim((string) ($body['choices'][0]['message']['content'] ?? '')),
+            'usage' => AiUsage::fromChatCompletions($body),
+        ];
     }
 
     /**
@@ -571,7 +603,10 @@ class MemberProfileAgentResponder
         string $response,
         array $result,
         ?MemberAiProfile $profile = null,
+        ?string $organizationId = null,
+        string $status = 'success',
     ): void {
+        $usage = $result['usage'] ?? AiUsage::notObserved();
         $metadata = [];
 
         if ($profile) {
@@ -579,19 +614,25 @@ class MemberProfileAgentResponder
             $metadata['profile_status'] = $profile->status;
         }
 
+        if (isset($result['failure'])) {
+            $metadata['provider_failure'] = $result['failure'];
+        }
+
         $this->logger->persist([
+            'organization_id' => $organizationId,
             'scenario_id' => 'profile_agent_setup',
+            'process' => 'member_profile.agent_setup',
             'provider' => $result['provider'] ?? 'unknown',
             'model' => $result['model'] ?? null,
-            'status' => 'success',
+            'status' => $status,
             'content' => $question,
             'result_summary' => $response,
             'latency_ms' => $result['latency_ms'] ?? null,
+            'input_tokens' => $usage->inputTokens,
+            'output_tokens' => $usage->outputTokens,
             'metadata' => $metadata,
-            // TASK-1132 : ce site ne fournissait aucun coût, donc la persistance
-            // en fabriquait un (`?? 0.0`). Aucun usage n'étant remonté ici, le
-            // verdict vient du catalogue : nul et connu pour rule_based/ollama,
-            // inconnu pour un provider distant.
+            // TASK-1262 : usage observe quand le provider le rapporte ; sinon
+            // le cout reste non mesurable, jamais fabrique a zero.
             ...$this->costFor($result)->traceAttributes(),
         ]);
     }
@@ -641,9 +682,8 @@ class MemberProfileAgentResponder
      * TASK-1252 : l'usage OBSERVE par `answerWithProvider()` (`result['usage']`)
      * est lu quand il existe — un provider distant avec usage a un cout
      * catalogue, sans usage un cout non mesurable, jamais un 0 inventé. Les
-     * resultats sans `usage` (`chatWithSetupPrompt()`, #16 ; rule-based)
-     * restent « non observes » : le catalogue tranche (nul et connu pour
-     * rule_based/ollama, inconnu pour un provider distant).
+     * resultats sans `usage` restent « non observes » : le catalogue tranche
+     * (nul et connu pour rule_based/ollama, inconnu pour un provider distant).
      */
     private function costFor(array $result): AiCost
     {

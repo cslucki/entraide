@@ -28,7 +28,10 @@
     </div>
 
     @if($error)
-        <div class="mt-4 max-w-3xl mx-auto p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-700 dark:text-red-300">
+        <div @if($errorCode) data-ai-refusal-code="{{ $errorCode }}" @endif
+             class="mt-4 max-w-3xl mx-auto p-4 border rounded-xl text-sm {{ $economicRefused
+                ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300'
+                : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300' }}">
             {{ $error }}
         </div>
     @endif
