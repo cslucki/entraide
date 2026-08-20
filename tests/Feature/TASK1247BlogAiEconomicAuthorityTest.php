@@ -258,6 +258,22 @@ class TASK1247BlogAiEconomicAuthorityTest extends TestCase
             'cost_unknown' => false,
             'metadata' => [],
         ]);
+        // TASK-1260 : jumelle ledger — l'autorite generation de la garde
+        // depuis le cutover ; le reel ecrit les deux tables ensemble.
+        AiProviderInvocation::create([
+            'organization_id' => $this->organization->id,
+            'user_id' => $this->author->id,
+            'process' => 'blog.article_correct',
+            'operation' => AiProviderInvocation::OPERATION_GENERATION,
+            'provider' => 'openai',
+            'model' => 'gpt-catalogued',
+            'credential_source' => AiProviderInvocation::CREDENTIAL_PLATFORM,
+            'provider_cost' => 0.20,
+            'currency' => 'USD',
+            'cost_status' => AiProviderInvocation::COST_KNOWN,
+            'cost_source' => 'catalog_estimated',
+            'status' => AiProviderInvocation::STATUS_SUCCESS,
+        ]);
 
         // Le budget du process `blog.article_correct` est atteint : correct()
         // refuse ; generate() (process distinct) passe encore.

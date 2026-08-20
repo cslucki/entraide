@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Ai\Agents\LoopSummaryAgent;
 use App\Models\AiConfig;
 use App\Models\AiInteraction;
+use App\Models\AiProviderInvocation;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
@@ -13,6 +14,7 @@ use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\TextResponse;
@@ -279,6 +281,24 @@ class TASK1205LoopSummaryEconomicGuardTest extends TestCase
             'output_tokens' => 1,
             'cost_usd' => $cost,
             'cost_unknown' => $unknown,
+        ]);
+
+        // TASK-1260 : jumelle ledger — l'autorite generation de la garde
+        // depuis le cutover ; le monde reel ecrit les deux tables ensemble.
+        AiProviderInvocation::create([
+            'organization_id' => $organization->id,
+            'user_id' => $user->id,
+            'process' => $process,
+            'operation' => AiProviderInvocation::OPERATION_GENERATION,
+            'provider' => 'openrouter',
+            'model' => 'deepseek/deepseek-chat-v3-0324',
+            'credential_source' => AiProviderInvocation::CREDENTIAL_ORGANIZATION,
+            'provider_cost' => $unknown === true ? null : $cost,
+            'currency' => $unknown === true ? null : 'USD',
+            'cost_status' => $unknown === true ? AiProviderInvocation::COST_UNKNOWN : AiProviderInvocation::COST_KNOWN,
+            'cost_source' => $unknown === true ? 'unknown' : 'catalog_estimated',
+            'status' => AiProviderInvocation::STATUS_SUCCESS,
+            'correlation_id' => (string) Str::uuid(),
         ]);
     }
 }

@@ -301,13 +301,29 @@ class TASK1248BlogExplorerEconomicAuthorityTest extends TestCase
             'cost_unknown' => false,
             'metadata' => [],
         ]);
+        // TASK-1260 : jumelle ledger — l'autorite generation de la garde
+        // depuis le cutover ; le reel ecrit les deux tables ensemble.
+        AiProviderInvocation::create([
+            'organization_id' => $this->organization->id,
+            'user_id' => $this->author->id,
+            'process' => 'blog.explorer_dialogue',
+            'operation' => AiProviderInvocation::OPERATION_GENERATION,
+            'provider' => 'openai',
+            'model' => 'gpt-catalogued',
+            'credential_source' => AiProviderInvocation::CREDENTIAL_PLATFORM,
+            'provider_cost' => 0.20,
+            'currency' => 'USD',
+            'cost_status' => AiProviderInvocation::COST_KNOWN,
+            'cost_source' => 'catalog_estimated',
+            'status' => AiProviderInvocation::STATUS_SUCCESS,
+        ]);
 
         $this->assertRefused($this->chat(), AiRefusedException::CODE_ORGANIZATION_BUDGET_REACHED);
         Http::assertNothingSent();
 
         $this->note()->assertOk();
         Http::assertSentCount(1);
-        $this->assertSame('blog.explorer_note', AiProviderInvocation::query()->value('process'));
+        $this->assertSame(1, AiProviderInvocation::query()->where('process', 'blog.explorer_note')->count());
     }
 
     public function test_a_missing_platform_key_refuses_as_not_configured_before_any_call(): void

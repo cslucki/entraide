@@ -512,7 +512,7 @@ class TASK1222EconomicAuthorityTest extends TestCase
 
     private function generationTrace(?float $costUsd, ?bool $costUnknown): AiInteraction
     {
-        return AiInteraction::create([
+        $interaction = AiInteraction::create([
             'user_id' => $this->member->id,
             'organization_id' => $this->organization->id,
             'process' => 'help_request.clarify',
@@ -524,6 +524,31 @@ class TASK1222EconomicAuthorityTest extends TestCase
             'cost_usd' => $costUsd,
             'cost_unknown' => $costUnknown,
         ]);
+
+        // TASK-1260 : jumelle ledger — l'autorite generation de la garde
+        // depuis le cutover (les releves, eux, lisent toujours
+        // `ai_interactions` : les assertions de summary() ne changent pas).
+        // Une trace `cost_unknown = NULL` figure l'historique d'avant P1-2,
+        // anterieur au ledger : pas de jumelle.
+        if ($costUnknown !== null) {
+            AiProviderInvocation::create([
+                'organization_id' => $this->organization->id,
+                'user_id' => $this->member->id,
+                'process' => 'help_request.clarify',
+                'operation' => AiProviderInvocation::OPERATION_GENERATION,
+                'provider' => 'openai',
+                'model' => 'gpt-4o-mini',
+                'credential_source' => AiProviderInvocation::CREDENTIAL_ORGANIZATION,
+                'provider_cost' => $costUnknown ? null : $costUsd,
+                'currency' => $costUnknown ? null : 'USD',
+                'cost_status' => $costUnknown ? AiProviderInvocation::COST_UNKNOWN : AiProviderInvocation::COST_KNOWN,
+                'cost_source' => $costUnknown ? 'unknown' : 'catalog_estimated',
+                'status' => AiProviderInvocation::STATUS_SUCCESS,
+                'correlation_id' => (string) Str::uuid(),
+            ]);
+        }
+
+        return $interaction;
     }
 
     private function ledgerEmbedding(

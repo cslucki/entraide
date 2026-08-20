@@ -205,32 +205,35 @@ class TASK1220AiProviderInvocationLedgerTest extends TestCase
 
         $this->assertSame(0, AiProviderInvocation::query()->count());
 
-        // Cas 2 : budget mensuel deja consomme dans ai_interactions
-        // (l'autorite economique actuelle) -> refus AVANT tout appel.
+        // Cas 2 : budget mensuel deja consomme au ledger canonique
+        // (l'autorite generation de la garde depuis TASK-1260) -> refus
+        // AVANT tout appel.
         OrganizationAiSetting::factory()->create([
             'organization_id' => $this->organization->id,
             'provider' => 'openai',
             'model' => 'gpt-4o-mini',
             'api_key' => self::API_KEY,
         ]);
-        AiInteraction::create([
-            'user_id' => $this->member->id,
+        AiProviderInvocation::create([
             'organization_id' => $this->organization->id,
+            'user_id' => $this->member->id,
             'process' => 'help_request.clarify',
-            'feature' => 'clarify_help_request',
-            'model' => 'openai/gpt-4o-mini',
-            'prompt' => 'x',
-            'input_tokens' => 1,
-            'output_tokens' => 1,
-            'cost_usd' => 999.0,
-            'cost_unknown' => false,
+            'operation' => AiProviderInvocation::OPERATION_GENERATION,
+            'provider' => 'openai',
+            'model' => 'gpt-4o-mini',
+            'credential_source' => AiProviderInvocation::CREDENTIAL_ORGANIZATION,
+            'provider_cost' => 999.0,
+            'currency' => 'USD',
+            'cost_status' => AiProviderInvocation::COST_KNOWN,
+            'cost_source' => 'catalog_estimated',
+            'status' => AiProviderInvocation::STATUS_SUCCESS,
         ]);
 
         $this->clarify('budget deja epuise');
 
-        // La garde a lu ai_interactions (pas le ledger) et a refuse : aucune
-        // tentative provider, donc aucune ligne canonique.
-        $this->assertSame(0, AiProviderInvocation::query()->count());
+        // La garde a lu le ledger et a refuse : aucune tentative provider,
+        // donc aucune ligne canonique NOUVELLE — seule la fixture existe.
+        $this->assertSame(1, AiProviderInvocation::query()->count());
     }
 
     public function test_each_tenant_invocation_carries_its_own_organization(): void

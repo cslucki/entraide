@@ -3,12 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\AiInteraction;
+use App\Models\AiProviderInvocation;
 use App\Models\Organization;
 use App\Models\User;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiPricingCatalog;
 use App\Support\Ai\AiUsage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class TASK1205AiEconomicGuardTest extends TestCase
@@ -59,6 +61,7 @@ class TASK1205AiEconomicGuardTest extends TestCase
         $this->assertSame(AiEconomicGuard::REASON_MONTHLY_BUDGET_REACHED, $this->authorize()->reason);
 
         AiInteraction::query()->delete();
+        AiProviderInvocation::query()->delete();
         $this->interaction($this->organization, 'chatloop.summarize', 2.01, false);
         $this->assertSame(AiEconomicGuard::REASON_MONTHLY_BUDGET_REACHED, $this->authorize()->reason);
     }
@@ -133,6 +136,30 @@ class TASK1205AiEconomicGuardTest extends TestCase
             'output_tokens' => 1,
             'cost_usd' => $cost,
             'cost_unknown' => $unknown,
+        ]);
+
+        // TASK-1260 : une generation moderne ecrit LES DEUX tables dans la
+        // meme methode ; l'autorite de la garde est le ledger depuis le
+        // cutover. Une ligne `cost_unknown = NULL` reste sans jumelle : elle
+        // figure l'historique d'avant P1-2, anterieur au ledger.
+        if ($unknown === null) {
+            return;
+        }
+
+        AiProviderInvocation::create([
+            'organization_id' => $organization->id,
+            'user_id' => $this->user->id,
+            'process' => $process,
+            'operation' => AiProviderInvocation::OPERATION_GENERATION,
+            'provider' => 'provider',
+            'model' => 'model',
+            'credential_source' => AiProviderInvocation::CREDENTIAL_ORGANIZATION,
+            'provider_cost' => $unknown ? null : $cost,
+            'currency' => $unknown ? null : 'USD',
+            'cost_status' => $unknown ? AiProviderInvocation::COST_UNKNOWN : AiProviderInvocation::COST_KNOWN,
+            'cost_source' => $unknown ? 'unknown' : 'catalog_estimated',
+            'status' => AiProviderInvocation::STATUS_SUCCESS,
+            'correlation_id' => (string) Str::uuid(),
         ]);
     }
 }

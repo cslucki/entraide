@@ -18,16 +18,59 @@ final class AiEconomicGuard
     public const REASON_UNKNOWN_QUOTA_REACHED = 'unknown_quota_reached';
 
     /**
+     * TASK-1260 (G11-b) : les process dont l'autorite GENERATION de cette
+     * garde est le ledger canonique `ai_provider_invocations` a partir de
+     * `LEDGER_AUTHORITY_SINCE`. Liste FERMEE — exactement le perimetre dont
+     * TASK-1259 (G11-a) a prouve la parite exacte registre/ledger par
+     * `correlation_id` : capabilities canoniques + Blog/Explorer. Le bac a
+     * sable de doctrine reutilise le process de la capability essayee
+     * (distingue par `feature = ai_doctrine_sandbox`) : aucune valeur a lui.
+     *
+     * Ce filtre n'est pas une optimisation : le ledger recoit une ligne de
+     * TOUTES les familles d'appel (y compris agent de profil / offre de
+     * service / bancs SuperAdmin, hors perimetre, dont la trace
+     * operationnelle est `admin_ai_interactions`), la ou `ai_interactions`
+     * ne recevait structurellement que le perimetre garde. Sans lui, le
+     * plafond Organization se mettrait a compter des familles que leur
+     * propre bascule (TASK dediee future) n'a pas encore migrees.
+     */
+    public const LEDGER_AUTHORITY_PROCESSES = [
+        'chatloop.summarize',
+        'chatloop.answer',
+        'chatloop.ask',
+        'help_request.clarify',
+        'loop_knowledge.answer',
+        'blog.article_generate',
+        'blog.article_correct',
+        'blog.method_selection',
+        'blog.explorer_dialogue',
+        'blog.explorer_note',
+    ];
+
+    /**
+     * TASK-1260 : instant de bascule d'autorite generation, en UTC. Decision
+     * produit FIGEE — jamais deduite d'un MIN(created_at) : le ledger est ne
+     * le 17/08 a 14:53, le premier minuit UTC entierement couvert est retenu
+     * (17/08 00:00 perdrait les traces du 17/08 matin, anterieures a la
+     * premiere ecriture ledger). Avant cet instant : `ai_interactions`
+     * (requete historique inchangee). A partir de cet instant, inclus :
+     * le ledger, borne a `LEDGER_AUTHORITY_PROCESSES`. Les deux fenetres ne
+     * se chevauchent jamais ; les lignes ecrites dans les deux tables entre
+     * la naissance du ledger et le cutover ne sont lues que cote registre.
+     */
+    public const LEDGER_AUTHORITY_SINCE = '2026-08-18T00:00:00+00:00';
+
+    /**
      * TASK-1212 : plafond mensuel porte par l'Organization elle-meme, toutes
      * capabilities confondues. Verifie AVANT le plafond par process.
      *
-     * TASK-1222 : ce plafond couvre desormais generation + embeddings, en
-     * additionnant DEUX registres SANS overlap : les generations gardees
-     * vivent dans `ai_interactions` (aucun embedding n'y est ecrit), les
-     * embeddings vivent dans le ledger canonique `ai_provider_invocations`
-     * (`operation = embedding`). Les generations du ledger ne sont JAMAIS
-     * sommees ici : une generation moderne presente dans les deux registres
-     * ne compte qu'une fois.
+     * TASK-1222 : ce plafond couvre generation + embeddings, en additionnant
+     * DEUX registres SANS overlap (aucun embedding n'est ecrit dans
+     * `ai_interactions`). TASK-1260 : la part generation est lue depuis
+     * `ai_interactions` avant `LEDGER_AUTHORITY_SINCE` et depuis le ledger
+     * canonique (bornee a `LEDGER_AUTHORITY_PROCESSES`) a partir de cet
+     * instant — fenetres disjointes, une generation moderne presente dans
+     * les deux registres ne compte toujours qu'une fois.
      */
     public const REASON_ORGANIZATION_BUDGET_REACHED = 'organization_monthly_budget_reached';
 
@@ -97,19 +140,12 @@ final class AiEconomicGuard
             }
         }
 
-        $monthly = AiInteraction::query()
-            ->where('organization_id', $organization->id)
-            ->where('process', $process)
-            ->where('created_at', '>=', $monthStart)
-            ->where('created_at', '<', $nextMonthStart);
-
-        $knownMonthlyCost = (float) (clone $monthly)
-            ->where('cost_unknown', false)
-            ->sum('cost_usd');
-
-        $successfulUnknownCount = (clone $monthly)
-            ->where('cost_unknown', true)
-            ->count();
+        [$knownMonthlyCost, $successfulUnknownCount] = $this->processMonthlyUsage(
+            $organization,
+            $process,
+            $monthStart,
+            $nextMonthStart,
+        );
 
         $pricingKnown = AiPricingCatalog::hasRate($provider, $model);
 
@@ -283,23 +319,41 @@ final class AiEconomicGuard
     }
 
     /**
-     * Cout mensuel CONNU de l'Organization : generations gardees
-     * (`ai_interactions`, ou aucun embedding n'est ecrit) + embeddings du
-     * ledger canonique. Deux registres disjoints, zero double comptage —
-     * les generations du ledger sont volontairement exclues tant que
-     * l'autorite generation n'a pas migre.
+     * Cout mensuel CONNU de l'Organization : generations gardees +
+     * embeddings du ledger canonique. Zero double comptage.
+     *
+     * TASK-1260 (G11-b) : la part GENERATION est lue en deux fenetres
+     * disjointes — `ai_interactions` (requete historique, sans filtre
+     * process : cette table ne recoit structurellement que le perimetre
+     * garde, prouve par G11-a) avant `LEDGER_AUTHORITY_SINCE`, puis le
+     * ledger canonique, borne a `LEDGER_AUTHORITY_PROCESSES`, a partir de
+     * cet instant. Aucun backfill : le total du mois de transition est la
+     * somme exacte des deux fenetres. La part EMBEDDING ne subit pas le
+     * cutover : elle etait deja lue depuis le ledger sur tout le mois
+     * (TASK-1222), elle le reste.
      */
     private function organizationMonthlyKnownCost(
         Organization $organization,
         Carbon $monthStart,
         Carbon $nextMonthStart,
     ): float {
-        $generationKnown = (float) AiInteraction::query()
+        $cutover = $this->ledgerAuthorityCutover($monthStart, $nextMonthStart);
+
+        $legacyGenerationKnown = (float) AiInteraction::query()
             ->where('organization_id', $organization->id)
             ->where('created_at', '>=', $monthStart)
-            ->where('created_at', '<', $nextMonthStart)
+            ->where('created_at', '<', $cutover)
             ->where('cost_unknown', false)
             ->sum('cost_usd');
+
+        $ledgerGenerationKnown = (float) AiProviderInvocation::query()
+            ->where('organization_id', $organization->id)
+            ->where('operation', AiProviderInvocation::OPERATION_GENERATION)
+            ->whereIn('process', self::LEDGER_AUTHORITY_PROCESSES)
+            ->where('cost_status', AiProviderInvocation::COST_KNOWN)
+            ->where('created_at', '>=', $cutover)
+            ->where('created_at', '<', $nextMonthStart)
+            ->sum('provider_cost');
 
         $embeddingKnown = (float) AiProviderInvocation::query()
             ->where('organization_id', $organization->id)
@@ -309,7 +363,103 @@ final class AiEconomicGuard
             ->where('created_at', '<', $nextMonthStart)
             ->sum('provider_cost');
 
-        return $generationKnown + $embeddingKnown;
+        return $legacyGenerationKnown + $ledgerGenerationKnown + $embeddingKnown;
+    }
+
+    /**
+     * Usage mensuel d'un PROCESS : cout connu (somme) et inconnus reussis
+     * (compte d'operations), pour le verrou par process de `authorize()`.
+     *
+     * TASK-1260 (G11-b) — deux autorites, choisies par la liste fermee,
+     * jamais devinees :
+     *
+     *  - process de `LEDGER_AUTHORITY_PROCESSES` : fenetres de cutover
+     *    disjointes, `ai_interactions` avant `LEDGER_AUTHORITY_SINCE`,
+     *    ledger canonique ensuite. Cote ledger, le cout connu reste une
+     *    SOMME BRUTE (une retry reellement facturee est une depense reelle
+     *    de plus), mais le quota d'inconnus est un compte d'OPERATIONS
+     *    (`COUNT(DISTINCT COALESCE(correlation_id, id))`) : le ledger ecrit
+     *    une ligne PAR TENTATIVE provider, une operation retentee ne
+     *    consomme pas le quota deux fois ; une ligne sans correlation est
+     *    sa propre operation, jamais ignoree. Seuls les appels REUSSIS
+     *    comptent (`status = success`, la regle du quota embeddings) : dans
+     *    le registre, un echec portait `cost_unknown = NULL` et n'entrait
+     *    nulle part — au ledger il porte `cost_status = unknown`, le filtre
+     *    de statut est donc obligatoire pour ne pas fermer un process a
+     *    cause d'une panne.
+     *
+     *  - tout autre process (familles heritees `SupervisionEconomicAuthority`,
+     *    bancs SuperAdmin) : lecture historique `ai_interactions` INCHANGEE
+     *    sur tout le mois, jusqu'a leur TASK de bascule dediee.
+     *
+     * @return array{0: float, 1: int}
+     */
+    private function processMonthlyUsage(
+        Organization $organization,
+        string $process,
+        Carbon $monthStart,
+        Carbon $nextMonthStart,
+    ): array {
+        $legacyWindowEnd = in_array($process, self::LEDGER_AUTHORITY_PROCESSES, true)
+            ? $this->ledgerAuthorityCutover($monthStart, $nextMonthStart)
+            : $nextMonthStart;
+
+        $legacy = AiInteraction::query()
+            ->where('organization_id', $organization->id)
+            ->where('process', $process)
+            ->where('created_at', '>=', $monthStart)
+            ->where('created_at', '<', $legacyWindowEnd);
+
+        $knownCost = (float) (clone $legacy)
+            ->where('cost_unknown', false)
+            ->sum('cost_usd');
+
+        $unknownOperations = (clone $legacy)
+            ->where('cost_unknown', true)
+            ->count();
+
+        if ($legacyWindowEnd->lessThan($nextMonthStart)) {
+            $ledger = AiProviderInvocation::query()
+                ->where('organization_id', $organization->id)
+                ->where('operation', AiProviderInvocation::OPERATION_GENERATION)
+                ->where('process', $process)
+                ->where('created_at', '>=', $legacyWindowEnd)
+                ->where('created_at', '<', $nextMonthStart);
+
+            $knownCost += (float) (clone $ledger)
+                ->where('cost_status', AiProviderInvocation::COST_KNOWN)
+                ->sum('provider_cost');
+
+            $unknownRow = (clone $ledger)
+                ->where('status', AiProviderInvocation::STATUS_SUCCESS)
+                ->where('cost_status', AiProviderInvocation::COST_UNKNOWN)
+                ->selectRaw('COUNT(DISTINCT COALESCE(correlation_id, id)) as operations')
+                ->first();
+
+            $unknownOperations += (int) ($unknownRow->operations ?? 0);
+        }
+
+        return [$knownCost, $unknownOperations];
+    }
+
+    /**
+     * Borne de bascule EFFECTIVE dans la fenetre du mois : le cutover clampe
+     * dans [monthStart, nextMonthStart]. Mois entierement anterieur au
+     * cutover -> nextMonthStart (fenetre ledger vide) ; mois entierement
+     * posterieur -> monthStart (fenetre registre vide) ; mois de transition
+     * -> l'instant exact. La ligne ecrite PILE au cutover appartient au
+     * ledger (`>=`), jamais au registre (`<` strict) : comptee une fois,
+     * jamais deux, jamais zero.
+     */
+    private function ledgerAuthorityCutover(Carbon $monthStart, Carbon $nextMonthStart): Carbon
+    {
+        $cutover = Carbon::parse(self::LEDGER_AUTHORITY_SINCE);
+
+        if ($cutover->lessThanOrEqualTo($monthStart)) {
+            return $monthStart->copy();
+        }
+
+        return $cutover->greaterThan($nextMonthStart) ? $nextMonthStart->copy() : $cutover;
     }
 
     public function finalize(

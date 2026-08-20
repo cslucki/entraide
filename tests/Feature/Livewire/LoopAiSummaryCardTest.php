@@ -5,6 +5,7 @@ namespace Tests\Feature\Livewire;
 use App\Ai\Agents\LoopSummaryAgent;
 use App\Livewire\LoopAiSummaryCard;
 use App\Models\AiInteraction;
+use App\Models\AiProviderInvocation;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
@@ -134,6 +135,22 @@ class LoopAiSummaryCardTest extends TestCase
             'output_tokens' => 1,
             'cost_usd' => 2.00,
             'cost_unknown' => false,
+        ]);
+        // TASK-1260 : jumelle ledger — l'autorite generation de la garde
+        // depuis le cutover ; le reel ecrit les deux tables ensemble.
+        AiProviderInvocation::create([
+            'organization_id' => $this->organization->id,
+            'user_id' => $this->member->id,
+            'process' => 'chatloop.summarize',
+            'operation' => AiProviderInvocation::OPERATION_GENERATION,
+            'provider' => 'openai',
+            'model' => 'gpt-4o-mini',
+            'credential_source' => AiProviderInvocation::CREDENTIAL_ORGANIZATION,
+            'provider_cost' => 2.00,
+            'currency' => 'USD',
+            'cost_status' => AiProviderInvocation::COST_KNOWN,
+            'cost_source' => 'catalog_estimated',
+            'status' => AiProviderInvocation::STATUS_SUCCESS,
         ]);
 
         $this->actingAs($this->member);
