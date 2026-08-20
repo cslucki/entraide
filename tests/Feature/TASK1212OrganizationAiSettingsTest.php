@@ -10,6 +10,7 @@ use App\Ai\ProviderResolver;
 use App\Models\AdminAiPrompt;
 use App\Models\AiConfig;
 use App\Models\AiInteraction;
+use App\Models\AiProviderInvocation;
 use App\Models\Loop;
 use App\Models\LoopMessage;
 use App\Models\Organization;
@@ -251,6 +252,22 @@ class TASK1212OrganizationAiSettingsTest extends TestCase
             'cost_usd' => 0.50,
             'cost_unknown' => false,
             'metadata' => [],
+        ]);
+        // TASK-1260 : jumelle ledger — l'autorite generation du plafond
+        // Organization depuis le cutover ; le reel ecrit les deux tables.
+        AiProviderInvocation::create([
+            'organization_id' => $this->organization->id,
+            'user_id' => $this->member->id,
+            'process' => 'chatloop.summarize',
+            'operation' => AiProviderInvocation::OPERATION_GENERATION,
+            'provider' => 'openrouter',
+            'model' => 'openai/gpt-4o-mini',
+            'credential_source' => AiProviderInvocation::CREDENTIAL_ORGANIZATION,
+            'provider_cost' => 0.50,
+            'currency' => 'USD',
+            'cost_status' => AiProviderInvocation::COST_KNOWN,
+            'cost_source' => 'catalog_estimated',
+            'status' => AiProviderInvocation::STATUS_SUCCESS,
         ]);
         $this->fakeSummary();
         $this->fakeClarifier();

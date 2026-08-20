@@ -14,8 +14,11 @@ use Illuminate\Support\Facades\DB;
  * DEUX registres, ZERO overlap, ZERO fusion heuristique :
  *
  *  - GENERATION : `ai_interactions`, lu avec la semantique exacte de la
- *    console TASK-1219 (`OrganizationAiConsumption`) — c'est le registre que
- *    `AiEconomicGuard` garde reellement aujourd'hui. Les generations
+ *    console TASK-1219 (`OrganizationAiConsumption`) — l'autorite
+ *    HISTORIQUE de la garde. Depuis TASK-1260 (G11-b), `AiEconomicGuard`
+ *    lit ses generations au ledger canonique a partir du cutover pour le
+ *    perimetre migre (parite prouvee T1259 : memes chiffres) ; CE releve,
+ *    lui, reste sur `ai_interactions` jusqu'a G11-d. Les generations
  *    modernes ecrivent AUSSI une ligne au ledger canonique : elles ne sont
  *    JAMAIS relues ici depuis le ledger, sans quoi elles compteraient deux
  *    fois.

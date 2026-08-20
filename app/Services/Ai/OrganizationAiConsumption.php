@@ -17,11 +17,11 @@ use Illuminate\Support\Str;
  *
  * --------------------------------------------------------------------------
  * PERIMETRE : `ai_interactions`, et elle seule. Ce n'est pas un choix
- * arbitraire, c'est un ALIGNEMENT sur l'autorite qui decide deja.
+ * arbitraire, c'est un ALIGNEMENT sur l'autorite historique de la garde.
  * --------------------------------------------------------------------------
  *
- * `AiEconomicGuard::authorize()` (TASK-1212) applique reellement le budget
- * mensuel d'une Organization en comptant exactement ceci :
+ * `AiEconomicGuard::authorize()` (TASK-1212) appliquait le budget mensuel
+ * d'une Organization en comptant exactement ceci :
  *
  *     ai_interactions WHERE organization_id = :org
  *       AND created_at dans le mois
@@ -29,8 +29,15 @@ use Illuminate\Support\Str;
  *       AND cost_unknown = true   -> COMPTE separe
  *
  * La console rend les memes chiffres, sur la meme table, avec la meme forme en
- * deux parts. Une console qui afficherait un total different de celui que la
- * garde applique serait pire que pas de console du tout.
+ * deux parts.
+ *
+ * TASK-1260 (G11-b) : la GARDE a bascule sa part generation vers le ledger
+ * canonique, chaque process a partir de son cutover propre
+ * (`AiEconomicGuard::LEDGER_AUTHORITY_SINCE_BY_PROCESS`) (parite exacte
+ * prouvee par TASK-1259 : les deux tables recoivent les memes appels sur ce
+ * perimetre, les chiffres restent egaux). Cette console, elle, reste sur
+ * `ai_interactions` SANS changement : la bascule des RELEVES visibles est
+ * G11-d, une TASK separee — rien d'affiche ne change dans G11-b.
  *
  * Pourquoi PAS les deux autres tables de trace : les fusionner exigerait une
  * heuristique, dans les deux sens et sans issue prouvable.

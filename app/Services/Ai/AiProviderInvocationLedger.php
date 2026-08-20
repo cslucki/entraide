@@ -45,11 +45,14 @@ use DomainException;
  * Pas de try/catch silencieux : comme pour les traces P1 existantes, une
  * ecriture qui echoue est un vrai defaut qui doit se voir.
  *
- * Ce ledger ne porte PAS encore l'autorite economique : `AiEconomicGuard`
- * continue de lire `ai_interactions` (compatibilite TASK-1219). La double
- * ecriture n'est pas un double comptage tant qu'aucune lecture ne somme les
- * deux tables — la bascule d'autorite sera une TASK future, avec preuve de
- * couverture.
+ * AUTORITE ECONOMIQUE (TASK-1260, G11-b) : la garde lit ses generations ICI
+ * pour les process de `AiEconomicGuard::LEDGER_AUTHORITY_SINCE_BY_PROCESS`,
+ * chacun a partir de son cutover propre (perimetre a parite prouvee par
+ * TASK-1259) — et toujours dans
+ * `ai_interactions` avant cet instant et pour les familles heritees. La
+ * double ecriture n'est pas un double comptage : les fenetres de lecture
+ * sont disjointes, aucune lecture ne somme les deux tables sur une meme
+ * periode. Credit (G11-c) et releves visibles (G11-d) : bascules a venir.
  */
 final class AiProviderInvocationLedger
 {

@@ -30,9 +30,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * declare RETAIN. Les relations `organization()` / `user()` rendent `null`
  * apres suppression.
  *
- * Ce ledger PREPARE l'autorite economique future. Il ne la porte pas encore :
- * `AiEconomicGuard` continue de lire `ai_interactions` (compatibilite
- * TASK-1219, migration d'autorite = TASK future avec preuve de couverture).
+ * AUTORITE ECONOMIQUE : depuis TASK-1260 (G11-b), `AiEconomicGuard` lit ses
+ * generations ici pour les seuls process de
+ * `AiEconomicGuard::LEDGER_AUTHORITY_SINCE_BY_PROCESS`, chacun a partir de
+ * son cutover propre (perimetre a parite prouvee, TASK-1259) ;
+ * `ai_interactions` reste
+ * l'autorite avant cet instant et pour les familles heritees. Le credit
+ * (G11-c) et les releves visibles (G11-d) n'ont pas encore bascule.
  */
 class AiProviderInvocation extends Model
 {
