@@ -349,6 +349,11 @@ return [
     'platform_empty' => 'No organizations.',
     'platform_yes' => 'Yes',
     'platform_no' => 'No',
+    // TASK-1270 : le listing relie chaque Organization a SA surface de
+    // reglage existante (`organization.admin.ai`) — aucun formulaire duplique.
+    'platform_col_configure' => 'AI settings',
+    'platform_configure' => 'Configure',
+    'platform_configure_title' => 'Open this Organization’s AI settings (the key is never displayed)',
 
     // TASK-1227: "AI behaviour" page — Constitution, Organization doctrine,
     // nervous-system coverage, sandbox.
