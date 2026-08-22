@@ -101,6 +101,20 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
      */
     public function test_file_chunk_of_another_organization_is_never_returned(): void
     {
+        // TASK-1267 : saute — et ne desactive pas — ce test sur un driver qui ne
+        // peut structurellement pas l'executer (SQLite sans pgvector), selon la
+        // convention de PgvectorDossierRetrievalSourceTest::setUp(). Les 10 tests
+        // historiques de la classe restent inscrits tels quels dans
+        // .github/sqlite-known-failures.txt ; cette reference ne grandit pas.
+        // Sous PostgreSQL le test tourne et prouve l'isolation tenant.
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('dossier semantic search tenant isolation requires PostgreSQL pgvector.');
+        }
+
+        if (DB::table('pg_extension')->where('extname', 'vector')->doesntExist()) {
+            $this->markTestSkipped('pgvector extension is not installed.');
+        }
+
         $this->assertPostgresqlPgvectorPreconditions();
         [$organization, $dossier, $owner] = $this->fixture();
         [$otherOrganization, $otherDossier, $otherOwner] = $this->fixture();
