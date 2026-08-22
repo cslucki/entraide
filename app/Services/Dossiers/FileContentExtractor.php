@@ -25,7 +25,11 @@ class FileContentExtractor
      */
     private const MAX_INGESTIBLE_BYTES = 5_000_000;
 
-    private const SUPPORTED_MIME_TYPES = ['text/plain', 'text/markdown'];
+    /**
+     * Public depuis TASK-1268 : la commande `dossiers:index-files` selectionne
+     * les `dossier_files` sur ce MEME contrat, sans dupliquer la liste.
+     */
+    public const SUPPORTED_MIME_TYPES = ['text/plain', 'text/markdown'];
 
     private const SUPPORTED_EXTENSIONS = ['txt', 'md', 'markdown'];
 
