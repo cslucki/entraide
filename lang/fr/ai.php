@@ -349,6 +349,11 @@ return [
     'platform_empty' => 'Aucune organisation.',
     'platform_yes' => 'Oui',
     'platform_no' => 'Non',
+    // TASK-1270 : le listing relie chaque Organization a SA surface de
+    // reglage existante (`organization.admin.ai`) — aucun formulaire duplique.
+    'platform_col_configure' => 'Réglage IA',
+    'platform_configure' => 'Configurer',
+    'platform_configure_title' => 'Ouvrir le réglage IA de cette Organization (la clé n’est jamais affichée)',
 
     // TASK-1227 : page « Comportement IA » — Constitution, doctrine de
     // l'Organization, couverture du systeme nerveux, bac a sable.

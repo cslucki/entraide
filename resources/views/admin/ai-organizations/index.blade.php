@@ -10,6 +10,12 @@
     `OrganizationAiEconomicUsage::perOrganization()` — la MEME autorite 1222
     que le releve de chaque Organization ; la ligne d'une Organization ICI est
     son releve, le total est la somme des lignes + « sans Organization ».
+
+    TASK-1270 : chaque ligne porte un lien « Configurer » vers la SEULE surface
+    d'ecriture du reglage IA, `/org/{organization}/admin/ai`
+    (`organization.admin.ai`, OrgAdminController::ai/updateAi). Le SuperAdmin
+    y entre par `OrgAdminMiddleware` (`is_admin`). Aucun formulaire de secret
+    n'est duplique ici : ce listing ne rend ni ne recoit jamais une cle.
 --}}
 @php
     $cost = static function ($value): string {
@@ -73,6 +79,7 @@
                             <th class="px-4 py-3 text-right">{{ __('ai.platform_col_failed') }}</th>
                             <th class="px-4 py-3 text-right">{{ __('ai.platform_col_chunks') }}</th>
                             <th class="px-4 py-3 text-right">{{ __('ai.platform_col_last_activity') }}</th>
+                            <th class="px-4 py-3 text-right">{{ __('ai.platform_col_configure') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
@@ -121,10 +128,17 @@
                                 <td class="px-4 py-3 text-right text-xs text-gray-500 whitespace-nowrap">
                                     {{ $meta !== null && $meta['last_activity_at'] !== null ? $meta['last_activity_at']->format('d/m H:i') : '—' }}
                                 </td>
+                                <td class="px-4 py-3 text-right whitespace-nowrap">
+                                    {{-- TASK-1270 : vers la surface existante de l'Organization, jamais un formulaire ici. --}}
+                                    <a href="{{ route('organization.admin.ai', ['organization' => $organization->slug]) }}"
+                                        class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 text-xs font-medium"
+                                        title="{{ __('ai.platform_configure_title') }}"
+                                        data-platform-org-configure="{{ $organization->slug }}">{{ __('ai.platform_configure') }}</a>
+                                </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="12" class="px-4 py-8 text-center text-gray-400">{{ __('ai.platform_empty') }}</td>
+                                <td colspan="13" class="px-4 py-8 text-center text-gray-400">{{ __('ai.platform_empty') }}</td>
                             </tr>
                         @endforelse
                         @if($deletedCount > 0)
@@ -137,7 +151,7 @@
                                 <td class="px-4 py-3 text-right font-mono text-xs text-gray-900 dark:text-gray-100">{{ number_format($deleted['generation_count']) }}</td>
                                 <td class="px-4 py-3 text-right font-mono text-xs text-gray-900 dark:text-gray-100">{{ number_format($deleted['embedding_query_count']) }} / {{ number_format($deleted['embedding_ingestion_count']) }}</td>
                                 <td class="px-4 py-3 text-right font-mono text-xs {{ $deleted['total_unknown_count'] > 0 ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-gray-400' }}">{{ number_format($deleted['total_unknown_count']) }}</td>
-                                <td class="px-4 py-3 text-right font-mono text-xs text-gray-400" colspan="3">—</td>
+                                <td class="px-4 py-3 text-right font-mono text-xs text-gray-400" colspan="4">—</td>
                             </tr>
                         @endif
                         @if($unattributedCount > 0)
@@ -150,7 +164,7 @@
                                 <td class="px-4 py-3 text-right font-mono text-xs text-gray-900 dark:text-gray-100">{{ number_format($unattributed['generation']['trace_count']) }}</td>
                                 <td class="px-4 py-3 text-right font-mono text-xs text-gray-400">—</td>
                                 <td class="px-4 py-3 text-right font-mono text-xs {{ $unattributed['total_unknown_count'] > 0 ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-gray-400' }}">{{ number_format($unattributed['total_unknown_count']) }}</td>
-                                <td class="px-4 py-3 text-right font-mono text-xs text-gray-400" colspan="3">—</td>
+                                <td class="px-4 py-3 text-right font-mono text-xs text-gray-400" colspan="4">—</td>
                             </tr>
                         @endif
                     </tbody>
