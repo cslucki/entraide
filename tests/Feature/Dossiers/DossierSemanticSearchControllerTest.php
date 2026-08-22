@@ -72,6 +72,83 @@ class DossierSemanticSearchControllerTest extends TestCase
             ]);
     }
 
+    public function test_file_result_receives_dossier_file_citation_url_without_exception(): void
+    {
+        // TASK-1267 : forme reelle d'un resultat `file` rendue par
+        // DossierSemanticSearchService::mapSourceRow() — title et slug nuls.
+        // Avant le correctif, route('organization.blog.show', ['post' => null])
+        // levait UrlGenerationException -> HTTP 500.
+        [$organization, $owner, $dossier] = $this->fixture();
+
+        $this->mockSearchService()
+            ->shouldReceive('search')
+            ->once()
+            ->with($organization->id, $dossier->id, 'needle', 5, \Mockery::pattern('/^org:.+:openai$/'))
+            ->andReturn([
+                $this->fileResult('file-uuid-1', 'contrat-2026.pdf', 2, 'Passage du contrat', 0.234),
+            ]);
+
+        $this->withoutExceptionHandling()
+            ->actingAs($owner)
+            ->getJson($this->searchUrl($organization, $dossier, ['query' => 'needle']))
+            ->assertOk()
+            ->assertExactJson([
+                'data' => [
+                    $this->fileResult('file-uuid-1', 'contrat-2026.pdf', 2, 'Passage du contrat', 0.234) + [
+                        'citation_url' => route('organization.dossiers.files.show', [
+                            'organization' => $organization,
+                            'dossier' => $dossier,
+                            'file' => 'file-uuid-1',
+                        ]),
+                    ],
+                ],
+            ]);
+    }
+
+    public function test_mixed_article_and_file_results_each_receive_their_own_citation_url(): void
+    {
+        [$organization, $owner, $dossier] = $this->fixture();
+
+        $article = $this->articleResult('post-uuid', 'Indexed article', 'indexed-article', 0, 'Relevant passage', 0.123);
+        $fileA = $this->fileResult('file-uuid-a', 'notes.md', 0, 'Passage A', 0.2);
+        $fileB = $this->fileResult('file-uuid-b', 'rapport.docx', 0, 'Passage B', 0.3);
+
+        $this->mockSearchService()
+            ->shouldReceive('search')
+            ->once()
+            ->with($organization->id, $dossier->id, 'needle', 5, \Mockery::pattern('/^org:.+:openai$/'))
+            ->andReturn([$article, $fileA, $fileB]);
+
+        $this->withoutExceptionHandling()
+            ->actingAs($owner)
+            ->getJson($this->searchUrl($organization, $dossier, ['query' => 'needle']))
+            ->assertOk()
+            ->assertExactJson([
+                'data' => [
+                    $article + [
+                        'citation_url' => route('organization.blog.show', [
+                            'organization' => $organization,
+                            'post' => 'indexed-article',
+                        ]),
+                    ],
+                    $fileA + [
+                        'citation_url' => route('organization.dossiers.files.show', [
+                            'organization' => $organization,
+                            'dossier' => $dossier,
+                            'file' => 'file-uuid-a',
+                        ]),
+                    ],
+                    $fileB + [
+                        'citation_url' => route('organization.dossiers.files.show', [
+                            'organization' => $organization,
+                            'dossier' => $dossier,
+                            'file' => 'file-uuid-b',
+                        ]),
+                    ],
+                ],
+            ]);
+    }
+
     public function test_dossier_editor_member_can_search(): void
     {
         [$organization, $owner, $dossier] = $this->fixture();
@@ -201,6 +278,49 @@ class DossierSemanticSearchControllerTest extends TestCase
         $this->assertSearchUnavailableForException(
             new RequestException(new HttpClientResponse(new PsrResponse(500, [], 'provider secret sk-live-query needle')))
         );
+    }
+
+    /**
+     * Resultat `article` tel que rendu par DossierSemanticSearchService::mapSourceRow().
+     *
+     * @return array<string, mixed>
+     */
+    private function articleResult(string $postId, string $title, string $slug, int $chunkIndex, string $content, float $distance): array
+    {
+        return [
+            'source_type' => 'article',
+            'blog_post_id' => $postId,
+            'title' => $title,
+            'slug' => $slug,
+            'dossier_file_id' => null,
+            'filename' => null,
+            'mime_type' => null,
+            'chunk_index' => $chunkIndex,
+            'content' => $content,
+            'distance' => $distance,
+        ];
+    }
+
+    /**
+     * Resultat `file` tel que rendu par DossierSemanticSearchService::mapSourceRow() :
+     * blog_post_id / title / slug nuls, dossier_file_id + filename + mime_type renseignes.
+     *
+     * @return array<string, mixed>
+     */
+    private function fileResult(string $fileId, string $filename, int $chunkIndex, string $content, float $distance): array
+    {
+        return [
+            'source_type' => 'file',
+            'blog_post_id' => null,
+            'title' => null,
+            'slug' => null,
+            'dossier_file_id' => $fileId,
+            'filename' => $filename,
+            'mime_type' => 'text/markdown',
+            'chunk_index' => $chunkIndex,
+            'content' => $content,
+            'distance' => $distance,
+        ];
     }
 
     private function mockSearchService(): MockInterface

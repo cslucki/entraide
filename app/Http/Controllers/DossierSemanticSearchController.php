@@ -79,13 +79,34 @@ class DossierSemanticSearchController extends Controller
         return response()->json([
             'data' => array_map(
                 fn (array $result): array => $result + [
-                    'citation_url' => route('organization.blog.show', [
-                        'organization' => $organization,
-                        'post' => $result['slug'],
-                    ]),
+                    'citation_url' => $this->citationUrl($organization, $dossier, $result),
                 ],
                 $results,
             ),
+        ]);
+    }
+
+    /**
+     * TASK-1267 : la citation suit la source du chunk. Un resultat `file`
+     * (slug/title nuls, cf. DossierSemanticSearchService::mapSourceRow())
+     * pointe vers la route fichier existante ; tout le reste garde la route
+     * article inchangee — `post = null` levait UrlGenerationException (500).
+     *
+     * @param  array<string, mixed>  $result
+     */
+    private function citationUrl(Organization $organization, Dossier $dossier, array $result): string
+    {
+        if (($result['source_type'] ?? null) === 'file') {
+            return route('organization.dossiers.files.show', [
+                'organization' => $organization,
+                'dossier' => $dossier,
+                'file' => $result['dossier_file_id'],
+            ]);
+        }
+
+        return route('organization.blog.show', [
+            'organization' => $organization,
+            'post' => $result['slug'],
         ]);
     }
 }

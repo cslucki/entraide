@@ -2844,6 +2844,65 @@ function registerDossierSemanticArticleSearch() {
         resultCountLabel() {
             return this.i18n.resultsCount.replace(':count', this.results.length);
         },
+
+        // TASK-1267 : un resultat est un article OU un fichier (source_type,
+        // cf. DossierSemanticSearchService::mapSourceRow). Cote fichier,
+        // slug/title sont nuls : la cle DOM, le titre et le libelle du lien
+        // doivent suivre la source, sinon deux fichiers collisionnent sur
+        // `null-0` et s'affichent sans titre avec « Lire l'article ».
+        isFileResult(result) {
+            return result && result.source_type === 'file';
+        },
+
+        resultKey(result) {
+            const sourceType = result.source_type || (result.blog_post_id ? 'article' : 'file');
+            const sourceId = sourceType === 'file' ? result.dossier_file_id : result.blog_post_id;
+
+            return `${sourceType}:${sourceId ?? ''}:${result.chunk_index}`;
+        },
+
+        resultTitle(result) {
+            return String((this.isFileResult(result) ? result.filename : result.title) || '');
+        },
+
+        resultLinkLabel(result) {
+            return this.isFileResult(result) ? this.i18n.openDocument : this.i18n.readArticle;
+        },
+
+        // TASK-1267 : meme regle d'apercu que `ouvrirFichier()` de
+        // `dossierFilesCard` (image, PDF, texte, markdown). Pour ces fichiers
+        // la modale d'apercu EXISTANTE s'ouvre via `openPreview()` du
+        // composant parent, atteint par la chaine de portee Alpine (la
+        // section de recherche vit dans `dossierFilesCard`). Aucun viewer
+        // nouveau ; le telechargement reste `citation_url` (route files.show).
+        canPreviewResult(result) {
+            if (!this.isFileResult(result)) return false;
+            const mime = result.mime_type || '';
+
+            return mime.startsWith('image/')
+                || mime === 'application/pdf'
+                || mime === 'text/plain'
+                || mime === 'text/markdown';
+        },
+
+        openResultPreview(result) {
+            if (!this.canPreviewResult(result)) return false;
+
+            // Repli : si la portee parente n'expose pas la modale, la route
+            // fichier (telechargement) reste le chemin vers le document.
+            if (typeof this.openPreview !== 'function') {
+                window.location = result.citation_url;
+                return false;
+            }
+
+            this.openPreview({
+                id: result.dossier_file_id,
+                mime_type: result.mime_type,
+                display_name: result.filename,
+            });
+
+            return true;
+        },
     }));
 }
 
