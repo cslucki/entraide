@@ -78,9 +78,9 @@ class DossierSemanticSearchService
      * (`source_type = 'article'`, `blog_post_id` renseigne) ou d'un fichier
      * TXT/Markdown (`source_type = 'file'`, `dossier_file_id` renseigne) —
      * jamais les deux. `title`/`slug` restent vides cote fichier ;
-     * `filename`/`dossier_file_id` restent vides cote Article.
+     * `filename`/`dossier_file_id`/`mime_type` restent vides cote Article.
      *
-     * @return array<int, array{source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, chunk_index: int, content: string, distance: float}>
+     * @return array<int, array{source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, mime_type: ?string, chunk_index: int, content: string, distance: float}>
      */
     public function search(string $organizationId, string $dossierId, string $query, int $limit = 5,
         ?string $embeddingInstance = null,
@@ -195,6 +195,7 @@ class DossierSemanticSearchService
                 'dossier_chunks.dossier_file_id',
                 'dossier_files.display_name as file_display_name',
                 'dossier_files.original_name as file_original_name',
+                'dossier_files.mime_type as file_mime_type',
                 'dossier_chunks.chunk_index',
                 'dossier_chunks.content',
             ])
@@ -222,7 +223,7 @@ class DossierSemanticSearchService
      * la fois sur une meme ligne.
      *
      * @param  list<string>  $dossierIds
-     * @return array<int, array{chunk_id: string, dossier_id: string, dossier_name: string, source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, chunk_index: int, content: string, distance: float}>
+     * @return array<int, array{chunk_id: string, dossier_id: string, dossier_name: string, source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, mime_type: ?string, chunk_index: int, content: string, distance: float}>
      */
     public function searchAcrossDossiers(
         string $organizationId,
@@ -327,6 +328,7 @@ class DossierSemanticSearchService
                 'dossier_chunks.dossier_file_id',
                 'dossier_files.display_name as file_display_name',
                 'dossier_files.original_name as file_original_name',
+                'dossier_files.mime_type as file_mime_type',
                 'dossier_chunks.chunk_index',
                 'dossier_chunks.content',
             ])
@@ -359,7 +361,7 @@ class DossierSemanticSearchService
      * `searchAcrossDossiers()` pour ne jamais laisser diverger la regle
      * "exactement une des deux sources" entre les deux methodes.
      *
-     * @return array{source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, chunk_index: int, content: string, distance: float}
+     * @return array{source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, mime_type: ?string, chunk_index: int, content: string, distance: float}
      */
     private static function mapSourceRow(object $row): array
     {
@@ -372,6 +374,9 @@ class DossierSemanticSearchService
             'slug' => $isArticle ? (string) $row->slug : null,
             'dossier_file_id' => $isArticle ? null : (string) $row->dossier_file_id,
             'filename' => $isArticle ? null : (string) ($row->file_display_name ?: $row->file_original_name),
+            // TASK-1267 : le type MIME decide cote vue si l'apercu in-app
+            // existant (modale de `dossierFilesCard`) peut s'ouvrir.
+            'mime_type' => $isArticle ? null : (string) $row->file_mime_type,
             'chunk_index' => (int) $row->chunk_index,
             'content' => (string) $row->content,
             'distance' => (float) $row->distance,

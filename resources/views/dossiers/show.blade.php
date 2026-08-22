@@ -541,6 +541,8 @@
                                      'genericError' => __('dossiers.semantic_search_generic_error'),
                                      'passage' => __('dossiers.semantic_search_passage'),
                                      'resultsCount' => __('dossiers.semantic_search_results_count'),
+                                     'readArticle' => __('dossiers.semantic_search_read_article'),
+                                     'openDocument' => __('dossiers.semantic_search_open_document'),
                                  ],
                              ]))"
                              :aria-busy="loading ? 'true' : 'false'">
@@ -587,17 +589,34 @@
                                     </div>
 
                                     <ol class="mt-3 space-y-3">
-                                        <template x-for="result in results.slice(0, 5)" :key="`${result.slug}-${result.chunk_index}`">
+                                        {{-- TASK-1267 : cle, titre et libelle du lien suivent la source
+                                             (article ou fichier) — slug/title sont nuls cote fichier. --}}
+                                        <template x-for="result in results.slice(0, 5)" :key="resultKey(result)">
                                             <li class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
                                                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                                     <div class="min-w-0">
                                                         <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300" x-text="passageLabel(result.chunk_index)"></p>
-                                                        <h4 class="mt-1 text-base font-semibold text-gray-900 dark:text-gray-100" x-text="result.title"></h4>
+                                                        <h4 class="mt-1 text-base font-semibold text-gray-900 dark:text-gray-100" x-text="resultTitle(result)"></h4>
                                                         <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-gray-300" x-text="excerpt(result.content)"></p>
                                                     </div>
-                                                    <a :href="result.citation_url" class="inline-flex shrink-0 items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-800">
-                                                        {{ __('dossiers.semantic_search_read_article') }}
-                                                    </a>
+                                                    {{-- TASK-1267 : un fichier previsualisable s'ouvre dans la
+                                                         modale d'apercu existante de `dossierFilesCard` (portee
+                                                         Alpine parente) ; sinon, lien vers la route fichier
+                                                         (telechargement) ou l'article, inchange. --}}
+                                                    <template x-if="canPreviewResult(result)">
+                                                        <button type="button"
+                                                                @click="openResultPreview(result)"
+                                                                :data-source-type="result.source_type"
+                                                                data-semantic-result-preview
+                                                                x-text="resultLinkLabel(result)"
+                                                                class="inline-flex shrink-0 items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-800"></button>
+                                                    </template>
+                                                    <template x-if="!canPreviewResult(result)">
+                                                        <a :href="result.citation_url"
+                                                           :data-source-type="result.source_type"
+                                                           x-text="resultLinkLabel(result)"
+                                                           class="inline-flex shrink-0 items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-800"></a>
+                                                    </template>
                                                 </div>
                                             </li>
                                         </template>

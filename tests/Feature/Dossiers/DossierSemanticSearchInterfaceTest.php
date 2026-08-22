@@ -20,8 +20,8 @@ class DossierSemanticSearchInterfaceTest extends TestCase
         $response = $this->actingAs($owner)->get($this->dossierUrl($organization, $dossier));
 
         $response->assertOk();
-        $response->assertSee('Rechercher dans les articles du dossier');
-        $response->assertSee('Décrivez une idée, un besoin ou un sujet. BouclePro retrouvera les passages les plus proches dans les articles de ce dossier.');
+        $response->assertSee('Rechercher dans ce Dossier');
+        $response->assertSee('Posez une question sur les articles et documents de ce Dossier.');
         $response->assertSee('dossierSemanticArticleSearch', false);
         $response->assertSee('x-model="query"', false);
         $response->assertSee('minlength="2"', false);
@@ -66,7 +66,7 @@ class DossierSemanticSearchInterfaceTest extends TestCase
             ->get($this->dossierUrl($organization, $dossier))
             ->assertOk()
             ->assertDontSee('dossierSemanticArticleSearch', false)
-            ->assertDontSee('Rechercher dans les articles du dossier');
+            ->assertDontSee('Rechercher dans ce Dossier');
     }
 
     public function test_semantic_search_interface_renders_french_texts_without_technical_details(): void
@@ -79,9 +79,13 @@ class DossierSemanticSearchInterfaceTest extends TestCase
         $response->assertOk();
         $response->assertSee('Rechercher');
         $response->assertSee('Résultats');
-        $response->assertSee('Aucun passage pertinent trouvé dans les articles de ce dossier.');
+        $response->assertSee('Aucun résultat pertinent trouvé dans ce Dossier.');
+        // TASK-1267 volet A : le wording ne parle plus des seuls articles.
+        $response->assertDontSee('dans les articles du dossier');
+        $response->assertDontSee('dans les articles de ce dossier');
         $response->assertSee('La recherche est temporairement indisponible. Réessayez dans quelques instants.');
         $response->assertSee('Lire l’article');
+        $response->assertSee('Ouvrir le document');
         $response->assertDontSee('wire:model', false);
         $response->assertDontSee('Page X');
         $response->assertDontSee('distance');
@@ -97,12 +101,70 @@ class DossierSemanticSearchInterfaceTest extends TestCase
         $this->actingAs($owner)
             ->get($this->dossierUrl($organization, $dossier))
             ->assertOk()
-            ->assertSee('Search this folder’s articles')
-            ->assertSee('Describe an idea, a need, or a topic. BouclePro will retrieve the closest passages from this folder’s articles.')
+            ->assertSee('Search this Folder')
+            ->assertSee('Ask a question about the articles and documents in this Folder.')
             ->assertSee('Search')
-            ->assertSee('No relevant passage found in this folder’s articles.')
+            ->assertSee('No relevant result found in this Folder.')
+            ->assertDontSee('folder’s articles')
             ->assertSee('Search is temporarily unavailable. Please try again in a moment.')
-            ->assertSee('Read article');
+            ->assertSee('Read article')
+            ->assertSee('Open document');
+    }
+
+    /**
+     * TASK-1267 : un resultat fichier (slug/title nuls) doit s'afficher avec
+     * son `filename` pour titre, « Ouvrir le document » pour lien, et une
+     * cle DOM qui ne collisionne pas entre deux fichiers. Le rendu serveur ne
+     * fait pas tourner Alpine : on verifie ici le cablage du template (les
+     * trois bindings passent par des methodes du composant, plus jamais par
+     * `result.slug` / `result.title` en dur) et la presence des deux libelles
+     * dans le tableau i18n transmis a `x-data`. Le comportement des methodes
+     * est prouve par `node --test tests/js/dossier-semantic-search-result.test.mjs`.
+     */
+    public function test_result_markup_is_bound_by_source_aware_alpine_methods(): void
+    {
+        [$organization, $owner, $dossier] = $this->fixture(preferredLocale: 'fr');
+        $this->enableSemanticSearchFor($organization);
+
+        $response = $this->actingAs($owner)->get($this->dossierUrl($organization, $dossier));
+
+        $response->assertOk();
+        // cle DOM robuste, sans slug obligatoire
+        $response->assertSee(':key="resultKey(result)"', false);
+        $response->assertDontSee('${result.slug}', false);
+        // titre : filename cote fichier, title cote article
+        $response->assertSee('x-text="resultTitle(result)"', false);
+        $response->assertDontSee('x-text="result.title"', false);
+        // libelle du lien par source
+        $response->assertSee('x-text="resultLinkLabel(result)"', false);
+        $response->assertSee(':data-source-type="result.source_type"', false);
+        // volet B : fichier previsualisable -> bouton vers la modale d'apercu
+        // existante ; sinon lien `citation_url` (telechargement / article).
+        $response->assertSee('x-if="canPreviewResult(result)"', false);
+        $response->assertSee('@click="openResultPreview(result)"', false);
+        $response->assertSee('data-semantic-result-preview', false);
+        $response->assertSee('x-if="!canPreviewResult(result)"', false);
+        $response->assertSee(':href="result.citation_url"', false);
+        // la modale d'apercu est bien dans la page (portee `dossierFilesCard`)
+        $response->assertSee('x-if="showPreviewModal"', false);
+        // les deux libelles sont transmis au composant (FR)
+        $response->assertSee('Lire l’article');
+        $response->assertSee('Ouvrir le document');
+        $this->assertEndpointUrlPresent($response->getContent(), $organization, $dossier);
+    }
+
+    public function test_result_link_labels_are_translated_in_english(): void
+    {
+        [$organization, $owner, $dossier] = $this->fixture(preferredLocale: 'en');
+        $this->enableSemanticSearchFor($organization);
+
+        $response = $this->actingAs($owner)->get($this->dossierUrl($organization, $dossier));
+
+        $response->assertOk();
+        $response->assertSee('Read article');
+        $response->assertSee('Open document');
+        $response->assertDontSee('Ouvrir le document');
+        $this->assertEndpointUrlPresent($response->getContent(), $organization, $dossier);
     }
 
     public function test_unauthorized_user_cannot_see_dossier_or_semantic_search_interface(): void
@@ -189,6 +251,8 @@ class DossierSemanticSearchInterfaceTest extends TestCase
                     'genericError' => __('dossiers.semantic_search_generic_error'),
                     'passage' => __('dossiers.semantic_search_passage'),
                     'resultsCount' => __('dossiers.semantic_search_results_count'),
+                    'readArticle' => __('dossiers.semantic_search_read_article'),
+                    'openDocument' => __('dossiers.semantic_search_open_document'),
                 ],
             ])->toHtml()),
             'The server-generated semantic search endpoint URL is missing from the rendered Dossier page.'
