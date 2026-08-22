@@ -1,6 +1,7 @@
 <?php
 
 use App\Support\ScenarioPacks\Packs\ArtSciLabRogerPack;
+use App\Support\ScenarioPacks\Packs\Test20260822DogfoodingPack;
 
 return [
 
@@ -23,6 +24,9 @@ return [
     */
     'allowed_organizations' => [
         'artscilab-demo',
+        // TASK-1269 : Organization ISOLEE de dogfooding de Cyril (decision
+        // 2026-08-22 20:38), creee par le SuperAdmin, jamais `main`.
+        Test20260822DogfoodingPack::ORGANIZATION_SLUG,
     ],
 
     /*
@@ -35,6 +39,25 @@ return [
     */
     'definitions' => [
         'artscilab-roger-demo' => ArtSciLabRogerPack::class,
+        Test20260822DogfoodingPack::PACK_ID => Test20260822DogfoodingPack::class,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Repertoires source des packs qui importent de vrais fichiers
+    |--------------------------------------------------------------------------
+    |
+    | pack_id => repertoire absolu. Les documents de dogfooding de Cyril
+    | vivent HORS git (`_temp/`, gitignore) : le pack lit les noms de Loops
+    | (sous-dossiers) et les fichiers sur le disque au chargement. Un test
+    | pointe cette cle vers une fixture temporaire.
+    |
+    */
+    'sources' => [
+        Test20260822DogfoodingPack::PACK_ID => env(
+            'SCENARIO_PACK_TEST20260822_SOURCE_DIR',
+            base_path('_temp/Test_Rag-2026-08-22'),
+        ),
     ],
 
 ];
