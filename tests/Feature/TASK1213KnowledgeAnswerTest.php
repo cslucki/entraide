@@ -434,9 +434,9 @@ class FakeSearch extends DossierSemanticSearchService
 
     public function __construct() {}
 
-    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, int $limit = 5, ?string $embeddingInstance = null, array $traceMetadata = []): array
+    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = []): array
     {
-        $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'limit', 'embeddingInstance', 'traceMetadata');
+        $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'embeddingInstance', 'limit', 'traceMetadata');
 
         return array_slice($this->rows, 0, $limit);
     }

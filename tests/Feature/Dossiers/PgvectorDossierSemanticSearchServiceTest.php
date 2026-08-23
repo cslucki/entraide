@@ -27,7 +27,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $near = $this->attachedChunk($organization, $dossier, $owner, $this->vector(0.0), 'Near chunk');
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame($near->blog_post_id, $results[0]['blog_post_id']);
         $this->assertSame($far->blog_post_id, $results[1]['blog_post_id']);
@@ -50,7 +50,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $second = $this->attachedChunk($organization, $dossier, $owner, $this->vector(0.2), 'Second');
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([
             $first->blog_post_id,
@@ -71,7 +71,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
 
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 5);
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai', 5);
 
         $this->assertCount(5, $results);
     }
@@ -86,7 +86,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $this->attachedChunk($otherOrganization, $otherDossier, $otherOwner, $this->vector(0.0), 'Other org');
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([$expected->blog_post_id], array_column($results, 'blog_post_id'));
     }
@@ -139,7 +139,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         ]);
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([$ownFile->dossier_file_id], array_column($results, 'dossier_file_id'));
         $this->assertSame('file', $results[0]['source_type']);
@@ -164,7 +164,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $this->attachedChunk($organization, $otherDossier, $owner, $this->vector(0.0), 'Other dossier');
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([$expected->blog_post_id], array_column($results, 'blog_post_id'));
     }
@@ -186,7 +186,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $this->createChunk($organization, $dossier, $post, $this->vector(0.0), 'Stale wrong dossier');
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([], $results);
     }
@@ -208,7 +208,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $deletedDossier->delete();
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([], $results);
     }
@@ -222,7 +222,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $dossier->delete();
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([], $results);
         Embeddings::assertNothingGenerated();
@@ -238,7 +238,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $this->createChunk($organization, $dossier, $post, $this->vector(0.0), 'Old model', model: 'old-model');
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([], $results);
     }
@@ -253,7 +253,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $this->createChunk($organization, $dossier, $post, $this->vector(0.0), 'Old provider', provider: 'ollama');
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([], $results);
     }

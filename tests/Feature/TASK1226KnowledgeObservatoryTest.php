@@ -564,11 +564,11 @@ class TASK1226KnowledgeObservatoryTest extends TestCase
         $search = app(DossierSemanticSearchService::class);
 
         // Meme en passant l'identifiant du Dossier de A, le tenant B ne voit rien.
-        $this->assertSame([], $search->searchAcrossDossiers($orgB->id, [$dossierA->id, $dossierB->id], 'code de demonstration', 5));
-        $this->assertSame([], $search->search($orgB->id, $dossierA->id, 'code de demonstration', 5));
+        $this->assertSame([], $search->searchAcrossDossiers($orgB->id, [$dossierA->id, $dossierB->id], 'code de demonstration', 'openai', 5));
+        $this->assertSame([], $search->search($orgB->id, $dossierA->id, 'code de demonstration', 'openai', 5));
 
         // Et A, lui, retrouve bien sa sentinelle.
-        $rowsA = $search->searchAcrossDossiers($orgA->id, [$dossierA->id], 'code de demonstration', 5);
+        $rowsA = $search->searchAcrossDossiers($orgA->id, [$dossierA->id], 'code de demonstration', 'openai', 5);
         $this->assertCount(1, $rowsA);
         $this->assertStringContainsString('ROGER-SMART-VILLAGE-1226', $rowsA[0]['content']);
     }

@@ -6,6 +6,7 @@ use App\Ai\CapabilityRegistry;
 use App\Ai\Context\ContextBuilder;
 use App\Ai\Context\DossierRetrievalSource;
 use App\Ai\ContexteIa;
+use App\Ai\ProviderResolver;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
@@ -416,10 +417,15 @@ class PgvectorDossierRetrievalSourceTest extends TestCase
         $this->assertSame(1, DossierChunk::query()->where('dossier_id', $dossierA->id)->where('dossier_file_id', $file->id)->count(), 'le chunk perime doit encore exister : c\'est la fenetre qu\'on teste');
 
         // Le retrieval de A ne doit rien servir malgre le chunk stale.
-        $resultsA = app(DossierSemanticSearchService::class)->search($organization->id, $dossierA->id, 'confidentiel');
+        // TASK-1283 : l'instance TENANT est desormais obligatoire — la meme
+        // que celle de l'indexation ci-dessus (credential P4 de la fixture).
+        $instance = app(ProviderResolver::class)->resolveEmbeddingInstance((string) $organization->id);
+        $this->assertNotNull($instance);
+
+        $resultsA = app(DossierSemanticSearchService::class)->search($organization->id, $dossierA->id, 'confidentiel', $instance);
         $this->assertCount(0, $resultsA);
 
-        $resultsAcrossA = app(DossierSemanticSearchService::class)->searchAcrossDossiers($organization->id, [$dossierA->id], 'confidentiel');
+        $resultsAcrossA = app(DossierSemanticSearchService::class)->searchAcrossDossiers($organization->id, [$dossierA->id], 'confidentiel', $instance);
         $this->assertCount(0, $resultsAcrossA);
     }
 

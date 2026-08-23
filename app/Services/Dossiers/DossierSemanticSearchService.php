@@ -82,9 +82,8 @@ class DossierSemanticSearchService
      *
      * @return array<int, array{source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, mime_type: ?string, chunk_index: int, content: string, distance: float}>
      */
-    public function search(string $organizationId, string $dossierId, string $query, int $limit = 5,
-        ?string $embeddingInstance = null,
-    ): array {
+    public function search(string $organizationId, string $dossierId, string $query, string $embeddingInstance, int $limit = 5): array
+    {
         $query = trim($query);
 
         if ($query === '') {
@@ -215,8 +214,17 @@ class DossierSemanticSearchService
      * Dossiers candidats sont ceux que l'appelant a DEJA verifies comme
      * visibles par l'utilisateur.
      *
-     * `$embeddingInstance` : instance SDK du tenant (credential P4) ; null =
-     * configuration d'embeddings de la plateforme (indexation, bench).
+     * `$embeddingInstance` : instance SDK du tenant (credential P4),
+     * OBLIGATOIRE et non nullable depuis TASK-1283. Le defaut `null` de ce
+     * parametre etait la vraie porte du repli plateforme interdit par la
+     * doctrine TASK-1225 : un appelant qui l'omettait faisait partir la query
+     * d'embedding sur la configuration de la PLATEFORME, silencieusement.
+     * L'appelant resout l'instance (ProviderResolver::resolveEmbeddingInstance)
+     * et REFUSE lui-meme quand elle est indisponible — 503 cote controller,
+     * SourceDenied cote retrieval — avant d'appeler ici. Place AVANT `$limit`
+     * pour rester requis sans declencher la deprecation PHP « optional before
+     * required ». Le test d'architecture AiEconomicAuthorityIsolationTest
+     * rougit si ce parametre redevient nullable ou optionnel.
      *
      * TASK-1216 : `source_type` distingue Article (`blog_post_id`/`title`/
      * `slug`) de fichier (`dossier_file_id`/`filename`) — jamais les deux a
@@ -229,8 +237,8 @@ class DossierSemanticSearchService
         string $organizationId,
         array $dossierIds,
         string $query,
+        string $embeddingInstance,
         int $limit = 5,
-        ?string $embeddingInstance = null,
         array $traceMetadata = [],
     ): array {
         $query = trim($query);

@@ -233,14 +233,14 @@ class TASK1200SdkEmbeddingsInstrumentationTest extends TestCase
         // n'intervienne (elle est posee juste apres cette garde). Prouver ici
         // que ce comportement reste EXACTEMENT le meme qu'avant TASK-1200.
         if (config('database.default') === 'pgsql') {
-            $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+            $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
             $this->assertIsArray($results);
 
             return;
         }
 
         try {
-            app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+            app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
             $this->fail('Expected the PostgreSQL-required exception to be thrown.');
         } catch (RuntimeException $exception) {
             $this->assertSame('Dossier semantic search requires PostgreSQL pgvector.', $exception->getMessage());

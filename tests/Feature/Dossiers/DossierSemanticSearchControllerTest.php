@@ -39,7 +39,7 @@ class DossierSemanticSearchControllerTest extends TestCase
         $this->mockSearchService()
             ->shouldReceive('search')
             ->once()
-            ->with($organization->id, $dossier->id, 'needle query', 5, \Mockery::pattern('/^org:.+:openai$/'))
+            ->with($organization->id, $dossier->id, 'needle query', \Mockery::pattern('/^org:.+:openai$/'), 5)
             ->andReturn([
                 [
                     'blog_post_id' => 'post-uuid',
@@ -83,7 +83,7 @@ class DossierSemanticSearchControllerTest extends TestCase
         $this->mockSearchService()
             ->shouldReceive('search')
             ->once()
-            ->with($organization->id, $dossier->id, 'needle', 5, \Mockery::pattern('/^org:.+:openai$/'))
+            ->with($organization->id, $dossier->id, 'needle', \Mockery::pattern('/^org:.+:openai$/'), 5)
             ->andReturn([
                 $this->fileResult('file-uuid-1', 'contrat-2026.pdf', 2, 'Passage du contrat', 0.234),
             ]);
@@ -116,7 +116,7 @@ class DossierSemanticSearchControllerTest extends TestCase
         $this->mockSearchService()
             ->shouldReceive('search')
             ->once()
-            ->with($organization->id, $dossier->id, 'needle', 5, \Mockery::pattern('/^org:.+:openai$/'))
+            ->with($organization->id, $dossier->id, 'needle', \Mockery::pattern('/^org:.+:openai$/'), 5)
             ->andReturn([$article, $fileA, $fileB]);
 
         $this->withoutExceptionHandling()
@@ -158,7 +158,7 @@ class DossierSemanticSearchControllerTest extends TestCase
         $this->mockSearchService()
             ->shouldReceive('search')
             ->once()
-            ->with($organization->id, $dossier->id, 'needle', 5, \Mockery::pattern('/^org:.+:openai$/'))
+            ->with($organization->id, $dossier->id, 'needle', \Mockery::pattern('/^org:.+:openai$/'), 5)
             ->andReturn([]);
 
         $this->actingAs($member)
@@ -176,7 +176,7 @@ class DossierSemanticSearchControllerTest extends TestCase
         $this->mockSearchService()
             ->shouldReceive('search')
             ->once()
-            ->with($organization->id, $dossier->id, 'needle', 5, \Mockery::pattern('/^org:.+:openai$/'))
+            ->with($organization->id, $dossier->id, 'needle', \Mockery::pattern('/^org:.+:openai$/'), 5)
             ->andReturn([]);
 
         $this->actingAs($member)
@@ -335,7 +335,7 @@ class DossierSemanticSearchControllerTest extends TestCase
         $this->mockSearchService()
             ->shouldReceive('search')
             ->once()
-            ->with($organization->id, $dossier->id, 'needle', 5, \Mockery::pattern('/^org:.+:openai$/'))
+            ->with($organization->id, $dossier->id, 'needle', \Mockery::pattern('/^org:.+:openai$/'), 5)
             ->andThrow($exception);
 
         $response = $this->actingAs($owner)

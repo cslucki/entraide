@@ -3,6 +3,7 @@
 namespace Tests\Unit\Architecture;
 
 use App\Services\Dossiers\DossierChunkEmbeddingService;
+use App\Services\Dossiers\DossierSemanticSearchService;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
@@ -92,27 +93,47 @@ class AiEconomicAuthorityIsolationTest extends TestCase
         );
     }
 
-    public function test_dossier_chunk_embedding_requires_a_tenant_instance_by_construction(): void
+    /**
+     * Volet (b), etendu par l'arbitrage TASK-1283 : l'incident de la Quality
+     * Gate a demontre que le defaut nullable de DossierSemanticSearchService
+     * etait la VRAIE porte du repli plateforme — celui de embed() n'en etait
+     * que la sortie. Les trois signatures sont donc verrouillees ensemble :
+     * parametre present, nomme, type string, non nullable ET non optionnel.
+     *
+     * @return iterable<string, array{class-string, string, int, string}>
+     */
+    public static function tenantInstanceSignatures(): iterable
     {
-        $parameters = (new ReflectionMethod(DossierChunkEmbeddingService::class, 'embed'))->getParameters();
+        yield 'embed' => [DossierChunkEmbeddingService::class, 'embed', 1, 'instance'];
+        yield 'search' => [DossierSemanticSearchService::class, 'search', 3, 'embeddingInstance'];
+        yield 'searchAcrossDossiers' => [DossierSemanticSearchService::class, 'searchAcrossDossiers', 3, 'embeddingInstance'];
+    }
 
-        $this->assertArrayHasKey(1, $parameters, 'embed() doit garder son parametre $instance.');
+    #[\PHPUnit\Framework\Attributes\DataProvider('tenantInstanceSignatures')]
+    public function test_tenant_instance_is_required_by_construction(string $class, string $method, int $position, string $name): void
+    {
+        $parameters = (new ReflectionMethod($class, $method))->getParameters();
 
-        $instance = $parameters[1];
+        $this->assertArrayHasKey($position, $parameters, "{$class}::{$method}() doit garder son parametre \${$name} en position {$position}.");
 
-        $this->assertSame('instance', $instance->getName());
-        $this->assertTrue($instance->hasType(), '$instance doit rester type (string).');
+        $instance = $parameters[$position];
+
+        $this->assertSame($name, $instance->getName());
+        $this->assertTrue($instance->hasType(), "\${$name} doit rester type (string).");
         $this->assertSame('string', (string) $instance->getType());
         $this->assertFalse(
             $instance->getType()->allowsNull(),
-            '$instance ne doit JAMAIS redevenir nullable : nullable = repli '
-            .'silencieux sur la famille PLATEFORME, interdit par la doctrine '
-            .'TASK-1225 (credential par Organization).',
+            "{$class}::{$method}() : \${$name} ne doit JAMAIS redevenir nullable : "
+            .'nullable = repli silencieux sur la famille PLATEFORME, interdit '
+            .'par la doctrine TASK-1225 (credential par Organization).',
         );
         $this->assertFalse(
             $instance->isOptional(),
-            '$instance ne doit JAMAIS redevenir optionnelle : une valeur par '
-            .'defaut recreerait le repli plateforme par construction.',
+            "{$class}::{$method}() : \${$name} ne doit JAMAIS redevenir optionnelle : "
+            .'une valeur par defaut recreerait le repli plateforme par '
+            .'construction (et un requis APRES un optionnel declencherait la '
+            .'deprecation PHP « optional before required » — le parametre reste '
+            .'AVANT $limit).',
         );
     }
 
