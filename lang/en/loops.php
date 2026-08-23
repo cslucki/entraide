@@ -73,7 +73,7 @@ return [
     'cards_bar_expand_chat' => 'Expand thread',
     'cards_panel_expand' => 'Expand or restore tool',
     'cards_panel_resize' => 'Resize panes',
-    'manifesto_open_in_editor' => 'Open in editor',
+    'manifesto_edit' => 'Edit',
     'roadmap_add_placeholder' => 'Add an action…',
     'roadmap_remaining' => 'action(s) to do',
     'roadmap_coming_soon' => 'Coming soon',

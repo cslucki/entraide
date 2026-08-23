@@ -181,7 +181,24 @@ class LoopManifestoCard extends Component
 
     private function redirectToEditor(BlogPost $post)
     {
-        return $this->redirect(route('blog.edit', $post), navigate: false);
+        return $this->redirect($this->editorUrl($post), navigate: false);
+    }
+
+    /**
+     * L'editeur du manifeste, toujours sur la route org-scoped canonique.
+     *
+     * La route courte `blog.edit` resout l'Organization de la session : suivie
+     * depuis une Boucle d'une autre org, elle repondait 404 (TASK-1279,
+     * symptome A — meme famille que le 404 des join requests, TASK-1277, mais
+     * `loopRoute()` est privee de LoopController et ne couvre pas ce composant).
+     * L'org du lien est celle de la Boucle : c'est elle qui possede le post.
+     */
+    private function editorUrl(BlogPost $post): string
+    {
+        return route('organization.blog.edit', [
+            'organization' => $this->loop->organization,
+            'post' => $post,
+        ]);
     }
 
     /**
@@ -347,7 +364,7 @@ class LoopManifestoCard extends Component
             // type: Manifeste for a project, Cadre du dialogue for a Dialogue
             // Loop, Programme for a Formation.
             'documentLabel' => app(LoopTypeRegistry::class)->rootDocumentLabel($this->loop->type),
-            'editorUrl' => $manifesto ? route('blog.edit', $manifesto) : null,
+            'editorUrl' => $manifesto ? $this->editorUrl($manifesto) : null,
             'sources' => $canRead ? app(LoopManifestoService::class)->sourcesFor($this->loop) : collect(),
             'candidateFiles' => ($canManage && $this->pickingSource)
                 ? app(LoopManifestoService::class)->candidateFiles($this->loop, 50)
