@@ -339,7 +339,11 @@ Route::middleware('auth')->group(function () {
 
     // Loops
     Route::middleware('loops.enabled')->group(function () {
-        Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
+        // `no_store` (TASK-1277) : le catalogue porte l'etat des demandes
+        // d'adhesion (« Demande en attente »). Servi `no-cache`, le bouton
+        // Precedent du navigateur rejoue la reponse en cache sans la revalider
+        // et affiche une carte perimee ; `no-store` force la requete.
+        Route::get('/loops', [LoopController::class, 'index'])->middleware('cache.headers:no_store')->name('loops.index');
         Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
         Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
         Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
@@ -764,7 +768,8 @@ Route::prefix('/org/{organization}')
             });
 
             Route::middleware('loops.enabled')->group(function () {
-                Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
+                // `no_store` : voir la route courte `loops.index` (TASK-1277).
+                Route::get('/loops', [LoopController::class, 'index'])->middleware('cache.headers:no_store')->name('loops.index');
                 Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
                 Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
                 Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');

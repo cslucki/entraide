@@ -154,6 +154,22 @@ class LoopController extends Controller
         ];
     }
 
+    /**
+     * L'URL d'une page de Boucle, sur la surface d'ou l'on vient.
+     *
+     * Surface org-scoped (`/org/{organization}/...`) : l'Organization de la
+     * requete. Surface courte (`/loops`, `/loops/{loop}/...`) : la route courte,
+     * inchangee. Routes plates (`/join-requests/{joinRequest}/accept`,
+     * `/loop-members/{member}/role`...) : la requete ne porte ni segment
+     * `{organization}` ni segment `loops`, elle ne dit donc pas d'ou l'on vient
+     * — mais la Boucle, elle, appartient a exactement une Organization. Avant
+     * TASK-1277 ces routes retombaient sur la route courte, qui resout `main` :
+     * accepter, refuser ou annuler une demande d'adhesion depuis
+     * `/org/{slug}/loops/{loop}` finissait en 404 sur `/loops/{loop}`.
+     *
+     * Le discriminant est l'URI de la route, pas son nom : `loops.members.role`
+     * est nommee sous `loops.` mais vit sur `/loop-members/...`, elle est plate.
+     */
     private function loopRoute(string $route, Loop $loop): string
     {
         $organization = request()->route('organization');
@@ -165,7 +181,16 @@ class LoopController extends Controller
             ]);
         }
 
-        return route($route, $loop);
+        $uri = request()->route()?->uri() ?? '';
+
+        if ($uri === 'loops' || str_starts_with($uri, 'loops/')) {
+            return route($route, $loop);
+        }
+
+        return route('organization.'.$route, [
+            'organization' => $loop->organization,
+            'loop' => $loop,
+        ]);
     }
 
     private function resolveRouteLoop(Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): Loop
