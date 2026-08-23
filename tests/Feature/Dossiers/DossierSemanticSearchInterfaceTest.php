@@ -197,6 +197,58 @@ class DossierSemanticSearchInterfaceTest extends TestCase
             ->assertDontSee('autres passages');
     }
 
+    /**
+     * TASK-1273 : l'en-tete des resultats annonce les DOCUMENTS (lignes
+     * affichees depuis T1271) ET les PASSAGES : « 1 document · 5 passages ».
+     * Le rendu serveur ne fait pas tourner Alpine : on verifie le cablage
+     * (`resultCountLabel()`) et la transmission du gabarit + des quatre
+     * fragments singulier / pluriel. Les quatre combinaisons (1/1, 1/N, N/N,
+     * N/M) sont prouvees par `node --test tests/js/dossier-semantic-search-result.test.mjs`.
+     */
+    public function test_results_count_header_announces_documents_and_passages_in_french(): void
+    {
+        [$organization, $owner, $dossier] = $this->fixture(preferredLocale: 'fr');
+        $this->enableSemanticSearchFor($organization);
+
+        $response = $this->actingAs($owner)->get($this->dossierUrl($organization, $dossier));
+
+        $response->assertOk();
+        $response->assertSee('x-text="resultCountLabel()"', false);
+        // gabarit : point median entre les deux compteurs
+        $response->assertSee(':documents · :passages');
+        // quatre fragments : pluriel de chaque cote
+        $response->assertSee('1 document');
+        $response->assertSee(':count documents');
+        $response->assertSee('1 passage');
+        $response->assertSee(':count passages');
+        // l'ancienne formulation a disparu
+        $response->assertDontSee('passage(s) trouv');
+        $response->assertDontSee('passage(s) found');
+        // le groupement T1271 et le contrat T1267 ne bougent pas
+        $response->assertSee('x-for="result in groupedResults()"', false);
+        $response->assertSee(':href="result.citation_url"', false);
+        $this->assertEndpointUrlPresent($response->getContent(), $organization, $dossier);
+    }
+
+    public function test_results_count_header_announces_documents_and_passages_in_english(): void
+    {
+        [$organization, $owner, $dossier] = $this->fixture(preferredLocale: 'en');
+        $this->enableSemanticSearchFor($organization);
+
+        $response = $this->actingAs($owner)->get($this->dossierUrl($organization, $dossier));
+
+        $response->assertOk();
+        $response->assertSee('x-text="resultCountLabel()"', false);
+        $response->assertSee(':documents · :passages');
+        $response->assertSee('1 document');
+        $response->assertSee(':count documents');
+        $response->assertSee('1 passage');
+        $response->assertSee(':count passages');
+        $response->assertDontSee('passage(s) found');
+        $response->assertDontSee('passage(s) trouv');
+        $this->assertEndpointUrlPresent($response->getContent(), $organization, $dossier);
+    }
+
     public function test_result_link_labels_are_translated_in_english(): void
     {
         [$organization, $owner, $dossier] = $this->fixture(preferredLocale: 'en');
@@ -295,6 +347,10 @@ class DossierSemanticSearchInterfaceTest extends TestCase
                     'genericError' => __('dossiers.semantic_search_generic_error'),
                     'passage' => __('dossiers.semantic_search_passage'),
                     'resultsCount' => __('dossiers.semantic_search_results_count'),
+                    'documentsOne' => __('dossiers.semantic_search_results_documents_one'),
+                    'documentsMany' => __('dossiers.semantic_search_results_documents_many'),
+                    'passagesOne' => __('dossiers.semantic_search_results_passages_one'),
+                    'passagesMany' => __('dossiers.semantic_search_results_passages_many'),
                     'readArticle' => __('dossiers.semantic_search_read_article'),
                     'openDocument' => __('dossiers.semantic_search_open_document'),
                     'otherPassagesOne' => __('dossiers.semantic_search_other_passages_one'),
