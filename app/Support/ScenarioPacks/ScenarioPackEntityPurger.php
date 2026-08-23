@@ -4,7 +4,9 @@ namespace App\Support\ScenarioPacks;
 
 use App\Models\DossierFile;
 use App\Models\Organization;
+use App\Models\PointLedger;
 use App\Models\ScenarioPackEntity;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -39,7 +41,22 @@ use LogicException;
  *    pointe vers un fichier absent. Un `DossierFile` `created` implique
  *    que le pack a lui-meme ecrit ce fichier (garde
  *    `assertStoragePathAvailable` au chargement) : aucun fichier
- *    preexistant ne peut arriver ici.
+ *    preexistant ne peut arriver ici ;
+ *  - `PointLedger` (TASK-1274) : la ligne est supprimee comme toute autre
+ *    entite `created`, puis `users.points_balance` de l'utilisateur
+ *    concerne est REALIGNE sur `SUM(delta)` des lignes de ledger restantes
+ *    pour cet utilisateur dans cette Organization (0 s'il n'en reste
+ *    aucune). Le ledger est la source de verite comptable et la balance en
+ *    est la somme (invariant produit : tout chemin qui credite/debite ecrit
+ *    une ligne) ; une purge qui retirerait la ligne sans realigner la
+ *    balance laisserait un credit sans justificatif — exactement ce que le
+ *    pack ne doit jamais produire. La regle vit ICI, pas dans le pack :
+ *    remover (retrait) et resetter (orphelins) en heritent tous deux.
+ *    Exception BORNEE a la politique `POLICY_BLOCK` de
+ *    `UserDataLifecycleRegistry` sur `point_ledger` (inchangee) : seule une
+ *    ligne inscrite au registre `ownership = created` dans l'Organization
+ *    du chargement peut arriver ici — une ligne `reused` (historique
+ *    anterieur du persona) n'est jamais supprimee, jamais realignee.
  *
  * Avant TASK-1245, `remove()` faisait `->delete()` : soft delete pour les
  * modeles SoftDeletes, dont 4 sur 5 disparaissaient ensuite physiquement
@@ -75,11 +92,54 @@ class ScenarioPackEntityPurger
             $this->scheduleStoredFileDeletion($entity, $organization);
         }
 
+        // Lu AVANT la suppression : apres, la ligne ne dit plus a qui elle
+        // appartenait.
+        $ledgerUserId = $modelClass === PointLedger::class
+            ? $this->pointLedgerUserId($entity, $organization)
+            : null;
+
         $modelClass::query()
             ->withoutGlobalScopes()
             ->whereKey($entity->entity_id)
             ->where('organization_id', $organization->id)
             ->forceDelete();
+
+        if ($ledgerUserId !== null) {
+            $this->realignPointsBalance($ledgerUserId, $organization);
+        }
+    }
+
+    /**
+     * TASK-1274 — `users.points_balance` = `SUM(delta)` des lignes
+     * `point_ledger` de l'utilisateur dans CETTE Organization (0 sans
+     * ligne). Borne au tenant des deux cotes : la somme ne lit que les
+     * lignes de l'Organization, l'ecriture ne touche l'utilisateur que s'il
+     * en est membre. Primitive unique de realignement du moteur de scenario
+     * pack ; rend la balance ecrite.
+     */
+    public function realignPointsBalance(string $userId, Organization $organization): int
+    {
+        $balance = (int) PointLedger::query()
+            ->where('user_id', $userId)
+            ->where('organization_id', $organization->id)
+            ->sum('delta');
+
+        User::query()
+            ->whereKey($userId)
+            ->where('organization_id', $organization->id)
+            ->update(['points_balance' => $balance]);
+
+        return $balance;
+    }
+
+    private function pointLedgerUserId(ScenarioPackEntity $entity, Organization $organization): ?string
+    {
+        $line = PointLedger::query()
+            ->whereKey($entity->entity_id)
+            ->where('organization_id', $organization->id)
+            ->first(['id', 'user_id']);
+
+        return $line?->user_id;
     }
 
     private function scheduleStoredFileDeletion(ScenarioPackEntity $entity, Organization $organization): void

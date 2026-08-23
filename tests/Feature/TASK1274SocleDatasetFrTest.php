@@ -35,8 +35,13 @@ use Tests\TestCase;
  * `points_balance` + `point_ledger`), 4 profils IA publies en francais que
  * le responder existant sait utiliser. Le tout idempotent au rejeu.
  *
- * Fixture source minimale (1 Boucle, 1 fichier) : la partie corpus est le
- * contrat de TASK-1269, deja couvert.
+ * Fixture source minimale (les 10 repertoires declares, 1 fichier) : la
+ * partie corpus est le contrat de TASK-1269, deja couvert.
+ *
+ * Balance / ledger (corrections T1274, section G) : le ledger est la source
+ * de verite, `points_balance` en est la somme — a chaque etape `load`,
+ * `load` repete, `reset`, `reset` repete, `delete`, et pour un persona
+ * `reused` dont l'historique anterieur ne doit jamais etre touche.
  */
 #[Group('ai')]
 class TASK1274SocleDatasetFrTest extends TestCase
@@ -88,8 +93,12 @@ class TASK1274SocleDatasetFrTest extends TestCase
         $this->organization->update(['admin_id' => $this->personas['test_cyril']->id]);
 
         $this->source = sys_get_temp_dir().'/task1274-'.uniqid();
-        File::makeDirectory($this->source.'/01-Boucle', 0755, true);
-        File::put($this->source.'/01-Boucle/01-note.md', "# Note\n\nTexte.\n");
+        // T1274 : le pack exige ses 10 repertoires declares ; un seul fichier,
+        // dans le premier (la partie corpus est le contrat de TASK-1269).
+        foreach (Test20260822DogfoodingPack::LOOP_DIRECTORIES as $name) {
+            File::makeDirectory($this->source.'/'.$name, 0755, true);
+        }
+        File::put($this->source.'/'.Test20260822DogfoodingPack::LOOP_DIRECTORIES[0].'/01-note.md', "# Note\n\nTexte.\n");
 
         config([
             'scenario_packs.allowed_organizations' => [Test20260822DogfoodingPack::ORGANIZATION_SLUG, 'artscilab-demo'],
@@ -120,6 +129,51 @@ class TASK1274SocleDatasetFrTest extends TestCase
     private function servicesCreateUrl(): string
     {
         return '/org/'.Test20260822DogfoodingPack::ORGANIZATION_SLUG.'/services/create';
+    }
+
+    private function reset(): void
+    {
+        app(ScenarioPackResetter::class)->reset(
+            app(ScenarioPackCatalog::class)->get(Test20260822DogfoodingPack::PACK_ID),
+            $this->organization,
+        );
+    }
+
+    private function remove(): void
+    {
+        app(ScenarioPackRemover::class)->remove(Test20260822DogfoodingPack::PACK_ID, $this->organization);
+    }
+
+    private function ledgerSum(User $user): int
+    {
+        return (int) PointLedger::query()
+            ->where('user_id', $user->id)
+            ->where('organization_id', $this->organization->id)
+            ->sum('delta');
+    }
+
+    private function welcomeLines(User $user): int
+    {
+        return PointLedger::query()
+            ->where('user_id', $user->id)
+            ->where('organization_id', $this->organization->id)
+            ->where('reason', 'welcome_bonus')
+            ->count();
+    }
+
+    /**
+     * L'invariant non negociable : pour chaque persona,
+     * `points_balance == SUM(delta)` du ledger dans cette Organization.
+     *
+     * @param  array<string, int>  $expectedBalances  cle persona -> balance attendue
+     */
+    private function assertBalancesDeriveFromLedger(array $expectedBalances, string $step): void
+    {
+        foreach ($this->personas as $key => $user) {
+            $user = $user->fresh();
+            $this->assertSame($this->ledgerSum($user), $user->points_balance, "{$step} / {$key} : points_balance == SUM(ledger)");
+            $this->assertSame($expectedBalances[$key], $user->points_balance, "{$step} / {$key} : balance attendue");
+        }
     }
 
     // =====================================================================
@@ -267,6 +321,17 @@ class TASK1274SocleDatasetFrTest extends TestCase
         $this->assertSame(1, PointLedger::query()->where('user_id', $roger->id)->count());
         $this->assertSame(100, $this->personas['test_cyril']->fresh()->points_balance, 'Les autres sont credites normalement.');
         $this->assertSame(4, PointLedger::query()->count());
+
+        // La ligne preexistante est referencee `reused` : le retrait du pack
+        // ne la supprime pas et ne touche pas la balance de Roger.
+        $row = ScenarioPackEntity::query()->where('entity_type', 'point_ledger')->where('internal_key', 'test_roger:welcome_bonus')->firstOrFail();
+        $this->assertSame(ScenarioPackEntity::OWNERSHIP_REUSED, $row->ownership);
+
+        $this->remove();
+
+        $this->assertSame(250, $roger->fresh()->points_balance);
+        $this->assertSame(1, PointLedger::query()->where('user_id', $roger->id)->count());
+        $this->assertSame(0, $this->personas['test_cyril']->fresh()->points_balance, 'La ligne created de Cyril est purgee et sa balance realignee.');
     }
 
     // =====================================================================
@@ -349,8 +414,9 @@ class TASK1274SocleDatasetFrTest extends TestCase
         $this->load();
 
         $this->assertSame($before, $snapshot());
-        // 4 personas + 6 categories + 37 skills + 4 profils IA + fixture corpus (1 loop, 1 membre, 1 dossier, 1 document racine, 1 fichier).
-        $this->assertSame([6, 37, 4, 4, 4 + 6 + 37 + 4 + 5, 400], $before);
+        // 4 personas + 4 lignes de ledger + 6 categories + 37 skills + 4 profils IA
+        // + fixture corpus (10 loops, 10 membres, 10 dossiers, 10 documents racines, 1 fichier).
+        $this->assertSame([6, 37, 4, 4, 4 + 4 + 6 + 37 + 4 + 41, 400], $before);
         $this->assertSame(
             $publishedAt,
             MemberAiProfile::query()->pluck('published_at', 'user_id')->map(fn ($d) => $d?->toIso8601String())->all(),
@@ -380,20 +446,27 @@ class TASK1274SocleDatasetFrTest extends TestCase
             $entities->where('entity_type', 'category')->max('sequence'),
         );
 
-        $this->assertSame(0, $entities->where('entity_type', 'point_ledger')->count(), 'Le ledger du persona reused n\'est pas purgeable.');
+        // T1274-FIX : la ligne welcome_bonus ecrite par le pack est inscrite
+        // `created` (purgeable, avec realignement de la balance).
+        $this->assertSame(4, $entities->where('entity_type', 'point_ledger')->count());
+        $this->assertTrue($entities->where('entity_type', 'point_ledger')->every(fn ($e) => $e->ownership === ScenarioPackEntity::OWNERSHIP_CREATED));
+        $this->assertSame(
+            array_map(fn (string $key) => "{$key}:welcome_bonus", array_keys(Test20260822DogfoodingPack::PERSONA_EMAILS)),
+            $entities->where('entity_type', 'point_ledger')->sortBy('sequence')->pluck('internal_key')->values()->all(),
+        );
     }
 
-    public function test_reset_keeps_everything_and_removal_purges_referentials_and_ai_profiles_but_keeps_accounts_profiles_and_points(): void
+    public function test_reset_keeps_everything_and_removal_purges_referentials_profiles_and_welcome_lines_but_keeps_accounts_and_human_profiles(): void
     {
         $this->load();
 
-        app(ScenarioPackResetter::class)->reset(app(ScenarioPackCatalog::class)->get(Test20260822DogfoodingPack::PACK_ID), $this->organization);
+        $this->reset();
         $this->assertSame(6, Category::query()->count());
         $this->assertSame(37, Skill::query()->count());
         $this->assertSame(4, MemberAiProfile::query()->count());
         $this->assertSame(400, (int) User::query()->where('organization_id', $this->organization->id)->sum('points_balance'));
 
-        app(ScenarioPackRemover::class)->remove(Test20260822DogfoodingPack::PACK_ID, $this->organization);
+        $this->remove();
 
         $this->assertSame(0, Category::query()->count());
         $this->assertSame(0, Skill::query()->count());
@@ -403,9 +476,127 @@ class TASK1274SocleDatasetFrTest extends TestCase
             $user = $user->fresh();
             $this->assertNotNull($user, "{$key} : le compte reste");
             $this->assertSame('fr', $user->preferred_locale, "{$key} : le profil humain reste (reused, pas de snapshot/restore)");
-            $this->assertSame(100, $user->points_balance, $key);
-            $this->assertSame(1, PointLedger::query()->where('user_id', $user->id)->where('reason', 'welcome_bonus')->count(), "{$key} : balance et ledger restent ensemble");
+            // T1274-FIX : la ligne created par le pack est purgee ET la
+            // balance realignee — jamais l'une sans l'autre.
+            $this->assertSame(0, $this->welcomeLines($user), "{$key} : la ligne welcome_bonus du pack est retiree");
+            $this->assertSame(0, $user->points_balance, "{$key} : balance realignee sur le ledger restant (vide)");
         }
+    }
+
+    // =====================================================================
+    // G. Balance / ledger — l'invariant a chaque etape du cycle de vie
+    // =====================================================================
+
+    private const ALL_100 = ['test_cyril' => 100, 'test_roger' => 100, 'test_kiran' => 100, 'test_sana' => 100];
+
+    private const ALL_0 = ['test_cyril' => 0, 'test_roger' => 0, 'test_kiran' => 0, 'test_sana' => 0];
+
+    public function test_ledger_g1_load_writes_four_welcome_lines_and_balances_equal_the_ledger(): void
+    {
+        $this->assertBalancesDeriveFromLedger(self::ALL_0, 'avant');
+
+        $this->load();
+
+        $this->assertSame(4, PointLedger::query()->where('reason', 'welcome_bonus')->count());
+        $this->assertBalancesDeriveFromLedger(self::ALL_100, 'load');
+        foreach ($this->personas as $key => $user) {
+            $this->assertSame(1, $this->welcomeLines($user), $key);
+        }
+    }
+
+    public function test_ledger_g2_load_repeated_duplicates_no_line_and_credits_nobody_twice(): void
+    {
+        $this->load();
+        $ids = PointLedger::query()->orderBy('user_id')->pluck('id')->all();
+
+        $this->load();
+        $this->load();
+
+        $this->assertSame($ids, PointLedger::query()->orderBy('user_id')->pluck('id')->all(), 'Les memes 4 lignes, pas une seconde.');
+        $this->assertBalancesDeriveFromLedger(self::ALL_100, 'load bis');
+        $this->assertSame(4, ScenarioPackEntity::query()->where('entity_type', 'point_ledger')->count());
+    }
+
+    public function test_ledger_g3_reset_after_load_equals_a_single_clean_load(): void
+    {
+        $this->load();
+        $ids = PointLedger::query()->orderBy('user_id')->pluck('id')->all();
+
+        $this->reset();
+
+        $this->assertSame($ids, PointLedger::query()->orderBy('user_id')->pluck('id')->all());
+        $this->assertSame(4, PointLedger::query()->count());
+        $this->assertBalancesDeriveFromLedger(self::ALL_100, 'reset');
+        $this->assertSame(4, ScenarioPackEntity::query()->where('entity_type', 'point_ledger')->where('ownership', ScenarioPackEntity::OWNERSHIP_CREATED)->count());
+    }
+
+    public function test_ledger_g4_reset_repeated_is_idempotent(): void
+    {
+        $this->load();
+        $this->reset();
+        $ids = PointLedger::query()->orderBy('user_id')->pluck('id')->all();
+
+        $this->reset();
+        $this->reset();
+
+        $this->assertSame($ids, PointLedger::query()->orderBy('user_id')->pluck('id')->all());
+        $this->assertSame(4, PointLedger::query()->count());
+        $this->assertBalancesDeriveFromLedger(self::ALL_100, 'reset bis');
+    }
+
+    public function test_ledger_g5_delete_purges_the_pack_lines_and_realigns_balances_to_the_remaining_ledger(): void
+    {
+        $this->load();
+        $this->assertBalancesDeriveFromLedger(self::ALL_100, 'load');
+
+        $this->remove();
+
+        $this->assertSame(0, PointLedger::query()->where('organization_id', $this->organization->id)->count());
+        $this->assertBalancesDeriveFromLedger(self::ALL_0, 'delete');
+        $this->assertSame(0, ScenarioPackEntity::query()->count());
+
+        // Rechargeable proprement apres retrait : un nouveau cycle complet.
+        $this->load();
+        $this->assertBalancesDeriveFromLedger(self::ALL_100, 'load apres delete');
+    }
+
+    /**
+     * Le test decisif : un persona `reused` avec un historique ANTERIEUR au
+     * pack (+40 `adjustment`) le conserve integralement a chaque etape ; le
+     * pack n'ajoute que sa ligne et ne retire que sa ligne. C'est lui qui
+     * prouve que l'exception bornee a POLICY_BLOCK (purge d'une ligne
+     * `created` uniquement) ne deborde jamais sur un ledger `reused`.
+     */
+    public function test_ledger_g6_a_reused_persona_keeps_its_prior_history_through_load_reset_and_delete(): void
+    {
+        $kiran = $this->personas['test_kiran'];
+        $prior = PointLedger::create([
+            'user_id' => $kiran->id,
+            'transaction_id' => null,
+            'delta' => 40,
+            'organization_id' => $this->organization->id,
+            'reason' => 'adjustment',
+        ]);
+        $kiran->update(['points_balance' => 40]);
+        $expected = ['test_cyril' => 100, 'test_roger' => 100, 'test_kiran' => 140, 'test_sana' => 100];
+
+        $this->load();
+        $this->assertBalancesDeriveFromLedger($expected, 'load');
+        $this->assertSame(2, PointLedger::query()->where('user_id', $kiran->id)->count(), '+40 anterieur, +100 du pack');
+
+        $this->load();
+        $this->reset();
+        $this->reset();
+        $this->assertBalancesDeriveFromLedger($expected, 'load bis / reset / reset bis');
+        $this->assertSame(2, PointLedger::query()->where('user_id', $kiran->id)->count());
+        $this->assertNull(ScenarioPackEntity::query()->where('entity_model', PointLedger::class)->where('entity_id', $prior->id)->first(), 'La ligne anterieure n\'est jamais inscrite au registre.');
+
+        $this->remove();
+
+        $this->assertTrue(PointLedger::query()->whereKey($prior->id)->exists(), 'Le ledger anterieur (reused) n\'est JAMAIS supprime.');
+        $this->assertSame(0, $this->welcomeLines($kiran), 'Seule la ligne du pack est retiree.');
+        $this->assertBalancesDeriveFromLedger(['test_cyril' => 0, 'test_roger' => 0, 'test_kiran' => 40, 'test_sana' => 0], 'delete');
+        $this->assertSame(40, $kiran->fresh()->points_balance);
     }
 
     // =====================================================================
