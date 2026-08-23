@@ -31,19 +31,20 @@ use Tests\TestCase;
 
 /**
  * TASK-1269 — Test20260822DogfoodingPack : le contrat du pack de dogfooding
- * de Cyril sur une fixture (2 sous-dossiers, 5 fichiers) qui reproduit la
- * forme du vrai corpus (`_temp/Test_Rag-2026-08-22`, hors git) : noms de
- * Loops lus sur le disque avec accents/espaces/apostrophes, fichiers texte
- * et binaires, un nom trompeur (`.md` au contenu PNG) pour prouver que le
- * MIME vient du contenu.
+ * de Cyril sur une fixture qui reproduit la forme du vrai corpus
+ * (`_temp/Test_Rag-2026-08-22`, hors git) : les 10 repertoires DECLARES
+ * (T1274 : `LOOP_DIRECTORIES`, 8 vides + 2 garnis de 6 fichiers), noms de
+ * Loops avec accents/espaces/apostrophes, fichiers texte et binaires, un nom
+ * trompeur (`.md` au contenu PNG) pour prouver que le MIME vient du contenu.
  */
 class TASK1269Test20260822DogfoodingPackTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const LOOP_A = '01-Plan-262 Définition boucles et IA';
+    /** Deux des 10 repertoires declares (`LOOP_DIRECTORIES[6]`, `[7]`), garnis. */
+    private const LOOP_A = '07-Plan-262 Définition boucles et IA';
 
-    private const LOOP_B = "02-Protocole d'emergence";
+    private const LOOP_B = "08-Protocole d'emergence";
 
     private const PNG_BYTES = "\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\x0aIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\x0d\x0a\x2d\xb4\x00\x00\x00\x00IEND\xaeB`\x82";
 
@@ -76,8 +77,12 @@ class TASK1269Test20260822DogfoodingPackTest extends TestCase
         $this->organization->update(['admin_id' => $this->personas['test_cyril']->id]);
 
         $this->source = sys_get_temp_dir().'/task1269-'.uniqid();
-        File::makeDirectory($this->source.'/'.self::LOOP_A, 0755, true);
-        File::makeDirectory($this->source.'/'.self::LOOP_B, 0755, true);
+        // T1274 : le pack exige les 10 repertoires declares ; 8 restent vides.
+        foreach (Test20260822DogfoodingPack::LOOP_DIRECTORIES as $name) {
+            File::makeDirectory($this->source.'/'.$name, 0755, true);
+        }
+        $this->assertContains(self::LOOP_A, Test20260822DogfoodingPack::LOOP_DIRECTORIES);
+        $this->assertContains(self::LOOP_B, Test20260822DogfoodingPack::LOOP_DIRECTORIES);
         File::put($this->source.'/'.self::LOOP_A.'/01-boucle, le format d’interaction universel.md', "# Boucle\n\nLe format d'interaction universel.\n");
         File::put($this->source.'/'.self::LOOP_A.'/02-Notes.txt', "Notes en texte brut.\n");
         File::put($this->source.'/'.self::LOOP_A.'/03-Mockup.png', self::PNG_BYTES);
@@ -147,7 +152,7 @@ class TASK1269Test20260822DogfoodingPackTest extends TestCase
 
         $loops = Loop::query()->where('organization_id', $this->organization->id)->orderBy('name')->get();
 
-        $this->assertSame([self::LOOP_A, self::LOOP_B], $loops->pluck('name')->all(), 'Les noms viennent du disque, accents et apostrophes compris.');
+        $this->assertSame(Test20260822DogfoodingPack::LOOP_DIRECTORIES, $loops->pluck('name')->all(), 'Une Loop par repertoire declare, nommee comme lui, accents et apostrophes compris.');
 
         foreach ($loops as $loop) {
             $this->assertSame('active', $loop->status);
@@ -290,7 +295,7 @@ class TASK1269Test20260822DogfoodingPackTest extends TestCase
         $this->assertSame(4, $entities->where('entity_type', 'persona')->count());
         $this->assertTrue($entities->where('entity_type', 'persona')->every(fn ($e) => $e->ownership === ScenarioPackEntity::OWNERSHIP_REUSED));
 
-        foreach (['loop' => 2, 'loop_member' => 2, 'folder' => 2, 'root_document' => 2, 'folder_file' => 6] as $type => $count) {
+        foreach (['loop' => 10, 'loop_member' => 10, 'folder' => 10, 'root_document' => 10, 'folder_file' => 6] as $type => $count) {
             $this->assertSame($count, $entities->where('entity_type', $type)->count(), $type);
             $this->assertTrue($entities->where('entity_type', $type)->every(fn ($e) => $e->ownership === ScenarioPackEntity::OWNERSHIP_CREATED), "{$type} doit etre created");
         }
@@ -358,6 +363,64 @@ class TASK1269Test20260822DogfoodingPackTest extends TestCase
         $this->assertSame($this->personas['test_cyril']->id, $this->organization->fresh()->admin_id);
     }
 
+    // =====================================================================
+    // E. TASK-1274 — corpus DECLARE, jamais scanne
+    // =====================================================================
+
+    public function test_the_pack_declares_exactly_the_ten_corpus_directories_in_loop_order(): void
+    {
+        $declared = Test20260822DogfoodingPack::LOOP_DIRECTORIES;
+
+        $this->assertCount(10, $declared);
+        $this->assertSame(array_values(array_unique($declared)), $declared, 'Aucun doublon.');
+        $this->assertNotContains('CV_profils', $declared, 'Les CV sont des sources factuelles, pas un corpus de Boucle.');
+
+        $this->load();
+
+        $this->assertSame(
+            $declared,
+            Loop::query()->where('organization_id', $this->organization->id)->orderBy('name')->pluck('name')->all(),
+        );
+        $this->assertSame(10, Loop::query()->where('organization_id', $this->organization->id)->count());
+    }
+
+    public function test_a_directory_present_on_disk_but_not_declared_is_ignored_without_any_rule_on_its_name(): void
+    {
+        // Le cas reel du 23/08 : `CV_profils/` depose a cote du corpus, avec
+        // des fichiers dedans. Et un second annexe au nom quelconque, pour
+        // prouver que la protection ne tient pas au nom `CV_profils`.
+        File::makeDirectory($this->source.'/CV_profils', 0755, true);
+        File::put($this->source.'/CV_profils/CV_Test_Cyril.pdf', '%PDF-1.4 fake');
+        File::makeDirectory($this->source.'/11-Annexe future', 0755, true);
+        File::put($this->source.'/11-Annexe future/note.md', "# Note\n");
+
+        $this->load();
+
+        $this->assertSame(10, Loop::query()->where('organization_id', $this->organization->id)->count());
+        $this->assertSame(0, Loop::query()->whereIn('name', ['CV_profils', '11-Annexe future'])->count());
+        $this->assertSame(0, Dossier::query()->withTrashed()->whereIn('name', ['CV_profils', '11-Annexe future'])->count());
+        $this->assertSame(0, DossierFile::query()->withTrashed()->whereIn('original_name', ['CV_Test_Cyril.pdf', 'note.md'])->count());
+        $this->assertSame(6, DossierFile::query()->where('organization_id', $this->organization->id)->count());
+        $this->assertSame(10, ScenarioPackEntity::query()->where('entity_type', 'loop')->count());
+        $this->assertFileExists($this->source.'/CV_profils/CV_Test_Cyril.pdf', 'Le pack ne touche jamais au disque source.');
+    }
+
+    public function test_a_declared_directory_missing_from_disk_fails_loudly_naming_it_and_loads_nothing(): void
+    {
+        $missing = Test20260822DogfoodingPack::LOOP_DIRECTORIES[3];
+        File::deleteDirectory($this->source.'/'.$missing);
+
+        try {
+            $this->load();
+            $this->fail('Un corpus incomplet doit echouer bruyamment.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString($missing, $e->getMessage(), 'L\'exception nomme le repertoire absent.');
+        }
+
+        $this->assertSame(0, Loop::query()->count(), 'Transaction annulee : rien n\'est charge.');
+        $this->assertSame(0, ScenarioPackLoad::query()->count());
+    }
+
     public function test_reset_reapplies_without_error_and_purges_a_file_that_disappeared_from_the_source(): void
     {
         $this->load();
@@ -375,7 +438,7 @@ class TASK1269Test20260822DogfoodingPackTest extends TestCase
             $result->removedOrphans,
             'Seul l\'orphelin est retire : les cles des autres fichiers ne dependent pas de la position.'
         );
-        $this->assertSame(2, Loop::query()->count());
+        $this->assertSame(10, Loop::query()->count());
         $this->assertSame('02-notes-'.substr(hash('sha256', '02-Notes.txt'), 0, 6).'.txt', Test20260822DogfoodingPack::storedName('02-Notes.txt'));
     }
 }
