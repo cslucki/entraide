@@ -556,7 +556,7 @@ class BlogInvitationTest extends TestCase
 
         $response = $this->post(route('blog.invite.accept', ['token' => 'accept-member-token']));
 
-        $response->assertRedirect(route('blog.edit', ['post' => $this->post->slug]));
+        $response->assertRedirect(route('organization.blog.edit', ['organization' => $this->org->slug, 'post' => $this->post->slug]));
 
         $this->assertDatabaseHas('blog_post_user', [
             'blog_post_id' => $this->post->id,

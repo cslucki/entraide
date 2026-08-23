@@ -106,7 +106,10 @@
             if ($_org && $_org->isMonoLoop()) {
                 $backHref = auth()->check() ? $routeUrl('home', 'organization.home') : route('home');
             } else {
-                $backHref = auth()->check() && Route::has('loops.index') ? route('loops.index') : route('boucles.index');
+                // TASK-1281 : la route courte resout l'Organization par
+                // defaut — depuis /org/{slug}/loops/... le retour renvoyait
+                // vers les Boucles d'une autre Organization.
+                $backHref = auth()->check() && Route::has('loops.index') ? $routeUrl('loops.index', 'organization.loops.index') : route('boucles.index');
             }
         } elseif (request()->routeIs('messages.*', 'points.*', 'favorites.*', 'profile.*', 'invitations.*', 'agent-ia.*', 'organization.messages.*', 'organization.points.*', 'organization.favorites.*', 'organization.profile.*', 'organization.invitations.*', 'organization.agent-ia.*')) {
             $backHref = auth()->check() ? $routeUrl('dashboard', 'organization.dashboard') : route('home');
@@ -195,7 +198,8 @@
                     <x-dropdown-link :href="$routeUrl('points.index', 'organization.points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
                     <x-dropdown-link :href="$routeUrl('invitations.index', 'organization.invitations.index')">{{ __('navigation.invitations') }}</x-dropdown-link>
                     <x-dropdown-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-dropdown-link>
-                    <x-dropdown-link :href="route('blog.my-posts')">{{ __('navigation.my_articles') }}</x-dropdown-link>
+                    {{-- TASK-1281 : org-scoped, sinon « Mes articles » s'ouvre dans l'Organization par defaut --}}
+                    <x-dropdown-link :href="$routeUrl('blog.my-posts', 'organization.blog.my-posts')">{{ __('navigation.my_articles') }}</x-dropdown-link>
                     <x-dropdown-link :href="route('profile.edit')">{{ __('navigation.settings') }}</x-dropdown-link>
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                     <x-dropdown-link :href="route('mentions-legales')">{{ __('navigation.legal_notices') }}</x-dropdown-link>

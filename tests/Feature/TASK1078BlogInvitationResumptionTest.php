@@ -90,7 +90,7 @@ class TASK1078BlogInvitationResumptionTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('blog.invite.accept', $invitation->token))
-            ->assertRedirect(route('blog.edit', ['post' => $this->post->slug]));
+            ->assertRedirect(route('organization.blog.edit', ['organization' => $this->org->slug, 'post' => $this->post->slug]));
 
         $this->assertDatabaseHas('blog_post_user', [
             'blog_post_id' => $this->post->id,
@@ -310,7 +310,7 @@ class TASK1078BlogInvitationResumptionTest extends TestCase
 
         $this->post(route('blog.invite.prepare', $invitation->token), ['intent' => 'login']);
         $this->post(route('login'), ['email' => 'invitee@example.com', 'password' => 'password-1234'])
-            ->assertRedirect(route('blog.edit', ['post' => $this->post->slug]));
+            ->assertRedirect(route('organization.blog.edit', ['organization' => $this->org->slug, 'post' => $this->post->slug]));
 
         $this->assertDatabaseHas('blog_post_user', [
             'blog_post_id' => $this->post->id, 'user_id' => $user->id,
@@ -334,7 +334,7 @@ class TASK1078BlogInvitationResumptionTest extends TestCase
             'country_code' => 'FR',
             'password' => 'password-1234',
             'password_confirmation' => 'password-1234',
-        ])->assertRedirect(route('blog.edit', ['post' => $this->post->slug]));
+        ])->assertRedirect(route('organization.blog.edit', ['organization' => $this->org->slug, 'post' => $this->post->slug]));
 
         $user = User::where('email', 'newcomer@example.com')->sole();
         $this->assertDatabaseHas('blog_post_user', [
@@ -433,7 +433,7 @@ class TASK1078BlogInvitationResumptionTest extends TestCase
 
         $this->post(route('loop-invitations.prepare', $loopInvitation->token), ['intent' => 'login']);
         $this->post(route('login'), ['email' => 'invitee@example.com', 'password' => 'password-1234'])
-            ->assertRedirect(route('loops.show', $loop));
+            ->assertRedirect(route('organization.loops.show', ['organization' => $this->org->slug, 'loop' => $loop->id]));
 
         $this->assertSame(LoopInvitation::STATUS_ACCEPTED, $loopInvitation->fresh()->status);
     }
