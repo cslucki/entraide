@@ -29,7 +29,17 @@ class T3BlogEditorAiAdminTest extends TestCase
     {
         parent::setUp();
 
-        config(['ai.openai.api_key' => 'test-key']);
+        // TASK-1280 : provider force en dur — la doublure `api.openai.com/*`
+        // de ces tests ne doit JAMAIS dependre du `.env` de la machine.
+        // (Incident : AI_DEFAULT_PROVIDER=openrouter sur le banc => le motif
+        // ne matchait pas et les requetes partaient reellement.)
+        config([
+            'ai.default_provider' => 'openai',
+            'ai.default_model' => null,
+            'ai.openai.api_key' => 'test-key',
+            'ai.openai.base_url' => 'https://api.openai.com/v1',
+            'ai.openai.model' => 'gpt-test',
+        ]);
 
         // TASK-1230 : noms DETERMINISTES (Faker `company()`, `firstName()`,
         // `lastName()` sinon) — /admin/ia-usage rend `full_name` de l'auteur
