@@ -177,9 +177,11 @@ class TASK1217RagConsoleTest extends TestCase
     {
         [$organization, $admin] = $this->organizationWithAdmin();
         $dossier = $this->dossier($organization, $admin, 'Dossier', Dossier::VISIBILITY_ORGANIZATION);
-        $this->file($organization, $dossier, $admin, 'rapport.pdf', 'application/pdf');
+        // TASK-1272 : le PDF est devenu ingerable ; l'image reste l'exemple
+        // du fichier hors contrat.
+        $this->file($organization, $dossier, $admin, 'mockup.png', 'image/png');
 
-        // Un PDF n'est pas « en erreur » : il n'est simplement pas une source.
+        // Un PNG n'est pas « en erreur » : il n'est simplement pas une source.
         $this->assertSame([], app(OrganizationRagOverview::class)->sources($organization->id));
         $this->assertSame(0, app(OrganizationRagOverview::class)->summary($organization->id)['files']);
     }

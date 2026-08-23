@@ -219,6 +219,9 @@ return [
     'observatory_format_article' => 'Article',
     'observatory_format_txt' => 'TXT',
     'observatory_format_markdown' => 'Markdown',
+    'observatory_format_docx' => 'DOCX',
+    'observatory_format_pdf' => 'PDF',
+    'observatory_format_xlsx' => 'XLSX',
     'observatory_new_source' => 'Nouveau',
     'observatory_indexed_ago' => 'indexé il y a :seconds s',
 

@@ -130,9 +130,17 @@ class DossiersIndexFilesCommandTest extends TestCase
 
         $plain = $this->textFile($organization, 'plain.txt');
         $markdown = $this->textFile($organization, 'doc.md', 'text/markdown');
+        // TASK-1272 : le PDF est devenu eligible ; le PNG reste l'exemple du
+        // MIME hors contrat.
         $pdf = DossierFile::factory()->inDossier()->create([
             'organization_id' => $organization->id,
+            'original_name' => 'brief.pdf',
             'mime_type' => 'application/pdf',
+        ]);
+        $png = DossierFile::factory()->inDossier()->create([
+            'organization_id' => $organization->id,
+            'original_name' => 'photo.png',
+            'mime_type' => 'image/png',
         ]);
         $deleted = $this->textFile($organization, 'deleted.txt');
         $deleted->delete();
@@ -146,12 +154,12 @@ class DossiersIndexFilesCommandTest extends TestCase
         Queue::fake();
 
         $this->artisan('dossiers:index-files', ['organization' => $organization->id])
-            ->expectsOutputToContain('Fichiers éligibles : 2')
+            ->expectsOutputToContain('Fichiers éligibles : 3')
             ->assertExitCode(0);
 
-        Queue::assertPushed(IndexDossierFileChunks::class, 2);
+        Queue::assertPushed(IndexDossierFileChunks::class, 3);
 
-        foreach ([$plain, $markdown] as $expected) {
+        foreach ([$plain, $markdown, $pdf] as $expected) {
             Queue::assertPushed(
                 IndexDossierFileChunks::class,
                 fn (IndexDossierFileChunks $job): bool => $job->fileId === $expected->id
@@ -160,7 +168,7 @@ class DossiersIndexFilesCommandTest extends TestCase
             );
         }
 
-        foreach ([$pdf, $deleted, $orphan, $foreign] as $excluded) {
+        foreach ([$png, $deleted, $orphan, $foreign] as $excluded) {
             Queue::assertNotPushed(
                 IndexDossierFileChunks::class,
                 fn (IndexDossierFileChunks $job): bool => $job->fileId === $excluded->id,
