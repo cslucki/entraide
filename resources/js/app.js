@@ -2854,11 +2854,80 @@ function registerDossierSemanticArticleSearch() {
             return result && result.source_type === 'file';
         },
 
-        resultKey(result) {
+        // TASK-1271 : identite du DOCUMENT (article ou fichier), sans le
+        // chunk. C'est la cle DOM de la liste groupee : une ligne par document.
+        documentKey(result) {
             const sourceType = result.source_type || (result.blog_post_id ? 'article' : 'file');
             const sourceId = sourceType === 'file' ? result.dossier_file_id : result.blog_post_id;
 
-            return `${sourceType}:${sourceId ?? ''}:${result.chunk_index}`;
+            return `${sourceType}:${sourceId ?? ''}`;
+        },
+
+        resultKey(result) {
+            return `${this.documentKey(result)}:${result.chunk_index}`;
+        },
+
+        // TASK-1271 : le serveur rend un top 5 de PASSAGES (contrat JSON
+        // `data` inchange, teste par T1267 et consomme ailleurs). La liste
+        // affichee presente chaque DOCUMENT une seule fois, represente par son
+        // meilleur passage (plus petite `distance`), dans l'ordre de ce meilleur
+        // passage. Les objets rendus sont les objets serveur eux-memes (meme
+        // reference) : citation_url, mime_type, apercu restent ceux du passage.
+        // Sans `distance` exploitable, l'ordre serveur fait foi.
+        resultDistance(result) {
+            const raw = result ? result.distance : null;
+            if (typeof raw !== 'number' && !(typeof raw === 'string' && raw.trim() !== '')) return null;
+            const distance = Number(raw);
+
+            return Number.isFinite(distance) ? distance : null;
+        },
+
+        groupedResults() {
+            const groups = new Map();
+
+            this.results.forEach((result, rank) => {
+                const key = this.documentKey(result);
+                const group = groups.get(key);
+                const distance = this.resultDistance(result);
+
+                if (!group) {
+                    groups.set(key, { result, distance, rank });
+                    return;
+                }
+
+                if (distance !== null && (group.distance === null || distance < group.distance)) {
+                    group.result = result;
+                    group.distance = distance;
+                    group.rank = rank;
+                }
+            });
+
+            return Array.from(groups.values())
+                .sort((a, b) => {
+                    if (a.distance !== null && b.distance !== null && a.distance !== b.distance) {
+                        return a.distance - b.distance;
+                    }
+                    if (a.distance === null && b.distance !== null) return 1;
+                    if (a.distance !== null && b.distance === null) return -1;
+
+                    return a.rank - b.rank;
+                })
+                .map((group) => group.result);
+        },
+
+        otherPassagesCount(result) {
+            const key = this.documentKey(result);
+
+            return Math.max(0, this.results.filter((candidate) => this.documentKey(candidate) === key).length - 1);
+        },
+
+        otherPassagesLabel(result) {
+            const count = this.otherPassagesCount(result);
+            if (count < 1) return '';
+
+            const template = count === 1 ? this.i18n.otherPassagesOne : this.i18n.otherPassagesMany;
+
+            return String(template || '').replace(':count', count);
         },
 
         resultTitle(result) {

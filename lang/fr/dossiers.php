@@ -256,6 +256,8 @@ return [
     'semantic_search_passage' => 'Passage :number',
     'semantic_search_read_article' => 'Lire l’article',
     'semantic_search_open_document' => 'Ouvrir le document',
+    'semantic_search_other_passages_one' => '+ 1 autre passage',
+    'semantic_search_other_passages_many' => '+ :count autres passages',
     'semantic_search_no_results' => 'Aucun résultat pertinent trouvé dans ce Dossier.',
     'semantic_search_validation_too_short' => 'Saisissez au moins 2 caractères.',
     'semantic_search_unavailable' => 'La recherche est temporairement indisponible. Réessayez dans quelques instants.',

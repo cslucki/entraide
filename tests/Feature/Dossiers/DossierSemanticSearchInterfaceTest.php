@@ -129,8 +129,11 @@ class DossierSemanticSearchInterfaceTest extends TestCase
         $response = $this->actingAs($owner)->get($this->dossierUrl($organization, $dossier));
 
         $response->assertOk();
-        // cle DOM robuste, sans slug obligatoire
-        $response->assertSee(':key="resultKey(result)"', false);
+        // cle DOM robuste, sans slug obligatoire ; TASK-1271 : la liste est
+        // groupee par document (`groupedResults()`), la cle est celle du document
+        $response->assertSee('x-for="result in groupedResults()"', false);
+        $response->assertSee(':key="documentKey(result)"', false);
+        $response->assertDontSee(':key="resultKey(result)"', false);
         $response->assertDontSee('${result.slug}', false);
         // titre : filename cote fichier, title cote article
         $response->assertSee('x-text="resultTitle(result)"', false);
@@ -151,6 +154,47 @@ class DossierSemanticSearchInterfaceTest extends TestCase
         $response->assertSee('Lire l’article');
         $response->assertSee('Ouvrir le document');
         $this->assertEndpointUrlPresent($response->getContent(), $organization, $dossier);
+    }
+
+    /**
+     * TASK-1271 : chaque document n'apparait qu'une fois, represente par son
+     * meilleur passage ; quand d'autres passages du meme document ont ete
+     * retrouves, une mention discrete le dit, au pluriel correct (FR + EN).
+     * Le groupement lui-meme (Q11 -> 1 document, Q15 -> 2) est prouve par
+     * `node --test tests/js/dossier-semantic-search-result.test.mjs`.
+     */
+    public function test_result_list_is_grouped_by_document_with_other_passages_mention(): void
+    {
+        [$organization, $owner, $dossier] = $this->fixture(preferredLocale: 'fr');
+        $this->enableSemanticSearchFor($organization);
+
+        $response = $this->actingAs($owner)->get($this->dossierUrl($organization, $dossier));
+
+        $response->assertOk();
+        $response->assertSee('x-show="otherPassagesCount(result) > 0"', false);
+        $response->assertSee('x-text="otherPassagesLabel(result)"', false);
+        $response->assertSee('data-semantic-result-other-passages', false);
+        // les deux gabarits (singulier / pluriel) sont transmis au composant
+        $response->assertSee('+ 1 autre passage');
+        $response->assertSee('+ :count autres passages');
+        $response->assertDontSee('other passage');
+        // le bouton d'apercu et le lien citation_url de T1267 sont toujours la
+        $response->assertSee('@click="openResultPreview(result)"', false);
+        $response->assertSee(':href="result.citation_url"', false);
+        $this->assertEndpointUrlPresent($response->getContent(), $organization, $dossier);
+    }
+
+    public function test_other_passages_mention_is_translated_in_english(): void
+    {
+        [$organization, $owner, $dossier] = $this->fixture(preferredLocale: 'en');
+        $this->enableSemanticSearchFor($organization);
+
+        $this->actingAs($owner)
+            ->get($this->dossierUrl($organization, $dossier))
+            ->assertOk()
+            ->assertSee('+ 1 other passage')
+            ->assertSee('+ :count other passages')
+            ->assertDontSee('autres passages');
     }
 
     public function test_result_link_labels_are_translated_in_english(): void
@@ -253,6 +297,8 @@ class DossierSemanticSearchInterfaceTest extends TestCase
                     'resultsCount' => __('dossiers.semantic_search_results_count'),
                     'readArticle' => __('dossiers.semantic_search_read_article'),
                     'openDocument' => __('dossiers.semantic_search_open_document'),
+                    'otherPassagesOne' => __('dossiers.semantic_search_other_passages_one'),
+                    'otherPassagesMany' => __('dossiers.semantic_search_other_passages_many'),
                 ],
             ])->toHtml()),
             'The server-generated semantic search endpoint URL is missing from the rendered Dossier page.'

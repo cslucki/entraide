@@ -250,6 +250,8 @@ return [
     'semantic_search_passage' => 'Passage :number',
     'semantic_search_read_article' => 'Read article',
     'semantic_search_open_document' => 'Open document',
+    'semantic_search_other_passages_one' => '+ 1 other passage',
+    'semantic_search_other_passages_many' => '+ :count other passages',
     'semantic_search_no_results' => 'No relevant result found in this Folder.',
     'semantic_search_validation_too_short' => 'Enter at least 2 characters.',
     'semantic_search_unavailable' => 'Search is temporarily unavailable. Please try again in a moment.',
