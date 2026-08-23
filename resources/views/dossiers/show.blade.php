@@ -543,6 +543,8 @@
                                      'resultsCount' => __('dossiers.semantic_search_results_count'),
                                      'readArticle' => __('dossiers.semantic_search_read_article'),
                                      'openDocument' => __('dossiers.semantic_search_open_document'),
+                                     'otherPassagesOne' => __('dossiers.semantic_search_other_passages_one'),
+                                     'otherPassagesMany' => __('dossiers.semantic_search_other_passages_many'),
                                  ],
                              ]))"
                              :aria-busy="loading ? 'true' : 'false'">
@@ -590,14 +592,23 @@
 
                                     <ol class="mt-3 space-y-3">
                                         {{-- TASK-1267 : cle, titre et libelle du lien suivent la source
-                                             (article ou fichier) — slug/title sont nuls cote fichier. --}}
-                                        <template x-for="result in results.slice(0, 5)" :key="resultKey(result)">
+                                             (article ou fichier) — slug/title sont nuls cote fichier.
+                                             TASK-1271 : une ligne par DOCUMENT (groupement cote composant,
+                                             `groupedResults()`), representee par son meilleur passage ;
+                                             la cle DOM est celle du document. --}}
+                                        <template x-for="result in groupedResults()" :key="documentKey(result)">
                                             <li class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
                                                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                                     <div class="min-w-0">
                                                         <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300" x-text="passageLabel(result.chunk_index)"></p>
                                                         <h4 class="mt-1 text-base font-semibold text-gray-900 dark:text-gray-100" x-text="resultTitle(result)"></h4>
                                                         <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-gray-300" x-text="excerpt(result.content)"></p>
+                                                        {{-- TASK-1271 : mention discrete quand d'autres passages du
+                                                             meme document ont ete retrouves (« + N autres passages »). --}}
+                                                        <p x-show="otherPassagesCount(result) > 0"
+                                                           x-text="otherPassagesLabel(result)"
+                                                           data-semantic-result-other-passages
+                                                           class="mt-2 text-xs text-gray-500 dark:text-gray-400"></p>
                                                     </div>
                                                     {{-- TASK-1267 : un fichier previsualisable s'ouvre dans la
                                                          modale d'apercu existante de `dossierFilesCard` (portee
