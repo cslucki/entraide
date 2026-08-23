@@ -246,7 +246,13 @@ return [
     'semantic_search_button' => 'Search',
     'semantic_search_loading' => 'Searching…',
     'semantic_search_results_title' => 'Results',
-    'semantic_search_results_count' => ':count passage(s) found',
+    // TASK-1273 : the header counts documents (rows shown) AND passages
+    // (server contract); plural on each side of the middle dot.
+    'semantic_search_results_count' => ':documents · :passages',
+    'semantic_search_results_documents_one' => '1 document',
+    'semantic_search_results_documents_many' => ':count documents',
+    'semantic_search_results_passages_one' => '1 passage',
+    'semantic_search_results_passages_many' => ':count passages',
     'semantic_search_passage' => 'Passage :number',
     'semantic_search_read_article' => 'Read article',
     'semantic_search_open_document' => 'Open document',

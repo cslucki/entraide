@@ -252,7 +252,13 @@ return [
     'semantic_search_button' => 'Rechercher',
     'semantic_search_loading' => 'Recherche en cours…',
     'semantic_search_results_title' => 'Résultats',
-    'semantic_search_results_count' => ':count passage(s) trouvé(s)',
+    // TASK-1273 : l'en-tete compte les documents (lignes affichees) ET les
+    // passages (contrat serveur) ; pluriel de chaque cote du point median.
+    'semantic_search_results_count' => ':documents · :passages',
+    'semantic_search_results_documents_one' => '1 document',
+    'semantic_search_results_documents_many' => ':count documents',
+    'semantic_search_results_passages_one' => '1 passage',
+    'semantic_search_results_passages_many' => ':count passages',
     'semantic_search_passage' => 'Passage :number',
     'semantic_search_read_article' => 'Lire l’article',
     'semantic_search_open_document' => 'Ouvrir le document',

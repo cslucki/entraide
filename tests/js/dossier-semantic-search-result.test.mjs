@@ -46,7 +46,12 @@ const i18n = {
     readArticle: "Lire l’article",
     openDocument: 'Ouvrir le document',
     passage: 'Passage :number',
-    resultsCount: ':count passage(s)',
+    // TASK-1273 : gabarit + fragments singulier / pluriel des deux compteurs
+    resultsCount: ':documents · :passages',
+    documentsOne: '1 document',
+    documentsMany: ':count documents',
+    passagesOne: '1 passage',
+    passagesMany: ':count passages',
     otherPassagesOne: '+ 1 autre passage',
     otherPassagesMany: '+ :count autres passages',
 };
@@ -294,4 +299,70 @@ test('T1271 i18n : pluriel via les deux gabarits transmis (1 autre passage / N a
 test('T1271 liste vide : aucun groupe, aucune exception', () => {
     const c = withResults([]);
     assert.deepEqual(c.groupedResults(), []);
+});
+
+// ---------------------------------------------------------------------------
+// TASK-1273 — l'en-tete compte les DOCUMENTS (lignes affichees) et les
+// PASSAGES (contrat serveur) : « 1 document · 5 passages ». Le seul piege est
+// le pluriel, de CHAQUE cote du point median, en FR et en EN. Quatre
+// combinaisons atteignables : 1/1, 1/N, N/N, N/M (M > N). « N documents ·
+// 1 passage » est impossible par construction (un document = au moins un
+// passage) et n'est donc pas testee.
+// ---------------------------------------------------------------------------
+
+const enI18n = {
+    ...i18n,
+    resultsCount: ':documents · :passages',
+    documentsOne: '1 document',
+    documentsMany: ':count documents',
+    passagesOne: '1 passage',
+    passagesMany: ':count passages',
+};
+
+const countCases = [
+    // [libelle, passages, attendu FR, attendu EN]
+    ['1 document · 1 passage', q11.slice(0, 1), '1 document · 1 passage', '1 document · 1 passage'],
+    ['1 document · N passages (Q11, 5 passages du meme fichier)', q11, '1 document · 5 passages', '1 document · 5 passages'],
+    ['N documents · N passages (2 fichiers, 1 passage chacun)', [q15[0], q15[4]], '2 documents · 2 passages', '2 documents · 2 passages'],
+    ['N documents · M passages, M > N (Q15, 4 + 1)', q15, '2 documents · 5 passages', '2 documents · 5 passages'],
+];
+
+for (const [label, results, fr, en] of countCases) {
+    test(`T1273 compteur FR : ${label}`, () => {
+        const c = withResults(results);
+        assert.equal(c.resultCountLabel(), fr);
+        // coherence : documents = lignes groupees, passages = contrat serveur intact
+        assert.equal(c.groupedResults().length, Number(fr.split(' ')[0]));
+        assert.equal(c.results.length, results.length);
+    });
+
+    test(`T1273 compteur EN : ${label}`, () => {
+        const c = extractFactory()({ endpoint: '/x', i18n: enI18n });
+        c.results = results;
+        assert.equal(c.resultCountLabel(), en);
+    });
+}
+
+test('T1273 compteur : le groupement et le contrat `results` ne sont pas modifies par l en-tete', () => {
+    const c = withResults(q15);
+    const avant = c.groupedResults().map((r) => c.documentKey(r));
+    c.resultCountLabel();
+    assert.deepEqual(c.groupedResults().map((r) => c.documentKey(r)), avant);
+    assert.equal(c.results, q15); // meme tableau serveur, ni copie ni filtrage
+    assert.equal(c.results.length, 5);
+});
+
+test('T1273 compteur : article + fichier melanges -> 2 documents · 3 passages', () => {
+    const c = withResults([
+        { ...article, chunk_index: 0, distance: 0.45 },
+        fileChunk('file-a', 'contrat-2026.pdf', 0, 0.47, { mime_type: 'application/pdf' }),
+        { ...article, chunk_index: 3, distance: 0.52 },
+    ]);
+    assert.equal(c.resultCountLabel(), '2 documents · 3 passages');
+});
+
+test('T1273 compteur : gabarits absents -> chaine vide, aucune exception (payload i18n historique)', () => {
+    const c = extractFactory()({ endpoint: '/x', i18n: { ...i18n, resultsCount: undefined, documentsOne: undefined, documentsMany: undefined, passagesOne: undefined, passagesMany: undefined } });
+    c.results = q11;
+    assert.equal(c.resultCountLabel(), '');
 });

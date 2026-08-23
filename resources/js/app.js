@@ -2841,8 +2841,22 @@ function registerDossierSemanticArticleSearch() {
             return this.i18n.passage.replace(':number', Number(index) + 1);
         },
 
+        // TASK-1273 : l'en-tete compte les DOCUMENTS (lignes affichees, cf.
+        // groupedResults()) ET les PASSAGES (contrat serveur, `results`) :
+        // « 1 document · 5 passages ». Chaque cote a son propre pluriel, par
+        // gabarit singulier / pluriel transmis dans config.i18n (meme mecanique
+        // que otherPassagesLabel). Le groupement lui-meme ne change pas.
+        countLabel(count, one, many) {
+            return String((count === 1 ? one : many) || '').replace(':count', count);
+        },
+
         resultCountLabel() {
-            return this.i18n.resultsCount.replace(':count', this.results.length);
+            const documents = this.countLabel(this.groupedResults().length, this.i18n.documentsOne, this.i18n.documentsMany);
+            const passages = this.countLabel(this.results.length, this.i18n.passagesOne, this.i18n.passagesMany);
+
+            return String(this.i18n.resultsCount || '')
+                .replace(':documents', () => documents)
+                .replace(':passages', () => passages);
         },
 
         // TASK-1267 : un resultat est un article OU un fichier (source_type,
