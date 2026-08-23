@@ -13,8 +13,13 @@ use App\Models\PointLedger;
 use App\Models\Skill;
 use App\Models\User;
 use App\Services\Dossiers\FileContentExtractor;
+use App\Services\LoopGovernanceService;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\Loops\LoopRootDocumentService;
 use App\Services\LoopService;
+use App\Support\Loops\LoopCardRegistry;
+use App\Support\Loops\LoopRoleRegistry;
+use App\Support\Loops\LoopTypeRegistry;
 use App\Support\ScenarioPacks\Contracts\ScenarioPackDefinition;
 use App\Support\ScenarioPacks\ScenarioPackEntityPurger;
 use App\Support\ScenarioPacks\ScenarioPackEntityRegistrar;
@@ -110,6 +115,51 @@ use Symfony\Component\HttpFoundation\File\File;
  *  - 4 `MemberAiProfile` publies, en francais, coherents avec les CV
  *    (`created`, purgeables ; `member_ai_profile_interactions` et
  *    `profile_agent_conversations` cascadent en base).
+ *
+ * TASK-1275 (version 1.2.0) — TYPES, MEMBRES, ROLES ET CARDS, declares par
+ * Boucle dans `Test20260822DogfoodingDataset::LOOP_SETUP` (mapping valide
+ * par Cyril) :
+ *  - la Boucle est toujours CREEE `general` par la chaine canonique (comme
+ *    avant), puis RETYPEE par `Loop::update(type)` — jamais par le parametre
+ *    `type` de `createLoopForOrg()` : `LoopService::resolveCreationType()`
+ *    retombe SILENCIEUSEMENT sur `general` pour un type indisponible
+ *    (`writing`, `networking`, `peer_support` sont `available => false` en
+ *    config, ouverts seulement par des lignes globales `loop_type_settings`
+ *    non versionnees). Le pack exige que le type EXISTE (`LoopTypeRegistry::
+ *    exists()`), pas qu'il soit disponible — un type indisponible garde les
+ *    Boucles qui le portent (rendu, libelle, preset intacts) — et RELIT le
+ *    type en base apres l'ecriture : s'il n'a pas pris, echec nomme ;
+ *  - le preset du type est applique par `LoopTypeRegistry::applyPreset()`
+ *    (ADDITIF : n'enleve jamais rien), puis tout ce qui est actif hors
+ *    preset et hors `kept_cards` est ETEINT explicitement par
+ *    `LoopCardCompositionService::disable()` (seul ecrivain de
+ *    `loop_cards.enabled` ; rien n'est supprime, les donnees attendent) ;
+ *    les `kept_cards` manquantes sont allumees par `enable()`. Puis
+ *    verification : composition active == preset ∪ kept, et aucune Card
+ *    active sans ses `requires` (`LoopCardRegistry::blockersFor`, regle de
+ *    `training.progression`/`assignments` derriere `course_material`) ;
+ *  - les outils principaux (`primary_cards`, 3 au plus) sont poses par
+ *    `promote()`/`demote()` quand le dataset les declare ; sinon mode
+ *    derive du produit. Depuis TASK-1124 rien n'est masque au-dela de 3 :
+ *    les autres Cards actives sont sous « Autres outils » ;
+ *  - les membres sont ajoutes par `LoopService::addMemberByUserId()` (meme
+ *    Organization, compte actif) et les roles changes par
+ *    `LoopGovernanceService::changeRole()` (invariant `last_owner`), les
+ *    `owner` d'abord : sur 09-UT Dallas, Roger devient proprietaire AVANT
+ *    que Cyril ne soit retrograde `facilitator`. Roles canoniques
+ *    uniquement (`moderator` refuse). Chaque membre est inscrit au registre
+ *    `loop_member|<loop>:<persona>` (meme cle qu'en T1269 pour Cyril : pas
+ *    de doublon ; nouveaux membres `created`, purges au retrait AVANT la
+ *    Loop) ;
+ *  - les `loop_cards` ne sont PAS inscrites au registre (comme en T1269) :
+ *    elles appartiennent a la Loop (`cascadeOnDelete`) et disparaissent avec
+ *    elle ;
+ *  - la policy de composition de l'Organization (`loop_composition_policy
+ *    = locked`) n'est PAS touchee : elle ne borne que l'affordance d'interface
+ *    du proprietaire (`LoopPresetConfigurator::canConfigure()`), jamais les
+ *    primitives ci-dessus, qui sont celles de l'administration ;
+ *  - AUCUN usage simule des Cards (sondage, evenement, decision, journal,
+ *    roadmap, module, message) : c'est T1277. Aucun job, aucune IA.
  */
 class Test20260822DogfoodingPack implements ScenarioPackDefinition
 {
@@ -160,6 +210,12 @@ class Test20260822DogfoodingPack implements ScenarioPackDefinition
         // Porte la primitive de realignement balance/ledger (T1274), partagee
         // avec le retrait : aucune logique comptable dupliquee dans le pack.
         private readonly ScenarioPackEntityPurger $purger,
+        // TASK-1275 — types, Cards, roles : les primitives de l'administration.
+        private readonly LoopTypeRegistry $types,
+        private readonly LoopCardRegistry $cards,
+        private readonly LoopCardCompositionService $composition,
+        private readonly LoopGovernanceService $governance,
+        private readonly LoopRoleRegistry $roles,
     ) {}
 
     public function packId(): string
@@ -169,7 +225,7 @@ class Test20260822DogfoodingPack implements ScenarioPackDefinition
 
     public function packVersion(): string
     {
-        return '1.1.0';
+        return '1.2.0';
     }
 
     public function packName(): string
@@ -179,7 +235,7 @@ class Test20260822DogfoodingPack implements ScenarioPackDefinition
 
     public function purpose(): string
     {
-        return 'Charger les vrais documents de travail de Cyril (10 Boucles, leurs Dossiers racines, 83 fichiers) dans l\'Organization isolee test20260822 pour le dogfooding IA/RAG, sans declencher aucune indexation ; puis le socle FR (T1274) : profils humains des 4 personas, 6 categories et 37 skills issus des CV, points de bienvenue, 4 profils IA publies.';
+        return 'Charger les vrais documents de travail de Cyril (10 Boucles, leurs Dossiers racines, 83 fichiers) dans l\'Organization isolee test20260822 pour le dogfooding IA/RAG, sans declencher aucune indexation ; puis le socle FR (T1274) : profils humains des 4 personas, 6 categories et 37 skills issus des CV, points de bienvenue, 4 profils IA publies ; puis (T1275) les 7 types de Boucles, les membres et leurs roles, les Cards actives et principales, selon le mapping valide.';
     }
 
     public function apply(Organization $organization, ScenarioPackEntityRegistrar $registrar): void
@@ -203,8 +259,11 @@ class Test20260822DogfoodingPack implements ScenarioPackDefinition
         $this->skills($organization, $categories, $registrar);
         $this->aiProfiles($organization, $personas, $registrar);
 
+        $this->assertLoopSetupCoversTheCorpus();
+
         foreach ($this->loopDirectories($sourceDirectory) as $loopName => $directory) {
             $loopKey = Str::slug($loopName);
+            $setup = Test20260822DogfoodingDataset::LOOP_SETUP[$loopName];
             $loop = $this->loop($organization, $creator, $loopName);
             $registrar->track('loop', $loopKey, $loop);
 
@@ -223,9 +282,15 @@ class Test20260822DogfoodingPack implements ScenarioPackDefinition
                 $ownerMembership->wasRecentlyCreated = true;
             }
 
-            $registrar->track('loop_member', "{$loopKey}:test_cyril", $ownerMembership);
             $registrar->track('folder', $loopKey, $rootDossier);
             $registrar->track('root_document', $loopKey, $rootDocument);
+
+            // TASK-1275 — membres et roles, puis type et Cards. Le membre
+            // createur est transmis tel quel : c'est l'instance qui porte le
+            // signal `wasRecentlyCreated` propage ci-dessus, et son
+            // inscription (`<loop>:test_cyril`) garde la cle de T1269.
+            $this->loopMembers($loop, $loopKey, $personas, ['test_cyril' => $ownerMembership], $setup['members'], $registrar);
+            $this->loopComposition($loop, $loopName, $setup);
 
             foreach ($this->files($directory) as $absolutePath) {
                 $this->dossierFile($organization, $creator, $rootDossier, $loopKey, $absolutePath, $registrar);
@@ -449,6 +514,253 @@ class Test20260822DogfoodingPack implements ScenarioPackDefinition
             $profile->save();
 
             $registrar->track('ai_profile', $key, $profile);
+        }
+    }
+
+    /**
+     * TASK-1275 — `LOOP_SETUP` et `LOOP_DIRECTORIES` designent exactement les
+     * memes Boucles : une Boucle du corpus sans declaration de type/membres,
+     * ou une declaration sans corpus, est une erreur nommee — jamais un
+     * defaut silencieux.
+     */
+    private function assertLoopSetupCoversTheCorpus(): void
+    {
+        $declared = array_keys(Test20260822DogfoodingDataset::LOOP_SETUP);
+        $missing = array_diff(self::LOOP_DIRECTORIES, $declared);
+        $unknown = array_diff($declared, self::LOOP_DIRECTORIES);
+
+        if ($missing !== [] || $unknown !== []) {
+            throw new RuntimeException(
+                'Test20260822DogfoodingPack : LOOP_SETUP ne couvre pas exactement LOOP_DIRECTORIES'
+                .($missing !== [] ? ' — sans declaration : '.implode(', ', $missing) : '')
+                .($unknown !== [] ? ' — sans corpus : '.implode(', ', $unknown) : '').'.'
+            );
+        }
+    }
+
+    /**
+     * TASK-1275 — les membres d'une Boucle et leurs roles, tels que declares.
+     *
+     * Les `owner` sont appliques AVANT les autres roles, quel que soit l'ordre
+     * de la declaration : retrograder le dernier proprietaire actif est refuse
+     * par `LoopGovernanceService::changeRole()` (`RESULT_LAST_OWNER`), donc sur
+     * 09-UT Dallas Roger est nomme proprietaire avant que Cyril ne devienne
+     * `facilitator`. Un refus de la gouvernance est une erreur nommee, jamais
+     * un etat partiel accepte.
+     *
+     * Idempotent : membre actif au bon role = rien ; membre actif a un autre
+     * role = changement par la gouvernance ; absent (ou parti) = ajout par
+     * `LoopService::addMemberByUserId()` (meme Organization, compte actif).
+     *
+     * @param  array<string, User>  $personas
+     * @param  array<string, LoopMember>  $known  instances deja en main (createur), a inscrire telles quelles
+     * @param  array<string, string>  $members  persona -> role canonique
+     */
+    private function loopMembers(Loop $loop, string $loopKey, array $personas, array $known, array $members, ScenarioPackEntityRegistrar $registrar): void
+    {
+        $rank = [LoopRoleRegistry::OWNER => 0, LoopRoleRegistry::FACILITATOR => 1, LoopRoleRegistry::MEMBER => 2];
+
+        foreach ($members as $persona => $role) {
+            if (! $this->roles->isCanonical($role)) {
+                throw new RuntimeException(
+                    "Test20260822DogfoodingPack : role '{$role}' non canonique pour {$persona} dans '{$loop->name}' (attendu : ".implode(', ', LoopRoleRegistry::CANONICAL).'). '
+                    ."'moderator' est un alias legacy en lecture seule, jamais ecrit."
+                );
+            }
+
+            if (! isset($personas[$persona])) {
+                throw new RuntimeException("Test20260822DogfoodingPack : persona inconnu '{$persona}' dans '{$loop->name}'.");
+            }
+        }
+
+        uasort($members, fn (string $a, string $b) => $rank[$a] <=> $rank[$b]);
+
+        foreach ($members as $persona => $role) {
+            $user = $personas[$persona];
+
+            $membership = $known[$persona] ?? LoopMember::query()
+                ->where('loop_id', $loop->id)
+                ->where('user_id', $user->id)
+                ->first();
+
+            if ($membership === null || $membership->status !== 'active') {
+                // Cree (ou reactive) par le service canonique : meme
+                // Organization, compte actif, role demande honore.
+                $membership = $this->loops->addMemberByUserId($loop, $user->id, $role);
+            } elseif ($membership->role !== $role) {
+                $result = $this->governance->changeRole($membership, $role);
+
+                if ($result !== LoopGovernanceService::RESULT_OK) {
+                    throw new RuntimeException(
+                        "Test20260822DogfoodingPack : changement de role refuse ({$result}) pour {$persona} -> {$role} dans '{$loop->name}'."
+                    );
+                }
+
+                // `changeRole()` ecrit sur une instance verrouillee a part :
+                // relire pour inscrire l'etat reel.
+                $membership->refresh();
+            }
+
+            $registrar->track('loop_member', "{$loopKey}:{$persona}", $membership);
+        }
+
+        if ($this->governance->countActiveOwners($loop) === 0) {
+            throw new RuntimeException("Test20260822DogfoodingPack : '{$loop->name}' n'a plus de proprietaire actif.");
+        }
+    }
+
+    /**
+     * TASK-1275 — le type d'une Boucle et la composition de ses Cards.
+     *
+     * 1. retypage par `Loop::update()` si necessaire, type RELU en base
+     *    ensuite (jamais suppose : `LoopService::resolveCreationType()` montre
+     *    qu'un type peut retomber en silence sur `general`) ;
+     * 2. preset du type applique (additif) ;
+     * 3. tout ce qui est actif hors preset et hors `kept_cards` est eteint —
+     *    sauf une Card requise par le catalogue, ou requise par une autre
+     *    Card active (on refuse plutot que de casser en silence) ;
+     * 4. `kept_cards` absentes allumees ;
+     * 5. verification : actives == preset ∪ kept, aucune Card active sans ses
+     *    `requires` ;
+     * 6. outils principaux poses si declares.
+     *
+     * @param  array{type: string, members: array<string, string>, kept_cards: list<string>, primary_cards: list<string>|null}  $setup
+     */
+    private function loopComposition(Loop $loop, string $loopName, array $setup): void
+    {
+        $type = $setup['type'];
+
+        if (! $this->types->exists($type)) {
+            throw new RuntimeException("Test20260822DogfoodingPack : type de Boucle inconnu '{$type}' pour '{$loopName}'.");
+        }
+
+        if ($loop->type !== $type) {
+            $loop->update(['type' => $type]);
+        }
+
+        $stored = Loop::query()->whereKey($loop->id)->value('type');
+
+        if ($stored !== $type) {
+            throw new RuntimeException(
+                "Test20260822DogfoodingPack : le retypage de '{$loopName}' vers '{$type}' n'a pas pris (type en base : '{$stored}')."
+            );
+        }
+
+        // La composition se lit en base, jamais depuis une relation chargee
+        // avant les ecritures.
+        $loop->unsetRelation('cards');
+
+        $this->types->applyPreset($loop);
+
+        // La meme liste que celle qu'`applyPreset()` vient d'appliquer —
+        // portee Organization comprise —, pour que « ajoute » et « eteint »
+        // derivent d'une seule source.
+        $preset = $this->types->cardsFor($type, $loop->organization);
+        $wanted = array_values(array_unique(array_merge($preset, $setup['kept_cards'])));
+        $active = $this->types->activeCardsFor($loop);
+
+        foreach (array_diff($active, $wanted) as $key) {
+            if ($this->cards->isRequired($key)) {
+                continue;
+            }
+
+            $dependents = array_filter(
+                array_intersect($active, $wanted),
+                fn (string $other) => in_array($key, $this->cards->requirementsOf($other), true),
+            );
+
+            if ($dependents !== []) {
+                throw new RuntimeException(
+                    "Test20260822DogfoodingPack : '{$key}' ne peut pas etre eteinte dans '{$loopName}', requise par ".implode(', ', $dependents).'.'
+                );
+            }
+
+            $this->composition->disable($loop, $key);
+        }
+
+        foreach (array_diff($setup['kept_cards'], $active) as $key) {
+            $this->composition->enable($loop, $key);
+        }
+
+        $loop->unsetRelation('cards');
+        $final = $this->types->activeCardsFor($loop);
+
+        $expected = array_values(array_filter($wanted, fn (string $key) => $this->cards->exists($key)));
+        sort($expected);
+        $observed = $final;
+        sort($observed);
+
+        if ($observed !== $expected) {
+            throw new RuntimeException(
+                "Test20260822DogfoodingPack : composition de '{$loopName}' ({$type}) inattendue — attendu [".implode(', ', $expected).'], obtenu ['.implode(', ', $observed).'].'
+            );
+        }
+
+        foreach ($final as $key) {
+            $blockers = $this->cards->blockersFor($key, $final);
+
+            if ($blockers['missing'] !== [] || $blockers['conflicting'] !== []) {
+                throw new RuntimeException(
+                    "Test20260822DogfoodingPack : '{$key}' est active dans '{$loopName}' sans ses dependances (manque : ".implode(', ', $blockers['missing']).' ; conflit : '.implode(', ', $blockers['conflicting']).').'
+                );
+            }
+        }
+
+        if ($setup['primary_cards'] !== null) {
+            $this->primaryCards($loop, $loopName, $setup['primary_cards']);
+        }
+    }
+
+    /**
+     * TASK-1275 — garantir les outils principaux declares, dans l'ordre.
+     *
+     * Si le mode derive du produit (3 premieres actives dans l'ordre du
+     * catalogue) les donne deja, rien n'est ecrit : le trio est verifie, pas
+     * materialise — `promote()` est un no-op sur une Card deja principale, et
+     * forcer un rang par un aller-retour demote/promote serait un artifice.
+     * Sinon, par les seuls gestes du produit : `promote()` (refuse au-dela de
+     * 3) et `demote()` (refuse de retirer le dernier), en liberant une place
+     * avant chaque promotion quand la barre est pleine. L'ordre final est
+     * verifie, jamais suppose : une Card du type repoussee en secondaire par
+     * un reordonnancement du catalogue est un echec nomme.
+     *
+     * @param  list<string>  $wanted
+     */
+    private function primaryCards(Loop $loop, string $loopName, array $wanted): void
+    {
+        $current = $this->composition->primaryKeysFor($loop);
+
+        if ($current === $wanted) {
+            return;
+        }
+
+        $toDemote = array_values(array_diff($current, $wanted));
+        $toPromote = array_values(array_diff($wanted, $current));
+
+        foreach ($toPromote as $key) {
+            if (count($this->composition->primaryKeysFor($loop)) >= LoopCardCompositionService::MAX_PRIMARY) {
+                $freed = array_shift($toDemote);
+
+                if ($freed === null) {
+                    throw new RuntimeException("Test20260822DogfoodingPack : aucune place a liberer pour '{$key}' dans '{$loopName}'.");
+                }
+
+                $this->composition->demote($loop, $freed);
+            }
+
+            $this->composition->promote($loop, $key);
+        }
+
+        foreach ($toDemote as $key) {
+            $this->composition->demote($loop, $key);
+        }
+
+        $final = $this->composition->primaryKeysFor($loop);
+
+        if ($final !== $wanted) {
+            throw new RuntimeException(
+                "Test20260822DogfoodingPack : outils principaux de '{$loopName}' inattendus — attendu [".implode(', ', $wanted).'], obtenu ['.implode(', ', $final).'].'
+            );
         }
     }
 

@@ -415,8 +415,8 @@ class TASK1274SocleDatasetFrTest extends TestCase
 
         $this->assertSame($before, $snapshot());
         // 4 personas + 4 lignes de ledger + 6 categories + 37 skills + 4 profils IA
-        // + fixture corpus (10 loops, 10 membres, 10 dossiers, 10 documents racines, 1 fichier).
-        $this->assertSame([6, 37, 4, 4, 4 + 4 + 6 + 37 + 4 + 41, 400], $before);
+        // + fixture corpus (10 loops, 27 membres depuis T1275, 10 dossiers, 10 documents racines, 1 fichier).
+        $this->assertSame([6, 37, 4, 4, 4 + 4 + 6 + 37 + 4 + 58, 400], $before);
         $this->assertSame(
             $publishedAt,
             MemberAiProfile::query()->pluck('published_at', 'user_id')->map(fn ($d) => $d?->toIso8601String())->all(),
