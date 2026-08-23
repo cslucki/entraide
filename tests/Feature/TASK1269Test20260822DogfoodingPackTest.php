@@ -159,8 +159,12 @@ class TASK1269Test20260822DogfoodingPackTest extends TestCase
             $this->assertSame('public', $loop->visibility);
             $this->assertSame($this->personas['test_cyril']->id, $loop->created_by);
 
-            // Chaine canonique LoopService : membre owner + preset de cartes.
-            $this->assertDatabaseHas('loop_members', ['loop_id' => $loop->id, 'user_id' => $this->personas['test_cyril']->id, 'role' => 'owner', 'status' => 'active']);
+            // Chaine canonique LoopService : membre createur + preset de cartes.
+            // T1275 : le createur reste membre actif partout ; son ROLE est
+            // celui du mapping (owner sauf 09-UT Dallas, ou Roger est
+            // proprietaire et Cyril animateur — voir TASK1275…Test).
+            $this->assertDatabaseHas('loop_members', ['loop_id' => $loop->id, 'user_id' => $this->personas['test_cyril']->id, 'status' => 'active']);
+            $this->assertGreaterThanOrEqual(1, LoopMember::query()->where('loop_id', $loop->id)->where('status', 'active')->where('role', 'owner')->count(), 'Un proprietaire actif au moins.');
             $this->assertGreaterThan(0, LoopCard::query()->where('loop_id', $loop->id)->count(), 'applyPreset() a ete applique.');
 
             // LoopRootDocumentService : UN Dossier racine tenu par la Loop,
@@ -295,7 +299,8 @@ class TASK1269Test20260822DogfoodingPackTest extends TestCase
         $this->assertSame(4, $entities->where('entity_type', 'persona')->count());
         $this->assertTrue($entities->where('entity_type', 'persona')->every(fn ($e) => $e->ownership === ScenarioPackEntity::OWNERSHIP_REUSED));
 
-        foreach (['loop' => 10, 'loop_member' => 10, 'folder' => 10, 'root_document' => 10, 'folder_file' => 6] as $type => $count) {
+        // T1275 : 27 membres (les 10 createurs + 17 membres du mapping), tous `created`.
+        foreach (['loop' => 10, 'loop_member' => 27, 'folder' => 10, 'root_document' => 10, 'folder_file' => 6] as $type => $count) {
             $this->assertSame($count, $entities->where('entity_type', $type)->count(), $type);
             $this->assertTrue($entities->where('entity_type', $type)->every(fn ($e) => $e->ownership === ScenarioPackEntity::OWNERSHIP_CREATED), "{$type} doit etre created");
         }

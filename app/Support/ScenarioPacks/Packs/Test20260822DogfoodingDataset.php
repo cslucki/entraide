@@ -27,6 +27,118 @@ final class Test20260822DogfoodingDataset
     public const WELCOME_REASON = 'welcome_bonus';
 
     /**
+     * TASK-1275 — ce que chaque Boucle EST : son type, ses membres et leurs
+     * roles, et les Cards qu'elle garde en plus de son preset. MAPPING VALIDE
+     * par Cyril (brief T1275, 2026-08-23), a appliquer tel quel. Les 7 types
+     * sont couverts : `writing` x2, `project` x3, `coaching`, `general`,
+     * `training`, `peer_support`, `networking`.
+     *
+     * Cle : le nom EXACT du repertoire de corpus (`Test20260822DogfoodingPack::
+     * LOOP_DIRECTORIES`) — toute Boucle declaree ici doit y figurer, et
+     * reciproquement (verifie par le pack, bruyant sinon).
+     *
+     * `members` : persona -> role CANONIQUE (`LoopRoleRegistry::CANONICAL` :
+     * `owner`, `facilitator`, `member`). JAMAIS `moderator` : alias legacy en
+     * lecture seule (`LoopRoleRegistry::LEGACY_ALIASES`), jamais ecrit. Le
+     * pack applique les `owner` AVANT les autres roles — invariant
+     * `last_owner` (`LoopGovernanceService::changeRole`) : sur 09-UT Dallas,
+     * Roger est nomme proprietaire avant que Cyril ne soit retrograde.
+     *
+     * `kept_cards` : Cards ACTIVES en plus du preset du type. Les presets sont
+     * additifs (`LoopTypeRegistry::applyPreset()` n'enleve rien) : retyper une
+     * Boucle `general` lui laisse `polls`, `events`, `dossiers`… Le pack
+     * eteint explicitement tout ce qui est hors preset ET hors `kept_cards`
+     * (`LoopCardCompositionService::disable()`, rien n'est supprime).
+     * `core.dossiers` est garde PARTOUT (decision T1275) : 4 presets ne l'ont
+     * pas (`coaching`, `training`, `peer_support`, `networking`) et l'eteindre
+     * fermerait l'acces au Dossier (`loop_permissions.requires_card`) — 28
+     * fichiers du corpus RAG, raison d'etre de `test20260822`, deviendraient
+     * inaccessibles.
+     *
+     * `primary_cards` : les 3 outils MIS EN AVANT (barre), dans l'ordre —
+     * DECLARES pour toute Boucle qui a plus de 3 Cards de grille actives
+     * (07, 08, 09 : le preset + `dossiers` garde), pour que la Card qui
+     * DEFINIT le type reste dans le trio (`assignments` en formation,
+     * `journal` en pair-aidance, `marketplace` en reseautage — decision
+     * Cyril/T1275, option « garder dossiers ET promouvoir »). Le pack
+     * VERIFIE le trio a chaque chargement et n'ecrit un rang (`promote()`/
+     * `demote()`, `primary_rank`) que la ou le mode derive du produit — les
+     * 3 premieres actives dans l'ordre du CATALOGUE — ne le donne pas deja :
+     * seule 08 (`dossiers` 38 passe avant `journal` 41) ; 07 (32/34/36 < 38)
+     * et 09 (30/33/37 < 38) restent en mode derive, verifies. Un
+     * reordonnancement du catalogue qui repousserait une Card du type en
+     * secondaire fait echouer le chargement en le nommant, jamais en
+     * silence. NULL = 3 Cards de grille au plus : le trio est complet.
+     * Depuis TASK-1124, rien n'est masque au-dela de 3 : toutes les Cards
+     * actives sont rendues (TASK-1128 : 5 dans la barre, puis « Autres
+     * outils »).
+     *
+     * @var array<string, array{type: string, members: array<string, string>, kept_cards: list<string>, primary_cards: list<string>|null}>
+     */
+    public const LOOP_SETUP = [
+        '01-COMMUNICATION' => [
+            'type' => 'writing',
+            'members' => ['test_cyril' => 'owner', 'test_kiran' => 'member'],
+            'kept_cards' => ['core.dossiers'],
+            'primary_cards' => null,
+        ],
+        '02-DESIGN' => [
+            'type' => 'project',
+            'members' => ['test_cyril' => 'owner', 'test_kiran' => 'facilitator'],
+            'kept_cards' => ['core.dossiers'],
+            'primary_cards' => null,
+        ],
+        '03-Post LinkedIN' => [
+            'type' => 'writing',
+            'members' => ['test_cyril' => 'owner', 'test_sana' => 'member'],
+            'kept_cards' => ['core.dossiers'],
+            'primary_cards' => null,
+        ],
+        '04-Screens' => [
+            'type' => 'project',
+            'members' => ['test_cyril' => 'owner', 'test_kiran' => 'member'],
+            'kept_cards' => ['core.dossiers'],
+            'primary_cards' => null,
+        ],
+        '05-Pour-la-beta1' => [
+            'type' => 'coaching',
+            'members' => ['test_cyril' => 'owner', 'test_sana' => 'member'],
+            'kept_cards' => ['core.dossiers'],
+            'primary_cards' => null,
+        ],
+        '06-Pour_Boucles' => [
+            'type' => 'general',
+            'members' => ['test_cyril' => 'owner', 'test_roger' => 'member', 'test_kiran' => 'member', 'test_sana' => 'member'],
+            'kept_cards' => ['core.dossiers'],
+            'primary_cards' => null,
+        ],
+        '07-Plan-262 Définition boucles et IA' => [
+            'type' => 'training',
+            'members' => ['test_cyril' => 'owner', 'test_kiran' => 'member', 'test_sana' => 'member'],
+            'kept_cards' => ['core.dossiers'],
+            'primary_cards' => ['training.course_material', 'training.progression', 'training.assignments'],
+        ],
+        "08-Protocole d'emergence" => [
+            'type' => 'peer_support',
+            'members' => ['test_cyril' => 'owner', 'test_roger' => 'facilitator', 'test_sana' => 'member'],
+            'kept_cards' => ['core.dossiers'],
+            'primary_cards' => ['core.roadmap', 'core.polls', 'core.journal'],
+        ],
+        '09-UT Dallas' => [
+            'type' => 'networking',
+            'members' => ['test_roger' => 'owner', 'test_cyril' => 'facilitator', 'test_kiran' => 'member', 'test_sana' => 'member'],
+            'kept_cards' => ['core.dossiers'],
+            'primary_cards' => ['core.roadmap', 'core.marketplace', 'core.events'],
+        ],
+        '10-Aria projet européen' => [
+            'type' => 'project',
+            'members' => ['test_cyril' => 'owner', 'test_roger' => 'member', 'test_sana' => 'member'],
+            'kept_cards' => ['core.dossiers'],
+            'primary_cards' => null,
+        ],
+    ];
+
+    /**
      * Profils humains — champs exiges par `EnsureProfileComplete` (first_name,
      * name, phone, city, country_code, bio) + locale, visibilite, liens.
      *
