@@ -35,7 +35,7 @@ class DossiersIndexFilesCommand extends Command
         {--limit= : Nombre maximum de fichiers retenus}
         {--queue='.DossierFileIndexingDispatcher::DEDICATED_QUEUE.' : Queue des jobs (jamais `default`)}';
 
-    protected $description = 'Planifie l’indexation IA des fichiers texte/markdown d’une Organization sur une queue dédiée (TASK-1268)';
+    protected $description = 'Planifie l’indexation IA des fichiers texte, Markdown, DOCX, PDF et XLSX d’une Organization sur une queue dédiée (TASK-1268)';
 
     public function handle(DossierFileIndexingDispatcher $dispatcher): int
     {

@@ -12,7 +12,6 @@ use App\Support\Ai\AiEconomicGuard;
 use DomainException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 /**
  * Read model de la console RAG Organization (TASK-1217).
@@ -74,13 +73,14 @@ class OrganizationRagOverview
     ) {}
 
     /**
-     * MIME reellement ingerables aujourd'hui (TASK-1216, cf.
-     * FileContentExtractor). Un fichier hors de cette liste n'est pas « en
+     * MIME/extensions reellement ingerables : le contrat de
+     * FileContentExtractor lui-meme (TASK-1216 ; TASK-1272 : Office/PDF),
+     * jamais une copie. Un fichier hors de cette liste n'est pas « en
      * erreur » : il n'est simplement pas une source RAG.
      */
-    private const INGESTIBLE_MIME_TYPES = ['text/plain', 'text/markdown'];
+    private const INGESTIBLE_MIME_TYPES = FileContentExtractor::SUPPORTED_MIME_TYPES;
 
-    private const INGESTIBLE_EXTENSIONS = ['txt', 'md', 'markdown'];
+    private const INGESTIBLE_EXTENSIONS = FileContentExtractor::SUPPORTED_EXTENSIONS;
 
     /**
      * Compteurs de tete de page.
@@ -603,18 +603,12 @@ class OrganizationRagOverview
     }
 
     /**
-     * Le format REEL d'un fichier, par la meme regle que FileContentExtractor
-     * (`isMarkdown`) : MIME d'abord, extension ensuite. Une donnee, pas une
-     * heuristique de titre.
+     * Le format REEL d'un fichier, par la regle de FileContentExtractor :
+     * MIME d'abord, extension ensuite. Une donnee, pas une heuristique de
+     * titre.
      */
     private function fileFormat(string $mimeType, string $originalName): string
     {
-        if ($mimeType === 'text/markdown') {
-            return 'markdown';
-        }
-
-        $extension = Str::lower(pathinfo($originalName, PATHINFO_EXTENSION));
-
-        return in_array($extension, ['md', 'markdown'], true) ? 'markdown' : 'txt';
+        return FileContentExtractor::format($mimeType, $originalName);
     }
 }

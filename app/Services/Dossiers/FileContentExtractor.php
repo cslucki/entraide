@@ -2,41 +2,104 @@
 
 namespace App\Services\Dossiers;
 
+use App\Services\Dossiers\Extractors\DocumentTextExtractor;
+use App\Services\Dossiers\Extractors\PdfTextExtractor;
+use App\Services\Dossiers\Extractors\SpreadsheetTextExtractor;
+use App\Services\Dossiers\Extractors\WordTextExtractor;
 use Illuminate\Support\Str;
 
 /**
  * Extraction locale deterministe du contenu textuel d'un DossierFile
- * TXT/Markdown (TASK-1216). Jamais de LLM, jamais d'execution/rendu du
- * Markdown — seulement un depouillement de syntaxe, meme esprit que
- * ArticleTextExtractor pour le HTML.
+ * (TASK-1216 : TXT/Markdown ; TASK-1272 : DOCX/PDF/XLSX). Jamais de LLM,
+ * jamais d'execution/rendu du Markdown — seulement un depouillement de
+ * syntaxe, meme esprit que ArticleTextExtractor pour le HTML.
  *
  * `extract()` retourne `null` pour tout ce qui n'est pas ingestible
  * proprement (MIME/extension non supporte, encodage invalide, binaire
- * deguise, taille excessive) : c'est le signal "aucun chunk partiel",
- * jamais une exception — le fichier reste un fichier valide du Drive, il
- * n'est simplement pas une source RAG.
+ * deguise, taille excessive, document sans texte) : c'est le signal
+ * "aucun chunk partiel", jamais une exception — le fichier reste un fichier
+ * valide du Drive, il n'est simplement pas une source RAG.
+ *
+ * TASK-1272 : les formats Office/PDF sont delegues a UNE implementation de
+ * DocumentTextExtractor par format (aucun parseur maison), resolue ici par
+ * MIME. Le texte qu'elles livrent passe ensuite par la MEME normalisation
+ * que le texte brut.
  */
 class FileContentExtractor
 {
     /**
-     * Garde-fou d'ingestion, distinct de la limite d'upload (50 Mo,
-     * StoreDossierFileRequest) : un texte de plusieurs Mo degraderait le
-     * chunking/l'embedding bien avant d'approcher cette limite de stockage.
+     * Garde-fou d'ingestion sur le TEXTE : un texte de plusieurs Mo
+     * degraderait le chunking/l'embedding bien avant d'approcher la limite
+     * de stockage. Pour TXT/Markdown, octets bruts = texte, la garde porte
+     * sur le fichier (comportement TASK-1216, inchange). Pour Office/PDF
+     * (TASK-1272), la taille du fichier ne dit rien de celle du texte (images,
+     * polices) : la garde porte sur le texte EXTRAIT, apres extraction.
      */
     private const MAX_INGESTIBLE_BYTES = 5_000_000;
+
+    /**
+     * TASK-1272 : garde SEPAREE sur le fichier BRUT Office/PDF, alignee sur
+     * la limite d'upload (50 Mo, `max:51200` ko dans StoreDossierFileRequest)
+     * — on ne charge jamais en memoire un fichier que le Drive n'aurait pas
+     * accepte. Elle ne remplace pas la garde texte, elle la precede.
+     */
+    private const MAX_RAW_DOCUMENT_BYTES = 51_200 * 1024;
 
     /**
      * Public depuis TASK-1268 : la commande `dossiers:index-files` selectionne
      * les `dossier_files` sur ce MEME contrat, sans dupliquer la liste.
      */
-    public const SUPPORTED_MIME_TYPES = ['text/plain', 'text/markdown'];
+    public const SUPPORTED_MIME_TYPES = [
+        'text/plain',
+        'text/markdown',
+        WordTextExtractor::MIME_TYPE,
+        PdfTextExtractor::MIME_TYPE,
+        SpreadsheetTextExtractor::MIME_TYPE,
+    ];
 
-    private const SUPPORTED_EXTENSIONS = ['txt', 'md', 'markdown'];
+    /**
+     * Second signal apres le MIME (TASK-1216 : un `.md` arrive parfois en
+     * `text/plain`). Public depuis TASK-1272 : OrganizationRagOverview
+     * selectionne les fichiers eligibles sur ce MEME contrat.
+     */
+    public const SUPPORTED_EXTENSIONS = ['txt', 'md', 'markdown', 'docx', 'pdf', 'xlsx'];
+
+    /**
+     * Second signal, comme pour le Markdown : un `.docx` devine
+     * `application/zip` par un vieux libmagic reste un DOCX. Public : le
+     * cockpit RAG en derive le format affiche (voir `format()`).
+     */
+    public const EXTENSION_MIME_TYPES = [
+        'docx' => WordTextExtractor::MIME_TYPE,
+        'pdf' => PdfTextExtractor::MIME_TYPE,
+        'xlsx' => SpreadsheetTextExtractor::MIME_TYPE,
+    ];
+
+    /** @var list<DocumentTextExtractor> */
+    private readonly array $documentExtractors;
+
+    /**
+     * @param  list<DocumentTextExtractor>|null  $documentExtractors  null = les trois implementations du produit
+     */
+    public function __construct(?array $documentExtractors = null)
+    {
+        $this->documentExtractors = $documentExtractors ?? [
+            new WordTextExtractor,
+            new PdfTextExtractor,
+            new SpreadsheetTextExtractor,
+        ];
+    }
 
     public function extract(string $raw, string $mimeType, string $originalName): ?string
     {
         if (! $this->isSupported($mimeType, $originalName)) {
             return null;
+        }
+
+        $documentExtractor = $this->documentExtractorFor($mimeType, $originalName);
+
+        if ($documentExtractor !== null) {
+            return $this->extractDocument($raw, $documentExtractor);
         }
 
         if (strlen($raw) > self::MAX_INGESTIBLE_BYTES) {
@@ -59,6 +122,80 @@ class FileContentExtractor
         return $isMarkdown ? $this->stripMarkdown($raw) : $this->normalizePlainText($raw);
     }
 
+    /**
+     * TASK-1272 : fichier brut -> garde 50 Mo -> extraction par la
+     * bibliotheque -> garde 5 Mo sur le texte -> assainissement -> meme
+     * normalisation que le texte brut.
+     *
+     * Le pipeline livre le contenu en memoire (Storage::get, quel que soit
+     * le disque) alors que les bibliotheques lisent un fichier : un fichier
+     * temporaire fait le pont, supprime quoi qu'il arrive.
+     */
+    private function extractDocument(string $raw, DocumentTextExtractor $documentExtractor): ?string
+    {
+        if ($raw === '' || strlen($raw) > self::MAX_RAW_DOCUMENT_BYTES) {
+            return null;
+        }
+
+        $temporaryPath = tempnam(sys_get_temp_dir(), 'bouclepro-ingest-');
+
+        if ($temporaryPath === false) {
+            return null;
+        }
+
+        try {
+            if (file_put_contents($temporaryPath, $raw) !== strlen($raw)) {
+                return null;
+            }
+
+            $text = $documentExtractor->extract($temporaryPath);
+        } finally {
+            @unlink($temporaryPath);
+        }
+
+        if ($text === null || strlen($text) > self::MAX_INGESTIBLE_BYTES) {
+            return null;
+        }
+
+        $text = $this->sanitizeExtractedText($text);
+
+        return $text === '' ? null : $text;
+    }
+
+    /**
+     * Le texte livre par une bibliotheque n'est pas celui d'un humain : une
+     * police exotique ou un PDF mal forme peuvent laisser des sequences
+     * invalides ou des caracteres de controle. On nettoie au lieu de
+     * refuser — le document, lui, est legitime.
+     */
+    private function sanitizeExtractedText(string $text): string
+    {
+        if (! mb_check_encoding($text, 'UTF-8')) {
+            $text = mb_scrub($text, 'UTF-8');
+        }
+
+        // Caracteres de controle C0/C1 hors tabulation et retours a la ligne.
+        $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]+/u', ' ', $text) ?? $text;
+
+        return $this->normalizePlainText($text);
+    }
+
+    private function documentExtractorFor(string $mimeType, string $originalName): ?DocumentTextExtractor
+    {
+        $extension = Str::lower(pathinfo($originalName, PATHINFO_EXTENSION));
+        $candidates = array_unique(array_filter([$mimeType, self::EXTENSION_MIME_TYPES[$extension] ?? null]));
+
+        foreach ($candidates as $candidate) {
+            foreach ($this->documentExtractors as $documentExtractor) {
+                if ($documentExtractor->supports($candidate)) {
+                    return $documentExtractor;
+                }
+            }
+        }
+
+        return null;
+    }
+
     private function isSupported(string $mimeType, string $originalName): bool
     {
         if (in_array($mimeType, self::SUPPORTED_MIME_TYPES, true)) {
@@ -79,6 +216,34 @@ class FileContentExtractor
         $extension = Str::lower(pathinfo($originalName, PATHINFO_EXTENSION));
 
         return in_array($extension, ['md', 'markdown'], true);
+    }
+
+    /**
+     * Le format REEL d'un fichier supporte, par la regle de ce service :
+     * MIME d'abord, extension ensuite. `txt` | `markdown` | `docx` | `pdf` |
+     * `xlsx` — une donnee pour le cockpit RAG (TASK-1226/1272), pas une
+     * heuristique de titre.
+     */
+    public static function format(string $mimeType, string $originalName): string
+    {
+        $byMime = [
+            'text/markdown' => 'markdown',
+            WordTextExtractor::MIME_TYPE => 'docx',
+            PdfTextExtractor::MIME_TYPE => 'pdf',
+            SpreadsheetTextExtractor::MIME_TYPE => 'xlsx',
+        ];
+
+        if (isset($byMime[$mimeType])) {
+            return $byMime[$mimeType];
+        }
+
+        $extension = Str::lower(pathinfo($originalName, PATHINFO_EXTENSION));
+
+        return match ($extension) {
+            'md', 'markdown' => 'markdown',
+            'docx', 'pdf', 'xlsx' => $extension,
+            default => 'txt',
+        };
     }
 
     /**
