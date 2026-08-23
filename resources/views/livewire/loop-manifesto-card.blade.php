@@ -101,10 +101,16 @@
             </p>
         </div>
 
-        <a href="{{ $editorUrl }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 transition hover:border-violet-200 hover:text-violet-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:border-violet-700 dark:hover:text-violet-200">
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
-            {{ __('loops.manifesto_open_in_editor') }}
-        </a>
+        {{-- Une affordance d'edition ne s'affiche jamais sans la permission
+             (TASK-1279, decision produit) : le CTA suit `manifesto.update`,
+             deja resolu centralement en $canManage. Un simple membre lit le
+             manifeste ici meme — la card EST la lecture, aucun lien de plus. --}}
+        @if($canManage)
+            <a href="{{ $editorUrl }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 transition hover:border-violet-200 hover:text-violet-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:border-violet-700 dark:hover:text-violet-200">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
+                {{ __('loops.manifesto_edit') }}
+            </a>
+        @endif
 
         {{-- What the outside world sees, stated plainly so publishing is never
              a leap of faith. The Loop's confidentiality always wins. --}}

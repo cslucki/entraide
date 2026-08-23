@@ -73,7 +73,7 @@ return [
     'cards_bar_expand_chat' => 'Agrandir le fil',
     'cards_panel_expand' => 'Agrandir ou restaurer l\'outil',
     'cards_panel_resize' => 'Redimensionner les panneaux',
-    'manifesto_open_in_editor' => 'Voir dans l\'éditeur',
+    'manifesto_edit' => 'Modifier',
     'roadmap_add_placeholder' => 'Ajouter une action…',
     'roadmap_remaining' => 'action(s) à faire',
     'roadmap_coming_soon' => 'Bientôt disponible',

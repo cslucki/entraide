@@ -860,7 +860,12 @@ class BlogController extends Controller implements HasMiddleware
         if (! $organization || $post->organization_id !== $organization->id) {
             abort(404);
         }
-        if ($user->id !== $post->user_id && ! $user->is_admin) {
+        // La policy, pas un test d'auteur recode en dur : ce garde protege les
+        // endpoints IA de la page editeur, et `aiMethodSelection` passe deja
+        // par `authorize('update', ...)`. L'ancien test « auteur ou admin »
+        // repondait 403 aux co-auteurs et aux editeurs du manifeste d'une
+        // Boucle (TASK-1279) que la meme page laisse pourtant rediger.
+        if (! $user->can('update', $post)) {
             abort(403);
         }
     }
