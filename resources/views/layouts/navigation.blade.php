@@ -155,7 +155,8 @@
                         <x-dropdown-link :href="$organizationRouteParam ? route('organization.points.index', ['organization' => $organizationRouteParam]) : route('points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
                         <x-dropdown-link :href="$organizationRouteParam ? route('organization.invitations.index', ['organization' => $organizationRouteParam]) : route('invitations.index')">{{ __('navigation.invitations') }}</x-dropdown-link>
                         <x-dropdown-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-dropdown-link>
-                        <x-dropdown-link :href="route('blog.my-posts')">{{ __('navigation.my_articles') }}</x-dropdown-link>
+                        {{-- TASK-1281 : org-scoped, sinon « Mes articles » s'ouvre dans l'Organization par defaut --}}
+                        <x-dropdown-link :href="$organizationRouteParam ? route('organization.blog.my-posts', ['organization' => $organizationRouteParam]) : route('blog.my-posts')">{{ __('navigation.my_articles') }}</x-dropdown-link>
                         @if($dossiersHref)
                         <x-dropdown-link :href="$dossiersHref" :active="request()->routeIs('organization.dossiers.*')">{{ __('navigation.my_dossiers') }}</x-dropdown-link>
                         @endif
@@ -265,7 +266,8 @@
                 <x-responsive-nav-link :href="$organizationRouteParam ? route('organization.points.index', ['organization' => $organizationRouteParam]) : route('points.index')">{{ __('navigation.points_history') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="$organizationRouteParam ? route('organization.invitations.index', ['organization' => $organizationRouteParam]) : route('invitations.index')">{{ __('navigation.invitations') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('blog.my-posts')">{{ __('navigation.my_articles') }}</x-responsive-nav-link>
+                {{-- TASK-1281 : org-scoped, sinon « Mes articles » s'ouvre dans l'Organization par defaut --}}
+                <x-responsive-nav-link :href="$organizationRouteParam ? route('organization.blog.my-posts', ['organization' => $organizationRouteParam]) : route('blog.my-posts')">{{ __('navigation.my_articles') }}</x-responsive-nav-link>
                 @if($dossiersHref)
                 <x-responsive-nav-link :href="$dossiersHref" :active="request()->routeIs('organization.dossiers.*')">{{ __('navigation.my_dossiers') }}</x-responsive-nav-link>
                 @endif
