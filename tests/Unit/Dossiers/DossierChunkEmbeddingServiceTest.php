@@ -26,7 +26,7 @@ class DossierChunkEmbeddingServiceTest extends TestCase
             'first exact chunk',
             'second exact chunk',
             'third exact chunk',
-        ]);
+        ], 'openai');
 
         $this->assertSame('openai', $result['provider']);
         $this->assertSame('text-embedding-3-small', $result['model']);
@@ -58,7 +58,7 @@ class DossierChunkEmbeddingServiceTest extends TestCase
         Embeddings::fake(fn (): array => throw new RuntimeException('SDK should not be called.'))
             ->preventStrayEmbeddings();
 
-        $result = (new DossierChunkEmbeddingService)->embed([]);
+        $result = (new DossierChunkEmbeddingService)->embed([], 'openai');
 
         $this->assertSame('openai', $result['provider']);
         $this->assertSame('text-embedding-3-small', $result['model']);
@@ -77,7 +77,7 @@ class DossierChunkEmbeddingServiceTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Embedding text at index 1 must be a non-empty string.');
 
-        (new DossierChunkEmbeddingService)->embed(['valid', 123]);
+        (new DossierChunkEmbeddingService)->embed(['valid', 123], 'openai');
     }
 
     public function test_it_rejects_blank_strings(): void
@@ -89,7 +89,7 @@ class DossierChunkEmbeddingServiceTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Embedding text at index 1 must be a non-empty string.');
 
-        (new DossierChunkEmbeddingService)->embed(['valid', '   ']);
+        (new DossierChunkEmbeddingService)->embed(['valid', '   '], 'openai');
     }
 
     public function test_it_rejects_non_list_text_arrays(): void
@@ -101,7 +101,7 @@ class DossierChunkEmbeddingServiceTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Embedding texts must be a list.');
 
-        (new DossierChunkEmbeddingService)->embed(['first' => 'valid']);
+        (new DossierChunkEmbeddingService)->embed(['first' => 'valid'], 'openai');
     }
 
     public function test_it_rejects_invalid_dimensions(): void
@@ -112,7 +112,7 @@ class DossierChunkEmbeddingServiceTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Embedding dimensions must be a positive integer.');
 
-        (new DossierChunkEmbeddingService)->embed(['valid']);
+        (new DossierChunkEmbeddingService)->embed(['valid'], 'openai');
     }
 
     public function test_it_rejects_empty_provider(): void
@@ -124,7 +124,7 @@ class DossierChunkEmbeddingServiceTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Embedding provider must be configured.');
 
-        (new DossierChunkEmbeddingService)->embed(['valid']);
+        (new DossierChunkEmbeddingService)->embed(['valid'], 'openai');
     }
 
     public function test_it_rejects_empty_model(): void
@@ -136,7 +136,7 @@ class DossierChunkEmbeddingServiceTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Embedding model must be configured.');
 
-        (new DossierChunkEmbeddingService)->embed(['valid']);
+        (new DossierChunkEmbeddingService)->embed(['valid'], 'openai');
     }
 
     public function test_it_rejects_too_few_vectors(): void
@@ -149,7 +149,7 @@ class DossierChunkEmbeddingServiceTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Embedding response count does not match input count.');
 
-        (new DossierChunkEmbeddingService)->embed(['one', 'two']);
+        (new DossierChunkEmbeddingService)->embed(['one', 'two'], 'openai');
     }
 
     public function test_it_rejects_too_many_vectors(): void
@@ -165,7 +165,7 @@ class DossierChunkEmbeddingServiceTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Embedding response count does not match input count.');
 
-        (new DossierChunkEmbeddingService)->embed(['one', 'two']);
+        (new DossierChunkEmbeddingService)->embed(['one', 'two'], 'openai');
     }
 
     public function test_it_rejects_wrong_vector_dimensions(): void
@@ -178,7 +178,7 @@ class DossierChunkEmbeddingServiceTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Embedding vector at index 0 does not match configured dimensions.');
 
-        (new DossierChunkEmbeddingService)->embed(['one']);
+        (new DossierChunkEmbeddingService)->embed(['one'], 'openai');
     }
 
     public function test_gateway_exception_is_propagated(): void
@@ -191,7 +191,7 @@ class DossierChunkEmbeddingServiceTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Provider unavailable.');
 
-        (new DossierChunkEmbeddingService)->embed(['one']);
+        (new DossierChunkEmbeddingService)->embed(['one'], 'openai');
     }
 
     private function configureEmbeddings(int $dimensions): void

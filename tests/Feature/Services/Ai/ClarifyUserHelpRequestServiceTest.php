@@ -7,38 +7,41 @@ use App\Ai\Context\ContextBuilder;
 use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
 use App\Services\Ai\AiProviderInvocationLedger;
-use App\Services\Ai\AiScenarioFactory;
 use App\Services\Ai\ClarifyUserHelpRequestService;
-use App\Services\Ai\Contracts\AiScenarioDefinition;
-use App\Services\Ai\Contracts\SupervisionProvider;
 use App\Services\Ai\DTO\AssistedInteractionLabResult;
 use App\Services\Ai\FakeAIProvider;
 use App\Services\Ai\SupervisionProviderResolver;
 use App\Support\Ai\AiEconomicGuard;
+use ReflectionMethod;
 use Tests\TestCase;
 
+/**
+ * TASK-1283 : `analyze()` est NEUTRALISEE — elle retombe inconditionnellement
+ * sur la clarification deterministe (FakeAIProvider), et le service ne possede
+ * plus aucun resolver de provider de supervision. Ces tests figent ce
+ * comportement : si quelqu'un reintroduit un appel provider dans `analyze()`,
+ * ils rougissent — avec le test d'architecture
+ * Tests\Unit\Architecture\AiEconomicAuthorityIsolationTest.
+ *
+ * Le chemin GOUVERNE (clarifyForLoop / clarifyForOrganization ->
+ * clarifyInContext : garde economique AiEconomicGuard PUIS ledger) est couvert
+ * par TASK1210ClarifyHelpRequestTest, TASK1220AiProviderInvocationLedgerTest,
+ * TASK1222EconomicAuthorityTest, TASK1227OrganizationDoctrineTest et
+ * TASK1236DoctrineVersionTraceabilityTest — pas ici.
+ */
 class ClarifyUserHelpRequestServiceTest extends TestCase
 {
     private ClarifyUserHelpRequestService $service;
-
-    private SupervisionProviderResolver $resolver;
-
-    private AiScenarioFactory $scenarioFactory;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->resolver = $this->createMock(SupervisionProviderResolver::class);
-        $this->scenarioFactory = $this->createMock(AiScenarioFactory::class);
-
-        // TASK-1210 : le service porte desormais le chemin transverse P3 en plus
-        // du chemin historique. Ces dependances ne servent qu'a
-        // `clarifyForLoop()` ; les tests ci-dessous exercent `analyze()`, dont
-        // le comportement est inchange.
+        // Construction complete, sans aucun mock : depuis TASK-1283 le service
+        // n'a plus de dependance vers SupervisionProviderResolver ni
+        // AiScenarioFactory — il ne PEUT plus atteindre un provider depuis
+        // `analyze()`, quelle que soit la configuration.
         $this->service = new ClarifyUserHelpRequestService(
-            $this->resolver,
-            $this->scenarioFactory,
             new FakeAIProvider,
             app(CapabilityRegistry::class),
             app(PromptRepository::class),
@@ -62,136 +65,48 @@ class ClarifyUserHelpRequestServiceTest extends TestCase
         $this->assertFalse($result->needsFallback());
     }
 
-    public function test_falls_back_to_fake_provider_when_no_scenario(): void
+    public function test_analyze_stays_deterministic_even_when_clarify_is_enabled(): void
     {
-        config(['ai.clarify.enabled' => true]);
-
-        $this->scenarioFactory->method('resolve')->with('clarify_help_request')->willReturn(null);
-
-        $result = $this->service->analyze('Je cherche des conseils');
-
-        $this->assertInstanceOf(AssistedInteractionLabResult::class, $result);
-    }
-
-    public function test_falls_back_to_fake_provider_when_no_provider_available(): void
-    {
-        config(['ai.clarify.enabled' => true]);
-
-        $scenario = $this->createMock(AiScenarioDefinition::class);
-        $this->scenarioFactory->method('resolve')->with('clarify_help_request')->willReturn($scenario);
-        $this->resolver->method('defaultProvider')->willReturn(null);
-
-        $result = $this->service->analyze('cherche quelqu\'un pour m\'aider');
-
-        $this->assertInstanceOf(AssistedInteractionLabResult::class, $result);
-    }
-
-    public function test_maps_high_confidence_result_without_fallback(): void
-    {
-        config(['ai.clarify.enabled' => true]);
-        $this->setUpScenarioAndProvider();
+        // Configuration la plus permissive possible : clarification activee,
+        // provider et modele par defaut presents. Avant TASK-1283, ce cas
+        // partait vers SupervisionProviderResolver::resolve() SANS garde
+        // economique ni ledger. Il doit desormais produire exactement le meme
+        // resultat deterministe que quand la clarification est desactivee.
+        config([
+            'ai.clarify.enabled' => true,
+            'ai.default_provider' => 'openai',
+            'ai.default_model' => 'gpt-4o-mini',
+            'ai.openai.supervision_enabled' => true,
+        ]);
 
         $result = $this->service->analyze('Je cherche des conseils pour trouver mes premiers clients');
 
-        $this->assertInstanceOf(AssistedInteractionLabResult::class, $result);
+        $this->assertSame('deterministic_fallback', $result->producer);
         $this->assertSame('help_request', $result->intent);
-        $this->assertSame(0.87, $result->confidence);
-        $this->assertSame('Aide pour trouver mes premiers clients', $result->title);
-        $this->assertSame('Je cherche des conseils pour développer ma clientèle initiale et établir une stratégie de prospection efficace.', $result->need);
-        $this->assertSame('information, conseil', $result->expectedHelpType);
-        $this->assertSame('Bonjour, je lance mon activité et je cherche des retours concrets...', $result->messageDraft);
-        $this->assertFalse($result->needsFallback());
-        $this->assertFalse($result->isBlocked());
-        $this->assertTrue($result->isHighConfidence());
-        $this->assertNotNull($result->suggestedLoop);
-        $this->assertSame('Développement commercial', $result->suggestedLoop['label']);
-        $this->assertSame('clarify_help_request', $result->scenario);
+        $this->assertSame(0.84, $result->confidence);
+        $this->assertSame('Trouver mes premiers clients', $result->title);
     }
 
-    public function test_maps_low_confidence_with_fallback(): void
+    public function test_analyze_output_is_byte_identical_to_the_fallback_output(): void
     {
         config(['ai.clarify.enabled' => true]);
 
-        $provider = $this->createMock(SupervisionProvider::class);
-        $provider->method('runScenario')->willReturn([
-            'title' => 'Demande vague',
-            'clarified_request' => 'La demande manque de précision pour être reformulée.',
-            'help_type' => 'other',
-            'suggested_category' => '',
-            'suggested_loop' => '',
-            'questions_for_user' => ['Sur quel aspect précis es-tu bloqué ?', 'Quel type d\'aide cherches-tu ?'],
-            'publishable_draft' => null,
-            'confidence' => 0.42,
-            'needs_human_review' => false,
-        ]);
-
-        $this->setUpScenarioAndProvider($provider);
-
-        $result = $this->service->analyze('Je suis bloqué');
-
-        $this->assertSame(0.42, $result->confidence);
-        $this->assertTrue($result->needsFallback());
-        $this->assertTrue($result->isLowConfidence());
-        $this->assertCount(2, $result->fallback['questions']);
-        $this->assertSame('Des questions de clarification sont nécessaires pour préciser la demande.', $result->fallback['reason']);
-        $this->assertNull($result->suggestedLoop);
-    }
-
-    public function test_maps_needs_human_review_with_fallback(): void
-    {
-        config(['ai.clarify.enabled' => true]);
-
-        $provider = $this->createMock(SupervisionProvider::class);
-        $provider->method('runScenario')->willReturn([
-            'title' => 'Demande ambiguë',
-            'clarified_request' => '',
-            'help_type' => 'other',
-            'suggested_category' => '',
-            'suggested_loop' => '',
-            'questions_for_user' => [],
-            'publishable_draft' => '',
-            'confidence' => 0.35,
-            'needs_human_review' => true,
-        ]);
-
-        $this->setUpScenarioAndProvider($provider);
-
-        $result = $this->service->analyze('a besoin de relecture humaine');
-
-        $this->assertTrue($result->needsFallback());
-        $this->assertTrue($result->safety['needs_human_review']);
-        $this->assertSame('La demande nécessite une relecture humaine avant publication.', $result->fallback['reason']);
-        $this->assertTrue($result->humanValidation['required']);
-    }
-
-    public function test_maps_with_defaults_when_fields_missing(): void
-    {
-        config(['ai.clarify.enabled' => true]);
-
-        $scenario = $this->createMock(AiScenarioDefinition::class);
-        $this->scenarioFactory->method('resolve')->with('clarify_help_request')->willReturn($scenario);
-        $this->resolver->method('defaultProvider')->willReturn('openai');
-
-        $provider = $this->createMock(SupervisionProvider::class);
-        $provider->method('runScenario')->willReturn([]);
-
-        $this->resolver->method('resolve')->with('openai')->willReturn($provider);
-
-        $result = $this->service->analyze('test empty result');
-
-        $this->assertInstanceOf(AssistedInteractionLabResult::class, $result);
-        $this->assertSame('help_request', $result->intent);
-        $this->assertSame(0.0, $result->confidence);
-        $this->assertSame('Nouvelle demande', $result->title);
-        $this->assertSame('autre', $result->expectedHelpType);
-        $this->assertTrue($result->needsFallback());
-        $this->assertTrue($result->safety['needs_human_review']);
+        foreach ([
+            'Je cherche des conseils pour trouver mes premiers clients',
+            'Je suis bloqué',
+            'phrase sans aucun scenario correspondant',
+        ] as $phrase) {
+            $this->assertEquals(
+                (new FakeAIProvider)->analyze($phrase)->toArray(),
+                $this->service->analyze($phrase)->toArray(),
+                "analyze('{$phrase}') doit etre le repli deterministe, rien d'autre.",
+            );
+        }
     }
 
     public function test_to_array_contains_expected_keys(): void
     {
         config(['ai.clarify.enabled' => true]);
-        $this->setUpScenarioAndProvider();
 
         $result = $this->service->analyze('test');
         $array = $result->toArray();
@@ -208,63 +123,42 @@ class ClarifyUserHelpRequestServiceTest extends TestCase
         }
     }
 
-    public function test_maps_help_type_service_offer(): void
+    /**
+     * La table de correspondance help_type -> libelle francais.
+     *
+     * Son vehicule public historique (`mapToDto()`, chemin IA de `analyze()`)
+     * est mort avec la neutralisation TASK-1283. Le consommateur VIVANT est
+     * `mapStructuredToDto()` sur le chemin gouverne, dont le harnais complet
+     * (Organization, credential tenant, garde, ledger) vit dans
+     * TASK1210ClarifyHelpRequestTest. Ce test fige la table sans payer ce
+     * harnais — par reflexion, assumee et documentee.
+     */
+    public function test_help_type_mapping_table_is_preserved(): void
     {
-        $this->assertHelpTypeMapping('service_offer', 'proposition de service');
+        $method = new ReflectionMethod(ClarifyUserHelpRequestService::class, 'mapHelpType');
+
+        foreach ([
+            'service_offer' => 'proposition de service',
+            'collaboration' => 'collaboration',
+            'information' => 'information, conseil',
+            'support' => 'soutien, accompagnement',
+            'other' => 'autre',
+            'unknown' => 'autre',
+        ] as $input => $expected) {
+            $this->assertSame($expected, $method->invoke($this->service, $input));
+        }
     }
 
-    public function test_maps_help_type_collaboration(): void
-    {
-        $this->assertHelpTypeMapping('collaboration', 'collaboration');
-    }
+    // -----------------------------------------------------------------
+    // SupervisionProviderResolver : selection du provider par defaut du
+    // banc de supervision. Le resolver ne sert PLUS a `analyze()` — ces
+    // tests restent parce qu'ils couvrent le comportement du resolver
+    // lui-meme (banc supervision, offre de service), pas le service CHR.
+    // -----------------------------------------------------------------
 
-    public function test_maps_help_type_information(): void
-    {
-        $this->assertHelpTypeMapping('information', 'information, conseil');
-    }
-
-    public function test_maps_help_type_support(): void
-    {
-        $this->assertHelpTypeMapping('support', 'soutien, accompagnement');
-    }
-
-    public function test_maps_help_type_other(): void
-    {
-        $this->assertHelpTypeMapping('other', 'autre');
-    }
-
-    public function test_maps_help_type_unknown_falls_to_other(): void
-    {
-        $this->assertHelpTypeMapping('unknown', 'autre');
-    }
-
-    private function assertHelpTypeMapping(string $input, string $expected): void
-    {
-        config(['ai.clarify.enabled' => true]);
-
-        $provider = $this->createMock(SupervisionProvider::class);
-        $provider->method('runScenario')->willReturn([
-            'title' => 'Test',
-            'clarified_request' => 'test',
-            'help_type' => $input,
-            'suggested_category' => '',
-            'suggested_loop' => '',
-            'questions_for_user' => [],
-            'publishable_draft' => 'test',
-            'confidence' => 0.9,
-            'needs_human_review' => false,
-        ]);
-
-        $this->setUpScenarioAndProvider($provider);
-
-        $result = $this->service->analyze('test mapping');
-        $this->assertSame($expected, $result->expectedHelpType);
-    }
-
-    public function test_uses_ai_config_default_provider_when_config_default_null(): void
+    public function test_resolver_picks_openrouter_when_config_default_null(): void
     {
         config([
-            'ai.clarify.enabled' => true,
             'ai.default_provider' => null,
             'ai.ollama.enabled' => false,
             'ai.openrouter.enabled' => true,
@@ -272,86 +166,21 @@ class ClarifyUserHelpRequestServiceTest extends TestCase
         ]);
 
         $resolver = new SupervisionProviderResolver;
-        $providerName = $resolver->defaultProvider();
 
-        $this->assertSame('openrouter', $providerName);
+        $this->assertSame('openrouter', $resolver->defaultProvider());
     }
 
-    public function test_uses_ai_config_default_model_when_config_default_null(): void
+    public function test_resolver_has_no_default_when_everything_disabled(): void
     {
         config([
-            'ai.clarify.enabled' => true,
             'ai.default_provider' => null,
-            'ai.default_model' => null,
-            'ai.openrouter.enabled' => true,
-            'ai.openrouter.model' => 'mistralai/ministral-3b-2512',
-        ]);
-
-        $scenario = $this->createMock(AiScenarioDefinition::class);
-        $this->scenarioFactory->method('resolve')->with('clarify_help_request')->willReturn($scenario);
-        $this->resolver->method('defaultProvider')->willReturn('openrouter');
-
-        $capturedModel = null;
-        $provider = $this->createMock(SupervisionProvider::class);
-        $provider->method('runScenario')->willReturnCallback(
-            function ($scenario, $content, $model = null) use (&$capturedModel) {
-                $capturedModel = $model;
-
-                return $this->createDefaultProviderMock()->runScenario($scenario, $content, $model);
-            }
-        );
-        $this->resolver->method('resolve')->with('openrouter')->willReturn($provider);
-
-        $result = $this->service->analyze('test model resolution');
-
-        $this->assertSame('mistralai/ministral-3b-2512', $capturedModel);
-        $this->assertInstanceOf(AssistedInteractionLabResult::class, $result);
-    }
-
-    public function test_falls_back_to_fake_when_no_provider_and_no_model(): void
-    {
-        config([
-            'ai.clarify.enabled' => true,
-            'ai.default_provider' => null,
-            'ai.default_model' => null,
             'ai.ollama.enabled' => false,
             'ai.openrouter.enabled' => false,
             'ai.openai.supervision_enabled' => false,
         ]);
 
-        $scenario = $this->createMock(AiScenarioDefinition::class);
-        $this->scenarioFactory->method('resolve')->with('clarify_help_request')->willReturn($scenario);
-
         $resolver = new SupervisionProviderResolver;
+
         $this->assertNull($resolver->defaultProvider());
-    }
-
-    private function setUpScenarioAndProvider(?SupervisionProvider $provider = null): void
-    {
-        $scenario = $this->createMock(AiScenarioDefinition::class);
-        $this->scenarioFactory->method('resolve')->with('clarify_help_request')->willReturn($scenario);
-        $this->resolver->method('defaultProvider')->willReturn('openai');
-
-        $provider ??= $this->createDefaultProviderMock();
-
-        $this->resolver->method('resolve')->with('openai')->willReturn($provider);
-    }
-
-    private function createDefaultProviderMock(): SupervisionProvider
-    {
-        $provider = $this->createMock(SupervisionProvider::class);
-        $provider->method('runScenario')->willReturn([
-            'title' => 'Aide pour trouver mes premiers clients',
-            'clarified_request' => 'Je cherche des conseils pour développer ma clientèle initiale et établir une stratégie de prospection efficace.',
-            'help_type' => 'information',
-            'suggested_category' => 'business',
-            'suggested_loop' => 'Développement commercial',
-            'questions_for_user' => [],
-            'publishable_draft' => 'Bonjour, je lance mon activité et je cherche des retours concrets...',
-            'confidence' => 0.87,
-            'needs_human_review' => false,
-        ]);
-
-        return $provider;
     }
 }

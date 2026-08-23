@@ -103,8 +103,6 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(AiFabContext::class);
         $this->app->bind(AiProvider::class, function ($app) {
             return new ClarifyUserHelpRequestService(
-                $app->make(SupervisionProviderResolver::class),
-                $app->make(AiScenarioFactory::class),
                 $app->make(FakeAIProvider::class),
                 $app->make(CapabilityRegistry::class),
                 $app->make(PromptRepository::class),
