@@ -109,6 +109,18 @@ class LoopMessagesSource implements ContextSource
 
     public function authorOf(LoopMessage $message): string
     {
+        // TASK-1298 : un message `member_agent` porte un expediteur (le membre
+        // dont l'agent parle) — tester `sender` d'abord ferait donc parler
+        // l'agent sous le nom nu du membre, et le modele apprendrait que
+        // l'humain a dit ce que sa machine a ecrit. Le libelle exact reste une
+        // decision produit (DECISION_REQUIRED_CYRIL) : defaut raisonnable ici,
+        // aucun test ne le fige.
+        if ($message->type === 'member_agent') {
+            return $message->sender
+                ? __('loops.member_agent_author', ['name' => $message->sender->publicDisplayName()])
+                : __('loops.member_agent_author_anonymous');
+        }
+
         if ($message->sender) {
             return $message->sender->publicDisplayName();
         }

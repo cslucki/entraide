@@ -127,7 +127,11 @@ class LoopMessage extends Model
 
     public function isEditableBy(User $user): bool
     {
-        return $this->type === 'user'
+        // TASK-1298 : quand la reponse d'un agent portait `type=user`, son
+        // membre (sender_id) pouvait l'editer ; `member_agent` PRESERVE ce
+        // droit a l'identique. Le resserrement eventuel est un retrait de
+        // capacite : DECISION_REQUIRED_CYRIL, pas pris ici.
+        return in_array($this->type, ['user', 'member_agent'], true)
             && ! $this->isDeleted()
             && $this->sender_id === $user->id;
     }

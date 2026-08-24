@@ -12,6 +12,8 @@ return [
     'empty' => 'Vous n\'avez encore aucune boucle.',
     'create_first' => 'Créer votre première boucle',
     'type_system' => 'Système',
+    'member_agent_author' => "Agent de :name",
+    'member_agent_author_anonymous' => "Agent d'un membre",
     'type_custom' => 'Personnalisée',
     'back_home' => 'Retour à l\'accueil',
     'back_to_loops' => 'Retour aux boucles',
