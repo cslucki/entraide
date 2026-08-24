@@ -226,6 +226,7 @@ return [
     'knowledge_sources_title' => 'Sources utilisées',
     'knowledge_consulted_title' => 'Sources consultées',
     'knowledge_no_sources' => 'Je n\'ai pas trouvé cette information dans les sources auxquelles j\'ai accès.',
+    'slash_ia_help' => 'Pour interroger l\'IA sur les sources de cette Boucle, tapez /ia suivi de votre question.',
     'knowledge_question_required' => 'Posez une question pour lancer la recherche.',
     'knowledge_prompt_missing' => 'La réponse documentaire n\'est pas configurée (prompt administrable absent).',
     'ai_summary_prompt_missing' => 'La synthèse IA n\'est pas configurée (prompt administrable absent).',

@@ -226,6 +226,7 @@ return [
     'knowledge_sources_title' => 'Sources used',
     'knowledge_consulted_title' => 'Sources consulted',
     'knowledge_no_sources' => 'I did not find this information in the sources I have access to.',
+    'slash_ia_help' => 'To ask the AI about this Loop\'s sources, type /ia followed by your question.',
     'knowledge_question_required' => 'Ask a question to start the search.',
     'knowledge_prompt_missing' => 'The documentary answer is not configured (missing admin prompt).',
     'ai_summary_prompt_missing' => 'The AI summary is not configured (missing admin prompt).',
