@@ -73,13 +73,15 @@ class TASK1261CreditLedgerCutoverTest extends TestCase
         $this->assertContains('service_offer.master', OrganizationAiEconomicUsage::CREDITABLE_PROCESSES);
 
         // Independance des deux listes (delta M1 point A) : la garde G11-b
-        // (10 process) et le credit G11-c (14 process) ne sont PAS le meme
+        // (12 process depuis T1286 — les deux chemins agent de profil ont
+        // converge) et le credit G11-c (14 process) ne sont PAS le meme
         // ensemble, meme si elles se recoupent.
         $guardProcesses = AiEconomicGuard::ledgerAuthorityProcesses();
-        $this->assertCount(10, $guardProcesses);
+        $this->assertCount(12, $guardProcesses);
+        $this->assertContains('member_profile.loop_agent_reply', $guardProcesses);
+        $this->assertContains('member_profile.agent_visitor_chat', $guardProcesses);
+        // Toujours dehors (HARD GATE tenant par defaut — T1286) :
         $this->assertNotContains('member_profile.agent_setup', $guardProcesses);
-        $this->assertNotContains('member_profile.loop_agent_reply', $guardProcesses);
-        $this->assertNotContains('member_profile.agent_visitor_chat', $guardProcesses);
         $this->assertNotContains('service_offer.master', $guardProcesses);
     }
 

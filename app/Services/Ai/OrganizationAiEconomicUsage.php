@@ -63,7 +63,7 @@ final class OrganizationAiEconomicUsage
      * SuperAdmin, systeme, sandbox, ingestion — l'echec provider est exclu
      * par le filtre `status = success` des requetes, pas par cette liste.
      *
-     * DISTINCTE de `AiEconomicGuard::LEDGER_AUTHORITY_PROCESSES` (autorite
+     * DISTINCTE de `AiEconomicGuard::ledgerAuthorityProcesses()` (autorite
      * de GARDE, G11-b) : les deux ensembles se recoupent mais ne sont PAS
      * egaux — garde et credit sont deux semantiques independantes, ne
      * jamais les fusionner.

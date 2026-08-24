@@ -36,19 +36,43 @@ final class AiEconomicGuard
      *  - Blog/Explorer : leurs ecritures ledger n'ont commence qu'avec
      *    T1247/T1248, merges le 19/08 -> 20/08 00:00Z (signal S2 : un
      *    cutover au 18/08 aurait fait disparaitre du budget les traces
-     *    registre Blog du 18-19/08, sans ligne ledger en face).
+     *    registre Blog du 18-19/08, sans ligne ledger en face) ;
+     *  - agent de profil (TASK-1286, la « TASK dediee » annoncee ci-dessous) :
+     *    la reponse automatique (`member_profile.loop_agent_reply`) ecrit au
+     *    ledger depuis T1251 (PR #255, merge 19/08 10:38 UTC) et le chat
+     *    visiteur (`member_profile.agent_visitor_chat`) depuis T1252
+     *    (PR #256, merge 19/08 11:36 UTC) -> premier minuit UTC entierement
+     *    couvert = 20/08 00:00Z, le meme instant que Blog/Explorer. Leur
+     *    tenant est EXPLICITE et fail-closed : l'Organization du PROFIL
+     *    (`tenantOf()`, aucun repli — le job exige en plus profil et Boucle
+     *    dans la MEME Organization), jamais une resolution par defaut.
      * Avant l'instant d'un process : `ai_interactions` (requete historique).
      * A partir de cet instant, inclus : le ledger. Fenetres disjointes PAR
      * PROCESS ; les lignes ecrites dans les deux tables avant le cutover ne
      * sont lues que cote registre.
      *
      * Le filtre par process n'est pas une optimisation : le ledger recoit
-     * une ligne de TOUTES les familles d'appel (y compris agent de profil /
-     * offre de service / bancs SuperAdmin, hors perimetre, dont la trace
-     * operationnelle est `admin_ai_interactions`), la ou `ai_interactions`
-     * ne recevait structurellement que le perimetre garde. Sans lui, le
-     * plafond Organization se mettrait a compter des familles que leur
-     * propre bascule (TASK dediee future) n'a pas encore migrees.
+     * une ligne de TOUTES les familles d'appel (y compris les chemins restes
+     * hors perimetre, dont la trace operationnelle est
+     * `admin_ai_interactions`), la ou `ai_interactions` ne recevait
+     * structurellement que le perimetre garde. Sans lui, le plafond
+     * Organization se mettrait a compter des familles non migrees.
+     *
+     * RESTENT DEHORS apres TASK-1286, chacun pour une raison ecrite :
+     *  - `member_profile.agent_setup` : HARD GATE tenant — la page
+     *    `/agent-ia/setup` existe SANS prefixe d'Organization, ou
+     *    `ResolveUrlOrganization` lie l'Organization PAR DEFAUT ; un membre
+     *    sans profil existant verrait son setup impute au budget d'une
+     *    Organization cliente qui n'a rien demande ;
+     *  - `service_offer.master` : meme HARD GATE — la variante non prefixee
+     *    de `/services/ai-formulate` recoit elle aussi l'Organization par
+     *    defaut du middleware ;
+     *  - `supervision.content` (banc SuperAdmin) : son tenant EST
+     *    `DefaultOrganizationResolver::resolve()`, exclu d'office ;
+     *  - `member_profile.admin_llm_test` (banc test LLM) : tenant explicite
+     *    (l'Organization du profil teste) mais convergence = DECISION
+     *    PRODUIT EN ATTENTE (un test SuperAdmin pourrait epuiser le budget
+     *    d'un client et bloquer SES membres) — voir Review Notes T1286.
      */
     public const LEDGER_AUTHORITY_SINCE_BY_PROCESS = [
         'chatloop.summarize' => '2026-08-18T00:00:00+00:00',
@@ -61,6 +85,8 @@ final class AiEconomicGuard
         'blog.method_selection' => '2026-08-20T00:00:00+00:00',
         'blog.explorer_dialogue' => '2026-08-20T00:00:00+00:00',
         'blog.explorer_note' => '2026-08-20T00:00:00+00:00',
+        'member_profile.loop_agent_reply' => '2026-08-20T00:00:00+00:00',
+        'member_profile.agent_visitor_chat' => '2026-08-20T00:00:00+00:00',
     ];
 
     /**
@@ -443,9 +469,11 @@ final class AiEconomicGuard
      *    de statut est donc obligatoire pour ne pas fermer un process a
      *    cause d'une panne.
      *
-     *  - tout autre process (familles heritees `SupervisionEconomicAuthority`,
-     *    bancs SuperAdmin) : lecture historique `ai_interactions` INCHANGEE
-     *    sur tout le mois, jusqu'a leur TASK de bascule dediee.
+     *  - tout autre process (chemins restes hors mapping — TASK-1286 :
+     *    `member_profile.agent_setup` et `service_offer.master` au tenant
+     *    possiblement par defaut, bancs SuperAdmin) : lecture historique
+     *    `ai_interactions` INCHANGEE sur tout le mois, jusqu'a une levee
+     *    explicite de leur raison d'exclusion.
      *
      * @return array{0: float, 1: int}
      */

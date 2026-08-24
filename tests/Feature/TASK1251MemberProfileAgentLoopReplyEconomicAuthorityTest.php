@@ -197,6 +197,30 @@ class TASK1251MemberProfileAgentLoopReplyEconomicAuthorityTest extends TestCase
         $this->knownSpend($organization, $spender, 'blog.article_generate', 'blog_generate');
     }
 
+    /**
+     * T1286 : depense connue au LEDGER canonique — l'autorite de generation
+     * des process converges (`member_profile.loop_agent_reply` /
+     * `member_profile.agent_visitor_chat`). La garde par process ne lit plus
+     * `ai_interactions` pour eux.
+     */
+    private function knownLedgerSpend(Organization $organization, User $user, string $process, float $cost = 0.5): void
+    {
+        AiProviderInvocation::create([
+            'organization_id' => $organization->id,
+            'user_id' => $user->id,
+            'process' => $process,
+            'operation' => AiProviderInvocation::OPERATION_GENERATION,
+            'provider' => 'openrouter',
+            'model' => 'router/catalogued',
+            'credential_source' => AiProviderInvocation::CREDENTIAL_PLATFORM,
+            'provider_cost' => $cost,
+            'currency' => 'USD',
+            'cost_status' => AiProviderInvocation::COST_KNOWN,
+            'cost_source' => 'catalog_estimated',
+            'status' => AiProviderInvocation::STATUS_SUCCESS,
+        ]);
+    }
+
     private function knownSpend(Organization $organization, User $user, string $process, string $feature, float $cost = 0.5): void
     {
         AiInteraction::create([
@@ -413,11 +437,13 @@ class TASK1251MemberProfileAgentLoopReplyEconomicAuthorityTest extends TestCase
         $this->runJob($loop, $this->visitorMessage($loop, body: 'Premiere question.'));
         $this->assertSame(1, AiProviderInvocation::query()->count());
 
-        // La meme depense sur LE process de ce chemin : refus.
-        $this->knownSpend($this->tenant, $this->owner, 'member_profile.loop_agent_reply', 'member_profile_agent_loop_reply');
+        // La meme depense sur LE process de ce chemin : refus. T1286 : ce
+        // process a converge vers l'autorite ledger — la depense qui compte
+        // est une ligne LEDGER a cout connu, plus une trace registre.
+        $this->knownLedgerSpend($this->tenant, $this->owner, 'member_profile.loop_agent_reply');
         $this->runJob($loop, $this->visitorMessage($loop, body: 'Deuxieme question.'));
 
-        $this->assertSame(1, AiProviderInvocation::query()->count(), 'Le refus n\'a rien ecrit de plus.');
+        $this->assertSame(2, AiProviderInvocation::query()->count(), 'Le refus n\'a rien ecrit de plus (1 succes + 1 fixture).');
         Http::assertSentCount(1);
         $this->assertSame(
             [AiRefusedException::CODE_ORGANIZATION_BUDGET_REACHED],
