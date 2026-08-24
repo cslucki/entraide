@@ -106,8 +106,8 @@ final class DossierRetrievalSource implements ContextSource
             $contexte->organizationId,
             $dossierIds,
             $query,
-            $this->topK(),
             $resolved->instance,
+            $this->topK(),
             // TASK-1229 : la feature emettrice (essais de doctrine) suit la
             // recherche jusqu'au ledger.
             ['capability' => $contexte->capability, 'loop_id' => $contexte->loopId, 'feature' => $contexte->feature],

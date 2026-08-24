@@ -466,6 +466,7 @@ class TASK1222EconomicAuthorityTest extends TestCase
             (string) $this->organization->id,
             [(string) $dossier->id],
             'une question sur le corpus',
+            'openai',
             3,
         );
 

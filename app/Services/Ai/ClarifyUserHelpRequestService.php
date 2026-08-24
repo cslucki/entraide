@@ -13,7 +13,6 @@ use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
 use App\Ai\ResolvedModel;
 use App\Models\AdminAiPrompt;
-use App\Models\AiConfig;
 use App\Models\AiInteraction;
 use App\Models\Category;
 use App\Models\Loop;
@@ -26,13 +25,10 @@ use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiUsage;
 use DomainException;
-use Illuminate\Support\Facades\Schema;
 
 class ClarifyUserHelpRequestService implements AiProvider
 {
     public function __construct(
-        private readonly SupervisionProviderResolver $resolver,
-        private readonly AiScenarioFactory $scenarioFactory,
         private readonly FakeAIProvider $fallback,
         private readonly CapabilityRegistry $capabilities,
         private readonly PromptRepository $prompts,
@@ -42,44 +38,28 @@ class ClarifyUserHelpRequestService implements AiProvider
         private readonly AiProviderInvocationLedger $ledger,
     ) {}
 
+    /**
+     * NE JAMAIS appeler un provider ici (TASK-1283).
+     *
+     * Cette methode ne subsiste que pour honorer le contrat {@see AiProvider}
+     * (LoopController appelle `analyze()` sur la branche non-CHR de son
+     * ternaire, et FakeAIProvider implemente la meme interface). La
+     * clarification GOUVERNEE passe par `clarifyForLoop()` /
+     * `clarifyForOrganization()` -> `clarifyInContext()` : garde economique
+     * (verdict AiEconomicGuard) puis ledger (`recordInteraction()`).
+     *
+     * Historiquement, `analyze()` resolvait un SupervisionProvider NU —
+     * SupervisionProviderResolver::resolve() sans autorite economique ni
+     * ledger — dernier chemin du code capable d'atteindre un provider sans
+     * gouvernance (matrice TASK-1282). Elle retombe desormais
+     * INCONDITIONNELLEMENT sur la clarification deterministe, et le service ne
+     * possede plus aucun resolver de provider de supervision. Le test
+     * d'architecture AiEconomicAuthorityIsolationTest rougit si quelqu'un
+     * reintroduit le raccourci.
+     */
     public function analyze(string $phrase): AssistedInteractionLabResult
     {
-        if (! config('ai.clarify.enabled', false)) {
-            return $this->fallback->analyze($phrase);
-        }
-
-        $scenario = $this->scenarioFactory->resolve('clarify_help_request');
-
-        if (! $scenario) {
-            return $this->fallback->analyze($phrase);
-        }
-
-        $providerName = $this->resolver->defaultProvider();
-
-        if (! $providerName) {
-            return $this->fallback->analyze($phrase);
-        }
-
-        $model = null;
-        if (Schema::hasTable('ai_configs')) {
-            $model = AiConfig::get('default_model');
-        }
-        $model ??= config('ai.default_model')
-            ?? match ($providerName) {
-                'openrouter' => config('ai.openrouter.model'),
-                'ollama' => config('ai.ollama.model'),
-                default => config('ai.openai.model'),
-            };
-
-        if (! $model) {
-            return $this->fallback->analyze($phrase);
-        }
-
-        $provider = $this->resolver->resolve($providerName);
-
-        $result = $provider->runScenario($scenario, $phrase, $model);
-
-        return $this->mapToDto($result, $phrase);
+        return $this->fallback->analyze($phrase);
     }
 
     /**
@@ -379,66 +359,6 @@ class ClarifyUserHelpRequestService implements AiProvider
                 $organization,
             ),
             producer: 'laravel_ai_sdk',
-        );
-    }
-
-    private function mapToDto(array $result, string $originalPhrase = ''): AssistedInteractionLabResult
-    {
-        $confidence = (float) ($result['confidence'] ?? 0.0);
-        $needsHumanReview = (bool) ($result['needs_human_review'] ?? true);
-        $questions = $result['questions_for_user'] ?? [];
-
-        $fallbackNeeded = $needsHumanReview || $confidence < 0.65 || ! empty($questions);
-
-        $reason = null;
-
-        if ($fallbackNeeded) {
-            if ($needsHumanReview) {
-                $reason = 'La demande nécessite une relecture humaine avant publication.';
-            } elseif (! empty($questions)) {
-                $reason = 'Des questions de clarification sont nécessaires pour préciser la demande.';
-            } else {
-                $reason = 'Confiance insuffisante pour générer un brouillon publiable.';
-            }
-        }
-
-        $helpType = $result['help_type'] ?? 'other';
-
-        return new AssistedInteractionLabResult(
-            intent: $helpType === 'service_offer' ? 'offer' : 'help_request',
-            confidence: $confidence,
-            title: $result['title'] ?? 'Nouvelle demande',
-            need: $result['clarified_request'] ?? ($result['publishable_draft'] ?? ''),
-            context: '',
-            expectedHelpType: $this->mapHelpType($helpType),
-            deadline: ['has_deadline' => false, 'label' => null, 'date' => null],
-            suggestedLoop: isset($result['suggested_loop']) && $result['suggested_loop'] !== ''
-                ? ['id' => null, 'label' => $result['suggested_loop'], 'reason' => 'Suggéré par l\'analyse IA']
-                : null,
-            tone: [
-                'label' => 'clair et structuré',
-                'rationale' => 'Généré par clarification IA',
-            ],
-            messageDraft: $result['publishable_draft'] ?? ($result['clarified_request'] ?? null),
-            fallback: [
-                'needed' => $fallbackNeeded,
-                'reason' => $reason,
-                'questions' => $questions,
-            ],
-            humanValidation: [
-                'required' => $fallbackNeeded,
-                'primary_label' => $fallbackNeeded ? 'Modifier la demande' : 'Valider la preview',
-                'secondary_label' => $fallbackNeeded ? 'Reformuler' : 'Modifier le brouillon',
-            ],
-            safety: [
-                'contains_sensitive_data' => false,
-                'needs_human_review' => $needsHumanReview,
-                'blocked' => false,
-            ],
-            scenario: 'clarify_help_request',
-            scenarioLabel: 'Clarification de demande d\'aide',
-            originalPhrase: $originalPhrase,
-            producer: 'legacy_provider',
         );
     }
 

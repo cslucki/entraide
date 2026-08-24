@@ -343,12 +343,12 @@ class TASK1229UserAiCreditTest extends TestCase
         $ledgerBefore = AiProviderInvocation::query()->count();
 
         // Chemin RAG : l'embedding de requete est EMIS malgre le credit epuise.
-        app(DossierSemanticSearchService::class)->searchAcrossDossiers((string) $this->orgA->id, [(string) $this->dossier->id], 'une question', 3);
+        app(DossierSemanticSearchService::class)->searchAcrossDossiers((string) $this->orgA->id, [(string) $this->dossier->id], 'une question', 'openrouter', 3);
         $this->assertSame($ledgerBefore + 1, AiProviderInvocation::query()->count());
 
         // Chemin DIRECT : refuse avec le code credit, rien d'emis.
         try {
-            app(DossierSemanticSearchService::class)->search((string) $this->orgA->id, (string) $this->dossier->id, 'une question');
+            app(DossierSemanticSearchService::class)->search((string) $this->orgA->id, (string) $this->dossier->id, 'une question', 'openrouter');
             $this->fail('Expected a credit refusal on the direct path.');
         } catch (AiRefusedException $exception) {
             $this->assertSame(AiRefusedException::CODE_USER_CREDIT_EXHAUSTED, $exception->refusalCode);
@@ -940,9 +940,9 @@ class Task1229FakeSearch extends DossierSemanticSearchService
 
     public function __construct() {}
 
-    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, int $limit = 5, ?string $embeddingInstance = null, array $traceMetadata = []): array
+    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = []): array
     {
-        $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'limit', 'embeddingInstance', 'traceMetadata');
+        $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'embeddingInstance', 'limit', 'traceMetadata');
 
         return array_slice($this->rows, 0, $limit);
     }

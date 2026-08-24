@@ -21,8 +21,16 @@ class DossierChunkEmbeddingService
      * (celle qui porte le credential de l'Organization, voir ProviderResolver).
      * Le `provider` renvoye reste la famille configuree pour l'index : c'est
      * elle qui est comparee a `dossier_chunks.embedding_provider`.
+     *
+     * TASK-1283 : `$instance` est OBLIGATOIRE et non nullable. La doctrine
+     * TASK-1225 interdit tout repli sur le credential PLATEFORME : quand
+     * `$instance` etait optionnelle, un appelant qui l'oubliait faisait
+     * partir l'embedding sur la famille plateforme, silencieusement. Ce repli
+     * n'existe plus par construction — le test d'architecture
+     * AiEconomicAuthorityIsolationTest rougit si la signature redevient
+     * nullable.
      */
-    public function embed(array $texts, ?string $instance = null): array
+    public function embed(array $texts, string $instance): array
     {
         $provider = $this->configuredProvider();
         $model = $this->configuredModel($provider);
@@ -42,14 +50,14 @@ class DossierChunkEmbeddingService
         try {
             $response = Embeddings::for($texts)
                 ->dimensions($dimensions)
-                ->generate($instance ?? $provider, $model);
+                ->generate($instance, $model);
         } catch (Throwable $exception) {
             // TASK-1200 : le SDK ne dispatche aucun événement d'échec (voir
             // RecordSdkEmbeddingsInvocation). C'est le seul endroit qui peut
             // observer un échec réel, donc le seul qui peut l'enregistrer —
             // sans jamais changer le comportement fonctionnel : on relance
             // exactement l'exception d'origine, inchangée.
-            RecordSdkEmbeddingsInvocation::recordFailure($provider, $model, $instance ?? $provider);
+            RecordSdkEmbeddingsInvocation::recordFailure($provider, $model, $instance);
 
             throw $exception;
         }
@@ -67,7 +75,7 @@ class DossierChunkEmbeddingService
         }
 
         return [
-            'provider' => $instance !== null ? $provider : ($response->meta->provider ?: $provider),
+            'provider' => $provider,
             'model' => $response->meta->model ?: $model,
             'dimensions' => $dimensions,
             'embeddings' => $embeddings,

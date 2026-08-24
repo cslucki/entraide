@@ -56,7 +56,7 @@ class DossierSemanticSearchController extends Controller
                 return response()->json(['code' => 'semantic_search_unavailable'], 503);
             }
 
-            $results = $search->search($organization->id, $dossier->id, $validated['query'], 5, $embeddingInstance);
+            $results = $search->search($organization->id, $dossier->id, $validated['query'], $embeddingInstance, 5);
         } catch (AiRefusedException $exception) {
             // TASK-1229 : refus economique AVANT tout appel (credit utilisateur
             // epuise / budget Organization atteint), dit avec son code — jamais

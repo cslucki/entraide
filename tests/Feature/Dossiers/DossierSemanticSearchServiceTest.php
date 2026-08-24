@@ -25,6 +25,7 @@ class DossierSemanticSearchServiceTest extends TestCase
             '11111111-1111-4111-8111-111111111111',
             '22222222-2222-4222-8222-222222222222',
             '   ',
+            'openai',
         );
     }
 
@@ -39,6 +40,7 @@ class DossierSemanticSearchServiceTest extends TestCase
             '11111111-1111-4111-8111-111111111111',
             '22222222-2222-4222-8222-222222222222',
             'query',
+            'openai',
             6,
         );
     }
@@ -49,7 +51,7 @@ class DossierSemanticSearchServiceTest extends TestCase
         config()->set('ai.dossiers.semantic_search.enabled', false);
         Embeddings::fake()->preventStrayEmbeddings();
 
-        $result = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'query');
+        $result = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'query', 'openai');
 
         $this->assertSame([], $result);
         Embeddings::assertNothingGenerated();
@@ -61,7 +63,7 @@ class DossierSemanticSearchServiceTest extends TestCase
         $this->enableGate('00000000-0000-4000-8000-000000000000');
         Embeddings::fake()->preventStrayEmbeddings();
 
-        $result = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'query');
+        $result = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'query', 'openai');
 
         $this->assertSame([], $result);
         Embeddings::assertNothingGenerated();
@@ -77,6 +79,7 @@ class DossierSemanticSearchServiceTest extends TestCase
             $organization->id,
             '22222222-2222-4222-8222-222222222222',
             'query',
+            'openai',
         );
 
         $this->assertSame([], $result);
@@ -90,7 +93,7 @@ class DossierSemanticSearchServiceTest extends TestCase
         $this->enableGate($organization->id);
         Embeddings::fake()->preventStrayEmbeddings();
 
-        $result = app(DossierSemanticSearchService::class)->search($organization->id, $otherDossier->id, 'query');
+        $result = app(DossierSemanticSearchService::class)->search($organization->id, $otherDossier->id, 'query', 'openai');
 
         $this->assertSame([], $result);
         Embeddings::assertNothingGenerated();
@@ -111,7 +114,7 @@ class DossierSemanticSearchServiceTest extends TestCase
         $this->expectExceptionMessage('Dossier semantic search requires PostgreSQL pgvector.');
 
         try {
-            app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'query');
+            app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'query', 'openai');
         } finally {
             Embeddings::assertNothingGenerated();
         }

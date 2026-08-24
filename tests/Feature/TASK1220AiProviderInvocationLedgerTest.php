@@ -508,8 +508,8 @@ class TASK1220AiProviderInvocationLedgerTest extends TestCase
             (string) $this->organization->id,
             [(string) $dossier->id],
             'que contient ce dossier ?',
-            3,
             $instance,
+            3,
             ['capability' => 'loop_knowledge_answer'],
         );
 
