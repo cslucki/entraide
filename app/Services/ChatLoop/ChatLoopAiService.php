@@ -101,7 +101,10 @@ class ChatLoopAiService
                 $message = LoopMessage::create([
                     'loop_id' => $loop->id,
                     'sender_id' => null,
-                    'reply_to_id' => null,
+                    // TASK-1297 : le meme lien que ask() — la reponse pointe le
+                    // message humain qui l'a declenchee (nullable : contexte
+                    // sans message non-IA).
+                    'reply_to_id' => $generated['trigger_message_id'],
                     'body' => $answer,
                     'image_path' => null,
                     'type' => 'ai',

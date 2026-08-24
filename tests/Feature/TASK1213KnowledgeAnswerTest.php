@@ -34,7 +34,9 @@ use Tests\TestCase;
  * Le moteur pgvector est remplace ici par un double du service de recherche
  * (le SQL reel est couvert par PgvectorDossierRetrievalSourceTest, PostgreSQL
  * uniquement). Ces tests verifient le PERIMETRE (tenant, permissions, top-k),
- * la provenance, les citations, la degradation et le read-only.
+ * la provenance, les citations, la degradation et — depuis TASK-1297 — la
+ * persistance de l'echange dans le fil (l'ancien contrat read-only de
+ * TASK-1213 est consciemment remplace).
  */
 class TASK1213KnowledgeAnswerTest extends TestCase
 {
@@ -190,7 +192,7 @@ class TASK1213KnowledgeAnswerTest extends TestCase
     }
 
     // =====================================================================
-    // Service : reponse, citations, degradation, read-only
+    // Service : reponse, citations, degradation, persistance
     // =====================================================================
 
     public function test_a_question_gets_a_grounded_answer_with_cited_sources_and_a_trace(): void
@@ -322,10 +324,17 @@ class TASK1213KnowledgeAnswerTest extends TestCase
     }
 
     // =====================================================================
-    // Surface HTTP : read-only, tenant, membership
+    // Surface HTTP : persistance, tenant, membership
     // =====================================================================
 
-    public function test_the_endpoint_answers_members_in_json_and_writes_nothing(): void
+    /**
+     * TASK-1297 : le chemin knowledge n'est PLUS read-only. L'ancien contrat
+     * (TASK-1213 : « aucun LoopMessage ») est consciemment remplacé : la
+     * question du membre est publiée (type `user`) puis la réponse documentaire
+     * liée (type `ai`, `reply_to_id`), sur le modèle exact de
+     * `ChatLoopAiService::ask()` (TASK-1233).
+     */
+    public function test_the_endpoint_answers_members_in_json_and_persists_the_exchange(): void
     {
         $this->search->rows = [$this->row('A', $this->visibleDossier)];
         $this->fakeAgent('Réponse sourcée [S1].');
@@ -343,7 +352,40 @@ class TASK1213KnowledgeAnswerTest extends TestCase
             ->assertJsonPath('sources.0.dossier_name', 'Dossier partagé')
             ->assertJsonMissingPath('sources.0.chunk_id');
         $this->assertStringContainsString('[S1]', $response->json('answer'));
-        $this->assertSame($messagesBefore, LoopMessage::count());
+
+        $this->assertSame($messagesBefore + 2, LoopMessage::count());
+
+        $questionMessage = LoopMessage::query()
+            ->where('loop_id', $this->loop->id)
+            ->where('type', 'user')
+            ->where('body', 'Que doit contenir une installation itinérante ?')
+            ->firstOrFail();
+        $this->assertSame($this->member->id, $questionMessage->sender_id);
+        $this->assertSame($this->organization->id, $questionMessage->organization_id);
+        $this->assertTrue((bool) ($questionMessage->metadata['asked_knowledge_question'] ?? false));
+
+        $aiMessage = LoopMessage::query()
+            ->where('loop_id', $this->loop->id)
+            ->where('type', 'ai')
+            ->firstOrFail();
+        $this->assertNull($aiMessage->sender_id);
+        $this->assertSame($this->organization->id, $aiMessage->organization_id);
+        $this->assertSame($questionMessage->id, $aiMessage->reply_to_id);
+        $this->assertStringContainsString('[S1]', $aiMessage->body);
+
+        $metadata = $aiMessage->metadata;
+        $this->assertSame($this->member->id, $metadata['requested_by']);
+        $this->assertSame('knowledge', $metadata['action']);
+        $this->assertSame('Que doit contenir une installation itinérante ?', $metadata['question']);
+        $this->assertTrue($metadata['grounded']);
+        // Les sources vont en metadata (forme publique, jamais de chunk_id),
+        // le corps reste le texte lisible.
+        $this->assertSame(['S1'], array_column($metadata['sources'], 'ref'));
+        $this->assertArrayNotHasKey('chunk_id', $metadata['sources'][0]);
+        $this->assertSame('openrouter', $metadata['provider']);
+        $this->assertSame('openai/gpt-4o-mini', $metadata['model']);
+        $this->assertSame(AiInteraction::firstOrFail()->id, $metadata['ai_interaction_id']);
+
         $this->assertDatabaseCount('service_requests', 0);
     }
 

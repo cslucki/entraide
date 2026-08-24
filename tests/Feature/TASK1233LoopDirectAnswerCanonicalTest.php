@@ -172,7 +172,11 @@ class TASK1233LoopDirectAnswerCanonicalTest extends TestCase
         $message = $this->service()->answer($this->loop, $this->member);
 
         $this->assertSame('answer', $message->metadata['action']);
-        $this->assertNull($message->reply_to_id);
+        // TASK-1297 : answer() pose desormais le meme lien que ask() — la
+        // reponse pointe le declencheur retenu par le Context Builder
+        // (l'ancien contrat reply_to_id null est consciemment remplace).
+        $this->assertSame($message->metadata['trigger_message_id'], $message->reply_to_id);
+        $this->assertNotNull($message->reply_to_id);
         LoopDirectAnswerAgent::assertPrompted(function (AgentPrompt $prompt): bool {
             $instructions = (string) $prompt->agent->instructions();
             $this->assertStringContainsString('Capability: loop_answer', $instructions);

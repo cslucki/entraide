@@ -11,10 +11,12 @@ use App\Ai\ContexteIa;
 use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
 use App\Ai\ResolvedModel;
+use App\Events\LoopMessageCreated;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
 use App\Models\Loop;
 use App\Models\LoopMember;
+use App\Models\LoopMessage;
 use App\Models\User;
 use App\Services\Ai\DTO\KnowledgeAnswer;
 use App\Support\Ai\AiCorrelation;
@@ -24,6 +26,7 @@ use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiUsage;
 use DomainException;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
@@ -41,7 +44,14 @@ use RuntimeException;
  *    la reponse et ne retient comme sources citees que les references [Sn]
  *    reellement fournies.
  *
- * Read-only : aucun LoopMessage, aucun objet metier, une seule trace P1.
+ * TASK-1297 : le chemin n'est PLUS read-only. L'echange est publie dans le
+ * fil de la Boucle sur le modele exact de ChatLoopAiService::ask() : la
+ * question du membre (type `user`, si `ai.knowledge.publish_question` —
+ * reversible en une ligne) puis la reponse documentaire liee (type `ai`,
+ * `reply_to_id`, sources publiques en metadata). Rien n'est publie quand rien
+ * n'a coute : pas de sources -> aucun appel, aucune interaction, aucun
+ * message ; echec provider ou reponse vide -> aucun message, la trace seule.
+ * Aucun autre objet metier, une seule trace P1.
  */
 class LoopKnowledgeAnswerService
 {
@@ -181,9 +191,13 @@ class LoopKnowledgeAnswerService
             $answer, $usage, $cost->traceAttributes(), $cost, 'success', $startedAt, $response->invocationId, null,
             $consulted, $cited, $doctrineVersion);
 
+        $sources = $cited !== [] ? $cited : $consulted;
+
+        $this->publishExchange($loop, $requester, $question, $answer, $resolved, $interaction, $cited, $sources);
+
         return new KnowledgeAnswer(
             answer: $answer,
-            sources: $cited !== [] ? $cited : $consulted,
+            sources: $sources,
             consulted: $consulted,
             grounded: $cited !== [],
             interactionId: $interaction->id,
@@ -192,6 +206,73 @@ class LoopKnowledgeAnswerService
             // ete bloquee.
             credit: $this->economicGuard->userCreditStatus($organization, $requester),
         );
+    }
+
+    /**
+     * TASK-1297 : publication de l'echange dans le fil, calquee sur
+     * ChatLoopAiService::ask() — la question du membre (type `user`) puis la
+     * reponse (type `ai`) liee par `reply_to_id`, sender_id null,
+     * organization_id de la Boucle, sources publiques et provenance en
+     * metadata. N'est appelee QU'APRES une generation reussie et sa trace :
+     * un refus, un echec provider ou une reponse vide n'arrivent jamais ici.
+     *
+     * @param  list<array<string, mixed>>  $cited
+     * @param  list<array<string, mixed>>  $sources
+     */
+    private function publishExchange(
+        Loop $loop,
+        User $requester,
+        string $question,
+        string $answer,
+        ResolvedModel $resolved,
+        AiInteraction $interaction,
+        array $cited,
+        array $sources,
+    ): void {
+        DB::transaction(function () use ($loop, $requester, $question, $answer, $resolved, $interaction, $cited, $sources): void {
+            $questionMessage = null;
+
+            // La ligne de reversibilite (gouvernance 24/08) : false = seule la
+            // reponse est publiee, la question restant en metadata.
+            if ((bool) config('ai.knowledge.publish_question', true)) {
+                $questionMessage = LoopMessage::create([
+                    'loop_id' => $loop->id,
+                    'sender_id' => $requester->id,
+                    'reply_to_id' => null,
+                    'body' => $question,
+                    'image_path' => null,
+                    'type' => 'user',
+                    'metadata' => [
+                        'asked_knowledge_question' => true,
+                    ],
+                    'organization_id' => $loop->organization_id,
+                ]);
+            }
+
+            $message = LoopMessage::create([
+                'loop_id' => $loop->id,
+                'sender_id' => null,
+                'reply_to_id' => $questionMessage?->id,
+                'body' => $answer,
+                'image_path' => null,
+                'type' => 'ai',
+                'metadata' => [
+                    'requested_by' => $requester->id,
+                    'action' => 'knowledge',
+                    'question' => $question,
+                    'grounded' => $cited !== [],
+                    'sources' => array_map(KnowledgeAnswer::publicSource(...), $sources),
+                    'provider' => $resolved->provider,
+                    'model' => $resolved->model,
+                    'ai_interaction_id' => $interaction->id,
+                ],
+                'organization_id' => $loop->organization_id,
+            ]);
+
+            event(new LoopMessageCreated($message));
+
+            $loop->touch();
+        });
     }
 
     /**
