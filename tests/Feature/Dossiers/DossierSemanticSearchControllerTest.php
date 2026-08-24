@@ -149,6 +149,61 @@ class DossierSemanticSearchControllerTest extends TestCase
             ]);
     }
 
+    public function test_previewable_file_result_receives_a_preview_citation_url(): void
+    {
+        // TASK-1296 : URL honnete — un fichier previewable (ici le cas reel
+        // du symptome, un `.md` stocke en text/plain) porte la route
+        // d'apercu (`files.preview`, Content-Disposition inline), pas la
+        // route de telechargement.
+        [$organization, $owner, $dossier] = $this->fixture();
+
+        $result = $this->fileResult('file-uuid-1', 'notes.md', 2, 'Passage', 0.234, 'text/plain');
+
+        $this->mockSearchService()
+            ->shouldReceive('search')
+            ->once()
+            ->andReturn([$result]);
+
+        $this->withoutExceptionHandling()
+            ->actingAs($owner)
+            ->getJson($this->searchUrl($organization, $dossier, ['query' => 'needle']))
+            ->assertOk()
+            ->assertJsonPath('data.0.citation_url', route('organization.dossiers.files.preview', [
+                'organization' => $organization,
+                'dossier' => $dossier,
+                'file' => 'file-uuid-1',
+            ]));
+    }
+
+    public function test_non_previewable_file_result_keeps_the_download_citation_url(): void
+    {
+        [$organization, $owner, $dossier] = $this->fixture();
+
+        $result = $this->fileResult(
+            'file-uuid-2',
+            'rapport.docx',
+            0,
+            'Passage',
+            0.3,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        );
+
+        $this->mockSearchService()
+            ->shouldReceive('search')
+            ->once()
+            ->andReturn([$result]);
+
+        $this->withoutExceptionHandling()
+            ->actingAs($owner)
+            ->getJson($this->searchUrl($organization, $dossier, ['query' => 'needle']))
+            ->assertOk()
+            ->assertJsonPath('data.0.citation_url', route('organization.dossiers.files.show', [
+                'organization' => $organization,
+                'dossier' => $dossier,
+                'file' => 'file-uuid-2',
+            ]));
+    }
+
     public function test_dossier_editor_member_can_search(): void
     {
         [$organization, $owner, $dossier] = $this->fixture();
@@ -307,7 +362,7 @@ class DossierSemanticSearchControllerTest extends TestCase
      *
      * @return array<string, mixed>
      */
-    private function fileResult(string $fileId, string $filename, int $chunkIndex, string $content, float $distance): array
+    private function fileResult(string $fileId, string $filename, int $chunkIndex, string $content, float $distance, string $mimeType = 'text/markdown'): array
     {
         return [
             'source_type' => 'file',
@@ -316,7 +371,7 @@ class DossierSemanticSearchControllerTest extends TestCase
             'slug' => null,
             'dossier_file_id' => $fileId,
             'filename' => $filename,
-            'mime_type' => 'text/markdown',
+            'mime_type' => $mimeType,
             'chunk_index' => $chunkIndex,
             'content' => $content,
             'distance' => $distance,
