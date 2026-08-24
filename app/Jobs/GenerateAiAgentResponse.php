@@ -156,7 +156,7 @@ class GenerateAiAgentResponse implements ShouldQueue
             'loop_id' => $this->loop->id,
             'sender_id' => $profile->user_id,
             'body' => $result['response'],
-            'type' => 'user',
+            'type' => 'member_agent',
             'metadata' => ['ai_generated' => true],
             'organization_id' => $this->loop->organization_id,
         ]);

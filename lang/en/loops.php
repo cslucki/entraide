@@ -12,6 +12,8 @@ return [
     'empty' => 'You do not have any loops yet.',
     'create_first' => 'Create your first loop',
     'type_system' => 'System',
+    'member_agent_author' => 'Agent of :name',
+    'member_agent_author_anonymous' => "A member's agent",
     'type_custom' => 'Custom',
     'back_home' => 'Back to home',
     'back_to_loops' => 'Back to loops',
