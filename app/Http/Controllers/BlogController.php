@@ -723,12 +723,37 @@ class BlogController extends Controller implements HasMiddleware
 
             if ($request->has('post_id') && $request->filled('post_id')) {
                 $post = $this->resolveBlogPost($request->input('post_id'), $user);
-            } else {
+            }
+
+            // TASK-1288 : sans article PERSISTE — flux creation des deux modes,
+            // ou `post_id` inconnu que `resolveBlogPost()` transforme en article
+            // temporaire — le tenant de tout ce qui suit (l'article cree,
+            // l'appel provider, la ligne de ledger : `BlogAiService::tenantOf()`)
+            // est l'Organization RESOLUE. Sur la surface courte, c'est
+            // l'Organization PAR DEFAUT, quel que soit l'utilisateur connecte
+            // (`ResolveUrlOrganization` ne consulte jamais Auth pour /blog) ;
+            // sur la surface prefixee, celle de l'URL. Un article existant est
+            // deja garde par `checkPostAccess()` (tenant + policy `update`) ;
+            // ici, rien ne l'etait : un membre d'une AUTRE Organization
+            // creait un article et debitait le budget IA de celle-ci.
+            // Meme regle que partout ailleurs (ProfileController,
+            // ReportController, LoopEventAgendaController, CreateFeedPost) :
+            // on n'ecrit ni ne depense dans l'Organization d'un autre. Le refus
+            // vient AVANT toute ecriture et AVANT tout appel — rien n'est cree,
+            // rien ne part, rien n'est inscrit au ledger — et prend la forme
+            // des autres refus fonctionnels de ce controleur (`ai_disabled`).
+            $organizationId = currentOrganization()?->id ?? $user->organization_id;
+
+            if (($post === null || ! $post->exists) && $user->organization_id !== $organizationId) {
+                return response()->json(['error' => __('blog.ai_cross_org')], 403);
+            }
+
+            if ($post === null) {
                 if ($mode !== 'generate') {
                     $request->validate(['content' => 'required|string|min:10']);
                     $post = new BlogPost;
                     $post->id = (string) Str::uuid();
-                    $post->organization_id = currentOrganization()?->id ?? $user->organization_id;
+                    $post->organization_id = $organizationId;
                     $post->user_id = $user->id;
                     $post->content = $request->input('content');
                 } else {
@@ -736,15 +761,13 @@ class BlogController extends Controller implements HasMiddleware
                         return response()->json(['error' => __('blog.ai_need_title_summary')], 422);
                     }
 
-                    $orgId = currentOrganization()?->id ?? $user->organization_id;
-
-                    if (! Category::where('id', $request->input('category_id'))->where('organization_id', $orgId)->exists()) {
+                    if (! Category::where('id', $request->input('category_id'))->where('organization_id', $organizationId)->exists()) {
                         return response()->json(['error' => __('blog.validation_category_invalid')], 422);
                     }
 
                     $post = BlogPost::create([
                         'user_id' => $user->id,
-                        'organization_id' => $orgId,
+                        'organization_id' => $organizationId,
                         'title' => $title,
                         'summary' => $summary,
                         'content' => '<p></p>',
