@@ -51,6 +51,24 @@ final class CapabilityRegistry
 
     public const LOOP_ASK = 'loop_ask';
 
+    /**
+     * TASK-1284 (BLOC E) : les deux fonctions IA de l'editeur de Blog,
+     * ex-chemin herite `blog_ai` (BlogAiService::generate / ::correct).
+     * Memes identifiants de feature et de process qu'avant la migration :
+     * la garde economique et le ledger ne bougent pas d'un octet.
+     */
+    public const BLOG_GENERATE = 'blog_generate';
+
+    public const BLOG_CORRECT = 'blog_correct';
+
+    /**
+     * TASK-1284 : le materiau de l'article de Blog — l'etat vivant de
+     * l'editeur, fourni par l'appelant via `ContexteIa::$material` (jamais
+     * relu en base : un article en cours de correction peut ne pas etre
+     * persiste). Reservee aux capabilities du Blog.
+     */
+    public const SOURCE_BLOG_POST = 'blog.post';
+
     /** @var array<string, CapabilityDefinition> */
     private array $definitions;
 
@@ -130,12 +148,43 @@ final class CapabilityRegistry
             contextCharBudget: self::loopSummaryContextBudget(),
         );
 
+        // TASK-1284 : la generation ecrit l'article en brouillon dans le flux
+        // de creation (`BlogController::handleAi()`, sans validation humaine
+        // supplementaire) : `canWrite = true`, declare tel quel — comportement
+        // historique. La correction ne fait que proposer un texte que
+        // l'utilisateur applique lui-meme : `canWrite = false`.
+        $blogGenerate = new CapabilityDefinition(
+            id: self::BLOG_GENERATE,
+            process: AiProcess::fromFeature('blog_generate'),
+            requiresHumanConfirmation: false,
+            canWrite: true,
+            allowedScopes: [self::SCOPE_ORGANIZATION],
+            allowedSources: [self::SOURCE_BLOG_POST],
+            maxOutput: 8000,
+            promptKey: 'blog_generate',
+            contextCharBudget: self::blogContextBudget(),
+        );
+
+        $blogCorrect = new CapabilityDefinition(
+            id: self::BLOG_CORRECT,
+            process: AiProcess::fromFeature('blog_correct'),
+            requiresHumanConfirmation: false,
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION],
+            allowedSources: [self::SOURCE_BLOG_POST],
+            maxOutput: 8000,
+            promptKey: 'blog_correct',
+            contextCharBudget: self::blogContextBudget(),
+        );
+
         $this->definitions = [
             $loopSummary->id => $loopSummary,
             $clarifyHelpRequest->id => $clarifyHelpRequest,
             $loopKnowledgeAnswer->id => $loopKnowledgeAnswer,
             $loopAnswer->id => $loopAnswer,
             $loopAsk->id => $loopAsk,
+            $blogGenerate->id => $blogGenerate,
+            $blogCorrect->id => $blogCorrect,
         ];
     }
 
@@ -190,6 +239,22 @@ final class CapabilityRegistry
         }
 
         return (int) config('ai.knowledge.max_context_chars', $default);
+    }
+
+    /**
+     * Budget de contexte des capabilities Blog : le materiau est l'article
+     * lui-meme, et la source `blog.post` laisse toujours passer sa premiere
+     * unite en entier — ce plafond ne borne que les unites suivantes.
+     */
+    private static function blogContextBudget(): int
+    {
+        $default = 60000;
+
+        if (! function_exists('app') || ! app()->bound('config')) {
+            return $default;
+        }
+
+        return (int) config('ai.blog.max_context_chars', $default);
     }
 
     public function has(string $capability): bool

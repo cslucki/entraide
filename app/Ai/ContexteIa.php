@@ -45,6 +45,19 @@ final class ContexteIa
          * distingue. NULL = la capability elle-meme.
          */
         public readonly ?string $feature = null,
+        /**
+         * TASK-1284 : le MATERIAU de l'operation — du texte que l'appelant a
+         * DEJA autorise et fourni (Blog : titre/resume a developper, contenu
+         * a corriger, y compris l'etat vivant de l'editeur non persiste).
+         * Cle stable -> texte brut. Meme statut que `query` (TASK-1213) :
+         * une donnee de l'operation portee par le contexte, jamais un modele
+         * Eloquent, jamais un contenu d'un autre tenant, jamais un secret.
+         * Seules les sources declarees par la capability le lisent, et elles
+         * le bornent et le delimitent comme tout contenu non fiable.
+         *
+         * @var array<string, string>
+         */
+        public readonly array $material = [],
     ) {
         if (! self::isUuid($organizationId)) {
             throw new InvalidArgumentException('An AI context requires a valid organization ID.');
@@ -72,6 +85,12 @@ final class ContexteIa
 
         if ($source !== null && trim($source) === '') {
             throw new InvalidArgumentException('The AI context source cannot be empty when provided.');
+        }
+
+        foreach ($material as $key => $text) {
+            if (! is_string($key) || trim($key) === '' || ! is_string($text)) {
+                throw new InvalidArgumentException('The AI context material must map non-empty string keys to strings.');
+            }
         }
     }
 
