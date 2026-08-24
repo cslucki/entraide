@@ -73,13 +73,17 @@ class TASK1213KnowledgeAnswerTest extends TestCase
 
         app()->instance('current_organization', $this->organization);
 
-        // Un Dossier visible de toute l'Organization, un Dossier prive d'un
-        // autre membre, un Dossier d'un autre tenant.
+        // Un Dossier d'un autre membre PARTAGE avec la Boucle (TASK-1294 : la
+        // question est posee depuis la Boucle, le perimetre est celui de la
+        // Boucle — un Dossier hors Boucle, meme visible de l'Organization,
+        // n'y entre plus), un Dossier prive d'un autre membre, un Dossier
+        // d'un autre tenant.
         $this->visibleDossier = Dossier::factory()->create([
             'organization_id' => $this->organization->id,
             'owner_id' => $this->otherMember->id,
             'name' => 'Dossier partagé',
-            'visibility' => Dossier::VISIBILITY_ORGANIZATION,
+            'visibility' => Dossier::VISIBILITY_LOOP,
+            'shared_with_loop_id' => $this->loop->id,
         ]);
         $this->privateDossier = Dossier::factory()->create([
             'organization_id' => $this->organization->id,

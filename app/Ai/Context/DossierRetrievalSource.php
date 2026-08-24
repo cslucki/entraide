@@ -5,12 +5,14 @@ namespace App\Ai\Context;
 use App\Ai\ContexteIa;
 use App\Ai\ProviderResolver;
 use App\Models\Dossier;
+use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Dossiers\DossierChunkEmbeddingService;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use DomainException;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 
@@ -28,6 +30,12 @@ use Illuminate\Support\Facades\Route;
  *   requete SQL du service borne chaque table jointe a ce tenant ;
  * - permission-safe : seuls les Dossiers autorises par `DossierPolicy::view`
  *   pour CET utilisateur entrent dans le perimetre AVANT la recherche ;
+ * - loop-scoped (TASK-1294) : une question posee DEPUIS une Boucle
+ *   (`$contexte->loopId`) ne cherche que dans les Dossiers de CETTE Boucle —
+ *   son Dossier racine, les Dossiers qui lui sont partages, et leurs enfants
+ *   (meme lecture que `DossierPolicy::view`, via `governingDossier()`). Sans
+ *   Boucle dans le contexte, le perimetre historique de l'Organization est
+ *   inchange ;
  * - credential P4 : l'embedding de la question passe par l'instance SDK de
  *   l'Organization (ProviderResolver) — jamais la cle plateforme. Si la famille
  *   du provider tenant differe de celle de l'index, la source est refusee
@@ -96,7 +104,18 @@ final class DossierRetrievalSource implements ContextSource
             throw new SourceDenied(self::NAME, SourceDenied::REASON_NO_USER_IN_CONTEXT);
         }
 
-        $dossierIds = $this->accessibleDossierIds($contexte->organizationId, $user);
+        // Meme garde que LoopMessagesSource : le contexte porte des
+        // identifiants deja autorises par l'appelant, mais une source ne fait
+        // jamais confiance sur parole — une Boucle d'une autre Organization
+        // ne definit aucun perimetre ici.
+        if ($contexte->loopId !== null && Loop::query()
+            ->whereKey($contexte->loopId)
+            ->where('organization_id', $contexte->organizationId)
+            ->doesntExist()) {
+            throw new SourceDenied(self::NAME, SourceDenied::REASON_LOOP_OUTSIDE_ORGANIZATION);
+        }
+
+        $dossierIds = $this->accessibleDossierIds($contexte->organizationId, $user, $contexte->loopId);
 
         if ($dossierIds === []) {
             throw new SourceDenied(self::NAME, self::REASON_NO_ACCESSIBLE_DOSSIER);
@@ -175,22 +194,104 @@ final class DossierRetrievalSource implements ContextSource
      * Les Dossiers de l'Organization que CET utilisateur peut voir — la
      * politique du produit (`DossierPolicy::view`), pas une regle locale.
      *
+     * Avec une Boucle dans le contexte (TASK-1294), le perimetre se resserre
+     * d'abord sur les Dossiers de CETTE Boucle ; la policy s'applique ensuite,
+     * inchangee, sur ce qui reste.
+     *
      * @return list<string>
      */
-    private function accessibleDossierIds(string $organizationId, User $user): array
+    private function accessibleDossierIds(string $organizationId, User $user, ?string $loopId): array
     {
         $gate = Gate::forUser($user);
 
-        return Dossier::query()
-            ->where('organization_id', $organizationId)
-            ->whereNull('deleted_at')
-            ->orderBy('created_at')
-            ->limit(self::MAX_CANDIDATE_DOSSIERS)
-            ->get()
-            ->filter(fn (Dossier $dossier): bool => $gate->allows('view', $dossier))
+        return $this->candidateDossiers($organizationId, $loopId)
+            ->filter(fn (Dossier $dossier): bool => ($loopId === null || $this->belongsToLoop($dossier, $loopId))
+                && $gate->allows('view', $dossier))
             ->map(fn (Dossier $dossier): string => (string) $dossier->id)
             ->values()
             ->all();
+    }
+
+    /**
+     * Les candidats sur lesquels le filtre s'exerce.
+     *
+     * Sans Boucle : les Dossiers de l'Organization sous le cap
+     * MAX_CANDIDATE_DOSSIERS — le comportement historique, inchange.
+     *
+     * Avec une Boucle (revue TASK-1294) : la restriction Boucle s'applique
+     * AVANT le cap, sinon une Boucle plus recente que les
+     * MAX_CANDIDATE_DOSSIERS premiers Dossiers de l'Organization (tri
+     * created_at) aurait un perimetre VIDE. Les racines liees a la Boucle se
+     * disent en SQL ; leurs enfants ne portent ni `loop_id` ni
+     * `shared_with_loop_id` (doctrine T1130) et se recuperent par descente
+     * `parent_id`, bornee par `Dossier::MAX_DEPTH` comme `governingDossier()`.
+     * La descente ne fait que GENERER des candidats : `belongsToLoop()` reste
+     * seul juge de l'appartenance, en aval.
+     *
+     * @return Collection<int, Dossier>
+     */
+    private function candidateDossiers(string $organizationId, ?string $loopId): Collection
+    {
+        $query = Dossier::query()
+            ->where('organization_id', $organizationId)
+            ->whereNull('deleted_at')
+            ->orderBy('created_at')
+            ->limit(self::MAX_CANDIDATE_DOSSIERS);
+
+        if ($loopId === null) {
+            return $query->get();
+        }
+
+        $candidates = $query->clone()
+            ->where(fn ($roots) => $roots
+                ->where('loop_id', $loopId)
+                ->orWhere(fn ($shared) => $shared
+                    ->where('shared_with_loop_id', $loopId)
+                    ->where('visibility', Dossier::VISIBILITY_LOOP)))
+            ->get();
+
+        $parentIds = $candidates->pluck('id');
+        $depth = 0;
+
+        while ($parentIds->isNotEmpty()
+            && $depth < Dossier::MAX_DEPTH
+            && $candidates->count() < self::MAX_CANDIDATE_DOSSIERS) {
+            $children = Dossier::query()
+                ->where('organization_id', $organizationId)
+                ->whereNull('deleted_at')
+                ->whereIn('parent_id', $parentIds)
+                ->orderBy('created_at')
+                ->limit(self::MAX_CANDIDATE_DOSSIERS - $candidates->count())
+                ->get();
+
+            $candidates = $candidates->concat($children);
+            $parentIds = $children->pluck('id');
+            $depth++;
+        }
+
+        // Un cycle parent_id (donnee corrompue) ne doit ni boucler — la borne
+        // ci-dessus — ni produire un doublon dans le perimetre.
+        return $candidates->unique('id')->values();
+    }
+
+    /**
+     * Le Dossier appartient-il a CETTE Boucle ? La meme lecture que
+     * `DossierPolicy::view` : un enfant ne porte ni `loop_id` ni
+     * `shared_with_loop_id`, la question se pose a sa racine gouvernante
+     * (doctrine T1130), qui n'a que deux manieres d'etre liee a une Boucle —
+     * etre SON Dossier racine, ou lui etre partagee (et le partage exige la
+     * visibilite ET la colonne, comme dans la policy).
+     */
+    private function belongsToLoop(Dossier $dossier, string $loopId): bool
+    {
+        $governing = $dossier->governingDossier();
+
+        if ($governing->isLoopDossier()) {
+            return (string) $governing->loop_id === $loopId;
+        }
+
+        return $governing->visibility === Dossier::VISIBILITY_LOOP
+            && (string) $governing->shared_with_loop_id === $loopId;
     }
 
     private function topK(): int

@@ -29,8 +29,9 @@ use Tests\TestCase;
 
 /**
  * TASK-1213 — la source `dossier.retrieval` sur le VRAI moteur pgvector :
- * perimetre intrinseque a la requete (Organization, Dossiers autorises), un
- * seul embedding de requete sur l'instance SDK du tenant, top-k et ordre.
+ * perimetre intrinseque a la requete (Organization, Dossiers autorises — et,
+ * depuis une Boucle, les Dossiers de CETTE Boucle, TASK-1294), un seul
+ * embedding de requete sur l'instance SDK du tenant, top-k et ordre.
  *
  * PostgreSQL uniquement : sous SQLite le test est ignore (pas d'entree
  * supplementaire dans la reference des echecs connus).
@@ -75,7 +76,10 @@ class PgvectorDossierRetrievalSourceTest extends TestCase
         Embeddings::fake(fn (EmbeddingsPrompt $prompt): array => array_map(fn (): array => $this->vector(0.0), $prompt->inputs))
             ->preventStrayEmbeddings();
 
-        $visible = $this->dossier($organization, $otherMember, Dossier::VISIBILITY_ORGANIZATION, 'Visible');
+        // La question est posee DEPUIS la Boucle (TASK-1294) : le Dossier
+        // eligible est celui partage avec elle ; un prive hors Boucle et un
+        // Dossier d'un autre tenant restent dehors.
+        $visible = $this->dossier($organization, $otherMember, Dossier::VISIBILITY_LOOP, 'Visible', $loop->id);
         $private = $this->dossier($organization, $otherMember, Dossier::VISIBILITY_PRIVATE, 'Privé');
         $foreign = $this->dossier($otherOrganization, $stranger, Dossier::VISIBILITY_ORGANIZATION, 'Étranger');
 
@@ -141,8 +145,9 @@ class PgvectorDossierRetrievalSourceTest extends TestCase
             return array_map(fn (): array => $this->vector(0.0), $prompt->inputs);
         })->preventStrayEmbeddings();
 
-        // Dossier accessible au demandeur (proprietaire), Article publie+attache.
-        $dossier = $this->dossier($organization, $owner, Dossier::VISIBILITY_PRIVATE, 'Ingestion e2e');
+        // Dossier du demandeur, partage avec la Boucle d'ou part la question
+        // (TASK-1294), Article publie+attache.
+        $dossier = $this->dossier($organization, $owner, Dossier::VISIBILITY_LOOP, 'Ingestion e2e', $loop->id);
         $post = BlogPost::create([
             'organization_id' => $organization->id,
             'user_id' => $owner->id,
@@ -220,7 +225,7 @@ class PgvectorDossierRetrievalSourceTest extends TestCase
             return array_map(fn (): array => $this->vector(0.0), $prompt->inputs);
         })->preventStrayEmbeddings();
 
-        $dossier = $this->dossier($organization, $owner, Dossier::VISIBILITY_PRIVATE, 'Ingestion fichier e2e');
+        $dossier = $this->dossier($organization, $owner, Dossier::VISIBILITY_LOOP, 'Ingestion fichier e2e', $loop->id);
         $content = 'The Orion Station has exactly 23 violet panels and its inspection takes place on Tuesday morning.';
         $path = 'dossier-files/'.$dossier->id.'/orion.txt';
         Storage::disk('dossier_files')->put($path, $content);
@@ -293,7 +298,7 @@ class PgvectorDossierRetrievalSourceTest extends TestCase
         Embeddings::fake(fn (EmbeddingsPrompt $prompt): array => array_map(fn (): array => $this->vector(0.0), $prompt->inputs))
             ->preventStrayEmbeddings();
 
-        $dossier = $this->dossier($organization, $owner, Dossier::VISIBILITY_PRIVATE, 'Mixte');
+        $dossier = $this->dossier($organization, $owner, Dossier::VISIBILITY_LOOP, 'Mixte', $loop->id);
 
         $post = BlogPost::create([
             'organization_id' => $organization->id,
@@ -429,13 +434,14 @@ class PgvectorDossierRetrievalSourceTest extends TestCase
         $this->assertCount(0, $resultsAcrossA);
     }
 
-    private function dossier(Organization $organization, User $owner, string $visibility, string $name): Dossier
+    private function dossier(Organization $organization, User $owner, string $visibility, string $name, ?string $sharedWithLoopId = null): Dossier
     {
         return Dossier::create([
             'organization_id' => $organization->id,
             'owner_id' => $owner->id,
             'name' => $name,
             'visibility' => $visibility,
+            'shared_with_loop_id' => $sharedWithLoopId,
         ]);
     }
 

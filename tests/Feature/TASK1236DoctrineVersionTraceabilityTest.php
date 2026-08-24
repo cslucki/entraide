@@ -163,10 +163,13 @@ class TASK1236DoctrineVersionTraceabilityTest extends TestCase
         OrganizationAiDoctrine::activate($this->organization, 'SENTINELLE-DOCTRINE-KNOWLEDGE', $this->admin);
 
         $search = new Task1236FakeSearch;
+        // TASK-1294 : la reponse part de la Boucle — le Dossier consulte doit
+        // appartenir a son perimetre, ici en lui etant partage.
         $dossier = Dossier::factory()->create([
             'organization_id' => $this->organization->id,
             'owner_id' => $this->member->id,
-            'visibility' => Dossier::VISIBILITY_ORGANIZATION,
+            'visibility' => Dossier::VISIBILITY_LOOP,
+            'shared_with_loop_id' => $this->loop->id,
         ]);
         $search->rows = [[
             'chunk_id' => (string) Str::uuid(),

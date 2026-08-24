@@ -210,7 +210,9 @@ class TASK1221NervousSystemConvergenceTest extends TestCase
 
         $this->enableSemanticGate($this->organization);
         $this->fakeEmbeddings();
-        [$dossier, $post] = $this->dossierFixture($this->organization, $this->owner);
+        // TASK-1294 : la question part de la Boucle — le corpus interroge
+        // doit appartenir a son perimetre, ici en lui etant partage.
+        [$dossier, $post] = $this->dossierFixture($this->organization, $this->owner, $this->loop);
 
         // 1. Ingestion reelle du corpus.
         app(DossierArticleIndexer::class)->synchronize($this->organization->id, $dossier->id, $post->id);
@@ -371,13 +373,14 @@ class TASK1221NervousSystemConvergenceTest extends TestCase
     /**
      * @return array{0: Dossier, 1: BlogPost}
      */
-    private function dossierFixture(Organization $organization, User $owner): array
+    private function dossierFixture(Organization $organization, User $owner, ?Loop $sharedWithLoop = null): array
     {
         $dossier = Dossier::create([
             'organization_id' => $organization->id,
             'owner_id' => $owner->id,
             'name' => 'TASK1221 dossier '.Str::uuid(),
-            'visibility' => Dossier::VISIBILITY_PRIVATE,
+            'visibility' => $sharedWithLoop !== null ? Dossier::VISIBILITY_LOOP : Dossier::VISIBILITY_PRIVATE,
+            'shared_with_loop_id' => $sharedWithLoop?->id,
         ]);
 
         $post = BlogPost::create([
