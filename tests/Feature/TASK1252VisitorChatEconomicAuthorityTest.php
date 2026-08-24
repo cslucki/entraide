@@ -145,6 +145,29 @@ class TASK1252VisitorChatEconomicAuthorityTest extends TestCase
         $this->knownSpend($organization, $spender, 'blog.article_generate', 'blog_generate');
     }
 
+    /**
+     * T1286 : depense connue au LEDGER canonique — l'autorite de generation
+     * des process converges. La garde par process ne lit plus
+     * `ai_interactions` pour eux.
+     */
+    private function knownLedgerSpend(Organization $organization, User $user, string $process, float $cost = 0.5): void
+    {
+        AiProviderInvocation::create([
+            'organization_id' => $organization->id,
+            'user_id' => $user->id,
+            'process' => $process,
+            'operation' => AiProviderInvocation::OPERATION_GENERATION,
+            'provider' => 'openrouter',
+            'model' => 'router/catalogued',
+            'credential_source' => AiProviderInvocation::CREDENTIAL_PLATFORM,
+            'provider_cost' => $cost,
+            'currency' => 'USD',
+            'cost_status' => AiProviderInvocation::COST_KNOWN,
+            'cost_source' => 'catalog_estimated',
+            'status' => AiProviderInvocation::STATUS_SUCCESS,
+        ]);
+    }
+
     private function knownSpend(Organization $organization, User $user, string $process, string $feature, float $cost = 0.5): void
     {
         AiInteraction::create([
@@ -560,13 +583,15 @@ class TASK1252VisitorChatEconomicAuthorityTest extends TestCase
         $component->set('question', 'Premiere question.')->call('sendMessage')->assertSet('errorCode', null);
         $this->assertSame(1, AiProviderInvocation::query()->count());
 
-        // La meme depense sur LE process de ce chemin : refus.
-        $this->knownSpend($this->tenant, $this->owner, 'member_profile.agent_visitor_chat', 'member_profile_agent_visitor_chat');
+        // La meme depense sur LE process de ce chemin : refus. T1286 : ce
+        // process a converge vers l'autorite ledger — la depense qui compte
+        // est une ligne LEDGER a cout connu, plus une trace registre.
+        $this->knownLedgerSpend($this->tenant, $this->owner, 'member_profile.agent_visitor_chat');
         $component->set('question', 'Deuxieme question.')->call('sendMessage')
             ->assertSet('errorCode', AiRefusedException::CODE_ORGANIZATION_BUDGET_REACHED);
 
         Http::assertSentCount(1);
-        $this->assertSame(1, AiProviderInvocation::query()->count(), 'Le refus n\'a rien ecrit de plus.');
+        $this->assertSame(2, AiProviderInvocation::query()->count(), 'Le refus n\'a rien ecrit de plus (1 succes + 1 fixture).');
     }
 
     public function test_a_missing_platform_key_is_refused_as_not_configured_before_any_call(): void

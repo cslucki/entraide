@@ -145,10 +145,11 @@ class TASK1260LedgerGuardAuthorityTest extends TestCase
             'monthly_budget_usd' => 2.00,
         ]);
 
-        // Grosse depense ledger d'une famille Supervision (hors
-        // LEDGER_AUTHORITY_PROCESSES) : le ledger la porte — c'est son role —
-        // mais l'autorite de la garde G11-b ne la lit pas.
-        $this->ledgerGeneration('member_profile.loop_agent_reply', 100.00, '2026-09-05 10:00:00');
+        // Grosse depense ledger d'une famille restee hors mapping (le banc
+        // test LLM — T1286 a migre les deux process agent de profil, le banc
+        // reste dehors) : le ledger la porte — c'est son role — mais
+        // l'autorite de la garde G11-b ne la lit pas.
+        $this->ledgerGeneration('member_profile.admin_llm_test', 100.00, '2026-09-05 10:00:00');
 
         // Ni sur le plafond Organization ni sur le verrou du process migre.
         $verdict = $this->authorize('chatloop.summarize');
@@ -157,7 +158,7 @@ class TASK1260LedgerGuardAuthorityTest extends TestCase
 
         // Ni sur le verrou par process de la famille elle-meme (sa voie
         // historique lit `ai_interactions`, ou elle n'ecrit jamais).
-        $verdict = $this->authorize('member_profile.loop_agent_reply');
+        $verdict = $this->authorize('member_profile.admin_llm_test');
         $this->assertTrue($verdict->allowed);
         $this->assertSame(0.0, $verdict->knownMonthlyCostUsd);
     }
@@ -168,11 +169,13 @@ class TASK1260LedgerGuardAuthorityTest extends TestCase
 
         // Post-cutover, une trace registre d'un process HORS liste compte
         // toujours : le cutover ne s'applique qu'au perimetre migre.
-        $this->interaction('member_profile.loop_agent_reply', 2.00, false, '2026-09-05 10:00:00');
+        // (T1286 : l'exemple etait `member_profile.loop_agent_reply`,
+        // desormais migre — le banc test LLM reste, lui, hors mapping.)
+        $this->interaction('member_profile.admin_llm_test', 2.00, false, '2026-09-05 10:00:00');
 
         $this->assertSame(
             AiEconomicGuard::REASON_MONTHLY_BUDGET_REACHED,
-            $this->authorize('member_profile.loop_agent_reply')->reason,
+            $this->authorize('member_profile.admin_llm_test')->reason,
         );
     }
 
