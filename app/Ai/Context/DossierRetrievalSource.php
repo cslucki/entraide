@@ -5,6 +5,7 @@ namespace App\Ai\Context;
 use App\Ai\ContexteIa;
 use App\Ai\ProviderResolver;
 use App\Models\Dossier;
+use App\Models\DossierFile;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
@@ -178,7 +179,7 @@ final class DossierRetrievalSource implements ContextSource
                 'distance' => round($row['distance'], 4),
                 'extrait' => mb_strimwidth($content, 0, 240, '…'),
                 'url' => $row['source_type'] === 'file'
-                    ? $this->fileUrl($organizationSlug, $row['dossier_id'], $row['dossier_file_id'])
+                    ? $this->fileUrl($organizationSlug, $row['dossier_id'], $row['dossier_file_id'], $row['mime_type'] ?? null)
                     : $this->articleUrl($organizationSlug, $row['slug']),
             ];
         }
@@ -312,13 +313,21 @@ final class DossierRetrievalSource implements ContextSource
         return Route::has('blog.show') ? route('blog.show', ['post' => $postSlug]) : null;
     }
 
-    private function fileUrl(?string $organizationSlug, string $dossierId, ?string $fileId): ?string
+    private function fileUrl(?string $organizationSlug, string $dossierId, ?string $fileId, ?string $mimeType): ?string
     {
-        if ($fileId === null || $organizationSlug === null || ! Route::has('organization.dossiers.files.show')) {
+        // TASK-1296 : URL honnete. Un fichier previewable s'ouvre en apercu
+        // (`files.preview`, Content-Disposition inline) ; les autres gardent
+        // le telechargement (`files.show`). Les deux routes portent les memes
+        // gardes, dans le meme ordre.
+        $routeName = DossierFile::isPreviewableMime($mimeType)
+            ? 'organization.dossiers.files.preview'
+            : 'organization.dossiers.files.show';
+
+        if ($fileId === null || $organizationSlug === null || ! Route::has($routeName)) {
             return null;
         }
 
-        return route('organization.dossiers.files.show', [
+        return route($routeName, [
             'organization' => $organizationSlug,
             'dossier' => $dossierId,
             'file' => $fileId,

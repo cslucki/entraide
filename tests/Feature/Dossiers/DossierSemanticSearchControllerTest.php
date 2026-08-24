@@ -95,7 +95,9 @@ class DossierSemanticSearchControllerTest extends TestCase
             ->assertExactJson([
                 'data' => [
                     $this->fileResult('file-uuid-1', 'contrat-2026.pdf', 2, 'Passage du contrat', 0.234) + [
-                        'citation_url' => route('organization.dossiers.files.show', [
+                        // TASK-1296 : text/markdown est previewable, la
+                        // citation porte donc la route d'apercu.
+                        'citation_url' => route('organization.dossiers.files.preview', [
                             'organization' => $organization,
                             'dossier' => $dossier,
                             'file' => 'file-uuid-1',
@@ -111,7 +113,14 @@ class DossierSemanticSearchControllerTest extends TestCase
 
         $article = $this->articleResult('post-uuid', 'Indexed article', 'indexed-article', 0, 'Relevant passage', 0.123);
         $fileA = $this->fileResult('file-uuid-a', 'notes.md', 0, 'Passage A', 0.2);
-        $fileB = $this->fileResult('file-uuid-b', 'rapport.docx', 0, 'Passage B', 0.3);
+        $fileB = $this->fileResult(
+            'file-uuid-b',
+            'rapport.docx',
+            0,
+            'Passage B',
+            0.3,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        );
 
         $this->mockSearchService()
             ->shouldReceive('search')
@@ -132,7 +141,9 @@ class DossierSemanticSearchControllerTest extends TestCase
                         ]),
                     ],
                     $fileA + [
-                        'citation_url' => route('organization.dossiers.files.show', [
+                        // TASK-1296 : previewable (text/markdown) => apercu ;
+                        // fileB (docx) garde le telechargement.
+                        'citation_url' => route('organization.dossiers.files.preview', [
                             'organization' => $organization,
                             'dossier' => $dossier,
                             'file' => 'file-uuid-a',
