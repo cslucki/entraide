@@ -210,6 +210,7 @@
                             :reaction-counts="$reactionData[$msg->id] ?? []"
                             :my-reaction="$myReactions[$msg->id] ?? null"
                             :reply-to="$msg->replyTo ? ['body' => $replyBody, 'sender_name' => $replySenderName] : null"
+                            :sources="$msg->metadata['sources'] ?? null"
                             is-ai="true"
                         >
                             {!! $msg->body !!}

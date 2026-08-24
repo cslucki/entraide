@@ -20,6 +20,7 @@
     'showReactions' => false,
     'reactionCounts' => [],
     'myReaction' => null,
+    'sources' => null,
 ])
 
 @php
@@ -190,6 +191,38 @@ $renderableBody = preg_replace_callback(
 
         @if($urlPreview)
             <x-conversation.url-preview-card :preview="$urlPreview" :is-sent="$isSent" />
+        @endif
+
+        {{-- TASK-1301 : sources d'une reponse IA, forme publique ecrite cote
+             serveur (publicSource, T1297) — l'URL est rendue TELLE QUELLE,
+             jamais re-derivee ici. title/dossier_name/excerpt sont du contenu
+             de document uploade : rendu ECHAPPE ({{ }}), jamais {!! !!}.
+             Presentation reprise du panneau knowledge de loops/show. --}}
+        @if($sources)
+        <div class="mt-2 border-t border-violet-200/70 dark:border-violet-800/70 pt-2" data-message-sources>
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{{ __('loops.knowledge_sources_title') }}</p>
+            <ul class="space-y-2">
+                @foreach($sources as $source)
+                <li class="rounded-lg border border-gray-200 dark:border-gray-700 p-2.5 text-xs" data-message-source>
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                            <span class="font-mono text-[10px] text-sky-700 dark:text-sky-300">[{{ $source['ref'] ?? '' }}]</span>
+                            <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $source['title'] ?? '' }}</span>
+                            @if(!empty($source['dossier_name']))
+                            <span class="text-gray-500 dark:text-gray-400"> · {{ $source['dossier_name'] }}</span>
+                            @endif
+                        </div>
+                        @if(!empty($source['url']))
+                        <a href="{{ $source['url'] }}" target="_blank" rel="noopener" class="flex-shrink-0 text-sky-700 dark:text-sky-300 hover:underline">{{ __('loops.knowledge_open_source') }}</a>
+                        @endif
+                    </div>
+                    @if(!empty($source['excerpt']))
+                    <p class="mt-1 text-gray-600 dark:text-gray-300 italic">{{ $source['excerpt'] }}</p>
+                    @endif
+                </li>
+                @endforeach
+            </ul>
+        </div>
         @endif
 
         @if($messageId && ($showReplyButton || $showPinButton || $showCopyButton || $showEditButton || $showDeleteButton || $showReactions))
