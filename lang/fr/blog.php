@@ -215,6 +215,7 @@ return [
     'ai_limit_reached' => 'Limite de :limit utilisations atteinte pour cet article.',
     'ai_label_generation' => 'génération',
     'ai_label_correction' => 'correction',
+    'ai_cross_org' => 'L\'assistant IA du blog n\'est disponible que dans votre organisation.',
 
     'validation_content_required' => 'Le contenu est obligatoire pour publier.',
     'validation_title_required' => 'Le titre est obligatoire.',

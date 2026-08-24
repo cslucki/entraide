@@ -215,6 +215,7 @@ return [
     'ai_limit_reached' => 'Limit of :limit uses reached for this article.',
     'ai_label_generation' => 'generation',
     'ai_label_correction' => 'correction',
+    'ai_cross_org' => 'The blog AI assistant is only available within your organization.',
 
     'validation_content_required' => 'Content is required for publishing.',
     'validation_title_required' => 'Title is required.',
