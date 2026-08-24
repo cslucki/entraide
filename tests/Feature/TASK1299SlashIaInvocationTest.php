@@ -241,7 +241,7 @@ class TASK1299SlashIaInvocationTest extends TestCase
         // Un dossier de l'Organization, parfaitement lisible par le membre,
         // mais HORS de la Boucle : la restriction T1294 doit l'exclure AVANT
         // la recherche — sinon le test ne prouverait qu'une permission.
-        Dossier::factory()->create([
+        $outsideDossier = Dossier::factory()->create([
             'organization_id' => $this->organization->id,
             'owner_id' => $this->secondMember->id,
             'name' => 'Dossier hors Boucle',
@@ -257,7 +257,15 @@ class TASK1299SlashIaInvocationTest extends TestCase
             ->call('sendMessage')
             ->assertHasNoErrors();
 
-        $this->assertSame([$this->visibleDossier->id], $this->search->lastCall['dossierIds']);
+        // L'ensemble EXACT du perimetre T1294 : le Dossier racine de la
+        // Boucle (cree par createLoop) et le dossier qui lui est partage —
+        // et RIEN d'autre : le dossier org-wide hors Boucle est exclu.
+        $rootDossier = Dossier::query()->where('loop_id', $this->loop->id)->sole();
+        $this->assertEqualsCanonicalizing(
+            [$rootDossier->id, $this->visibleDossier->id],
+            $this->search->lastCall['dossierIds'],
+        );
+        $this->assertNotContains($outsideDossier->id, $this->search->lastCall['dossierIds']);
         $this->assertSame($this->organization->id, $this->search->lastCall['organizationId']);
         $this->assertSame($this->loop->id, $this->search->lastCall['traceMetadata']['loop_id']);
         $this->assertSame('loop_knowledge_answer', $this->search->lastCall['traceMetadata']['capability']);

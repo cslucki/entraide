@@ -9,10 +9,12 @@ use App\Models\Reaction;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\ServiceRequest;
 use App\Models\User;
+use App\Services\Ai\LoopKnowledgeAnswerService;
 use App\Services\LoopMessageService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Services\UrlPreviewService;
 use App\Support\Loops\LoopPermissionResolver;
+use App\Support\Loops\SlashIa;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -178,6 +180,20 @@ class LoopChat extends Component
             return;
         }
 
+        // TASK-1299 : `/ia` en tete du corps invoque l'IA documentaire de
+        // CETTE Boucle. Une Boucle agent est exclue : son agent (T-2) repond
+        // deja a chaque message — une seconde IA serait une seconde depense.
+        $slashIaQuestion = $this->loop->isAiAgent() ? null : SlashIa::question($this->body);
+
+        if ($slashIaQuestion === '') {
+            // `/ia` vide : aide locale deterministe pour l'auteur seul. Rien
+            // n'est persiste, la saisie reste dans le composeur, aucun
+            // provider n'est appele, aucune ligne de ledger n'est ecrite.
+            $this->addError('body', __('loops.slash_ia_help'));
+
+            return;
+        }
+
         try {
             $imagePath = null;
 
@@ -191,13 +207,55 @@ class LoopChat extends Component
 
             $metadata = $preview !== null ? ['url_preview' => $preview] : null;
 
-            $service->sendUserMessage($this->loop, $user, $this->body, $metadata, $this->replyToMessageId, $imagePath);
+            if ($slashIaQuestion !== null) {
+                // Le corps est persiste TEL QUE TAPE, prefixe compris — la
+                // provenance de l'invocation vit ici, en metadata.
+                $metadata = ($metadata ?? []) + ['slash_ia' => true];
+            }
+
+            $message = $service->sendUserMessage($this->loop, $user, $this->body, $metadata, $this->replyToMessageId, $imagePath);
             $this->body = '';
             $this->cancelReply();
-            $this->syncNewerMessages();
-            $this->dispatch('message-sent');
         } catch (\RuntimeException) {
             $this->addError('body', 'Impossible d\'envoyer le message.');
+
+            return;
+        }
+
+        if ($slashIaQuestion !== null) {
+            $this->answerSlashIa($message, $slashIaQuestion, $user);
+        }
+
+        $this->syncNewerMessages();
+        $this->dispatch('message-sent');
+    }
+
+    /**
+     * Repondre au message `/ia` DEJA persiste — jamais l'inverse.
+     *
+     * La chaine est celle de « Consulter les Dossiers » (T-1, TASK-1297) :
+     * RAG Loop-scoped (TASK-1294), garde economique existante, sources
+     * publiques filtrees par `KnowledgeAnswer::publicSource()`. Le message
+     * humain etant deja dans le fil, tout echec ici — refus economique,
+     * panne provider, aucune source — le CONSERVE et ne publie aucune
+     * fausse reponse : l'auteur seul est prevenu, dans le composeur.
+     */
+    private function answerSlashIa(LoopMessage $message, string $question, User $user): void
+    {
+        try {
+            $answer = app(LoopKnowledgeAnswerService::class)
+                ->answer($this->loop, $user, $question, inThreadTrigger: $message);
+
+            if ($answer->interactionId === null) {
+                // Zero source pertinente : rien n'a coute, rien n'est publie
+                // (principe T-1) — mais l'auteur doit savoir pourquoi le fil
+                // reste muet.
+                $this->addError('body', __('loops.knowledge_no_sources'));
+            }
+        } catch (\RuntimeException $exception) {
+            // AiRefusedException comprise : son message est le message
+            // produit (credit epuise, budget atteint, IA non configuree).
+            $this->addError('body', $exception->getMessage());
         }
     }
 

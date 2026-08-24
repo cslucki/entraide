@@ -64,7 +64,15 @@ class LoopKnowledgeAnswerService
         private readonly AiProviderInvocationLedger $ledger,
     ) {}
 
-    public function answer(Loop $loop, User $requester, string $question): KnowledgeAnswer
+    /**
+     * TASK-1299 : `$inThreadTrigger` est le message HUMAIN deja persiste par
+     * le composeur (`/ia` via `LoopChat::sendMessage()`). Fourni, la question
+     * n'est PAS re-publiee — elle existe deja dans le fil, la re-ecrire est
+     * le piege de la double persistance — et la reponse lui est liee par
+     * `reply_to_id`. A null, le chemin T-1 est inchange octet pour octet
+     * (modal knowledge, flag `ai.knowledge.publish_question` gouvernant).
+     */
+    public function answer(Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger = null): KnowledgeAnswer
     {
         $question = trim($question);
 
@@ -193,7 +201,7 @@ class LoopKnowledgeAnswerService
 
         $sources = $cited !== [] ? $cited : $consulted;
 
-        $this->publishExchange($loop, $requester, $question, $answer, $resolved, $interaction, $cited, $sources);
+        $this->publishExchange($loop, $requester, $question, $answer, $resolved, $interaction, $cited, $sources, $inThreadTrigger);
 
         return new KnowledgeAnswer(
             answer: $answer,
@@ -228,13 +236,17 @@ class LoopKnowledgeAnswerService
         AiInteraction $interaction,
         array $cited,
         array $sources,
+        ?LoopMessage $inThreadTrigger = null,
     ): void {
-        DB::transaction(function () use ($loop, $requester, $question, $answer, $resolved, $interaction, $cited, $sources): void {
+        DB::transaction(function () use ($loop, $requester, $question, $answer, $resolved, $interaction, $cited, $sources, $inThreadTrigger): void {
             $questionMessage = null;
 
             // La ligne de reversibilite (gouvernance 24/08) : false = seule la
-            // reponse est publiee, la question restant en metadata.
-            if ((bool) config('ai.knowledge.publish_question', true)) {
+            // reponse est publiee, la question restant en metadata. Un
+            // declencheur dans le fil (TASK-1299) rend la question deja
+            // publiee PAR SON AUTEUR : rien a re-ecrire, le flag est sans
+            // objet sur ce chemin.
+            if ($inThreadTrigger === null && (bool) config('ai.knowledge.publish_question', true)) {
                 $questionMessage = LoopMessage::create([
                     'loop_id' => $loop->id,
                     'sender_id' => $requester->id,
@@ -252,13 +264,13 @@ class LoopKnowledgeAnswerService
             $message = LoopMessage::create([
                 'loop_id' => $loop->id,
                 'sender_id' => null,
-                'reply_to_id' => $questionMessage?->id,
+                'reply_to_id' => $inThreadTrigger?->id ?? $questionMessage?->id,
                 'body' => $answer,
                 'image_path' => null,
                 'type' => 'ai',
                 'metadata' => [
                     'requested_by' => $requester->id,
-                    'action' => 'knowledge',
+                    'action' => $inThreadTrigger === null ? 'knowledge' : 'slash_ia',
                     'question' => $question,
                     'grounded' => $cited !== [],
                     'sources' => array_map(KnowledgeAnswer::publicSource(...), $sources),
