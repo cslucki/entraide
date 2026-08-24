@@ -28,12 +28,15 @@ use Tests\TestCase;
  *    decision produit FIGEE, jamais un MIN(created_at) runtime ;
  *  - fenetres DISJOINTES par process : une generation presente dans les
  *    deux registres autour du cutover ne compte qu'UNE fois ;
- *  - les process NON converges (`member_profile.agent_setup` et
- *    `service_offer.master` — HARD GATE tenant possiblement par defaut ;
- *    `supervision.content` — tenant = resolution par defaut, exclu
- *    d'office ; `member_profile.admin_llm_test` — decision produit en
- *    attente, Review Notes T1286) restent sur l'autorite historique
- *    `ai_interactions`, ou leurs lignes ledger ne comptent JAMAIS ;
+ *  - les process NON converges restent sur l'autorite historique
+ *    `ai_interactions`, ou leurs lignes ledger ne comptent JAMAIS. Depuis
+ *    TASK-1291 (HARD GATE tenant leve : garde d'appartenance fail-closed,
+ *    tenant de l'ACTEUR), `member_profile.agent_setup` et
+ *    `service_offer.master` ont converge (cutover 25/08 00:00Z) — il ne
+ *    reste dehors que les bancs SuperAdmin : `supervision.content` (tenant
+ *    = resolution par defaut, exclu d'office) et
+ *    `member_profile.admin_llm_test` (decision produit en attente, Review
+ *    Notes T1286) ;
  *  - la liste des process migres reste DERIVEE du mapping par
  *    `array_keys()`, jamais une seconde constante.
  */
@@ -76,6 +79,23 @@ class TASK1286LedgerConvergenceTest extends TestCase
         );
     }
 
+    public function test_converged_short_surface_processes_carry_their_frozen_cutover_instant(): void
+    {
+        // TASK-1291 : HARD GATE tenant leve (garde d'appartenance
+        // fail-closed, tenant de l'ACTEUR sur les deux surfaces) — cutover
+        // VALIDE 25/08 00:00Z, premier minuit UTC entierement couvert par le
+        // comportement corrige. Meme regle : decision produit figee deux
+        // fois, la changer exige de changer code ET test.
+        $this->assertSame(
+            '2026-08-25T00:00:00+00:00',
+            AiEconomicGuard::LEDGER_AUTHORITY_SINCE_BY_PROCESS['member_profile.agent_setup'],
+        );
+        $this->assertSame(
+            '2026-08-25T00:00:00+00:00',
+            AiEconomicGuard::LEDGER_AUTHORITY_SINCE_BY_PROCESS['service_offer.master'],
+        );
+    }
+
     public function test_process_list_stays_derived_from_the_mapping_by_array_keys(): void
     {
         $this->assertSame(
@@ -83,7 +103,8 @@ class TASK1286LedgerConvergenceTest extends TestCase
             AiEconomicGuard::ledgerAuthorityProcesses(),
         );
 
-        $this->assertCount(12, AiEconomicGuard::ledgerAuthorityProcesses());
+        // 12 (T1286) + les 2 de la surface courte (T1291) = 14.
+        $this->assertCount(14, AiEconomicGuard::ledgerAuthorityProcesses());
     }
 
     // =====================================================================
@@ -184,11 +205,10 @@ class TASK1286LedgerConvergenceTest extends TestCase
             'monthly_budget_usd' => 2.00,
         ]);
 
+        // Apres TASK-1291, seuls les deux bancs SuperAdmin restent dehors.
         // Leurs lignes ledger existent (c'est le role du ledger) mais ne
         // portent NI le plafond Organization NI leur verrou par process.
         foreach ([
-            'member_profile.agent_setup',
-            'service_offer.master',
             'supervision.content',
             'member_profile.admin_llm_test',
         ] as $process) {
@@ -200,8 +220,6 @@ class TASK1286LedgerConvergenceTest extends TestCase
         $this->assertSame(0.0, $verdict->knownMonthlyCostUsd);
 
         foreach ([
-            'member_profile.agent_setup',
-            'service_offer.master',
             'supervision.content',
             'member_profile.admin_llm_test',
         ] as $process) {
@@ -217,12 +235,55 @@ class TASK1286LedgerConvergenceTest extends TestCase
 
         // Leur voie historique (`ai_interactions`, mois entier) est INTACTE :
         // une trace registre les bloque toujours, cutover ou pas.
-        $this->interaction('member_profile.agent_setup', 2.00, false, '2026-09-05 10:00:00');
+        $this->interaction('supervision.content', 2.00, false, '2026-09-05 10:00:00');
 
         $this->assertSame(
             AiEconomicGuard::REASON_MONTHLY_BUDGET_REACHED,
-            $this->authorize('member_profile.agent_setup')->reason,
+            $this->authorize('supervision.content')->reason,
         );
+    }
+
+    // =====================================================================
+    // 4. TASK-1291 : les deux process de la surface courte ONT converge
+    // =====================================================================
+
+    public function test_converged_short_surface_spend_now_raises_the_organization_ceiling(): void
+    {
+        Carbon::setTestNow('2026-09-10 12:00:00');
+
+        OrganizationAiSetting::factory()->create([
+            'organization_id' => $this->organization->id,
+            'api_key' => 'sk-task1286',
+            'monthly_budget_usd' => 2.00,
+        ]);
+
+        // Avant T1291, ces lignes ledger n'entraient dans AUCUN plafond
+        // (exclusion HARD GATE : tenant possiblement par defaut). Le tenant
+        // est desormais celui de l'ACTEUR : elles portent le plafond.
+        $this->ledgerGeneration('member_profile.agent_setup', 1.50, '2026-09-05 10:00:00');
+        $this->ledgerGeneration('service_offer.master', 0.60, '2026-09-06 10:00:00');
+
+        $refused = $this->authorize('chatloop.summarize', budget: 100.0);
+        $this->assertSame(AiEconomicGuard::REASON_ORGANIZATION_BUDGET_REACHED, $refused->reason);
+        $this->assertSame(2.10, round($refused->knownMonthlyCostUsd, 6));
+
+        OrganizationAiSetting::query()->update(['monthly_budget_usd' => 2.11]);
+        $this->assertTrue($this->authorize('chatloop.summarize', budget: 100.0)->allowed);
+    }
+
+    public function test_converged_short_surface_process_budget_reads_the_ledger_post_cutover(): void
+    {
+        Carbon::setTestNow('2026-09-10 12:00:00');
+
+        $this->ledgerGeneration('member_profile.agent_setup', 2.00, '2026-09-05 10:00:00');
+
+        // La trace registre jumelle post-cutover ne compte plus : meme
+        // regle de fenetres disjointes que les autres process converges.
+        $this->interaction('member_profile.agent_setup', 5.00, false, '2026-09-05 10:00:00');
+
+        $refused = $this->authorize('member_profile.agent_setup');
+        $this->assertSame(AiEconomicGuard::REASON_MONTHLY_BUDGET_REACHED, $refused->reason);
+        $this->assertSame(2.00, round($refused->knownMonthlyCostUsd, 6));
     }
 
     // =====================================================================

@@ -105,8 +105,11 @@ class TASK1262SetupEconomicAuthorityTest extends TestCase
         $this->assertSame($this->tenant->id, $trace->organization_id);
         $this->assertSame(120, $trace->input_tokens);
         $this->assertSame(30, $trace->output_tokens);
-        // T1261 devra revoir le credit (CREDITABLE = YES) ; le budget restera inchange,
-        // car member_profile.agent_setup reste hors du mapping LEDGER_AUTHORITY_SINCE_BY_PROCESS (T1286 : HARD GATE tenant par defaut).
+        // Depuis T1291, member_profile.agent_setup EST au mapping de GARDE
+        // (cutover 25/08) — mais ces deux lectures-ci n'en dependent pas :
+        // le credit reste sur le registre pour tout mois anterieur au
+        // cutover global G11-c (01/09, fenetres par mois entier), et
+        // summary() reste sur la console historique (G11-d non bascule).
         $this->assertSame($creditBefore, $usage->userCreditUses($this->tenant->id, $from, $to, $this->member->id));
         $this->assertSame($budgetBefore, $usage->summary($this->tenant->id, $from, $to));
     }

@@ -138,7 +138,33 @@ class ServiceOfferMasterAiTest extends TestCase
         $response->assertUnauthorized();
     }
 
+    /**
+     * TASK-1291 : ce que le nom historique promettait sans le tenir. Avant le
+     * correctif, l'etranger REUSSISSAIT (200) — seule la categorie cross-org
+     * etait rejetee. Desormais la garde d'appartenance (meme regle que
+     * RequestController::organizationFor()) refuse fail-closed AVANT tout
+     * appel provider.
+     */
     public function test_user_from_other_org_cannot_call_formulate(): void
+    {
+        // Ambiante = $this->org (setUp) ; l'acteur appartient a l'autre
+        // Organization : etranger au tenant de la requete.
+        $this->actingAs($this->otherOrgUser)
+            ->postJson('/services/ai-formulate', [
+                'title' => 'test',
+                'description' => 'test description',
+            ])
+            ->assertNotFound();
+
+        Http::assertNothingSent();
+    }
+
+    /**
+     * L'ancien corps du test ci-dessus, sous son vrai nom : un MEMBRE de
+     * l'Organization courante formule, et la categorie cross-org renvoyee
+     * par l'IA est rejetee par validateAiSuggestion() (repli chaine vide).
+     */
+    public function test_cross_org_category_in_ai_response_falls_back_to_empty_for_a_member(): void
     {
         $otherOrg = Organization::where('id', '!=', $this->org->id)->first();
         app()->instance('current_organization', $otherOrg);
@@ -155,6 +181,8 @@ class ServiceOfferMasterAiTest extends TestCase
             ]), 200),
         ]);
 
+        // L'acteur est MEMBRE de $otherOrg : la garde d'appartenance passe,
+        // c'est bien la validation de la suggestion qui est mesuree.
         $response = $this->actingAs($this->otherOrgUser)
             ->postJson('/services/ai-formulate', [
                 'title' => 'test',
