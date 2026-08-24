@@ -290,6 +290,10 @@ return [
         'max_tokens' => (int) env('AI_KNOWLEDGE_MAX_TOKENS', 700),
         'temperature' => (float) env('AI_KNOWLEDGE_TEMPERATURE', 0.2),
         'max_answer_chars' => (int) env('AI_KNOWLEDGE_MAX_ANSWER_CHARS', 3000),
+        // TASK-1297 : publier la question du membre avec la reponse (modele
+        // ask()). Reversible en UNE ligne si l'arbitrage produit tranche
+        // autrement : false = seule la reponse IA est publiee.
+        'publish_question' => (bool) env('AI_KNOWLEDGE_PUBLISH_QUESTION', true),
         'economic_guard' => [
             'monthly_budget_usd' => (float) env('AI_KNOWLEDGE_MONTHLY_BUDGET_USD', 2.00),
             'monthly_unknown_limit' => (int) env('AI_KNOWLEDGE_MONTHLY_UNKNOWN_LIMIT', 10),

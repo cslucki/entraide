@@ -31,23 +31,34 @@ final class KnowledgeAnswer
     ) {}
 
     /**
+     * Forme publique d'une source : jamais de chunk_id ni d'identifiant
+     * interne — la meme pour la reponse JSON et la metadata du LoopMessage
+     * persiste (TASK-1297).
+     *
+     * @param  array<string, mixed>  $source
      * @return array<string, mixed>
      */
-    public function toArray(): array
+    public static function publicSource(array $source): array
     {
-        $public = static fn (array $source): array => [
+        return [
             'ref' => $source['ref'] ?? null,
             'title' => $source['title'] ?? null,
             'dossier_name' => $source['dossier_name'] ?? null,
             'excerpt' => $source['extrait'] ?? null,
             'url' => $source['url'] ?? null,
         ];
+    }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
         return [
             'answer' => $this->answer,
             'grounded' => $this->grounded,
-            'sources' => array_map($public, $this->sources),
-            'consulted' => array_map($public, $this->consulted),
+            'sources' => array_map(self::publicSource(...), $this->sources),
+            'consulted' => array_map(self::publicSource(...), $this->consulted),
             'credit' => $this->credit?->toArray(),
         ];
     }
