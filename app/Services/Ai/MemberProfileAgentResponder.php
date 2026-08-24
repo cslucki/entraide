@@ -2,10 +2,15 @@
 
 namespace App\Services\Ai;
 
+use App\Ai\CapabilityRegistry;
+use App\Ai\Context\ContextBuilder;
+use App\Ai\ContexteIa;
+use App\Ai\PromptRepository;
 use App\Ai\ResolvedModel;
 use App\Models\AdminAiPrompt;
 use App\Models\MemberAiProfile;
 use App\Services\Ai\Persistence\AdminAiInteractionPersistence;
+use App\Support\Ai\AiCorrelation;
 use App\Support\Ai\AiCost;
 use App\Support\Ai\AiPricingCatalog;
 use App\Support\Ai\AiProcess;
@@ -20,7 +25,18 @@ class MemberProfileAgentResponder
     public function __construct(
         private readonly SupervisionProviderResolver $resolver,
         private readonly AdminAiInteractionPersistence $logger,
+        private readonly CapabilityRegistry $capabilities,
+        private readonly PromptRepository $prompts,
+        private readonly ContextBuilder $contextBuilder,
     ) {}
+
+    /**
+     * TASK-1285 : ce qui remplace le bloc profil dans l'instruction composee
+     * des chemins canoniques. Les lignes du profil ne sont plus concatenees a
+     * nu dans le prompt systeme : elles passent par le Context Builder
+     * (source `member.profile`), delimitees comme contenu non fiable.
+     */
+    private const PROFILE_MATERIAL_POINTER = '(fourni dans le PROFIL IA PUBLIE ci-dessous)';
 
     /**
      * TASK-1251 / TASK-1252 — la reponse de l'agent de profil SOUS AUTORITE
@@ -53,7 +69,18 @@ class MemberProfileAgentResponder
      * et la trace portent le meme process, regle T1250) ; `$scope->feature` la
      * fonction produit.
      *
-     * @return array{response: string, fields: array<int, string>, provider: string, model: ?string, latency_ms: int, usage: AiUsage, fallback_after_provider_failure?: array{provider: string, model: string, failure: string}}
+     * TASK-1285 : entre (1) et (2), la COMPOSITION canonique
+     * (`composeCanonical()`) — capability au registre, Constitution ->
+     * doctrine de l'Organization du `$scope` -> instruction (le prompt
+     * admin/fallback historique, aucun texte perdu), materiau (profil publie)
+     * par le Context Builder. Elle n'ecrit rien et ne deplace aucun evenement
+     * economique : le repli rule-based sans provider (1), le refus de la
+     * garde (3), la QueryException du ledger et le repli apres echec provider
+     * (4) restent STRICTEMENT ce qu'ils etaient. Seule verite ajoutee : le
+     * ledger de chaque tentative porte la capability (regle ecrite TASK-1253)
+     * et le resultat porte `composition` pour la trace de l'appelant.
+     *
+     * @return array{response: string, fields: array<int, string>, provider: string, model: ?string, latency_ms: int, usage: AiUsage, composition?: array<string, mixed>, fallback_after_provider_failure?: array{provider: string, model: string, failure: string}}
      *
      * @throws AiRefusedException refus AVANT tout appel (rien d'ecrit, rien de parti)
      */
@@ -70,6 +97,11 @@ class MemberProfileAgentResponder
             return $this->answerRuleBased($profile, $question);
         }
 
+        // TASK-1285 : composition canonique — elle COMPOSE, elle n'appelle
+        // pas et n'ecrit rien : credential, garde et ledger restent ci-dessous,
+        // au meme endroit et dans le meme ordre qu'avant.
+        $composition = $this->composeCanonical($profile, $question, $scope, $scenarioId);
+
         $resolved = new ResolvedModel(
             $selection['provider'],
             $selection['model'],
@@ -80,12 +112,18 @@ class MemberProfileAgentResponder
         $authority->authorize($process, $resolved);
 
         try {
-            return $authority->attempt(
+            $result = $authority->attempt(
                 $process,
                 $resolved,
-                fn (): array => $this->answerWithProvider($profile, $question, $resolved->provider, $resolved->model, $scenarioId),
+                fn (): array => $this->answerWithProvider($profile, $question, $resolved->provider, $resolved->model, $scenarioId, $composition['instructions'], $composition['context']),
                 fn (array $result): AiUsage => $result['usage'] ?? AiUsage::notObserved(),
+                capability: $composition['capability'],
             );
+
+            // La composition reellement envoyee, dite a l'appelant pour sa
+            // trace (job -> member_ai_profile_interactions, chat visiteur ->
+            // admin_ai_interactions via logVisitorInteraction).
+            return [...$result, 'composition' => $composition['trace']];
         } catch (QueryException $ledgerFailure) {
             // Une ecriture du ledger qui echoue est un vrai defaut qui doit se
             // voir (doctrine `AiProviderInvocationLedger`) : pas de repli qui
@@ -130,21 +168,139 @@ class MemberProfileAgentResponder
     }
 
     /**
+     * La chaine canonique commune aux deux surfaces de REPONSE (TASK-1285),
+     * calquee sur `BlogAiService::composeCanonical()` (TASK-1284) :
+     *
+     *   capability (par scenario, fail-closed) -> scope -> ContexteIa
+     *   (tenant = l'Organization de record du `$scope` fourni par l'appelant,
+     *   JAMAIS recalculee ici) -> PromptRepository::compose (Constitution ->
+     *   doctrine active de cette Organization -> instruction = message system
+     *   historique : prompt admin/fallback + instructions de langue) ->
+     *   ContextBuilder (source member.profile, provenance).
+     *
+     * Elle COMPOSE, elle n'appelle pas : credential, garde economique et
+     * ledger restent dans `answerUnderEconomicAuthority()`, au meme endroit
+     * et dans le meme ordre qu'avant (TASK-1251/1252).
+     *
+     * La QUESTION ne passe pas par une source : c'est la demande de
+     * l'operation, elle voyage en queue du message user, etiquetee comme sur
+     * le chemin ollama historique — precedent canonique `loop_ask`
+     * (ChatLoopAiService, TASK-1233).
+     *
+     * @return array{capability: string, instructions: string, context: string, trace: array<string, mixed>}
+     */
+    private function composeCanonical(
+        MemberAiProfile $profile,
+        string $question,
+        SupervisionEconomicScope $scope,
+        string $scenarioId,
+    ): array {
+        $capability = match ($scenarioId) {
+            'profile_agent_master' => CapabilityRegistry::MEMBER_PROFILE_AGENT_LOOP_REPLY,
+            'profile_agent_visitor_chat' => CapabilityRegistry::MEMBER_PROFILE_AGENT_VISITOR_CHAT,
+            // Fail-closed (doctrine T1283, par construction) : un scenario
+            // sans capability n'a pas de chemin canonique — on ne devine pas.
+            default => throw new \DomainException("No canonical capability for member profile agent scenario [{$scenarioId}]."),
+        };
+
+        $definition = $this->capabilities->get($capability);
+        $this->capabilities->assertScopeAllowed($capability, CapabilityRegistry::SCOPE_ORGANIZATION);
+
+        // Tenant EXPLICITE : l'Organization de record du scope pose par
+        // l'appelant (celle du PROFIL sur les deux surfaces reelles, regle
+        // T1251/T1252/T1253) — sa doctrine, jamais celle de la requete,
+        // jamais recalculee ici.
+        $organizationId = (string) $scope->organization->id;
+
+        $contexte = new ContexteIa(
+            organizationId: $organizationId,
+            userId: $scope->actor !== null ? (string) $scope->actor->id : null,
+            loopId: null,
+            locale: $this->currentLocale(),
+            capability: $capability,
+            correlationId: AiCorrelation::id(),
+            source: CapabilityRegistry::SOURCE_MEMBER_PROFILE,
+            // Le bloc historique de `buildProfileDataLines()`, tel quel (sans
+            // son saut de ligne d'attache) : l'etat publie du profil, autorise
+            // par la surface produit qui a pose le scope.
+            material: ['profile' => ltrim($this->buildProfileDataLines($profile), "\n")],
+        );
+
+        // L'instruction est le message system HISTORIQUE moins le bloc
+        // profil : prompt admin/fallback + instructions de langue (visiteur),
+        // puis le POINTEUR vers le materiau. AUCUN texte d'avant la migration
+        // n'est perdu ; Constitution et doctrine sont AJOUTEES devant par
+        // compose().
+        $instruction = $this->resolveMasterPrompt($scenarioId);
+
+        if ($scenarioId === 'profile_agent_visitor_chat') {
+            $instruction .= "\n\n".$this->visitorChatLocaleInstructions();
+        }
+
+        $instruction .= "\n\nProfil IA : ".self::PROFILE_MATERIAL_POINTER;
+
+        $instructions = $this->prompts->compose($capability, $instruction, $organizationId);
+        // TASK-1236 : version de doctrine reellement composee ci-dessus,
+        // tracee sur l'interaction plutot que reconstituee a posteriori.
+        $doctrineVersion = $this->prompts->activeDoctrineVersion($organizationId);
+
+        $borne = $this->contextBuilder->build($contexte, $definition);
+
+        return [
+            'capability' => $capability,
+            'instructions' => $instructions,
+            'context' => $borne->text,
+            'trace' => [
+                'capability' => $capability,
+                'doctrine_version' => $doctrineVersion,
+                'context_sources_used' => $borne->sourcesUsed,
+                'context_sources_denied' => $borne->sourcesDenied,
+                'context_provenance' => array_map(
+                    static fn (array $entry): string => (string) $entry['id'],
+                    $borne->provenance,
+                ),
+            ],
+        ];
+    }
+
+    /**
+     * Le message user des chemins canoniques (TASK-1285) : le contexte borne
+     * du Builder (profil publie, delimite), puis la question, etiquetee comme
+     * sur le chemin ollama historique (`buildPrompt()`) — precedent
+     * `loop_ask` : la question est la demande de l'operation, en queue du
+     * message user, hors des delimiteurs du materiau.
+     */
+    private function canonicalUserMessage(string $question, ?string $context): string
+    {
+        $questionLabel = $this->currentLocale() === 'en' ? 'Visitor question' : 'Question du visiteur';
+        $context = trim((string) $context);
+
+        return ($context !== '' ? $context."\n\n" : '').$questionLabel." :\n".$question;
+    }
+
+    /**
      * UN appel provider reel, avec l'usage OBSERVE de la reponse (TASK-1251 :
      * `usage`, additif — `AiUsage::notObserved()` quand le provider ne
      * rapporte rien, jamais un 0 fabrique).
      *
+     * TASK-1285 : `$instructions` (message system compose) et `$context`
+     * (materiau du Builder) viennent de `composeCanonical()` — TOUTES les
+     * surfaces produit passent par `answerUnderEconomicAuthority()`, qui
+     * compose TOUJOURS. Sans eux (appel direct : banc de precedence des
+     * prompts admin), le message system historique — `buildSystemPrompt()` —
+     * est conserve byte-identique.
+     *
      * @return array{response: string, fields: array<int, string>, provider: string, model: string, latency_ms: int, usage: AiUsage}
      */
-    public function answerWithProvider(MemberAiProfile $profile, string $question, string $provider, string $model, string $scenarioId = 'profile_agent_master'): array
+    public function answerWithProvider(MemberAiProfile $profile, string $question, string $provider, string $model, string $scenarioId = 'profile_agent_master', ?string $instructions = null, ?string $context = null): array
     {
         $config = $this->resolver->providerConfig($provider);
         $startedAt = (int) (microtime(true) * 1000);
 
         ['text' => $answer, 'usage' => $usage] = match ($provider) {
-            'ollama' => $this->callOllama($profile, $config, $model, $question, $scenarioId),
-            'openrouter' => $this->callOpenRouter($profile, $config, $model, $question, $scenarioId),
-            default => $this->callOpenAiCompatible($profile, $config, $model, $question, $scenarioId),
+            'ollama' => $this->callOllama($profile, $config, $model, $question, $scenarioId, $instructions, $context),
+            'openrouter' => $this->callOpenRouter($profile, $config, $model, $question, $scenarioId, $instructions, $context),
+            default => $this->callOpenAiCompatible($profile, $config, $model, $question, $scenarioId, $instructions, $context),
         };
 
         return [
@@ -349,14 +505,20 @@ class MemberProfileAgentResponder
     /**
      * @return array{text: string, usage: AiUsage}
      */
-    private function callOllama(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master'): array
+    private function callOllama(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master', ?string $instructions = null, ?string $context = null): array
     {
+        // TASK-1285 : chemin canonique = composition + materiau du Builder ;
+        // sans instructions composees, l'assemblage historique, byte-identique.
+        $prompt = $instructions !== null
+            ? $instructions."\n\n".$this->canonicalUserMessage($question, $context)
+            : $this->buildPrompt($profile, $question, $scenarioId);
+
         $response = Http::timeout((int) ($config['timeout'] ?? 30))
             ->acceptJson()
             ->asJson()
             ->post(rtrim((string) $config['base_url'], '/').'/api/generate', [
                 'model' => $model,
-                'prompt' => $this->buildPrompt($profile, $question, $scenarioId),
+                'prompt' => $prompt,
                 'stream' => false,
                 'think' => false,
                 'options' => [
@@ -381,7 +543,7 @@ class MemberProfileAgentResponder
     /**
      * @return array{text: string, usage: AiUsage}
      */
-    private function callOpenRouter(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master'): array
+    private function callOpenRouter(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master', ?string $instructions = null, ?string $context = null): array
     {
         if (empty($config['api_key'])) {
             throw new \RuntimeException('Clé API OpenRouter manquante.');
@@ -396,7 +558,7 @@ class MemberProfileAgentResponder
                 ->timeout((int) ($config['timeout'] ?? 30))
                 ->acceptJson()
                 ->asJson()
-                ->post(rtrim((string) $config['base_url'], '/').'/chat/completions', $this->chatPayload($profile, $config, $model, $question, $scenarioId));
+                ->post(rtrim((string) $config['base_url'], '/').'/chat/completions', $this->chatPayload($profile, $config, $model, $question, $scenarioId, $instructions, $context));
         } catch (ConnectionException $e) {
             throw $e;
         }
@@ -414,7 +576,7 @@ class MemberProfileAgentResponder
     /**
      * @return array{text: string, usage: AiUsage}
      */
-    private function callOpenAiCompatible(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master'): array
+    private function callOpenAiCompatible(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master', ?string $instructions = null, ?string $context = null): array
     {
         if (empty($config['api_key'])) {
             throw new \RuntimeException('Clé API du provider manquante.');
@@ -424,7 +586,7 @@ class MemberProfileAgentResponder
             ->timeout((int) ($config['timeout'] ?? 30))
             ->acceptJson()
             ->asJson()
-            ->post(rtrim((string) $config['base_url'], '/').'/chat/completions', $this->chatPayload($profile, $config, $model, $question, $scenarioId));
+            ->post(rtrim((string) $config['base_url'], '/').'/chat/completions', $this->chatPayload($profile, $config, $model, $question, $scenarioId, $instructions, $context));
 
         if (! $response->successful()) {
             throw new \RuntimeException(sprintf('Réponse IA invalide (HTTP %d).', $response->status()));
@@ -436,13 +598,17 @@ class MemberProfileAgentResponder
         ];
     }
 
-    private function chatPayload(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master'): array
+    private function chatPayload(MemberAiProfile $profile, array $config, string $model, string $question, string $scenarioId = 'profile_agent_master', ?string $instructions = null, ?string $context = null): array
     {
+        // TASK-1285 : chemin canonique = system compose (Constitution ->
+        // doctrine -> instruction) et materiau du Builder en tete du message
+        // user ; sans instructions composees, le message system historique
+        // (`buildSystemPrompt()`) et la question nue, byte-identiques.
         return [
             'model' => $model,
             'messages' => [
-                ['role' => 'system', 'content' => $this->buildSystemPrompt($profile, $scenarioId)],
-                ['role' => 'user', 'content' => $question],
+                ['role' => 'system', 'content' => $instructions ?? $this->buildSystemPrompt($profile, $scenarioId)],
+                ['role' => 'user', 'content' => $instructions !== null ? $this->canonicalUserMessage($question, $context) : $question],
             ],
             'max_tokens' => (int) ($config['max_output_tokens'] ?? 650),
             'temperature' => 0.35,
@@ -657,6 +823,13 @@ class MemberProfileAgentResponder
 
         if (isset($result['fallback_after_provider_failure'])) {
             $metadata['fallback_after_provider_failure'] = $result['fallback_after_provider_failure'];
+        }
+
+        // TASK-1285 : traces de composition du chemin canonique (doctrine
+        // reellement composee, sources et provenance du Context Builder).
+        // Absentes d'une reponse rule-based : elle n'a rien compose.
+        if (isset($result['composition'])) {
+            $metadata['composition'] = $result['composition'];
         }
 
         $this->logger->persist([

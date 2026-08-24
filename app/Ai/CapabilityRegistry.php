@@ -69,6 +69,28 @@ final class CapabilityRegistry
      */
     public const SOURCE_BLOG_POST = 'blog.post';
 
+    /**
+     * TASK-1285 (BLOC E) : les deux surfaces de REPONSE de l'agent de profil,
+     * ex-chemin herite `member_profile_agent` (MemberProfileAgentResponder) —
+     * la reponse automatique dans une Boucle agent (job GenerateAiAgentResponse)
+     * et le chat visiteur (AiAgentChat). Ids = les features historiques du
+     * ledger (meme geste que blog_generate/blog_correct : un seul nom par
+     * notion) ; processes INCHANGES : la garde et le ledger relevent les memes
+     * cles qu'avant la migration. La configuration conversationnelle
+     * (`chatWithSetupPrompt`) reste HERITEE, declaree dans
+     * `NervousSystemCoverage::INHERITED` (`member_profile_agent_setup`).
+     */
+    public const MEMBER_PROFILE_AGENT_LOOP_REPLY = 'member_profile_agent_loop_reply';
+
+    public const MEMBER_PROFILE_AGENT_VISITOR_CHAT = 'member_profile_agent_visitor_chat';
+
+    /**
+     * TASK-1285 : le profil IA publie du membre — fourni par l'appelant via
+     * `ContexteIa::$material` (mecanisme TASK-1284), jamais relu en base par
+     * la source. Reservee aux capabilities de l'agent de profil.
+     */
+    public const SOURCE_MEMBER_PROFILE = 'member.profile';
+
     /** @var array<string, CapabilityDefinition> */
     private array $definitions;
 
@@ -177,6 +199,37 @@ final class CapabilityRegistry
             contextCharBudget: self::blogContextBudget(),
         );
 
+        // TASK-1285 : la reponse du job est PUBLIEE dans la Boucle agent comme
+        // LoopMessage, sans validation humaine supplementaire : `canWrite =
+        // true`, declare tel quel — comportement historique. La reponse du
+        // chat visiteur n'est rendue qu'au visiteur dans sa propre session de
+        // dialogue (la conversation est sa propre trace) : `canWrite = false`.
+        $memberProfileLoopReply = new CapabilityDefinition(
+            id: self::MEMBER_PROFILE_AGENT_LOOP_REPLY,
+            process: AiProcess::MEMBER_PROFILE_LOOP_AGENT_REPLY,
+            requiresHumanConfirmation: false,
+            canWrite: true,
+            allowedScopes: [self::SCOPE_ORGANIZATION],
+            allowedSources: [self::SOURCE_MEMBER_PROFILE],
+            // La borne de sortie historique du responder (num_predict /
+            // max_tokens 650), declaree telle quelle.
+            maxOutput: 650,
+            promptKey: 'profile_agent_master',
+            contextCharBudget: self::memberProfileContextBudget(),
+        );
+
+        $memberProfileVisitorChat = new CapabilityDefinition(
+            id: self::MEMBER_PROFILE_AGENT_VISITOR_CHAT,
+            process: AiProcess::MEMBER_PROFILE_AGENT_VISITOR_CHAT,
+            requiresHumanConfirmation: false,
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION],
+            allowedSources: [self::SOURCE_MEMBER_PROFILE],
+            maxOutput: 650,
+            promptKey: 'profile_agent_visitor_chat',
+            contextCharBudget: self::memberProfileContextBudget(),
+        );
+
         $this->definitions = [
             $loopSummary->id => $loopSummary,
             $clarifyHelpRequest->id => $clarifyHelpRequest,
@@ -185,6 +238,8 @@ final class CapabilityRegistry
             $loopAsk->id => $loopAsk,
             $blogGenerate->id => $blogGenerate,
             $blogCorrect->id => $blogCorrect,
+            $memberProfileLoopReply->id => $memberProfileLoopReply,
+            $memberProfileVisitorChat->id => $memberProfileVisitorChat,
         ];
     }
 
@@ -255,6 +310,23 @@ final class CapabilityRegistry
         }
 
         return (int) config('ai.blog.max_context_chars', $default);
+    }
+
+    /**
+     * Budget de contexte des capabilities de l'agent de profil : le materiau
+     * est le profil publie, dont les champs sont bornes par le produit — le
+     * bloc reste tres en deca de ce plafond, et la source `member.profile`
+     * laisse passer son unite unique EN ENTIER (regle de la premiere unite).
+     */
+    private static function memberProfileContextBudget(): int
+    {
+        $default = 30000;
+
+        if (! function_exists('app') || ! app()->bound('config')) {
+            return $default;
+        }
+
+        return (int) config('ai.member_profile.max_context_chars', $default);
     }
 
     public function has(string $capability): bool

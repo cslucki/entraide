@@ -371,9 +371,11 @@ return [
         'loop_ask' => 'Question à l\'IA dans la Boucle',
         'blog_generate' => 'Génération d\'article de blog',
         'blog_correct' => 'Correction d\'article de blog',
+        'member_profile_agent_loop_reply' => 'Réponse de l\'agent de profil dans une Boucle',
+        'member_profile_agent_visitor_chat' => 'Chat visiteur de l\'agent de profil',
     ],
     'inherited_label' => [
-        'member_profile_agent' => 'IA des profils membres',
+        'member_profile_agent_setup' => 'Configuration conversationnelle du profil IA',
         'blog_method_selection' => 'Suggestions IA sur sélection (Blog)',
         'blog_explorer' => 'Explorer IA d\'un article de blog',
         'service_offer_formulation' => 'Formulation d\'une offre de service',

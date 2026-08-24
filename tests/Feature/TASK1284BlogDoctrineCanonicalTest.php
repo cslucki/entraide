@@ -371,8 +371,11 @@ class TASK1284BlogDoctrineCanonicalTest extends TestCase
         $this->assertNotSame('ai.inherited_label.blog_method_selection', __('ai.inherited_label.blog_method_selection', [], 'fr'));
         $this->assertNotSame('ai.inherited_label.blog_method_selection', __('ai.inherited_label.blog_method_selection', [], 'en'));
 
-        $this->assertSame(7, $coverage->coveredCount());
-        $this->assertSame(11, $coverage->totalCount());
+        // TASK-1285 : + les deux capabilities de reponse de l'agent de profil
+        // (l'invariant de CE test est la presence des capabilities Blog et la
+        // verite de l'inventaire herite, pas un total fige a jamais).
+        $this->assertSame(9, $coverage->coveredCount());
+        $this->assertSame(13, $coverage->totalCount());
     }
 
     public function test_the_constitution_is_actually_the_head_of_the_composed_prompt(): void
