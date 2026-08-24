@@ -191,8 +191,10 @@ class TASK1253CanonicalAttributionTest extends TestCase
     {
         $registry = app(CapabilityRegistry::class);
 
+        // TASK-1284 : blog_generate / blog_correct sont sortis de cette liste
+        // — devenus canoniques, leur writer les porte en `capability`.
         $inheritedFeatures = [
-            'blog_generate', 'blog_correct', 'blog_method_selection_explorer_fr',
+            'blog_method_selection_explorer_fr',
             'blog_explorer', 'blog_explorer_note',
             'service_offer_formulation',
             AdminMemberAiProfileController::LLM_TEST_SCENARIO,
@@ -213,9 +215,11 @@ class TASK1253CanonicalAttributionTest extends TestCase
                 CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER,
                 CapabilityRegistry::LOOP_ANSWER,
                 CapabilityRegistry::LOOP_ASK,
+                CapabilityRegistry::BLOG_GENERATE,
+                CapabilityRegistry::BLOG_CORRECT,
             ],
             array_map(static fn ($definition): string => $definition->id, $registry->all()),
-            'Les cinq capabilities canoniques, toutes famille A — aucune pour Blog, Explorer, agent de profil, offre, bancs.',
+            'Les sept capabilities canoniques (TASK-1284 : + blog_generate/blog_correct) — aucune pour la suggestion sur selection, l\'Explorer, l\'agent de profil, l\'offre, les bancs.',
         );
     }
 
@@ -227,7 +231,7 @@ class TASK1253CanonicalAttributionTest extends TestCase
         $this->assertSame(BlogExplorerController::class, NervousSystemCoverage::INHERITED['blog_explorer']);
         $this->assertNotSame('ai.inherited_label.blog_explorer', __('ai.inherited_label.blog_explorer', [], 'fr'));
         $this->assertNotSame('ai.inherited_label.blog_explorer', __('ai.inherited_label.blog_explorer', [], 'en'));
-        $this->assertSame(5 + 4, $coverage->totalCount(), 'Cinq canoniques + quatre heritees (agent de profil, Blog, Explorer, offre de service).');
+        $this->assertSame(7 + 4, $coverage->totalCount(), 'Sept canoniques (TASK-1284 : + blog_generate/blog_correct) + quatre heritees (agent de profil, suggestion sur selection Blog, Explorer, offre de service).');
     }
 
     // =====================================================================

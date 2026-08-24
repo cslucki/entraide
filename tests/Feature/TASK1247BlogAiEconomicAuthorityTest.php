@@ -122,7 +122,9 @@ class TASK1247BlogAiEconomicAuthorityTest extends TestCase
         $row = $ledger->first();
         $this->assertSame($this->organization->id, $row->organization_id);
         $this->assertSame($this->author->id, $row->user_id);
-        $this->assertNull($row->capability, 'Pas une capability canonique : dit tel quel.');
+        // TASK-1284 : blog_generate est devenu canonique — le writer la porte
+        // en capability (regle ecrite de TASK-1253).
+        $this->assertSame('blog_generate', $row->capability);
         $this->assertSame('blog_generate', $row->feature);
         $this->assertSame('blog.article_generate', $row->process);
         $this->assertSame(AiProviderInvocation::OPERATION_GENERATION, $row->operation);

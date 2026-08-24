@@ -335,6 +335,12 @@ return [
             'monthly_budget_usd' => (float) env('BLOG_AI_MONTHLY_BUDGET_USD', 2.00),
             'monthly_unknown_limit' => (int) env('BLOG_AI_MONTHLY_UNKNOWN_LIMIT', 10),
         ],
+        // TASK-1284 : budget de contexte des capabilities blog_generate /
+        // blog_correct (source blog.post). Large a dessein : le materiau est
+        // l'article lui-meme, et la correction doit recevoir le texte ENTIER —
+        // la source laisse toujours passer sa premiere unite en entier (meme
+        // regle que loop.messages), ce plafond ne borne que les unites suivantes.
+        'max_context_chars' => (int) env('BLOG_AI_MAX_CONTEXT_CHARS', 60000),
     ],
 
     /*

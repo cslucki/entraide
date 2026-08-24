@@ -362,11 +362,14 @@ class T3BlogEditorAiAdminTest extends TestCase
             ->assertJsonPath('content', '<h2>Generated article</h2><p>English content.</p>');
 
         Http::assertSent(function ($request) {
-            $messages = $request->data()['messages'] ?? [];
-            $prompt = collect($messages)->firstWhere('role', 'user')['content'] ?? '';
+            // TASK-1284 : l'instruction de langue vit desormais dans le
+            // message system compose (Constitution -> doctrine ->
+            // instruction), plus dans le message user. L'invariant teste est
+            // inchange : locale EN => instruction EN, jamais l'instruction FR.
+            $sent = collect($request->data()['messages'] ?? [])->pluck('content')->implode("\n");
 
-            return str_contains($prompt, 'Mandatory language: write the generated article in English')
-                && ! str_contains($prompt, 'Langue obligatoire : rédige');
+            return str_contains($sent, 'Mandatory language: write the generated article in English')
+                && ! str_contains($sent, 'Langue obligatoire : rédige');
         });
     }
 

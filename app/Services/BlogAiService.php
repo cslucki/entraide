@@ -2,6 +2,10 @@
 
 namespace App\Services;
 
+use App\Ai\CapabilityRegistry;
+use App\Ai\Context\ContextBuilder;
+use App\Ai\ContexteIa;
+use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
 use App\Ai\ResolvedModel;
 use App\Models\AdminAiPrompt;
@@ -39,8 +43,23 @@ use Illuminate\Support\Str;
  * zero double comptage). Le tenant de la trace est l'Organization de
  * l'ARTICLE, jamais celle de la requete.
  *
- * Ce que TASK-1247 ne fait PAS (hors V1, BLOC E) : ni CapabilityRegistry, ni
- * Constitution/doctrine, ni ContextBuilder, ni credential BYOK Organization.
+ * TASK-1284 (BLOC E) : `generate()` et `correct()` sont des capabilities
+ * CANONIQUES (`blog_generate`, `blog_correct`) — prompt compose par
+ * `PromptRepository::compose()` (Constitution -> doctrine de l'Organization de
+ * l'ARTICLE -> instruction = prompt admin/fallback historique, aucun texte
+ * perdu), materiau via `ContextBuilder` (source `blog.post`), capability
+ * portee au ledger (regle TASK-1253). La garde et le ledger n'ont pas bouge :
+ * meme ordre, meme nombre d'appels, memes process.
+ *
+ * Ce que TASK-1284 ne fait PAS :
+ * - credential BYOK Organization : la cle reste PLATEFORME
+ *   (`declareLegacyPlatformCredential()`), car basculer sur
+ *   `organization_ai_settings` sans repli rendrait le Blog IA indisponible
+ *   pour toute Organization sans credential — decision produit, pas technique ;
+ * - `methodSelection()` : chemin herite intact (prompt legacy, capability
+ *   NULL au ledger), declare `blog_method_selection` dans
+ *   `NervousSystemCoverage::INHERITED`.
+ *
  * Le quota produit par article (`BlogAiConfig`) reste une regle produit,
  * distincte de l'autorite economique.
  */
@@ -49,11 +68,29 @@ class BlogAiService
     public function __construct(
         private readonly AiEconomicGuard $economicGuard,
         private readonly AiProviderInvocationLedger $ledger,
+        private readonly CapabilityRegistry $capabilities,
+        private readonly PromptRepository $prompts,
+        private readonly ContextBuilder $contextBuilder,
     ) {}
 
     private const MAX_OUTPUT_TOKENS = 2048;
 
     private const TIMEOUT = 30;
+
+    /**
+     * Le message system HISTORIQUE (avant TASK-1284). Chemins migres : il
+     * ouvre l'instruction composee, pour que rien de ce qui etait envoye ne
+     * soit perdu. `methodSelection()` (herite) : il reste le message system.
+     */
+    private const LEGACY_SYSTEM_SENTENCE = 'Tu es un assistant spécialisé dans la rédaction et la correction d\'articles de blog en français.';
+
+    /**
+     * TASK-1284 : ce qui remplit les `%s` des prompts admin historiques sur
+     * les chemins canoniques. Les valeurs ne sont plus interpolees a nu dans
+     * l'instruction : elles passent par le Context Builder (source
+     * `blog.post`), delimitees comme contenu non fiable.
+     */
+    private const MATERIAL_POINTER = '(fourni dans le MATERIAU DE L\'ARTICLE ci-dessous)';
 
     /**
      * Les quatre methodes de Roger, identifiants CANONIQUES partages : la
@@ -72,11 +109,31 @@ class BlogAiService
         $title ??= $post->title;
         $summary ??= $post->summary;
 
-        $promptText = $this->resolvePrompt('blog_generate');
-        $prompt = sprintf($promptText, $title, $summary);
-        $prompt .= $this->articleGenerationLanguageInstruction();
+        // TASK-1284 : chaine canonique. L'instruction est le prompt
+        // admin/fallback historique — ses `%s` pointent vers le materiau,
+        // qui passe par le Context Builder au lieu d'etre interpole a nu.
+        $composition = $this->composeCanonical(
+            $post,
+            $user,
+            CapabilityRegistry::BLOG_GENERATE,
+            sprintf(
+                $this->resolvePrompt('blog_generate'),
+                self::MATERIAL_POINTER,
+                self::MATERIAL_POINTER,
+            ).$this->articleGenerationLanguageInstruction(),
+            ['title' => (string) $title, 'summary' => (string) $summary],
+        );
 
-        $result = $this->callAi($post, $user, $prompt, 'blog_generate');
+        $result = $this->callAi(
+            $post,
+            $user,
+            $composition['context'],
+            'blog_generate',
+            capability: CapabilityRegistry::BLOG_GENERATE,
+            instructions: $composition['instructions'],
+            correlationId: $composition['correlation_id'],
+            contextMetadata: $composition['metadata'],
+        );
 
         $parsed = $this->parseGenerateResponse($result['content'], $title, $summary);
 
@@ -85,12 +142,105 @@ class BlogAiService
 
     public function correct(BlogPost $post, User $user): array
     {
-        $promptText = $this->resolvePrompt('blog_correct');
-        $prompt = sprintf($promptText, $post->content);
+        // TASK-1284 : meme chaine canonique que `generate()`. Le materiau est
+        // l'etat VIVANT de l'article (le controller peut porter un contenu non
+        // persiste) : c'est l'appelant qui l'autorise, la source ne relit rien.
+        $composition = $this->composeCanonical(
+            $post,
+            $user,
+            CapabilityRegistry::BLOG_CORRECT,
+            sprintf(
+                $this->resolvePrompt('blog_correct'),
+                self::MATERIAL_POINTER,
+            ),
+            ['content' => (string) $post->content],
+        );
 
-        $result = $this->callAi($post, $user, $prompt, 'blog_correct');
+        $result = $this->callAi(
+            $post,
+            $user,
+            $composition['context'],
+            'blog_correct',
+            capability: CapabilityRegistry::BLOG_CORRECT,
+            instructions: $composition['instructions'],
+            correlationId: $composition['correlation_id'],
+            contextMetadata: $composition['metadata'],
+        );
 
         return $this->buildResult($result, $user, 'blog_correct');
+    }
+
+    /**
+     * La chaine canonique commune a `generate()` et `correct()` (TASK-1284),
+     * calquee sur `summarize()`/`generateDirectAnswer()` (TASK-1207/1233) :
+     *
+     *   capability -> scope -> ContexteIa (tenant = Organization de
+     *   l'ARTICLE) -> PromptRepository::compose (Constitution -> doctrine
+     *   active de l'Organization de l'ARTICLE -> instruction = prompt
+     *   admin/fallback historique) -> ContextBuilder (source blog.post,
+     *   budget borne, provenance).
+     *
+     * Elle COMPOSE, elle n'appelle pas : provider, garde economique et ledger
+     * restent dans `callAi()`, au meme endroit et dans le meme ordre
+     * qu'avant (TASK-1247).
+     *
+     * @param  array<string, string>  $material
+     * @return array{instructions: string, context: string, correlation_id: string, metadata: array<string, mixed>}
+     */
+    private function composeCanonical(
+        BlogPost $post,
+        User $user,
+        string $capability,
+        string $instruction,
+        array $material,
+    ): array {
+        $definition = $this->capabilities->get($capability);
+        $this->capabilities->assertScopeAllowed($capability, CapabilityRegistry::SCOPE_ORGANIZATION);
+
+        // Tenant EXPLICITE : l'Organization de l'ARTICLE (acquis TASK-1247) —
+        // sa doctrine, jamais celle de l'Organization de la requete.
+        $organization = $this->tenantOf($post);
+        $correlationId = AiCorrelation::id();
+
+        $contexte = new ContexteIa(
+            organizationId: (string) $organization->id,
+            userId: (string) $user->id,
+            loopId: null,
+            locale: str_starts_with((string) app()->getLocale(), 'en') ? 'en' : 'fr',
+            capability: $capability,
+            correlationId: $correlationId,
+            source: CapabilityRegistry::SOURCE_BLOG_POST,
+            material: $material,
+        );
+
+        // L'ancien message system reste envoye, en tete de l'instruction :
+        // aucun texte d'avant la migration n'est perdu, la Constitution et la
+        // doctrine sont AJOUTEES devant par compose().
+        $instructions = $this->prompts->compose(
+            $capability,
+            self::LEGACY_SYSTEM_SENTENCE."\n\n".$instruction,
+            (string) $organization->id,
+        );
+        // TASK-1236 : version de doctrine reellement composee ci-dessus,
+        // tracee sur l'interaction plutot que reconstituee a posteriori.
+        $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
+
+        $borne = $this->contextBuilder->build($contexte, $definition);
+
+        return [
+            'instructions' => $instructions,
+            'context' => $borne->text,
+            'correlation_id' => $correlationId,
+            'metadata' => [
+                'doctrine_version' => $doctrineVersion,
+                'context_sources_used' => $borne->sourcesUsed,
+                'context_sources_denied' => $borne->sourcesDenied,
+                'context_provenance' => array_map(
+                    static fn (array $entry): string => (string) $entry['id'],
+                    $borne->provenance,
+                ),
+            ],
+        ];
     }
 
     public function methodSelection(
@@ -206,13 +356,29 @@ class BlogAiService
      * GARDE (aucun appel si refus, rien d'ecrit) -> appel HTTP -> ledger
      * (succes ou echec) -> trace produit (succes seulement).
      *
+     * TASK-1284 : les chemins canoniques (`generate`, `correct`) passent en
+     * plus leurs instructions composees (message system), leur capability
+     * (portee au ledger, regle TASK-1253), leur correlation (une operation =
+     * un id, partage avec le ContexteIa) et les traces de composition.
+     * `methodSelection()` (herite) n'en passe aucun : message system legacy,
+     * capability NULL, rien d'autre ne change pour lui.
+     *
+     * @param  array<string, mixed>|null  $contextMetadata
      * @return array{content: string, provider: string, model: string, ai_interaction_id: string}
      *
      * @throws AiRefusedException refus economique AVANT l'appel (code stable)
      * @throws \RuntimeException echec provider (deja tente, ledger ecrit)
      */
-    private function callAi(BlogPost $post, User $user, string $prompt, string $feature): array
-    {
+    private function callAi(
+        BlogPost $post,
+        User $user,
+        string $prompt,
+        string $feature,
+        ?string $capability = null,
+        ?string $instructions = null,
+        ?string $correlationId = null,
+        ?array $contextMetadata = null,
+    ): array {
         // Tenant EXPLICITE : l'Organization de l'article dont le contenu est
         // lu/ecrit — jamais `currentOrganization() ?? user.organization_id`.
         $organization = $this->tenantOf($post);
@@ -271,10 +437,12 @@ class BlogAiService
             throw AiRefusedException::fromVerdict($verdict);
         }
 
+        $system = $instructions ?? self::LEGACY_SYSTEM_SENTENCE;
+
         $payload = [
             'model' => $model,
             'messages' => [
-                ['role' => 'system', 'content' => 'Tu es un assistant spécialisé dans la rédaction et la correction d\'articles de blog en français.'],
+                ['role' => 'system', 'content' => $system],
                 ['role' => 'user', 'content' => $prompt],
             ],
             'max_tokens' => self::MAX_OUTPUT_TOKENS,
@@ -282,7 +450,7 @@ class BlogAiService
         ];
 
         $startedAt = microtime(true);
-        $correlationId = AiCorrelation::id();
+        $correlationId ??= AiCorrelation::id();
 
         try {
             if ($provider === 'ollama') {
@@ -291,7 +459,7 @@ class BlogAiService
                     ->asJson()
                     ->post(rtrim($baseUrl, '/').'/api/generate', [
                         'model' => $model,
-                        'prompt' => "Tu es un assistant spécialisé dans la rédaction et la correction d'articles de blog en français.\n\n{$prompt}",
+                        'prompt' => "{$system}\n\n{$prompt}",
                         'stream' => false,
                         'temperature' => 0.7,
                         'options' => ['num_predict' => self::MAX_OUTPUT_TOKENS],
@@ -339,7 +507,7 @@ class BlogAiService
             // elle a sa ligne de ledger (cout NULL / unknown, jamais 0 invente).
             // Aucune trace produit ni quota article : un echec n'est pas un
             // article genere. L'exception d'origine est conservee en cause.
-            $this->recordLedger($organization, $user, $process, $feature, $resolved,
+            $this->recordLedger($organization, $user, $capability, $process, $feature, $resolved,
                 AiUsage::notObserved(), null, AiProviderInvocation::STATUS_FAILED,
                 $correlationId, $exception::class, $startedAt);
 
@@ -353,7 +521,7 @@ class BlogAiService
         // TASK-1132 : le catalogue tranche (usage observe x tarif), sinon UNKNOWN.
         $cost = AiPricingCatalog::cost($provider, $model, $usage);
 
-        $this->recordLedger($organization, $user, $process, $feature, $resolved,
+        $this->recordLedger($organization, $user, $capability, $process, $feature, $resolved,
             $usage, $cost, AiProviderInvocation::STATUS_SUCCESS, $correlationId, null, $startedAt);
 
         $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
@@ -376,6 +544,10 @@ class BlogAiService
                 'provider' => $provider,
                 // TASK-1247 : le payeur, lisible sur la trace produit aussi.
                 'credential_source' => ProviderResolver::credentialSourceFor($resolved->instance),
+                // TASK-1284 : traces de composition des chemins canoniques
+                // (doctrine reellement composee, sources et provenance du
+                // Context Builder). Absentes du chemin herite methodSelection.
+                ...($contextMetadata ?? []),
             ],
         ]);
 
@@ -405,13 +577,18 @@ class BlogAiService
 
     /**
      * Ligne canonique du ledger `ai_provider_invocations` — une par appel
-     * provider reellement tente. `capability` NULL : ce chemin n'est pas une
-     * capability canonique (il le dit tel quel) ; `feature` porte la fonction
-     * Blog emettrice, `process` son identifiant stable.
+     * provider reellement tente. TASK-1284 : `capability` porte la capability
+     * canonique sur les chemins migres (`blog_generate`, `blog_correct`) —
+     * regle ecrite de TASK-1253 : quand un chemin herite entre au registre,
+     * « le writer concerne doit alors la porter en capability ». NULL sur le
+     * chemin herite restant (`methodSelection`) : il le dit tel quel.
+     * `feature` porte la fonction Blog emettrice, `process` son identifiant
+     * stable — tous deux inchanges.
      */
     private function recordLedger(
         Organization $organization,
         User $user,
+        ?string $capability,
         string $process,
         string $feature,
         ResolvedModel $resolved,
@@ -425,7 +602,7 @@ class BlogAiService
         $this->ledger->recordGeneration(
             organizationId: (string) $organization->id,
             userId: (string) $user->id,
-            capability: null,
+            capability: $capability,
             process: $process,
             resolved: $resolved,
             usage: $usage,

@@ -39,7 +39,12 @@ final class NervousSystemCoverage
         'member_profile_agent' => 'App\Services\Ai\MemberProfileAgentResponder',
         // TASK-1233 : `chatloop_direct_answer` (ChatLoopAiService::answer/ask)
         // est sorti d'ici — capabilities canoniques `loop_answer` / `loop_ask`.
-        'blog_ai' => 'App\Services\BlogAiService',
+        // TASK-1284 : `blog_ai` (generer/corriger) est sorti d'ici —
+        // capabilities canoniques `blog_generate` / `blog_correct`. Ce qui
+        // reste hors doctrine dans BlogAiService est la suggestion IA sur
+        // selection (`methodSelection()`), declaree sous sa propre cle :
+        // l'Admin Organization n'est jamais trompe sur la portee reelle.
+        'blog_method_selection' => 'App\Services\BlogAiService::methodSelection',
         // TASK-1253 (G16 du gap analysis T1246) : l'Explorer d'article
         // (dialogue deep-chat, note d'analyse) est une fonction IA visible de
         // l'Organization qui n'emprunte pas la doctrine — il etait absent de
