@@ -378,6 +378,19 @@ class ChatLoopAiServiceTest extends TestCase
         $this->assertNotNull($message);
     }
 
+    public function test_answer_links_its_reply_to_the_trigger_message(): void
+    {
+        $this->seedLoopConversation();
+
+        $message = $this->service()->answer($this->loop, $this->member);
+
+        // TASK-1297 : answer() pose son lien comme ask() — la réponse pointe
+        // le message humain auquel elle répond (le déclencheur retenu par le
+        // Context Builder), au lieu de null.
+        $this->assertNotNull($message->reply_to_id);
+        $this->assertSame($message->metadata['trigger_message_id'], $message->reply_to_id);
+    }
+
     public function test_lock_ttl_is_never_below_timeout_plus_thirty_seconds(): void
     {
         config(['ai.chatloop.lock_ttl' => 5]);
