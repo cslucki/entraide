@@ -62,4 +62,5 @@ return [
     'member' => 'Member',
     'body_or_image_required' => 'Add a message or an image.',
     'invalid_file' => 'Only images (JPG, PNG, GIF, WebP) are accepted.',
+    'cross_org' => 'You cannot start a conversation outside your organization.',
 ];
