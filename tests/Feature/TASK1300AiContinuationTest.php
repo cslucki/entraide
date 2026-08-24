@@ -386,6 +386,27 @@ class TASK1300AiContinuationTest extends TestCase
         LoopKnowledgeAgent::assertNotPrompted(fn (AgentPrompt $prompt): bool => true);
         $this->assertSame(0, $this->search->calls);
         $this->assertDatabaseCount('ai_provider_invocations', 0);
+
+        // Et le cas qui teste le GARDE lui-meme, pas le filtre de type : un
+        // message type='ai' present dans la Boucle agent (autre chemin que
+        // /ia, exclu depuis T-3). Sans l'exclusion isAiAgent(), cette reply
+        // declencherait la chaine knowledge EN PLUS du job T-2 : deux IA,
+        // deux depenses.
+        $aiInAgentLoop = $this->aiMessage($this->loop, 'Message IA egare dans la Boucle agent.');
+
+        Livewire::test(LoopChat::class, ['loop' => $this->loop])
+            ->call('replyTo', $aiInAgentLoop->id)
+            ->set('body', 'Je reponds au message IA dans la Boucle agent.')
+            ->call('sendMessage')
+            ->assertHasNoErrors();
+
+        $secondReply = LoopMessage::query()->where('reply_to_id', $aiInAgentLoop->id)->sole();
+        $this->assertSame('user', $secondReply->type);
+        $this->assertNull($secondReply->metadata['ai_continuation'] ?? null);
+        Queue::assertPushed(GenerateAiAgentResponse::class, 2);
+        LoopKnowledgeAgent::assertNotPrompted(fn (AgentPrompt $prompt): bool => true);
+        $this->assertSame(0, $this->search->calls);
+        $this->assertDatabaseCount('ai_provider_invocations', 0);
     }
 
     // =====================================================================
