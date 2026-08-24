@@ -12,6 +12,7 @@ use App\Services\Dossiers\DossierChunkEmbeddingService;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use DomainException;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 
@@ -203,17 +204,74 @@ final class DossierRetrievalSource implements ContextSource
     {
         $gate = Gate::forUser($user);
 
-        return Dossier::query()
-            ->where('organization_id', $organizationId)
-            ->whereNull('deleted_at')
-            ->orderBy('created_at')
-            ->limit(self::MAX_CANDIDATE_DOSSIERS)
-            ->get()
+        return $this->candidateDossiers($organizationId, $loopId)
             ->filter(fn (Dossier $dossier): bool => ($loopId === null || $this->belongsToLoop($dossier, $loopId))
                 && $gate->allows('view', $dossier))
             ->map(fn (Dossier $dossier): string => (string) $dossier->id)
             ->values()
             ->all();
+    }
+
+    /**
+     * Les candidats sur lesquels le filtre s'exerce.
+     *
+     * Sans Boucle : les Dossiers de l'Organization sous le cap
+     * MAX_CANDIDATE_DOSSIERS — le comportement historique, inchange.
+     *
+     * Avec une Boucle (revue TASK-1294) : la restriction Boucle s'applique
+     * AVANT le cap, sinon une Boucle plus recente que les
+     * MAX_CANDIDATE_DOSSIERS premiers Dossiers de l'Organization (tri
+     * created_at) aurait un perimetre VIDE. Les racines liees a la Boucle se
+     * disent en SQL ; leurs enfants ne portent ni `loop_id` ni
+     * `shared_with_loop_id` (doctrine T1130) et se recuperent par descente
+     * `parent_id`, bornee par `Dossier::MAX_DEPTH` comme `governingDossier()`.
+     * La descente ne fait que GENERER des candidats : `belongsToLoop()` reste
+     * seul juge de l'appartenance, en aval.
+     *
+     * @return Collection<int, Dossier>
+     */
+    private function candidateDossiers(string $organizationId, ?string $loopId): Collection
+    {
+        $query = Dossier::query()
+            ->where('organization_id', $organizationId)
+            ->whereNull('deleted_at')
+            ->orderBy('created_at')
+            ->limit(self::MAX_CANDIDATE_DOSSIERS);
+
+        if ($loopId === null) {
+            return $query->get();
+        }
+
+        $candidates = $query->clone()
+            ->where(fn ($roots) => $roots
+                ->where('loop_id', $loopId)
+                ->orWhere(fn ($shared) => $shared
+                    ->where('shared_with_loop_id', $loopId)
+                    ->where('visibility', Dossier::VISIBILITY_LOOP)))
+            ->get();
+
+        $parentIds = $candidates->pluck('id');
+        $depth = 0;
+
+        while ($parentIds->isNotEmpty()
+            && $depth < Dossier::MAX_DEPTH
+            && $candidates->count() < self::MAX_CANDIDATE_DOSSIERS) {
+            $children = Dossier::query()
+                ->where('organization_id', $organizationId)
+                ->whereNull('deleted_at')
+                ->whereIn('parent_id', $parentIds)
+                ->orderBy('created_at')
+                ->limit(self::MAX_CANDIDATE_DOSSIERS - $candidates->count())
+                ->get();
+
+            $candidates = $candidates->concat($children);
+            $parentIds = $children->pluck('id');
+            $depth++;
+        }
+
+        // Un cycle parent_id (donnee corrompue) ne doit ni boucler — la borne
+        // ci-dessus — ni produire un doublon dans le perimetre.
+        return $candidates->unique('id')->values();
     }
 
     /**

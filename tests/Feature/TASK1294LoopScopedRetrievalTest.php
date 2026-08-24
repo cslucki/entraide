@@ -245,6 +245,52 @@ class TASK1294LoopScopedRetrievalTest extends TestCase
         $this->assertNotContains($foreignDossier->id, $this->search->lastCall['dossierIds']);
     }
 
+    public function test_a_recent_loop_is_not_silenced_by_the_organization_wide_candidate_cap(): void
+    {
+        // Revue COWORK : le cap MAX_CANDIDATE_DOSSIERS (200) se posait sur
+        // toute l'Organization, trie par created_at, AVANT le filtre Boucle —
+        // une Boucle plus recente que les 200 premiers Dossiers rendait un
+        // perimetre VIDE (no_accessible_dossier) alors qu'elle a des
+        // documents. Le dataset (13 Dossiers) ne peut pas le reveler : on
+        // construit l'Organization saturee, et la restriction Boucle doit
+        // s'appliquer AVANT le cap.
+        $fillers = Dossier::factory()->count(210)->create([
+            'organization_id' => $this->organization->id,
+            'owner_id' => $this->otherMember->id,
+            'visibility' => Dossier::VISIBILITY_ORGANIZATION,
+        ]);
+        // Les remplisseurs sont plus ANCIENS que tout le reste : a eux seuls
+        // ils consomment le cap trie par created_at (created_at non fillable
+        // -> query builder).
+        Dossier::query()->whereIn('id', $fillers->pluck('id'))->update(['created_at' => now()->subDays(2)]);
+
+        // Les trois formes de la Boucle A, toutes au-dela du cap historique.
+        $sharedWithA = Dossier::create([
+            'organization_id' => $this->organization->id,
+            'owner_id' => $this->otherMember->id,
+            'name' => 'Partage recent avec A',
+            'visibility' => Dossier::VISIBILITY_LOOP,
+            'shared_with_loop_id' => $this->loopA->id,
+        ]);
+        $childOfRootA = Dossier::create([
+            'organization_id' => $this->organization->id,
+            'parent_id' => $this->rootA->id,
+            'name' => 'Enfant recent du Dossier de A',
+        ]);
+
+        $this->build($this->contexte($this->loopA->id));
+
+        $this->assertNotNull(
+            $this->search->lastCall,
+            'Le perimetre d\'une Boucle ne doit jamais etre annule par le cap pose sur toute l\'Organization.',
+        );
+        $ids = $this->search->lastCall['dossierIds'];
+        $this->assertContains($this->rootA->id, $ids, 'forme 1 malgre le cap');
+        $this->assertContains($sharedWithA->id, $ids, 'forme 2 malgre le cap');
+        $this->assertContains($childOfRootA->id, $ids, 'forme 3 malgre le cap');
+        $this->assertNotContains($this->rootB->id, $ids);
+    }
+
     // =====================================================================
     // SANS loopId : le comportement historique, conserve EXPLICITEMENT
     // =====================================================================
