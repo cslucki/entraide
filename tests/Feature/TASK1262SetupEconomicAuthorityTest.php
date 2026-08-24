@@ -80,11 +80,18 @@ class TASK1262SetupEconomicAuthorityTest extends TestCase
     {
         $this->fakeSuccess();
 
-        $from = CarbonImmutable::now()->startOfMonth();
-        $to = $from->addMonth();
+        // TASK-1295 : le credit et le budget se verifient sur des fenetres
+        // FIGEES, derivees du cutover G11-c lui-meme — plus jamais sur
+        // now()->startOfMonth(), qui faisait dependre le SENS du test de la
+        // date reelle d'execution (vert avant septembre 2026, rouge apres).
         $usage = app(OrganizationAiEconomicUsage::class);
-        $creditBefore = $usage->userCreditUses($this->tenant->id, $from, $to, $this->member->id);
-        $budgetBefore = $usage->summary($this->tenant->id, $from, $to);
+        $cutover = CarbonImmutable::parse(OrganizationAiEconomicUsage::CREDIT_LEDGER_AUTHORITY_SINCE);
+        $augustStart = $cutover->subMonth();
+        $octoberStart = $cutover->addMonth();
+        $augustCreditBefore = $usage->userCreditUses($this->tenant->id, $augustStart, $cutover, $this->member->id);
+        $augustBudgetBefore = $usage->summary($this->tenant->id, $augustStart, $cutover);
+        $septemberCreditBefore = $usage->userCreditUses($this->tenant->id, $cutover, $octoberStart, $this->member->id);
+        $septemberBudgetBefore = $usage->summary($this->tenant->id, $cutover, $octoberStart);
 
         Livewire::test(MemberAiProfileConversationalSetup::class)->call('start');
 
@@ -105,13 +112,27 @@ class TASK1262SetupEconomicAuthorityTest extends TestCase
         $this->assertSame($this->tenant->id, $trace->organization_id);
         $this->assertSame(120, $trace->input_tokens);
         $this->assertSame(30, $trace->output_tokens);
-        // Depuis T1291, member_profile.agent_setup EST au mapping de GARDE
-        // (cutover 25/08) — mais ces deux lectures-ci n'en dependent pas :
-        // le credit reste sur le registre pour tout mois anterieur au
-        // cutover global G11-c (01/09, fenetres par mois entier), et
-        // summary() reste sur la console historique (G11-d non bascule).
-        $this->assertSame($creditBefore, $usage->userCreditUses($this->tenant->id, $from, $to, $this->member->id));
-        $this->assertSame($budgetBefore, $usage->summary($this->tenant->id, $from, $to));
+        // AVANT le cutover (fenetre = le mois entier qui precede le 01/09) :
+        // le credit est lu sur le registre historique (ai_interactions +
+        // embedding queries) — la ligne canonique du ledger, placee DANS la
+        // fenetre interrogee, n'y compte PAS ; summary() (console historique,
+        // G11-d non bascule) ne bouge pas non plus. C'est le comportement que
+        // l'ancienne assertion encodait a tort comme une verite eternelle.
+        $line->forceFill(['created_at' => $augustStart->addDay()])->saveQuietly();
+        $this->assertSame($augustCreditBefore, $usage->userCreditUses($this->tenant->id, $augustStart, $cutover, $this->member->id));
+        $this->assertSame($augustBudgetBefore, $usage->summary($this->tenant->id, $augustStart, $cutover));
+
+        // AU/APRES le cutover (fenetre = le mois qui COMMENCE au 01/09,
+        // borne incluse — `>=` dans userCreditUses()) : la MEME ligne
+        // canonique devient UNE utilisation creditee, car
+        // member_profile.agent_setup est dans CREDITABLE_PROCESSES
+        // (arbitrage #16 de T1261 — c'etait precisement le SIGNAL T1262).
+        // summary() reste sur la console historique : le cutover G11-c ne
+        // bascule QUE le credit. Si une TASK future (G11-d) bascule
+        // summary(), cette assertion la forcera a repasser ici consciemment.
+        $line->forceFill(['created_at' => $cutover->addDay()])->saveQuietly();
+        $this->assertSame($septemberCreditBefore + 1, $usage->userCreditUses($this->tenant->id, $cutover, $octoberStart, $this->member->id));
+        $this->assertSame($septemberBudgetBefore, $usage->summary($this->tenant->id, $cutover, $octoberStart));
     }
 
     public function test_absent_usage_is_not_observed_never_invented_as_zero(): void
