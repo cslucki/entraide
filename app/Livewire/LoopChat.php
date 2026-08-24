@@ -213,6 +213,16 @@ class LoopChat extends Component
                 $metadata = ($metadata ?? []) + ['slash_ia' => true];
             }
 
+            // TASK-1300 : `/ia` explicite d'abord — un corps `/ia ...` en
+            // reponse a un message IA reste une invocation /ia (une seule),
+            // le contexte de fil etant construit par le service depuis le
+            // lien de reponse (arbitrage Cyril 24/08, test dedie).
+            $continuationParent = $slashIaQuestion === null ? $this->continuationParent() : null;
+
+            if ($continuationParent !== null) {
+                $metadata = ($metadata ?? []) + ['ai_continuation' => true];
+            }
+
             $message = $service->sendUserMessage($this->loop, $user, $this->body, $metadata, $this->replyToMessageId, $imagePath);
             $this->body = '';
             $this->cancelReply();
@@ -224,10 +234,43 @@ class LoopChat extends Component
 
         if ($slashIaQuestion !== null) {
             $this->answerSlashIa($message, $slashIaQuestion, $user);
+        } elseif ($continuationParent !== null && $message->reply_to_id === $continuationParent->id) {
+            // TASK-1300 : continuation — le membre a REPONDU au message IA,
+            // son corps est la question. Meme chaine knowledge, meme
+            // declencheur deja persiste (le piege de la double persistance
+            // reste ferme par T-3), meme conservation du message humain en
+            // cas de refus ou d'echec.
+            $this->answerSlashIa($message, trim($message->body), $user);
         }
 
         $this->syncNewerMessages();
         $this->dispatch('message-sent');
+    }
+
+    /**
+     * TASK-1300 : le parent d'une CONTINUATION — le message IA (type `ai`
+     * strictement : jamais `member_agent`), non supprime, de CETTE Boucle,
+     * que le membre vise avec « Repondre ». Tout autre cas est un reply
+     * ordinaire : Boucle agent (l'agent T-2 repond deja a tout message —
+     * deux IA seraient deux depenses), reply a un humain, parent efface
+     * (conservateur : son contenu a quitte le fil), corps vide (photo
+     * seule : pas de question a poser). Un reply_to_id d'une AUTRE Boucle
+     * ne declenche rien : cette requete est bornee a la Boucle courante,
+     * `sendUserMessage()` annule le lien de son cote, et la branche
+     * appelante re-verifie le lien PERSISTE avant d'invoquer.
+     */
+    private function continuationParent(): ?LoopMessage
+    {
+        if ($this->loop->isAiAgent() || $this->replyToMessageId === null || trim($this->body) === '') {
+            return null;
+        }
+
+        return LoopMessage::query()
+            ->where('id', $this->replyToMessageId)
+            ->where('loop_id', $this->loop->id)
+            ->where('type', 'ai')
+            ->whereNull('deleted_at')
+            ->first();
     }
 
     /**
