@@ -64,9 +64,11 @@ final class OrganizationAiEconomicUsage
      * par le filtre `status = success` des requetes, pas par cette liste.
      *
      * DISTINCTE de `AiEconomicGuard::ledgerAuthorityProcesses()` (autorite
-     * de GARDE, G11-b) : les deux ensembles se recoupent mais ne sont PAS
-     * egaux — garde et credit sont deux semantiques independantes, ne
-     * jamais les fusionner.
+     * de GARDE, G11-b) : garde et credit sont deux semantiques
+     * independantes, ne jamais les fusionner. Depuis TASK-1291 (convergence
+     * de `member_profile.agent_setup` et `service_offer.master`), les deux
+     * ensembles COINCIDENT extensionnellement — c'est un etat, pas une
+     * regle : chaque liste continue de se decider pour ses raisons propres.
      *
      * Le 15e seau creditable — `dossier.embeddings_search` (recherche
      * documentaire) — n'est PAS dans cette liste : il est selectionne par

@@ -64,7 +64,7 @@ class TASK1261CreditLedgerCutoverTest extends TestCase
     // 0. La liste elle-meme
     // =====================================================================
 
-    public function test_creditable_processes_list_has_fourteen_entries_independent_from_guard_authority_list(): void
+    public function test_creditable_and_guard_process_lists_are_independent_decisions_that_now_coincide(): void
     {
         $this->assertCount(14, OrganizationAiEconomicUsage::CREDITABLE_PROCESSES);
         $this->assertContains('member_profile.agent_setup', OrganizationAiEconomicUsage::CREDITABLE_PROCESSES);
@@ -72,17 +72,21 @@ class TASK1261CreditLedgerCutoverTest extends TestCase
         $this->assertContains('member_profile.agent_visitor_chat', OrganizationAiEconomicUsage::CREDITABLE_PROCESSES);
         $this->assertContains('service_offer.master', OrganizationAiEconomicUsage::CREDITABLE_PROCESSES);
 
-        // Independance des deux listes (delta M1 point A) : la garde G11-b
-        // (12 process depuis T1286 — les deux chemins agent de profil ont
-        // converge) et le credit G11-c (14 process) ne sont PAS le meme
-        // ensemble, meme si elles se recoupent.
+        // Independance des deux listes (delta M1 point A) : garde G11-b et
+        // credit G11-c restent deux DECISIONS independantes, jamais
+        // fusionnees. Depuis TASK-1291 (HARD GATE tenant leve sur la
+        // surface courte), elles COINCIDENT extensionnellement — 14 process
+        // chacune — mais c'est un ETAT constate, pas une regle : aucune
+        // assertion d'egalite d'ensembles ici, chaque liste se fige pour
+        // ses raisons propres et peut re-diverger par decision produit.
         $guardProcesses = AiEconomicGuard::ledgerAuthorityProcesses();
-        $this->assertCount(12, $guardProcesses);
+        $this->assertCount(14, $guardProcesses);
         $this->assertContains('member_profile.loop_agent_reply', $guardProcesses);
         $this->assertContains('member_profile.agent_visitor_chat', $guardProcesses);
-        // Toujours dehors (HARD GATE tenant par defaut — T1286) :
-        $this->assertNotContains('member_profile.agent_setup', $guardProcesses);
-        $this->assertNotContains('service_offer.master', $guardProcesses);
+        // Entres au mapping par T1291 (garde d'appartenance fail-closed,
+        // tenant de l'ACTEUR — cutover 2026-08-25T00:00:00Z) :
+        $this->assertContains('member_profile.agent_setup', $guardProcesses);
+        $this->assertContains('service_offer.master', $guardProcesses);
     }
 
     // =====================================================================

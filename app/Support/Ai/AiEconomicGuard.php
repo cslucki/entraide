@@ -46,6 +46,18 @@ final class AiEconomicGuard
      *    tenant est EXPLICITE et fail-closed : l'Organization du PROFIL
      *    (`tenantOf()`, aucun repli — le job exige en plus profil et Boucle
      *    dans la MEME Organization), jamais une resolution par defaut.
+     *  - surface courte (TASK-1291) : `member_profile.agent_setup` et
+     *    `service_offer.master`. Leur HARD GATE tenant (l'Organization PAR
+     *    DEFAUT que `ResolveUrlOrganization` lie aux pages sans prefixe et a
+     *    l'endpoint d'update Livewire) est leve par T1291 : le tenant vient
+     *    de l'ACTEUR (`users.organization_id`), garde d'appartenance
+     *    fail-closed 404 AVANT tout provider, sur les deux surfaces.
+     *    Correctif merge le 24/08 -> premier minuit UTC ENTIEREMENT couvert
+     *    par le comportement corrige = 25/08 00:00Z. Le ledger reel ne
+     *    porte AUCUNE ligne historique au tenant incorrect (0 ligne setup,
+     *    1 ligne master au tenant juste, verifie T1291) — mais la date
+     *    protege la PERIODE couverte par le comportement corrige, jamais la
+     *    chance qu'aucune mauvaise ligne n'existe.
      * Avant l'instant d'un process : `ai_interactions` (requete historique).
      * A partir de cet instant, inclus : le ledger. Fenetres disjointes PAR
      * PROCESS ; les lignes ecrites dans les deux tables avant le cutover ne
@@ -58,15 +70,7 @@ final class AiEconomicGuard
      * structurellement que le perimetre garde. Sans lui, le plafond
      * Organization se mettrait a compter des familles non migrees.
      *
-     * RESTENT DEHORS apres TASK-1286, chacun pour une raison ecrite :
-     *  - `member_profile.agent_setup` : HARD GATE tenant — la page
-     *    `/agent-ia/setup` existe SANS prefixe d'Organization, ou
-     *    `ResolveUrlOrganization` lie l'Organization PAR DEFAUT ; un membre
-     *    sans profil existant verrait son setup impute au budget d'une
-     *    Organization cliente qui n'a rien demande ;
-     *  - `service_offer.master` : meme HARD GATE — la variante non prefixee
-     *    de `/services/ai-formulate` recoit elle aussi l'Organization par
-     *    defaut du middleware ;
+     * RESTENT DEHORS apres TASK-1291, chacun pour une raison ecrite :
      *  - `supervision.content` (banc SuperAdmin) : son tenant EST
      *    `DefaultOrganizationResolver::resolve()`, exclu d'office ;
      *  - `member_profile.admin_llm_test` (banc test LLM) : tenant explicite
@@ -87,6 +91,8 @@ final class AiEconomicGuard
         'blog.explorer_note' => '2026-08-20T00:00:00+00:00',
         'member_profile.loop_agent_reply' => '2026-08-20T00:00:00+00:00',
         'member_profile.agent_visitor_chat' => '2026-08-20T00:00:00+00:00',
+        'member_profile.agent_setup' => '2026-08-25T00:00:00+00:00',
+        'service_offer.master' => '2026-08-25T00:00:00+00:00',
     ];
 
     /**
@@ -369,7 +375,8 @@ final class AiEconomicGuard
      *     ou hors mapping) sur TOUT le mois — aucun cutover ne s'applique a
      *     elles, exactement le comportement anterieur a la bascule ;
      *  2. pour CHAQUE groupe de cutover du mapping (canoniques 18/08,
-     *     Blog/Explorer 20/08) : `ai_interactions` du groupe AVANT son
+     *     Blog/Explorer 20/08, surface courte T1291 25/08) :
+     *     `ai_interactions` du groupe AVANT son
      *     cutover — c'est ce qui garde comptees les traces Blog du
      *     18-19/08, ecrites avant que T1247/T1248 ne commencent le ledger ;
      *  3. le ledger du groupe A PARTIR de son cutover.
@@ -469,11 +476,11 @@ final class AiEconomicGuard
      *    de statut est donc obligatoire pour ne pas fermer un process a
      *    cause d'une panne.
      *
-     *  - tout autre process (chemins restes hors mapping — TASK-1286 :
-     *    `member_profile.agent_setup` et `service_offer.master` au tenant
-     *    possiblement par defaut, bancs SuperAdmin) : lecture historique
-     *    `ai_interactions` INCHANGEE sur tout le mois, jusqu'a une levee
-     *    explicite de leur raison d'exclusion.
+     *  - tout autre process (chemins restes hors mapping apres TASK-1291 —
+     *    les bancs SuperAdmin : `supervision.content` au tenant par defaut
+     *    par construction, `member_profile.admin_llm_test` en decision
+     *    produit) : lecture historique `ai_interactions` INCHANGEE sur tout
+     *    le mois, jusqu'a une levee explicite de leur raison d'exclusion.
      *
      * @return array{0: float, 1: int}
      */
