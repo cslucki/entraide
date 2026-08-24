@@ -86,6 +86,17 @@ class MessageController extends Controller
             return redirect()->route('messages.index');
         }
 
+        // TASK-1289 : garde d'appartenance a l'Organization RESOLUE, avant
+        // toute ecriture. La verification ci-dessus compare les deux
+        // utilisateurs entre eux (on ne demarre pas une conversation avec
+        // quelqu'un d'une autre Organization) ; celle-ci compare l'acteur a
+        // l'Organization dans laquelle la Transaction et le Message vont etre
+        // crees. Sans elle, deux membres d'une meme AUTRE Organization
+        // ecrivaient dans l'Organization par defaut de la surface courte.
+        if ($currentUser->organization_id !== $organization->id) {
+            return redirect()->route('messages.index')->with('error', __('messages.cross_org'));
+        }
+
         $transaction = Transaction::create([
             'organization_id' => $organization->id,
             'buyer_id' => $currentUser->id,

@@ -20,8 +20,15 @@ class TransactionController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $organization = currentOrganization();
+        $actor = auth()->user();
 
-        if (! $organization) {
+        // TASK-1289 : la garde existante verifiait l'Organization resolue puis,
+        // plus bas, que la CIBLE (service ou demande) lui appartient (T075.15).
+        // Elle ne verifiait jamais que l'ACTEUR lui appartient : un membre
+        // d'une autre Organization devenait buyer (service) ou seller (demande)
+        // d'une Transaction creee dans l'Organization par defaut. Completee
+        // ici, meme forme que ProfileController / ReportController.
+        if (! $organization || $actor->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -31,7 +38,7 @@ class TransactionController extends Controller
             'points_proposed' => 'required|integer|min:1',
         ]);
 
-        $buyer = auth()->user();
+        $buyer = $actor;
 
         // Determine seller and organization_id
         $organizationId = null;

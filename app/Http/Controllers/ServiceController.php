@@ -299,14 +299,21 @@ class ServiceController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $organization = currentOrganization();
-        if (! $organization) {
+        $user = auth()->user();
+
+        // TASK-1289 : garde d'appartenance a l'Organization resolue avant toute
+        // ecriture — meme forme que ProfileController / ReportController. Sur la
+        // surface courte l'Organization resolue est celle par defaut, quel que
+        // soit l'utilisateur connecte : sans cette garde un membre d'une autre
+        // Organization y creait un service.
+        if (! $organization || $user->organization_id !== $organization->id) {
             abort(404);
         }
 
         $data = $request->validate($this->validationRules($organization), [], __('marketplace.validation_attributes'));
 
         $service = Service::create([
-            'user_id' => auth()->id(),
+            'user_id' => $user->id,
             'organization_id' => $organization->id,
             'title' => $data['title'],
             'description' => $data['description'],
