@@ -578,10 +578,13 @@ class TASK1252VisitorChatEconomicAuthorityTest extends TestCase
         $this->fakeOpenRouterAnswer();
         $component = Livewire::actingAs($this->visitor)->test(AiAgentChat::class, ['user' => $this->owner]);
 
-        // Une depense connue sur un AUTRE process : sans effet.
-        $this->knownSpend($this->tenant, $this->owner, 'member_profile.loop_agent_reply', 'member_profile_agent_loop_reply');
+        // Une depense connue sur un AUTRE process : sans effet. T1286 : ce
+        // process-la a converge lui aussi — la depense doit etre au LEDGER
+        // pour etre reellement VUE de la garde (une trace registre post-
+        // cutover ne compterait nulle part et l'assertion serait creuse).
+        $this->knownLedgerSpend($this->tenant, $this->owner, 'member_profile.loop_agent_reply');
         $component->set('question', 'Premiere question.')->call('sendMessage')->assertSet('errorCode', null);
-        $this->assertSame(1, AiProviderInvocation::query()->count());
+        $this->assertSame(2, AiProviderInvocation::query()->count(), '1 fixture autre process + 1 succes.');
 
         // La meme depense sur LE process de ce chemin : refus. T1286 : ce
         // process a converge vers l'autorite ledger — la depense qui compte
@@ -591,7 +594,7 @@ class TASK1252VisitorChatEconomicAuthorityTest extends TestCase
             ->assertSet('errorCode', AiRefusedException::CODE_ORGANIZATION_BUDGET_REACHED);
 
         Http::assertSentCount(1);
-        $this->assertSame(2, AiProviderInvocation::query()->count(), 'Le refus n\'a rien ecrit de plus (1 succes + 1 fixture).');
+        $this->assertSame(3, AiProviderInvocation::query()->count(), 'Le refus n\'a rien ecrit de plus (2 fixtures + 1 succes).');
     }
 
     public function test_a_missing_platform_key_is_refused_as_not_configured_before_any_call(): void
