@@ -40,6 +40,7 @@ final class ContextBuilder
         OrganizationCategoriesSource $organizationCategories,
         DossierRetrievalSource $dossierRetrieval,
         BlogPostSource $blogPost,
+        MemberProfileSource $memberProfile,
     ) {
         $this->sources = [
             $loopMessages->name() => $loopMessages,
@@ -47,6 +48,7 @@ final class ContextBuilder
             $organizationCategories->name() => $organizationCategories,
             $dossierRetrieval->name() => $dossierRetrieval,
             $blogPost->name() => $blogPost,
+            $memberProfile->name() => $memberProfile,
         ];
     }
 

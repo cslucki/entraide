@@ -193,14 +193,17 @@ class TASK1253CanonicalAttributionTest extends TestCase
 
         // TASK-1284 : blog_generate / blog_correct sont sortis de cette liste
         // — devenus canoniques, leur writer les porte en `capability`.
+        // TASK-1285 : GenerateAiAgentResponse::FEATURE et AiAgentChat::FEATURE
+        // en sont sortis pour la meme raison — capabilities canoniques
+        // `member_profile_agent_loop_reply` / `member_profile_agent_visitor_chat`
+        // (ids = les features historiques), leur writer (`SupervisionEconomic-
+        // Authority::attempt()`) les porte en `capability`.
         $inheritedFeatures = [
             'blog_method_selection_explorer_fr',
             'blog_explorer', 'blog_explorer_note',
             'service_offer_formulation',
             AdminMemberAiProfileController::LLM_TEST_SCENARIO,
             AdminAiSupervisionController::BENCH_FEATURE,
-            GenerateAiAgentResponse::FEATURE,
-            AiAgentChat::FEATURE,
             ...array_keys(NervousSystemCoverage::INHERITED),
         ];
 
@@ -217,9 +220,11 @@ class TASK1253CanonicalAttributionTest extends TestCase
                 CapabilityRegistry::LOOP_ASK,
                 CapabilityRegistry::BLOG_GENERATE,
                 CapabilityRegistry::BLOG_CORRECT,
+                CapabilityRegistry::MEMBER_PROFILE_AGENT_LOOP_REPLY,
+                CapabilityRegistry::MEMBER_PROFILE_AGENT_VISITOR_CHAT,
             ],
             array_map(static fn ($definition): string => $definition->id, $registry->all()),
-            'Les sept capabilities canoniques (TASK-1284 : + blog_generate/blog_correct) — aucune pour la suggestion sur selection, l\'Explorer, l\'agent de profil, l\'offre, les bancs.',
+            'Les neuf capabilities canoniques (TASK-1285 : + les deux reponses de l\'agent de profil) — aucune pour la suggestion sur selection, la configuration conversationnelle du profil, l\'Explorer, l\'offre, les bancs.',
         );
     }
 
@@ -231,7 +236,7 @@ class TASK1253CanonicalAttributionTest extends TestCase
         $this->assertSame(BlogExplorerController::class, NervousSystemCoverage::INHERITED['blog_explorer']);
         $this->assertNotSame('ai.inherited_label.blog_explorer', __('ai.inherited_label.blog_explorer', [], 'fr'));
         $this->assertNotSame('ai.inherited_label.blog_explorer', __('ai.inherited_label.blog_explorer', [], 'en'));
-        $this->assertSame(7 + 4, $coverage->totalCount(), 'Sept canoniques (TASK-1284 : + blog_generate/blog_correct) + quatre heritees (agent de profil, suggestion sur selection Blog, Explorer, offre de service).');
+        $this->assertSame(9 + 4, $coverage->totalCount(), 'Neuf canoniques (TASK-1285 : + les deux reponses de l\'agent de profil) + quatre heritees (configuration conversationnelle du profil, suggestion sur selection Blog, Explorer, offre de service).');
     }
 
     // =====================================================================

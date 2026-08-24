@@ -253,7 +253,9 @@ class TASK1251MemberProfileAgentLoopReplyEconomicAuthorityTest extends TestCase
         $row = $ledger->first();
         $this->assertSame($this->tenant->id, $row->organization_id, 'Tenant = Organization du PROFIL.');
         $this->assertSame($this->visitor->id, $row->user_id, 'Acteur = l\'expediteur du message, pas le proprietaire.');
-        $this->assertNull($row->capability, 'Pas une capability canonique : dit tel quel.');
+        // TASK-1285 : le chemin est entre au registre — le writer porte la
+        // capability (regle ecrite de TASK-1253), id = la feature historique.
+        $this->assertSame('member_profile_agent_loop_reply', $row->capability);
         $this->assertSame(GenerateAiAgentResponse::FEATURE, $row->feature);
         $this->assertSame('member_profile_agent_loop_reply', $row->feature);
         $this->assertSame('member_profile.loop_agent_reply', $row->process, 'Le process de la trace operationnelle.');
@@ -281,7 +283,10 @@ class TASK1251MemberProfileAgentLoopReplyEconomicAuthorityTest extends TestCase
         $this->assertSame(150, $trace->output_tokens);
         $this->assertFalse((bool) $trace->cost_unknown, 'Usage observe : le cout n\'est plus « inconnu par construction ».');
         $this->assertEqualsWithDelta(0.0009, (float) $trace->cost_usd, 1e-9);
-        $this->assertNull($trace->metadata);
+        // TASK-1285 : la trace porte la composition reellement envoyee
+        // (chemin canonique) — c'est la SEULE metadata d'un succes.
+        $this->assertSame(['composition'], array_keys($trace->metadata ?? []));
+        $this->assertSame('member_profile_agent_loop_reply', $trace->metadata['composition']['capability']);
 
         $this->assertSame(0, AiInteraction::query()->count(), 'Aucune trace produit : zero double comptage.');
         $this->assertSame(0, AdminAiInteraction::query()->count());
@@ -470,6 +475,8 @@ class TASK1251MemberProfileAgentLoopReplyEconomicAuthorityTest extends TestCase
         $this->assertSame(1, AiProviderInvocation::query()->count());
         $this->assertSame(AiProviderInvocation::STATUS_FAILED, $row->status);
         $this->assertSame(\RuntimeException::class, $row->failure_reason);
+        // TASK-1285 : la capability est portee sur CHAQUE tentative, echec compris.
+        $this->assertSame('member_profile_agent_loop_reply', $row->capability);
         $this->assertSame($this->tenant->id, $row->organization_id);
         $this->assertSame($this->visitor->id, $row->user_id);
         $this->assertSame(AiProviderInvocation::CREDENTIAL_PLATFORM, $row->credential_source);

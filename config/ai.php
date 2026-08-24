@@ -345,6 +345,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Agent de profil membre — capabilities canoniques (TASK-1285)
+    |--------------------------------------------------------------------------
+    |
+    | Budget de contexte des capabilities member_profile_agent_loop_reply /
+    | member_profile_agent_visitor_chat (source member.profile). Le materiau
+    | est le profil IA publie : ses champs sont bornes par le produit, le bloc
+    | reste tres en deca de ce plafond. La source laisse passer son unite
+    | unique EN ENTIER (regle de la premiere unite, comme blog.post) : avant
+    | migration le profil partait toujours entier, le tronquer aurait ete un
+    | changement de comportement.
+    */
+
+    'member_profile' => [
+        'max_context_chars' => (int) env('MEMBER_PROFILE_AI_MAX_CONTEXT_CHARS', 30000),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Chemins herites SupervisionProviderResolver — autorite economique (TASK-1250)
     |--------------------------------------------------------------------------
     |

@@ -667,12 +667,16 @@ class TASK1274SocleDatasetFrTest extends TestCase
 
         Http::assertSentCount(1);
         Http::assertSent(function ($request) {
-            $system = collect($request['messages'] ?? [])->firstWhere('role', 'system')['content'] ?? '';
+            // TASK-1285 : le profil publie part toujours ENTIER au provider,
+            // mais par le Context Builder — materiau delimite du message
+            // user, plus concatene au message system. L'invariant de CE test
+            // (le profil publie est envoye) se verifie sur la requete entiere.
+            $sent = collect($request['messages'] ?? [])->pluck('content')->implode("\n");
 
-            return str_contains($system, 'Télétravail')
-                && str_contains($system, 'Fondateur de CyberWorkers')
-                && str_contains($system, 'Direct, concret, orienté action')
-                && str_contains($system, 'Pas de développement logiciel');
+            return str_contains($sent, 'Télétravail')
+                && str_contains($sent, 'Fondateur de CyberWorkers')
+                && str_contains($sent, 'Direct, concret, orienté action')
+                && str_contains($sent, 'Pas de développement logiciel');
         });
 
         $this->assertSame(1, AiProviderInvocation::query()->count(), 'Un appel facture = une ligne de ledger IA.');

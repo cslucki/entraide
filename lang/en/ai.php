@@ -371,9 +371,11 @@ return [
         'loop_ask' => 'Question to the AI in the Loop',
         'blog_generate' => 'Blog article generation',
         'blog_correct' => 'Blog article correction',
+        'member_profile_agent_loop_reply' => 'Profile agent reply in a Loop',
+        'member_profile_agent_visitor_chat' => 'Profile agent visitor chat',
     ],
     'inherited_label' => [
-        'member_profile_agent' => 'Member AI profiles',
+        'member_profile_agent_setup' => 'Conversational AI profile setup',
         'blog_method_selection' => 'AI suggestions on selection (Blog)',
         'blog_explorer' => 'Blog article AI Explorer',
         'service_offer_formulation' => 'Service offer formulation',

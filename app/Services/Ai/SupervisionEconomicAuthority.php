@@ -104,9 +104,15 @@ final class SupervisionEconomicAuthority
      * @param  (Closure(T): ?string)|null  $reportedModelOf
      * @return T
      *
+     * - `$capability` (TASK-1285, additif) : la capability CANONIQUE du chemin
+     *   quand il en a une — regle ecrite de TASK-1253 : quand un chemin herite
+     *   entre au registre, « le writer concerne doit alors la porter en
+     *   capability ». NULL (defaut) pour les chemins qui n'en ont pas : leur
+     *   ledger le dit tel quel, comme avant.
+     *
      * @throws \Throwable l'exception du provider, telle quelle, apres la ligne `failed`
      */
-    public function attempt(string $process, ResolvedModel $resolved, Closure $call, Closure $usageOf, ?Closure $reportedModelOf = null): mixed
+    public function attempt(string $process, ResolvedModel $resolved, Closure $call, Closure $usageOf, ?Closure $reportedModelOf = null, ?string $capability = null): mixed
     {
         $startedAt = microtime(true);
         $correlationId = AiCorrelation::id();
@@ -115,7 +121,7 @@ final class SupervisionEconomicAuthority
             $result = $call();
         } catch (\Throwable $exception) {
             $this->record($process, $resolved, AiUsage::notObserved(), null,
-                AiProviderInvocation::STATUS_FAILED, $correlationId, $exception::class, $startedAt);
+                AiProviderInvocation::STATUS_FAILED, $correlationId, $exception::class, $startedAt, $capability);
 
             throw $exception;
         }
@@ -129,15 +135,17 @@ final class SupervisionEconomicAuthority
         $cost = AiPricingCatalog::cost($reported->provider, $reported->model, $usage);
 
         $this->record($process, $reported, $usage, $cost,
-            AiProviderInvocation::STATUS_SUCCESS, $correlationId, null, $startedAt);
+            AiProviderInvocation::STATUS_SUCCESS, $correlationId, null, $startedAt, $capability);
 
         return $result;
     }
 
     /**
      * Ligne canonique du ledger — une par appel provider reellement tente.
-     * `capability` NULL : ce chemin n'est pas une capability canonique (il le
-     * dit tel quel) ; `process` = celui de la trace operationnelle du chemin,
+     * `capability` : celle du chemin canonique quand l'appelant la porte
+     * (TASK-1285 — le registre la valide, `assertCanonicalOrNull`), NULL
+     * sinon : ce chemin n'est pas une capability canonique et le dit tel
+     * quel ; `process` = celui de la trace operationnelle du chemin,
      * `feature` = la fonction produit du perimetre, `user_id` = l'acteur.
      */
     private function record(
@@ -149,11 +157,12 @@ final class SupervisionEconomicAuthority
         string $correlationId,
         ?string $failureReason,
         float $startedAt,
+        ?string $capability = null,
     ): void {
         $this->ledger->recordGeneration(
             organizationId: (string) $this->scope->organization->id,
             userId: $this->scope->actor?->id !== null ? (string) $this->scope->actor->id : null,
-            capability: null,
+            capability: $capability,
             process: $process,
             resolved: $resolved,
             usage: $usage,

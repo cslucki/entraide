@@ -33,10 +33,15 @@ final class NervousSystemCoverage
      * @var array<string, string>
      */
     public const INHERITED = [
-        // Couvre les trois surfaces de l'agent de profil (reponse automatique
-        // dans une Boucle agent, chat visiteur, configuration
-        // conversationnelle) : toutes passent par cette classe.
-        'member_profile_agent' => 'App\Services\Ai\MemberProfileAgentResponder',
+        // TASK-1285 : les deux surfaces de REPONSE de l'agent de profil
+        // (reponse automatique dans une Boucle agent, chat visiteur) sont
+        // sorties d'ici — capabilities canoniques
+        // `member_profile_agent_loop_reply` / `member_profile_agent_visitor_chat`.
+        // Ce qui reste hors doctrine est la configuration conversationnelle
+        // du profil (`chatWithSetupPrompt` : le dialogue multi-tours du membre
+        // avec l'assistant de creation), declaree sous sa propre cle :
+        // l'Admin Organization n'est jamais trompe sur la portee reelle.
+        'member_profile_agent_setup' => 'App\Services\Ai\MemberProfileAgentResponder::chatWithSetupPrompt',
         // TASK-1233 : `chatloop_direct_answer` (ChatLoopAiService::answer/ask)
         // est sorti d'ici — capabilities canoniques `loop_answer` / `loop_ask`.
         // TASK-1284 : `blog_ai` (generer/corriger) est sorti d'ici —

@@ -183,6 +183,13 @@ class GenerateAiAgentResponse implements ShouldQueue
             $metadata['fallback_after_provider_failure'] = $result['fallback_after_provider_failure'];
         }
 
+        // TASK-1285 : traces de composition du chemin canonique (doctrine
+        // reellement composee, sources et provenance du Context Builder).
+        // Absentes d'une reponse rule-based : elle n'a rien compose.
+        if (isset($result['composition'])) {
+            $metadata['composition'] = $result['composition'];
+        }
+
         MemberAiProfileInteraction::create([
             'organization_id' => $tenant->id,
             'correlation_id' => AiCorrelation::id(),

@@ -349,7 +349,9 @@ class TASK1252VisitorChatEconomicAuthorityTest extends TestCase
         $row = $ledger->first();
         $this->assertSame($this->tenant->id, $row->organization_id, 'Tenant = Organization du PROFIL.');
         $this->assertSame($this->visitor->id, $row->user_id, 'Acteur = le visiteur qui pose la question.');
-        $this->assertNull($row->capability);
+        // TASK-1285 : le chemin est entre au registre — le writer porte la
+        // capability (regle ecrite de TASK-1253), id = la feature historique.
+        $this->assertSame('member_profile_agent_visitor_chat', $row->capability);
         $this->assertSame(AiAgentChat::FEATURE, $row->feature);
         $this->assertSame('member_profile_agent_visitor_chat', $row->feature);
         $this->assertSame('member_profile.agent_visitor_chat', $row->process, 'Le process de la trace operationnelle.');
