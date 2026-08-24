@@ -18,7 +18,7 @@ class BlogPostPolicy
             return false;
         }
 
-        return ! $user->banned_at;
+        return $user->organization_id === $org->id && ! $user->banned_at;
     }
 
     public function update(User $user, BlogPost $post): bool
