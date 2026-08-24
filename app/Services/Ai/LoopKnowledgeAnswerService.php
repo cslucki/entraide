@@ -163,7 +163,13 @@ class LoopKnowledgeAnswerService
         );
 
         $startedAt = microtime(true);
-        $prompt = $borne->text."\n\nQuestion du membre :\n".$question;
+        // TASK-1300 : sur une continuation, l'echange precedent — borne —
+        // s'insere entre les sources et la question ; partout ailleurs le
+        // prompt T-3 est inchange octet pour octet.
+        $thread = $this->threadContext($inThreadTrigger);
+        $prompt = $borne->text
+            .($thread === '' ? '' : "\n\n".$thread)
+            ."\n\nQuestion du membre :\n".$question;
 
         try {
             $response = $agent->prompt(
@@ -214,6 +220,83 @@ class LoopKnowledgeAnswerService
             // ete bloquee.
             credit: $this->economicGuard->userCreditStatus($organization, $requester),
         );
+    }
+
+    /**
+     * TASK-1300 : profondeur maximale de remontee de la chaine reply_to_id
+     * pour le contexte d'une continuation — SIX messages, soit trois tours
+     * d'echange membre/IA.
+     *
+     * Pourquoi six : le « minimum utile » du brief T-4 tient en UN tour (la
+     * reponse IA continuee et la question humaine qui l'avait produite) ;
+     * trois tours couvrent une conversation de deux continuations avec une
+     * marge d'un tour, sans que les tours anterieurs — deja resumes de fait
+     * par la derniere reponse IA — ne gonflent le prompt : la connaissance
+     * vient du RAG Loop-scoped, pas du fil. Pourquoi une constante et pas
+     * une config : le brief impose les bornes EXISTANTES, on n'ouvre pas une
+     * surface de reglage que personne n'a demande a regler (arbitrage Cyril
+     * 24/08). La borne de CARACTERES, elle, reste la borne existante
+     * `ai.chatloop.max_context_chars`. Ce plafond garantit qu'une chaine de
+     * quarante continuations ne produit jamais un prompt de quarante tours —
+     * ni meme quarante lectures : la remontee s'arrete la, absolument.
+     */
+    private const MAX_THREAD_DEPTH = 6;
+
+    /**
+     * TASK-1300 : le contexte de continuation — l'echange precedent, remonte
+     * par la chaine `reply_to_id` depuis le declencheur, BORNE en profondeur
+     * (MAX_THREAD_DEPTH) et en caracteres (`ai.chatloop.max_context_chars`,
+     * le plus ancien coupe d'abord, le parent direct toujours conserve,
+     * tronque au besoin).
+     *
+     * Chaine vide (declencheur sans reply, `/ia` simple, chemin modal T-1)
+     * ou parent qui n'est pas un message IA visible : aucun contexte — le
+     * prompt T-3 reste inchange sur ces chemins. Seuls les types `user` et
+     * `ai` entrent au transcript ; un maillon d'un autre type arrete la
+     * remontee, un maillon supprime est saute (son slot de profondeur est
+     * consomme : la borne reste un nombre de LECTURES, pas de lignes).
+     */
+    private function threadContext(?LoopMessage $trigger): string
+    {
+        $parent = $trigger?->replyTo;
+
+        if ($parent === null || $parent->type !== 'ai' || $parent->isDeleted()) {
+            return '';
+        }
+
+        $budget = (int) config('ai.chatloop.max_context_chars', 12000);
+        $lines = [];
+        $total = 0;
+        $current = $parent;
+
+        for ($depth = 0; $depth < self::MAX_THREAD_DEPTH && $current !== null; $depth++) {
+            if (! in_array($current->type, ['user', 'ai'], true)) {
+                break;
+            }
+
+            if (! $current->isDeleted()) {
+                $line = ($current->type === 'ai' ? 'BouclePro : ' : 'Membre : ').trim((string) $current->body);
+
+                if ($lines === []) {
+                    $line = mb_substr($line, 0, $budget);
+                    $lines[] = $line;
+                    $total = mb_strlen($line);
+                } elseif ($total + mb_strlen($line) + 1 <= $budget) {
+                    $lines[] = $line;
+                    $total += mb_strlen($line) + 1;
+                } else {
+                    break;
+                }
+            }
+
+            $current = $current->replyTo;
+        }
+
+        if ($lines === []) {
+            return '';
+        }
+
+        return "Echange precedent dans la Boucle :\n".implode("\n", array_reverse($lines));
     }
 
     /**
@@ -270,7 +353,12 @@ class LoopKnowledgeAnswerService
                 'type' => 'ai',
                 'metadata' => [
                     'requested_by' => $requester->id,
-                    'action' => $inThreadTrigger === null ? 'knowledge' : 'slash_ia',
+                    // TASK-1300 : la provenance persistee du declencheur est
+                    // la source de verite — `slash_ia` pour une invocation
+                    // explicite, `continuation` pour une reponse au fil.
+                    'action' => $inThreadTrigger === null
+                        ? 'knowledge'
+                        : (($inThreadTrigger->metadata['slash_ia'] ?? false) ? 'slash_ia' : 'continuation'),
                     'question' => $question,
                     'grounded' => $cited !== [],
                     'sources' => array_map(KnowledgeAnswer::publicSource(...), $sources),

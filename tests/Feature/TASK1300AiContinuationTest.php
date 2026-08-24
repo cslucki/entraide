@@ -637,7 +637,7 @@ class TASK1300AiContinuationTest extends TestCase
     {
         // Un dossier lisible par le membre mais HORS Boucle : la restriction
         // T1294 doit l'exclure AVANT la recherche.
-        Dossier::factory()->create([
+        $outsideDossier = Dossier::factory()->create([
             'organization_id' => $this->organization->id,
             'owner_id' => $this->secondMember->id,
             'name' => 'Dossier hors Boucle',
@@ -655,10 +655,19 @@ class TASK1300AiContinuationTest extends TestCase
             ->call('sendMessage')
             ->assertHasNoErrors();
 
-        $this->assertSame([$this->visibleDossier->id], $this->search->lastCall['dossierIds']);
+        // L'ensemble EXACT du perimetre T1294, comme en T-3 : le Dossier
+        // racine de la Boucle (cree par createLoop) et le dossier partage —
+        // et RIEN d'autre : le dossier org-wide hors Boucle est exclu.
+        $rootDossier = Dossier::query()->where('loop_id', $this->loop->id)->sole();
+        $this->assertEqualsCanonicalizing(
+            [$rootDossier->id, $this->visibleDossier->id],
+            $this->search->lastCall['dossierIds'],
+        );
+        $this->assertNotContains($outsideDossier->id, $this->search->lastCall['dossierIds']);
         $this->assertSame($this->organization->id, $this->search->lastCall['organizationId']);
 
         $aiReply = LoopMessage::query()->where('type', 'ai')->where('body', 'Suite sourcee [S1].')->sole();
+        $this->assertNotSame([], $aiReply->metadata['sources']);
         foreach ($aiReply->metadata['sources'] as $source) {
             $this->assertSame(['ref', 'title', 'dossier_name', 'excerpt', 'url'], array_keys($source));
         }
