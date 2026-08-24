@@ -47,11 +47,25 @@ class MemberAiProfileConversationalSetup extends Component
 
     public function mount(): void
     {
-        $organization = currentOrganization();
+        // TASK-1291 : le tenant du setup est l'Organization de l'ACTEUR
+        // (`users.organization_id`), jamais l'Organization ambiante — que la
+        // surface courte recoive l'Organization par defaut de
+        // `ResolveUrlOrganization` ou qu'une URL /org/{slug} etrangere lie la
+        // sienne. Acteur sans Organization, desactive, ou Organization
+        // ambiante differente de la sienne => refus fail-closed AVANT tout
+        // provider (meme regle que RequestController::organizationFor(),
+        // T1288/T1289).
         $user = auth()->user();
 
-        if (! $user || ! $organization) {
-            return;
+        if (! $user || $user->isDeactivated() || ! $user->organization_id) {
+            abort(404);
+        }
+
+        $organization = $user->organization;
+        $ambient = currentOrganization();
+
+        if (! $organization || ($ambient && $ambient->id !== $organization->id)) {
+            abort(404);
         }
 
         $this->organization = $organization;
@@ -72,6 +86,11 @@ class MemberAiProfileConversationalSetup extends Component
 
     public function start(): void
     {
+        // TASK-1291 : tenant fige AVANT le try — une incoherence acteur /
+        // Organization est un refus fail-closed (404), jamais une « erreur
+        // de configuration » affichee apres un catch.
+        $tenant = $this->setupTenant();
+
         $this->resetExcept(['profile', 'organization', 'provider', 'model']);
         $this->started = true;
         $this->isTyping = true;
@@ -97,7 +116,6 @@ class MemberAiProfileConversationalSetup extends Component
                 ];
             }
 
-            $tenant = $this->setupTenant();
             $result = $responder->chatWithSetupPrompt(
                 $initialMessages,
                 $this->provider,
@@ -140,6 +158,9 @@ class MemberAiProfileConversationalSetup extends Component
             return;
         }
 
+        // TASK-1291 : meme regle que start() — tenant fige AVANT le try.
+        $tenant = $this->setupTenant();
+
         $this->messages[] = ['role' => 'user', 'content' => $input];
         $this->currentInput = '';
         $this->isTyping = true;
@@ -153,7 +174,6 @@ class MemberAiProfileConversationalSetup extends Component
                 $this->messages,
             );
 
-            $tenant = $this->setupTenant();
             $result = $responder->chatWithSetupPrompt(
                 $chatMessages,
                 $this->provider,
@@ -189,15 +209,19 @@ class MemberAiProfileConversationalSetup extends Component
 
     public function validateAndSave(): void
     {
+        // TASK-1291 : le profil est cree chez le TENANT DE L'ACTEUR — plus
+        // jamais chez `currentOrganization()`, que l'endpoint d'update
+        // Livewire resout sur l'Organization par defaut. Fige AVANT le try :
+        // l'incoherence est un 404, pas une « erreur de sauvegarde ».
+        $tenant = $this->setupTenant();
+        $user = auth()->user();
+
         $this->saving = true;
 
         try {
-            $organization = currentOrganization();
-            $user = auth()->user();
-
             if (! $this->profile) {
                 $this->profile = MemberAiProfile::create([
-                    'organization_id' => $organization->id,
+                    'organization_id' => $tenant->id,
                     'user_id' => $user->id,
                     'status' => MemberAiProfile::STATUS_DRAFT,
                     'locale' => 'fr',
@@ -302,11 +326,23 @@ class MemberAiProfileConversationalSetup extends Component
 
     private function setupTenant(): Organization
     {
-        if ($this->profile) {
-            return $this->profile->loadMissing('organization')->organization;
+        // TASK-1291 : derive de l'ACTEUR et de l'objet deja persiste — plus
+        // jamais de `currentOrganization()`, que l'endpoint d'update Livewire
+        // (`/livewire-{hash}/update`, sans segment d'Organization) recoit
+        // toujours resolu sur l'Organization PAR DEFAUT. Toute incoherence
+        // profil / acteur / Organization hydratee => fail-closed.
+        $user = auth()->user();
+        $tenant = $this->profile
+            ? $this->profile->loadMissing('organization')->organization
+            : $this->organization;
+
+        if (! $user || ! $tenant
+            || $user->organization_id !== $tenant->id
+            || ($this->organization && $this->organization->id !== $tenant->id)) {
+            abort(404);
         }
 
-        return $this->organization;
+        return $tenant;
     }
 
     private function economicScope(Organization $tenant): SupervisionEconomicScope

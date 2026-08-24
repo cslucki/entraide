@@ -93,8 +93,16 @@ class ServiceController extends Controller
 
     public function formulate(Request $request): JsonResponse
     {
+        // TASK-1291 : meme garde d'appartenance que
+        // RequestController::organizationFor() (T1288/T1289). Le tenant
+        // economique est l'Organization de l'ACTEUR — jamais celle que la
+        // surface courte (Organization par defaut liee par
+        // ResolveUrlOrganization) ou l'URL /org/{slug} d'autrui apporte.
+        // Refus fail-closed AVANT toute lecture metier et tout provider.
         $organization = currentOrganization();
-        if (! $organization) {
+        $user = $request->user();
+
+        if (! $organization || ! $user || $user->isDeactivated() || $user->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -188,8 +196,6 @@ class ServiceController extends Controller
         // IA (T1229) s'applique comme sur le Blog (T1247). Cle plateforme
         // declaree, garde AVANT provider, ledger succes ET echec : tout est
         // porte par `resolveUnderEconomicAuthority()`.
-        $user = $request->user();
-
         try {
             $provider = app(SupervisionProviderResolver::class)->resolveUnderEconomicAuthority(
                 $providerName,

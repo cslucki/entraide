@@ -13,7 +13,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Group;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 /**
@@ -265,19 +264,19 @@ class TASK1291EconomicTenantConvergenceTest extends TestCase
         app()->instance('current_organization', $this->defaultOrganization);
         $this->actingAs($this->stranger);
 
-        $refused = null;
-
-        try {
-            // Pas de Http::fake ici, a dessein : si le composant tente
-            // l'appel provider, `Http::preventStrayRequests()` (TestCase)
-            // le transforme en echec — et l'autorite economique ecrit alors
-            // une ligne ledger FAILED chez l'Organization par defaut. C'est
-            // exactement la depense fantome que la garde doit precéder.
-            Livewire::test(MemberAiProfileConversationalSetup::class)
-                ->call('start');
-        } catch (HttpException $exception) {
-            $refused = $exception;
-        }
+        // Pas de Http::fake ici, a dessein : si le composant tentait
+        // l'appel provider, `Http::preventStrayRequests()` (TestCase)
+        // le transformerait en echec — et l'autorite economique ecrirait
+        // alors une ligne ledger FAILED chez l'Organization par defaut.
+        // C'est exactement la depense fantome que la garde doit preceder.
+        //
+        // Le refus tombe des le MONTAGE : le harnais Livewire GERE la
+        // HttpException du mount (RequestBroker la laisse au handler) et la
+        // rend comme une vraie reponse 404 — aucun snapshot n'existe, donc
+        // aucune action (`start`) n'est meme atteignable, ni ici ni en
+        // production (pas de composant rendu = pas de payload d'update).
+        Livewire::test(MemberAiProfileConversationalSetup::class)
+            ->assertNotFound();
 
         $this->assertNoLedgerLineAtAll(
             'DEPENSE FANTOME : le setup d\'un membre d\'une autre Organization a produit une ligne '
@@ -285,12 +284,39 @@ class TASK1291EconomicTenantConvergenceTest extends TestCase
             .'Le refus fail-closed doit preceder tout appel provider.'
         );
         $this->assertSame(0, MemberAiProfile::query()->count(), 'Un refus ne cree aucun profil.');
-        $this->assertNotNull(
-            $refused,
-            'Le membre d\'une autre Organization doit etre refuse fail-closed au montage du setup (404), '
-            .'au lieu d\'obtenir un scope economique sur l\'Organization par defaut.'
+        Http::assertNothingSent();
+    }
+
+    /**
+     * Defense en profondeur sur le chemin d'UPDATE : un acteur coherent au
+     * rendu peut cesser de l'etre avant l'update (retire de l'Organization,
+     * ou bascule ailleurs, onglet reste ouvert). `setupTenant()` doit alors
+     * refuser fail-closed (404) AVANT tout provider — jamais depenser sur un
+     * tenant que l'acteur a quitte, jamais se replier sur l'Organization par
+     * defaut ambiante de l'endpoint `/livewire-{hash}/update`.
+     */
+    public function test_an_actor_who_left_his_organization_is_refused_on_the_livewire_update(): void
+    {
+        app()->instance('current_organization', $this->organizationA);
+        $this->actingAs($this->memberA);
+
+        $component = Livewire::test(MemberAiProfileConversationalSetup::class);
+
+        // Entre le rendu et l'update : l'acteur n'appartient plus a A, et
+        // l'endpoint d'update porte l'Organization par defaut ambiante.
+        $this->memberA->forceFill(['organization_id' => $this->organizationB->id])->saveQuietly();
+        app()->instance('current_organization', $this->defaultOrganization);
+
+        // Pas de Http::fake : toute tentative provider deviendrait une ligne
+        // ledger FAILED — la meme depense fantome que ci-dessus.
+        $component->call('start')
+            ->assertNotFound();
+
+        $this->assertNoLedgerLineAtAll(
+            'La depense d\'un acteur devenu etranger a son tenant de rendu doit etre refusee AVANT tout '
+            .'appel provider — sur aucune des trois Organizations.'
         );
-        $this->assertSame(404, $refused->getStatusCode());
+        $this->assertSame(0, MemberAiProfile::query()->count(), 'Un refus ne cree aucun profil.');
         Http::assertNothingSent();
     }
 
