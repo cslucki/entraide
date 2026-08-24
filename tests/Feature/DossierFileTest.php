@@ -579,6 +579,18 @@ class DossierFileTest extends TestCase
         $response->assertStatus(403);
     }
 
+    public function test_stranger_cannot_preview_file(): void
+    {
+        // TASK-1296 : les sources citees pointent desormais sur la route
+        // d'apercu — la DossierPolicy refuse le meme non-autorise sur les
+        // DEUX routes, apercu compris.
+        $file = $this->createFile($this->dossier, $this->ownerA);
+
+        $response = $this->actingAs($this->strangerA)->get($this->previewRoute($this->dossier, $file));
+
+        $response->assertStatus(403);
+    }
+
     // --- Delete tests ---
 
     public function test_owner_can_delete_file(): void

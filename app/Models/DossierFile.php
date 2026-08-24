@@ -58,6 +58,20 @@ class DossierFile extends Model
         return str_starts_with($this->mime_type, 'image/');
     }
 
+    /**
+     * Apercu inline possible dans la modale existante du drive : la MEME
+     * allowlist que `ouvrirFichier()` et `canPreviewResult()` cote JS
+     * (resources/js/app.js) — elargir l'une sans les autres rendrait
+     * l'affordance mensongere (TASK-1296).
+     */
+    public static function isPreviewableMime(?string $mimeType): bool
+    {
+        return $mimeType !== null && (
+            str_starts_with($mimeType, 'image/')
+            || in_array($mimeType, ['application/pdf', 'text/plain', 'text/markdown'], true)
+        );
+    }
+
     public function temporaryUrl(int $minutes = 30): string
     {
         return Storage::disk($this->disk)->temporaryUrl($this->path, now()->addMinutes($minutes));

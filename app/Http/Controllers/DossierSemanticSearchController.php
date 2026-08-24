@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Ai\ProviderResolver;
 use App\Models\Dossier;
+use App\Models\DossierFile;
 use App\Models\Organization;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Support\Ai\AiRefusedException;
@@ -97,7 +98,13 @@ class DossierSemanticSearchController extends Controller
     private function citationUrl(Organization $organization, Dossier $dossier, array $result): string
     {
         if (($result['source_type'] ?? null) === 'file') {
-            return route('organization.dossiers.files.show', [
+            // TASK-1296 : meme regle serveur que DossierRetrievalSource —
+            // previewable => apercu inline, sinon telechargement conserve.
+            $routeName = DossierFile::isPreviewableMime($result['mime_type'] ?? null)
+                ? 'organization.dossiers.files.preview'
+                : 'organization.dossiers.files.show';
+
+            return route($routeName, [
                 'organization' => $organization,
                 'dossier' => $dossier,
                 'file' => $result['dossier_file_id'],
