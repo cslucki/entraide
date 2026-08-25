@@ -11,18 +11,24 @@ use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\Referral;
 use App\Models\User;
+use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\Ai\Contracts\AiProvider;
+use App\Services\Ai\LoopKnowledgeAnswerService;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopGovernanceService;
 use App\Services\LoopMessageService;
-use App\Services\LoopService;
 use App\Services\Loops\LoopLifecycleService;
+use App\Services\Loops\LoopPresetConfigurator;
+use App\Services\LoopService;
+use App\Support\Ai\AiRefusedException;
+use App\Support\Loops\HelpRequestHandoff;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -47,6 +53,7 @@ class LoopController extends Controller
         private readonly LoopMessageService $loopMessageService,
         private readonly ChatLoopAiService $chatLoopAiService,
         private readonly AiProvider $aiProvider,
+        private readonly HelpRequestHandoff $helpRequestHandoff,
     ) {}
 
     private function resolveOrganization(): Organization
@@ -97,6 +104,72 @@ class LoopController extends Controller
         abort(403);
     }
 
+    /**
+     * La seule Boucle qu'une valeur venue du navigateur ou d'un provider peut
+     * designer : active, dans cette Organization, et dont l'utilisateur est
+     * membre actif. Tout le reste vaut null — y compris un identifiant qui
+     * n'est pas un UUID, comme en produisent les scenarios du FakeAIProvider.
+     * Le garde `isUuid` n'est pas cosmetique : comparer une chaine arbitraire
+     * a une colonne uuid leve une exception sur PostgreSQL.
+     */
+    private function publishableLoopOrNull(mixed $loopId, Organization $organization, User $user): ?Loop
+    {
+        if (! is_string($loopId) || ! Str::isUuid($loopId)) {
+            return null;
+        }
+
+        return Loop::query()
+            ->where('id', $loopId)
+            ->where('organization_id', $organization->id)
+            ->where('status', 'active')
+            ->whereHas('members', fn ($q) => $q->where('user_id', $user->id)->where('status', 'active'))
+            ->first();
+    }
+
+    /**
+     * Une suggestion n'atteint l'ecran que si elle designe une Boucle que
+     * l'utilisateur peut reellement utiliser. Le libelle est relu en base :
+     * l'IA propose un identifiant, jamais un nom qui fait autorite.
+     *
+     * @return array{id: string, label: string, reason: ?string}|null
+     */
+    private function validatedSuggestedLoopFor(mixed $suggested, Organization $organization, User $user): ?array
+    {
+        if (! is_array($suggested)) {
+            return null;
+        }
+
+        $loop = $this->publishableLoopOrNull($suggested['id'] ?? null, $organization, $user);
+
+        if ($loop === null) {
+            return null;
+        }
+
+        $reason = trim((string) ($suggested['reason'] ?? ''));
+
+        return [
+            'id' => $loop->id,
+            'label' => $loop->name,
+            'reason' => $reason !== '' ? $reason : null,
+        ];
+    }
+
+    /**
+     * L'URL d'une page de Boucle, sur la surface d'ou l'on vient.
+     *
+     * Surface org-scoped (`/org/{organization}/...`) : l'Organization de la
+     * requete. Surface courte (`/loops`, `/loops/{loop}/...`) : la route courte,
+     * inchangee. Routes plates (`/join-requests/{joinRequest}/accept`,
+     * `/loop-members/{member}/role`...) : la requete ne porte ni segment
+     * `{organization}` ni segment `loops`, elle ne dit donc pas d'ou l'on vient
+     * — mais la Boucle, elle, appartient a exactement une Organization. Avant
+     * TASK-1277 ces routes retombaient sur la route courte, qui resout `main` :
+     * accepter, refuser ou annuler une demande d'adhesion depuis
+     * `/org/{slug}/loops/{loop}` finissait en 404 sur `/loops/{loop}`.
+     *
+     * Le discriminant est l'URI de la route, pas son nom : `loops.members.role`
+     * est nommee sous `loops.` mais vit sur `/loop-members/...`, elle est plate.
+     */
     private function loopRoute(string $route, Loop $loop): string
     {
         $organization = request()->route('organization');
@@ -108,7 +181,16 @@ class LoopController extends Controller
             ]);
         }
 
-        return route($route, $loop);
+        $uri = request()->route()?->uri() ?? '';
+
+        if ($uri === 'loops' || str_starts_with($uri, 'loops/')) {
+            return route($route, $loop);
+        }
+
+        return route('organization.'.$route, [
+            'organization' => $loop->organization,
+            'loop' => $loop,
+        ]);
     }
 
     private function resolveRouteLoop(Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): Loop
@@ -523,6 +605,11 @@ class LoopController extends Controller
 
         $clarificationEnabled = AiConfig::get('clarification_enabled', false);
 
+        // TASK-1211 : la clarification deposee par « Qui peut m'aider ? » est
+        // lue ICI, une seule fois, par l'ecran qui l'affiche — jamais via un
+        // flash de session, que le poll de ChatLoop consommerait avant lui.
+        $helpRequest = $this->helpRequestHandoff->pull($user, $loop);
+
         $canManageJoinRequests = $user->can('manageJoinRequests', $loop);
         $pendingJoinRequests = $canManageJoinRequests
             ? LoopJoinRequest::where('loop_id', $loop->id)
@@ -547,6 +634,20 @@ class LoopController extends Controller
             'loop', 'eligibleReferrals', 'isMember', 'clarificationEnabled',
             'canManageJoinRequests', 'pendingJoinRequests', 'loopInvitations', 'governance',
         ) + [
+            'helpRequestAnalysis' => $helpRequest['analysis'] ?? null,
+            'helpRequestIntention' => $helpRequest['intention'] ?? null,
+            // TASK-1210 : les Boucles ou l'utilisateur peut publier une demande.
+            // Meme perimetre que la source `user.loops` du Context Builder —
+            // membre actif, Boucle active, Organization courante — pour que le
+            // selecteur n'offre jamais plus que ce que l'IA a pu voir.
+            'publishableLoops' => $isMember
+                ? Loop::query()
+                    ->where('organization_id', $loop->organization_id)
+                    ->where('status', 'active')
+                    ->whereHas('members', fn ($q) => $q->where('user_id', $user->id)->where('status', 'active'))
+                    ->orderBy('name')
+                    ->get(['id', 'name'])
+                : collect(),
             'workspaceCards' => $this->workspaceCardsFor($loop, $user),
             // Les outils **mis en avant** et les autres (TASK-1124). La barre
             // montrait `take(3)` : la 4e Card active etait introuvable. Les
@@ -571,7 +672,7 @@ class LoopController extends Controller
             // le service appliquera — proprietaire autorise par son
             // Organization, ou administrateur — et jamais sur une archivee.
             'canCustomiseTools' => ! $loop->isArchived()
-                && app(\App\Services\Loops\LoopPresetConfigurator::class)->canConfigure($user, $loop),
+                && app(LoopPresetConfigurator::class)->canConfigure($user, $loop),
             'archiveImpact' => app(LoopLifecycleService::class)->impactOf($loop),
             // La vue rend chaque Card depuis le registre : plus aucune condition
             // sur une cle de Card dans le Blade.
@@ -944,19 +1045,93 @@ class LoopController extends Controller
                 ->with('help_request_error', __('loops.clarification_disabled'));
         }
 
-        $result = $this->aiProvider->analyze($data['intention']);
+        // TASK-1210 : la clarification se fait DANS un contexte — cet
+        // utilisateur, cette Organization, ses Boucles — sans quoi l'IA ne peut
+        // suggerer aucun cercle. Le service retombe seul sur la clarification
+        // deterministe si l'IA est indisponible.
+        $result = $this->aiProvider instanceof ClarifyUserHelpRequestService
+            ? $this->aiProvider->clarifyForLoop($loop, $user, $data['intention'])
+            : $this->aiProvider->analyze($data['intention']);
 
         if ($result->isBlocked()) {
             return redirect($this->loopRoute('loops.show', $loop))
                 ->with('help_request_error', $result->fallback['reason'] ?? 'Cette demande ne peut pas être publiée.');
         }
 
-        return redirect($this->loopRoute('loops.show', $loop))
-            ->with('help_request_analysis', $result->toArray())
-            ->with('help_request_intention', $data['intention']);
+        // La suggestion est validee ICI, quel que soit le chemin qui l'a
+        // produite. Le chemin SDK valide deja contre la liste offerte au
+        // modele ; le repli deterministe (FakeAIProvider) renvoie lui des
+        // identifiants de scenario qui ne designent aucune Boucle reelle.
+        // Sans ce filtre, l'ecran collait la justification d'une Boucle
+        // imaginaire sur une preselection choisie par defaut du navigateur.
+        $analysis = $result->toArray();
+        $analysis['suggested_loop'] = $this->validatedSuggestedLoopFor(
+            $analysis['suggested_loop'] ?? null,
+            $organization,
+            $user,
+        );
+
+        // Hors session : entre ce POST et l'ecran redirige, ChatLoop poll et
+        // un flash n'y survivrait pas (voir HelpRequestHandoff).
+        $this->helpRequestHandoff->store($user, $loop, $analysis, $data['intention']);
+
+        return redirect($this->loopRoute('loops.show', $loop));
     }
 
-    public function publishHelpRequest(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
+    /**
+     * TASK-1213 (RAG V1) : reponse documentaire sourcee, read-only, JSON.
+     * L'appartenance active a la Boucle et l'Organization sont verifiees ici et
+     * a nouveau dans le service ; les sources viennent du Context Builder.
+     */
+    public function knowledge(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): JsonResponse
+    {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
+
+        if ($loop->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $user = $request->user();
+
+        $isMember = LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->exists();
+
+        if (! $isMember) {
+            abort(404);
+        }
+
+        if (! config('ai.chatloop.enabled', true)) {
+            abort(404);
+        }
+
+        $data = $request->validate([
+            'question' => ['required', 'string', 'min:3', 'max:500'],
+        ]);
+
+        try {
+            $answer = app(LoopKnowledgeAnswerService::class)->answer($loop, $user, $data['question']);
+        } catch (AiRefusedException $exception) {
+            // TASK-1229 : refus AVANT appel, avec son code stable (credit
+            // utilisateur epuise / budget Organization atteint / IA non
+            // configuree) — l'ecran choisit le bon message et, pour le credit,
+            // le bouton « Voir les offres ».
+            return response()->json([
+                'error' => $exception->getMessage(),
+                'code' => $exception->refusalCode,
+                'offers_url' => $exception->offersUrl($organization),
+            ], 422);
+        } catch (\RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 422);
+        }
+
+        return response()->json($answer->toArray());
+    }
+
+    public function prepareHelpRequest(Request $request, Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): RedirectResponse
     {
         $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
         $organization = $this->resolveOrganization();
@@ -978,20 +1153,49 @@ class LoopController extends Controller
         }
 
         $data = $request->validate([
-            'title' => 'required|string|max:120',
-            'need' => 'required|string|max:2000',
-            'help_type' => 'required|string|in:request,service',
+            'title' => ['required', 'string', 'max:255'],
+            'need' => ['required', 'string', 'max:2000'],
+            'relay_loop_id' => ['bail', 'nullable', 'uuid'],
+            'suggested_category_id' => ['bail', 'nullable', 'uuid'],
         ]);
 
-        $route = $data['help_type'] === 'service'
-            ? 'services.create'
-            : 'requests.create';
+        $relayLoopId = $data['relay_loop_id'] ?? null;
+        $cible = $relayLoopId !== null
+            ? $this->publishableLoopOrNull($relayLoopId, $organization, $user)
+            : null;
 
-        return redirect()->route($route)
-            ->withInput([
-                'title' => $data['title'],
-                'description' => $data['need'],
-            ]);
+        if ($relayLoopId !== null && $cible === null) {
+            return back()
+                ->withInput()
+                ->with('help_request_error', __('loops.help_request_loop_invalid'));
+        }
+
+        // La categorie suggeree par l'IA voyage avec le reste, mais seulement
+        // si elle appartient a cette Organization : sinon elle est simplement
+        // absente et l'humain choisit dans le formulaire.
+        $suggestedCategoryId = $data['suggested_category_id'] ?? null;
+        $categorie = $suggestedCategoryId !== null
+            ? Category::query()
+                ->whereKey($suggestedCategoryId)
+                ->where('organization_id', $organization->id)
+                ->first(['id'])
+            : null;
+
+        // Ce clic ne publie plus rien : il transfere seulement la proposition
+        // vers le vrai formulaire metier. `relay_loop_id` et `category_id`
+        // restent transitoires et seront revalides une seconde fois au submit
+        // qui cree la ServiceRequest. Le brouillon voyage hors session, comme
+        // l'analyse : ce clic quitte une page qui poll (voir HelpRequestHandoff).
+        $this->helpRequestHandoff->storeDraft($user, $organization, [
+            'title' => $data['title'],
+            'description' => $data['need'],
+            'relay_loop_id' => $cible?->id,
+            'category_id' => $categorie?->id,
+        ]);
+
+        return redirect()->route('organization.requests.create', [
+            'organization' => $organization->slug,
+        ]);
     }
 
     /**
@@ -1125,6 +1329,20 @@ class LoopController extends Controller
             } else {
                 $this->chatLoopAiService->answer($loop, $request->user());
             }
+        } catch (AiRefusedException $e) {
+            // TASK-1231 (lot 0) : le refus de la garde porte son code et, si le
+            // credit personnel est epuise ET que la plateforme le propose, la
+            // porte de sortie « Voir les offres » — la meme que les trois
+            // surfaces de la 1229. Rien de neuf : offersUrl() decide.
+            $redirect = redirect($this->loopRoute('loops.show', $loop))
+                ->with('error', $e->getMessage())
+                ->with('ai_refusal_code', $e->refusalCode);
+
+            if (($offersUrl = $e->offersUrl($organization)) !== null) {
+                $redirect->with('ai_offers_url', $offersUrl);
+            }
+
+            return $redirect;
         } catch (\RuntimeException $e) {
             return redirect($this->loopRoute('loops.show', $loop))
                 ->with('error', $e->getMessage());

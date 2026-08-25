@@ -141,7 +141,7 @@ class ImageUploadTest extends TestCase
         Storage::fake('public');
 
         $user = $this->orgUser();
-        $category = Category::factory()->create();
+        $category = Category::factory()->create(['organization_id' => $this->testOrganization->id]);
 
         $response = $this->actingAs($user)->post(route('requests.store'), [
             'title' => 'Request with attachments',

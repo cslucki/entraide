@@ -2,7 +2,7 @@ name: PostgreSQL CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
@@ -52,6 +52,24 @@ jobs:
           - 5432:5432
 
     steps:
+      # TASK-1150 : le job tourne TOUJOURS (jamais de `if:` au niveau job) —
+      # seule la charge interne varie, via un label `validation:<level>` pose
+      # sur la PR. Hors `pull_request` (push develop/main, workflow_dispatch),
+      # ou si aucun label reconnu n'est present, la charge reste `full` :
+      # le doute se resout vers plus de tests, jamais moins.
+      - name: Determine validation level
+        id: level
+        run: |
+          MODE="full"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
+            if echo "$LABELS" | grep -qE '"validation:(micro-ux|no-app-ci)"'; then
+              MODE="light"
+            fi
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "Resolved CI mode: $MODE (event=${{ github.event_name }})"
+
       - uses: actions/checkout@v4
 
       - name: Setup PHP
@@ -79,16 +97,21 @@ jobs:
       - name: Install dependencies
         run: composer install --no-progress --no-interaction --prefer-dist
 
+      # Frontend build seulement en mode full : la suite Unit (mode light)
+      # ne rend pas de vue @vite.
       - name: Setup Node.js
+        if: steps.level.outputs.mode == 'full'
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
       - name: Install npm dependencies
+        if: steps.level.outputs.mode == 'full'
         run: npm ci --prefer-offline
 
       - name: Build frontend assets
+        if: steps.level.outputs.mode == 'full'
         run: npm run build
 
       - name: Clear Laravel caches
@@ -101,13 +124,17 @@ jobs:
       # composer, npm et la construction des assets coutent environ une minute,
       # et les dedoubler en deux jobs paierait cette minute deux fois pour rien.
       # Les etapes restent separees pour que leurs durees se lisent
-      # independamment.
+      # independamment. Unit tourne dans les DEUX modes : c'est la validation
+      # du mode light (MICRO_UX / NO_APP_CI).
       - name: Run Unit tests (blocking)
         run: php vendor/bin/phpunit --configuration phpunit.ci-minimal.xml
 
       # Avant TASK-1112, la CI ne lançait **que** les tests Unit : aucune
       # regression Feature ne pouvait rendre ce gate rouge. La liste des classes
       # exclues est dans `phpunit.ci-feature.xml`, avec la raison de chacune —
-      # elle doit retrecir, jamais grandir.
+      # elle doit retrecir, jamais grandir. Mode full uniquement : STANDARD et
+      # SENSITIVE gardent la couverture complete ; MICRO_UX/NO_APP_CI se
+      # contentent d'Unit.
       - name: Run Feature tests (blocking)
+        if: steps.level.outputs.mode == 'full'
         run: php vendor/bin/phpunit --configuration phpunit.ci-feature.xml

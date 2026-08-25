@@ -2,17 +2,20 @@
 
 namespace Tests\Feature\Dossiers;
 
+use App\Ai\ProviderResolver;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Models\DossierChunk;
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Dossiers\ArticleChunker;
 use App\Services\Dossiers\ArticleTextExtractor;
 use App\Services\Dossiers\DossierArticleIndexer;
 use App\Services\Dossiers\DossierChunkEmbeddingService;
 use App\Services\Dossiers\DossierSemanticSearchGate;
+use App\Support\Ai\AiEconomicGuard;
 use App\Support\Tenancy\CurrentOrganization;
 use Laravel\Ai\Embeddings;
 use Laravel\Ai\Prompts\EmbeddingsPrompt;
@@ -63,6 +66,8 @@ class DossierArticleIndexerTest extends TestCase
             },
             app(ArticleChunker::class),
             app(DossierChunkEmbeddingService::class),
+            app(ProviderResolver::class),
+            app(AiEconomicGuard::class),
         );
 
         $this->assertFalse(app()->bound('current_organization'));
@@ -252,7 +257,15 @@ class DossierArticleIndexerTest extends TestCase
         $this->assertSame(1, DossierChunk::query()->where('organization_id', $otherOrganization->id)->count());
     }
 
-    public function test_provider_failure_preserves_existing_chunks(): void
+    /**
+     * TASK-1214 — doctrine inversee : un echec d'embedding survient uniquement
+     * apres un changement detecte (`alreadyIndexed` court-circuite le cas
+     * inchange). La representation stockee est donc perimee ; elle ne doit plus
+     * etre servie comme actuelle. On la retire, puis on relance l'exception
+     * pour l'observabilite et un eventuel retry. (Remplace l'ancien invariant
+     * « preserve existing chunks », qui servait du perime apres un update rate.)
+     */
+    public function test_provider_failure_removes_stale_chunks_after_a_change(): void
     {
         [$organization, , $dossier, $post] = $this->eligibleFixture();
         $previousOrganization = Organization::factory()->create();
@@ -268,12 +281,14 @@ class DossierArticleIndexerTest extends TestCase
             $this->assertSame('Provider unavailable.', $exception->getMessage());
         }
 
-        $this->assertSame('old chunk', DossierChunk::query()->firstOrFail()->content);
+        // Le contenu perime n'est plus present : pas de service « comme actuel ».
+        $this->assertSame(0, DossierChunk::query()->where('blog_post_id', $post->id)->count());
+        // La portee courante reste correctement restauree malgre l'echec.
         $this->assertTrue(app()->bound('current_organization'));
         $this->assertSame($previousOrganization->id, CurrentOrganization::id());
     }
 
-    public function test_invalid_embedding_response_preserves_existing_chunks(): void
+    public function test_invalid_embedding_response_removes_stale_chunks_after_a_change(): void
     {
         [$organization, , $dossier, $post] = $this->eligibleFixture();
         $this->enableGate($organization);
@@ -286,7 +301,7 @@ class DossierArticleIndexerTest extends TestCase
         try {
             $this->indexer()->synchronize($organization->id, $dossier->id, $post->id);
         } finally {
-            $this->assertSame('old chunk', DossierChunk::query()->firstOrFail()->content);
+            $this->assertSame(0, DossierChunk::query()->where('blog_post_id', $post->id)->count());
         }
     }
 
@@ -338,6 +353,14 @@ class DossierArticleIndexerTest extends TestCase
     private function eligibleFixture(array $postAttributes = [], string $content = '<p>searchable article content</p>'): array
     {
         $organization = Organization::factory()->create();
+        // TASK-1214 : l'ingestion des embeddings passe par le credential P4 de
+        // l'Organization (famille openai, alignee sur configureEmbeddings).
+        OrganizationAiSetting::factory()->create([
+            'organization_id' => $organization->id,
+            'provider' => 'openai',
+            'model' => 'gpt-4o-mini',
+            'api_key' => 'sk-test-ingestion',
+        ]);
         $owner = User::factory()->create(['organization_id' => $organization->id]);
         $dossier = $this->createDossier($organization, $owner);
         $post = $this->createBlogPost($organization, $owner, array_merge(['content' => $content], $postAttributes));

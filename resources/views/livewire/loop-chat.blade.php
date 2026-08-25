@@ -108,7 +108,15 @@
                             <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
                         </div>
                     @elseif($msg->type === 'help_request')
-                        @php $meta = $msg->metadata ?? []; @endphp
+                        @php
+                            $meta = $msg->metadata ?? [];
+                            $projectionId = $msg->isServiceRequestProjection()
+                                ? ($meta['service_request_id'] ?? null)
+                                : null;
+                            $canonicalRequest = $projectionId
+                                ? $projectedRequests->get($projectionId)
+                                : null;
+                        @endphp
                         <div x-data="{ deleteOpen: false }" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl p-4 space-y-2">
                             <div class="flex items-center justify-between gap-2">
                                 <div class="flex items-center gap-2">
@@ -145,18 +153,40 @@
                                     </template>
                                 @endif
                             </div>
-                            <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">{{ $meta['title'] ?? __('loops.help_request_badge') }}</h3>
-                            <p class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{{ $msg->body }}</p>
-                            @if(!empty($meta['expected_help_type']))
-                                <div class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                    </svg>
-                                    <span>{{ __('loops.expected_help', ['type' => $meta['expected_help_type']]) }}</span>
-                                </div>
+                            @if($projectionId)
+                                @if($canonicalRequest)
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <h3 class="min-w-0 flex-1 text-sm font-bold text-gray-900 dark:text-gray-100">{{ $canonicalRequest->title }}</h3>
+                                        @if($canonicalRequest->status === 'closed')
+                                            <span class="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ __('requests.status_closed') }}</span>
+                                        @endif
+                                    </div>
+                                    <p class="text-sm leading-relaxed text-gray-700 dark:text-gray-300">{{ Str::limit(strip_tags($canonicalRequest->description), 320) }}</p>
+                                    <a href="{{ $projectedRequestUrls[$canonicalRequest->id] }}"
+                                       class="inline-flex items-center rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-700">
+                                        {{ __('requests.view_request') }}
+                                    </a>
+                                @else
+                                    <p class="text-sm font-medium text-gray-600 dark:text-gray-300">{{ __('requests.projection_unavailable') }}</p>
+                                @endif
+                            @else
+                                {{-- Compatibilite des help_request historiques : leur snapshot
+                                     reste lisible, mais n'est jamais presente comme une demande canonique. --}}
+                                <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">{{ $meta['title'] ?? __('loops.help_request_badge') }}</h3>
+                                <p class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{{ $msg->body }}</p>
+                                @if(!empty($meta['expected_help_type']))
+                                    <div class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        <span>{{ __('loops.expected_help', ['type' => $meta['expected_help_type']]) }}</span>
+                                    </div>
+                                @endif
                             @endif
                             <div class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500 pt-1 border-t border-amber-200/50 dark:border-amber-700/30">
-                                @if($msg->sender)
+                                @if($canonicalRequest?->user)
+                                    <span>{{ $canonicalRequest->user_id === auth()->id() ? __('messages.me') : $canonicalRequest->user->publicDisplayName() }}</span>
+                                @elseif($msg->sender)
                                     <span>{{ $isOwn ? __('messages.me') : $senderName }}</span>
                                 @else
                                     <span>{{ __('messages.member') }}</span>
@@ -180,6 +210,7 @@
                             :reaction-counts="$reactionData[$msg->id] ?? []"
                             :my-reaction="$myReactions[$msg->id] ?? null"
                             :reply-to="$msg->replyTo ? ['body' => $replyBody, 'sender_name' => $replySenderName] : null"
+                            :sources="$msg->metadata['sources'] ?? null"
                             is-ai="true"
                         >
                             {!! $msg->body !!}
@@ -225,7 +256,11 @@
 
     @if($isMember && $canContribute && config('ai.chatloop.enabled', true))
         @php $clarificationEnabled = \App\Models\AiConfig::get('clarification_enabled', false); @endphp
-        <div class="flex-shrink-0 flex flex-wrap items-center gap-2 px-3 pt-2" x-data="{ askOpen: false, asking: false }">
+        {{-- TASK-1237 : le FAB dispatche `bp-open-ask-ai` pour ouvrir ce MEME
+             formulaire (route loops.ai canonique depuis TASK-1233) — aucun
+             second formulaire, aucune variante. --}}
+        <div class="flex-shrink-0 flex flex-wrap items-center gap-2 px-3 pt-2" x-data="{ askOpen: false, asking: false }"
+             @bp-open-ask-ai.window="askOpen = true; $nextTick(() => $refs.askQuestion?.focus())">
             <button
                 type="button"
                 x-on:click="askOpen = true"
@@ -233,6 +268,18 @@
             >
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 5h.01M18 9h.01M6 4h.01"/></svg>
                 {{ __('loops.ask_ai_button') }}
+            </button>
+
+            {{-- TASK-1213 : reponse documentaire sourcee (RAG V1), read-only. Le
+                 modal vit dans loops/show et s'ouvre par evenement window. --}}
+            <button
+                type="button"
+                x-on:click="window.dispatchEvent(new CustomEvent('bp-open-knowledge'))"
+                data-knowledge-open
+                class="inline-flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50/70 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:border-sky-200 hover:bg-sky-100 dark:border-sky-800/50 dark:bg-sky-900/20 dark:text-sky-200 dark:hover:bg-sky-900/40"
+            >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>
+                {{ __('loops.knowledge_button') }}
             </button>
 
             @if($clarificationEnabled)
@@ -256,7 +303,7 @@
                         @csrf
                         <input type="hidden" name="action" value="ask">
                         <label for="ai-question" class="block text-sm font-medium text-gray-800 dark:text-gray-200">{{ __('loops.ask_question') }}</label>
-                        <input id="ai-question" type="text" name="question" required maxlength="500"
+                        <input id="ai-question" x-ref="askQuestion" type="text" name="question" required maxlength="500"
                                placeholder="{{ __('loops.ask_question_placeholder') }}"
                                class="mt-2 w-full rounded-lg border-gray-300 bg-white text-sm text-gray-900 focus:border-violet-500 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
                         <div class="mt-4 flex items-center justify-end gap-2">

@@ -16,7 +16,21 @@ class DossierChunkEmbeddingService
      * @param  array<int, string>  $texts
      * @return array{provider: string, model: string, dimensions: int, embeddings: array<int, array<int, float|int>>}
      */
-    public function embed(array $texts): array
+    /**
+     * TASK-1213 : `$instance` designe l'instance Laravel AI SDK a invoquer
+     * (celle qui porte le credential de l'Organization, voir ProviderResolver).
+     * Le `provider` renvoye reste la famille configuree pour l'index : c'est
+     * elle qui est comparee a `dossier_chunks.embedding_provider`.
+     *
+     * TASK-1283 : `$instance` est OBLIGATOIRE et non nullable. La doctrine
+     * TASK-1225 interdit tout repli sur le credential PLATEFORME : quand
+     * `$instance` etait optionnelle, un appelant qui l'oubliait faisait
+     * partir l'embedding sur la famille plateforme, silencieusement. Ce repli
+     * n'existe plus par construction — le test d'architecture
+     * AiEconomicAuthorityIsolationTest rougit si la signature redevient
+     * nullable.
+     */
+    public function embed(array $texts, string $instance): array
     {
         $provider = $this->configuredProvider();
         $model = $this->configuredModel($provider);
@@ -36,14 +50,14 @@ class DossierChunkEmbeddingService
         try {
             $response = Embeddings::for($texts)
                 ->dimensions($dimensions)
-                ->generate($provider, $model);
+                ->generate($instance, $model);
         } catch (Throwable $exception) {
             // TASK-1200 : le SDK ne dispatche aucun événement d'échec (voir
             // RecordSdkEmbeddingsInvocation). C'est le seul endroit qui peut
             // observer un échec réel, donc le seul qui peut l'enregistrer —
             // sans jamais changer le comportement fonctionnel : on relance
             // exactement l'exception d'origine, inchangée.
-            RecordSdkEmbeddingsInvocation::recordFailure($provider, $model);
+            RecordSdkEmbeddingsInvocation::recordFailure($provider, $model, $instance);
 
             throw $exception;
         }
@@ -61,11 +75,19 @@ class DossierChunkEmbeddingService
         }
 
         return [
-            'provider' => $response->meta->provider ?: $provider,
+            'provider' => $provider,
             'model' => $response->meta->model ?: $model,
             'dimensions' => $dimensions,
             'embeddings' => $embeddings,
         ];
+    }
+
+    /**
+     * Famille du provider d'embeddings de l'index (`ai.default_for_embeddings`).
+     */
+    public function provider(): string
+    {
+        return $this->configuredProvider();
     }
 
     private function configuredProvider(): string

@@ -1,0 +1,150 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+/**
+ * Ledger canonique des invocations provider IA (TASK-1220).
+ *
+ * Une ligne = UNE tentative/appel provider economiquement reel. C'est le
+ * niveau que les tables historiques n'ont jamais eu : `correlation_id` y
+ * identifie une OPERATION metier, pas un appel (TASK-1219), donc sommer
+ * sur-compte et dedupliquer sous-compte. Ici, deux appels d'une meme
+ * operation = deux lignes, chacune avec son propre id.
+ *
+ * Registre append-only : pas de `updated_at`, aucune mise a jour apres
+ * ecriture — comme `AiInteraction`. Ecrit UNIQUEMENT par
+ * `AiProviderInvocationLedger` ; aucun credential, prompt ni contenu de
+ * reponse n'y entre — structurellement : aucune colonne JSON libre, aucune
+ * colonne de contenu, `failure_reason` = classe d'exception.
+ *
+ * RETENTION (TASK-1220 / TASK-1254, G12) : aucune FK sur les deux axes
+ * d'attribution. `user_id` (sans FK) survit a la suppression du compte ;
+ * `organization_id` (NOT NULL, sans FK depuis TASK-1254) survit a la
+ * suppression du tenant de record — l'uuid reste tel quel, la ligne n'est
+ * ni effacee ni reecrite : un ledger economique durable ne depend ni de la
+ * vie du compte ni de celle du tenant. `UserDataLifecycleRegistry` le
+ * declare RETAIN. Les relations `organization()` / `user()` rendent `null`
+ * apres suppression.
+ *
+ * AUTORITE ECONOMIQUE : depuis TASK-1260 (G11-b), `AiEconomicGuard` lit ses
+ * generations ici pour les seuls process de
+ * `AiEconomicGuard::LEDGER_AUTHORITY_SINCE_BY_PROCESS`, chacun a partir de
+ * son cutover propre (perimetre a parite prouvee, TASK-1259) ;
+ * `ai_interactions` reste
+ * l'autorite avant cet instant et pour les familles heritees. Depuis
+ * TASK-1261 (G11-c), le CREDIT membre (`OrganizationAiEconomicUsage::
+ * userCreditUses()` + les deux lectures groupees) bascule ici a partir de
+ * `OrganizationAiEconomicUsage::CREDIT_LEDGER_AUTHORITY_SINCE` (cutover
+ * global, liste fermee `CREDITABLE_PROCESSES`) ; avant ce cutover, `
+ * ai_interactions` reste l'autorite credit. Les releves visibles (G11-d)
+ * n'ont pas encore bascule.
+ */
+class AiProviderInvocation extends Model
+{
+    use HasUuids;
+
+    public const UPDATED_AT = null;
+
+    public const OPERATION_GENERATION = 'generation';
+
+    public const OPERATION_EMBEDDING = 'embedding';
+
+    public const EMBEDDING_OPERATION_INGESTION = 'ingestion';
+
+    public const EMBEDDING_OPERATION_QUERY = 'query';
+
+    public const STATUS_SUCCESS = 'success';
+
+    public const STATUS_FAILED = 'failed';
+
+    public const COST_KNOWN = 'known';
+
+    public const COST_UNKNOWN = 'unknown';
+
+    /**
+     * Sources de credential PROUVEES par la primitive qui pose la cle, jamais
+     * inferees : `organization` par `ProviderResolver::registerInstance()`
+     * (cle BYOK du tenant, chemins canoniques) ; `platform` par
+     * `ProviderResolver::declareLegacyPlatformCredential()` (TASK-1247, cle
+     * lue dans la configuration plateforme et DECLAREE telle quelle par le
+     * writer herite — Blog, Explorer, famille `SupervisionProviderResolver`,
+     * agent de profil) ; `none` couvre les drivers keyless (ollama local) :
+     * il est demontrable qu'aucun credential n'existe — `unknown` serait un
+     * mensonge inverse. `user` reste reserve : aucune primitive ne le prouve.
+     *
+     * ATTRIBUTION (TASK-1253, regle canonique dans `SupervisionEconomicScope`) :
+     * `organization_id` = tenant de record (l'Organization de l'objet sur
+     * lequel l'IA travaille — son budget s'applique), distinct du payeur de la
+     * facture provider (`credential_source`) ; `user_id` = l'ACTEUR qui a
+     * declenche l'appel, et, quand un credit T1229 s'applique, c'est le sien
+     * (NULL = traitement sans utilisateur ; bancs d'administration : acteur
+     * sans credit) ; `capability` = capability canonique du registre ou NULL
+     * (chemin herite), la fonction produit se lit `COALESCE(feature, capability)`.
+     */
+    public const CREDENTIAL_ORGANIZATION = 'organization';
+
+    public const CREDENTIAL_PLATFORM = 'platform';
+
+    public const CREDENTIAL_USER = 'user';
+
+    public const CREDENTIAL_NONE = 'none';
+
+    public const CREDENTIAL_UNKNOWN = 'unknown';
+
+    protected $fillable = [
+        'organization_id',
+        'user_id',
+        'capability',
+        'feature',
+        'process',
+        'operation',
+        'embedding_operation',
+        'provider',
+        'model',
+        'credential_source',
+        'input_tokens',
+        'output_tokens',
+        'total_tokens',
+        'embedding_count',
+        'embedding_dimensions',
+        'provider_cost',
+        'currency',
+        'cost_status',
+        'cost_source',
+        'status',
+        'failure_reason',
+        'correlation_id',
+        'sdk_invocation_id',
+        'provider_invocation_id',
+        'started_at',
+        'completed_at',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'input_tokens' => 'integer',
+            'output_tokens' => 'integer',
+            'total_tokens' => 'integer',
+            'embedding_count' => 'integer',
+            'embedding_dimensions' => 'integer',
+            'provider_cost' => 'decimal:10',
+            'started_at' => 'datetime',
+            'completed_at' => 'datetime',
+        ];
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+}

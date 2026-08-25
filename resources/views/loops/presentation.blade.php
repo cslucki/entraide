@@ -81,7 +81,10 @@
                         </h2>
                         <p class="mt-2 whitespace-pre-line text-sm leading-6 text-gray-700 dark:text-gray-200">{{ \Illuminate\Support\Str::limit($manifestoText, 420) }}</p>
                         @if(mb_strlen($manifestoText) > 420)
-                            <a href="{{ route('blog.show', $publicManifesto->slug) }}" class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-violet-700 hover:underline dark:text-violet-300">
+                            {{-- TASK-1281 : l'Organization vient de la Boucle, jamais de la
+                                 requete — la route nue retombe sur l'Organization par defaut
+                                 (meme famille que LoopDossiersCard::articleUrls, T1111). --}}
+                            <a href="{{ ($_slugOrg = $loop->organization?->slug) ? route('organization.blog.show', ['organization' => $_slugOrg, 'post' => $publicManifesto->slug]) : route('blog.show', $publicManifesto->slug) }}" class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-violet-700 hover:underline dark:text-violet-300">
                                 {{ __('loops.manifesto_public_read_more') }}
                                 <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
                             </a>

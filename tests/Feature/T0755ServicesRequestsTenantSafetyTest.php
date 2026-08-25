@@ -33,7 +33,7 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
         [$organizationA, $organizationB] = $this->createOrganizations();
 
         $user = $this->createUser($organizationA);
-        $category = Category::factory()->create();
+        $category = Category::factory()->create(['organization_id' => $organizationA->id]);
 
         $this->actingAs($user)
             ->post(route('services.store'), array_merge($this->validServiceData($category), [
@@ -76,7 +76,7 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
         [$organizationA, $organizationB] = $this->createOrganizations();
 
         $user = $this->createUser($organizationA);
-        $category = Category::factory()->create();
+        $category = Category::factory()->create(['organization_id' => $organizationA->id]);
 
         $this->actingAs($user)
             ->post(route('requests.store'), array_merge($this->validRequestData($category), [

@@ -83,6 +83,18 @@ class Message extends Model
         return $this->pinned_at !== null;
     }
 
+    /**
+     * Contrat attendu par le composant partage
+     * `components/conversation/pinned-message-banner` (rendu aussi avec
+     * LoopMessage). Ce modele n'a aucune notion de suppression : ni colonne
+     * `deleted_at`, ni SoftDeletes. Un message de transaction n'est donc
+     * jamais considere comme supprime.
+     */
+    public function isDeleted(): bool
+    {
+        return false;
+    }
+
     public function pin(User $user): void
     {
         $this->pinned_at = now();

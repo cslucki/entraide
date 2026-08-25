@@ -5,6 +5,7 @@ namespace Tests\Feature\Dossiers;
 use App\Models\Dossier;
 use App\Models\DossierMember;
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use GuzzleHttp\Psr7\Response as PsrResponse;
@@ -38,7 +39,7 @@ class DossierSemanticSearchControllerTest extends TestCase
         $this->mockSearchService()
             ->shouldReceive('search')
             ->once()
-            ->with($organization->id, $dossier->id, 'needle query', 5)
+            ->with($organization->id, $dossier->id, 'needle query', \Mockery::pattern('/^org:.+:openai$/'), 5)
             ->andReturn([
                 [
                     'blog_post_id' => 'post-uuid',
@@ -71,6 +72,149 @@ class DossierSemanticSearchControllerTest extends TestCase
             ]);
     }
 
+    public function test_file_result_receives_dossier_file_citation_url_without_exception(): void
+    {
+        // TASK-1267 : forme reelle d'un resultat `file` rendue par
+        // DossierSemanticSearchService::mapSourceRow() — title et slug nuls.
+        // Avant le correctif, route('organization.blog.show', ['post' => null])
+        // levait UrlGenerationException -> HTTP 500.
+        [$organization, $owner, $dossier] = $this->fixture();
+
+        $this->mockSearchService()
+            ->shouldReceive('search')
+            ->once()
+            ->with($organization->id, $dossier->id, 'needle', \Mockery::pattern('/^org:.+:openai$/'), 5)
+            ->andReturn([
+                $this->fileResult('file-uuid-1', 'contrat-2026.pdf', 2, 'Passage du contrat', 0.234),
+            ]);
+
+        $this->withoutExceptionHandling()
+            ->actingAs($owner)
+            ->getJson($this->searchUrl($organization, $dossier, ['query' => 'needle']))
+            ->assertOk()
+            ->assertExactJson([
+                'data' => [
+                    $this->fileResult('file-uuid-1', 'contrat-2026.pdf', 2, 'Passage du contrat', 0.234) + [
+                        // TASK-1296 : text/markdown est previewable, la
+                        // citation porte donc la route d'apercu.
+                        'citation_url' => route('organization.dossiers.files.preview', [
+                            'organization' => $organization,
+                            'dossier' => $dossier,
+                            'file' => 'file-uuid-1',
+                        ]),
+                    ],
+                ],
+            ]);
+    }
+
+    public function test_mixed_article_and_file_results_each_receive_their_own_citation_url(): void
+    {
+        [$organization, $owner, $dossier] = $this->fixture();
+
+        $article = $this->articleResult('post-uuid', 'Indexed article', 'indexed-article', 0, 'Relevant passage', 0.123);
+        $fileA = $this->fileResult('file-uuid-a', 'notes.md', 0, 'Passage A', 0.2);
+        $fileB = $this->fileResult(
+            'file-uuid-b',
+            'rapport.docx',
+            0,
+            'Passage B',
+            0.3,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        );
+
+        $this->mockSearchService()
+            ->shouldReceive('search')
+            ->once()
+            ->with($organization->id, $dossier->id, 'needle', \Mockery::pattern('/^org:.+:openai$/'), 5)
+            ->andReturn([$article, $fileA, $fileB]);
+
+        $this->withoutExceptionHandling()
+            ->actingAs($owner)
+            ->getJson($this->searchUrl($organization, $dossier, ['query' => 'needle']))
+            ->assertOk()
+            ->assertExactJson([
+                'data' => [
+                    $article + [
+                        'citation_url' => route('organization.blog.show', [
+                            'organization' => $organization,
+                            'post' => 'indexed-article',
+                        ]),
+                    ],
+                    $fileA + [
+                        // TASK-1296 : previewable (text/markdown) => apercu ;
+                        // fileB (docx) garde le telechargement.
+                        'citation_url' => route('organization.dossiers.files.preview', [
+                            'organization' => $organization,
+                            'dossier' => $dossier,
+                            'file' => 'file-uuid-a',
+                        ]),
+                    ],
+                    $fileB + [
+                        'citation_url' => route('organization.dossiers.files.show', [
+                            'organization' => $organization,
+                            'dossier' => $dossier,
+                            'file' => 'file-uuid-b',
+                        ]),
+                    ],
+                ],
+            ]);
+    }
+
+    public function test_previewable_file_result_receives_a_preview_citation_url(): void
+    {
+        // TASK-1296 : URL honnete — un fichier previewable (ici le cas reel
+        // du symptome, un `.md` stocke en text/plain) porte la route
+        // d'apercu (`files.preview`, Content-Disposition inline), pas la
+        // route de telechargement.
+        [$organization, $owner, $dossier] = $this->fixture();
+
+        $result = $this->fileResult('file-uuid-1', 'notes.md', 2, 'Passage', 0.234, 'text/plain');
+
+        $this->mockSearchService()
+            ->shouldReceive('search')
+            ->once()
+            ->andReturn([$result]);
+
+        $this->withoutExceptionHandling()
+            ->actingAs($owner)
+            ->getJson($this->searchUrl($organization, $dossier, ['query' => 'needle']))
+            ->assertOk()
+            ->assertJsonPath('data.0.citation_url', route('organization.dossiers.files.preview', [
+                'organization' => $organization,
+                'dossier' => $dossier,
+                'file' => 'file-uuid-1',
+            ]));
+    }
+
+    public function test_non_previewable_file_result_keeps_the_download_citation_url(): void
+    {
+        [$organization, $owner, $dossier] = $this->fixture();
+
+        $result = $this->fileResult(
+            'file-uuid-2',
+            'rapport.docx',
+            0,
+            'Passage',
+            0.3,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        );
+
+        $this->mockSearchService()
+            ->shouldReceive('search')
+            ->once()
+            ->andReturn([$result]);
+
+        $this->withoutExceptionHandling()
+            ->actingAs($owner)
+            ->getJson($this->searchUrl($organization, $dossier, ['query' => 'needle']))
+            ->assertOk()
+            ->assertJsonPath('data.0.citation_url', route('organization.dossiers.files.show', [
+                'organization' => $organization,
+                'dossier' => $dossier,
+                'file' => 'file-uuid-2',
+            ]));
+    }
+
     public function test_dossier_editor_member_can_search(): void
     {
         [$organization, $owner, $dossier] = $this->fixture();
@@ -80,7 +224,7 @@ class DossierSemanticSearchControllerTest extends TestCase
         $this->mockSearchService()
             ->shouldReceive('search')
             ->once()
-            ->with($organization->id, $dossier->id, 'needle', 5)
+            ->with($organization->id, $dossier->id, 'needle', \Mockery::pattern('/^org:.+:openai$/'), 5)
             ->andReturn([]);
 
         $this->actingAs($member)
@@ -98,7 +242,7 @@ class DossierSemanticSearchControllerTest extends TestCase
         $this->mockSearchService()
             ->shouldReceive('search')
             ->once()
-            ->with($organization->id, $dossier->id, 'needle', 5)
+            ->with($organization->id, $dossier->id, 'needle', \Mockery::pattern('/^org:.+:openai$/'), 5)
             ->andReturn([]);
 
         $this->actingAs($member)
@@ -202,6 +346,49 @@ class DossierSemanticSearchControllerTest extends TestCase
         );
     }
 
+    /**
+     * Resultat `article` tel que rendu par DossierSemanticSearchService::mapSourceRow().
+     *
+     * @return array<string, mixed>
+     */
+    private function articleResult(string $postId, string $title, string $slug, int $chunkIndex, string $content, float $distance): array
+    {
+        return [
+            'source_type' => 'article',
+            'blog_post_id' => $postId,
+            'title' => $title,
+            'slug' => $slug,
+            'dossier_file_id' => null,
+            'filename' => null,
+            'mime_type' => null,
+            'chunk_index' => $chunkIndex,
+            'content' => $content,
+            'distance' => $distance,
+        ];
+    }
+
+    /**
+     * Resultat `file` tel que rendu par DossierSemanticSearchService::mapSourceRow() :
+     * blog_post_id / title / slug nuls, dossier_file_id + filename + mime_type renseignes.
+     *
+     * @return array<string, mixed>
+     */
+    private function fileResult(string $fileId, string $filename, int $chunkIndex, string $content, float $distance, string $mimeType = 'text/markdown'): array
+    {
+        return [
+            'source_type' => 'file',
+            'blog_post_id' => null,
+            'title' => null,
+            'slug' => null,
+            'dossier_file_id' => $fileId,
+            'filename' => $filename,
+            'mime_type' => $mimeType,
+            'chunk_index' => $chunkIndex,
+            'content' => $content,
+            'distance' => $distance,
+        ];
+    }
+
     private function mockSearchService(): MockInterface
     {
         return $this->mock(DossierSemanticSearchService::class);
@@ -214,7 +401,7 @@ class DossierSemanticSearchControllerTest extends TestCase
         $this->mockSearchService()
             ->shouldReceive('search')
             ->once()
-            ->with($organization->id, $dossier->id, 'needle', 5)
+            ->with($organization->id, $dossier->id, 'needle', \Mockery::pattern('/^org:.+:openai$/'), 5)
             ->andThrow($exception);
 
         $response = $this->actingAs($owner)
@@ -238,6 +425,16 @@ class DossierSemanticSearchControllerTest extends TestCase
             'slug' => 'org-'.Str::uuid(),
             'is_active' => true,
         ]);
+        // TASK-1225 : la recherche semantique exige desormais un embedding
+        // TENANT (credential Organization) — plus jamais la cle plateforme.
+        OrganizationAiSetting::factory()->create([
+            'organization_id' => $organization->id,
+            'provider' => 'openai',
+            'model' => 'gpt-4o-mini',
+            'api_key' => 'sk-test-1225-controller',
+        ]);
+        config()->set('ai.default_for_embeddings', 'openai');
+        config()->set('ai.providers.openai.driver', 'openai');
         $owner = $this->user($organization);
 
         $dossier = Dossier::create([

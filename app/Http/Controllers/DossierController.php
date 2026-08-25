@@ -7,15 +7,18 @@ use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\Category;
 use App\Models\Dossier;
+use App\Models\DossierMember;
 use App\Models\Loop;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\PersonalDocumentsRoot;
+use App\Support\Loops\LoopRoleRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class DossierController extends Controller
@@ -105,23 +108,51 @@ class DossierController extends Controller
             // reellement — des membres nominatifs, ou le partage avec une
             // Boucle (CAS B). Rien n'est invente ici : il n'existe aucun
             // partage de fichier ou d'Article isole.
+            //
+            // `owner_id = $userId AND parent_id IS NULL` ne decrivait pas la
+            // gouvernance mais « la racine que je possede ». Un Dossier range
+            // sous « Mes documents » n'a ni l'un ni l'autre — seule la racine
+            // porte `owner_id` — donc les deux filtres l'excluaient chacun
+            // separement : le dossier qu'on venait de partager n'apparaissait
+            // jamais ici (TASK-1142). La possession se lit sur la gouvernance,
+            // comme la policy et la vue le font deja.
+            //
+            // L'ancre, elle, ne bouge pas : un partage vit sur le Dossier
+            // explicitement partage. Un descendant qui ne fait qu'heriter n'a
+            // aucune ligne `dossier_members` et n'entre donc pas dans la liste.
             $parMoi = Dossier::query()
                 ->where('organization_id', $organization->id)
-                ->where('owner_id', $userId)
-                ->whereNull('parent_id')
                 ->where(fn ($q) => $q
                     ->whereHas('dossierMembers')
                     ->orWhereNotNull('shared_with_loop_id'))
+                // `personal_documents` n'est jamais une ancre de partage
+                // (TASK-1136) : « Mes documents » ne devient pas une ligne
+                // partagee, meme si une adhesion y atterrissait un jour.
+                ->where(fn ($q) => $q
+                    ->whereNull('system_role')
+                    ->orWhere('system_role', '!=', Dossier::SYSTEM_ROLE_PERSONAL_DOCUMENTS))
                 // Les personnes, pas seulement leur nombre : « Par moi » doit
                 // montrer AVEC QUI on partage, sinon la vue n'apprend rien que
                 // le proprietaire ne sache deja.
+                //
+                // `parent` et son `owner` : la gouvernance d'un enfant se lit
+                // un cran au-dessus, et la vue y relit le proprietaire. Les
+                // precharger rend le cas courant — un Dossier pose sous « Mes
+                // documents » — gratuit, ici comme au rendu.
                 ->with([
                     'sharedWithLoop:id,name,organization_id',
                     'dossierMembers.user:id,first_name,avatar,name,email,banned_at,organization_id',
+                    'owner:id,first_name,avatar,name,email,banned_at,organization_id',
+                    'parent.owner:id,first_name,avatar,name,email,banned_at,organization_id',
                 ])
                 ->withCount(['dossierMembers', 'files', 'dossierBlogPosts', 'children'])
                 ->latest('updated_at')
-                ->get();
+                ->get()
+                // La gouvernance n'est pas exprimable en SQL sans recursion :
+                // on la demande a la primitive canonique, sur le seul ensemble
+                // des ancres de partage de l'Organization.
+                ->filter(fn (Dossier $dossier) => $dossier->governingDossier()->owner_id === $userId)
+                ->values();
 
             return view('dossiers.espaces', [
                 'espace' => 'partages',
@@ -160,17 +191,27 @@ class DossierController extends Controller
         return view('dossiers.create');
     }
 
-    public function show(Request $request, DossierSemanticSearchGate $semanticSearchGate): View
+    public function show(Request $request, DossierSemanticSearchGate $semanticSearchGate): View|Response
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
-        $this->authorize('view', $dossier);
+
+        // Le refus devient une REPONSE, pas une exception generique. Un lecteur
+        // dont le partage vient d'etre retire rechargeait son ancienne URL et
+        // tombait sur la page « Forbidden » nue du framework : pas de marque,
+        // pas un mot de francais, aucune sortie (TASK-1145).
+        //
+        // Le statut ne bouge pas — c'est bien 403, et il le reste. Seul le
+        // rendu change. La vue ne recoit PAS `$dossier` : elle ne peut donc
+        // rien divulguer de ce qui a ete demande, et `driveSurface()` n'est
+        // jamais atteint, donc rien du Dossier n'est meme charge pour l'ecran.
+        if ($request->user()->cannot('view', $dossier)) {
+            return response()->view('dossiers.acces-refuse', [
+                'organizationRouteParam' => $request->route('organization'),
+            ], 403);
+        }
 
         return view('dossiers.show', $this->driveSurface($request, $dossier, $semanticSearchGate) + [
-            // L'espace qui reste allume dans la sidebar pendant qu'on navigue
-            // en profondeur : un Dossier de Boucle appartient a « Boucles »,
-            // tout le reste a « Mes documents ».
-            'espace' => $dossier->governingDossier()->isLoopDossier() ? 'boucles' : 'documents',
             'legacyRoots' => collect(),
         ]);
     }
@@ -207,7 +248,7 @@ class DossierController extends Controller
         // Boucle. La gouvernance, elle, ne se lit pas ici : elle se demande aux
         // policies, plus bas.
         if ($governingDossier->isLoopDossier()) {
-            $loopRole = app(\App\Support\Loops\LoopRoleRegistry::class)->canonical(
+            $loopRole = app(LoopRoleRegistry::class)->canonical(
                 $governingDossier->loop?->activeMembers()->where('user_id', $userId)->value('role'),
             );
 
@@ -228,6 +269,10 @@ class DossierController extends Controller
             'owner:id,first_name,avatar,name,banned_at,organization_id',
             'dossierBlogPosts.blogPost.user:id,first_name,avatar,name,email,organization_id,banned_at',
             'dossierBlogPosts.blogPost.coAuthors:id,first_name,avatar,name,email,organization_id,banned_at',
+            // Qui a range CET Article dans CE Dossier. `blogPost.user` dit
+            // l'auteur du contenu, ce qui n'est pas la meme question des lors
+            // que plusieurs personnes deposent dans un Dossier partage.
+            'dossierBlogPosts.addedBy:id,first_name,avatar,name,email,organization_id,banned_at',
             'dossierMembers.user:id,first_name,avatar,name,email,organization_id,banned_at',
             'loop:id,name,organization_id,status',
             'loop.activeMembers.user:id,first_name,avatar,name,email,organization_id,banned_at',
@@ -336,7 +381,11 @@ class DossierController extends Controller
         $driveFolders = $driveFolders->merge(
             Dossier::where('organization_id', $organization->id)
                 ->where('parent_id', $dossier->id)
-                ->withCount(['files', 'dossierBlogPosts', 'children'])
+                // `dossierMembers` : sans ce compte, une ligne enfant ne pouvait
+                // pas dire SON partage et retombait sur l'etat de la racine
+                // gouvernante — un Dossier explicitement partage s'affichait
+                // « Prive » dans « Mes documents » (TASK-1143).
+                ->withCount(['files', 'dossierBlogPosts', 'children', 'dossierMembers'])
                 ->get()
         )->sortBy('name')->values();
 
@@ -360,6 +409,47 @@ class DossierController extends Controller
         // de cette chaine est un Dossier personnel partage avec elle — les
         // deux mecanismes composent, ils ne se remplacent pas.
         $chain = $dossier->ancestryChain();
+
+        // Cette projection ne donne aucun droit : la policy `view()` a deja
+        // autorise la requete. Elle choisit seulement le premier maillon que le
+        // lecteur connait par un partage nominatif. Root-first garantit que si
+        // A et B sont tous deux partages, le chemin reste A > B > ... ; si seul
+        // B l'est, aucun parent prive n'est rendu.
+        $sharedAnchorIds = DossierMember::query()
+            ->where('organization_id', $organization->id)
+            ->where('user_id', $userId)
+            ->whereIn('dossier_id', $chain->pluck('id'))
+            ->pluck('dossier_id')
+            ->all();
+        $firstSharedIndex = $chain->search(fn (Dossier $ancestor) => in_array($ancestor->getKey(), $sharedAnchorIds, true));
+        $isSharedSurface = ! $governingDossier->isLoopDossier()
+            && ! $isOwner
+            && $firstSharedIndex !== false;
+
+        // Le Dossier ouvert est-il couvert par une ancre de partage explicite —
+        // lui-meme, ou l'un de ses ancetres ?
+        //
+        // Sans cette lecture, la colonne « Partage » repetait l'etat de la
+        // racine gouvernante : « Mes documents » n'ayant jamais de membre, tout
+        // ce qui vivait sous un Dossier partage s'affichait « Prive » alors que
+        // l'acces existait bel et bien. `sharingAnchorIds()` donne la portee et
+        // n'est ici que LUE — aucune ligne `dossier_members` n'est ecrite.
+        $ancres = $dossier->sharingAnchorIds();
+        $couvertParUnPartage = $ancres !== [] && (
+            DossierMember::query()
+                ->where('organization_id', $organization->id)
+                ->whereIn('dossier_id', $ancres)
+                ->exists()
+            || Dossier::query()
+                ->whereIn('id', $ancres)
+                ->whereNotNull('shared_with_loop_id')
+                ->exists()
+        );
+
+        if ($isSharedSurface) {
+            $chain = $chain->slice($firstSharedIndex)->values();
+        }
+
         $topOfRealChain = $chain->first();
 
         $driveRoot = null;
@@ -374,7 +464,15 @@ class DossierController extends Controller
 
         return [
             'dossier' => $dossier,
+            'espace' => $governingDossier->isLoopDossier()
+                ? 'boucles'
+                : ($isSharedSurface ? 'partages' : 'documents'),
             'governingDossier' => $governingDossier,
+            // Le lecteur est-il arrive ici PAR un partage — et ce Dossier
+            // porte-t-il un acces explicite quelque part sur sa chaine ? Les
+            // deux nourrissent l'affichage du partage, jamais un droit.
+            'isSharedSurface' => $isSharedSurface,
+            'couvertParUnPartage' => $couvertParUnPartage,
             'driveFolders' => $driveFolders,
             'moveTargets' => $moveTargets,
             'driveRoot' => $driveRoot,
@@ -673,9 +771,9 @@ class DossierController extends Controller
      * La profondeur est bornee par `Dossier::MAX_DEPTH`, comme partout
      * ailleurs ou l'on remonte ou descend l'arbre.
      *
-     * @return \Illuminate\Support\Collection<int, Dossier>
+     * @return Collection<int, Dossier>
      */
-    private function brancheDe(Dossier $racine): \Illuminate\Support\Collection
+    private function brancheDe(Dossier $racine): Collection
     {
         $noeuds = collect([$racine]);
         $frontiere = collect([$racine]);

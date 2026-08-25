@@ -29,18 +29,40 @@ class T3BlogEditorAiAdminTest extends TestCase
     {
         parent::setUp();
 
-        config(['ai.openai.api_key' => 'test-key']);
+        // TASK-1280 : provider force en dur — la doublure `api.openai.com/*`
+        // de ces tests ne doit JAMAIS dependre du `.env` de la machine.
+        // (Incident : AI_DEFAULT_PROVIDER=openrouter sur le banc => le motif
+        // ne matchait pas et les requetes partaient reellement.)
+        config([
+            'ai.default_provider' => 'openai',
+            'ai.default_model' => null,
+            'ai.openai.api_key' => 'test-key',
+            'ai.openai.base_url' => 'https://api.openai.com/v1',
+            'ai.openai.model' => 'gpt-test',
+        ]);
 
-        $this->organization = Organization::factory()->create(['is_active' => true]);
+        // TASK-1230 : noms DETERMINISTES (Faker `company()`, `firstName()`,
+        // `lastName()` sinon) — /admin/ia-usage rend `full_name` de l'auteur
+        // et le nom de l'Organization sur chaque ligne, plus le nom de l'admin
+        // dans la barre ; `assertDontSee('Correction')` fouille tout le HTML.
+        // Meme correction a la racine que TASK-1218 / TASK-1228.
+        $this->organization = Organization::factory()->create([
+            'is_active' => true,
+            'name' => 'Blog Sentinel Org',
+        ]);
 
         $this->admin = User::factory()->create([
             'organization_id' => $this->organization->id,
             'is_admin' => true,
+            'name' => 'Admin',
+            'first_name' => 'Sentinel',
         ]);
 
         $this->user = User::factory()->create([
             'organization_id' => $this->organization->id,
             'is_admin' => false,
+            'name' => 'Author',
+            'first_name' => 'Sentinel',
         ]);
 
         $this->category = Category::create([
@@ -340,11 +362,14 @@ class T3BlogEditorAiAdminTest extends TestCase
             ->assertJsonPath('content', '<h2>Generated article</h2><p>English content.</p>');
 
         Http::assertSent(function ($request) {
-            $messages = $request->data()['messages'] ?? [];
-            $prompt = collect($messages)->firstWhere('role', 'user')['content'] ?? '';
+            // TASK-1284 : l'instruction de langue vit desormais dans le
+            // message system compose (Constitution -> doctrine ->
+            // instruction), plus dans le message user. L'invariant teste est
+            // inchange : locale EN => instruction EN, jamais l'instruction FR.
+            $sent = collect($request->data()['messages'] ?? [])->pluck('content')->implode("\n");
 
-            return str_contains($prompt, 'Mandatory language: write the generated article in English')
-                && ! str_contains($prompt, 'Langue obligatoire : rédige');
+            return str_contains($sent, 'Mandatory language: write the generated article in English')
+                && ! str_contains($sent, 'Langue obligatoire : rédige');
         });
     }
 

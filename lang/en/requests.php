@@ -3,9 +3,20 @@
 return [
     'notification' => [
         'created' => 'Request published successfully.',
+        'created_and_relayed' => 'Request published and announced in the Loop.',
         'updated' => 'Request updated.',
         'closed' => 'Request closed.',
     ],
+
+    'relay_loop_label' => 'Relay in a Loop',
+    'relay_loop_none' => 'Do not relay this request',
+    'relay_loop_help' => 'The announcement is created only after the request is published.',
+    'relay_loop_invalid' => 'This Loop is not an authorized relay destination.',
+    'relay_failed' => 'The request was created, but its Loop announcement could not be published.',
+    'chat_projection_body' => 'New help request: :title',
+    'view_request' => 'View request',
+    'projection_unavailable' => 'This request is no longer accessible.',
+    'status_closed' => 'Request closed',
 
     'show' => [
         'back' => 'Back to explorer',

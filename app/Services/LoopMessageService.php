@@ -4,10 +4,11 @@ namespace App\Services;
 
 use App\Events\LoopMessageCreated;
 use App\Models\Loop;
+use App\Models\LoopEvent;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
-use App\Models\LoopEvent;
 use App\Models\LoopPoll;
+use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -73,6 +74,50 @@ class LoopMessageService
                     'expected_help_type' => $expectedHelpType,
                     'deadline' => $deadline,
                     'urgency' => $urgency,
+                ],
+                'organization_id' => $loop->organization_id,
+            ]);
+
+            event(new LoopMessageCreated($message));
+
+            $loop->touch();
+
+            return $message;
+        });
+    }
+
+    /**
+     * Annonce ChatLoop d'une Demande canonique deja creee.
+     *
+     * Le body n'est qu'un libelle d'annonce impose par `loop_messages`; la
+     * carte relit titre, description et statut sur `ServiceRequest`. Les deux
+     * marqueurs metadata identifient cette ligne comme projection et servent
+     * aussi au listener agent pour rester silencieux.
+     */
+    public function sendServiceRequestProjection(
+        Loop $loop,
+        User $sender,
+        ServiceRequest $request,
+    ): LoopMessage {
+        $this->assertCanSend($loop, $sender);
+
+        if ($loop->status !== 'active'
+            || $request->organization_id !== $loop->organization_id
+            || $request->organization_id !== $sender->organization_id
+            || $request->user_id !== $sender->id
+            || ! in_array($request->status, ['open', 'in_progress'], true)) {
+            throw new \RuntimeException('The service request cannot be projected into this loop.');
+        }
+
+        return DB::transaction(function () use ($loop, $sender, $request) {
+            $message = LoopMessage::create([
+                'loop_id' => $loop->id,
+                'sender_id' => $sender->id,
+                'body' => __('requests.chat_projection_body', ['title' => $request->title]),
+                'type' => 'help_request',
+                'metadata' => [
+                    'projection_type' => 'service_request',
+                    'service_request_id' => $request->id,
                 ],
                 'organization_id' => $loop->organization_id,
             ]);

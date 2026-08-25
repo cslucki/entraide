@@ -269,7 +269,16 @@ class BlogInvitationController extends Controller
         ], true);
 
         if ($success && $post) {
-            return redirect()->route('blog.edit', ['post' => $post->slug]);
+            // TASK-1281 : la route courte resout l'Organization par defaut —
+            // accepter une invitation de co-redaction d'une autre Organization
+            // ouvrait l'editeur hors tenant. L'Organization vient de l'Article,
+            // jamais de la requete (la route d'acceptation est plate).
+            $organization = $post->organization;
+            $target = $organization && Route::has('organization.blog.edit')
+                ? route('organization.blog.edit', ['organization' => $organization, 'post' => $post->slug])
+                : route('blog.edit', ['post' => $post->slug]);
+
+            return redirect($target);
         }
 
         $message = match ($outcome['result']) {

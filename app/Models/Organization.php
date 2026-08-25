@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 
@@ -62,7 +63,7 @@ class Organization extends Model
         'homepage_template',
         'homepage_settings',
         'dossier_storage_quota_bytes',
-            'loop_composition_policy',
+        'loop_composition_policy',
     ];
 
     protected function casts(): array
@@ -131,6 +132,25 @@ class Organization extends Model
         }
 
         return null;
+    }
+
+    /**
+     * Configuration IA du tenant (TASK-1212 / P4-lite). Absente = pas d'IA
+     * transverse pour cette Organization.
+     */
+    public function aiSetting(): HasOne
+    {
+        return $this->hasOne(OrganizationAiSetting::class);
+    }
+
+    /**
+     * TASK-1227 : toutes les versions de la doctrine IA de l'Organization
+     * (historique compris). La version active se lit via
+     * `OrganizationAiDoctrine::activeFor()`.
+     */
+    public function aiDoctrines(): HasMany
+    {
+        return $this->hasMany(OrganizationAiDoctrine::class);
     }
 
     public function admin(): BelongsTo

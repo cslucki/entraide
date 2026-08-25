@@ -139,8 +139,15 @@ class TASK358Lot3PublicLocationTest extends TestCase
 
     private function createStructuredUser(Organization $organization, array $attributes = []): User
     {
+        // TASK-1228 (CI, PR #231) : noms DETERMINISTES — le tirage Faker de la
+        // factory (`first_name` = « Frances ») faisait echouer
+        // `assertDontSee('France')`. Meme correction a la racine que TASK-1218
+        // (UserDeactivationTest) : aucune sentinelle testee ne peut apparaitre
+        // dans un nom genere.
         return User::factory()->create(array_merge([
             'organization_id' => $organization->id,
+            'name' => 'Structured',
+            'first_name' => 'Member',
             'city' => 'Paris',
             'country_code' => 'FR',
             'location' => 'Legacy Location',

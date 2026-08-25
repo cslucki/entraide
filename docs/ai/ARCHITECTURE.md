@@ -1,6 +1,7 @@
-# Architecture IA — corrélation, process, trace (P1)
+# Architecture IA — fondation, corrélation, process, trace
 
-Décrit ce que P1-1/P1-2/P1-3 ont livré. Pour la vision cible (mycélium,
+Décrit ce que P1-1/P1-2/P1-3 (observabilité) et P3 (fondation `App\Ai`) ont
+livré. Pour la vision cible (mycélium,
 fédération, mémoire, RAG), voir `docs/architecture/05-AI_MYCELIUM_ARCHITECTURE.md`
 (DRAFT, non autoritaire sur l'implémentation). Pour le détail des
 intégrations produit existantes, voir `docs/architecture/04-IMPLEMENTATION_IA_BOUCLEPRO.md`.
@@ -61,12 +62,19 @@ partagé entre l'événement "avant" et l'événement "après" du même appel.
   tables de trace — il vit dans le champ `metadata` JSON
   (`metadata.sdk_invocation_id`), aux côtés du reste du contexte structuré.
 
-Exemple concret livré (P1-3, embeddings Dossiers) :
+Exemples concrets livrés :
 
 ```
-correlation_id (une indexation d'article)
+correlation_id (une indexation d'article — embeddings, P1-3)
     └── invocationId SDK unique (un seul batch Embeddings::for($chunks))
+
+correlation_id (un résumé de Boucle — texte, P3)
+    └── invocationId SDK unique (un seul Agent::prompt())
 ```
+
+Une régénération déclenchée par l'utilisateur est une **nouvelle opération** :
+nouvelle requête HTTP, donc nouvelle `correlation_id`, et nouvel
+`invocationId`. Les deux identifiants changent, mais jamais l'un pour l'autre.
 
 ## `process` — identifiant technique stable
 
@@ -84,6 +92,136 @@ aucune politique, juste une normalisation stable pour l'observabilité.
   (minuscules, suffixe de locale retiré, tronqué à 100 caractères) — jamais
   une taxonomie inventée.
 
+## La fondation `App\Ai` (P3)
+
+Une seule architecture IA, plusieurs capabilities, un contexte différent selon
+l'action. Ce n'est pas « l'IA du Blog » et « l'IA de ChatLoop » : ce sont deux
+capabilities du même socle.
+
+| Classe | Rôle | Ce qu'elle ne fait pas |
+|---|---|---|
+| `App\Ai\ContexteIa` | identifiants **déjà autorisés** d'une opération : `organizationId` (obligatoire), `userId`, `loopId`, `locale`, `capability`, `correlationId`, `source` | ne porte aucun modèle Eloquent — il ne peut donc ni recharger, ni élargir, ni contourner la portée établie par l'appelant. Aucun `community_id` |
+| `App\Ai\Constitution` | cadre commun (v1), placé **systématiquement en tête** du prompt | n'est jamais surchargeable par un prompt éditable |
+| `App\Ai\CapabilityRegistry` | déclare ce qu'une capability a le droit de faire : `allowedScopes`, `allowedSources`, `canWrite`, `requiresHumanConfirmation`, `maxOutput`, `promptKey` | default deny : une capability inconnue lève, elle ne retombe sur rien |
+| `App\Ai\PromptRepository` | compose Constitution -> instruction capability -> contexte autorisé | `AdminAiPrompt` fournit l'instruction, il **ne remplace jamais** la Constitution |
+| `App\Ai\ProviderResolver` | `resolve(capability, ContexteIa)` -> provider + modèle explicites | n'appelle rien, ne route pas, ne benchmarke pas, ne lit pas le catalogue tarifaire, ignore les clés tenant. Config absente ou incohérente : `DomainException`, jamais de repli silencieux |
+
+Les identifiants de `ContexteIa` sont des **UUID** : `Organization`, `User` et
+`Loop` utilisent tous `HasUuids`.
+
+### `can_write` — l'IA propose, l'humain publie
+
+`canWrite = false` signifie que la capability peut lire les sources autorisées,
+appeler l'IA et déposer ses traces techniques, mais **ne peut pas créer de
+contribution métier visible**. C'est la traduction technique de la Constitution :
+« L'humain décide avant toute publication ou action durable. »
+
+`loop_summary` est la première capability à respecter cette règle : son résumé
+n'est plus publié en `LoopMessage`, il est relu depuis sa trace
+`ai_interactions`. Une capability qui doit légitimement publier (répondre dans
+une Boucle) portera `canWrite = true` **avec**
+`requiresHumanConfirmation = true` — l'IA prépare, l'humain valide.
+
+### Convention de clé de prompt (décision, non encore appliquée au runtime)
+
+Cible : un `prompt_key` métier **stable et non localisé**, résolu ainsi :
+
+    {prompt_key}_{locale}  ->  {prompt_key}  ->  fallback
+
+Le palier `_fr` codé en dur dans `ChatLoopAiService::resolvePrompt()` est un
+repli de compatibilité legacy, pas la cible. Il rend le français prioritaire
+sur le prompt neutre. À reprendre lors des migrations, sans modifier
+`AdminAiPrompt`.
+
+## Le Context Builder (P3)
+
+`App\Ai\Context\ContextBuilder` repond a une seule question :
+
+> « De quelles informations autorisees cette capability a-t-elle besoin
+> maintenant, pour cet utilisateur, dans cette Organization ? »
+
+    ContextBuilder::build(ContexteIa, CapabilityDefinition): ContexteBorne
+
+`ContexteBorne` porte `text`, `provenance`, `charBudget`, `sourcesUsed` et
+`sourcesDenied`.
+
+### L'autorite, c'est la capability
+
+`CapabilityDefinition::$allowedSources` decide. Une source non declaree n'est
+pas filtree apres coup : **elle n'est jamais interrogee**. C'est ce qui empeche
+une capability de gagner l'acces a des donnees simplement parce qu'une source a
+ete ajoutee au builder.
+
+Une source declaree mais inaccessible apparait dans `sourcesDenied` avec une
+raison technique bornee — jamais un extrait de la ressource refusee, jamais un
+message confirmant qu'elle existe dans une autre Organization. Un contexte
+ampute doit se voir ; il ne doit rien laisser fuir.
+
+### Sources disponibles
+
+| Source | Contenu | Portee |
+|---|---|---|
+| `loop.messages` | les N derniers messages non supprimes, ordre chronologique, prefixes de leur auteur, encadres comme **contenu non fiable** | Boucle du contexte, dont l'Organization est verifiee dans la source elle-meme |
+| `user.loops` | identifiant, nom, type et `tagline` des Boucles **dont l'utilisateur est membre actif** | Organization du contexte, `status = active` |
+
+`user.loops` n'est declaree par aucune capability aujourd'hui : elle prepare la
+suggestion de Boucle.
+
+Son perimetre est **volontairement plus etroit** que le catalogue de
+`LoopController::getAccessibleLoopsQuery()`, qui expose toutes les Boucles
+actives de l'Organization pour permettre la decouverte. Un humain qui parcourt
+un catalogue et une IA qui propose une destination n'ont pas le meme perimetre
+legitime : l'IA ne propose que ce dont l'utilisateur est deja membre.
+
+### Budget
+
+`CapabilityDefinition::$maxOutput` borne ce que le modele **produit** ;
+`$contextCharBudget` borne ce qu'on lui **donne**. Deux limites distinctes,
+deux champs distincts. Le budget s'applique apres selection : mieux vaut trois
+sources completes que dix tronquees.
+
+Aucun appel LLM, aucune approximation de tokens par service externe : la
+selection est deterministe et locale, donc reproductible en test.
+
+### Ce qui n'est PAS encore supporte
+
+Une seule capability le consomme (`loop_summary`), et deux sources existent.
+Ni `dossier.chunks` (le retrieval semantique reste hors du builder), ni les
+articles, profils, transactions, evenements, decisions, ni l'historique
+`ai_interactions` comme contexte. La provenance vit en memoire dans
+`ContexteBorne` et n'est pas persistee.
+
+## L'API texte du Laravel AI SDK (v0.7.2)
+
+Vérifiée par lecture directe de `vendor/laravel/ai/`, pas depuis la
+documentation « latest ».
+
+- **Appel** : `Agent::prompt($prompt, provider:, model:, timeout:)` via le
+  trait `Laravel\Ai\Promptable`. Provider et modèle passés **explicitement** :
+  `Provider::formatProviderAndModelList()` produit alors une liste à une seule
+  entrée, ce qui exclut tout failover silencieux vers un provider que personne
+  n'a choisi.
+- **Réponse** : `AgentResponse { string $invocationId; string $text; Usage $usage; Meta $meta; }`.
+- **Événements** : `PromptingAgent(invocationId, prompt)` et
+  `AgentPrompted(invocationId, prompt, response)`. Comme pour les embeddings,
+  **aucun événement d'échec n'existe**.
+- **Fake officiel** : `Ai::fakeAgent(AgentClass::class, $responses)`, indexé
+  **par nom de classe d'agent** — d'où l'intérêt d'une classe d'agent dédiée
+  plutôt que `Laravel\Ai\agent()` anonyme, dont la clé serait partagée.
+- **Aucun coût provider n'est exposé** : voir `OBSERVABILITE-COUTS.md`.
+
+## Le RAG est une source, pas l'architecture
+
+Le retrieval sémantique Dossiers (`dossier_chunks`, pgvector, isolation
+`organization_id` + `dossier_id` + `embedding_provider/model`) est **une source
+parmi d'autres** du futur Context Builder, pas l'architecture IA.
+
+Corollaire : tout n'a pas besoin d'embeddings. Les messages d'une Boucle, les
+profils, les demandes sont peu nombreux et déjà scopés — une requête directe
+les récupère mieux qu'une recherche vectorielle, sans coût d'embedding ni
+dérive de modèle. Les embeddings servent les corpus documentaires volumineux
+et peu structurés.
+
 ## Les trois tables de trace
 
 | Table | Rôle | Contrainte notable |
@@ -94,6 +232,36 @@ aucune politique, juste une normalisation stable pour l'observabilité.
 
 Les trois partagent `correlation_id` et `process` (P1-1), `cost_usd`/
 `cost_unknown` (P1-2, voir `OBSERVABILITE-COUTS.md`).
+
+### Le ledger canonique `ai_provider_invocations` (TASK-1220 → TASK-1254)
+
+Quatrième table, d'une autre nature : **une ligne = une tentative provider
+économiquement réelle** (génération ou embedding, succès ET échec), sans
+prompt, sans réponse, sans credential — structurellement : aucune colonne JSON
+libre, `failure_reason` = classe d'exception. **Rétention (TASK-1254)** :
+aucune FK sur les deux axes d'attribution — `user_id` sans FK (la ligne
+survit au compte, T1220), `organization_id` NOT NULL sans FK (la ligne survit
+au tenant de record, T1254 ; elle n'est ni effacée ni réécrite, l'uuid reste
+lisible) ; `UserDataLifecycleRegistry` la déclare RETAIN, et déclare
+`ai_interactions` DELETE parce que sa FK `user_id` cascade réellement (le
+contenu personnel suit la personne, l'économie vit dans le ledger). Writer
+unique `App\Services\Ai\AiProviderInvocationLedger`. Écrit par
+tous les chemins génération sous autorité économique (canoniques #1-#8 et
+hérités Blog/Explorer/famille `SupervisionProviderResolver`/agent de profil,
+T1247→T1252) et par l'observateur des embeddings SDK. L'autorité de la garde
+(`AiEconomicGuard`) lit encore `ai_interactions` pour la génération (bascule =
+G11, TASK future avec preuve de couverture).
+
+Attribution canonique (TASK-1253, règle dans le docblock de
+`App\Services\Ai\SupervisionEconomicScope`, détail dans
+`OBSERVABILITE-COUTS.md` § « Attribution canonique ») : `organization_id` =
+tenant de record = l'Organization de l'objet sur lequel l'IA travaille (son
+budget, sa politique de crédit), distinct du payeur de la facture
+(`credential_source`) ; `user_id` = l'acteur qui a déclenché l'appel, et son
+crédit quand un crédit s'applique (invariant : crédit = acteur ou personne) ;
+`capability` = capability du `CapabilityRegistry` ou NULL (invariant du
+writer : jamais une étiquette inventée) ; fonction produit =
+`COALESCE(feature, capability)`.
 
 ### Pourquoi `admin_ai_interactions` a été réutilisée pour les embeddings SDK (P1-3)
 

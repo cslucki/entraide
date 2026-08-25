@@ -196,6 +196,64 @@ return [
 
     'clarify' => [
         'enabled' => (bool) env('AI_CLARIFY_ENABLED', false),
+        'max_context_chars' => (int) env('AI_CLARIFY_MAX_CONTEXT_CHARS', 8000),
+        // TASK-1212 : meme garde economique que le resume ChatLoop, par
+        // process et par Organization (voir AiEconomicGuard).
+        'economic_guard' => [
+            'monthly_budget_usd' => (float) env('AI_CLARIFY_MONTHLY_BUDGET_USD', 2.00),
+            'monthly_unknown_limit' => (int) env('AI_CLARIFY_MONTHLY_UNKNOWN_LIMIT', 10),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Embeddings — garde economique (TASK-1222)
+    |--------------------------------------------------------------------------
+    |
+    | L'ingestion documentaire est refusee AVANT tout appel provider quand le
+    | plafond mensuel de l'Organization est atteint (generation gardee dans
+    | `ai_interactions` + embeddings connus du ledger canonique), ou quand le
+    | compteur mensuel d'invocations embeddings a cout INCONNU depasse cette
+    | limite — un cout que le catalogue ne sait pas mesurer ne devient jamais
+    | un droit de consommation illimite.
+    */
+    'embeddings' => [
+        'economic_guard' => [
+            'monthly_unknown_limit' => (int) env('AI_EMBEDDINGS_MONTHLY_UNKNOWN_LIMIT', 50),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | FAB « BouclePro IA » (TASK-1231)
+    |--------------------------------------------------------------------------
+    |
+    | Point d'entree unique et contextuel des capabilities IA existantes dans
+    | le layout membre. Il n'appelle jamais un provider : il ouvre des
+    | surfaces qui existent et affiche le credit utilisateur (autorite :
+    | AiEconomicGuard::userCreditStatus). Kill-switch plateforme, sans etat.
+    */
+    'fab' => [
+        'enabled' => (bool) env('AI_FAB_ENABLED', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Credit IA par utilisateur — defauts plateforme (TASK-1229)
+    |--------------------------------------------------------------------------
+    |
+    | Le credit commercial d'un utilisateur se compte en NOMBRE D'UTILISATIONS
+    | par mois (fenetre UTC du budget), jamais en monnaie. Ces valeurs ne
+    | servent que tant que le SuperAdmin n'a rien enregistre dans « Monetisation
+    | IA » (`ai_configs`, cles `user_credit.*`) ; une Organization peut ensuite
+    | les surcharger (valeur propre / illimite). `monthly_uses` vide = illimite :
+    | par defaut, rien ne bloque.
+    */
+    'user_credit' => [
+        'free_enabled' => (bool) env('AI_USER_CREDIT_FREE_ENABLED', true),
+        'monthly_uses' => env('AI_USER_CREDIT_MONTHLY_USES'),
+        'alert_percent' => (int) env('AI_USER_CREDIT_ALERT_PERCENT', 80),
+        'offer_subscription' => (bool) env('AI_USER_CREDIT_OFFER_SUBSCRIPTION', true),
     ],
 
     /*
@@ -210,6 +268,128 @@ return [
     | generation per loop is enforced through a short-lived cache lock.
     |
     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | Loop knowledge answer — RAG V1 (TASK-1213)
+    |--------------------------------------------------------------------------
+    |
+    | Reponse documentaire sourcee depuis une Boucle : au plus `top_k` extraits
+    | (<= 5) des Dossiers accessibles, distance pgvector <= `max_distance`
+    | (cosinus ; 0.60 calibre sur le corpus ArtSciLab avec
+    | text-embedding-3-small : pertinent 0.32-0.57, hors corpus >= 0.62),
+    | contexte borne a `max_context_chars`. Meme garde economique que les
+    | autres capabilities.
+    |
+    */
+
+    'knowledge' => [
+        'top_k' => (int) env('AI_KNOWLEDGE_TOP_K', 5),
+        'max_distance' => (float) env('AI_KNOWLEDGE_MAX_DISTANCE', 0.60),
+        'max_context_chars' => (int) env('AI_KNOWLEDGE_MAX_CONTEXT_CHARS', 6000),
+        'max_tokens' => (int) env('AI_KNOWLEDGE_MAX_TOKENS', 700),
+        'temperature' => (float) env('AI_KNOWLEDGE_TEMPERATURE', 0.2),
+        'max_answer_chars' => (int) env('AI_KNOWLEDGE_MAX_ANSWER_CHARS', 3000),
+        // TASK-1297 : publier la question du membre avec la reponse (modele
+        // ask()). Reversible en UNE ligne si l'arbitrage produit tranche
+        // autrement : false = seule la reponse IA est publiee.
+        'publish_question' => (bool) env('AI_KNOWLEDGE_PUBLISH_QUESTION', true),
+        'economic_guard' => [
+            'monthly_budget_usd' => (float) env('AI_KNOWLEDGE_MONTHLY_BUDGET_USD', 2.00),
+            'monthly_unknown_limit' => (int) env('AI_KNOWLEDGE_MONTHLY_UNKNOWN_LIMIT', 10),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Doctrine de l'Organization (TASK-1227)
+    |--------------------------------------------------------------------------
+    |
+    | Texte editable par l'Admin Organization, compose par PromptRepository
+    | SOUS la Constitution. `max_chars` borne le champ (validation HTTP) et la
+    | composition (defensive). `sandbox_per_minute` limite les tests reels
+    | « tester sans publier » par utilisateur.
+    |
+    */
+
+    'doctrine' => [
+        'max_chars' => (int) env('AI_DOCTRINE_MAX_CHARS', 4000),
+        'sandbox_per_minute' => (int) env('AI_DOCTRINE_SANDBOX_PER_MINUTE', 6),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Blog IA — autorite economique (TASK-1247, TASK-1248)
+    |--------------------------------------------------------------------------
+    |
+    | `BlogAiService` (generation, correction, methode sur selection — T1247)
+    | et `BlogExplorerController` (dialogue Explorer, note d'analyse — T1248)
+    | passent sous `AiEconomicGuard` AVANT tout appel provider : budget mensuel
+    | de l'Organization, budget/quota d'inconnus PAR PROCESS (`blog.*` :
+    | article_generate, article_correct, method_selection, explorer_dialogue,
+    | explorer_note — le budget ci-dessous s'applique a chacun separement) et
+    | credit IA du demandeur — la meme autorite que les capabilities canoniques.
+    | Chemins HERITES : cle plateforme (declaree telle quelle au ledger), pas de
+    | Constitution/doctrine ; la migration BYOK est hors V1 (BLOC E).
+    |
+    */
+
+    'blog' => [
+        'economic_guard' => [
+            'monthly_budget_usd' => (float) env('BLOG_AI_MONTHLY_BUDGET_USD', 2.00),
+            'monthly_unknown_limit' => (int) env('BLOG_AI_MONTHLY_UNKNOWN_LIMIT', 10),
+        ],
+        // TASK-1284 : budget de contexte des capabilities blog_generate /
+        // blog_correct (source blog.post). Large a dessein : le materiau est
+        // l'article lui-meme, et la correction doit recevoir le texte ENTIER —
+        // la source laisse toujours passer sa premiere unite en entier (meme
+        // regle que loop.messages), ce plafond ne borne que les unites suivantes.
+        'max_context_chars' => (int) env('BLOG_AI_MAX_CONTEXT_CHARS', 60000),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Agent de profil membre — capabilities canoniques (TASK-1285)
+    |--------------------------------------------------------------------------
+    |
+    | Budget de contexte des capabilities member_profile_agent_loop_reply /
+    | member_profile_agent_visitor_chat (source member.profile). Le materiau
+    | est le profil IA publie : ses champs sont bornes par le produit, le bloc
+    | reste tres en deca de ce plafond. La source laisse passer son unite
+    | unique EN ENTIER (regle de la premiere unite, comme blog.post) : avant
+    | migration le profil partait toujours entier, le tronquer aurait ete un
+    | changement de comportement.
+    */
+
+    'member_profile' => [
+        'max_context_chars' => (int) env('MEMBER_PROFILE_AI_MAX_CONTEXT_CHARS', 30000),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Chemins herites SupervisionProviderResolver — autorite economique (TASK-1250)
+    |--------------------------------------------------------------------------
+    |
+    | Les chemins AUTHENTIFIES de la famille C du gap analysis T1246 passent
+    | sous `AiEconomicGuard` AVANT tout appel provider, avec le MEME budget
+    | applique PAR PROCESS : formulation d'offre de service
+    | (`service_offer.master`, credit IA du membre applique), test LLM d'un
+    | profil par un administrateur (`member_profile.admin_llm_test`, tenant =
+    | Organization du profil, sans credit) et banc de supervision SuperAdmin
+    | (`supervision.content` / `help_request.clarify`, tenant = Organization
+    | plateforme `is_default`, sans credit). Cle plateforme declaree telle
+    | quelle au ledger (`credential_source = platform`) ; ni Constitution ni
+    | BYOK (BLOC E). Le budget mensuel de l'Organization de record s'applique
+    | par-dessus, comme partout.
+    |
+    */
+
+    'supervision_resolver' => [
+        'economic_guard' => [
+            'monthly_budget_usd' => (float) env('AI_SUPERVISION_RESOLVER_MONTHLY_BUDGET_USD', 2.00),
+            'monthly_unknown_limit' => (int) env('AI_SUPERVISION_RESOLVER_MONTHLY_UNKNOWN_LIMIT', 10),
+        ],
+    ],
 
     'chatloop' => [
         'enabled' => (bool) env('CHATLOOP_AI_ENABLED', true),
@@ -228,6 +408,15 @@ return [
         'summary_economic_guard' => [
             'monthly_budget_usd' => (float) env('CHATLOOP_AI_SUMMARY_MONTHLY_BUDGET_USD', 2.00),
             'monthly_unknown_limit' => (int) env('CHATLOOP_AI_SUMMARY_MONTHLY_UNKNOWN_LIMIT', 10),
+        ],
+        // TASK-1231 (lot 0) : « Demander a l'IA » (ask / answer, chemin herite)
+        // passe sous AiEconomicGuard comme le resume — meme autorite, meme
+        // demandeur, budget par process (chatloop.ask / chatloop.answer) et
+        // credit utilisateur, AVANT tout appel provider. N'ajoute que le
+        // blocage : ces chemins comptaient deja, ils ne comptent pas deux fois.
+        'economic_guard' => [
+            'monthly_budget_usd' => (float) env('CHATLOOP_AI_MONTHLY_BUDGET_USD', 2.00),
+            'monthly_unknown_limit' => (int) env('CHATLOOP_AI_MONTHLY_UNKNOWN_LIMIT', 10),
         ],
     ],
 

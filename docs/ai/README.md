@@ -4,40 +4,54 @@
 d'observabilité IA de BouclePro : ce que le code fait aujourd'hui, pas une
 vision cible. Elle ne recopie aucune TASK — elle en dérive.
 
-## P1 — Observabilité (complète, mergée dans `develop`)
+## État livré
 
 | Tranche | TASK produit | État |
 |---|---|---|
 | P1-1 — corrélation et process | TASK-1131 | **Mergée** — commit `4791a95` |
 | P1-2 — catalogue tarifaire et coût inconnu | TASK-1132 | **Mergée** — commit `b1c76e1` |
 | P1-3 — instrumentation Laravel AI SDK | TASK-1200 (ex-TASK-1133) | **Mergée** — commit `c6230d0` |
+| P2 — garde économique `loop_summary` | TASK-1205 | **Mergée** |
+| P3 — fondation `App\Ai` | TASK-1206 | **Mergée** |
+| P3 — première capability sur le SDK texte | TASK-1207 | **Mergée** — commit `9a34a85` |
 
-Les trois TASK sources, avec leur récit complet (décisions, pièges, tests,
-neutralisations), restent la référence opérationnelle :
-`TODO/ARCHIVES/TASK-1131-*.md`, `TODO/ARCHIVES/TASK-1132-*.md`,
-`TODO/ARCHIVES/TASK-1200-*.md` (worktree local, gitignoré — pas accessible
-hors de ce worktree).
+Les TASK sources, avec leur récit complet (décisions, pièges, tests,
+neutralisations), restent la référence opérationnelle : `TODO/ARCHIVES/`
+(worktree local, gitignoré — pas accessible hors de ce worktree).
 
 ## Pages
 
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — modèle de corrélation,
   `correlation_id` vs `invocationId` SDK, `process`/`scenario_id`, les trois
-  tables de trace, limites connues du SDK v0.7.2, règle pour P3.
+  tables de trace, la fondation `App\Ai`, limites connues du SDK v0.7.2.
 - [`OBSERVABILITE-COUTS.md`](./OBSERVABILITE-COUTS.md) — catalogue tarifaire,
-  `cost_unknown` tri-état, instrumentation des invocations SDK, isolation
-  Organization.
+  `cost_unknown` tri-état, garde économique, instrumentation des invocations
+  SDK, isolation Organization.
+- [`METHODES-FACILITATION-EXPLORER.md`](./METHODES-FACILITATION-EXPLORER.md) —
+  les quatre méthodes de facilitation de Roger dans le chat Explorer
+  d'article (TASK-1249) : `method_code`, résolution via `AdminAiPrompt`,
+  règles de facilitation, références méthodologiques privées ; feedback
+  humain V1 « Utile / À améliorer » sous chaque réponse et `method_code` en
+  métadonnées de trace (TASK-1256).
+
+## Prochaine cible
+
+**Context Builder minimal.** La cartographie TASK-1208 a établi que le
+verrou n'est pas la migration vers le SDK — mécanique, faite en une TASK pour
+`loop_summary` — mais le contexte : aucune capability ne croise aujourd'hui
+deux sources de données. Chacune voit ses messages, ou son article, ou son
+profil.
+
+Le Context Builder répondra à une seule question : « de quelles informations
+autorisées cette capability a-t-elle besoin maintenant ? ». Il consomme les
+policies existantes, il ne les réimplémente pas.
 
 ## Hors périmètre de cette documentation
 
-- P1-Bench (TASK-1201, environnement de validation IA autonome) —
-  **BLOQUÉ**, en attente du GO explicite de Cyril pour créer
-  `bouclepro_ai_validation`. Non documenté ici : rien n'a encore tourné en
-  conditions réelles.
-- P2 (garde économique `loop_summary`) — non commencée, hors périmètre
-  absolu de cette TASK documentaire.
-- P3 (migration des capabilities legacy vers le SDK, `CapabilityRegistry`)
-  — non commencée. `ARCHITECTURE.md` documente la règle que P3 devra
-  respecter, pas une implémentation.
+- P4 (configuration et budget IA par Organization) — non commencée.
+- P5 (mémoire structurée) — non commencée.
+- La vision cible long terme (mycélium, fédération) — voir
+  `docs/architecture/05-AI_MYCELIUM_ARCHITECTURE.md` (DRAFT, non autoritaire).
 
 ## Hiérarchie de vérité
 

@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\Ai\FakeAIProvider;
 use App\Services\LoopMessageService;
 use App\Services\LoopService;
+use App\Support\Loops\HelpRequestHandoff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -131,10 +132,10 @@ class LoopHelpRequestTest extends TestCase
             ]);
 
         $response->assertRedirect();
-        $response->assertSessionHas('help_request_analysis');
         $response->assertSessionMissing('help_request_error');
 
-        $analysis = session('help_request_analysis');
+        $analysis = app(HelpRequestHandoff::class)->pull($this->member, $this->loop)['analysis'] ?? null;
+        $this->assertIsArray($analysis);
         $this->assertArrayHasKey('title', $analysis);
         $this->assertArrayHasKey('need', $analysis);
         $this->assertArrayHasKey('message_draft', $analysis);
@@ -158,7 +159,7 @@ class LoopHelpRequestTest extends TestCase
             ]);
 
         $response->assertRedirect();
-        $response->assertSessionMissing('help_request_analysis');
+        $this->assertFalse(app(HelpRequestHandoff::class)->has($this->member, $this->loop));
         $response->assertSessionHas('help_request_error');
     }
 
@@ -170,7 +171,7 @@ class LoopHelpRequestTest extends TestCase
             ]);
 
         $response->assertRedirect();
-        $response->assertSessionMissing('help_request_analysis');
+        $this->assertFalse(app(HelpRequestHandoff::class)->has($this->member, $this->loop));
         $response->assertSessionHas('help_request_error');
     }
 
@@ -194,27 +195,51 @@ class LoopHelpRequestTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
-    // Publish route
+    // Continue route — TASK-1211: le formulaire canonique publie ensuite
     // -------------------------------------------------------------------------
 
-    public function test_authenticated_member_can_publish_help_request(): void
+    /**
+     * TASK-1210 : la destination de ce parcours devient la Boucle choisie.
+     * L'ancienne redirection vers la marketplace Organization est le
+     * comportement legacy que cette TASK remplace — pour ce parcours seulement.
+     * La marketplace reste un mecanisme produit a part entiere.
+     */
+    public function test_authenticated_member_continues_to_the_request_form_without_writing(): void
     {
         $response = $this->actingAs($this->member)
-            ->post(route('loops.help-request.publish', $this->loop), [
+            ->post(route('loops.help-request.continue', $this->loop), [
                 'title' => 'Trouver mes premiers clients',
                 'need' => 'Je cherche des conseils pour trouver mes premiers clients.',
-                'help_type' => 'service',
+                'relay_loop_id' => $this->loop->id,
             ]);
 
-        $response->assertRedirect(route('services.create'));
-        $this->assertEquals('Trouver mes premiers clients', session('_old_input.title'));
-        $this->assertEquals('Je cherche des conseils pour trouver mes premiers clients.', session('_old_input.description'));
+        $response->assertRedirect();
+        $draft = app(HelpRequestHandoff::class)->pullDraft($this->member, $this->organization);
+        $this->assertSame($this->loop->id, $draft['relay_loop_id'] ?? null);
+        $this->assertDatabaseCount('loop_messages', 0);
+        $this->assertDatabaseCount('service_requests', 0);
     }
 
-    public function test_publish_requires_title(): void
+    public function test_continue_accepts_no_destination_loop(): void
     {
         $response = $this->actingAs($this->member)
-            ->post(route('loops.help-request.publish', $this->loop), [
+            ->post(route('loops.help-request.continue', $this->loop), [
+                'title' => 'Un titre',
+                'need' => 'Un besoin.',
+            ]);
+
+        $response->assertSessionDoesntHaveErrors();
+        $response->assertRedirect();
+        $this->assertDatabaseMissing('loop_messages', [
+            'loop_id' => $this->loop->id,
+            'type' => 'help_request',
+        ]);
+    }
+
+    public function test_continue_requires_title(): void
+    {
+        $response = $this->actingAs($this->member)
+            ->post(route('loops.help-request.continue', $this->loop), [
                 'title' => '',
                 'need' => 'Some need description.',
             ]);
@@ -222,10 +247,10 @@ class LoopHelpRequestTest extends TestCase
         $response->assertSessionHasErrors('title');
     }
 
-    public function test_publish_requires_need(): void
+    public function test_continue_requires_need(): void
     {
         $response = $this->actingAs($this->member)
-            ->post(route('loops.help-request.publish', $this->loop), [
+            ->post(route('loops.help-request.continue', $this->loop), [
                 'title' => 'Some title',
                 'need' => '',
             ]);
@@ -233,21 +258,21 @@ class LoopHelpRequestTest extends TestCase
         $response->assertSessionHasErrors('need');
     }
 
-    public function test_publish_enforces_title_max_length(): void
+    public function test_continue_enforces_title_max_length(): void
     {
         $response = $this->actingAs($this->member)
-            ->post(route('loops.help-request.publish', $this->loop), [
-                'title' => str_repeat('a', 121),
+            ->post(route('loops.help-request.continue', $this->loop), [
+                'title' => str_repeat('a', 256),
                 'need' => 'Valid need.',
             ]);
 
         $response->assertSessionHasErrors('title');
     }
 
-    public function test_non_member_cannot_publish_help_request(): void
+    public function test_non_member_cannot_continue_help_request(): void
     {
         $response = $this->actingAs($this->nonMember)
-            ->post(route('loops.help-request.publish', $this->loop), [
+            ->post(route('loops.help-request.continue', $this->loop), [
                 'title' => 'Help title',
                 'need' => 'Need description.',
             ]);
@@ -255,9 +280,9 @@ class LoopHelpRequestTest extends TestCase
         $response->assertNotFound();
     }
 
-    public function test_guest_cannot_publish_help_request(): void
+    public function test_guest_cannot_continue_help_request(): void
     {
-        $response = $this->post(route('loops.help-request.publish', $this->loop), [
+        $response = $this->post(route('loops.help-request.continue', $this->loop), [
             'title' => 'Help title',
             'need' => 'Need description.',
         ]);

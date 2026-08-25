@@ -152,7 +152,9 @@ class TASK1077LoopInvitationTest extends TestCase
 
         $this->actingAs($invitee)
             ->post(route('loop-invitations.accept', $invitation->token))
-            ->assertRedirect(route('loops.show', $loop));
+            // TASK-1281 : l'acceptation atterrit dans l'Organization de la Boucle,
+            // plus sur la route courte (qui resout l'Organization par defaut).
+            ->assertRedirect(route('organization.loops.show', ['organization' => $org->slug, 'loop' => $loop->id]));
 
         $this->assertDatabaseHas('loop_members', [
             'loop_id' => $loop->id,
@@ -464,7 +466,9 @@ class TASK1077LoopInvitationTest extends TestCase
         $this->post(route('loop-invitations.prepare', $invitation->token), ['intent' => 'login']);
 
         $this->post(route('login'), ['email' => 'comeback@example.com', 'password' => 'password-1234'])
-            ->assertRedirect(route('loops.show', $loop));
+            // TASK-1281 : l'acceptation atterrit dans l'Organization de la Boucle,
+            // plus sur la route courte (qui resout l'Organization par defaut).
+            ->assertRedirect(route('organization.loops.show', ['organization' => $org->slug, 'loop' => $loop->id]));
 
         $this->assertDatabaseHas('loop_members', [
             'loop_id' => $loop->id, 'user_id' => $invitee->id, 'status' => 'active',

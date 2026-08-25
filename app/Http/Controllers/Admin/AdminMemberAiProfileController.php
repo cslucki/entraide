@@ -2,24 +2,59 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Ai\ProviderResolver;
+use App\Ai\ResolvedModel;
 use App\Http\Controllers\Controller;
 use App\Models\AdminAiInteraction;
+use App\Models\AiProviderInvocation;
 use App\Models\MemberAiProfile;
+use App\Models\Organization;
+use App\Models\User;
+use App\Services\Ai\AiProviderInvocationLedger;
 use App\Services\Ai\SupervisionProviderResolver;
 use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiCost;
+use App\Support\Ai\AiEconomicGuard;
+use App\Support\Ai\AiPricingCatalog;
 use App\Support\Ai\AiProcess;
+use App\Support\Ai\AiRefusedException;
+use App\Support\Ai\AiUsage;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
+/**
+ * Administration plateforme des agents de profil IA.
+ *
+ * TASK-1250 (gap #17 T1246) : le TEST LLM d'un profil par un administrateur
+ * (`testLlm()`, appels HTTP directs sur la cle plateforme) est sous
+ * l'AUTORITE ECONOMIQUE : tenant EXPLICITE = l'Organization du PROFIL teste
+ * (celle dont l'agent est configure, deja le tenant de sa trace
+ * `admin_ai_interactions`), jamais celle de l'administrateur ; cle plateforme
+ * verifiee et DECLAREE (`SupervisionProviderResolver::declarePlatformCredential()`),
+ * `AiEconomicGuard::authorize()` AVANT tout `Http::post` (budget du tenant,
+ * budget/quota d'inconnus du process `member_profile.admin_llm_test` ; aucun
+ * credit utilisateur : banc d'administration) ; une ligne du ledger canonique
+ * `ai_provider_invocations` par appel reellement tente (succes ET echec), usage
+ * OBSERVE (chat/completions ou ollama) -> cout catalogue ou UNKNOWN, jamais 0
+ * invente ; la trace `admin_ai_interactions` existante porte desormais tokens,
+ * `cost_usd` et `cost_unknown` (avant : colonnes vides = « non evalue »). Un
+ * refus est rendu STRUCTURE (`llmTest.status = refused` + code, HTTP 429),
+ * jamais comme une reponse ni comme une erreur provider.
+ */
 class AdminMemberAiProfileController extends Controller
 {
+    public const LLM_TEST_SCENARIO = 'member_ai_profile_llm_test';
+
     public function __construct(
         protected SupervisionProviderResolver $resolver,
+        protected AiEconomicGuard $economicGuard,
+        protected AiProviderInvocationLedger $ledger,
     ) {}
 
     public function index(Request $request): View
@@ -115,7 +150,7 @@ class AdminMemberAiProfileController extends Controller
         return back()->with('success', 'Agent profil IA désactivé.');
     }
 
-    public function testLlm(Request $request, MemberAiProfile $memberAiProfile): View
+    public function testLlm(Request $request, MemberAiProfile $memberAiProfile): View|Response
     {
         $providers = $this->resolver->availableProviders();
         $providerNames = array_keys($providers);
@@ -143,27 +178,93 @@ class AdminMemberAiProfileController extends Controller
             abort(422, 'Modèle IA invalide pour ce provider.');
         }
 
-        $startedAt = (int) (microtime(true) * 1000);
-        $answer = null;
-        $error = null;
+        // TASK-1250 : tenant EXPLICITE = l'Organization du profil teste ;
+        // credential plateforme declare ; GARDE avant tout appel. Un refus
+        // n'ecrit rien (ni ledger, ni trace admin) : aucun appel n'est parti.
+        $organization = $this->tenantOf($memberAiProfile);
+        $process = AiProcess::fromScenarioId(self::LLM_TEST_SCENARIO);
 
         try {
-            $answer = $this->callProfileTester($memberAiProfile, $selectedProvider, $selectedModel, $validated['question']);
-        } catch (ConnectionException $e) {
-            $error = 'Connexion impossible avec le provider '.$selectedProvider.'.';
-        } catch (\Throwable $e) {
-            $error = $e->getMessage();
+            $resolved = new ResolvedModel(
+                $selectedProvider,
+                (string) $selectedModel,
+                $this->resolver->declarePlatformCredential($selectedProvider),
+            );
+
+            $verdict = $this->economicGuard->authorize(
+                $organization,
+                $process,
+                $resolved->provider,
+                $resolved->model,
+                (float) config('ai.supervision_resolver.economic_guard.monthly_budget_usd', 2.00),
+                (int) config('ai.supervision_resolver.economic_guard.monthly_unknown_limit', 10),
+                null,
+            );
+
+            if (! $verdict->allowed) {
+                throw AiRefusedException::fromVerdict($verdict);
+            }
+        } catch (AiRefusedException $e) {
+            return $this->editView($memberAiProfile, [
+                'llmTest' => [
+                    'status' => 'refused',
+                    'code' => $e->refusalCode,
+                    'provider' => $selectedProvider,
+                    'providerLabel' => $providers[$selectedProvider]['label'] ?? $selectedProvider,
+                    'model' => $selectedModel,
+                    'question' => $validated['question'],
+                    'answer' => null,
+                    'error' => $e->getMessage(),
+                    'detail' => $e->getPrevious()?->getMessage(),
+                ],
+                'selectedProvider' => $selectedProvider,
+                'selectedModel' => $selectedModel,
+                'testQuestion' => $validated['question'],
+            ], 429);
         }
 
-        $latencyMs = (int) (microtime(true) * 1000) - $startedAt;
+        // TASK-1253 : l'ACTEUR (l'administrateur qui a declenche le test) est
+        // EXPLICITE, comme sur tous les autres writers du ledger — le writer
+        // ne le devine plus depuis `auth()`. Aucun credit (banc d'administration).
+        /** @var User $actor */
+        $actor = $request->user();
+
+        $startedAt = microtime(true);
+        $correlationId = AiCorrelation::id();
+        $answer = null;
+        $error = null;
+        $usage = AiUsage::notObserved();
+        $cost = null;
+
+        try {
+            ['text' => $answer, 'usage' => $usage] = $this->callProfileTester($memberAiProfile, $selectedProvider, $selectedModel, $validated['question']);
+        } catch (\Throwable $e) {
+            // L'appel est PARTI : tentative economiquement reelle, ligne de
+            // ledger `failed` (cout NULL/unknown, jamais 0 invente).
+            $this->recordLedger($organization, $actor, $process, $resolved, AiUsage::notObserved(), null,
+                AiProviderInvocation::STATUS_FAILED, $correlationId, $e::class, $startedAt);
+
+            $error = $e instanceof ConnectionException
+                ? 'Connexion impossible avec le provider '.$selectedProvider.'.'
+                : $e->getMessage();
+        }
+
+        if ($error === null) {
+            // TASK-1132 : le catalogue tranche (usage observe x tarif), sinon UNKNOWN.
+            $cost = AiPricingCatalog::cost($resolved->provider, $resolved->model, $usage);
+            $this->recordLedger($organization, $actor, $process, $resolved, $usage, $cost,
+                AiProviderInvocation::STATUS_SUCCESS, $correlationId, null, $startedAt);
+        }
+
+        $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
         $status = $error ? 'error' : 'success';
 
         AdminAiInteraction::create([
-            'organization_id' => $memberAiProfile->organization_id,
-            'user_id' => auth()->id(),
-            'correlation_id' => AiCorrelation::id(),
-            'process' => AiProcess::fromScenarioId('member_ai_profile_llm_test'),
-            'scenario_id' => 'member_ai_profile_llm_test',
+            'organization_id' => $organization->id,
+            'user_id' => $actor->id,
+            'correlation_id' => $correlationId,
+            'process' => $process,
+            'scenario_id' => self::LLM_TEST_SCENARIO,
             'provider' => $selectedProvider,
             'model' => $selectedModel,
             'status' => $status,
@@ -181,8 +282,17 @@ class AdminMemberAiProfileController extends Controller
             'metadata' => [
                 'source' => 'admin_member_ai_profile_tester',
                 'provider_type' => $providers[$selectedProvider]['type'] ?? null,
+                // TASK-1250 : le payeur, lisible sur la trace operationnelle aussi.
+                'credential_source' => ProviderResolver::credentialSourceFor($resolved->instance),
             ],
+            // TASK-1250 : usage observe et cout (catalogue ou UNKNOWN) sur un
+            // appel reussi — plus jamais des colonnes vides. Un echec garde la
+            // convention des traces canoniques : NULL / NULL = « non evalue »
+            // (visible, sans peser sur un compteur). Le ledger porte l'echec.
+            'input_tokens' => $usage->inputTokensOrZero(),
+            'output_tokens' => $usage->outputTokensOrZero(),
             'latency_ms' => $latencyMs,
+            ...($cost?->traceAttributes() ?? ['cost_usd' => null, 'cost_unknown' => null]),
         ]);
 
         return $this->editView($memberAiProfile, [
@@ -202,7 +312,64 @@ class AdminMemberAiProfileController extends Controller
         ]);
     }
 
-    private function editView(MemberAiProfile $memberAiProfile, array $data = []): View
+    /**
+     * L'Organization du profil teste : le tenant de toute trace de ce chemin.
+     * Un profil sans Organization n'a pas de tenant, donc pas de test — c'est
+     * un defaut de donnees, pas un cas a deviner.
+     */
+    private function tenantOf(MemberAiProfile $profile): Organization
+    {
+        $organizationId = trim((string) $profile->organization_id);
+
+        if ($organizationId === '') {
+            throw new \RuntimeException('Member AI profile LLM test requires a profile attached to an Organization.');
+        }
+
+        return Organization::query()->findOrFail($organizationId);
+    }
+
+    /**
+     * Ligne canonique du ledger `ai_provider_invocations` — une par appel
+     * provider reellement tente. `capability` NULL (pas une capability
+     * canonique, dit tel quel) ; `feature` = le scenario du banc ;
+     * `user_id` = l'ACTEUR recu explicitement (l'administrateur qui a
+     * declenche le test — TASK-1253 : plus de lecture de `auth()` ici) ;
+     * aucun credit (banc d'administration, regle d'attribution canonique).
+     */
+    private function recordLedger(
+        Organization $organization,
+        User $actor,
+        string $process,
+        ResolvedModel $resolved,
+        AiUsage $usage,
+        ?AiCost $cost,
+        string $status,
+        string $correlationId,
+        ?string $failureReason,
+        float $startedAt,
+    ): void {
+        $this->ledger->recordGeneration(
+            organizationId: (string) $organization->id,
+            userId: (string) $actor->id,
+            capability: null,
+            process: $process,
+            resolved: $resolved,
+            usage: $usage,
+            cost: $cost,
+            status: $status,
+            correlationId: $correlationId,
+            sdkInvocationId: null,
+            failureReason: $failureReason,
+            startedAtMicrotime: $startedAt,
+            feature: self::LLM_TEST_SCENARIO,
+        );
+    }
+
+    /**
+     * @param  int  $status  TASK-1250 : 429 pour un refus economique (la page
+     *                       est rendue telle quelle, le statut dit le refus).
+     */
+    private function editView(MemberAiProfile $memberAiProfile, array $data = [], int $status = 200): View|Response
     {
         $memberAiProfile->load(['user', 'organization']);
         $providers = $this->resolver->availableProviders();
@@ -211,7 +378,7 @@ class AdminMemberAiProfileController extends Controller
             ? array_key_first($providers[$defaultProvider]['models'])
             : '';
 
-        return view('admin.member-ai-profiles.edit', array_merge([
+        $view = view('admin.member-ai-profiles.edit', array_merge([
             'profile' => $memberAiProfile,
             'statuses' => MemberAiProfile::$statuses,
             'providers' => $providers,
@@ -220,9 +387,18 @@ class AdminMemberAiProfileController extends Controller
             'testQuestion' => "C'est quoi ta prestation ?",
             'llmTest' => null,
         ], $data));
+
+        return $status === 200 ? $view : response($view, $status);
     }
 
-    private function callProfileTester(MemberAiProfile $profile, string $provider, string $model, string $question): string
+    /**
+     * UN appel provider reel. La cle plateforme a ete verifiee et declaree en
+     * amont (`declarePlatformCredential()`) : ici on n'est plus jamais refuse
+     * avant depart, tout echec est un echec APRES tentative.
+     *
+     * @return array{text: string, usage: AiUsage} texte + usage OBSERVE (jamais un 0 fabrique)
+     */
+    private function callProfileTester(MemberAiProfile $profile, string $provider, string $model, string $question): array
     {
         $config = $this->resolver->providerConfig($provider);
 
@@ -233,7 +409,10 @@ class AdminMemberAiProfileController extends Controller
         };
     }
 
-    private function callOllama(MemberAiProfile $profile, array $config, string $model, string $question): string
+    /**
+     * @return array{text: string, usage: AiUsage}
+     */
+    private function callOllama(MemberAiProfile $profile, array $config, string $model, string $question): array
     {
         $response = Http::timeout((int) ($config['timeout'] ?? 30))
             ->acceptJson()
@@ -255,15 +434,18 @@ class AdminMemberAiProfileController extends Controller
 
         $body = $response->json();
 
-        return trim((string) ($body['response'] ?? $body['thinking'] ?? ''));
+        return [
+            'text' => trim((string) ($body['response'] ?? $body['thinking'] ?? '')),
+            // Ollama ne rapporte que `eval_count` (sortie) : l'entree reste NULL.
+            'usage' => AiUsage::fromOllamaGenerate($body),
+        ];
     }
 
-    private function callOpenRouter(MemberAiProfile $profile, array $config, string $model, string $question): string
+    /**
+     * @return array{text: string, usage: AiUsage}
+     */
+    private function callOpenRouter(MemberAiProfile $profile, array $config, string $model, string $question): array
     {
-        if (empty($config['api_key'])) {
-            throw new \RuntimeException('Clé API OpenRouter manquante.');
-        }
-
         $response = Http::withHeaders([
             'Authorization' => 'Bearer '.$config['api_key'],
             'HTTP-Referer' => config('ai.openrouter.site_url', config('app.url')),
@@ -278,15 +460,17 @@ class AdminMemberAiProfileController extends Controller
             throw new \RuntimeException(sprintf('Réponse OpenRouter invalide (HTTP %d).', $response->status()));
         }
 
-        return trim((string) ($response->json('choices.0.message.content') ?? ''));
+        return [
+            'text' => trim((string) ($response->json('choices.0.message.content') ?? '')),
+            'usage' => AiUsage::fromChatCompletions($response->json()),
+        ];
     }
 
-    private function callOpenAiCompatible(MemberAiProfile $profile, array $config, string $model, string $question): string
+    /**
+     * @return array{text: string, usage: AiUsage}
+     */
+    private function callOpenAiCompatible(MemberAiProfile $profile, array $config, string $model, string $question): array
     {
-        if (empty($config['api_key'])) {
-            throw new \RuntimeException('Clé API du provider manquante.');
-        }
-
         $response = Http::withToken((string) $config['api_key'])
             ->timeout((int) ($config['timeout'] ?? 30))
             ->acceptJson()
@@ -297,7 +481,10 @@ class AdminMemberAiProfileController extends Controller
             throw new \RuntimeException(sprintf('Réponse IA invalide (HTTP %d).', $response->status()));
         }
 
-        return trim((string) ($response->json('choices.0.message.content') ?? ''));
+        return [
+            'text' => trim((string) ($response->json('choices.0.message.content') ?? '')),
+            'usage' => AiUsage::fromChatCompletions($response->json()),
+        ];
     }
 
     private function chatPayload(MemberAiProfile $profile, array $config, string $model, string $question): array

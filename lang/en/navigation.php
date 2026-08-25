@@ -18,7 +18,7 @@ return [
     'invitations' => 'Invitations',
     'favorites' => 'My favorites',
     'my_articles' => 'My articles',
-    'my_dossiers' => 'Dossiers',
+    'my_dossiers' => 'Folders',
     'settings' => 'Profile and settings',
     'administration' => 'Administration',
     'logout' => 'Log out',
@@ -100,6 +100,7 @@ return [
     'org_admin_blog' => 'Blog',
     'org_admin_categories' => 'Categories',
     'org_admin_users' => 'Users',
+    'org_admin_ai' => 'AI',
     'org_admin_identity' => 'Identity',
     'org_admin_reports' => 'Reports',
     'org_admin_invitations' => 'Invitations',
@@ -107,6 +108,9 @@ return [
     'org_admin_ai_supervision' => 'AI supervision',
     'org_admin_member_ai_profiles' => 'Member AI profiles',
     'org_admin_ai_interactions' => 'AI interactions',
+    // TASK-1217: read-only Organization RAG console
+    'org_admin_ai_knowledge' => 'My AI knowledge',
+    'org_admin_ai_consumption' => 'AI consumption',
     'org_admin_section_exchanges' => 'Exchanges',
     'org_admin_section_content' => 'Content',
     'org_admin_section_community' => 'Community',
@@ -294,4 +298,9 @@ return [
     'org_admin_translation_reset_done' => 'Override(s) reset successfully.',
     'org_admin_translation_no_active' => 'No active override to reset.',
     'org_admin_translation_reset_confirm' => 'Reset all overrides for this entry? Reverting to original lang/ file values.',
+
+    // TASK-1223
+    'org_admin_ai_cockpit' => 'AI & knowledge',
+    'org_admin_ai_behavior' => 'AI behaviour',
+    'my_ai_usage' => 'My AI usage',
 ];

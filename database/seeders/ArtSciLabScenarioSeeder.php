@@ -27,11 +27,13 @@ use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Support\Loops\LoopTypeRegistry;
+use App\Support\ScenarioPacks\ScenarioPackEntityRegistrar;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use LogicException;
 use RuntimeException;
 
@@ -45,10 +47,18 @@ use RuntimeException;
  * the database, remove other tenants, or manufacture AI interaction traces.
  * Files are real objects on the dossier_files disk and completed exchanges use
  * the same atomic double-ledger then balance-update sequence as the product.
+ *
+ * TASK-1242: `compose()` accepts an optional `ScenarioPackEntityRegistrar`.
+ * When provided, every row this seeder creates or reuses is declared to it
+ * (`ArtSciLabRogerPack`, the scenario pack wrapping this seeder), so the
+ * scenario pack engine (TASK-1240) can idempotently reload, reset and
+ * boundedly remove this exact content. `run()` (direct `db:seed` usage,
+ * outside the pack engine) keeps passing no registrar and behaves exactly
+ * as before.
  */
 class ArtSciLabScenarioSeeder extends Seeder
 {
-    private const SLUG = 'artscilab-demo';
+    public const SLUG = 'artscilab-demo';
 
     private CarbonImmutable $base;
 
@@ -59,25 +69,25 @@ class ArtSciLabScenarioSeeder extends Seeder
         $this->command?->info("ArtSciLab scenario: {$organization->id} ({$organization->slug})");
     }
 
-    public function compose(): Organization
+    public function compose(?ScenarioPackEntityRegistrar $registrar = null): Organization
     {
         $this->base = CarbonImmutable::parse('2026-05-04 09:00:00', 'UTC');
 
         $organization = $this->organization();
-        $users = $this->users($organization);
-        $categories = $this->categories($organization);
-        $loops = $this->loops($organization, $users);
+        $users = $this->users($organization, $registrar);
+        $categories = $this->categories($organization, $registrar);
+        $loops = $this->loops($organization, $users, $registrar);
 
-        $this->membersAndMessages($organization, $users, $loops);
-        [$requests, $services] = $this->marketplace($organization, $users, $categories);
-        $this->transactions($organization, $users, $requests, $services);
-        $posts = $this->blogPosts($organization, $users, $categories);
-        $dossiers = $this->dossiers($organization, $users, $loops, $posts);
-        $this->dossierFiles($organization, $users, $dossiers);
-        $this->memberProfiles($organization, $users);
-        $this->events($organization, $users, $loops);
-        $this->polls($organization, $users, $loops);
-        $this->decisionsAndRoadmap($organization, $users, $loops);
+        $this->membersAndMessages($organization, $users, $loops, $registrar);
+        [$requests, $services] = $this->marketplace($organization, $users, $categories, $registrar);
+        $this->transactions($organization, $users, $requests, $services, $registrar);
+        $posts = $this->blogPosts($organization, $users, $categories, $registrar);
+        $dossiers = $this->dossiers($organization, $users, $loops, $posts, $registrar);
+        $this->dossierFiles($organization, $users, $dossiers, $registrar);
+        $this->memberProfiles($organization, $users, $registrar);
+        $this->events($organization, $users, $loops, $registrar);
+        $this->polls($organization, $users, $loops, $registrar);
+        $this->decisionsAndRoadmap($organization, $users, $loops, $registrar);
 
         return $organization;
     }
@@ -118,7 +128,7 @@ class ArtSciLabScenarioSeeder extends Seeder
     }
 
     /** @return array<string, User> */
-    private function users(Organization $organization): array
+    private function users(Organization $organization, ?ScenarioPackEntityRegistrar $registrar): array
     {
         $people = [
             'maya' => ['Maya Chen', 'Maya', 'Paris', 'France', 'FR', 'Artistic director translating research into participatory installations.'],
@@ -160,6 +170,7 @@ class ArtSciLabScenarioSeeder extends Seeder
             if ($user->wasRecentlyCreated) {
                 $user->update(['points_balance' => 500]);
             }
+            $registrar?->track('persona', $key, $user);
             $users[$key] = $user;
         }
 
@@ -169,7 +180,7 @@ class ArtSciLabScenarioSeeder extends Seeder
     }
 
     /** @return array<int, Category> */
-    private function categories(Organization $organization): array
+    private function categories(Organization $organization, ?ScenarioPackEntityRegistrar $registrar): array
     {
         $definitions = [
             ['Creative Technology', 'creative-technology', '#7c3aed'],
@@ -178,14 +189,28 @@ class ArtSciLabScenarioSeeder extends Seeder
             ['Production & Events', 'production-events', '#be123c'],
         ];
 
-        return array_map(fn (array $item) => Category::updateOrCreate(
-            ['slug' => 'artscilab-'.$item[1]],
-            ['organization_id' => $organization->id, 'name_b2c' => $item[0], 'name_b2b' => $item[0], 'color' => $item[2]],
-        ), $definitions);
+        // TASK-1245 : trackees (elles ne l'etaient pas en T1242, ou le
+        // remover soft-supprimait Service et aurait bute sur la FK RESTRICT
+        // de `services.category_id`). Le remover purge desormais
+        // physiquement (forceDelete borne) dans l'ordre inverse
+        // d'inscription : `categories()` s'execute AVANT `marketplace()`,
+        // donc les Category ont une sequence plus basse que Service et
+        // ServiceRequest et sont supprimees APRES eux — FK-safe sans rien
+        // d'autre. Ownership : `created` si ce chargement cree la ligne,
+        // `reused` (jamais supprimee) si un slug `artscilab-*` preexistait.
+        return array_map(function (array $item) use ($organization, $registrar) {
+            $category = Category::updateOrCreate(
+                ['slug' => 'artscilab-'.$item[1]],
+                ['organization_id' => $organization->id, 'name_b2c' => $item[0], 'name_b2b' => $item[0], 'color' => $item[2]],
+            );
+            $registrar?->track('category', $item[1], $category);
+
+            return $category;
+        }, $definitions);
     }
 
     /** @param array<string, User> $users @return array<string, Loop> */
-    private function loops(Organization $organization, array $users): array
+    private function loops(Organization $organization, array $users, ?ScenarioPackEntityRegistrar $registrar): array
     {
         $definitions = [
             'launchpals' => ['LaunchPals', 'general', 'The shared home for introductions, mutual help and monthly gatherings.', 'A practical community for ambitious experiments.'],
@@ -211,6 +236,7 @@ class ArtSciLabScenarioSeeder extends Seeder
                 ],
             );
             app(LoopTypeRegistry::class)->applyPreset($loop);
+            $registrar?->track('loop', $key, $loop);
             $loops[$key] = $loop;
         }
 
@@ -220,7 +246,7 @@ class ArtSciLabScenarioSeeder extends Seeder
     }
 
     /** @param array<string, User> $users @param array<string, Loop> $loops */
-    private function membersAndMessages(Organization $organization, array $users, array $loops): void
+    private function membersAndMessages(Organization $organization, array $users, array $loops, ?ScenarioPackEntityRegistrar $registrar): void
     {
         $memberKeys = array_keys($users);
         foreach ($loops as $loopIndex => $loop) {
@@ -228,7 +254,7 @@ class ArtSciLabScenarioSeeder extends Seeder
                 if ($userKey !== 'maya' && $loopIndex !== 'launchpals' && (($index + array_search($loopIndex, array_keys($loops), true)) % 4 === 0)) {
                     continue;
                 }
-                LoopMember::updateOrCreate(
+                $member = LoopMember::updateOrCreate(
                     ['loop_id' => $loop->id, 'user_id' => $users[$userKey]->id],
                     [
                         'organization_id' => $organization->id,
@@ -237,6 +263,7 @@ class ArtSciLabScenarioSeeder extends Seeder
                         'joined_at' => $this->base->addDays($index),
                     ],
                 );
+                $registrar?->track('loop_member', "{$loopIndex}:{$userKey}", $member);
             }
         }
 
@@ -252,18 +279,20 @@ class ArtSciLabScenarioSeeder extends Seeder
         foreach ($loops as $key => $loop) {
             for ($i = 0; $i < 24; $i++) {
                 $user = $users[$memberKeys[($i + array_search($key, array_keys($loops), true)) % count($memberKeys)]];
-                $body = sprintf('[ASL-%03d] %s %s. %s.', $sequence++, $verbs[$i % count($verbs)], $themes[$key][$i % 4], $this->messageDetail($key, $i));
-                LoopMessage::updateOrCreate(
+                $messageSequence = $sequence++;
+                $body = sprintf('[ASL-%03d] %s %s. %s.', $messageSequence, $verbs[$i % count($verbs)], $themes[$key][$i % 4], $this->messageDetail($key, $i));
+                $message = LoopMessage::updateOrCreate(
                     ['loop_id' => $loop->id, 'body' => $body],
                     [
                         'organization_id' => $organization->id,
                         'sender_id' => $user->id,
                         'type' => 'user',
-                        'metadata' => ['scenario' => 'artscilab', 'sequence' => $sequence - 1],
+                        'metadata' => ['scenario' => 'artscilab', 'sequence' => $messageSequence],
                         'created_at' => $this->base->addDays(20 + intdiv($i, 4))->addMinutes($i * 7),
                         'updated_at' => $this->base->addDays(20 + intdiv($i, 4))->addMinutes($i * 7),
                     ],
                 );
+                $registrar?->track('interaction', "msg-{$messageSequence}", $message);
             }
         }
     }
@@ -282,7 +311,7 @@ class ArtSciLabScenarioSeeder extends Seeder
     }
 
     /** @param array<string, User> $users @param array<int, Category> $categories @return array{0: array<int, ServiceRequest>, 1: array<int, Service>} */
-    private function marketplace(Organization $organization, array $users, array $categories): array
+    private function marketplace(Organization $organization, array $users, array $categories, ?ScenarioPackEntityRegistrar $registrar): array
     {
         $requestsData = [
             ['Review our Creative Europe concept note', 'We need a candid two-hour review of objectives, audiences and partner roles.', 45, 70],
@@ -312,7 +341,7 @@ class ArtSciLabScenarioSeeder extends Seeder
         $userValues = array_values($users);
         $requests = [];
         foreach ($requestsData as $i => [$title, $description, $min, $max]) {
-            $requests[] = ServiceRequest::withoutGlobalScopes()->updateOrCreate(
+            $request = ServiceRequest::withoutGlobalScopes()->updateOrCreate(
                 ['organization_id' => $organization->id, 'title' => '[ArtSciLab] '.$title],
                 [
                     'user_id' => $userValues[$i % count($userValues)]->id,
@@ -325,6 +354,8 @@ class ArtSciLabScenarioSeeder extends Seeder
                     'status' => 'open',
                 ],
             );
+            $registrar?->track('marketplace_request', "request-{$i}", $request);
+            $requests[] = $request;
         }
 
         $services = [];
@@ -343,6 +374,7 @@ class ArtSciLabScenarioSeeder extends Seeder
             if ($service->trashed()) {
                 $service->restore();
             }
+            $registrar?->track('marketplace_service', "service-{$i}", $service);
             $services[] = $service;
         }
 
@@ -350,7 +382,7 @@ class ArtSciLabScenarioSeeder extends Seeder
     }
 
     /** @param array<string, User> $users @param array<int, ServiceRequest> $requests @param array<int, Service> $services */
-    private function transactions(Organization $organization, array $users, array $requests, array $services): void
+    private function transactions(Organization $organization, array $users, array $requests, array $services, ?ScenarioPackEntityRegistrar $registrar): void
     {
         $statuses = ['completed', 'completed', 'completed', 'buyer_done', 'accepted', 'pending', 'refused', 'cancelled'];
         $userValues = array_values($users);
@@ -374,18 +406,19 @@ class ArtSciLabScenarioSeeder extends Seeder
                     'completed_at' => null,
                 ],
             );
+            $registrar?->track('transaction', "tx-{$i}", $transaction);
 
             if ($status === 'completed') {
-                $this->completeTransaction($transaction, $request, $points, $i);
+                $this->completeTransaction($transaction, $request, $points, $i, $registrar);
             } elseif (in_array($status, ['accepted', 'buyer_done'], true)) {
                 $request->update(['status' => 'in_progress']);
             }
         }
     }
 
-    private function completeTransaction(Transaction $transaction, ServiceRequest $request, int $points, int $offset): void
+    private function completeTransaction(Transaction $transaction, ServiceRequest $request, int $points, int $offset, ?ScenarioPackEntityRegistrar $registrar): void
     {
-        DB::transaction(function () use ($transaction, $request, $points, $offset) {
+        DB::transaction(function () use ($transaction, $request, $points, $offset, $registrar) {
             $tx = Transaction::withoutGlobalScopes()->whereKey($transaction->id)->lockForUpdate()->firstOrFail();
             $existingEntries = PointLedger::where('transaction_id', $tx->id)->lockForUpdate()->get();
 
@@ -399,23 +432,28 @@ class ArtSciLabScenarioSeeder extends Seeder
                 $tx->update(['status' => 'completed', 'seller_confirmed_at' => $completedAt, 'completed_at' => $completedAt]);
                 $request->update(['status' => 'closed']);
 
+                $registrar?->track('point_ledger', "tx-{$offset}:buyer", $existingEntries->firstWhere('reason', 'exchange_spent'));
+                $registrar?->track('point_ledger', "tx-{$offset}:seller", $existingEntries->firstWhere('reason', 'exchange_earned'));
+
                 return;
             }
 
-            PointLedger::create([
+            $buyerEntry = PointLedger::create([
                 'user_id' => $tx->buyer_id,
                 'transaction_id' => $tx->id,
                 'delta' => -$points,
                 'organization_id' => $tx->organization_id,
                 'reason' => 'exchange_spent',
             ]);
-            PointLedger::create([
+            $sellerEntry = PointLedger::create([
                 'user_id' => $tx->seller_id,
                 'transaction_id' => $tx->id,
                 'delta' => $points,
                 'organization_id' => $tx->organization_id,
                 'reason' => 'exchange_earned',
             ]);
+            $registrar?->track('point_ledger', "tx-{$offset}:buyer", $buyerEntry);
+            $registrar?->track('point_ledger', "tx-{$offset}:seller", $sellerEntry);
             User::whereKey($tx->buyer_id)->update(['points_balance' => DB::raw('points_balance - '.$points)]);
             User::whereKey($tx->seller_id)->update(['points_balance' => DB::raw('points_balance + '.$points)]);
             $completedAt = $this->base->addDays(62 + $offset);
@@ -425,7 +463,7 @@ class ArtSciLabScenarioSeeder extends Seeder
     }
 
     /** @param array<string, User> $users @param array<int, Category> $categories @return array<int, BlogPost> */
-    private function blogPosts(Organization $organization, array $users, array $categories): array
+    private function blogPosts(Organization $organization, array $users, array $categories, ?ScenarioPackEntityRegistrar $registrar): array
     {
         $titles = [
             'Why LaunchPals starts with useful offers', 'Field notes from a low-bandwidth exhibition',
@@ -473,6 +511,7 @@ class ArtSciLabScenarioSeeder extends Seeder
             if ($post->trashed()) {
                 $post->restore();
             }
+            $registrar?->track('blog_post', $slug, $post);
             $posts[] = $post;
         }
 
@@ -480,7 +519,7 @@ class ArtSciLabScenarioSeeder extends Seeder
     }
 
     /** @param array<string, User> $users @param array<string, Loop> $loops @param array<int, BlogPost> $posts @return array<int, Dossier> */
-    private function dossiers(Organization $organization, array $users, array $loops, array $posts): array
+    private function dossiers(Organization $organization, array $users, array $loops, array $posts, ?ScenarioPackEntityRegistrar $registrar): array
     {
         $dossiers = [];
         $definitions = [
@@ -504,6 +543,7 @@ class ArtSciLabScenarioSeeder extends Seeder
         $rootLoops = [];
         foreach ($definitions as $i => [$name, $loopKey]) {
             $isLoopRoot = ! isset($rootLoops[$loopKey]);
+            $dossierKey = Str::slug($name);
             $dossier = Dossier::withTrashed()->updateOrCreate(
                 ['organization_id' => $organization->id, 'name' => $name],
                 [
@@ -517,8 +557,9 @@ class ArtSciLabScenarioSeeder extends Seeder
             if ($dossier->trashed()) {
                 $dossier->restore();
             }
+            $registrar?->track('folder', $dossierKey, $dossier);
             if (! $isLoopRoot && $dossier->owner_id !== $users['maya']->id) {
-                DossierMember::updateOrCreate(
+                $member = DossierMember::updateOrCreate(
                     ['dossier_id' => $dossier->id, 'user_id' => $users['maya']->id],
                     [
                         'organization_id' => $organization->id,
@@ -526,6 +567,7 @@ class ArtSciLabScenarioSeeder extends Seeder
                         'added_by' => $dossier->owner_id,
                     ],
                 );
+                $registrar?->track('folder_member', "{$dossierKey}:maya", $member);
             }
             $dossiers[] = $dossier;
         }
@@ -533,17 +575,18 @@ class ArtSciLabScenarioSeeder extends Seeder
         $dossierIndexesByPost = [0, 7, 9, 3, 8, 12, 1, 4, 5, 10, 13, 11];
 
         foreach ($posts as $i => $post) {
-            DossierBlogPost::updateOrCreate(
+            $link = DossierBlogPost::updateOrCreate(
                 ['blog_post_id' => $post->id],
                 ['organization_id' => $organization->id, 'dossier_id' => $dossiers[$dossierIndexesByPost[$i]]->id, 'added_by' => $post->user_id, 'position' => $i + 1],
             );
+            $registrar?->track('folder_article_link', "article-{$i}", $link);
         }
 
         return $dossiers;
     }
 
     /** @param array<string, User> $users @param array<int, Dossier> $dossiers */
-    private function dossierFiles(Organization $organization, array $users, array $dossiers): void
+    private function dossierFiles(Organization $organization, array $users, array $dossiers, ?ScenarioPackEntityRegistrar $registrar): void
     {
         $files = [
             ['launchpals-charter.md', "# LaunchPals charter\n\nOffer concrete help, name constraints, and leave decisions with people.\n"],
@@ -568,14 +611,34 @@ class ArtSciLabScenarioSeeder extends Seeder
         $userValues = array_values($users);
         foreach ($files as $i => [$name, $contents]) {
             $path = 'artscilab-demo/'.str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT).'-'.$name;
+            // TASK-1245 : un fichier deja present a ce chemin qui n'est pas
+            // celui de ce chargement (rejeu) est un fichier preexistant ->
+            // refus explicite, jamais ecrase (le remover ne le supprimerait
+            // pas non plus). Sans registrar (`db:seed` direct, hors moteur
+            // de pack) : comportement historique conserve.
+            $registrar?->assertStoragePathAvailable('folder_file', Str::slug($name), 'dossier_files', $path);
             if (! Storage::disk('dossier_files')->put($path, $contents)) {
                 throw new RuntimeException("Unable to write ArtSciLab dossier file {$path}.");
+            }
+            $dossier = $dossiers[$i % count($dossiers)];
+            // L'uploader ne doit jamais etre le proprietaire du Dossier :
+            // PostgreSQL echoue sur dossier_files_dossier_id_foreign quand un
+            // meme utilisateur est a la fois owner_id (cascade Dossier) et
+            // uploaded_by (set null direct) de la meme ligne dossier_files,
+            // lors de la suppression de cet utilisateur (cascade a deux
+            // niveaux + set null direct sur la meme ligne). SQLite ne
+            // detecte pas cette contrainte. Trouve en validant TASK-1242 sur
+            // PostgreSQL — signale a Cyril comme limite pre-existante du
+            // schema, hors perimetre de cette tache.
+            $uploaderIndex = $i % count($userValues);
+            if ($dossier->owner_id !== null && $userValues[$uploaderIndex]->id === $dossier->owner_id) {
+                $uploaderIndex = ($uploaderIndex + 1) % count($userValues);
             }
             $file = DossierFile::withTrashed()->updateOrCreate(
                 ['organization_id' => $organization->id, 'path' => $path],
                 [
-                    'dossier_id' => $dossiers[$i % count($dossiers)]->id,
-                    'uploaded_by' => $userValues[$i % count($userValues)]->id,
+                    'dossier_id' => $dossier->id,
+                    'uploaded_by' => $userValues[$uploaderIndex]->id,
                     'disk' => 'dossier_files',
                     'original_name' => $name,
                     'display_name' => ucwords(str_replace(['-', '.md', '.txt'], [' ', '', ''], $name)),
@@ -588,11 +651,12 @@ class ArtSciLabScenarioSeeder extends Seeder
             if ($file->trashed()) {
                 $file->restore();
             }
+            $registrar?->track('folder_file', Str::slug($name), $file);
         }
     }
 
     /** @param array<string, User> $users */
-    private function memberProfiles(Organization $organization, array $users): void
+    private function memberProfiles(Organization $organization, array $users, ?ScenarioPackEntityRegistrar $registrar): void
     {
         $profiles = [
             'maya' => ['artistic direction and participatory installations', ['creative direction', 'co-design', 'curation']],
@@ -605,7 +669,7 @@ class ArtSciLabScenarioSeeder extends Seeder
         ];
 
         foreach ($profiles as $key => [$scope, $skills]) {
-            MemberAiProfile::updateOrCreate(
+            $profile = MemberAiProfile::updateOrCreate(
                 ['organization_id' => $organization->id, 'user_id' => $users[$key]->id],
                 [
                     'status' => MemberAiProfile::STATUS_PUBLISHED,
@@ -630,11 +694,12 @@ class ArtSciLabScenarioSeeder extends Seeder
                     'last_saved_at' => $this->base->addDays(41),
                 ],
             );
+            $registrar?->track('ai_profile', $key, $profile);
         }
     }
 
     /** @param array<string, User> $users @param array<string, Loop> $loops */
-    private function events(Organization $organization, array $users, array $loops): void
+    private function events(Organization $organization, array $users, array $loops, ?ScenarioPackEntityRegistrar $registrar): void
     {
         $definitions = [
             ['LaunchPals welcome table', 'launchpals', 'online'], ['Open studio: portable climate prototype', 'launchpals', 'hybrid'],
@@ -660,17 +725,19 @@ class ArtSciLabScenarioSeeder extends Seeder
                     'status' => 'scheduled',
                 ],
             );
+            $registrar?->track('event', "event-{$i}", $event);
             foreach (array_slice($userValues, 0, 3 + ($i % 3)) as $j => $user) {
-                LoopEventResponse::updateOrCreate(
+                $response = LoopEventResponse::updateOrCreate(
                     ['event_id' => $event->id, 'user_id' => $user->id],
                     ['organization_id' => $organization->id, 'response' => $j === 3 ? 'maybe' : 'going'],
                 );
+                $registrar?->track('event_response', "event-{$i}:{$j}", $response);
             }
         }
     }
 
     /** @param array<string, User> $users @param array<string, Loop> $loops */
-    private function polls(Organization $organization, array $users, array $loops): void
+    private function polls(Organization $organization, array $users, array $loops, ?ScenarioPackEntityRegistrar $registrar): void
     {
         $definitions = [
             ['launchpals', 'Which skill-swap format should we test next?', ['Two-person clinic', 'Open help desk', 'Small peer circle']],
@@ -691,6 +758,10 @@ class ArtSciLabScenarioSeeder extends Seeder
                     'closed_by' => $i === 1 ? $users['maya']->id : null,
                 ],
             );
+            $registrar?->track('poll', "poll-{$i}", $poll);
+            // loop_poll_options ne porte pas organization_id (atteignable
+            // uniquement via son Sondage, deja track "poll" ci-dessus) : pas
+            // trackable par le registrar, nettoye par cascade sur poll_id.
             $options = [];
             foreach ($labels as $position => $label) {
                 $options[] = LoopPollOption::updateOrCreate(
@@ -703,10 +774,14 @@ class ArtSciLabScenarioSeeder extends Seeder
                     ['poll_id' => $poll->id, 'user_id' => $user->id],
                     ['organization_id' => $organization->id],
                 );
+                $registrar?->track('poll_vote', "poll-{$i}:{$voterIndex}", $vote);
                 $selected = [$options[($voterIndex + $i) % count($options)]];
                 if ($poll->selection_type === 'multiple' && $voterIndex % 2 === 0) {
                     $selected[] = $options[($voterIndex + 1) % count($options)];
                 }
+                // loop_poll_vote_options ne porte pas organization_id non plus
+                // (atteignable via son vote, deja track "poll_vote" ci-dessus) :
+                // nettoye par cascade sur vote_id/option_id.
                 foreach ($selected as $option) {
                     LoopPollVoteOption::firstOrCreate(['vote_id' => $vote->id, 'option_id' => $option->id]);
                 }
@@ -715,7 +790,7 @@ class ArtSciLabScenarioSeeder extends Seeder
     }
 
     /** @param array<string, User> $users @param array<string, Loop> $loops */
-    private function decisionsAndRoadmap(Organization $organization, array $users, array $loops): void
+    private function decisionsAndRoadmap(Organization $organization, array $users, array $loops, ?ScenarioPackEntityRegistrar $registrar): void
     {
         $decisionData = [
             ['emergence', 'Keep the first prototype portable', 'One case makes field tests affordable and repeatable.'],
@@ -727,7 +802,7 @@ class ArtSciLabScenarioSeeder extends Seeder
         ];
         $decisions = [];
         foreach ($decisionData as $i => [$loopKey, $title, $rationale]) {
-            $decisions[] = LoopDecision::updateOrCreate(
+            $decision = LoopDecision::updateOrCreate(
                 ['organization_id' => $organization->id, 'loop_id' => $loops[$loopKey]->id, 'title' => $title],
                 [
                     'author_id' => array_values($users)[$i % count($users)]->id,
@@ -736,6 +811,8 @@ class ArtSciLabScenarioSeeder extends Seeder
                     'loop_message_id' => null,
                 ],
             );
+            $registrar?->track('decision', "decision-{$i}", $decision);
+            $decisions[] = $decision;
         }
 
         $items = [
@@ -762,6 +839,7 @@ class ArtSciLabScenarioSeeder extends Seeder
             if ($item->trashed()) {
                 $item->restore();
             }
+            $registrar?->track('roadmap_item', "roadmap-{$i}", $item);
             $item->assignees()->syncWithoutDetaching([array_values($users)[$i % count($users)]->id]);
         }
     }

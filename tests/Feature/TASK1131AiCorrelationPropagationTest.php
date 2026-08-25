@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Ai\Agents\LoopDirectAnswerAgent;
 use App\Livewire\InlineMemberAgent;
 use App\Models\AdminAiInteraction;
 use App\Models\AiInteraction;
@@ -9,6 +10,7 @@ use App\Models\Loop;
 use App\Models\MemberAiProfile;
 use App\Models\MemberAiProfileInteraction;
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Ai\Contracts\AiScenarioDefinition;
 use App\Services\Ai\Contracts\SupervisionProvider;
@@ -51,20 +53,20 @@ class TASK1131AiCorrelationPropagationTest extends TestCase
         parent::setUp();
 
         $this->organization = Organization::factory()->create(['ai_profiles_enabled' => true]);
+        // TASK-1233 : `answer()` est canonique — provider et credential de
+        // l'Organization (P4-lite), plus aucun appel HTTP direct.
+        OrganizationAiSetting::factory()->create(['organization_id' => $this->organization->id, 'provider' => 'openai', 'model' => 'gpt-4o-mini']);
         $this->owner = User::factory()->create(['organization_id' => $this->organization->id]);
 
         $this->loop = (new LoopService)->createLoop($this->owner, 'Boucle TASK-1131');
 
         config(['ai.openai.api_key' => 'test-key']);
+        config(['ai.providers.openai.driver' => 'openai']);
+        config(['ai.providers.openai.key' => 'test-key']);
         config(['ai.chatloop.min_summary_words' => 0]);
 
         Http::preventStrayRequests();
-        Http::fake([
-            '*' => Http::response([
-                'choices' => [['message' => ['content' => "Reponse de l'IA."]]],
-                'usage' => ['input_tokens' => 12, 'output_tokens' => 18],
-            ]),
-        ]);
+        LoopDirectAnswerAgent::fake(["Reponse de l'IA."]);
     }
 
     /**
@@ -292,6 +294,7 @@ class TASK1131AiCorrelationPropagationTest extends TestCase
     public function test_two_organizations_never_share_a_correlation_id(): void
     {
         $otherOrganization = Organization::factory()->create();
+        OrganizationAiSetting::factory()->create(['organization_id' => $otherOrganization->id, 'provider' => 'openai', 'model' => 'gpt-4o-mini']);
         $otherOwner = User::factory()->create(['organization_id' => $otherOrganization->id]);
         $otherLoop = (new LoopService)->createLoop($otherOwner, 'Boucle autre tenant');
 

@@ -3,6 +3,8 @@
 use App\Http\Controllers\Admin\AdminAiBenchmarkController;
 use App\Http\Controllers\Admin\AdminAiConfigController;
 use App\Http\Controllers\Admin\AdminAiInteractionController;
+use App\Http\Controllers\Admin\AdminAiMonetizationController;
+use App\Http\Controllers\Admin\AdminAiOrganizationsController;
 use App\Http\Controllers\Admin\AdminAiPromptController;
 use App\Http\Controllers\Admin\AdminAiReviewQueueController;
 use App\Http\Controllers\Admin\AdminAiSupervisionController;
@@ -26,6 +28,7 @@ use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
+use App\Http\Controllers\Admin\AdminScenarioPackController;
 use App\Http\Controllers\Admin\AdminSystemEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminTagController;
 use App\Http\Controllers\Admin\AdminThemeController;
@@ -62,9 +65,11 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LikeController;
 use App\Http\Controllers\LocaleController;
-use App\Http\Controllers\LoopEventAgendaController;
 use App\Http\Controllers\LoopController;
+use App\Http\Controllers\LoopDossierArticleController;
+use App\Http\Controllers\LoopEventAgendaController;
 use App\Http\Controllers\LoopInvitationController;
+use App\Http\Controllers\LoopToolsController;
 use App\Http\Controllers\MemberAiProfileConversationsController;
 use App\Http\Controllers\MemberAiProfileInteractionController;
 use App\Http\Controllers\MessageController;
@@ -80,6 +85,7 @@ use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\UserAiUsageController;
 use App\Http\Middleware\OrgAdminMiddleware;
 use App\Livewire\BoundedMemberAgent;
 use App\Livewire\CreateFeedPost;
@@ -187,6 +193,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Blog Explorer endpoints
     Route::post('/blog/{post:slug}/explorer/chat', [BlogExplorerController::class, 'chat'])->name('blog.explorer.chat');
     Route::post('/blog/{post:slug}/explorer/note', [BlogExplorerController::class, 'generateNote'])->name('blog.explorer.note.generate');
+    // TASK-1256 : feedback humain sur une reponse Explorer (Utile / A ameliorer)
+    Route::post('/blog/{post:slug}/explorer/feedback', [BlogExplorerController::class, 'storeFeedback'])->name('blog.explorer.feedback.store');
     Route::get('/blog/{post:slug}/explorer/notes', [BlogExplorerController::class, 'indexNotes'])->name('blog.explorer.notes.index');
     Route::post('/blog/{post:slug}/explorer/notes', [BlogExplorerController::class, 'storeNote'])->name('blog.explorer.notes.store');
     Route::put('/blog/{post:slug}/explorer/notes/{note}', [BlogExplorerController::class, 'updateNote'])->name('blog.explorer.notes.update');
@@ -257,6 +265,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('profile.complete')->group(function () {
         Route::get('/requests/create', [RequestController::class, 'create'])->name('requests.create');
         Route::post('/requests', [RequestController::class, 'store'])->name('requests.store');
+        Route::post('/requests/ai-formulate', [RequestController::class, 'formulate'])->name('requests.ai-formulate');
     });
     Route::get('/requests/{request}/edit', [RequestController::class, 'edit'])->name('requests.edit');
     Route::put('/requests/{request}', [RequestController::class, 'update'])->name('requests.update');
@@ -298,6 +307,11 @@ Route::middleware('auth')->group(function () {
 
     // Profile
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
+    // TASK-1223 : « Mes usages IA » — transparence du ledger canonique,
+    // scope strict user courant + Organization courante.
+    Route::get('/profile/ai-usage', [UserAiUsageController::class, 'index'])->name('profile.ai-usage');
+    // TASK-1229 : « Voir les offres » — page d'information (aucun paiement).
+    Route::get('/profile/ai-usage/offers', [UserAiUsageController::class, 'offers'])->name('profile.ai-offers');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -325,7 +339,11 @@ Route::middleware('auth')->group(function () {
 
     // Loops
     Route::middleware('loops.enabled')->group(function () {
-        Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
+        // `no_store` (TASK-1277) : le catalogue porte l'etat des demandes
+        // d'adhesion (« Demande en attente »). Servi `no-cache`, le bouton
+        // Precedent du navigateur rejoue la reponse en cache sans la revalider
+        // et affiche une carte perimee ; `no-store` force la requete.
+        Route::get('/loops', [LoopController::class, 'index'])->middleware('cache.headers:no_store')->name('loops.index');
         Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
         Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
         Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
@@ -369,7 +387,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
         Route::post('/loops/{loop}/ask-ai', [LoopController::class, 'askAi'])->middleware('throttle:5,1')->name('loops.ai');
         Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
-        Route::post('/loops/{loop}/help-request/publish', [LoopController::class, 'publishHelpRequest'])->name('loops.help-request.publish');
+        Route::post('/loops/{loop}/help-request/continue', [LoopController::class, 'prepareHelpRequest'])->name('loops.help-request.continue');
+        // TASK-1213 : reponse documentaire sourcee (RAG V1), read-only, JSON.
+        Route::post('/loops/{loop}/knowledge', [LoopController::class, 'knowledge'])->name('loops.knowledge.ask');
     });
 });
 
@@ -565,6 +585,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/ai-config/blog', [AdminAiConfigController::class, 'updateBlogConfig'])->name('ai-config.blog');
     Route::post('/ai-config/profile', [AdminAiConfigController::class, 'updateProfileConfig'])->name('ai-config.profile');
 
+    // Scenario packs (TASK-1240/TASK-1241) : un seul couple (pack, Organization)
+    // a la fois, jamais d'action globale non bornee.
+    Route::get('/scenario-packs', [AdminScenarioPackController::class, 'index'])->name('scenario-packs');
+    Route::post('/scenario-packs/load', [AdminScenarioPackController::class, 'load'])->name('scenario-packs.load');
+    Route::post('/scenario-packs/reset', [AdminScenarioPackController::class, 'reset'])->name('scenario-packs.reset');
+    Route::post('/scenario-packs/delete', [AdminScenarioPackController::class, 'delete'])->name('scenario-packs.delete');
+
     // IA Usage dashboard (TASK-306 Lot 3)
     Route::get('/ia-usage', [AdminAiUsageController::class, 'index'])->name('ia-usage');
     Route::get('/ia-usage/{interaction}', [AdminAiUsageController::class, 'show'])->name('ia-usage.show');
@@ -572,6 +599,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // IA Usage by user (TASK-306)
     Route::get('/ia-usage-by-user', [AdminIaUsageByUserController::class, 'index'])->name('ia-usage-by-user');
+    // TASK-1223 : cockpit IA/RAG plateforme — metadonnees par Organization,
+    // jamais un contenu tenant ni une cle.
+    Route::get('/ai-organizations', [AdminAiOrganizationsController::class, 'index'])->name('ai-organizations');
+    // TASK-1229 : « Monetisation IA » — credit IA par utilisateur (plateforme) :
+    // IA gratuite, quota mensuel en utilisations, seuil d'alerte, offre.
+    Route::get('/ai-monetization', [AdminAiMonetizationController::class, 'index'])->name('ai-monetization');
+    Route::post('/ai-monetization', [AdminAiMonetizationController::class, 'update'])->name('ai-monetization.update');
 
     // Blog moderation
     Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog');
@@ -680,6 +714,7 @@ Route::prefix('/org/{organization}')
             Route::middleware('profile.complete')->group(function () {
                 Route::get('/requests/create', [RequestController::class, 'create'])->name('requests.create');
                 Route::post('/requests', [RequestController::class, 'store'])->name('requests.store');
+                Route::post('/requests/ai-formulate', [RequestController::class, 'formulate'])->name('requests.ai-formulate');
             });
             Route::get('/requests/{request}/edit', [RequestController::class, 'edit'])->middleware('consume.org')->name('requests.edit');
             Route::put('/requests/{request}', [RequestController::class, 'update'])->middleware('consume.org')->name('requests.update');
@@ -713,6 +748,10 @@ Route::prefix('/org/{organization}')
             Route::post('/bugs', [BugReportController::class, 'store'])->middleware('throttle:5,1')->name('bug-reports.store');
 
             Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
+            // TASK-1223 : « Mes usages IA » — transparence du ledger canonique,
+            // scope strict user courant + Organization courante.
+            Route::get('/profile/ai-usage', [UserAiUsageController::class, 'index'])->name('profile.ai-usage');
+            Route::get('/profile/ai-usage/offers', [UserAiUsageController::class, 'offers'])->name('profile.ai-offers');
             Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
             Route::patch('/profile/availability', [ProfileController::class, 'toggleAvailability'])->name('profile.availability');
             Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -729,7 +768,8 @@ Route::prefix('/org/{organization}')
             });
 
             Route::middleware('loops.enabled')->group(function () {
-                Route::get('/loops', [LoopController::class, 'index'])->name('loops.index');
+                // `no_store` : voir la route courte `loops.index` (TASK-1277).
+                Route::get('/loops', [LoopController::class, 'index'])->middleware('cache.headers:no_store')->name('loops.index');
                 Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
                 Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
                 Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
@@ -754,18 +794,19 @@ Route::prefix('/org/{organization}')
                 Route::post('/loops/{loop}/messages', [LoopController::class, 'storeMessage'])->name('loops.messages.store');
                 Route::post('/loops/{loop}/ask-ai', [LoopController::class, 'askAi'])->middleware('throttle:5,1')->name('loops.ai');
                 Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
-                Route::post('/loops/{loop}/help-request/publish', [LoopController::class, 'publishHelpRequest'])->name('loops.help-request.publish');
+                Route::post('/loops/{loop}/help-request/continue', [LoopController::class, 'prepareHelpRequest'])->name('loops.help-request.continue');
+                Route::post('/loops/{loop}/knowledge', [LoopController::class, 'knowledge'])->name('loops.knowledge.ask');
                 // « Ecrire un article » depuis la Card Dossiers : un brouillon
                 // lie d'un coup au Dossier racine ET a la Boucle, puis
                 // l'editeur Blog existant. Contexte Organization seulement,
                 // comme tout le systeme documentaire.
-                Route::post('/loops/{loop}/dossier/articles', [\App\Http\Controllers\LoopDossierArticleController::class, 'store'])->middleware('throttle:10,1')->name('loops.dossier.articles.store');
+                Route::post('/loops/{loop}/dossier/articles', [LoopDossierArticleController::class, 'store'])->middleware('throttle:10,1')->name('loops.dossier.articles.store');
                 // « Personnaliser ma Boucle » — l'ecran du proprietaire. Meme
                 // service que l'administration (LoopPresetConfigurator), donc
                 // memes gardes ; seul le langage change. Contexte Organization
                 // seulement : la Boucle appartient a un tenant.
-                Route::get('/loops/{loop}/outils', [\App\Http\Controllers\LoopToolsController::class, 'index'])->name('loops.tools');
-                Route::post('/loops/{loop}/outils', [\App\Http\Controllers\LoopToolsController::class, 'update'])->middleware('throttle:30,1')->name('loops.tools.update');
+                Route::get('/loops/{loop}/outils', [LoopToolsController::class, 'index'])->name('loops.tools');
+                Route::post('/loops/{loop}/outils', [LoopToolsController::class, 'update'])->middleware('throttle:30,1')->name('loops.tools.update');
             });
 
             Route::middleware('verified')->group(function () {
@@ -869,6 +910,7 @@ Route::prefix('/org/{organization}')
                 // Blog Explorer endpoints (org-scoped)
                 Route::post('/blog/{post:slug}/explorer/chat', [BlogExplorerController::class, 'orgChat'])->name('blog.explorer.chat');
                 Route::post('/blog/{post:slug}/explorer/note', [BlogExplorerController::class, 'orgGenerateNote'])->name('blog.explorer.note.generate');
+                Route::post('/blog/{post:slug}/explorer/feedback', [BlogExplorerController::class, 'orgStoreFeedback'])->name('blog.explorer.feedback.store');
                 Route::get('/blog/{post:slug}/explorer/notes', [BlogExplorerController::class, 'orgIndexNotes'])->name('blog.explorer.notes.index');
                 Route::post('/blog/{post:slug}/explorer/notes', [BlogExplorerController::class, 'orgStoreNote'])->name('blog.explorer.notes.store');
                 Route::put('/blog/{post:slug}/explorer/notes/{note}', [BlogExplorerController::class, 'orgUpdateNote'])->name('blog.explorer.notes.update');
@@ -968,6 +1010,13 @@ Route::prefix('/org/{organization}')
                 Route::get('/identity', [OrgAdminController::class, 'identity'])->name('identity');
                 Route::post('/identity', [OrgAdminController::class, 'updateIdentity'])->name('identity.update');
 
+                // TASK-1212 : configuration IA du tenant (provider, modele, credential, budget)
+                Route::get('/ai', [OrgAdminController::class, 'ai'])->name('ai');
+                Route::put('/ai', [OrgAdminController::class, 'updateAi'])->name('ai.update');
+                // TASK-1229 : override d'Organization du credit IA par utilisateur
+                // (reglage plateforme / valeur propre / illimite), trace.
+                Route::put('/ai/user-credit', [OrgAdminController::class, 'updateAiUserCredit'])->name('ai.user-credit.update');
+
                 // Design
                 Route::get('/homepage', [OrgAdminController::class, 'homepage'])->name('homepage');
                 Route::put('/homepage', [OrgAdminController::class, 'updateHomepage'])->name('homepage.update');
@@ -982,9 +1031,28 @@ Route::prefix('/org/{organization}')
                 Route::post('/themes/{theme}/assign', [OrgAdminController::class, 'themesAssign'])->name('themes.assign');
 
                 // AI
+                // TASK-1223 : hub « IA & connaissances » — l'etat du systeme
+                // IA de l'Organization en une page, liens vers les consoles.
+                Route::get('/ai-cockpit', [OrgAdminController::class, 'aiCockpit'])->name('ai-cockpit');
+                // TASK-1227 : « Comportement IA » — Constitution (lecture
+                // seule), doctrine de l'Organization (versionnee), couverture
+                // du systeme nerveux, bac a sable reel « tester sans publier ».
+                Route::get('/ai-behavior', [OrgAdminController::class, 'aiBehavior'])->name('ai-behavior');
+                Route::put('/ai-behavior/doctrine', [OrgAdminController::class, 'updateAiDoctrine'])->name('ai-behavior.doctrine.update');
+                Route::delete('/ai-behavior/doctrine', [OrgAdminController::class, 'withdrawAiDoctrine'])->name('ai-behavior.doctrine.withdraw');
+                Route::post('/ai-behavior/sandbox', [OrgAdminController::class, 'sandboxAiDoctrine'])->middleware('throttle:ai-doctrine-sandbox')->name('ai-behavior.sandbox');
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
                 Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');
                 Route::get('/ai-interactions', [OrgAdminController::class, 'aiInteractions'])->name('ai-interactions');
+                // TASK-1217 : console RAG read-only — ce que l'IA connait des
+                // Dossiers de cette Organization, et si l'index est sain.
+                Route::get('/ai-knowledge', [OrgAdminController::class, 'aiKnowledge'])->name('ai-knowledge');
+                // TASK-1226 : fragment de rafraichissement de l'Observatoire
+                // (polling leger, read-only, meme middleware que la page).
+                Route::get('/ai-knowledge/live', [OrgAdminController::class, 'aiKnowledgeLive'])->middleware('throttle:120,1')->name('ai-knowledge.live');
+                // TASK-1219 : console de consommation IA read-only — ce que la
+                // garde economique compte deja pour cette Organization.
+                Route::get('/ai-consumption', [OrgAdminController::class, 'aiConsumption'])->name('ai-consumption');
 
                 // Stats
                 Route::get('/stats/login-history', [OrgAdminController::class, 'loginHistory'])->name('stats.login-history');

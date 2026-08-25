@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\Ai\CapabilityRegistry;
+use App\Ai\Context\ContextBuilder;
+use App\Ai\PromptRepository;
+use App\Ai\ProviderResolver;
 use App\Events\LoopMessageCreated;
 use App\Http\Middleware\ResolveOrganization;
 use App\Jobs\GenerateAiAgentResponse;
@@ -10,6 +14,7 @@ use App\Models\AiConfig;
 use App\Models\BlogPost;
 use App\Models\BugReport;
 use App\Models\Dossier;
+use App\Models\DossierFile;
 use App\Models\EmailLog;
 use App\Models\FeedPost;
 use App\Models\Loop;
@@ -24,6 +29,7 @@ use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
 use App\Observers\BlogPostObserver;
+use App\Observers\DossierFileObserver;
 use App\Observers\DossierObserver;
 use App\Observers\ServiceObserver;
 use App\Observers\TransactionObserver;
@@ -37,6 +43,7 @@ use App\Policies\ServicePolicy;
 use App\Policies\ServiceRequestPolicy;
 use App\Policies\TransactionPolicy;
 use App\Scenarios\BoundedMemberScenario;
+use App\Services\Ai\AiProviderInvocationLedger;
 use App\Services\Ai\AiScenarioFactory;
 use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\Ai\Contracts\AiProvider;
@@ -55,6 +62,8 @@ use App\Services\Ai\SupervisionProviderResolver;
 use App\Services\LoopTypeSettingsService;
 use App\Services\ReferralCodeGenerator;
 use App\Services\RewardDispatcher;
+use App\Support\Ai\AiEconomicGuard;
+use App\Support\Ai\AiFabContext;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -89,11 +98,18 @@ class AppServiceProvider extends ServiceProvider
         // des chemins chauds, et les vues resolvent le registre a chaque appel.
         // Sans singleton, le memo du catalogue serait recree — donc inutile.
         $this->app->singleton(LoopTypeRegistry::class);
+        // TASK-1231 : contexte du FAB « BouclePro IA » — memo par requete HTTP
+        // (une lecture du credit par requete), jamais partage entre requetes.
+        $this->app->scoped(AiFabContext::class);
         $this->app->bind(AiProvider::class, function ($app) {
             return new ClarifyUserHelpRequestService(
-                $app->make(SupervisionProviderResolver::class),
-                $app->make(AiScenarioFactory::class),
                 $app->make(FakeAIProvider::class),
+                $app->make(CapabilityRegistry::class),
+                $app->make(PromptRepository::class),
+                $app->make(ProviderResolver::class),
+                $app->make(ContextBuilder::class),
+                $app->make(AiEconomicGuard::class),
+                $app->make(AiProviderInvocationLedger::class),
             );
         });
 
@@ -193,6 +209,7 @@ class AppServiceProvider extends ServiceProvider
         TranslationOverride::observe(TranslationOverrideObserver::class);
         BlogPost::observe(BlogPostObserver::class);
         Dossier::observe(DossierObserver::class);
+        DossierFile::observe(DossierFileObserver::class);
 
         Event::listen(
             LoopMessageCreated::class,
@@ -211,6 +228,17 @@ class AppServiceProvider extends ServiceProvider
                     return;
                 }
 
+                // Une projection de ServiceRequest est une annonce metier, pas
+                // une question adressee a l'agent. Les help_request historiques
+                // non lies conservent leur comportement : la garde est bornee
+                // aux deux marqueurs explicites de TASK-1211.
+                if ($message->isServiceRequestProjection()) {
+                    return;
+                }
+
+                // TASK-1251 : aucune garde economique ICI, volontairement — le
+                // dispatch peut etre retarde et le budget changer entre-temps.
+                // La garde s'applique DANS le job, juste avant l'appel provider.
                 dispatch(new GenerateAiAgentResponse($loop, $message));
             },
         );
@@ -221,6 +249,14 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('api-auth', function (Request $request) {
             return Limit::perMinute(10)->by($request->ip());
+        });
+
+        // TASK-1227 : le bac a sable de la doctrine emet un appel IA REEL et
+        // facture (credential de l'Organization) : quelques essais par minute
+        // et par utilisateur suffisent a une recette, jamais a une rafale.
+        RateLimiter::for('ai-doctrine-sandbox', function (Request $request) {
+            return Limit::perMinute((int) config('ai.doctrine.sandbox_per_minute', 6))
+                ->by('ai-doctrine-sandbox:'.($request->user()?->id ?: $request->ip()));
         });
 
         Event::listen(

@@ -2,14 +2,18 @@
 
 namespace App\Services\Dossiers;
 
+use App\Ai\ProviderResolver;
 use App\Listeners\RecordSdkEmbeddingsInvocation;
+use App\Models\AiProviderInvocation;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Models\DossierChunk;
 use App\Models\Organization;
+use App\Support\Ai\AiEconomicGuard;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class DossierArticleIndexer
@@ -19,6 +23,8 @@ class DossierArticleIndexer
         private readonly ArticleTextExtractor $extractor,
         private readonly ArticleChunker $chunker,
         private readonly DossierChunkEmbeddingService $embeddings,
+        private readonly ProviderResolver $providers,
+        private readonly AiEconomicGuard $economicGuard,
     ) {}
 
     public function synchronize(string $organizationId, string $dossierId, string $blogPostId): int
@@ -45,13 +51,57 @@ class DossierArticleIndexer
             $provider = trim((string) config('ai.default_for_embeddings', 'openai'));
             $model = trim((string) config("ai.providers.{$provider}.models.embeddings.default", 'text-embedding-3-small'));
 
+            // Contenu inchange : on ne retouche rien, meme si le credential
+            // tenant est absent. Un index historique valide, de la meme famille
+            // d'embedding, reste servi — son ancien credential plateforme ne le
+            // rend pas obsolete (TASK-1214).
             if ($this->alreadyIndexed($organizationId, $dossierId, $blogPostId, $chunks, $provider, $model)) {
                 return count($chunks);
+            }
+
+            // TASK-1222 : garde economique AVANT tout appel provider. Elle
+            // n'est atteinte QUE lorsque le contenu a change (alreadyIndexed
+            // court-circuite avant) : l'index encore VALIDE est structurellement
+            // hors de sa portee. Sur un refus, la doctrine staleness TASK-1214
+            // s'applique a l'identique du credential absent — l'ancienne
+            // representation d'un contenu modifie ne doit JAMAIS continuer a
+            // etre servie comme si elle etait a jour, un paragraphe supprime
+            // par son auteur ne survit pas dans la recherche pour raison de
+            // budget. Aucun appel provider, aucune ligne de ledger.
+            $verdict = $this->economicGuard->authorizeEmbeddings($organization);
+
+            if (! $verdict->allowed) {
+                Log::warning('Dossier ingestion refused by the economic guard.', [
+                    'organization_id' => $organizationId,
+                    'dossier_id' => $dossierId,
+                    'blog_post_id' => $blogPostId,
+                    'reason' => $verdict->reason,
+                ]);
+
+                return $this->deleteChunks($organizationId, $dossierId, $blogPostId);
+            }
+
+            // TASK-1214 : l'ingestion passe par le credential de l'Organization
+            // (P4), jamais par la cle plateforme. Sans instance tenant, aucun
+            // nouvel embedding n'est produit.
+            $instance = $this->providers->resolveEmbeddingInstance($organizationId);
+
+            if ($instance === null) {
+                // Le contenu a change (alreadyIndexed est faux) mais on ne peut
+                // pas le reindexer : l'ancienne representation ne doit surtout
+                // pas continuer a etre servie comme si elle etait a jour. On la
+                // retire via le mecanisme de lifecycle existant. Elle sera
+                // reindexee quand un credential P4 sera disponible et que la
+                // source sera de nouveau synchronisee.
+                return $this->deleteChunks($organizationId, $dossierId, $blogPostId);
             }
 
             Context::add(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY, [
                 'organization_id' => $organizationId,
                 'scenario_id' => 'dossier_embeddings_index',
+                // TASK-1220 : declaration EXPLICITE pour le ledger canonique,
+                // jamais deduite du scenario_id.
+                'embedding_operation' => AiProviderInvocation::EMBEDDING_OPERATION_INGESTION,
                 'metadata' => [
                     'dossier_id' => $dossierId,
                     'blog_post_id' => $blogPostId,
@@ -60,7 +110,14 @@ class DossierArticleIndexer
             ]);
 
             try {
-                $embeddingResult = $this->embeddings->embed(array_column($chunks, 'content'));
+                $embeddingResult = $this->embeddings->embed(array_column($chunks, 'content'), $instance);
+            } catch (\Throwable $exception) {
+                // Echec d'embedding APRES un changement detecte : la version
+                // stockee est desormais perimee. On ne la sert pas comme
+                // actuelle — on la retire, puis on relance pour l'observabilite
+                // et un eventuel retry (qui reindexera).
+                $this->deleteChunks($organizationId, $dossierId, $blogPostId);
+                throw $exception;
             } finally {
                 Context::forget(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY);
             }

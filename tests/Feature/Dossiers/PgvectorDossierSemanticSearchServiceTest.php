@@ -6,6 +6,7 @@ use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Models\DossierChunk;
+use App\Models\DossierFile;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Dossiers\DossierSemanticSearchService;
@@ -26,11 +27,13 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $near = $this->attachedChunk($organization, $dossier, $owner, $this->vector(0.0), 'Near chunk');
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame($near->blog_post_id, $results[0]['blog_post_id']);
         $this->assertSame($far->blog_post_id, $results[1]['blog_post_id']);
-        $this->assertSame(['blog_post_id', 'title', 'slug', 'chunk_index', 'content', 'distance'], array_keys($results[0]));
+        $this->assertSame(['source_type', 'blog_post_id', 'title', 'slug', 'dossier_file_id', 'filename', 'mime_type', 'chunk_index', 'content', 'distance'], array_keys($results[0]));
+        $this->assertNull($results[0]['mime_type']);
+        $this->assertSame('article', $results[0]['source_type']);
         $this->assertSame(0, $results[0]['chunk_index']);
         $this->assertSame('Near chunk', $results[0]['content']);
         $this->assertIsFloat($results[0]['distance']);
@@ -47,7 +50,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $second = $this->attachedChunk($organization, $dossier, $owner, $this->vector(0.2), 'Second');
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([
             $first->blog_post_id,
@@ -68,7 +71,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
 
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 5);
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai', 5);
 
         $this->assertCount(5, $results);
     }
@@ -83,9 +86,72 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $this->attachedChunk($otherOrganization, $otherDossier, $otherOwner, $this->vector(0.0), 'Other org');
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([$expected->blog_post_id], array_column($results, 'blog_post_id'));
+    }
+
+    /**
+     * TASK-1267 : un chunk de FICHIER d'une autre Organization ne sort jamais,
+     * ni par sa propre ligne (organization_id etranger), ni via un chunk qui
+     * porterait nos identifiants mais pointerait vers un dossier_file
+     * etranger (la jointure dossier_files exige le meme dossier_id et
+     * `dossier_files.organization_id` = tenant). Le fichier du tenant, lui,
+     * sort avec la forme `file` (title/slug nuls, filename renseigne).
+     */
+    public function test_file_chunk_of_another_organization_is_never_returned(): void
+    {
+        // TASK-1267 : saute — et ne desactive pas — ce test sur un driver qui ne
+        // peut structurellement pas l'executer (SQLite sans pgvector), selon la
+        // convention de PgvectorDossierRetrievalSourceTest::setUp(). Les 10 tests
+        // historiques de la classe restent inscrits tels quels dans
+        // .github/sqlite-known-failures.txt ; cette reference ne grandit pas.
+        // Sous PostgreSQL le test tourne et prouve l'isolation tenant.
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('dossier semantic search tenant isolation requires PostgreSQL pgvector.');
+        }
+
+        if (DB::table('pg_extension')->where('extname', 'vector')->doesntExist()) {
+            $this->markTestSkipped('pgvector extension is not installed.');
+        }
+
+        $this->assertPostgresqlPgvectorPreconditions();
+        [$organization, $dossier, $owner] = $this->fixture();
+        [$otherOrganization, $otherDossier, $otherOwner] = $this->fixture();
+        $this->fakeQueryEmbedding();
+
+        $ownFile = $this->fileChunk($organization, $dossier, $owner, $this->vector(0.3), 'Own file passage', 'contrat-2026.txt');
+        $foreignFile = $this->fileChunk($otherOrganization, $otherDossier, $otherOwner, $this->vector(0.0), 'Foreign file passage', 'secret.txt');
+        // Chunk forge : nos identifiants, mais dossier_file_id d'un fichier etranger.
+        DossierChunk::create([
+            'organization_id' => $organization->id,
+            'dossier_id' => $dossier->id,
+            'blog_post_id' => null,
+            'dossier_file_id' => $foreignFile->dossier_file_id,
+            'chunk_index' => 7,
+            'content' => 'Forged pointer to foreign file',
+            'content_hash' => hash('sha256', 'forged'),
+            'token_count' => 3,
+            'embedding' => $this->vector(0.0),
+            'embedding_provider' => 'openai',
+            'embedding_model' => 'text-embedding-3-small',
+            'indexed_at' => now(),
+        ]);
+        $this->enableGate($organization->id);
+
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
+
+        $this->assertSame([$ownFile->dossier_file_id], array_column($results, 'dossier_file_id'));
+        $this->assertSame('file', $results[0]['source_type']);
+        $this->assertSame('contrat-2026.txt', $results[0]['filename']);
+        // TASK-1267 : le MIME du fichier est expose (apercu in-app cote vue).
+        $this->assertSame('text/plain', $results[0]['mime_type']);
+        $this->assertNull($results[0]['blog_post_id']);
+        $this->assertNull($results[0]['title']);
+        $this->assertNull($results[0]['slug']);
+        $this->assertStringNotContainsString('secret.txt', json_encode($results));
+        $this->assertStringNotContainsString('Foreign', json_encode($results));
+        $this->assertStringNotContainsString('Forged', json_encode($results));
     }
 
     public function test_dossier_id_filter_excludes_chunks_from_same_organization_other_dossier(): void
@@ -98,7 +164,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $this->attachedChunk($organization, $otherDossier, $owner, $this->vector(0.0), 'Other dossier');
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([$expected->blog_post_id], array_column($results, 'blog_post_id'));
     }
@@ -120,7 +186,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $this->createChunk($organization, $dossier, $post, $this->vector(0.0), 'Stale wrong dossier');
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([], $results);
     }
@@ -142,7 +208,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $deletedDossier->delete();
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([], $results);
     }
@@ -156,7 +222,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $dossier->delete();
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([], $results);
         Embeddings::assertNothingGenerated();
@@ -172,7 +238,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $this->createChunk($organization, $dossier, $post, $this->vector(0.0), 'Old model', model: 'old-model');
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([], $results);
     }
@@ -187,7 +253,7 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
         $this->createChunk($organization, $dossier, $post, $this->vector(0.0), 'Old provider', provider: 'ollama');
         $this->enableGate($organization->id);
 
-        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+        $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
 
         $this->assertSame([], $results);
     }
@@ -258,6 +324,41 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
             'blog_post_id' => $post->id,
             'added_by' => $owner->id,
             'position' => 1,
+        ]);
+    }
+
+    /**
+     * Chunk indexe depuis un fichier du Dossier (source_type = 'file').
+     */
+    private function fileChunk(Organization $organization, Dossier $dossier, User $owner, array $vector, string $content, string $filename): DossierChunk
+    {
+        $file = DossierFile::create([
+            'organization_id' => $organization->id,
+            'dossier_id' => $dossier->id,
+            'uploaded_by' => $owner->id,
+            'disk' => 'dossier_files',
+            'path' => 'dossier-files/'.Str::uuid().'.txt',
+            'original_name' => $filename,
+            'display_name' => $filename,
+            'mime_type' => 'text/plain',
+            'size_bytes' => strlen($content),
+            'checksum_sha256' => hash('sha256', $content),
+            'source' => 'upload',
+        ]);
+
+        return DossierChunk::create([
+            'organization_id' => $organization->id,
+            'dossier_id' => $dossier->id,
+            'blog_post_id' => null,
+            'dossier_file_id' => $file->id,
+            'chunk_index' => 0,
+            'content' => $content,
+            'content_hash' => hash('sha256', $content),
+            'token_count' => 3,
+            'embedding' => $vector,
+            'embedding_provider' => 'openai',
+            'embedding_model' => 'text-embedding-3-small',
+            'indexed_at' => now(),
         ]);
     }
 

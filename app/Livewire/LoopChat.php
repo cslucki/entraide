@@ -6,18 +6,22 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\Reaction;
+use App\Models\Scopes\BelongsToOrganizationScope;
+use App\Models\ServiceRequest;
 use App\Models\User;
+use App\Services\Ai\LoopKnowledgeAnswerService;
 use App\Services\LoopMessageService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Services\UrlPreviewService;
 use App\Support\Loops\LoopPermissionResolver;
+use App\Support\Loops\SlashIa;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
-use Livewire\Attributes\On;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\WebpEncoder;
 use Intervention\Image\Laravel\Facades\Image;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -176,6 +180,20 @@ class LoopChat extends Component
             return;
         }
 
+        // TASK-1299 : `/ia` en tete du corps invoque l'IA documentaire de
+        // CETTE Boucle. Une Boucle agent est exclue : son agent (T-2) repond
+        // deja a chaque message — une seconde IA serait une seconde depense.
+        $slashIaQuestion = $this->loop->isAiAgent() ? null : SlashIa::question($this->body);
+
+        if ($slashIaQuestion === '') {
+            // `/ia` vide : aide locale deterministe pour l'auteur seul. Rien
+            // n'est persiste, la saisie reste dans le composeur, aucun
+            // provider n'est appele, aucune ligne de ledger n'est ecrite.
+            $this->addError('body', __('loops.slash_ia_help'));
+
+            return;
+        }
+
         try {
             $imagePath = null;
 
@@ -189,13 +207,98 @@ class LoopChat extends Component
 
             $metadata = $preview !== null ? ['url_preview' => $preview] : null;
 
-            $service->sendUserMessage($this->loop, $user, $this->body, $metadata, $this->replyToMessageId, $imagePath);
+            if ($slashIaQuestion !== null) {
+                // Le corps est persiste TEL QUE TAPE, prefixe compris — la
+                // provenance de l'invocation vit ici, en metadata.
+                $metadata = ($metadata ?? []) + ['slash_ia' => true];
+            }
+
+            // TASK-1300 : `/ia` explicite d'abord — un corps `/ia ...` en
+            // reponse a un message IA reste une invocation /ia (une seule),
+            // le contexte de fil etant construit par le service depuis le
+            // lien de reponse (arbitrage Cyril 24/08, test dedie).
+            $continuationParent = $slashIaQuestion === null ? $this->continuationParent() : null;
+
+            if ($continuationParent !== null) {
+                $metadata = ($metadata ?? []) + ['ai_continuation' => true];
+            }
+
+            $message = $service->sendUserMessage($this->loop, $user, $this->body, $metadata, $this->replyToMessageId, $imagePath);
             $this->body = '';
             $this->cancelReply();
-            $this->syncNewerMessages();
-            $this->dispatch('message-sent');
         } catch (\RuntimeException) {
             $this->addError('body', 'Impossible d\'envoyer le message.');
+
+            return;
+        }
+
+        if ($slashIaQuestion !== null) {
+            $this->answerSlashIa($message, $slashIaQuestion, $user);
+        } elseif ($continuationParent !== null && $message->reply_to_id === $continuationParent->id) {
+            // TASK-1300 : continuation — le membre a REPONDU au message IA,
+            // son corps est la question. Meme chaine knowledge, meme
+            // declencheur deja persiste (le piege de la double persistance
+            // reste ferme par T-3), meme conservation du message humain en
+            // cas de refus ou d'echec.
+            $this->answerSlashIa($message, trim($message->body), $user);
+        }
+
+        $this->syncNewerMessages();
+        $this->dispatch('message-sent');
+    }
+
+    /**
+     * TASK-1300 : le parent d'une CONTINUATION — le message IA (type `ai`
+     * strictement : jamais `member_agent`), non supprime, de CETTE Boucle,
+     * que le membre vise avec « Repondre ». Tout autre cas est un reply
+     * ordinaire : Boucle agent (l'agent T-2 repond deja a tout message —
+     * deux IA seraient deux depenses), reply a un humain, parent efface
+     * (conservateur : son contenu a quitte le fil), corps vide (photo
+     * seule : pas de question a poser). Un reply_to_id d'une AUTRE Boucle
+     * ne declenche rien : cette requete est bornee a la Boucle courante,
+     * `sendUserMessage()` annule le lien de son cote, et la branche
+     * appelante re-verifie le lien PERSISTE avant d'invoquer.
+     */
+    private function continuationParent(): ?LoopMessage
+    {
+        if ($this->loop->isAiAgent() || $this->replyToMessageId === null || trim($this->body) === '') {
+            return null;
+        }
+
+        return LoopMessage::query()
+            ->where('id', $this->replyToMessageId)
+            ->where('loop_id', $this->loop->id)
+            ->where('type', 'ai')
+            ->whereNull('deleted_at')
+            ->first();
+    }
+
+    /**
+     * Repondre au message `/ia` DEJA persiste — jamais l'inverse.
+     *
+     * La chaine est celle de « Consulter les Dossiers » (T-1, TASK-1297) :
+     * RAG Loop-scoped (TASK-1294), garde economique existante, sources
+     * publiques filtrees par `KnowledgeAnswer::publicSource()`. Le message
+     * humain etant deja dans le fil, tout echec ici — refus economique,
+     * panne provider, aucune source — le CONSERVE et ne publie aucune
+     * fausse reponse : l'auteur seul est prevenu, dans le composeur.
+     */
+    private function answerSlashIa(LoopMessage $message, string $question, User $user): void
+    {
+        try {
+            $answer = app(LoopKnowledgeAnswerService::class)
+                ->answer($this->loop, $user, $question, inThreadTrigger: $message);
+
+            if ($answer->interactionId === null) {
+                // Zero source pertinente : rien n'a coute, rien n'est publie
+                // (principe T-1) — mais l'auteur doit savoir pourquoi le fil
+                // reste muet.
+                $this->addError('body', __('loops.knowledge_no_sources'));
+            }
+        } catch (\RuntimeException $exception) {
+            // AiRefusedException comprise : son message est le message
+            // produit (credit epuise, budget atteint, IA non configuree).
+            $this->addError('body', $exception->getMessage());
         }
     }
 
@@ -520,6 +623,8 @@ class LoopChat extends Component
         }
 
         $requestedByNames = $this->requestedByNames($messages);
+        $projectedRequests = $this->projectedRequests($messages);
+        $projectedRequestUrls = $this->projectedRequestUrls($projectedRequests);
         $aiRoute = $this->aiRoute();
         $canDeleteMessages = $this->canDeleteDisplayedMessages();
         // La vue retire le compositeur plutot que d'accepter un message que
@@ -532,10 +637,54 @@ class LoopChat extends Component
             'reactionData',
             'myReactions',
             'requestedByNames',
+            'projectedRequests',
+            'projectedRequestUrls',
             'aiRoute',
             'canDeleteMessages',
             'canContribute',
         ));
+    }
+
+    /**
+     * Charge toutes les demandes projetees en une requete, explicitement dans
+     * le tenant de la Boucle. Une metadata malformee n'atteint jamais la
+     * colonne UUID PostgreSQL et aucune requete ne part depuis Blade.
+     *
+     * @return Collection<string, ServiceRequest>
+     */
+    private function projectedRequests(Collection $messages): Collection
+    {
+        $ids = $messages
+            ->filter(fn (LoopMessage $message) => $message->isServiceRequestProjection())
+            ->map(fn (LoopMessage $message) => $message->metadata['service_request_id'])
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        return ServiceRequest::withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->where('organization_id', $this->loop->organization_id)
+            ->whereIn('id', $ids)
+            ->with('user')
+            ->get()
+            ->reject(fn (ServiceRequest $request) => $request->user?->isDeactivated() ?? true)
+            ->keyBy('id');
+    }
+
+    /** @param Collection<string, ServiceRequest> $requests */
+    private function projectedRequestUrls(Collection $requests): array
+    {
+        $slug = $this->loop->organization?->slug;
+
+        return $requests->mapWithKeys(function (ServiceRequest $request) use ($slug): array {
+            $url = $slug && Route::has('organization.requests.show')
+                ? route('organization.requests.show', ['organization' => $slug, 'request' => $request])
+                : route('requests.show', $request);
+
+            return [$request->id => $url];
+        })->all();
     }
 
     private function loadInitialMessages(): void

@@ -23,9 +23,25 @@ class TASK941EditServiceRequestOrgScopeTest extends TestCase
     {
         parent::setUp();
 
-        $this->org = Organization::factory()->create(['is_active' => true]);
-        $this->owner = User::factory()->complete()->create(['organization_id' => $this->org->id]);
-        $this->other = User::factory()->complete()->create(['organization_id' => $this->org->id]);
+        // TASK-1230 : noms DETERMINISTES (Faker `company()`, `firstName()`,
+        // `lastName()` sinon) — les pages service/demande rendent le nom du
+        // proprietaire, celui de l'Organization et celui de l'utilisateur
+        // connecte ; `assertDontSee('Modifier')` fouille tout le HTML.
+        // Meme correction a la racine que TASK-1218 / TASK-1228.
+        $this->org = Organization::factory()->create([
+            'is_active' => true,
+            'name' => 'Scope Sentinel Org',
+        ]);
+        $this->owner = User::factory()->complete()->create([
+            'organization_id' => $this->org->id,
+            'name' => 'Owner',
+            'first_name' => 'Sentinel',
+        ]);
+        $this->other = User::factory()->complete()->create([
+            'organization_id' => $this->org->id,
+            'name' => 'Other',
+            'first_name' => 'Sentinel',
+        ]);
         $this->category = Category::factory()->create(['organization_id' => $this->org->id]);
     }
 

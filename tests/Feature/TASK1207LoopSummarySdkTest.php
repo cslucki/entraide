@@ -14,6 +14,7 @@ use App\Models\AiInteraction;
 use App\Models\Loop;
 use App\Models\LoopMessage;
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopService;
@@ -54,6 +55,8 @@ class TASK1207LoopSummarySdkTest extends TestCase
         parent::setUp();
 
         $this->organization = Organization::factory()->create();
+        // TASK-1212 : provider/modele/credential portes par l'Organization.
+        OrganizationAiSetting::factory()->create(['organization_id' => $this->organization->id, 'provider' => 'openrouter', 'model' => 'deepseek/deepseek-chat-v3-0324']);
         $this->owner = User::factory()->create(['organization_id' => $this->organization->id]);
         $this->member = User::factory()->create(['organization_id' => $this->organization->id]);
         $this->nonMember = User::factory()->create(['organization_id' => $this->organization->id]);
@@ -202,11 +205,14 @@ class TASK1207LoopSummarySdkTest extends TestCase
 
     public function test_the_local_admin_prompt_instruction_is_preserved(): void
     {
+        // TASK-1221 : la v1 est desormais provisionnee par migration — la
+        // version admin du test prend une version superieure, et prouve du
+        // meme coup qu'elle PRIME sur la version provisionnee.
         AdminAiPrompt::create([
             'scenario_id' => 'chatloop_ai_summarize_fr',
             'name' => 'Résumé FR',
             'prompt_text' => 'INSTRUCTION ADMIN LOCALE FR.',
-            'version' => 1,
+            'version' => 5,
             'is_active' => true,
         ]);
         $this->fakeSummary();
@@ -255,7 +261,11 @@ class TASK1207LoopSummarySdkTest extends TestCase
     // ProviderResolver
     // =====================================================================
 
-    public function test_the_resolver_returns_the_currently_effective_provider_and_model(): void
+    /**
+     * TASK-1212 : le provider et le modele effectifs sont ceux de
+     * l'Organization du contexte, plus ceux de la plateforme.
+     */
+    public function test_the_resolver_returns_the_organization_provider_and_model(): void
     {
         $resolved = app(ProviderResolver::class)->resolve(
             CapabilityRegistry::LOOP_SUMMARY,
@@ -265,9 +275,10 @@ class TASK1207LoopSummarySdkTest extends TestCase
         $this->assertSame('openrouter', $resolved->provider);
         $this->assertSame('deepseek/deepseek-chat-v3-0324', $resolved->model);
         $this->assertSame('openrouter/deepseek/deepseek-chat-v3-0324', $resolved->trace());
+        $this->assertSame('org:'.$this->organization->id.':openrouter', $resolved->instance);
     }
 
-    public function test_the_resolver_falls_back_to_the_provider_model_exactly_like_the_legacy_path(): void
+    public function test_the_platform_defaults_do_not_move_the_organization_model(): void
     {
         AiConfig::query()->delete();
         config([
@@ -282,7 +293,7 @@ class TASK1207LoopSummarySdkTest extends TestCase
         );
 
         $this->assertSame('openrouter', $resolved->provider);
-        $this->assertSame('mistralai/ministral-3b-2512', $resolved->model);
+        $this->assertSame('deepseek/deepseek-chat-v3-0324', $resolved->model);
     }
 
     public function test_a_missing_provider_configuration_fails_explicitly(): void
@@ -295,12 +306,14 @@ class TASK1207LoopSummarySdkTest extends TestCase
         app(ProviderResolver::class)->resolve(CapabilityRegistry::LOOP_SUMMARY, $this->context());
     }
 
-    public function test_a_missing_api_key_fails_explicitly_instead_of_falling_back(): void
+    public function test_a_missing_tenant_credential_fails_explicitly_instead_of_falling_back(): void
     {
-        config(['ai.providers.openrouter.key' => '']);
+        OrganizationAiSetting::query()->where('organization_id', $this->organization->id)->update(['api_key' => null]);
+        // La plateforme, elle, a une cle : elle ne doit pas servir.
+        config(['ai.providers.openrouter.key' => 'platform-key']);
 
         $this->expectException(DomainException::class);
-        $this->expectExceptionMessage('has no API key configured');
+        $this->expectExceptionMessage('has no credential configured for Organization');
 
         app(ProviderResolver::class)->resolve(CapabilityRegistry::LOOP_SUMMARY, $this->context());
     }
@@ -360,7 +373,8 @@ class TASK1207LoopSummarySdkTest extends TestCase
         app(ChatLoopAiService::class)->summarize($this->loop, $this->member);
 
         LoopSummaryAgent::assertPrompted(function (AgentPrompt $prompt): bool {
-            $this->assertSame('openrouter', $prompt->provider->name());
+            // TASK-1212 : l'instance SDK est celle du tenant ; la famille reste openrouter.
+            $this->assertSame('org:'.$this->organization->id.':openrouter', $prompt->provider->name());
             $this->assertSame('deepseek/deepseek-chat-v3-0324', $prompt->model);
 
             return true;

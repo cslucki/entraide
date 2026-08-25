@@ -144,7 +144,17 @@ class LoopInvitationController extends Controller
         ], true);
 
         if ($success && $loop) {
-            return redirect()->route('loops.show', $loop)
+            // TASK-1281 : la route courte resout l'Organization par defaut —
+            // accepter une invitation d'une autre Organization finissait en
+            // 404 sur /loops/{loop}. L'Organization vient de la Boucle, jamais
+            // de la requete (meme regle que LoopController::loopRoute, T1277) :
+            // la route d'acceptation est plate, elle ne porte aucun contexte.
+            $organization = $loop->organization;
+            $target = $organization && Route::has('organization.loops.show')
+                ? route('organization.loops.show', ['organization' => $organization, 'loop' => $loop])
+                : route('loops.show', $loop);
+
+            return redirect($target)
                 ->with('success', __('loops.invitation_accepted', ['loop' => $loop->name]));
         }
 
@@ -162,7 +172,14 @@ class LoopInvitationController extends Controller
             return redirect()->route('loop-invitations.show', $token)->with('error', $message);
         }
 
-        return redirect()->route('loops.index')->with('error', $message);
+        // TASK-1281 : meme regle pour l'atterrissage d'echec — l'Organization
+        // de l'invitation quand elle est connue, la route courte sinon.
+        $organization = $invitation?->organization;
+        $index = $organization && Route::has('organization.loops.index')
+            ? route('organization.loops.index', ['organization' => $organization])
+            : route('loops.index');
+
+        return redirect($index)->with('error', $message);
     }
 
     /**

@@ -1,6 +1,8 @@
 @php
     $currentLoop = $loop;
-    $analysis = session('help_request_analysis');
+    // TASK-1211 : deposee par le controleur (HelpRequestHandoff), pas par un
+    // flash de session — le poll de ChatLoop l'aurait consommee avant l'ecran.
+    $analysis = $helpRequestAnalysis ?? null;
     $_org = request()->route('organization');
     $_loopRoute = function ($name, $params = []) use ($_org) {
         if ($_org && request()->routeIs('organization.*') && Route::has('organization.loops.'.$name)) {
@@ -58,6 +60,15 @@
         }
         body:has(.loops-show-container) .loops-show-wrapper {
             padding: 0 !important;
+        }
+        /* TASK-1231 : le FAB « + » est masque ici (au-dessus) et la rangee des
+           actions IA + le composeur occupent le bas de l'ecran : le FAB
+           BouclePro IA remonte au-dessus de cette rangee, sans la couvrir. */
+        body:has(.loops-show-container) [data-ai-fab-toggle] {
+            bottom: 14rem !important;
+        }
+        body:has(.loops-show-container) [data-ai-fab-panel] {
+            bottom: 17.5rem !important;
         }
         body:has(.loops-show-container) .loops-show-container {
             height: calc(100dvh - 4rem - env(safe-area-inset-bottom, 0px));
@@ -269,9 +280,16 @@
             </div>
         @endif
         @if(session('error'))
-            <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 4000)"
-                 class="flex-shrink-0 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-2 text-sm">
+            {{-- TASK-1231 (lot 0) : un refus de la garde IA reste visible plus
+                 longtemps et porte « Voir les offres » quand le credit personnel
+                 est epuise (meme regle que les surfaces 1229). --}}
+            <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, {{ session('ai_refusal_code') ? 8000 : 4000 }})"
+                 class="flex-shrink-0 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-2 text-sm"
+                 @if(session('ai_refusal_code')) data-ai-refusal-code="{{ session('ai_refusal_code') }}" @endif>
                 {{ session('error') }}
+                @if(session('ai_offers_url'))
+                    <a href="{{ session('ai_offers_url') }}" class="ml-2 font-semibold underline" data-ai-offers-link>{{ __('ai.credit_see_offers') }}</a>
+                @endif
             </div>
         @endif
         @if(session('help_request_error'))
@@ -426,6 +444,119 @@
 
         <x-conversation.image-lightbox key="loop-chat" />
 
+        @if($isMember)
+            {{-- TASK-1213 : « Consulter les Dossiers » — reponse documentaire sourcee,
+                 read-only. Ouvert par l'evenement `bp-open-knowledge` (bouton dans
+                 loop-chat). Requete JSON, aucune ecriture, aucune session. --}}
+            <div x-data="{
+                    open: false,
+                    question: '',
+                    loading: false,
+                    error: null,
+                    errorCode: null,
+                    offersUrl: null,
+                    result: null,
+                    endpoint: @js($_loopRoute('knowledge.ask', ['loop' => $currentLoop])),
+                    reset() { this.error = null; this.errorCode = null; this.offersUrl = null; this.result = null; },
+                    async ask() {
+                        const q = this.question.trim();
+                        if (q.length < 3 || this.loading) return;
+                        this.loading = true; this.reset();
+                        try {
+                            const token = document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '';
+                            const response = await fetch(this.endpoint, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': token },
+                                body: JSON.stringify({ question: q })
+                            });
+                            const data = await response.json();
+                            if (!response.ok) { this.error = data.error || (data.errors && Object.values(data.errors).flat()[0]) || @js(__('loops.knowledge_error')); this.errorCode = data.code || null; this.offersUrl = data.offers_url || null; return; }
+                            this.result = data;
+                        } catch (e) {
+                            this.error = @js(__('loops.knowledge_error'));
+                        } finally {
+                            this.loading = false;
+                        }
+                    }
+                }"
+                @bp-open-knowledge.window="open = true; $nextTick(() => $refs.knowledgeQuestion?.focus())"
+                data-knowledge-modal>
+                <template x-teleport="body">
+                    <div x-show="open" x-cloak
+                        class="fixed inset-0 z-50 flex items-center justify-center"
+                        x-effect="document.body.style.overflow = open ? 'hidden' : ''"
+                        @keydown.escape.window="open = false">
+                        <div x-show="open" @click="open = false" class="fixed inset-0 bg-black/50 transition-opacity"></div>
+                        <div x-show="open" @click.away="open = false"
+                            class="relative w-full max-w-lg bg-white dark:bg-gray-800 rounded-2xl shadow-xl flex flex-col max-h-[85vh] mx-3" data-knowledge-dialog>
+                            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('loops.knowledge_title') }}</h3>
+                                <button type="button" @click="open = false" class="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="{{ __('loops.knowledge_close') }}">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                            <div class="overflow-y-auto px-4 py-3 min-h-0 flex-1 space-y-3">
+                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('loops.knowledge_intro') }}</p>
+                                <form @submit.prevent="ask()" class="space-y-2">
+                                    <label for="knowledge-question" class="sr-only">{{ __('loops.knowledge_title') }}</label>
+                                    <textarea id="knowledge-question" x-ref="knowledgeQuestion" x-model="question" rows="3" maxlength="500" minlength="3" required
+                                        placeholder="{{ __('loops.knowledge_placeholder') }}"
+                                        class="w-full resize-none px-3.5 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-sky-400 focus:border-transparent"></textarea>
+                                    <button type="submit" :disabled="loading || question.trim().length < 3"
+                                        class="w-full px-4 py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition flex items-center justify-center gap-1.5">
+                                        <span x-show="!loading">{{ __('loops.knowledge_ask') }}</span>
+                                        <span x-show="loading">{{ __('loops.knowledge_asking') }}</span>
+                                    </button>
+                                </form>
+
+                                {{-- TASK-1229 : le refus porte son code (credit utilisateur epuise / budget
+                                     Organization / IA non configuree) ; seul le credit propose « Voir les offres ». --}}
+                                <div x-show="error" x-cloak class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200" data-knowledge-error :data-ai-refusal-code="errorCode || null">
+                                    <span x-text="error"></span>
+                                    <div x-show="errorCode === 'user_credit_exhausted' && offersUrl" x-cloak class="mt-2">
+                                        <a :href="offersUrl" class="inline-flex items-center rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700" data-ai-credit-offers-link>{{ __('ai.credit_see_offers') }}</a>
+                                    </div>
+                                </div>
+
+                                <template x-if="result">
+                                    <div class="space-y-3" data-knowledge-result>
+                                        <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/40">
+                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300 mb-1">{{ __('loops.knowledge_answer_title') }}</p>
+                                            <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-line" data-knowledge-answer x-text="result.answer"></p>
+                                        </div>
+                                        {{-- TASK-1229 : alerte de seuil, calme et informative, juste sous la reponse — l'action n'a pas ete bloquee. --}}
+                                        <template x-if="result.credit && result.credit.alert">
+                                            <p class="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-800/50 dark:bg-sky-900/20 dark:text-sky-200" data-ai-credit-alert
+                                               x-text="@js(__('ai.credit_alert_remaining')).replace(':remaining', result.credit.remaining).replace(':used', result.credit.used).replace(':quota', result.credit.quota)"></p>
+                                        </template>
+                                        <div x-show="result.sources && result.sources.length" data-knowledge-sources>
+                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1" x-text="result.grounded ? @js(__('loops.knowledge_sources_title')) : @js(__('loops.knowledge_consulted_title'))"></p>
+                                            <ul class="space-y-2">
+                                                <template x-for="source in result.sources" :key="source.ref">
+                                                    <li class="rounded-lg border border-gray-200 dark:border-gray-700 p-2.5 text-xs" data-knowledge-source>
+                                                        <div class="flex items-start justify-between gap-2">
+                                                            <div class="min-w-0">
+                                                                <span class="font-mono text-[10px] text-sky-700 dark:text-sky-300" x-text="'[' + source.ref + ']'"></span>
+                                                                <span class="font-semibold text-gray-900 dark:text-gray-100" x-text="source.title"></span>
+                                                                <span class="text-gray-500 dark:text-gray-400" x-text="' · ' + source.dossier_name"></span>
+                                                            </div>
+                                                            <a x-show="source.url" :href="source.url" target="_blank" rel="noopener" class="flex-shrink-0 text-sky-700 dark:text-sky-300 hover:underline">{{ __('loops.knowledge_open_source') }}</a>
+                                                        </div>
+                                                        <p class="mt-1 text-gray-600 dark:text-gray-300 italic" x-text="source.excerpt"></p>
+                                                    </li>
+                                                </template>
+                                            </ul>
+                                        </div>
+                                        <p class="text-[11px] text-gray-400 dark:text-gray-500">{{ __('loops.knowledge_disclaimer') }}</p>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        @endif
+
         {{-- Bottom strip: join CTA (guests) / help-request modal holder (members) --}}
         <div class="flex-shrink-0">
             @if(!$isMember && $currentLoop->isPublic())
@@ -478,10 +609,9 @@
                                             $needsFallback = $analysis['fallback']['needed'] ?? false;
                                             $fallbackReason = $analysis['fallback']['reason'] ?? null;
                                             $fallbackQuestions = $analysis['fallback']['questions'] ?? [];
-                                            $originalPhrase = $analysis['original_phrase'] ?? session('help_request_intention', '');
+                                            $originalPhrase = $analysis['original_phrase'] ?? ($helpRequestIntention ?? '');
                                             $fallbackNeedEmpty = $needsFallback && empty($analysis['need']) && $originalPhrase;
                                             $needValue = $fallbackNeedEmpty ? $originalPhrase : ($analysis['need'] ?? '');
-                                            $selectedHelpType = old('help_type', ($analysis['intent'] ?? '') === 'offer' ? 'service' : 'request');
                                         @endphp
 
                                         @if($needsFallback)
@@ -504,7 +634,7 @@
                                             </div>
                                         @endif
 
-                                        <form method="POST" action="{{ $_loopRoute('help-request.publish', ['loop' => $currentLoop]) }}" class="space-y-3">
+                                        <form method="POST" action="{{ $_loopRoute('help-request.continue', ['loop' => $currentLoop]) }}" class="space-y-3">
                                             @csrf
                                             <div>
                                                 <label for="hr-title" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('loops.form_title') }}</label>
@@ -518,20 +648,42 @@
                                                     class="w-full resize-none px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent">{{ old('need', $needValue) }}</textarea>
                                                 @error('need')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                                             </div>
+                                            {{-- TASK-1211 : la categorie suggeree part avec le titre et la
+                                                 description vers le formulaire canonique, ou l'humain la
+                                                 garde ou la change. Revalidee cote serveur a chaque etape. --}}
+                                            @php
+                                                $suggestedCategory = $analysis['suggested_category'] ?? null;
+                                                $suggestedCategoryId = is_array($suggestedCategory) ? ($suggestedCategory['id'] ?? null) : null;
+                                            @endphp
+                                            @if($suggestedCategoryId)
+                                                <input type="hidden" name="suggested_category_id" value="{{ $suggestedCategoryId }}">
+                                                <p class="text-xs text-indigo-600 dark:text-indigo-300">
+                                                    <span class="font-semibold">{{ __('loops.help_request_suggested_category') }}</span> · {{ $suggestedCategory['label'] ?? '' }}
+                                                </p>
+                                            @endif
+                                            {{-- TASK-1210 : la destination. L'IA propose, l'humain choisit.
+                                                 Le select n'offre que des Boucles dont il est membre actif, et
+                                                 le serveur revalide de toute facon a la publication. --}}
+                                            @php
+                                                $suggested = $analysis['suggested_loop'] ?? null;
+                                                $suggestedId = is_array($suggested) ? ($suggested['id'] ?? null) : null;
+                                                $selectedLoopId = old('relay_loop_id', $suggestedId ?? $currentLoop->id);
+                                            @endphp
                                             <div>
-                                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">{{ __('loops.exchange_type') }}</label>
-                                                <div class="flex gap-3">
-                                                    <label class="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/20 has-[:checked]:ring-1 has-[:checked]:ring-indigo-500">
-                                                        <input type="radio" name="help_type" value="request" @checked($selectedHelpType === 'request')
-                                                            class="text-indigo-600 focus:ring-indigo-500">
-                                                        {{ __('loops.help_type_request') }}
-                                                    </label>
-                                                    <label class="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/20 has-[:checked]:ring-1 has-[:checked]:ring-indigo-500">
-                                                        <input type="radio" name="help_type" value="service" @checked($selectedHelpType === 'service')
-                                                            class="text-indigo-600 focus:ring-indigo-500">
-                                                        {{ __('loops.help_type_service') }}
-                                                    </label>
-                                                </div>
+                                                <label for="hr-loop" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('loops.help_request_choose_loop') }}</label>
+                                                <select name="relay_loop_id" id="hr-loop"
+                                                    class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                                                    <option value="" @selected($selectedLoopId === null || $selectedLoopId === '')>{{ __('loops.help_request_no_relay_loop') }}</option>
+                                                    @foreach(($publishableLoops ?? collect()) as $candidate)
+                                                        <option value="{{ $candidate->id }}" @selected($selectedLoopId === $candidate->id)>{{ $candidate->name }}</option>
+                                                    @endforeach
+                                                </select>
+                                                @if($suggestedId && !empty($suggested['reason']))
+                                                    <p class="mt-1.5 text-xs text-indigo-600 dark:text-indigo-300">
+                                                        <span class="font-semibold">{{ __('loops.help_request_suggested_loop') }}</span> · {{ $suggested['reason'] }}
+                                                    </p>
+                                                @endif
+                                                @error('relay_loop_id')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                                             </div>
                                             <div class="flex gap-3 pt-1">
                                                 <a href="{{ $_loopRoute('show', ['loop' => $currentLoop]) }}"
@@ -543,7 +695,7 @@
                                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                                                     </svg>
-                                                    {{ __('loops.continue_to_exchanges') }}
+                                                    {{ __('loops.help_request_continue_cta') }}
                                                 </button>
                                             </div>
                                         </form>

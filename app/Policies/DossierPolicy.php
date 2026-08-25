@@ -133,11 +133,15 @@ class DossierPolicy
         // TASK-1091 avait ajoute ici un test sur `core.dossiers`. C'etait trop
         // large : cela faisait dependre l'ecriture du Dossier de la presence
         // d'une seule de ses vues.
-        // TASK-1130 : gouvernance demandee a la racine, jamais a l'enfant.
-        $dossier = $dossier->governingDossier();
+        // TASK-1130 : le regime de gouvernance se demande a la racine.
+        // TASK-1140 : le partage editor, lui, se demande sur le Dossier vise :
+        // `isEditor()` applique les ancres TASK-1136 (self + ancetres
+        // partageables). Ecraser la cible par sa racine avant cet appel
+        // perdait le partage explicite d'un sous-dossier personnel.
+        $governingDossier = $dossier->governingDossier();
 
-        if ($dossier->isLoopDossier()) {
-            return $dossier->loop !== null && $user->can('update', $dossier->loop);
+        if ($governingDossier->isLoopDossier()) {
+            return $governingDossier->loop !== null && $user->can('update', $governingDossier->loop);
         }
 
         if ($this->isOwner($user, $dossier)) {

@@ -73,7 +73,27 @@
 
         {{-- Composer --}}
         <x-slot:composer>
-            @if(!$maxTurnsReached)
+            @if($authRequired)
+                {{-- TASK-1252 : visiteur non authentifie — l'agent ne repond pas (refus V1 assume, aucun appel IA anonyme). --}}
+                <div class="mb-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 px-3 py-2" data-visitor-chat-auth-required>
+                    <p class="text-xs text-indigo-800 dark:text-indigo-300 flex items-start gap-1.5">
+                        <svg class="w-3.5 h-3.5 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                        <span>{{ __('ai.visitor_chat_guest_notice') }}</span>
+                    </p>
+                    <div class="mt-2 flex flex-wrap items-center gap-2">
+                        <a href="{{ route('login') }}" class="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition" data-visitor-chat-login>
+                            {{ __('ai.visitor_chat_guest_login') }}
+                        </a>
+                        @if(Route::has('register'))
+                            <a href="{{ route('register') }}" class="inline-flex items-center rounded-lg border border-indigo-300 dark:border-indigo-700 px-3 py-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition" data-visitor-chat-register>
+                                {{ __('ai.visitor_chat_guest_register') }}
+                            </a>
+                        @endif
+                    </div>
+                </div>
+            @elseif(!$maxTurnsReached)
                 <div class="mb-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2">
                     <p class="text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
                         <svg class="w-3.5 h-3.5 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -90,14 +110,29 @@
                 </div>
             @endif
 
+            @php
+                $composerPlaceholder = $guestRefused
+                    ? __('ai.visitor_chat_guest_composer_disabled')
+                    : ($maxTurnsReached ? __('ai.visitor_chat_composer_disabled') : __('ai.visitor_chat_placeholder'));
+            @endphp
+
             <x-conversation.composer
                 model="question"
-                placeholder="{{ $maxTurnsReached ? __('ai.visitor_chat_composer_disabled') : __('ai.visitor_chat_placeholder') }}"
-                :disabled="$isTyping || $maxTurnsReached"
+                placeholder="{{ $composerPlaceholder }}"
+                :disabled="$isTyping || $maxTurnsReached || $guestRefused"
                 :loading="$isTyping"
-                :error="$error"
                 :rows="1"
-            />
+            >
+                @if($error)
+                    {{-- TASK-1252 : un refus economique dit son code (et propose les offres si le credit est epuise et que la plateforme le propose). --}}
+                    <p class="text-xs mt-2 {{ $errorCode ? 'text-amber-700 dark:text-amber-300' : 'text-red-500' }}" data-visitor-chat-error @if($errorCode) data-ai-refusal-code="{{ $errorCode }}" @endif>
+                        {{ $error }}
+                        @if($offersUrl)
+                            <a href="{{ $offersUrl }}" class="ml-1 font-semibold underline underline-offset-2 hover:no-underline" data-ai-credit-offers-link>{{ __('ai.credit_see_offers') }}</a>
+                        @endif
+                    </p>
+                @endif
+            </x-conversation.composer>
         </x-slot:composer>
     </x-conversation.shell>
     @endif

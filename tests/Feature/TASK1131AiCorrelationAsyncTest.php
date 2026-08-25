@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Ai\CapabilityRegistry;
+use App\Ai\Context\ContextBuilder;
+use App\Ai\PromptRepository;
 use App\Jobs\GenerateAiAgentResponse;
 use App\Models\Loop;
 use App\Models\LoopMessage;
@@ -66,7 +69,7 @@ class TASK1131AiCorrelationAsyncTest extends TestCase
 
         // Réponse déterministe : cette TASK ne change ni provider, ni modèle,
         // ni prompt. Seule la corrélation est sous test.
-        $this->instance(MemberProfileAgentResponder::class, new class(app(SupervisionProviderResolver::class), app(AdminAiInteractionPersistence::class)) extends MemberProfileAgentResponder
+        $this->instance(MemberProfileAgentResponder::class, new class(app(SupervisionProviderResolver::class), app(AdminAiInteractionPersistence::class), app(CapabilityRegistry::class), app(PromptRepository::class), app(ContextBuilder::class)) extends MemberProfileAgentResponder
         {
             public function answerWithDefaultProvider(
                 MemberAiProfile $profile,

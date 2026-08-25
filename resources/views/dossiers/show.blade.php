@@ -79,8 +79,18 @@
         // - « Partage » ne varie que hors Boucle : dans une Boucle, chaque
         //   ligne repeterait « Boucle », ce que le fil d'Ariane dit deja.
         $estDriveDeBoucle = $governingDossier->isLoopDossier();
-        $colonneProprietaire = $estDriveDeBoucle;
-        $colonnePartage = ! $estDriveDeBoucle;
+        // Dans un Dossier recu par partage, « Partage » repeterait « partage »
+        // a chaque ligne : ce que le lecteur ignore, c'est QUI a depose quoi.
+        // « Ajoute par » — et non « Proprietaire » : le modele ne connait que
+        // `uploaded_by` pour un fichier et `added_by` pour le lien Article,
+        // deux depots, pas deux proprietes (TASK-1143).
+        $vueRecueEnPartage = ! $estDriveDeBoucle && ($isSharedSurface ?? false);
+        // Le Drive de Boucle intitulait cette colonne « Proprietaire » alors
+        // qu'elle montrait l'uploader d'un fichier et l'auteur d'un Article —
+        // deux depots, pas deux proprietes (TASK-1146). Meme colonne, meme
+        // libelle exact que dans un Dossier recu en partage : « Ajoute par ».
+        $colonneAjoutePar = $estDriveDeBoucle || $vueRecueEnPartage;
+        $colonnePartage = ! $estDriveDeBoucle && ! $vueRecueEnPartage;
 
         // Les deux gabarits s'ecrivent EN ENTIER, et non autour d'un ternaire.
         // Tailwind cherche ses classes comme du TEXTE dans les fichiers : une
@@ -89,7 +99,7 @@
         // grille retombait sur ses deux colonnes de base — chaque cellule sur
         // sa propre ligne. Deux lignes redondantes valent mieux qu'une elegante
         // qui ne produit aucun CSS.
-        $grilleDrive = $estDriveDeBoucle
+        $grilleDrive = ($estDriveDeBoucle || $vueRecueEnPartage)
             ? 'grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-x-3 lg:grid-cols-[minmax(0,3fr)_9rem_6.5rem_6.5rem_6.5rem_2.75rem]'
             : 'grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-x-3 lg:grid-cols-[minmax(0,3fr)_6rem_6.5rem_6.5rem_6.5rem_2.75rem]';
         $celluleLgDrive = 'hidden lg:block min-w-0 truncate text-xs text-gray-500 dark:text-gray-400';
@@ -104,14 +114,18 @@
 
         // La gouvernance HERITEE de ce Dossier : ce que porte tout contenu qui
         // y vit, sauf un CAS B qui dit la sienne.
+        //
+        // L'etat se lisait sur la seule racine gouvernante. « Mes documents »
+        // n'ayant jamais de membre — elle n'est pas une ancre de partage —,
+        // tout ce qui vivait sous un Dossier reellement partage s'affichait
+        // « Prive » : faux pour son proprietaire comme pour son lecteur. Un
+        // contenu couvert par une ancre, ici ou plus haut, dit desormais
+        // l'acces qu'il tient de cette ancre (TASK-1143).
         $partageHerite = $governingDossier->isLoopDossier()
             ? __('dossiers.share_loop')
-            : ($governingDossier->dossierMembers->isNotEmpty() ? __('dossiers.share_shared') : __('dossiers.share_private'));
-        $proprietaireHerite = $governingDossier->isLoopDossier()
-            ? ($governingDossier->loop?->name ?? '—')
-            : ($governingDossier->owner_id === auth()->id()
-                ? __('dossiers.owner_me')
-                : ($governingDossier->owner?->isDisplayableIn(currentOrganization()) ? $governingDossier->owner->publicDisplayName() : __('profile.deactivated_user')));
+            : (($couvertParUnPartage ?? false) || $governingDossier->dossierMembers->isNotEmpty()
+                ? __('dossiers.share_inherited')
+                : __('dossiers.share_private'));
 
         // Mode Serie (TASK-1130, doctrine finale) : la projection SEQUENTIELLE de
         // chaque Serie — les contenus reels du Dossier avec un rang, jamais
@@ -325,10 +339,10 @@
                                  une miette qui pointe sur la page affichee
                                  n'apprend rien. --}}
                             @unless($dossier->isPersonalDocumentsRoot())
-                                <a href="{{ $espace === 'boucles'
-                                        ? route('organization.dossiers.index', ['organization' => $orgParam, 'espace' => 'boucles'])
-                                        : route('organization.dossiers.index', ['organization' => $orgParam]) }}"
-                                   class="inline-flex min-h-11 shrink-0 items-center rounded font-medium text-indigo-600 hover:underline dark:text-indigo-400">{{ $espace === 'boucles' ? __('dossiers.space_loops') : __('dossiers.space_my_documents') }}</a>
+                                <a href="{{ $espace === 'documents'
+                                        ? route('organization.dossiers.index', ['organization' => $orgParam])
+                                        : route('organization.dossiers.index', ['organization' => $orgParam, 'espace' => $espace]) }}"
+                                   class="inline-flex min-h-11 shrink-0 items-center rounded font-medium text-indigo-600 hover:underline dark:text-indigo-400">{{ $espace === 'boucles' ? __('dossiers.space_loops') : ($espace === 'partages' ? __('dossiers.space_shared') : __('dossiers.space_my_documents')) }}</a>
                                 <svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
                             @endunless
                             @foreach($breadcrumbAncestors as $ancetre)
@@ -527,6 +541,14 @@
                                      'genericError' => __('dossiers.semantic_search_generic_error'),
                                      'passage' => __('dossiers.semantic_search_passage'),
                                      'resultsCount' => __('dossiers.semantic_search_results_count'),
+                                     'documentsOne' => __('dossiers.semantic_search_results_documents_one'),
+                                     'documentsMany' => __('dossiers.semantic_search_results_documents_many'),
+                                     'passagesOne' => __('dossiers.semantic_search_results_passages_one'),
+                                     'passagesMany' => __('dossiers.semantic_search_results_passages_many'),
+                                     'readArticle' => __('dossiers.semantic_search_read_article'),
+                                     'openDocument' => __('dossiers.semantic_search_open_document'),
+                                     'otherPassagesOne' => __('dossiers.semantic_search_other_passages_one'),
+                                     'otherPassagesMany' => __('dossiers.semantic_search_other_passages_many'),
                                  ],
                              ]))"
                              :aria-busy="loading ? 'true' : 'false'">
@@ -556,7 +578,11 @@
 
                         <div class="mt-4" aria-live="polite">
                             <p x-show="validationError" x-cloak class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200" x-text="validationError"></p>
-                            <p x-show="error" x-cloak class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200" x-text="error"></p>
+                            <div x-show="error" x-cloak class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200" data-semantic-search-error :data-ai-refusal-code="errorCode || null">
+                                <span x-text="error"></span>
+                                {{-- TASK-1229 : seul le refus « credit utilisateur epuise » propose les offres. --}}
+                                <a x-show="errorCode === 'user_credit_exhausted' && offersUrl" x-cloak :href="offersUrl" class="ml-2 font-semibold underline underline-offset-2 hover:no-underline" data-ai-credit-offers-link>{{ __('ai.credit_see_offers') }}</a>
+                            </div>
                             <p x-show="loading" x-cloak class="text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.semantic_search_loading') }}</p>
                         </div>
 
@@ -569,17 +595,43 @@
                                     </div>
 
                                     <ol class="mt-3 space-y-3">
-                                        <template x-for="result in results.slice(0, 5)" :key="`${result.slug}-${result.chunk_index}`">
+                                        {{-- TASK-1267 : cle, titre et libelle du lien suivent la source
+                                             (article ou fichier) — slug/title sont nuls cote fichier.
+                                             TASK-1271 : une ligne par DOCUMENT (groupement cote composant,
+                                             `groupedResults()`), representee par son meilleur passage ;
+                                             la cle DOM est celle du document. --}}
+                                        <template x-for="result in groupedResults()" :key="documentKey(result)">
                                             <li class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
                                                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                                     <div class="min-w-0">
                                                         <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300" x-text="passageLabel(result.chunk_index)"></p>
-                                                        <h4 class="mt-1 text-base font-semibold text-gray-900 dark:text-gray-100" x-text="result.title"></h4>
+                                                        <h4 class="mt-1 text-base font-semibold text-gray-900 dark:text-gray-100" x-text="resultTitle(result)"></h4>
                                                         <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-gray-300" x-text="excerpt(result.content)"></p>
+                                                        {{-- TASK-1271 : mention discrete quand d'autres passages du
+                                                             meme document ont ete retrouves (« + N autres passages »). --}}
+                                                        <p x-show="otherPassagesCount(result) > 0"
+                                                           x-text="otherPassagesLabel(result)"
+                                                           data-semantic-result-other-passages
+                                                           class="mt-2 text-xs text-gray-500 dark:text-gray-400"></p>
                                                     </div>
-                                                    <a :href="result.citation_url" class="inline-flex shrink-0 items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-800">
-                                                        {{ __('dossiers.semantic_search_read_article') }}
-                                                    </a>
+                                                    {{-- TASK-1267 : un fichier previsualisable s'ouvre dans la
+                                                         modale d'apercu existante de `dossierFilesCard` (portee
+                                                         Alpine parente) ; sinon, lien vers la route fichier
+                                                         (telechargement) ou l'article, inchange. --}}
+                                                    <template x-if="canPreviewResult(result)">
+                                                        <button type="button"
+                                                                @click="openResultPreview(result)"
+                                                                :data-source-type="result.source_type"
+                                                                data-semantic-result-preview
+                                                                x-text="resultLinkLabel(result)"
+                                                                class="inline-flex shrink-0 items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-800"></button>
+                                                    </template>
+                                                    <template x-if="!canPreviewResult(result)">
+                                                        <a :href="result.citation_url"
+                                                           :data-source-type="result.source_type"
+                                                           x-text="resultLinkLabel(result)"
+                                                           class="inline-flex shrink-0 items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-800"></a>
+                                                    </template>
                                                 </div>
                                             </li>
                                         </template>
@@ -899,7 +951,7 @@
                         <div class="hidden lg:block">
                             <div class="{{ $grilleDrive }} border-b border-gray-200 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:border-gray-700 dark:text-gray-500">
                                 <div>{{ __('dossiers.col_name') }}</div>
-                                @if($colonneProprietaire)<div>{{ __('dossiers.col_owner') }}</div>@endif
+                                @if($colonneAjoutePar)<div>{{ __('dossiers.col_added_by') }}</div>@endif
                                 <div>{{ __('dossiers.col_type') }}</div>
                                 @if($colonnePartage)<div>{{ __('dossiers.col_share') }}</div>@endif
                                 <div>{{ __('dossiers.col_modified') }}</div>
@@ -944,22 +996,30 @@
                                         $nomProprietaire = $estDunAutre
                                             ? ($folder->owner->isDisplayableIn(currentOrganization()) ? $folder->owner->publicDisplayName() : __('profile.deactivated_user'))
                                             : null;
-                                        $nbElements = $folder->files_count + $folder->dossier_blog_posts_count;
+                                        $nbElements = $folder->files_count + $folder->dossier_blog_posts_count + ($folder->children_count ?? 0);
                                         // Une ligne qui porte sa propre gouvernance (une racine)
                                         // dit SON etat ; une ligne gouvernee par le Dossier
                                         // ouvert herite du sien.
-                                        // Le proprietaire REEL de la ligne : le sien si elle
-                                        // porte sa propre gouvernance (une racine), celui du
-                                        // Dossier ouvert sinon.
-                                        $proprietaireDuDossier = $estPartageIci ? $folder->owner : $governingDossier->owner;
-                                        $proprietaireLibelle = $estPartageIci
-                                            ? ($folder->owner_id === auth()->id() ? __('dossiers.owner_me') : ($nomProprietaire ?? '—'))
-                                            : $proprietaireHerite;
-                                        $partageDuDossier = ! $estPartageIci
-                                            ? $partageHerite
-                                            : ($folder->shared_with_loop_id
-                                                ? __('dossiers.share_loop')
-                                                : (($folder->dossier_members_count ?? 0) > 0 ? __('dossiers.share_shared') : __('dossiers.share_private')));
+                                        // Une ligne dit d'abord SON partage.
+                                        // L'etat n'etait lu que sur les racines
+                                        // (`$estPartageIci`) : un sous-dossier
+                                        // explicitement partage heritait de
+                                        // l'etat de « Mes documents » et
+                                        // s'affichait « Prive » alors qu'il
+                                        // etait bel et bien partage. On lit son
+                                        // ancre a lui, et on ne retombe sur
+                                        // l'heritage qu'a defaut (TASK-1143).
+                                        $ancreDeLaLigne = $folder->shared_with_loop_id
+                                            || ($folder->dossier_members_count ?? 0) > 0;
+                                        $partageDuDossier = $folder->shared_with_loop_id
+                                            ? __('dossiers.share_loop')
+                                            : ($ancreDeLaLigne
+                                                ? __('dossiers.share_shared')
+                                                // Une racine porte sa propre
+                                                // gouvernance : sans ancre, elle
+                                                // est privee, et n'herite de
+                                                // rien du Dossier ouvert.
+                                                : ($estPartageIci ? __('dossiers.share_private') : $partageHerite));
                                     @endphp
                                     <div class="flex min-w-0 items-center gap-3">
                                         {!! $gouttiereDrive(false) !!}
@@ -968,6 +1028,16 @@
                                             @if($estDunAutre)
                                                 <span class="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white ring-1 ring-amber-300 dark:bg-gray-800 dark:ring-amber-500/50">
                                                     <svg class="h-2 w-2 text-amber-600 dark:text-amber-300" fill="currentColor" viewBox="0 0 20 20"><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z"/></svg>
+                                                </span>
+                                            @elseif($ancreDeLaLigne)
+                                                {{-- Le partage se voit sur la ligne, pas
+                                                     seulement dans une colonne masquee sous
+                                                     lg : c'est la seule marque lisible en
+                                                     mobile. --}}
+                                                <span class="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white ring-1 ring-indigo-300 dark:bg-gray-800 dark:ring-indigo-500/50"
+                                                      title="{{ __('dossiers.share_shared_badge') }}">
+                                                    <svg class="h-2 w-2 text-indigo-600 dark:text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="16.5" cy="15.5" r="3"/><path d="M4.5 19c.6-2.6 2.4-4 4.5-4"/></svg>
+                                                    <span class="sr-only">{{ __('dossiers.share_shared_badge') }}</span>
                                                 </span>
                                             @endif
                                         </span>
@@ -978,10 +1048,16 @@
                                             <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400">{{ $partageDuDossier }} · <span data-folder-count="{{ $folder->getKey() }}" data-count="{{ $nbElements }}">{{ trans_choice('dossiers.drive_folder_items', $nbElements, ['count' => $nbElements]) }}</span>@if($estDunAutre) · {{ __('dossiers.drive_shared_by', ['name' => $nomProprietaire]) }}@endif</span>
                                         </a>
                                     </div>
-                                    @if($colonneProprietaire)
-                                        <div class="hidden min-w-0 items-center gap-2 lg:flex">
-                                            <x-user-avatar :user="$proprietaireDuDossier" size="xs" />
-                                            <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $proprietaireLibelle }}</span>
+                                    @if($colonneAjoutePar)
+                                        {{-- La table `dossiers` ne porte que
+                                             `owner_id` : aucun `added_by`, aucun
+                                             `created_by`. Sous cet en-tete, une
+                                             ligne Dossier n'a donc rien de vrai a
+                                             dire — elle se tait plutot que
+                                             d'afficher une propriete a la place
+                                             d'un depot (TASK-1146). --}}
+                                        <div class="hidden min-w-0 items-center lg:flex">
+                                            <span class="text-xs text-gray-400 dark:text-gray-500" aria-hidden="true">—</span>
                                         </div>
                                     @endif
                                     <div class="{{ $celluleLgDrive }}">{{ __('dossiers.drive_type_folder') }}</div>
@@ -1054,7 +1130,15 @@
                                     :class="estEnDeplacement('article', '{{ $post->id }}') ? 'opacity-40' : (estSelectionne('article', '{{ $post->id }}') ? '{{ $classeSelection }}' : '')"
                                     x-show="!searchQuery || {{ \Illuminate\Support\Js::from(mb_strtolower($post->title)) }}.includes(searchQuery.toLowerCase())">
                                     @php
-                                        $auteurArticle = $post->user?->isDisplayableIn(currentOrganization()) ? $post->user->publicDisplayName() : __('profile.deactivated_user');
+                                        // Qui a range l'Article ici. Un lien
+                                        // ancien peut n'avoir aucun `added_by` :
+                                        // on l'admet plutot que d'attribuer le
+                                        // depot a l'auteur par defaut.
+                                        $deposantArticle = $entry->added_by === auth()->id()
+                                            ? __('dossiers.owner_me')
+                                            : ($entry->addedBy?->isDisplayableIn(currentOrganization())
+                                                ? $entry->addedBy->publicDisplayName()
+                                                : ($entry->addedBy ? __('profile.deactivated_user') : '—'));
                                         $motsArticle = str_word_count(strip_tags((string) $post->content));
                                         // La Serie dont CET Article est la racine, s'il y en a une.
                                         $serieDeLArticle = $seriesList->firstWhere('root_blog_post_id', $post->getKey());
@@ -1072,10 +1156,14 @@
                                             <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400">{{ $partageHerite }} · {{ __('dossiers.drive_article_badge') }} · {{ $post->updated_at?->isoFormat('L') }}</span>
                                         </a>
                                     </div>
-                                    @if($colonneProprietaire)
+                                    @if($colonneAjoutePar)
+                                        {{-- Qui a range CET Article ICI —
+                                             `added_by` du lien, pas l'auteur du
+                                             contenu : dans un Dossier partage,
+                                             les deux different souvent. --}}
                                         <div class="hidden min-w-0 items-center gap-2 lg:flex">
-                                            <x-user-avatar :user="$post->user" size="xs" />
-                                            <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $post->user_id === auth()->id() ? __('dossiers.owner_me') : $auteurArticle }}</span>
+                                            <x-user-avatar :user="$entry->addedBy" size="xs" />
+                                            <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{{ $deposantArticle }}</span>
                                         </div>
                                     @endif
                                     <div class="{{ $celluleLgDrive }}">{{ __('dossiers.drive_article_badge') }}</div>
@@ -1100,11 +1188,6 @@
                                             <a href="{{ $blogShowRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_open') }}</a>
                                             @if($canManageArticles)
                                                 <a href="{{ $blogEditRoute($post) }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.drive_edit_article') }}</a>
-                                                {{-- Un Article ne se partage pas seul : le partage vit sur
-                                                     le Dossier qui le contient, et l'entree le dit. --}}
-                                                @unless($dossier->isPersonalDocumentsRoot())
-                                                    <button type="button" @click="open = false; window.dispatchEvent(new CustomEvent('open-share-panel'))" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_the_folder') }}</button>
-                                                @endunless
                                                 @if($moveTargets->isNotEmpty())
                                                     <button type="button" @click="open = false; selectionner({!! $itemArticle($post) !!}); openMoveLot()" class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_move') }}</button>
                                                 @endif
@@ -1157,7 +1240,10 @@
                                         <span class="block truncate text-xs text-gray-500 lg:hidden dark:text-gray-400" x-text="@js($partageHerite) + ' · ' + file.sizeFormatted + ' · ' + file.updatedAtFormatted"></span>
                                     </button>
                                     </div>
-                                    @if($colonneProprietaire)
+                                    @if($colonneAjoutePar)
+                                        {{-- `uploaded_by` est la seule attribution
+                                             qu'un fichier possede : c'est bien
+                                             « ajoute par », jamais un proprietaire. --}}
                                         <div class="hidden min-w-0 items-center gap-2 lg:flex">
                                             <img x-show="file.uploader?.avatar_url" :src="file.uploader?.avatar_url" alt="" aria-hidden="true"
                                                  class="h-6 w-6 shrink-0 rounded-full object-cover">
@@ -1198,10 +1284,6 @@
                                                 <button type="button" @click="open = false; openMoveModal(file)"
                                                         class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_move') }}</button>
                                             @endif
-                                            @unless($dossier->isPersonalDocumentsRoot())
-                                                <button type="button" @click="open = false; window.dispatchEvent(new CustomEvent('open-share-panel'))"
-                                                        class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_the_folder') }}</button>
-                                            @endunless
                                             @if($canDeleteFiles)
                                                 <button type="button" @click="open = false; openDeleteModal(file)" :disabled="saving"
                                                         class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.file_delete') }}</button>
@@ -1252,7 +1334,7 @@
                                     $nomProprietaire = $estDunAutre
                                         ? ($folder->owner->isDisplayableIn(currentOrganization()) ? $folder->owner->publicDisplayName() : __('profile.deactivated_user'))
                                         : null;
-                                    $nbElements = $folder->files_count + $folder->dossier_blog_posts_count;
+                                    $nbElements = $folder->files_count + $folder->dossier_blog_posts_count + ($folder->children_count ?? 0);
                                 @endphp
                                 <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $folder->getKey()]) }}"
                                    @click="clicElement($event, {!! $itemDossier($folder) !!})" @dblclick="ouvrir({!! $itemDossier($folder) !!})" @touchstart="debutAppui({!! $itemDossier($folder) !!})" @touchend="finAppui()" @touchmove="finAppui()"
@@ -1414,10 +1496,6 @@
                                             <button type="button" @click="open = false; openMoveModal(file)"
                                                     class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.file_move') }}</button>
                                         @endif
-                                        @unless($dossier->isPersonalDocumentsRoot())
-                                            <button type="button" @click="open = false; window.dispatchEvent(new CustomEvent('open-share-panel'))"
-                                                    class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60">{{ __('dossiers.share_the_folder') }}</button>
-                                        @endunless
                                         @if($canDeleteFiles)
                                             <button type="button" @click="open = false; openDeleteModal(file)" :disabled="saving"
                                                     class="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('dossiers.file_delete') }}</button>
@@ -1515,7 +1593,7 @@
                         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showRenameModal = false" @keydown.escape.window="showRenameModal = false" role="dialog" aria-modal="true" aria-labelledby="rename-file-title">
                             <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800" @click.stop>
                                 <h3 id="rename-file-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100"
-                                    x-text="(i18n.renameTitle || '').replace(':name', renameTarget.display_name || renameTarget.original_name)"></h3>
+                                    x-text="(i18n.renameTitle || '').replace(':name', (renameTarget?.display_name || renameTarget?.original_name || ''))"></h3>
                                 <div class="mt-4">
                                     <label for="rename-file-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300" x-text="i18n.renameLabel"></label>
                                     <input id="rename-file-input" type="text" x-model="renameValue" maxlength="255" @keydown.enter="confirmRename()"
@@ -1807,19 +1885,17 @@
             </div>
         @endcan
 
-        {{-- « Partager » (TASK-1130 UX finale) : un seul mot, deux contenus,
-             toujours resolus sur la racine gouvernante — jamais sur l'enfant
-             precis, qui n'a ni owner_id ni dossier_members a lui. Le bouton
-             vit desormais dans la barre du Drive ; ce bloc n'est plus que le
-             modal qu'il ouvre (contenu fonctionnel inchange, en x-show pour
-             que dossierMembersCard s'initialise au chargement comme avant). --}}
+        {{-- La gouvernance (proprietaire/regime) vient de governingDossier(),
+             mais le partage reste projete depuis le Dossier ouvert : acces
+             directs sur lui, acces herites depuis sharingAnchorIds(). --}}
         @php
             $gouvernant = $governingDossier;
         @endphp
-        {{-- `?partage=1` ouvre le panneau a l'arrivee : c'est le lien que porte
-             « Gerer » depuis la vue Partages, pour aller du constat au geste
-             sans chercher. --}}
-        <div x-data="{ open: {{ request()->boolean('partage') ? 'true' : 'false' }} }" @open-share-panel.window="open = true" x-on:keydown.escape.window="open = false">
+        {{-- Le deep-link `?partage=1` ouvre une fois le panneau puis le
+             parametre est retire sans navigation : un reload reste ferme. --}}
+        <div x-data="{ open: {{ request()->boolean('partage') ? 'true' : 'false' }} }"
+             x-init="if (open) { const url = new URL(window.location.href); url.searchParams.delete('partage'); history.replaceState({}, '', url.pathname + url.search + url.hash); }"
+             @open-share-panel.window="open = true" x-on:keydown.escape.window="open = false">
             <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4"
                  @click.self="open = false" role="dialog" aria-modal="true" aria-labelledby="share-panel-title">
                 <div class="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800">
@@ -1868,20 +1944,9 @@
                              'csrfToken' => csrf_token(),
                              // Le dossier OUVERT, pas la racine gouvernante.
                              //
-                             // Les cinq endpoints membres remontent deja au
-                             // gouvernant apres avoir autorise (`$dossier =
-                             // $dossier->governingDossier();`) : l'ecriture
-                             // atterrit donc au meme endroit qu'avant. Ce qui
-                             // change, c'est le dossier SUR LEQUEL on demande
-                             // l'autorisation.
-                             //
-                             // Adresser la racine la faisait echouer des que
-                             // celle-ci etait « Mes documents » : `manageMembers`
-                             // refuse la racine systeme — partager tout l'espace
-                             // personnel d'un coup n'a pas de sens — et le
-                             // panneau recevait 403 sur `members/search`, donc
-                             // aucun resultat. L'interface promettait un geste
-                             // que le serveur refusait.
+                             // Les mutations directes ciblent ce Dossier. La
+                             // liste ajoute seulement une projection read-only
+                             // des memberships portes par ses ancetres.
                              'dossierId' => $dossier->getKey(),
                              'orgParam' => $orgParam,
                              'ownerId' => $gouvernant->owner_id,
@@ -1895,8 +1960,10 @@
                                   'memberRoleUpdated' => __('dossiers.member_role_updated'),
                                   'memberRemoved' => __('dossiers.member_removed'),
                                   'memberAlready' => __('dossiers.member_already'),
+                                  'accessUpdated' => __('dossiers.access_updated'),
                                   'roleReader' => __('dossiers.role_reader'),
                                   'roleEditor' => __('dossiers.role_editor'),
+                                  'memberRoleLabel' => __('dossiers.member_role_label'),
                                   'ownerBadge' => __('dossiers.owner_badge'),
                                   'yourRole' => __('dossiers.your_role_label'),
                                   'personSingular' => __('dossiers.person_singular'),
@@ -1910,15 +1977,27 @@
                                  'addMember' => __('dossiers.add_member'),
                                  'addMemberHelp' => __('dossiers.add_member_help'),
                                  'searchPlaceholder' => __('dossiers.member_search_placeholder'),
+                                 'searchLoading' => __('dossiers.member_search_loading'),
                                  'noMembers' => __('dossiers.no_members'),
+                                 'directAccessTitle' => __('dossiers.direct_access_title'),
+                                 'inheritedAccessTitle' => __('dossiers.inherited_access_title'),
+                                 'inheritedFrom' => __('dossiers.inherited_from'),
+                                 'noInheritedAccess' => __('dossiers.no_inherited_access'),
                              ] : []),
                          ]))">
-                    <div x-show="message" x-transition
+                    <div x-show="message" x-transition role="status" aria-live="polite"
                          :class="messageType === 'error' ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-900/60 dark:text-red-200' : 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-900/60 dark:text-emerald-200'"
                          class="mb-4 rounded-xl border px-4 py-3 text-sm font-medium">
                         <span x-text="message"></span>
                     </div>
 
+                    {{-- Le recapitulatif d'en-tete redit ce que « Acces directs »
+                         montre juste en dessous — meme proprietaire, meme badge,
+                         meme decompte. Pour qui gere le partage, le panneau
+                         s'ouvre donc directement sur « Ajouter un membre ».
+                         Un lecteur, lui, n'a pas cette liste : le recapitulatif
+                         reste sa seule lecture de qui accede au dossier. --}}
+                    @unless($canManageMembers)
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div class="flex items-center gap-4">
                             <div class="flex -space-x-2">
@@ -1943,41 +2022,33 @@
                                     <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" x-text="i18n.ownerBadge"></span>
                                 </div>
                                 <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                    <span x-text="(members.length + 1) + ' ' + ((members.length + 1) === 1 ? i18n.personSingular : i18n.personPlural)"></span>
+                                    <span x-text="(allMembers.length + 1) + ' ' + ((allMembers.length + 1) === 1 ? i18n.personSingular : i18n.personPlural)"></span>
                                     <span class="mx-1">·</span>
                                     <span x-text="i18n.yourRole"></span>
                                     <span class="font-medium" x-text="currentRoleLabel"></span>
                                 </p>
                             </div>
                         </div>
-                        @if($canManageMembers)
-                            <button @click="showManageModal = true" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                <span x-text="i18n.manageMembers"></span>
-                            </button>
-                        @endif
                     </div>
+                    @endunless
 
-                    {{-- Management Modal (owner only) --}}
+                    {{-- Gestion dans le panneau unique (owner only) --}}
                     @if($canManageMembers)
-                    <template x-if="showManageModal">
-                        <div class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4" @click.self="showManageModal = false" role="dialog" aria-modal="true" aria-labelledby="manage-members-title">
-                            <div class="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800 max-h-[90vh] overflow-y-auto">
+                        <div>
+                            <div>
                                 <div class="flex items-center justify-between mb-4">
-                                    <h3 id="manage-members-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.manageMembers"></h3>
-                                    <button @click="showManageModal = false" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200" aria-label="{{ __('dossiers.cancel') }}">
-                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                                    </button>
+                                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.addMember"></h3>
                                 </div>
 
                                 <div class="mb-4">
                                     <p class="text-xs text-gray-500 dark:text-gray-400 mb-2" x-text="i18n.addMemberHelp"></p>
-                                    <input type="text" x-model="searchQuery" @input.debounce.300ms="searchUsers()" :placeholder="i18n.searchPlaceholder"
+                                    <label for="dossier-member-search" class="sr-only" x-text="i18n.searchPlaceholder"></label>
+                                    <input id="dossier-member-search" type="search" x-model="searchQuery" @input.debounce.300ms="searchUsers()" :placeholder="i18n.searchPlaceholder"
                                            class="block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" />
                                 </div>
 
                                 <template x-if="searchLoading">
-                                    <div class="text-xs text-gray-400 mb-3">...</div>
+                                    <div class="mb-3 text-xs text-gray-500 dark:text-gray-400" role="status" x-text="i18n.searchLoading"></div>
                                 </template>
 
                                 <template x-if="searchResults.length > 0">
@@ -1992,11 +2063,7 @@
                                                     </div>
                                                 </div>
                                                 <div class="flex w-full flex-col gap-2 sm:ml-4 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
-                                                    <select x-model="u._selectedRole" class="w-full rounded-lg border-gray-300 text-xs shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
-                                                        <option value="reader" x-text="i18n.roleReader"></option>
-                                                        <option value="editor" x-text="i18n.roleEditor"></option>
-                                                    </select>
-                                                    <button @click="addMember(u)" class="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 sm:w-auto">
+                                                    <button @click="addMember(u)" :disabled="addingMemberId === u.id" class="inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-60 sm:w-auto">
                                                         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
                                                         <span x-text="i18n.addMember"></span>
                                                     </button>
@@ -2006,7 +2073,8 @@
                                     </div>
                                 </template>
 
-                                <div class="space-y-2">
+                                <div class="mt-6 space-y-2">
+                                    <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400" x-text="i18n.directAccessTitle"></h3>
                                     <div class="flex items-center gap-3 rounded-xl bg-amber-50 px-4 py-3 dark:bg-amber-950/20">
                                         <div class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" x-text="ownerInitial"></div>
                                         <div class="flex-1">
@@ -2025,14 +2093,15 @@
                                                 </div>
                                             </div>
                                             <div class="flex w-full flex-col gap-2 sm:ml-4 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
-                                                <select :value="m.role" @change="updateRole(m, $event.target.value)"
-                                                        class="w-full rounded-lg border-gray-300 text-xs shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
+                                                <select :value="m.role" @change="updateRole(m, $event.target.value)" :disabled="updatingMemberId === m.id"
+                                                        :aria-label="i18n.memberRoleLabel + ' — ' + m.displayName"
+                                                        class="min-h-11 w-full rounded-lg border-gray-300 text-sm shadow-sm disabled:cursor-wait disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:w-auto">
                                                     <option value="reader" x-text="i18n.roleReader"></option>
                                                     <option value="editor" x-text="i18n.roleEditor"></option>
                                                 </select>
-                                                <button @click="openRemoveModal(m)"
-                                                        class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 sm:w-8"
-                                                        :title="i18n.removeMemberConfirm">
+                                                <button @click="removeMember(m)"
+                                                        class="inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 sm:min-w-11 sm:w-11"
+                                                        :title="i18n.removeMemberConfirm" :aria-label="i18n.removeMemberConfirm + ' — ' + m.displayName">
                                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                                                 </button>
                                             </div>
@@ -2044,26 +2113,40 @@
                                     </template>
                                 </div>
 
-                                <div class="mt-4 flex justify-end">
-                                    <button @click="showManageModal = false" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.cancel"></button>
+                                <div class="mt-6 space-y-2">
+                                    <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400" x-text="i18n.inheritedAccessTitle"></h3>
+                                    <template x-for="m in inheritedMembers" :key="'inherited-' + m.id">
+                                        <div class="flex flex-col gap-2 rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-900/40 sm:flex-row sm:items-center sm:justify-between">
+                                            <div class="flex items-center gap-3">
+                                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300" x-text="m.initial"></div>
+                                                <div>
+                                                    <div class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="m.displayName"></div>
+                                                    <div class="text-xs text-gray-500 dark:text-gray-400" x-text="i18n.inheritedFrom.replace(':dossier', m.inherited_from?.name || '')"></div>
+                                                </div>
+                                            </div>
+                                            <span class="self-start rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300 sm:self-auto" x-text="m.roleLabel"></span>
+                                        </div>
+                                    </template>
+                                    <template x-if="inheritedMembers.length === 0">
+                                        <p class="text-sm text-gray-500 dark:text-gray-400" x-text="i18n.noInheritedAccess"></p>
+                                    </template>
                                 </div>
                             </div>
                         </div>
-                    </template>
                     @endif
 
-                    {{-- Remove Confirmation Modal (owner only) --}}
+                    {{-- Confirmation inline : aucun second popup. --}}
                     @if($canManageMembers)
-                    <template x-if="showRemoveModal">
-                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showRemoveModal = false" role="dialog" aria-modal="true" aria-labelledby="remove-member-title">
-                            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800">
-                                <h3 id="remove-member-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="i18n.removeMemberTitle"></h3>
+                    <template x-if="removeTarget">
+                        <div class="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-950/30">
+                            <div>
+                                <h3 class="text-sm font-semibold text-red-900 dark:text-red-100" x-text="i18n.removeMemberTitle"></h3>
                                 <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
                                     <span x-text="removeTarget?.displayName"></span> — <span x-text="i18n.removeMemberBody"></span>
                                 </p>
                                 <div class="mt-4 flex justify-end gap-2">
-                                    <button @click="showRemoveModal = false; removeTarget = null" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.cancel"></button>
-                                    <button @click="confirmRemove()" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600" x-text="i18n.removeMemberConfirm"></button>
+                                    <button @click="removeTarget = null" class="min-h-11 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700" x-text="i18n.cancel"></button>
+                                    <button @click="confirmRemove()" :disabled="removing" class="min-h-11 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-wait disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-600" x-text="i18n.removeMemberConfirm"></button>
                                 </div>
                             </div>
                         </div>

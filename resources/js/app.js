@@ -2755,6 +2755,8 @@ function registerDossierSemanticArticleSearch() {
         results: [],
         searched: false,
         error: '',
+        errorCode: '',
+        offersUrl: '',
         validationError: '',
         endpoint: config.endpoint,
         i18n: config.i18n || {},
@@ -2764,6 +2766,8 @@ function registerDossierSemanticArticleSearch() {
 
             const trimmedQuery = this.query.trim();
             this.error = '';
+            this.errorCode = '';
+            this.offersUrl = '';
             this.validationError = '';
 
             if (trimmedQuery.length < 2) {
@@ -2799,6 +2803,17 @@ function registerDossierSemanticArticleSearch() {
                     return;
                 }
 
+                // TASK-1229 : refus economique avant appel, avec son code
+                // (credit utilisateur epuise / budget Organization atteint).
+                if (response.status === 429) {
+                    let payload = null;
+                    try { payload = await response.json(); } catch (e) { payload = null; }
+                    this.error = (payload && payload.message) || this.i18n.unavailable;
+                    this.errorCode = (payload && payload.code) || '';
+                    this.offersUrl = (payload && payload.offers_url) || '';
+                    return;
+                }
+
                 if (response.status === 503) {
                     this.error = this.i18n.unavailable;
                     return;
@@ -2826,8 +2841,150 @@ function registerDossierSemanticArticleSearch() {
             return this.i18n.passage.replace(':number', Number(index) + 1);
         },
 
+        // TASK-1273 : l'en-tete compte les DOCUMENTS (lignes affichees, cf.
+        // groupedResults()) ET les PASSAGES (contrat serveur, `results`) :
+        // « 1 document · 5 passages ». Chaque cote a son propre pluriel, par
+        // gabarit singulier / pluriel transmis dans config.i18n (meme mecanique
+        // que otherPassagesLabel). Le groupement lui-meme ne change pas.
+        countLabel(count, one, many) {
+            return String((count === 1 ? one : many) || '').replace(':count', count);
+        },
+
         resultCountLabel() {
-            return this.i18n.resultsCount.replace(':count', this.results.length);
+            const documents = this.countLabel(this.groupedResults().length, this.i18n.documentsOne, this.i18n.documentsMany);
+            const passages = this.countLabel(this.results.length, this.i18n.passagesOne, this.i18n.passagesMany);
+
+            return String(this.i18n.resultsCount || '')
+                .replace(':documents', () => documents)
+                .replace(':passages', () => passages);
+        },
+
+        // TASK-1267 : un resultat est un article OU un fichier (source_type,
+        // cf. DossierSemanticSearchService::mapSourceRow). Cote fichier,
+        // slug/title sont nuls : la cle DOM, le titre et le libelle du lien
+        // doivent suivre la source, sinon deux fichiers collisionnent sur
+        // `null-0` et s'affichent sans titre avec « Lire l'article ».
+        isFileResult(result) {
+            return result && result.source_type === 'file';
+        },
+
+        // TASK-1271 : identite du DOCUMENT (article ou fichier), sans le
+        // chunk. C'est la cle DOM de la liste groupee : une ligne par document.
+        documentKey(result) {
+            const sourceType = result.source_type || (result.blog_post_id ? 'article' : 'file');
+            const sourceId = sourceType === 'file' ? result.dossier_file_id : result.blog_post_id;
+
+            return `${sourceType}:${sourceId ?? ''}`;
+        },
+
+        resultKey(result) {
+            return `${this.documentKey(result)}:${result.chunk_index}`;
+        },
+
+        // TASK-1271 : le serveur rend un top 5 de PASSAGES (contrat JSON
+        // `data` inchange, teste par T1267 et consomme ailleurs). La liste
+        // affichee presente chaque DOCUMENT une seule fois, represente par son
+        // meilleur passage (plus petite `distance`), dans l'ordre de ce meilleur
+        // passage. Les objets rendus sont les objets serveur eux-memes (meme
+        // reference) : citation_url, mime_type, apercu restent ceux du passage.
+        // Sans `distance` exploitable, l'ordre serveur fait foi.
+        resultDistance(result) {
+            const raw = result ? result.distance : null;
+            if (typeof raw !== 'number' && !(typeof raw === 'string' && raw.trim() !== '')) return null;
+            const distance = Number(raw);
+
+            return Number.isFinite(distance) ? distance : null;
+        },
+
+        groupedResults() {
+            const groups = new Map();
+
+            this.results.forEach((result, rank) => {
+                const key = this.documentKey(result);
+                const group = groups.get(key);
+                const distance = this.resultDistance(result);
+
+                if (!group) {
+                    groups.set(key, { result, distance, rank });
+                    return;
+                }
+
+                if (distance !== null && (group.distance === null || distance < group.distance)) {
+                    group.result = result;
+                    group.distance = distance;
+                    group.rank = rank;
+                }
+            });
+
+            return Array.from(groups.values())
+                .sort((a, b) => {
+                    if (a.distance !== null && b.distance !== null && a.distance !== b.distance) {
+                        return a.distance - b.distance;
+                    }
+                    if (a.distance === null && b.distance !== null) return 1;
+                    if (a.distance !== null && b.distance === null) return -1;
+
+                    return a.rank - b.rank;
+                })
+                .map((group) => group.result);
+        },
+
+        otherPassagesCount(result) {
+            const key = this.documentKey(result);
+
+            return Math.max(0, this.results.filter((candidate) => this.documentKey(candidate) === key).length - 1);
+        },
+
+        otherPassagesLabel(result) {
+            const count = this.otherPassagesCount(result);
+            if (count < 1) return '';
+
+            const template = count === 1 ? this.i18n.otherPassagesOne : this.i18n.otherPassagesMany;
+
+            return String(template || '').replace(':count', count);
+        },
+
+        resultTitle(result) {
+            return String((this.isFileResult(result) ? result.filename : result.title) || '');
+        },
+
+        resultLinkLabel(result) {
+            return this.isFileResult(result) ? this.i18n.openDocument : this.i18n.readArticle;
+        },
+
+        // TASK-1267 : meme regle d'apercu que `ouvrirFichier()` de
+        // `dossierFilesCard` (image, PDF, texte, markdown). Pour ces fichiers
+        // la modale d'apercu EXISTANTE s'ouvre via `openPreview()` du
+        // composant parent, atteint par la chaine de portee Alpine (la
+        // section de recherche vit dans `dossierFilesCard`). Aucun viewer
+        // nouveau ; le telechargement reste `citation_url` (route files.show).
+        canPreviewResult(result) {
+            if (!this.isFileResult(result)) return false;
+            const mime = result.mime_type || '';
+
+            return mime.startsWith('image/')
+                || mime === 'application/pdf'
+                || mime === 'text/plain'
+                || mime === 'text/markdown';
+        },
+
+        openResultPreview(result) {
+            if (!this.canPreviewResult(result)) return false;
+
+            // Repli : si la portee parente n'expose pas la modale, la route
+            // fichier (telechargement) reste le chemin vers le document.
+            if (typeof this.openPreview !== 'function') {
+                window.location = result.citation_url;
+                return false;
+            }
+
+            this.openPreview({
+                id: result.dossier_file_id,
+                mime_type: result.mime_type,
+                display_name: result.filename,
+            });
+
+            return true;
         },
     }));
 }
@@ -2837,12 +2994,13 @@ function registerDossierMembersCard() {
 
     Alpine.data('dossierMembersCard', (config) => ({
         members: [],
-        showSearch: false,
+        inheritedMembers: [],
         searchQuery: '',
         searchResults: [],
         searchLoading: false,
-        showManageModal: false,
-        showRemoveModal: false,
+        addingMemberId: null,
+        updatingMemberId: null,
+        removing: false,
         removeTarget: null,
         message: '',
         messageType: 'success',
@@ -2855,61 +3013,44 @@ function registerDossierMembersCard() {
         currentUserId: config.currentUserId,
         canManage: config.canManage || false,
         i18n: config.i18n,
-        _trapTrigger: null,
-        _trapHandler: null,
-
-        _activateFocusTrap(containerSelector) {
-            const el = document.querySelector(containerSelector);
-            if (!el) return;
-            const nodes = focusableNodes(el);
-            if (nodes.length) nodes[0].focus();
-            this._trapHandler = (e) => {
-                if (e.key !== 'Tab') return;
-                const list = focusableNodes(el);
-                if (!list.length) return;
-                const first = list[0], last = list[list.length - 1];
-                if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-                else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-            };
-            el.addEventListener('keydown', this._trapHandler);
-        },
-
-        _destroyFocusTrap(containerSelector) {
-            const el = document.querySelector(containerSelector);
-            if (el && this._trapHandler) el.removeEventListener('keydown', this._trapHandler);
-            this._trapHandler = null;
-            if (this._trapTrigger && this._trapTrigger.isConnected) this._trapTrigger.focus();
-            this._trapTrigger = null;
-        },
-
         init() {
             this.loadMembers();
             document.addEventListener('keydown', (ev) => {
-                if (ev.key === 'Escape') {
-                    if (this.showRemoveModal) { this.showRemoveModal = false; this.removeTarget = null; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="remove-member-title"]'); }); }
-                    else if (this.showManageModal) { this.showManageModal = false; this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="manage-members-title"]'); }); }
-                }
+                if (ev.key === 'Escape' && this.removeTarget) this.removeTarget = null;
             });
-            this.$watch('showManageModal', (val) => {
-                if (val) { this._trapTrigger = document.activeElement; this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="manage-members-title"]'); }); }
-                else { this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="manage-members-title"]'); }); }
+        },
+
+        mapMember(member) {
+            return {
+                ...member,
+                isYou: String(member.id) === String(this.currentUserId),
+                displayName: `${member.first_name || ''} ${(member.name || '').toUpperCase()}`.trim(),
+                initial: (member.first_name || member.name || '?').charAt(0).toUpperCase(),
+                roleLabel: member.role === 'reader' ? (this.i18n.roleReader || 'Reader') : (member.role === 'editor' ? (this.i18n.roleEditor || 'Editor') : member.role),
+            };
+        },
+
+        get allMembers() {
+            const unique = new Map();
+            [...this.members, ...this.inheritedMembers].forEach(member => {
+                if (member.id && !unique.has(String(member.id))) unique.set(String(member.id), member);
             });
-            this.$watch('showRemoveModal', (val) => { if (!val) this.$nextTick(() => { this._destroyFocusTrap('[aria-labelledby="remove-member-title"]'); }); });
+            return [...unique.values()];
         },
 
         get displayMembers() {
-            return this.members.slice(0, 5);
+            return this.allMembers.slice(0, 5);
         },
 
         get overflowCount() {
-            return Math.max(0, this.members.length - 5);
+            return Math.max(0, this.allMembers.length - 5);
         },
 
         get currentRoleLabel() {
             if (String(this.currentUserId) === String(this.ownerId)) {
                 return this.i18n.ownerBadge || 'Owner';
             }
-            const m = this.members.find(m => String(m.id) === String(this.currentUserId));
+            const m = this.allMembers.find(m => String(m.id) === String(this.currentUserId));
             return m?.roleLabel || '';
         },
 
@@ -2918,13 +3059,8 @@ function registerDossierMembersCard() {
             fetch(url, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(r => r.json())
                 .then(data => {
-                    this.members = (data.members || []).map(m => ({
-                        ...m,
-                        isYou: String(m.id) === String(this.currentUserId),
-                        displayName: `${m.first_name || ''} ${(m.name || '').toUpperCase()}`.trim(),
-                        initial: (m.first_name || m.name || '?').charAt(0).toUpperCase(),
-                        roleLabel: m.role === 'reader' ? (this.i18n.roleReader || 'Reader') : (m.role === 'editor' ? (this.i18n.roleEditor || 'Editor') : m.role),
-                    }));
+                    this.members = (data.members || []).map(m => this.mapMember(m));
+                    this.inheritedMembers = (data.inherited_members || []).map(m => this.mapMember(m));
                 })
                 .catch(() => {});
         },
@@ -2940,7 +3076,6 @@ function registerDossierMembersCard() {
                         .map(u => ({
                             ...u,
                             displayName: `${u.first_name || ''} ${(u.name || '').toUpperCase()}`.trim(),
-                            _selectedRole: 'reader',
                         }));
                 })
                 .catch(() => {})
@@ -2948,6 +3083,7 @@ function registerDossierMembersCard() {
         },
 
         addMember(user) {
+            this.addingMemberId = user.id;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members`;
             fetch(url, {
                 method: 'POST',
@@ -2957,7 +3093,7 @@ function registerDossierMembersCard() {
                     'X-CSRF-TOKEN': this.csrfToken,
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify({ user_id: user.id, role: user._selectedRole }),
+                body: JSON.stringify({ user_id: user.id }),
             })
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
@@ -2965,20 +3101,19 @@ function registerDossierMembersCard() {
                         this.showMessage(data.message || this.i18n.memberAlready, 'error');
                         return;
                     }
-                    this.members.push({
-                        ...data.member,
-                        displayName: `${data.member.first_name || ''} ${(data.member.name || '').toUpperCase()}`.trim(),
-                        initial: (data.member.first_name || data.member.name || '?').charAt(0).toUpperCase(),
-                        roleLabel: data.member.role === 'reader' ? (this.i18n.roleReader || 'Reader') : (this.i18n.roleEditor || 'Editor'),
-                    });
+                    this.members.push(this.mapMember(data.member));
+                    this.inheritedMembers = this.inheritedMembers.filter(member => String(member.id) !== String(data.member.id));
                     this.searchQuery = '';
                     this.searchResults = [];
                     this.showMessage(data.message || this.i18n.memberAdded, 'success');
                 })
-                .catch(() => { this.showMessage(this.i18n.memberAlready, 'error'); });
+                .catch(() => { this.showMessage(this.i18n.memberAlready, 'error'); })
+                .finally(() => { this.addingMemberId = null; });
         },
 
         updateRole(member, newRole) {
+            const previousRole = member.role;
+            this.updatingMemberId = member.id;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members/${member.id}`;
             fetch(url, {
                 method: 'PATCH',
@@ -2993,6 +3128,7 @@ function registerDossierMembersCard() {
                 .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                 .then(({ ok, data }) => {
                     if (!ok) {
+                        member.role = previousRole;
                         this.showMessage(data.message || this.i18n.memberRoleUpdated, 'error');
                         return;
                     }
@@ -3000,19 +3136,14 @@ function registerDossierMembersCard() {
                     member.roleLabel = newRole === 'reader' ? (this.i18n.roleReader || 'Reader') : (this.i18n.roleEditor || 'Editor');
                     this.showMessage(data.message || this.i18n.memberRoleUpdated, 'success');
                 })
-                .catch(() => {});
-        },
-
-        openRemoveModal(member) {
-            this._trapTrigger = document.activeElement;
-            this.removeTarget = member;
-            this.showRemoveModal = true;
-            this.$nextTick(() => { this._activateFocusTrap('[aria-labelledby="remove-member-title"]'); });
+                .catch(() => { member.role = previousRole; })
+                .finally(() => { this.updatingMemberId = null; });
         },
 
         confirmRemove() {
             if (!this.removeTarget) return;
             const member = this.removeTarget;
+            this.removing = true;
             const url = `/org/${this.orgParam}/dossiers/${this.dossierId}/members/${member.id}`;
             fetch(url, {
                 method: 'DELETE',
@@ -3029,15 +3160,15 @@ function registerDossierMembersCard() {
                         return;
                     }
                     this.members = this.members.filter(m => m.id !== member.id);
-                    this.showRemoveModal = false;
                     this.removeTarget = null;
                     this.showMessage(data.message || this.i18n.memberRemoved, 'success');
                 })
-                .catch(() => {});
+                .catch(() => {})
+                .finally(() => { this.removing = false; });
         },
 
         removeMember(member) {
-            this.openRemoveModal(member);
+            this.removeTarget = member;
         },
 
         showMessage(msg, type) {
@@ -3769,6 +3900,19 @@ function registerDossierFilesCard() {
             } catch (e) { /* localStorage indisponible (navigation privee, quota) : reste sur 'list' */ }
 
             this.loadFiles();
+            // TASK-1231 : le FAB « BouclePro IA » demande « Rechercher dans ce
+            // Dossier » — on revient a la vue Documents (le bloc de recherche
+            // n'existe que la) et on donne le focus au champ EXISTANT. Aucune
+            // recherche n'est lancee ici : l'appel reste celui du bloc.
+            window.addEventListener('bp-open-dossier-search', () => {
+                if (this.vue === 'serie') this.quitSerieMode();
+                this.$nextTick(() => {
+                    const field = document.getElementById('dossier-semantic-search-query');
+                    if (!field) return;
+                    field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    field.focus();
+                });
+            });
             // Ecran tactile : `hover: none` distingue un doigt d'une souris
             // mieux que la largeur de la fenetre.
             this.tactile = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
@@ -6507,6 +6651,11 @@ function registerBlogExplorerModal() {
         phase: 'dialogue',
         dialogueCount: 0,
         maxDialogues: 50,
+        // TASK-1249 : methode de facilitation de Roger, portee par LA
+        // CONVERSATION (etat du composant, envoye avec chaque message ;
+        // remis a zero a chaque ouverture = nouvelle conversation).
+        methods: Array.isArray(config.methods) ? config.methods : [],
+        methodCode: null,
         maxNoteChars: config.maxNoteChars || 3000,
         noteContent: '',
         noteEditor: null,
@@ -6519,6 +6668,8 @@ function registerBlogExplorerModal() {
         chatUrl: config.chatUrl,
         noteGenerateUrl: config.noteGenerateUrl,
         notesStoreUrl: config.notesStoreUrl,
+        // TASK-1256 : feedback humain « Utile / A ameliorer » sur une reponse.
+        feedbackUrl: config.feedbackUrl || null,
         csrfToken: config.csrfToken,
         i18n: config.i18n || {},
 
@@ -6529,6 +6680,7 @@ function registerBlogExplorerModal() {
                 const unavailable = detail.hasSavedArticle === false || detail.hasUnsavedChanges === true;
                 this.phase = unavailable ? 'unavailable' : 'dialogue';
                 this.dialogueCount = 0;
+                this.methodCode = null;
                 this.noteContent = '';
                 this.noteTooLong = false;
                 this.error = '';
@@ -6537,6 +6689,24 @@ function registerBlogExplorerModal() {
                     this.$nextTick(() => this.setupDeepChat());
                 }
             });
+        },
+
+        get activeMethod() {
+            return this.methods.find((m) => m.key === this.methodCode) || null;
+        },
+
+        get activeMethodLabel() {
+            const m = this.activeMethod;
+            if (!m) return '';
+            return (this.i18n.methodActive || ':method — :hint')
+                .replace(':method', m.label || m.key)
+                .replace(':hint', m.hint || '');
+        },
+
+        // Un clic selectionne la methode de la conversation ; un second clic
+        // sur la methode active revient au questionnement libre.
+        selectMethod(key) {
+            this.methodCode = this.methodCode === key ? null : key;
         },
 
         setupDeepChat() {
@@ -6575,6 +6745,7 @@ function registerBlogExplorerModal() {
                     body: {
                         message: lastMsg?.text || '',
                         messages: history,
+                        method_code: this.methodCode,
                     },
                     headers: details.headers,
                 };
@@ -6584,7 +6755,28 @@ function registerBlogExplorerModal() {
                 if (response && response.error) {
                     throw new Error(response.error);
                 }
-                return { text: response?.text || '' };
+                const text = response?.text || '';
+                // TASK-1256 : la reponse porte l'id de sa trace
+                // (`ai_interaction_id`) ; le bloc de feedback s'affiche SOUS la
+                // bulle (html du meme message deep-chat, texte conserve pour
+                // l'historique) et le reference. Sans id (article non
+                // sauvegarde…) : bulle texte seule, comme avant.
+                const interactionId = this.feedbackInteractionId(response);
+                if (!interactionId || !this.feedbackUrl) {
+                    return { text };
+                }
+                return {
+                    text,
+                    html: this.feedbackHtml(interactionId),
+                    custom: { ai_interaction_id: interactionId },
+                };
+            };
+
+            // TASK-1256 : les boutons du bloc de feedback vivent dans le shadow
+            // DOM de deep-chat ; c'est son mecanisme officiel pour les relier.
+            dc.htmlClassUtilities = {
+                'bp-fb-verdict': { events: { click: (event) => this.onFeedbackVerdict(event) } },
+                'bp-fb-send': { events: { click: (event) => this.onFeedbackSend(event) } },
             };
 
             dc.introMessage = {
@@ -6701,14 +6893,197 @@ function registerBlogExplorerModal() {
                         color: dark ? '#fecaca' : '#991b1b',
                     },
                 },
+                // TASK-1256 : le bloc de feedback (message html) n'est pas une
+                // bulle : transparent, colle sous la bulle texte.
+                html: {
+                    shared: {
+                        bubble: {
+                            backgroundColor: 'transparent',
+                            padding: '0',
+                            marginTop: '-4px',
+                            maxWidth: '78%',
+                            color: muted,
+                        },
+                    },
+                },
             };
 
+            const fbAccent = dark ? '#c4b5fd' : '#6d28d9';
+            const fbAccentBg = dark ? 'rgba(124, 58, 237, 0.18)' : '#f5f3ff';
             dc.auxiliaryStyle = `
                 ::-webkit-scrollbar { width: 10px; }
                 ::-webkit-scrollbar-track { background: ${surface}; }
                 ::-webkit-scrollbar-thumb { background: ${dark ? '#4b5563' : '#cbd5e1'}; border-radius: 999px; border: 2px solid ${surface}; }
                 ::-webkit-scrollbar-thumb:hover { background: ${dark ? '#6b7280' : '#94a3b8'}; }
+                .bp-fb { font-size: 12px; line-height: 1.4; color: ${muted}; padding: 2px 4px 6px; }
+                .bp-fb-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+                .bp-fb-q { margin-right: 2px; }
+                .bp-fb-btn { font: inherit; font-size: 12px; line-height: 1; cursor: pointer; border: 1px solid ${border}; border-radius: 999px; padding: 5px 10px; background: ${surface}; color: ${text}; transition: border-color .15s, background-color .15s, color .15s; }
+                .bp-fb-btn:hover { border-color: ${fbAccent}; color: ${fbAccent}; }
+                .bp-fb-btn:disabled { cursor: default; opacity: .6; }
+                .bp-fb-btn[aria-pressed="true"] { border-color: ${fbAccent}; background: ${fbAccentBg}; color: ${fbAccent}; font-weight: 600; }
+                .bp-fb-status { color: ${fbAccent}; }
+                .bp-fb-status[data-kind="error"] { color: ${dark ? '#fca5a5' : '#b91c1c'}; }
+                .bp-fb-form { margin-top: 8px; display: grid; gap: 6px; }
+                .bp-fb-form[hidden] { display: none; }
+                .bp-fb-hint { color: ${muted}; }
+                .bp-fb-label { display: block; color: ${text}; font-weight: 500; margin-bottom: 2px; }
+                .bp-fb-input { font: inherit; font-size: 12px; line-height: 1.4; width: 100%; box-sizing: border-box; min-height: 48px; resize: vertical; border: 1px solid ${border}; border-radius: 8px; padding: 6px 8px; background: ${surfaceSoft}; color: ${text}; }
+                .bp-fb-input:focus { outline: none; border-color: #8b5cf6; }
+                .bp-fb-actions { display: flex; align-items: center; gap: 8px; }
+                .bp-fb-send { font: inherit; font-size: 12px; line-height: 1; cursor: pointer; border: 0; border-radius: 8px; padding: 6px 12px; background: ${dark ? '#6d28d9' : '#7c3aed'}; color: #fff; font-weight: 600; }
+                .bp-fb-send:hover { background: ${dark ? '#7c3aed' : '#6d28d9'}; }
+                .bp-fb-send:disabled { opacity: .6; cursor: default; }
             `;
+        },
+
+        // ------------------------------------------------------------------
+        // TASK-1256 : feedback humain sur une reponse (Utile / A ameliorer,
+        // puis disclosure facultative : pourquoi / quoi ameliorer / quelle
+        // meilleure intervention). Un clic enregistre le verdict tout de
+        // suite ; le formulaire, optionnel, complete la MEME ligne.
+        // ------------------------------------------------------------------
+        feedbackInteractionId(response) {
+            const id = response && typeof response.ai_interaction_id === 'string' ? response.ai_interaction_id : '';
+            return /^[0-9a-fA-F-]{36}$/.test(id) ? id : null;
+        },
+
+        feedbackEscape(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        },
+
+        feedbackHtml(interactionId) {
+            const t = (key, fallback) => this.feedbackEscape(this.i18n[key] || fallback);
+            return `
+<div class="bp-fb" data-interaction-id="${this.feedbackEscape(interactionId)}" data-verdict="">
+  <div class="bp-fb-row">
+    <span class="bp-fb-q">${t('feedbackQuestion', 'Cette intervention vous a-t-elle aidé ?')}</span>
+    <button type="button" class="bp-fb-btn bp-fb-verdict" data-verdict="helpful" aria-pressed="false">${t('feedbackHelpful', 'Utile')}</button>
+    <button type="button" class="bp-fb-btn bp-fb-verdict" data-verdict="improve" aria-pressed="false">${t('feedbackImprove', 'À améliorer')}</button>
+    <span class="bp-fb-status" aria-live="polite"></span>
+  </div>
+  <div class="bp-fb-form" hidden>
+    <span class="bp-fb-hint">${t('feedbackDetailsHint', 'Facultatif : dites-nous en plus.')}</span>
+    <label>
+      <span class="bp-fb-label">${t('feedbackCommentLabel', 'Pourquoi ? Que faudrait-il améliorer ?')}</span>
+      <textarea class="bp-fb-input bp-fb-comment" rows="2" maxlength="2000" placeholder="${t('feedbackCommentPlaceholder', '')}"></textarea>
+    </label>
+    <label>
+      <span class="bp-fb-label">${t('feedbackSuggestLabel', 'Quelle aurait été une meilleure intervention ?')}</span>
+      <textarea class="bp-fb-input bp-fb-suggest" rows="3" maxlength="6000" placeholder="${t('feedbackSuggestPlaceholder', '')}"></textarea>
+    </label>
+    <div class="bp-fb-actions">
+      <button type="button" class="bp-fb-send">${t('feedbackSend', 'Envoyer')}</button>
+    </div>
+  </div>
+</div>`;
+        },
+
+        feedbackRoot(event) {
+            const el = event && (event.currentTarget || event.target);
+            return el && el.closest ? el.closest('.bp-fb') : null;
+        },
+
+        feedbackSetStatus(root, message, kind) {
+            const status = root.querySelector('.bp-fb-status');
+            if (!status) return;
+            status.textContent = message || '';
+            if (kind) {
+                status.setAttribute('data-kind', kind);
+            } else {
+                status.removeAttribute('data-kind');
+            }
+        },
+
+        async onFeedbackVerdict(event) {
+            const root = this.feedbackRoot(event);
+            const button = event.currentTarget || event.target;
+            if (!root || !button) return;
+            const verdict = button.getAttribute('data-verdict');
+            if (verdict !== 'helpful' && verdict !== 'improve') return;
+
+            root.setAttribute('data-verdict', verdict);
+            root.querySelectorAll('.bp-fb-verdict').forEach((b) => {
+                b.setAttribute('aria-pressed', b === button ? 'true' : 'false');
+            });
+
+            const ok = await this.postFeedback(root, verdict, false);
+            if (ok) {
+                const form = root.querySelector('.bp-fb-form');
+                if (form) form.hidden = false;
+            }
+        },
+
+        async onFeedbackSend(event) {
+            const root = this.feedbackRoot(event);
+            if (!root) return;
+            const verdict = root.getAttribute('data-verdict');
+            if (verdict !== 'helpful' && verdict !== 'improve') return;
+            await this.postFeedback(root, verdict, true);
+        },
+
+        async postFeedback(root, verdict, withDetails) {
+            const interactionId = root.getAttribute('data-interaction-id');
+            if (!interactionId || !this.feedbackUrl) return false;
+
+            const comment = (root.querySelector('.bp-fb-comment')?.value || '').trim();
+            const suggested = (root.querySelector('.bp-fb-suggest')?.value || '').trim();
+            const sendButton = root.querySelector('.bp-fb-send');
+            const verdictButtons = root.querySelectorAll('.bp-fb-verdict');
+
+            verdictButtons.forEach((b) => { b.disabled = true; });
+            if (sendButton) {
+                sendButton.disabled = true;
+                if (withDetails) sendButton.textContent = this.i18n.feedbackSending || 'Envoi…';
+            }
+            this.feedbackSetStatus(root, '', null);
+
+            try {
+                const response = await fetch(this.feedbackUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        ai_interaction_id: interactionId,
+                        verdict,
+                        comment: comment || null,
+                        suggested_response: suggested || null,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    this.feedbackSetStatus(root, data.message || this.i18n.feedbackError || 'Erreur.', 'error');
+                    return false;
+                }
+
+                this.feedbackSetStatus(
+                    root,
+                    withDetails
+                        ? (this.i18n.feedbackDetailsSaved || 'Merci, vos précisions sont enregistrées.')
+                        : (this.i18n.feedbackSaved || 'Merci, c’est noté.'),
+                    'ok',
+                );
+                return true;
+            } catch (_) {
+                this.feedbackSetStatus(root, this.i18n.feedbackError || 'Erreur de connexion.', 'error');
+                return false;
+            } finally {
+                verdictButtons.forEach((b) => { b.disabled = false; });
+                if (sendButton) {
+                    sendButton.disabled = false;
+                    sendButton.textContent = this.i18n.feedbackSend || 'Envoyer';
+                }
+            }
         },
 
         get canGenerateNote() {

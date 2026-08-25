@@ -10,6 +10,7 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\Tag;
 use App\Services\BlogAiService;
+use App\Support\Ai\AiRefusedException;
 use DOMDocument;
 use DOMXPath;
 use Illuminate\Http\JsonResponse;
@@ -690,6 +691,13 @@ class BlogController extends Controller implements HasMiddleware
                 $data['context_before'] ?? null,
                 $data['context_after'] ?? null,
             );
+        } catch (AiRefusedException $e) {
+            // TASK-1247 : refus economique AVANT tout appel, code stable.
+            return response()->json([
+                'error' => $e->getMessage(),
+                'code' => $e->refusalCode,
+                'offers_url' => $e->offersUrl($organization),
+            ], 429);
         } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
@@ -715,12 +723,37 @@ class BlogController extends Controller implements HasMiddleware
 
             if ($request->has('post_id') && $request->filled('post_id')) {
                 $post = $this->resolveBlogPost($request->input('post_id'), $user);
-            } else {
+            }
+
+            // TASK-1288 : sans article PERSISTE — flux creation des deux modes,
+            // ou `post_id` inconnu que `resolveBlogPost()` transforme en article
+            // temporaire — le tenant de tout ce qui suit (l'article cree,
+            // l'appel provider, la ligne de ledger : `BlogAiService::tenantOf()`)
+            // est l'Organization RESOLUE. Sur la surface courte, c'est
+            // l'Organization PAR DEFAUT, quel que soit l'utilisateur connecte
+            // (`ResolveUrlOrganization` ne consulte jamais Auth pour /blog) ;
+            // sur la surface prefixee, celle de l'URL. Un article existant est
+            // deja garde par `checkPostAccess()` (tenant + policy `update`) ;
+            // ici, rien ne l'etait : un membre d'une AUTRE Organization
+            // creait un article et debitait le budget IA de celle-ci.
+            // Meme regle que partout ailleurs (ProfileController,
+            // ReportController, LoopEventAgendaController, CreateFeedPost) :
+            // on n'ecrit ni ne depense dans l'Organization d'un autre. Le refus
+            // vient AVANT toute ecriture et AVANT tout appel — rien n'est cree,
+            // rien ne part, rien n'est inscrit au ledger — et prend la forme
+            // des autres refus fonctionnels de ce controleur (`ai_disabled`).
+            $organizationId = currentOrganization()?->id ?? $user->organization_id;
+
+            if (($post === null || ! $post->exists) && $user->organization_id !== $organizationId) {
+                return response()->json(['error' => __('blog.ai_cross_org')], 403);
+            }
+
+            if ($post === null) {
                 if ($mode !== 'generate') {
                     $request->validate(['content' => 'required|string|min:10']);
                     $post = new BlogPost;
                     $post->id = (string) Str::uuid();
-                    $post->organization_id = currentOrganization()?->id ?? $user->organization_id;
+                    $post->organization_id = $organizationId;
                     $post->user_id = $user->id;
                     $post->content = $request->input('content');
                 } else {
@@ -728,15 +761,13 @@ class BlogController extends Controller implements HasMiddleware
                         return response()->json(['error' => __('blog.ai_need_title_summary')], 422);
                     }
 
-                    $orgId = currentOrganization()?->id ?? $user->organization_id;
-
-                    if (! Category::where('id', $request->input('category_id'))->where('organization_id', $orgId)->exists()) {
+                    if (! Category::where('id', $request->input('category_id'))->where('organization_id', $organizationId)->exists()) {
                         return response()->json(['error' => __('blog.validation_category_invalid')], 422);
                     }
 
                     $post = BlogPost::create([
                         'user_id' => $user->id,
-                        'organization_id' => $orgId,
+                        'organization_id' => $organizationId,
                         'title' => $title,
                         'summary' => $summary,
                         'content' => '<p></p>',
@@ -803,6 +834,19 @@ class BlogController extends Controller implements HasMiddleware
             return response()->json($response);
         } catch (HttpException $e) {
             throw $e;
+        } catch (AiRefusedException $e) {
+            // TASK-1247 : refus economique AVANT tout appel provider (credit
+            // utilisateur epuise / budget Organization atteint / IA non
+            // configuree), avec son code stable et, pour le credit, l'URL des
+            // offres — meme contrat JSON que `LoopController::knowledge()`.
+            // Rien n'a ete consomme, rien n'a ete ecrit.
+            return response()->json(array_filter([
+                'error' => $e->getMessage(),
+                'code' => $e->refusalCode,
+                'offers_url' => $e->offersUrl(currentOrganization()),
+                'post_id' => $isCreateFlow && $post?->exists ? $post->id : null,
+                'edit_url' => $isCreateFlow && $post?->exists ? $this->blogUrl('edit', ['post' => $post]) : null,
+            ], static fn ($value): bool => $value !== null), 429);
         } catch (\RuntimeException $e) {
             if ($isCreateFlow && $post?->exists) {
                 return response()->json([
@@ -839,7 +883,12 @@ class BlogController extends Controller implements HasMiddleware
         if (! $organization || $post->organization_id !== $organization->id) {
             abort(404);
         }
-        if ($user->id !== $post->user_id && ! $user->is_admin) {
+        // La policy, pas un test d'auteur recode en dur : ce garde protege les
+        // endpoints IA de la page editeur, et `aiMethodSelection` passe deja
+        // par `authorize('update', ...)`. L'ancien test « auteur ou admin »
+        // repondait 403 aux co-auteurs et aux editeurs du manifeste d'une
+        // Boucle (TASK-1279) que la meme page laisse pourtant rediger.
+        if (! $user->can('update', $post)) {
             abort(403);
         }
     }

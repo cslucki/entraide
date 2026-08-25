@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class LoopMessage extends Model
 {
@@ -116,9 +117,21 @@ class LoopMessage extends Model
         return $this->deleted_at !== null;
     }
 
+    public function isServiceRequestProjection(): bool
+    {
+        return $this->type === 'help_request'
+            && ($this->metadata['projection_type'] ?? null) === 'service_request'
+            && is_string($this->metadata['service_request_id'] ?? null)
+            && Str::isUuid($this->metadata['service_request_id']);
+    }
+
     public function isEditableBy(User $user): bool
     {
-        return $this->type === 'user'
+        // TASK-1298 : quand la reponse d'un agent portait `type=user`, son
+        // membre (sender_id) pouvait l'editer ; `member_agent` PRESERVE ce
+        // droit a l'identique. Le resserrement eventuel est un retrait de
+        // capacite : DECISION_REQUIRED_CYRIL, pas pris ici.
+        return in_array($this->type, ['user', 'member_agent'], true)
             && ! $this->isDeleted()
             && $this->sender_id === $user->id;
     }

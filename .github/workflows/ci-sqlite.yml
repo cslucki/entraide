@@ -10,7 +10,7 @@ name: SQLite CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
@@ -41,6 +41,24 @@ jobs:
     # son propre conteneur.
 
     steps:
+      # TASK-1150 : le job tourne TOUJOURS (jamais de `if:` au niveau job) —
+      # seule la charge interne varie, via un label `validation:<level>` pose
+      # sur la PR. Hors `pull_request` (push develop/main, workflow_dispatch),
+      # ou si aucun label reconnu n'est present, la charge reste `full` :
+      # le doute se resout vers plus de tests, jamais moins.
+      - name: Determine validation level
+        id: level
+        run: |
+          MODE="full"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
+            if echo "$LABELS" | grep -qE '"validation:(micro-ux|no-app-ci)"'; then
+              MODE="light"
+            fi
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "Resolved CI mode: $MODE (event=${{ github.event_name }})"
+
       - uses: actions/checkout@v4
 
       - name: Setup PHP
@@ -65,18 +83,23 @@ jobs:
       - name: Install dependencies
         run: composer install --no-progress --no-interaction --prefer-dist
 
+      # Frontend build seulement en mode full : la suite Unit (mode light)
+      # ne rend pas de vue @vite.
       - name: Setup Node.js
+        if: steps.level.outputs.mode == 'full'
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
       - name: Install npm dependencies
+        if: steps.level.outputs.mode == 'full'
         run: npm ci --prefer-offline
 
       # Les vues passent par `@vite` : sans manifeste, toute la suite Feature
       # rendrait une exception au lieu d'une page.
       - name: Build frontend assets
+        if: steps.level.outputs.mode == 'full'
         run: npm run build
 
       # Cette etape **ne decide pas** : la suite SQLite rend un code non nul
@@ -85,15 +108,24 @@ jobs:
       # pas du tout, le rapport sera vide ou absent et le gate rougira — le
       # `|| true` ne masque donc pas une panne.
       - name: Run full SQLite suite
+        if: steps.level.outputs.mode == 'full'
         run: php vendor/bin/phpunit --configuration phpunit.ci-sqlite.xml --log-junit sqlite-report.xml || true
 
       - name: SQLite regression gate (blocking)
+        if: steps.level.outputs.mode == 'full'
         run: php .github/scripts/sqlite-regression-gate.php sqlite-report.xml .github/sqlite-known-failures.txt
 
+      # Mode light (MICRO_UX / NO_APP_CI) : seule la suite Unit, sans
+      # comparaison a la reference de connus-rouges (calibree pour la suite
+      # complete). Zero echec exige — c'est un vrai resultat, pas un simulacre.
+      - name: Run SQLite Unit suite (light mode)
+        if: steps.level.outputs.mode == 'light'
+        run: php vendor/bin/phpunit --configuration phpunit.ci-sqlite.xml --testsuite=Unit
+
       # Garde le rapport meme quand le gate rougit : c'est la pour diagnostiquer
-      # sans relancer 4 000 tests.
+      # sans relancer 4 000 tests. N'existe qu'en mode full.
       - name: Upload JUnit report
-        if: always()
+        if: always() && steps.level.outputs.mode == 'full'
         uses: actions/upload-artifact@v4
         with:
           name: sqlite-junit-report

@@ -54,13 +54,25 @@
                 @if($espace === 'partages')
                     {{-- Avec moi / Par moi : deux sous-vues de la MEME surface,
                          jamais deux ecrans (OneDrive les nomme mot pour mot). --}}
+                    {{-- « Partages avec moi » et « Partages par moi » se
+                         ressemblent trop, en FR comme en EN : deux libelles
+                         longs qui ne different que par un mot au milieu. La
+                         fleche porte le sens avant la lecture — entrant vers
+                         moi, sortant depuis moi. Meme jeu d'icones inline que
+                         le reste du module, aucune librairie ajoutee. --}}
                     <nav class="mt-3 flex gap-2" aria-label="{{ __('dossiers.space_shared') }}">
-                        @foreach([['avec-moi', __('dossiers.shared_with_me')], ['par-moi', __('dossiers.shared_by_me')]] as [$cle, $label])
+                        @foreach([
+                            ['avec-moi', __('dossiers.shared_with_me'), 'M12 3.75v12m0 0 4.5-4.5M12 15.75l-4.5-4.5M4.5 19.5h15'],
+                            ['par-moi', __('dossiers.shared_by_me'), 'M12 20.25V8.25m0 0 4.5 4.5M12 8.25l-4.5 4.5M4.5 4.5h15'],
+                        ] as [$cle, $label, $trace])
                             <a href="{{ route('organization.dossiers.index', ['organization' => $orgParam, 'espace' => 'partages', 'vue' => $cle]) }}"
                                @if($vue === $cle) aria-current="page" @endif
-                               class="inline-flex min-h-11 items-center rounded-full border px-4 text-sm transition {{ $vue === $cle
+                               class="inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm transition {{ $vue === $cle
                                     ? 'border-indigo-200 bg-indigo-50 font-semibold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200'
-                                    : 'border-transparent text-[var(--bp-muted)] hover:bg-[var(--bp-panel)]' }}">{{ $label }}</a>
+                                    : 'border-transparent text-[var(--bp-muted)] hover:bg-[var(--bp-panel)]' }}">
+                                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ $trace }}"/></svg>
+                                {{ $label }}
+                            </a>
                         @endforeach
                     </nav>
 
@@ -82,11 +94,12 @@
 
                             @foreach($lignes as $ligne)
                                 @php
+                                    $proprietaireReel = $ligne->governingDossier()->owner;
                                     $role = $vue === 'avec-moi'
                                         ? ($ligne->dossierMembers->first()?->role === 'editor' ? __('dossiers.role_editor') : __('dossiers.role_reader'))
                                         : null;
-                                    $proprio = $ligne->owner?->isDisplayableIn(currentOrganization())
-                                        ? $ligne->owner->publicDisplayName()
+                                    $proprio = $proprietaireReel?->isDisplayableIn(currentOrganization())
+                                        ? $proprietaireReel->publicDisplayName()
                                         : __('profile.deactivated_user');
                                     $partageAvec = $ligne->shared_with_loop_id
                                         ? ($ligne->sharedWithLoop?->name ?? __('dossiers.share_loop'))
@@ -97,9 +110,23 @@
                                      class="{{ $grille }} min-h-[3.25rem] border-b border-[var(--bp-border)]/60 px-2.5 transition hover:bg-[var(--bp-panel)]">
                                     <a href="{{ route('organization.dossiers.show', ['organization' => $orgParam, 'dossier' => $ligne->getKey()]) }}"
                                        class="flex min-h-11 min-w-0 items-center gap-3">
-                                        <svg class="h-5 w-5 shrink-0 text-amber-500" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                            <path d="M3.5 7.5v11a1.5 1.5 0 0 0 1.5 1.5h14a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 19 8h-8L9 5.5H5a1.5 1.5 0 0 0-1.5 1.5Z" />
-                                        </svg>
+                                        {{-- Le meme marqueur que dans « Mes documents » :
+                                             un dossier partage ne doit pas changer
+                                             d'apparence selon l'ecran ou on le
+                                             rencontre. Toutes les lignes de cet
+                                             espace sont partagees — l'icone le dit,
+                                             au lieu de le laisser deviner par la
+                                             seule presence dans la liste. --}}
+                                        <span class="relative flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden="true">
+                                            <svg class="h-5 w-5 text-amber-500" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M3.5 7.5v11a1.5 1.5 0 0 0 1.5 1.5h14a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 19 8h-8L9 5.5H5a1.5 1.5 0 0 0-1.5 1.5Z" />
+                                            </svg>
+                                            <span class="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[var(--bp-surface)] ring-1 ring-indigo-300 dark:ring-indigo-500/50"
+                                                  title="{{ __('dossiers.share_shared_badge') }}">
+                                                <svg class="h-2 w-2 text-indigo-600 dark:text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="8" r="3"/><circle cx="16.5" cy="15.5" r="3"/><path d="M4.5 19c.6-2.6 2.4-4 4.5-4"/></svg>
+                                            </span>
+                                        </span>
+                                        <span class="sr-only">{{ __('dossiers.share_shared_badge') }}</span>
                                         <span class="min-w-0">
                                             <span class="block truncate text-sm font-medium text-[var(--bp-text)]">{{ $ligne->name }}</span>
                                             <span class="block truncate text-xs text-[var(--bp-muted)]">
@@ -114,7 +141,7 @@
                                          pas une liste. --}}
                                     <span class="{{ $cellule }} !flex items-center gap-1.5">
                                         @if($vue === 'avec-moi')
-                                            <x-user-avatar :user="$ligne->owner" size="xs" />
+                                            <x-user-avatar :user="$proprietaireReel" size="xs" />
                                             <span class="min-w-0 truncate">{{ $proprio }}</span>
                                         @elseif($ligne->shared_with_loop_id)
                                             <svg class="h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="15.5" r="3.2"/><path d="M4.5 19c.6-2.6 2.4-4 4.5-4M19.5 8.5C19 6 17.2 4.8 15.4 4.8"/></svg>
@@ -163,7 +190,20 @@
                          puisqu'il ne contiendrait qu'« Ouvrir ». --}}
                     <div class="mt-4">
                         @if($loopDossiers->isEmpty())
-                            <p class="py-14 text-center text-sm text-[var(--bp-muted)]">{{ __('dossiers.loops_empty') }}</p>
+                            {{-- Constater qu'on n'a pas de Boucle ne dit pas ou
+                                 aller en trouver une : la sortie est offerte
+                                 ici, pas laissee a chercher dans la
+                                 navigation. --}}
+                            <div class="py-14 text-center">
+                                <p class="text-sm text-[var(--bp-muted)]">{{ __('dossiers.loops_empty') }}</p>
+                                <a href="{{ route('organization.loops.index', ['organization' => $orgParam]) }}"
+                                   class="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M8 10h8M8 14h5m8-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    {{ __('dossiers.loops_empty_cta') }}
+                                </a>
+                            </div>
                         @else
                             @foreach($loopDossiers as $dossierDeBoucle)
                                 @php

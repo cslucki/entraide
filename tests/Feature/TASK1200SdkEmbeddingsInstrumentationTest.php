@@ -9,6 +9,7 @@ use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Models\DossierChunk;
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Dossiers\DossierArticleIndexer;
 use App\Services\Dossiers\DossierSemanticSearchService;
@@ -232,14 +233,14 @@ class TASK1200SdkEmbeddingsInstrumentationTest extends TestCase
         // n'intervienne (elle est posee juste apres cette garde). Prouver ici
         // que ce comportement reste EXACTEMENT le meme qu'avant TASK-1200.
         if (config('database.default') === 'pgsql') {
-            $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+            $results = app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
             $this->assertIsArray($results);
 
             return;
         }
 
         try {
-            app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle');
+            app(DossierSemanticSearchService::class)->search($organization->id, $dossier->id, 'needle', 'openai');
             $this->fail('Expected the PostgreSQL-required exception to be thrown.');
         } catch (RuntimeException $exception) {
             $this->assertSame('Dossier semantic search requires PostgreSQL pgvector.', $exception->getMessage());
@@ -273,6 +274,13 @@ class TASK1200SdkEmbeddingsInstrumentationTest extends TestCase
     private function eligibleFixture(string $content = '<p>searchable article content</p>', string $sentinel = ''): array
     {
         $organization = Organization::factory()->create();
+        // TASK-1214 : ingestion via le credential P4 de l'Organization (famille openai).
+        OrganizationAiSetting::factory()->create([
+            'organization_id' => $organization->id,
+            'provider' => 'openai',
+            'model' => 'gpt-4o-mini',
+            'api_key' => 'sk-test-ingestion',
+        ]);
         $owner = User::factory()->create(['organization_id' => $organization->id]);
         $dossier = Dossier::create([
             'organization_id' => $organization->id,

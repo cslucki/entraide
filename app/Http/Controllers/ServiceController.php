@@ -11,7 +11,9 @@ use App\Models\Skill;
 use App\Models\Tag;
 use App\Services\Ai\AiScenarioFactory;
 use App\Services\Ai\Exceptions\SupervisionException;
+use App\Services\Ai\SupervisionEconomicScope;
 use App\Services\Ai\SupervisionProviderResolver;
+use App\Support\Ai\AiRefusedException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -91,8 +93,16 @@ class ServiceController extends Controller
 
     public function formulate(Request $request): JsonResponse
     {
+        // TASK-1291 : meme garde d'appartenance que
+        // RequestController::organizationFor() (T1288/T1289). Le tenant
+        // economique est l'Organization de l'ACTEUR — jamais celle que la
+        // surface courte (Organization par defaut liee par
+        // ResolveUrlOrganization) ou l'URL /org/{slug} d'autrui apporte.
+        // Refus fail-closed AVANT toute lecture metier et tout provider.
         $organization = currentOrganization();
-        if (! $organization) {
+        $user = $request->user();
+
+        if (! $organization || ! $user || $user->isDeactivated() || $user->organization_id !== $organization->id) {
             abort(404);
         }
 
@@ -179,9 +189,34 @@ class ServiceController extends Controller
             return response()->json(['error' => __('ai.service_formulation_unavailable')], 503);
         }
 
+        // TASK-1250 : AUTORITE ECONOMIQUE du chemin herite (gap #13 T1246).
+        // Tenant EXPLICITE = l'Organization courante, celle dont les categories
+        // et les bornes de points viennent d'etre lues et dans laquelle le
+        // service sera cree ; demandeur = le membre connecte, dont le credit
+        // IA (T1229) s'applique comme sur le Blog (T1247). Cle plateforme
+        // declaree, garde AVANT provider, ledger succes ET echec : tout est
+        // porte par `resolveUnderEconomicAuthority()`.
         try {
-            $provider = app(SupervisionProviderResolver::class)->resolve($providerName);
+            $provider = app(SupervisionProviderResolver::class)->resolveUnderEconomicAuthority(
+                $providerName,
+                new SupervisionEconomicScope(
+                    organization: $organization,
+                    actor: $user,
+                    creditUser: $user,
+                    feature: 'service_offer_formulation',
+                ),
+            );
             $result = $provider->runScenario($scenario, $promptContent);
+        } catch (AiRefusedException $e) {
+            // Refus economique AVANT tout appel provider : rien n'est parti,
+            // rien n'est ecrit. Reponse STRUCTUREE, meme contrat JSON que
+            // `BlogController` (T1247) : 429 `{error, code, offers_url}` —
+            // jamais la forme `{suggestion}` d'une reponse IA.
+            return response()->json([
+                'error' => $e->getMessage(),
+                'code' => $e->refusalCode,
+                'offers_url' => $e->offersUrl($organization),
+            ], 429);
         } catch (SupervisionException $e) {
             Log::error('AI formulation failed', [
                 'scenario' => 'service_offer_master',
@@ -270,14 +305,21 @@ class ServiceController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $organization = currentOrganization();
-        if (! $organization) {
+        $user = auth()->user();
+
+        // TASK-1289 : garde d'appartenance a l'Organization resolue avant toute
+        // ecriture — meme forme que ProfileController / ReportController. Sur la
+        // surface courte l'Organization resolue est celle par defaut, quel que
+        // soit l'utilisateur connecte : sans cette garde un membre d'une autre
+        // Organization y creait un service.
+        if (! $organization || $user->organization_id !== $organization->id) {
             abort(404);
         }
 
         $data = $request->validate($this->validationRules($organization), [], __('marketplace.validation_attributes'));
 
         $service = Service::create([
-            'user_id' => auth()->id(),
+            'user_id' => $user->id,
             'organization_id' => $organization->id,
             'title' => $data['title'],
             'description' => $data['description'],

@@ -33,12 +33,21 @@
                                     {{ $interaction->visitor?->full_name ?? __('ai.visitor_anonymous') }}
                                 </p>
                                 <p class="text-xs text-gray-500 dark:text-gray-400">
-                                    {{ $interaction->created_at->format('d/m/Y H:i') }} · {{ $interaction->provider ?? 'rule_based' }}@if($interaction->model) · {{ $interaction->model }}@endif
+                                    {{-- TASK-1252 : un refus sans provider choisi (visiteur anonyme) n'affiche pas un « rule_based » fabrique. --}}
+                                    {{ $interaction->created_at->format('d/m/Y H:i') }}@if($interaction->provider) · {{ $interaction->provider }}@endif@if($interaction->model) · {{ $interaction->model }}@endif
                                 </p>
                             </div>
-                            <span class="inline-flex w-fit rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-200">
-                                {{ $interaction->visitor_type === 'user' ? __('ai.visitor_user') : __('ai.visitor_anonymous_type') }}
-                            </span>
+                            <div class="flex flex-wrap items-center gap-2">
+                                @if($interaction->status === \App\Models\MemberAiProfileInteraction::STATUS_REFUSED)
+                                    {{-- TASK-1251 / TASK-1252 : l'appel a ete refuse AVANT depart (garde economique, ou visiteur anonyme) — pas de reponse, pas de cout. --}}
+                                    <span class="inline-flex w-fit rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" data-economic-refusal="{{ $interaction->metadata['economic_refusal']['code'] ?? '' }}">
+                                        {{ __('ai.interaction_refused_badge') }}
+                                    </span>
+                                @endif
+                                <span class="inline-flex w-fit rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                                    {{ $interaction->visitor_type === 'user' ? __('ai.visitor_user') : __('ai.visitor_anonymous_type') }}
+                                </span>
+                            </div>
                         </div>
 
                         <div class="mt-4 space-y-4">
@@ -48,7 +57,15 @@
                             </div>
                             <div>
                                 <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('ai.response') }}</p>
-                                <p class="mt-1 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200">{{ $interaction->response ?: __('ai.no_response') }}</p>
+                                @if($interaction->status === \App\Models\MemberAiProfileInteraction::STATUS_REFUSED)
+                                    @if(($interaction->metadata['economic_refusal']['code'] ?? null) === \App\Support\Ai\AiRefusedException::CODE_AUTHENTICATION_REQUIRED)
+                                        <p class="mt-1 whitespace-pre-wrap text-sm text-amber-800 dark:text-amber-200">{{ __('ai.interaction_refused_guest_body') }}</p>
+                                    @else
+                                        <p class="mt-1 whitespace-pre-wrap text-sm text-amber-800 dark:text-amber-200">{{ __('ai.interaction_refused_body', ['code' => $interaction->metadata['economic_refusal']['code'] ?? '—']) }}</p>
+                                    @endif
+                                @else
+                                    <p class="mt-1 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200">{{ $interaction->response ?: __('ai.no_response') }}</p>
+                                @endif
                             </div>
                         </div>
                     </article>

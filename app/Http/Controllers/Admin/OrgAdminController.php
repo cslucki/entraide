@@ -2,16 +2,25 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Ai\CapabilityRegistry;
+use App\Ai\Constitution;
+use App\Ai\NervousSystemCoverage;
+use App\Ai\ProviderResolver;
 use App\Http\Controllers\Controller;
+use App\Models\AdminAiPrompt;
+use App\Models\AiInteraction;
 use App\Models\BlogPost;
 use App\Models\BugReport;
 use App\Models\Category;
+use App\Models\Dossier;
 use App\Models\LoginLog;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopMember;
 use App\Models\Message;
 use App\Models\Organization;
+use App\Models\OrganizationAiDoctrine;
+use App\Models\OrganizationAiSetting;
 use App\Models\Referral;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -21,11 +30,17 @@ use App\Models\Theme;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
+use App\Services\Ai\AiUserCreditSettings;
+use App\Services\Ai\DTO\AiConsumptionFilters;
+use App\Services\Ai\OrganizationAiConsumption;
+use App\Services\Ai\OrganizationAiEconomicUsage;
+use App\Services\Ai\OrganizationDoctrineSandbox;
+use App\Services\Dossiers\OrganizationRagOverview;
 use App\Services\LoopGovernanceService;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Services\Loops\LoopPresetConfigurator;
 use App\Services\Loops\PresetException;
-use App\Services\Loops\LoopCardCompositionService;
 use App\Services\LoopService;
 use App\Services\TranslationOverrideService;
 use App\Services\TranslationService;
@@ -33,8 +48,11 @@ use App\Services\UserDataLifecycleRegistry;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -272,7 +290,7 @@ class OrgAdminController extends Controller
             // plateforme ; le bouton scope est pour l'admin d'Organization.
             'canConfigureCards' => ! $loop->isArchived()
                 && auth()->user()?->organization_id === $organization->id
-                && app(\App\Services\Loops\LoopPresetConfigurator::class)->canConfigure(auth()->user(), $loop),
+                && app(LoopPresetConfigurator::class)->canConfigure(auth()->user(), $loop),
             'composition' => app(LoopCardCompositionService::class)->compositionFor($loop),
             'candidates' => User::assignable()
                 ->where('organization_id', $organization->id)
@@ -1032,6 +1050,153 @@ class OrgAdminController extends Controller
         return back()->with('success', __('navigation.org_admin_translation_reset_done'));
     }
 
+    /**
+     * TASK-1212 (IA P4-lite) : configuration IA de l'Organization. Le
+     * credential n'est jamais renvoye a la vue : seul son etat (definie / non
+     * definie, date de mise a jour) est affiche.
+     */
+    public function ai(Organization $organization, AiUserCreditSettings $creditSettings, OrganizationAiEconomicUsage $usage): View
+    {
+        $setting = $organization->aiSetting;
+
+        $monthStart = now()->startOfMonth();
+        $monthlyCost = (float) AiInteraction::query()
+            ->where('organization_id', $organization->id)
+            ->where('created_at', '>=', $monthStart)
+            ->where('created_at', '<', $monthStart->copy()->addMonth())
+            ->where('cost_unknown', false)
+            ->sum('cost_usd');
+
+        return view('admin.org.ai', [
+            'organization' => $organization,
+            'setting' => $setting,
+            'providers' => ProviderResolver::ALLOWED_PROVIDERS,
+            'monthlyCost' => $monthlyCost,
+            'defaultModel' => (string) (config('ai.default_model') ?: config('ai.openrouter.model', 'openai/gpt-4o-mini')),
+            // TASK-1229 : credit IA par utilisateur — reglage plateforme,
+            // override d'Organization, politique effective, membres qui
+            // approchent leur limite (des comptes et des noms de MEMBRES de
+            // cette Organization, jamais un autre tenant).
+            ...$this->userCreditViewData($organization, $creditSettings, $usage),
+        ]);
+    }
+
+    /**
+     * TASK-1229 : donnees du bloc « Credit IA par utilisateur » (page de
+     * configuration IA de l'Organization).
+     *
+     * @return array<string, mixed>
+     */
+    private function userCreditViewData(Organization $organization, AiUserCreditSettings $creditSettings, OrganizationAiEconomicUsage $usage): array
+    {
+        $organization->unsetRelation('aiSetting');
+        $platform = $creditSettings->platform();
+        $policy = $creditSettings->policyFor($organization);
+        $period = AiConsumptionFilters::currentMonth();
+        $setting = $organization->aiSetting;
+
+        $members = [];
+
+        if (! $policy->isUnlimited()) {
+            $uses = $usage->creditUsesByUser((string) $organization->id, $period->from, $period->to);
+            $quota = (int) $policy->monthlyUses;
+            $threshold = $quota > 0 ? $quota * $policy->alertPercent / 100 : 0;
+            $near = array_filter($uses, static fn (int $count): bool => $count >= $threshold);
+
+            if ($near !== []) {
+                $names = User::query()
+                    ->where('organization_id', $organization->id)
+                    ->whereIn('id', array_keys($near))
+                    ->pluck('name', 'id');
+
+                foreach ($near as $userId => $count) {
+                    if (! $names->has($userId)) {
+                        continue;
+                    }
+
+                    $members[] = [
+                        'user_id' => (string) $userId,
+                        'name' => (string) $names->get($userId),
+                        'used' => $count,
+                        'quota' => $quota,
+                        'blocked' => $count >= $quota,
+                    ];
+                }
+
+                usort($members, static fn (array $a, array $b): int => $b['used'] <=> $a['used']);
+            }
+        }
+
+        return [
+            'creditPlatform' => $platform,
+            'creditPolicy' => $policy,
+            'creditMode' => $setting?->user_credit_mode ?? OrganizationAiSetting::USER_CREDIT_MODE_PLATFORM,
+            'creditCustomUses' => $setting?->user_credit_monthly_uses,
+            'creditPeriod' => $period,
+            'creditMembersNearLimit' => $members,
+            'creditLastChange' => $creditSettings->lastChange($organization),
+        ];
+    }
+
+    /**
+     * TASK-1229 : override d'Organization du credit IA par utilisateur —
+     * reglage plateforme / valeur propre / illimite (inclus). Trace (auteur,
+     * horodatage) par `AiUserCreditSettings`.
+     */
+    public function updateAiUserCredit(Request $request, Organization $organization, AiUserCreditSettings $creditSettings): RedirectResponse
+    {
+        $data = $request->validate([
+            'user_credit_mode' => ['required', Rule::in(OrganizationAiSetting::USER_CREDIT_MODES)],
+            'user_credit_monthly_uses' => [
+                Rule::requiredIf(($request->input('user_credit_mode')) === OrganizationAiSetting::USER_CREDIT_MODE_CUSTOM),
+                'nullable', 'integer', 'min:0', 'max:1000000',
+            ],
+        ]);
+
+        $creditSettings->updateOrganization(
+            $organization,
+            $data['user_credit_mode'],
+            isset($data['user_credit_monthly_uses']) && $data['user_credit_monthly_uses'] !== '' ? (int) $data['user_credit_monthly_uses'] : null,
+            $request->user(),
+        );
+
+        return redirect()->route('organization.admin.ai', ['organization' => $organization->slug])
+            ->with('success', __('admin.organization_ai_user_credit_saved'));
+    }
+
+    public function updateAi(Request $request, Organization $organization): RedirectResponse
+    {
+        $data = $request->validate([
+            'provider' => ['required', Rule::in(ProviderResolver::ALLOWED_PROVIDERS)],
+            'model' => ['required', 'string', 'max:150'],
+            'api_key' => ['nullable', 'string', 'max:500'],
+            'clear_api_key' => ['nullable', 'boolean'],
+            'monthly_budget_usd' => ['nullable', 'numeric', 'min:0', 'max:100000'],
+            'is_enabled' => ['nullable', 'boolean'],
+        ]);
+
+        $setting = OrganizationAiSetting::query()->firstOrNew(['organization_id' => $organization->id]);
+        $setting->provider = $data['provider'];
+        $setting->model = trim($data['model']);
+        $budget = $data['monthly_budget_usd'] ?? null;
+        $setting->monthly_budget_usd = $budget !== null && $budget !== '' ? (float) $budget : null;
+        $setting->is_enabled = $request->boolean('is_enabled');
+
+        // Le champ cle est ecrit-seul : vide = conserver, case cochee = effacer.
+        if ($request->boolean('clear_api_key')) {
+            $setting->api_key = null;
+            $setting->api_key_updated_at = null;
+        } elseif (trim((string) ($data['api_key'] ?? '')) !== '') {
+            $setting->api_key = trim($data['api_key']);
+            $setting->api_key_updated_at = now();
+        }
+
+        $setting->save();
+
+        return redirect()->route('organization.admin.ai', ['organization' => $organization->slug])
+            ->with('success', __('admin.organization_ai_saved'));
+    }
+
     public function identity(Organization $organization): View
     {
         return view('admin.org.identity', [
@@ -1099,6 +1264,415 @@ class OrgAdminController extends Controller
     public function aiInteractions(Organization $organization): View
     {
         return $this->comingSoon($organization, __('navigation.org_admin_ai_interactions'));
+    }
+
+    /**
+     * Console RAG read-only (TASK-1217) : ce que l'IA connait des Dossiers de
+     * CETTE Organization, et si l'index est coherent.
+     *
+     * Le read model borne tout par `organization_id`. Ce qu'il ne decide pas,
+     * et qui se decide ici : le droit d'OUVRIR une source. Etre admin
+     * d'Organization ne donne aucun privilege sur `DossierPolicy` (verifie :
+     * `admin_id` n'y apparait pas) — un admin peut donc legitimement voir
+     * qu'un Dossier prive contient des connaissances indexees sans pouvoir en
+     * lire le contenu. « Portee != sujet » : on expose l'etat, jamais le
+     * contenu, et le lien n'apparait que si la policy l'autorise vraiment.
+     */
+    /**
+     * Hub « IA & connaissances » (TASK-1223) : l'etat du systeme IA de
+     * l'Organization en une page — configuration, comportement, connaissances,
+     * consommation — avec des liens vers les consoles existantes. Read-only,
+     * vocabulaire humain, aucune cle affichee, « — » pour l'inconnu.
+     */
+    public function aiCockpit(Organization $organization, OrganizationRagOverview $overview, OrganizationAiEconomicUsage $economics): View
+    {
+        $setting = OrganizationAiSetting::query()
+            ->where('organization_id', $organization->id)
+            ->first();
+
+        $registry = app(CapabilityRegistry::class);
+        $capabilityIds = [
+            CapabilityRegistry::CLARIFY_HELP_REQUEST,
+            CapabilityRegistry::LOOP_SUMMARY,
+            CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER,
+        ];
+
+        // Un prompt est « actif » pour la capability si un AdminAiPrompt actif
+        // existe sur son scenario — la cascade summarize inclut ses variantes
+        // localisees, exactement comme la resolution reelle (TASK-1221).
+        $activeScenarios = AdminAiPrompt::query()
+            ->where('is_active', true)
+            ->pluck('scenario_id')
+            ->all();
+
+        $capabilities = array_map(static function (string $id) use ($registry, $activeScenarios): array {
+            $definition = $registry->get($id);
+            $promptActive = match ($id) {
+                CapabilityRegistry::LOOP_SUMMARY => (bool) array_intersect(
+                    ['chatloop_ai_summarize_fr', 'chatloop_ai_summarize_en', 'chatloop_ai_summarize'],
+                    $activeScenarios,
+                ),
+                default => in_array($definition->promptKey, $activeScenarios, true),
+            };
+
+            return [
+                'id' => $definition->id,
+                'human_validation' => $definition->requiresHumanConfirmation,
+                'read_only' => ! $definition->canWrite,
+                'sources' => $definition->allowedSources,
+                'prompt_active' => $promptActive,
+            ];
+        }, $capabilityIds);
+
+        $monthStart = CarbonImmutable::now()->startOfMonth();
+
+        return view('admin.org.ai-cockpit', [
+            'organization' => $organization,
+            'setting' => $setting,
+            'ready' => $setting?->isUsable() ?? false,
+            'constitutionVersion' => Constitution::VERSION,
+            'capabilities' => $capabilities,
+            // TASK-1227 : la doctrine active de l'Organization, ou aucune.
+            'doctrine' => OrganizationAiDoctrine::activeFor((string) $organization->id),
+            'rag' => $overview->summary($organization->id),
+            'economics' => $economics->summary((string) $organization->id, $monthStart, $monthStart->addMonth()),
+            'monthlyBudgetUsd' => $setting?->monthly_budget_usd,
+        ]);
+    }
+
+    /**
+     * Page « Comportement IA » (TASK-1227) : la Constitution BouclePro en
+     * lecture seule, la doctrine de l'Organization (editable, versionnee),
+     * les capabilities qui la suivent, la couverture du systeme nerveux et
+     * le bac a sable « tester sans publier ». Tout est borne a CETTE
+     * Organization ; aucune cle n'apparait.
+     */
+    public function aiBehavior(Organization $organization, NervousSystemCoverage $coverage): View
+    {
+        return view('admin.org.ai-behavior', $this->aiBehaviorViewData($organization, $coverage));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function aiBehaviorViewData(Organization $organization, NervousSystemCoverage $coverage): array
+    {
+        $active = OrganizationAiDoctrine::activeFor((string) $organization->id);
+
+        $history = OrganizationAiDoctrine::query()
+            ->where('organization_id', $organization->id)
+            ->with('author:id,name')
+            ->orderByDesc('version')
+            ->limit(20)
+            ->get();
+
+        return [
+            'organization' => $organization,
+            'constitutionVersion' => Constitution::VERSION,
+            'constitutionText' => app(Constitution::class)->text(),
+            'doctrine' => $active,
+            'doctrineHistory' => $history,
+            'doctrineHistoryTotal' => OrganizationAiDoctrine::query()->where('organization_id', $organization->id)->count(),
+            'doctrineMaxChars' => OrganizationAiDoctrine::maxChars(),
+            'coveredCapabilities' => $coverage->covered(),
+            'inheritedFunctions' => $coverage->inherited(),
+            'coveredCount' => $coverage->coveredCount(),
+            'totalCount' => $coverage->totalCount(),
+            'sandboxCapabilities' => OrganizationDoctrineSandbox::SUPPORTED,
+            // Le resultat flashe n'est rendu que pour l'Organization qui l'a
+            // produit (un admin de plusieurs Organizations ne le voit jamais
+            // ailleurs — revue PASS A).
+            'sandboxResult' => $this->sandboxResultFor($organization),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function sandboxResultFor(Organization $organization): ?array
+    {
+        $result = session('doctrine_sandbox');
+
+        if (! is_array($result) || ($result['organization_id'] ?? null) !== (string) $organization->id) {
+            return null;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Enregistre une NOUVELLE version de la doctrine et l'active. Un texte
+     * identique a la version active ne cree rien.
+     */
+    public function updateAiDoctrine(Request $request, Organization $organization): RedirectResponse
+    {
+        $data = $request->validate([
+            'body' => ['required', 'string', 'max:'.OrganizationAiDoctrine::maxChars()],
+        ]);
+
+        $before = OrganizationAiDoctrine::activeFor((string) $organization->id);
+        $doctrine = OrganizationAiDoctrine::activate($organization, $data['body'], $request->user());
+
+        $message = $before !== null && $before->is($doctrine)
+            ? __('ai.behavior_doctrine_unchanged', ['version' => $doctrine->version])
+            : __('ai.behavior_doctrine_saved', ['version' => $doctrine->version]);
+
+        return redirect()
+            ->route('organization.admin.ai-behavior', ['organization' => $organization->slug])
+            ->with('success', $message);
+    }
+
+    /**
+     * Retire la doctrine active : l'Organization revient a la composition
+     * sans doctrine (identique a l'avant-TASK). L'historique reste.
+     */
+    public function withdrawAiDoctrine(Organization $organization): RedirectResponse
+    {
+        $withdrawn = OrganizationAiDoctrine::withdraw($organization);
+
+        return redirect()
+            ->route('organization.admin.ai-behavior', ['organization' => $organization->slug])
+            ->with($withdrawn ? 'success' : 'info', $withdrawn
+                ? __('ai.behavior_doctrine_withdrawn')
+                : __('ai.behavior_doctrine_nothing_to_withdraw'));
+    }
+
+    /**
+     * « Tester sans publier » : appel IA REEL avec la doctrine candidate,
+     * comptabilise au ledger ; rien n'est active, aucune action metier.
+     * PRG : le resultat voyage en session, le brouillon revient par old().
+     */
+    public function sandboxAiDoctrine(
+        Request $request,
+        Organization $organization,
+        OrganizationDoctrineSandbox $sandbox,
+    ): RedirectResponse {
+        $data = $request->validate([
+            'body' => ['nullable', 'string', 'max:'.OrganizationAiDoctrine::maxChars()],
+            'capability' => ['required', 'string', Rule::in(OrganizationDoctrineSandbox::SUPPORTED)],
+            'question' => ['required', 'string', 'min:3', 'max:1000'],
+        ]);
+
+        $result = $sandbox->run(
+            $organization,
+            $request->user(),
+            $data['capability'],
+            (string) ($data['body'] ?? ''),
+            $data['question'],
+        );
+
+        return redirect()
+            ->route('organization.admin.ai-behavior', ['organization' => $organization->slug])
+            ->withInput($request->only(['body', 'capability', 'question']))
+            ->with('doctrine_sandbox', $result->toArray());
+    }
+
+    /**
+     * Observatoire des connaissances (TASK-1217 console, TASK-1226 vivant),
+     * read-only : la page complete.
+     */
+    public function aiKnowledge(Organization $organization, OrganizationRagOverview $overview): View
+    {
+        return view('admin.org.ai-knowledge', $this->knowledgeObservatory($organization, $overview) + [
+            'liveUrl' => route('organization.admin.ai-knowledge.live', ['organization' => $organization->slug]),
+        ]);
+    }
+
+    /**
+     * TASK-1226 : le fragment rafraichi par l'Observatoire (polling leger).
+     *
+     * Meme middleware, meme read model, meme partiel Blade que la page — une
+     * seule source de rendu, donc jamais deux verites. Read-only strict :
+     * aucun embedding, aucun appel provider, aucune lecture de fichier ; lire
+     * l'Observatoire coute 0 appel IA. `no-store` : un poll ne se met jamais
+     * en cache, ni cote navigateur ni cote proxy.
+     */
+    public function aiKnowledgeLive(Organization $organization, OrganizationRagOverview $overview): Response
+    {
+        $html = view('admin.org.partials.ai-knowledge-live', $this->knowledgeObservatory($organization, $overview))->render();
+
+        return response($html)
+            ->header('Content-Type', 'text/html; charset=UTF-8')
+            ->header('Cache-Control', 'no-cache, no-store, private');
+    }
+
+    /**
+     * Les donnees de l'Observatoire, partagees entre la page et le fragment.
+     *
+     * Le lien « Ouvrir » suit la `DossierPolicy` et elle seule : etre admin
+     * ne donne pas acces au contenu d'un Dossier prive (TASK-1217). La policy
+     * n'est evaluee que pour les Dossiers qui portent au moins une source, et
+     * ses relations (`parent`, `loop`, `sharedWithLoop`) sont pre-attachees
+     * depuis les Dossiers deja charges : `governingDossier()` et
+     * `sharingAnchorIds()` remontent l'arbre en memoire, sans requete par
+     * niveau. Le nombre de requetes ne depend donc pas du nombre de sources.
+     *
+     * @return array<string, mixed>
+     */
+    private function knowledgeObservatory(Organization $organization, OrganizationRagOverview $overview): array
+    {
+        $user = auth()->user();
+        $sources = $overview->sources($organization->id);
+
+        $dossiers = Dossier::query()
+            ->where('organization_id', $organization->id)
+            ->whereNull('deleted_at')
+            ->get()
+            ->keyBy('id');
+
+        $loopIds = $dossiers
+            ->flatMap(fn (Dossier $dossier): array => [$dossier->loop_id, $dossier->shared_with_loop_id])
+            ->filter()
+            ->unique()
+            ->values();
+
+        $loops = $loopIds->isEmpty()
+            ? collect()
+            : Loop::query()->where('organization_id', $organization->id)->whereIn('id', $loopIds->all())->get()->keyBy('id');
+
+        foreach ($dossiers as $dossier) {
+            $dossier->setRelation('parent', $dossier->parent_id !== null ? $dossiers->get($dossier->parent_id) : null);
+            $dossier->setRelation('loop', $dossier->loop_id !== null ? $loops->get($dossier->loop_id) : null);
+            $dossier->setRelation('sharedWithLoop', $dossier->shared_with_loop_id !== null ? $loops->get($dossier->shared_with_loop_id) : null);
+        }
+
+        $referencedDossierIds = array_unique(array_column($sources, 'dossier_id'));
+        $gate = $user !== null ? Gate::forUser($user) : null;
+        $openable = [];
+
+        foreach ($referencedDossierIds as $dossierId) {
+            $dossier = $dossiers->get($dossierId);
+
+            // Un Dossier dont la racine gouvernante ne se resout pas dans le
+            // perimetre (parent supprime, hors Organization, ou chaine plus
+            // profonde que la borne) n'est jamais ouvrable d'ici : sa
+            // `visibility` n'est qu'une copie faite a la creation, la
+            // policy ne peut pas y lire une autorisation fiable.
+            $openable[$dossierId] = $gate !== null
+                && $dossier !== null
+                && $this->governingRootIsResolved($dossier)
+                && $gate->allows('view', $dossier);
+        }
+
+        $sources = array_map(function (array $source) use ($openable): array {
+            $source['can_open'] = $openable[$source['dossier_id']] ?? false;
+
+            return $source;
+        }, $sources);
+
+        return [
+            'organization' => $organization,
+            'summary' => $overview->summary($organization->id),
+            'sources' => $sources,
+            'perimeters' => $overview->perimeters($sources),
+            'availability' => $overview->indexingAvailability($organization),
+            'diagnostics' => $overview->diagnostics($organization->id),
+            'generatedAt' => CarbonImmutable::now(),
+        ];
+    }
+
+    /**
+     * Vrai si la remontee `parent` (pre-attachee depuis le perimetre de
+     * l'Organization) atteint une vraie racine en moins de `Dossier::MAX_DEPTH`
+     * niveaux — c'est-a-dire si `governingDossier()` repond sur une donnee
+     * complete et non sur un enfant orphelin.
+     */
+    private function governingRootIsResolved(Dossier $dossier): bool
+    {
+        $current = $dossier;
+        $depth = 0;
+
+        while ($current->parent_id !== null && $depth < Dossier::MAX_DEPTH) {
+            $parent = $current->relationLoaded('parent') ? $current->parent : null;
+
+            if ($parent === null) {
+                return false;
+            }
+
+            $current = $parent;
+            $depth++;
+        }
+
+        return $current->parent_id === null;
+    }
+
+    /**
+     * Console « Consommation IA » (TASK-1219), read-only.
+     *
+     * Rend ce que la garde economique compte deja pour CETTE Organization :
+     * meme table, meme fenetre, meme forme en deux parts (cout connu d'un cote,
+     * appels non mesurables de l'autre). Le read model porte le tenant et la
+     * doctrine ; la page ne fait que choisir la periode et les dimensions.
+     *
+     * Le budget mensuel eventuel est lu depuis `organization_ai_settings` pour
+     * situer le cout connu — jamais pour completer un cout manquant.
+     */
+    public function aiConsumption(
+        Request $request,
+        Organization $organization,
+        OrganizationAiConsumption $consumption,
+        OrganizationAiEconomicUsage $usage,
+    ): View {
+        $filters = AiConsumptionFilters::fromRequest($request);
+        $month = AiConsumptionFilters::currentMonth();
+
+        // TASK-1228 : le budget mensuel n'a de sens que sur la fenetre de la
+        // garde ; sur une periode personnalisee, « consomme » reste vrai mais
+        // « reste » n'est pas calcule.
+        $isCurrentMonth = $filters->from->equalTo($month->from) && $filters->to->equalTo($month->to);
+        $economics = $usage->summary((string) $organization->id, $filters->from, $filters->to);
+        $budget = $organization->aiSetting?->monthly_budget_usd;
+        $budget = $budget !== null ? (float) $budget : null;
+
+        // TASK-1229 : credit IA par utilisateur — politique effective de
+        // l'Organization et utilisations creditees de chaque membre sur le
+        // mois courant (jamais sur une periode personnalisee : le credit n'a
+        // de sens que sur la fenetre du budget).
+        $creditPolicy = app(AiUserCreditSettings::class)->policyFor($organization);
+        $creditUses = $isCurrentMonth
+            ? $usage->creditUsesByUser((string) $organization->id, $filters->from, $filters->to)
+            : null;
+
+        return view('admin.org.ai-consumption', [
+            'organization' => $organization,
+            'filters' => $filters,
+            'isCurrentMonth' => $isCurrentMonth,
+            'economics' => $economics,
+            'economicsByUser' => $usage->byUser((string) $organization->id, $filters->from, $filters->to),
+            // TASK-1258 : « Fonctions les plus consommatrices » — la MEME autorite,
+            // groupee par process, org-wide sur la periode (comme le bloc budget :
+            // les filtres de dimension ne s'y appliquent pas).
+            'economicsByProcess' => $usage->generationByProcess((string) $organization->id, $filters->from, $filters->to),
+            'creditPolicy' => $creditPolicy,
+            'creditUses' => $creditUses,
+            'budget' => [
+                'monthly_usd' => $budget,
+                'consumed_usd' => $economics['total_known_cost_usd'],
+                // Reste = budget - MESURE ; les inconnus sont comptes a cote,
+                // jamais soustraits ni supposes nuls. Sans aucune mesure, la
+                // garde n'a rien retranche : reste = budget, 0 % — une seule
+                // regle pour les deux chiffres (revue PASS B). Le pourcentage
+                // n'est PAS plafonne : 250 % consomme s'affiche 250 %.
+                'remaining_usd' => $isCurrentMonth && $budget !== null
+                    ? $budget - (float) ($economics['total_known_cost_usd'] ?? 0.0)
+                    : null,
+                'percent' => $isCurrentMonth && $budget !== null && $budget > 0
+                    ? round((float) ($economics['total_known_cost_usd'] ?? 0.0) / $budget * 100, 1)
+                    : null,
+            ],
+            // Le budget et la ventilation portent sur TOUTE l'Organization : les
+            // filtres de dimension (utilisateur, process, modele, fournisseur)
+            // ne s'y appliquent pas — l'ecran le dit quand ils sont poses.
+            'economicsIgnoreDimensionFilters' => $filters->userId !== null || $filters->process !== null || $filters->model !== null || $filters->provider !== null,
+            'summary' => $consumption->summary($organization->id, $filters),
+            'byProcess' => $consumption->byProcess($organization->id, $filters),
+            'byModel' => $consumption->byModel($organization->id, $filters),
+            'byProvider' => $consumption->byProvider($organization->id, $filters),
+            'byUser' => $consumption->byUser($organization->id, $filters),
+            'byDay' => $consumption->byDay($organization->id, $filters),
+            'available' => $consumption->availableFilters($organization->id, $filters),
+            'monthlyBudgetUsd' => $organization->aiSetting?->monthly_budget_usd,
+        ]);
     }
 
     // ── Design / Homepage ───────────────────────────────────────────────────────

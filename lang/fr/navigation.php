@@ -100,6 +100,7 @@ return [
     'org_admin_blog' => 'Blog',
     'org_admin_categories' => 'Catégories',
     'org_admin_users' => 'Utilisateurs',
+    'org_admin_ai' => 'IA',
     'org_admin_identity' => 'Identité',
     'org_admin_reports' => 'Signalements',
     'org_admin_invitations' => 'Invitations',
@@ -107,6 +108,9 @@ return [
     'org_admin_ai_supervision' => 'Supervision IA',
     'org_admin_member_ai_profiles' => 'Profils IA membres',
     'org_admin_ai_interactions' => 'Interactions IA',
+    // TASK-1217 : console RAG read-only de l'Organization
+    'org_admin_ai_knowledge' => 'Mes connaissances IA',
+    'org_admin_ai_consumption' => 'Consommation IA',
     'org_admin_section_exchanges' => 'Échanges',
     'org_admin_section_content' => 'Contenu',
     'org_admin_section_community' => 'Communauté',
@@ -294,4 +298,9 @@ return [
     'org_admin_translation_reset_done' => 'Override(s) réinitialisé(s) avec succès.',
     'org_admin_translation_no_active' => 'Aucun override actif à réinitialiser.',
     'org_admin_translation_reset_confirm' => 'Réinitialiser tous les overrides de cette entrée ? Retour aux valeurs originales des fichiers lang/.',
+
+    // TASK-1223
+    'org_admin_ai_cockpit' => 'IA & connaissances',
+    'org_admin_ai_behavior' => 'Comportement IA',
+    'my_ai_usage' => 'Mes usages IA',
 ];

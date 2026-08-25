@@ -2,40 +2,59 @@
 
 namespace App\Services\ChatLoop;
 
+use App\Ai\Agents\LoopDirectAnswerAgent;
 use App\Ai\Agents\LoopSummaryAgent;
 use App\Ai\CapabilityDefinition;
 use App\Ai\CapabilityRegistry;
+use App\Ai\Context\ContextBuilder;
+use App\Ai\Context\LoopMessagesSource;
 use App\Ai\ContexteIa;
 use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
 use App\Ai\ResolvedModel;
 use App\Events\LoopMessageCreated;
 use App\Models\AdminAiPrompt;
-use App\Models\AiConfig;
 use App\Models\AiInteraction;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\User;
+use App\Services\Ai\AiProviderInvocationLedger;
 use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiProcess;
+use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiUsage;
-use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 
 class ChatLoopAiService
 {
     public function __construct(
         private readonly AiEconomicGuard $economicGuard,
+        private readonly AiProviderInvocationLedger $ledger,
         private readonly CapabilityRegistry $capabilities,
         private readonly PromptRepository $prompts,
         private readonly ProviderResolver $providers,
+        private readonly ContextBuilder $contextBuilder,
+        private readonly LoopMessagesSource $loopMessages,
     ) {}
 
+    /**
+     * Capability `loop_answer` — « Demander a l'IA » : intervention spontanee
+     * de l'IA dans la Boucle, publiee comme message `ai` (TASK-1233).
+     *
+     * Meme chaine que `summarize()` : capability canonique -> Constitution ->
+     * doctrine de l'Organization -> prompt administrable EXIGE -> Context
+     * Builder (sources autorisees) -> provider et credential de l'Organization
+     * -> AiEconomicGuard (budget + credit du demandeur) -> invocation SDK
+     * tracee (ledger + ai_interactions, provenance) -> publication. La SURFACE
+     * historique est conservee (verrou, messages, metadata, evenements,
+     * erreurs) ; le CONTENU de la reponse change quand une doctrine est active :
+     * c'est le but.
+     */
     public function answer(Loop $loop, User $requester): LoopMessage
     {
         $this->assertCanRequest($loop, $requester);
@@ -59,14 +78,18 @@ class ChatLoopAiService
             }
 
             $scenarioId = (string) config('ai.chatloop.scenario', 'chatloop_ai_answer');
-            $systemPrompt = $this->resolvePrompt($scenarioId, $locale);
 
-            [$context, $contextMessageIds, $triggerMessageId] = $this->buildContext($loop, $locale);
-
-            $ai = $this->callAi($loop, $requester, $scenarioId, $systemPrompt, $context);
+            $generated = $this->generateDirectAnswer(
+                loop: $loop,
+                requester: $requester,
+                capability: CapabilityRegistry::LOOP_ANSWER,
+                scenarioId: $scenarioId,
+                locale: $locale,
+                question: null,
+            );
 
             $answer = AiMarkdownSanitizer::sanitize(
-                $ai['content'],
+                (string) $generated['interaction']->response,
                 (int) config('ai.chatloop.max_response_chars', 1400),
             );
 
@@ -74,22 +97,25 @@ class ChatLoopAiService
                 throw new \RuntimeException(__('loops.ai_empty_response'));
             }
 
-            return DB::transaction(function () use ($loop, $requester, $answer, $ai, $contextMessageIds, $triggerMessageId) {
+            return DB::transaction(function () use ($loop, $requester, $answer, $generated) {
                 $message = LoopMessage::create([
                     'loop_id' => $loop->id,
                     'sender_id' => null,
-                    'reply_to_id' => null,
+                    // TASK-1297 : le meme lien que ask() — la reponse pointe le
+                    // message humain qui l'a declenchee (nullable : contexte
+                    // sans message non-IA).
+                    'reply_to_id' => $generated['trigger_message_id'],
                     'body' => $answer,
                     'image_path' => null,
                     'type' => 'ai',
                     'metadata' => [
                         'requested_by' => $requester->id,
                         'action' => 'answer',
-                        'context_message_ids' => $contextMessageIds,
-                        'trigger_message_id' => $triggerMessageId,
-                        'provider' => $ai['provider'],
-                        'model' => $ai['model'],
-                        'ai_interaction_id' => $ai['ai_interaction_id'],
+                        'context_message_ids' => $generated['context_message_ids'],
+                        'trigger_message_id' => $generated['trigger_message_id'],
+                        'provider' => $generated['provider'],
+                        'model' => $generated['model'],
+                        'ai_interaction_id' => $generated['interaction']->id,
                     ],
                     'organization_id' => $loop->organization_id,
                 ]);
@@ -158,15 +184,37 @@ class ChatLoopAiService
 
             // Constitution d'abord, instruction capability ensuite. AdminAiPrompt
             // reste la source de l'instruction, il ne remplace pas la Constitution.
+            // TASK-1221 : au point CANONIQUE, le prompt administrable est EXIGE —
+            // plus aucun repli silencieux vers un prompt hardcode (meme regle que
+            // clarify et knowledge). Le provisioning deploy-safe garantit qu'un
+            // prompt actif existe des le deploiement.
+            // TASK-1227 : la doctrine active de l'Organization est composee
+            // sous la Constitution, au meme point que clarify et knowledge.
             $instructions = $this->prompts->compose(
                 $capability,
-                $this->resolvePrompt($scenarioId, $locale),
+                $this->resolvePromptOrFail($scenarioId, $locale, 'loops.ai_summary_prompt_missing'),
+                (string) $organization->id,
             );
+            // TASK-1236 : version de doctrine reellement composee ci-dessus,
+            // tracee sur l'interaction plutot que reconstituee a posteriori.
+            $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
 
-            [$context] = $this->buildContext($loop, $locale);
+            // TASK-1209 : plus de construction ad hoc. La capability declare ses
+            // sources, le Context Builder decide ce qu'elle a le droit de lire.
+            $borne = $this->contextBuilder->build($contexte, $definition);
+            $context = $borne->text;
 
-            $resolved = $this->providers->resolve($capability, $contexte);
+            // TASK-1212 : pas de configuration IA pour cette Organization =
+            // indisponibilite explicite, avant tout appel, sans repli plateforme.
+            // TASK-1229 : etat « credential absent », code stable (AiRefusedException).
+            try {
+                $resolved = $this->providers->resolve($capability, $contexte);
+            } catch (\DomainException $exception) {
+                throw AiRefusedException::notConfigured($exception);
+            }
 
+            // TASK-1229 : le demandeur est passe a la garde — son credit IA du
+            // mois s'applique ici, dans l'autorite existante.
             $verdict = $this->economicGuard->authorize(
                 $organization,
                 $definition->process,
@@ -174,13 +222,13 @@ class ChatLoopAiService
                 $resolved->model,
                 (float) config('ai.chatloop.summary_economic_guard.monthly_budget_usd', 2.00),
                 (int) config('ai.chatloop.summary_economic_guard.monthly_unknown_limit', 10),
+                $requester,
             );
 
-            // Un refus est un refus : aucun appel SDK n'est emis.
+            // Un refus est un refus : aucun appel SDK n'est emis. Trois etats,
+            // trois messages, trois codes.
             if (! $verdict->allowed) {
-                throw new \RuntimeException($verdict->reason === AiEconomicGuard::REASON_MONTHLY_BUDGET_REACHED
-                    ? __('loops.ai_summary_monthly_budget_reached')
-                    : __('loops.ai_summary_temporarily_unavailable'));
+                throw AiRefusedException::fromVerdict($verdict, 'loops.ai_summary_temporarily_unavailable');
             }
 
             $interaction = $this->generateSummaryViaSdk(
@@ -192,6 +240,7 @@ class ChatLoopAiService
                 $scenarioId,
                 $instructions,
                 $context,
+                $doctrineVersion,
             );
 
             $summary = LoopSummary::fromInteraction(
@@ -232,6 +281,7 @@ class ChatLoopAiService
         string $scenarioId,
         string $instructions,
         string $context,
+        ?int $doctrineVersion,
     ): AiInteraction {
         $agent = new LoopSummaryAgent(
             $instructions,
@@ -239,14 +289,51 @@ class ChatLoopAiService
             (float) config('ai.chatloop.temperature', 0.7),
         );
 
+        return $this->generateViaSdk(
+            agent: $agent,
+            loop: $loop,
+            requester: $requester,
+            contexte: $contexte,
+            definition: $definition,
+            resolved: $resolved,
+            scenarioId: $scenarioId,
+            prompt: $context,
+            extraMetadata: [],
+            doctrineVersion: $doctrineVersion,
+        );
+    }
+
+    /**
+     * Invocation SDK canonique + trace P1 unique + ledger, partagee par le
+     * resume et par « Demander a l'IA » (TASK-1233). Une operation utilisateur
+     * = un `correlation_id` ; une invocation SDK = un `invocationId` distinct.
+     * Provider ET modele passes EXPLICITEMENT : le SDK ne retombe sur aucun
+     * defaut, et une liste a une seule entree exclut tout failover.
+     *
+     * @param  array<string, mixed>  $extraMetadata
+     */
+    private function generateViaSdk(
+        LoopSummaryAgent|LoopDirectAnswerAgent $agent,
+        Loop $loop,
+        User $requester,
+        ContexteIa $contexte,
+        CapabilityDefinition $definition,
+        ResolvedModel $resolved,
+        string $scenarioId,
+        string $prompt,
+        array $extraMetadata,
+        ?int $doctrineVersion,
+    ): AiInteraction {
         $startedAt = microtime(true);
 
         try {
             // Provider ET modele passes EXPLICITEMENT : le SDK ne retombe sur
             // aucun defaut, et une liste a une seule entree exclut tout failover.
             $response = $agent->prompt(
-                $context,
-                provider: $resolved->provider,
+                $prompt,
+                // TASK-1212 : l'instance SDK du tenant (son credential), la
+                // famille `provider` ne servant qu'a la trace et au tarif.
+                provider: $resolved->instance,
                 model: $resolved->model,
                 timeout: $this->providerTimeout($resolved->provider),
             );
@@ -255,21 +342,25 @@ class ChatLoopAiService
             // `cost_unknown` NULL, l'etat « statut de cout non evalue » du
             // tri-etat P1-2. Un echec n'entre donc ni dans le budget mensuel,
             // ni dans le quota UNKNOWN.
-            $this->recordSummaryInteraction(
+            $this->recordInteraction(
                 loop: $loop,
                 requester: $requester,
                 contexte: $contexte,
                 definition: $definition,
                 resolved: $resolved,
                 scenarioId: $scenarioId,
-                context: $context,
+                context: $prompt,
+                extraMetadata: $extraMetadata,
                 text: null,
                 usage: AiUsage::notObserved(),
                 costAttributes: ['cost_usd' => null, 'cost_unknown' => null],
+                cost: null,
                 status: 'failed',
                 latencyMs: $this->elapsedMs($startedAt),
+                startedAt: $startedAt,
                 sdkInvocationId: null,
                 failure: $exception::class,
+                doctrineVersion: $doctrineVersion,
             );
 
             throw new \RuntimeException(__('loops.ai_error'), 0, $exception);
@@ -285,28 +376,33 @@ class ChatLoopAiService
         // un : le catalogue tranche, sinon UNKNOWN.
         $cost = $this->economicGuard->finalize($resolved->provider, $resolved->model, $usage);
 
-        return $this->recordSummaryInteraction(
+        return $this->recordInteraction(
             loop: $loop,
             requester: $requester,
             contexte: $contexte,
             definition: $definition,
             resolved: $resolved,
             scenarioId: $scenarioId,
-            context: $context,
+            context: $prompt,
+            extraMetadata: $extraMetadata,
             text: trim($response->text),
             usage: $usage,
             costAttributes: $cost->traceAttributes(),
+            cost: $cost,
             status: 'success',
             latencyMs: $this->elapsedMs($startedAt),
+            startedAt: $startedAt,
             sdkInvocationId: $response->invocationId,
             failure: null,
+            doctrineVersion: $doctrineVersion,
         );
     }
 
     /**
      * @param  array{cost_usd: ?float, cost_unknown: ?bool}  $costAttributes
+     * @param  array<string, mixed>  $extraMetadata  provenance et sources (TASK-1233)
      */
-    private function recordSummaryInteraction(
+    private function recordInteraction(
         Loop $loop,
         User $requester,
         ContexteIa $contexte,
@@ -314,14 +410,39 @@ class ChatLoopAiService
         ResolvedModel $resolved,
         string $scenarioId,
         string $context,
+        array $extraMetadata,
         ?string $text,
         AiUsage $usage,
         array $costAttributes,
+        ?AiCost $cost,
         string $status,
         int $latencyMs,
+        ?float $startedAt,
         ?string $sdkInvocationId,
         ?string $failure,
+        ?int $doctrineVersion,
     ): AiInteraction {
+        // TASK-1220 : ligne canonique du ledger `ai_provider_invocations`,
+        // memes points que la trace P1 (succes ET echec). Les refus
+        // pre-provider (configuration absente, budget atteint) leverent avant
+        // tout appel SDK : ils n'ecrivent RIEN ici — aucune consommation
+        // fictive. TASK-1233 : plus aucun chemin HTTP legacy — resume et
+        // « Demander a l'IA » passent tous par cette methode.
+        $this->ledger->recordGeneration(
+            organizationId: $contexte->organizationId,
+            userId: (string) $requester->id,
+            capability: $definition->id,
+            process: $definition->process,
+            resolved: $resolved,
+            usage: $usage,
+            cost: $cost,
+            status: $status,
+            correlationId: $contexte->correlationId,
+            sdkInvocationId: $sdkInvocationId,
+            failureReason: $failure,
+            startedAtMicrotime: $startedAt,
+        );
+
         return AiInteraction::create([
             'user_id' => $requester->id,
             // Le tenant vient de la Boucle, pas du contexte de requete : une
@@ -346,7 +467,12 @@ class ChatLoopAiService
                 'status' => $status,
                 'sdk_invocation_id' => $sdkInvocationId,
                 'failure' => $failure,
-            ], static fn ($value): bool => $value !== null),
+                ...$extraMetadata,
+            ], static fn ($value): bool => $value !== null)
+                // TASK-1236 : cle toujours presente, meme a null (aucune doctrine
+                // active) — sa PRESENCE distingue une interaction tracee d'une
+                // ligne anterieure au mecanisme, ce qu'un array_filter effacerait.
+                + ['doctrine_version' => $doctrineVersion],
         ]);
     }
 
@@ -395,6 +521,11 @@ class ChatLoopAiService
             );
     }
 
+    /**
+     * Capability `loop_ask` — « Demander a l'IA » : question d'un membre,
+     * publiee (message `user`) puis repondue (message `ai`) dans la Boucle
+     * (TASK-1233). Meme chaine canonique que `answer()`.
+     */
     public function ask(Loop $loop, User $requester, string $question): LoopMessage
     {
         $this->assertCanRequest($loop, $requester);
@@ -413,19 +544,18 @@ class ChatLoopAiService
         try {
             $locale = $this->resolveLocale($requester, $loop);
             $scenarioId = (string) config('ai.chatloop.ask_scenario', 'chatloop_ai_ask');
-            $systemPrompt = $this->resolvePrompt($scenarioId, $locale);
 
-            [$context, $contextMessageIds, $triggerMessageId] = $this->buildContext($loop, $locale);
-
-            $userContent = trim($question);
-            if ($context !== '') {
-                $userContent = $context."\n\n".'Question : '.$userContent;
-            }
-
-            $ai = $this->callAi($loop, $requester, $scenarioId, $systemPrompt, $userContent);
+            $generated = $this->generateDirectAnswer(
+                loop: $loop,
+                requester: $requester,
+                capability: CapabilityRegistry::LOOP_ASK,
+                scenarioId: $scenarioId,
+                locale: $locale,
+                question: trim($question),
+            );
 
             $answer = AiMarkdownSanitizer::sanitize(
-                $ai['content'],
+                (string) $generated['interaction']->response,
                 (int) config('ai.chatloop.max_response_chars', 1400),
             );
 
@@ -433,7 +563,7 @@ class ChatLoopAiService
                 throw new \RuntimeException(__('loops.ai_empty_response'));
             }
 
-            return DB::transaction(function () use ($loop, $requester, $question, $answer, $ai, $contextMessageIds, $triggerMessageId) {
+            return DB::transaction(function () use ($loop, $requester, $question, $answer, $generated) {
                 $userMessage = LoopMessage::create([
                     'loop_id' => $loop->id,
                     'sender_id' => $requester->id,
@@ -458,16 +588,15 @@ class ChatLoopAiService
                         'requested_by' => $requester->id,
                         'action' => 'ask',
                         'question' => $question,
-                        'context_message_ids' => $contextMessageIds,
-                        'trigger_message_id' => $triggerMessageId,
-                        'provider' => $ai['provider'],
-                        'model' => $ai['model'],
-                        'ai_interaction_id' => $ai['ai_interaction_id'],
+                        'context_message_ids' => $generated['context_message_ids'],
+                        'trigger_message_id' => $generated['trigger_message_id'],
+                        'provider' => $generated['provider'],
+                        'model' => $generated['model'],
+                        'ai_interaction_id' => $generated['interaction']->id,
                     ],
                     'organization_id' => $loop->organization_id,
                 ]);
 
-                event(new LoopMessageCreated($userMessage));
                 event(new LoopMessageCreated($message));
 
                 $loop->touch();
@@ -477,6 +606,164 @@ class ChatLoopAiService
         } finally {
             Cache::forget($lockKey);
         }
+    }
+
+    /**
+     * La chaine canonique commune a `answer()` et `ask()` (TASK-1233), calquee
+     * maillon par maillon sur `summarize()` :
+     *
+     *   capability -> scope -> ContexteIa -> PromptRepository::compose
+     *   (Constitution -> doctrine active -> prompt administrable EXIGE) ->
+     *   ContextBuilder (loop.messages, budget borne, provenance) ->
+     *   ProviderResolver (credential Organization, aucun repli plateforme) ->
+     *   AiEconomicGuard::authorize (budget Organization, process, credit du
+     *   demandeur) -> SDK -> ledger + trace.
+     *
+     * Un refus leve AVANT tout appel provider : rien n'est ecrit, rien n'est
+     * publie (la question de `ask` n'est un message qu'apres la reponse).
+     *
+     * @return array{interaction: AiInteraction, context_message_ids: list<string>, trigger_message_id: ?string, provider: string, model: string}
+     */
+    private function generateDirectAnswer(
+        Loop $loop,
+        User $requester,
+        string $capability,
+        string $scenarioId,
+        string $locale,
+        ?string $question,
+    ): array {
+        $definition = $this->capabilities->get($capability);
+
+        // La Boucle est une PORTEE a l'interieur du tenant, jamais le tenant.
+        $this->capabilities->assertScopeAllowed($capability, CapabilityRegistry::SCOPE_LOOP);
+
+        $organization = $loop->organization()->firstOrFail();
+
+        $contexte = new ContexteIa(
+            organizationId: (string) $organization->id,
+            userId: (string) $requester->id,
+            loopId: (string) $loop->id,
+            locale: $locale,
+            capability: $capability,
+            correlationId: AiCorrelation::id(),
+            source: CapabilityRegistry::SOURCE_LOOP_MESSAGES,
+        );
+
+        // Constitution -> doctrine de l'Organization -> prompt administrable
+        // (EXIGE, comme summarize/clarify/knowledge : aucun repli hardcode).
+        // Les instructions passees ici sont, octet pour octet, le prompt
+        // administrable + l'instruction de langue d'avant la migration : une
+        // Organization sans doctrine active obtient la meme composition qu'une
+        // capability canonique sans doctrine — invariant teste (TASK-1233).
+        $instructions = $this->prompts->compose(
+            $capability,
+            $this->resolvePromptOrFail($scenarioId, $locale, 'loops.ai_answer_prompt_missing'),
+            (string) $organization->id,
+        );
+        // TASK-1236 : version de doctrine reellement composee ci-dessus,
+        // tracee sur l'interaction plutot que reconstituee a posteriori.
+        $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
+
+        // Le contexte vient du Context Builder : la capability declare ses
+        // sources, le Builder decide ce qu'elle a le droit de lire, et la
+        // provenance (ids des messages) est celle du Builder — plus aucune
+        // construction ad hoc.
+        $borne = $this->contextBuilder->build($contexte, $definition);
+        $context = $borne->text;
+
+        $contextMessageIds = array_map(
+            static fn (array $entry): string => (string) $entry['id'],
+            $borne->provenanceFor(CapabilityRegistry::SOURCE_LOOP_MESSAGES),
+        );
+
+        // Le declencheur (`reply_to`) est le dernier message humain PARMI ceux
+        // que le Builder a retenus : meme ensemble, aucune derive possible.
+        $triggerMessageId = $this->triggerMessageId($loop, $contextMessageIds);
+
+        $prompt = $question !== null && $question !== ''
+            ? ($context !== '' ? $context."\n\n".'Question : '.$question : $question)
+            : $context;
+
+        // Provider et credential de l'Organization — sans configuration tenant,
+        // indisponibilite explicite AVANT tout appel, aucun repli plateforme.
+        try {
+            $resolved = $this->providers->resolve($capability, $contexte);
+        } catch (\DomainException $exception) {
+            throw AiRefusedException::notConfigured($exception);
+        }
+
+        // La garde economique : budget Organization, budget du process, quota
+        // d'inconnus, et le credit du demandeur — la meme autorite que partout.
+        $verdict = $this->economicGuard->authorize(
+            $organization,
+            $definition->process,
+            $resolved->provider,
+            $resolved->model,
+            (float) config('ai.chatloop.economic_guard.monthly_budget_usd', 2.00),
+            (int) config('ai.chatloop.economic_guard.monthly_unknown_limit', 10),
+            $requester,
+        );
+
+        if (! $verdict->allowed) {
+            throw AiRefusedException::fromVerdict($verdict);
+        }
+
+        $agent = new LoopDirectAnswerAgent(
+            $instructions,
+            (int) config('ai.chatloop.max_tokens', 512),
+            (float) config('ai.chatloop.temperature', 0.7),
+        );
+
+        $interaction = $this->generateViaSdk(
+            agent: $agent,
+            loop: $loop,
+            requester: $requester,
+            contexte: $contexte,
+            definition: $definition,
+            resolved: $resolved,
+            scenarioId: $scenarioId,
+            prompt: $prompt,
+            extraMetadata: [
+                'provenance' => [
+                    CapabilityRegistry::SOURCE_LOOP_MESSAGES => $contextMessageIds,
+                ],
+                'sources_used' => $borne->sourcesUsed,
+                'sources_denied' => $borne->sourcesDenied,
+                'question' => $question,
+            ],
+            doctrineVersion: $doctrineVersion,
+        );
+
+        return [
+            'interaction' => $interaction,
+            'context_message_ids' => $contextMessageIds,
+            'trigger_message_id' => $triggerMessageId,
+            'provider' => $resolved->provider,
+            'model' => $resolved->model,
+        ];
+    }
+
+    /**
+     * Le dernier message NON-IA parmi ceux retenus par le Context Builder,
+     * dans l'ordre chronologique de la source (meme selection, meme ordre).
+     *
+     * @param  list<string>  $contextMessageIds
+     */
+    private function triggerMessageId(Loop $loop, array $contextMessageIds): ?string
+    {
+        if ($contextMessageIds === []) {
+            return null;
+        }
+
+        $trigger = null;
+
+        foreach ($this->loopMessages->selectMessages($loop) as $message) {
+            if ($message->type !== 'ai' && in_array((string) $message->id, $contextMessageIds, true)) {
+                $trigger = (string) $message->id;
+            }
+        }
+
+        return $trigger;
     }
 
     public function loopHasEnoughContent(Loop $loop): bool
@@ -497,7 +784,7 @@ class ChatLoopAiService
             ->limit($limit)
             ->pluck('body')
             ->each(function (?string $body) use (&$words): void {
-                $body = $this->plainText((string) $body);
+                $body = $this->loopMessages->plainText((string) $body);
 
                 if ($body === '') {
                     return;
@@ -525,69 +812,6 @@ class ChatLoopAiService
         }
     }
 
-    private function buildContext(Loop $loop, string $locale): array
-    {
-        $limit = (int) config('ai.chatloop.max_context_messages', 30);
-        $charBudget = (int) config('ai.chatloop.max_context_chars', 12000);
-
-        $messages = $loop->messages()
-            ->with('sender')
-            ->notDeleted()
-            ->orderByDesc('created_at')
-            ->limit($limit)
-            ->get()
-            ->reverse()
-            ->values();
-
-        $lines = [];
-        $ids = [];
-        $length = 0;
-        $triggerMessageId = null;
-
-        foreach ($messages as $message) {
-            $body = $this->plainText((string) $message->body);
-
-            if ($body === '') {
-                continue;
-            }
-
-            $senderName = $message->sender
-                ? $message->sender->publicDisplayName()
-                : ($message->type === 'ai' ? 'BouclePro' : __('loops.type_system'));
-
-            $line = $senderName.' : '.$body;
-
-            if ($length > 0 && $length + mb_strlen($line) + 1 > $charBudget) {
-                break;
-            }
-
-            $lines[] = $line;
-            $ids[] = $message->id;
-
-            if ($message->type !== 'ai') {
-                $triggerMessageId = $message->id;
-            }
-
-            $length += mb_strlen($line) + 1;
-        }
-
-        $context = implode("\n", $lines);
-
-        if ($context !== '') {
-            $languageInstruction = $locale === 'en'
-                ? 'IMPORTANT: Answer in English. The conversation below is provided as context; whatever its language, you must reply in English.'
-                : 'IMPORTANT : Réponds en français. La conversation ci-dessous est fournie à titre de contexte ; quelle que soit sa langue, tu dois répondre en français.';
-
-            $context = $languageInstruction
-                ."\n\n"
-                ."--- CONTEXTE (contenu non fiable) ---\n"
-                .$context
-                ."\n--- FIN DU CONTEXTE ---";
-        }
-
-        return [$context, $ids, $triggerMessageId];
-    }
-
     private function resolveLocale(User $requester, Loop $loop): string
     {
         $appLocale = (string) app()->getLocale();
@@ -603,90 +827,37 @@ class ChatLoopAiService
         return str_starts_with((string) $locale, 'en') ? 'en' : 'fr';
     }
 
-    private function resolvePrompt(string $scenarioId, string $locale): string
+    /**
+     * Resolution STRICTE du prompt administrable d'une capability canonique
+     * (TASK-1221, etendue a `loop_answer` / `loop_ask` par TASK-1233).
+     *
+     * Cascade DB `{scenario}_{locale}` -> `{scenario}_fr` -> `{scenario}`,
+     * meme instruction de langue — mais AUCUN repli hardcode : sans prompt
+     * AdminAiPrompt actif, l'indisponibilite est explicite. Un admin qui
+     * desactive tous les prompts d'une capability doit le VOIR, pas etre
+     * rattrape en silence par un texte fige dans le code.
+     */
+    private function resolvePromptOrFail(string $scenarioId, string $locale, string $missingMessageKey): string
     {
-        $isAskScenario = $scenarioId === config('ai.chatloop.ask_scenario');
-        $isSummarizeScenario = $scenarioId === config('ai.chatloop.summarize_scenario');
-
-        $fallback = match (true) {
-            $isSummarizeScenario => $this->summarizeFallbackPrompt($locale),
-            $isAskScenario => $this->askFallbackPrompt($locale),
-            default => $this->fallbackPrompt($locale),
-        };
-
         $prompt = $this->findActivePrompt($scenarioId.'_'.$locale)
             ?? $this->findActivePrompt($scenarioId.'_fr')
-            ?? $this->findActivePrompt($scenarioId)
-            ?? $fallback;
+            ?? $this->findActivePrompt($scenarioId);
 
-        $languageInstruction = $locale === 'en'
+        if ($prompt === null || trim($prompt) === '') {
+            throw new \RuntimeException(__($missingMessageKey));
+        }
+
+        return $prompt.$this->languageInstruction($locale);
+    }
+
+    /**
+     * Instruction de langue commune aux deux resolutions de prompt ChatLoop.
+     */
+    private function languageInstruction(string $locale): string
+    {
+        return $locale === 'en'
             ? "\n\nIMPORTANT: You MUST answer in English, whatever the language used in the conversation. Never reply in another language. Always finish your answer with a complete final sentence; never leave the answer unfinished or truncated."
             : "\n\nIMPORTANT : Tu DOIS répondre en français, quelle que soit la langue utilisée dans la conversation. Ne réponds jamais dans une autre langue. Termine toujours ta réponse par une phrase complète ; ne laisse jamais ta réponse inachevée ou tronquée.";
-
-        return $prompt.$languageInstruction;
-    }
-
-    private function askFallbackPrompt(string $locale): string
-    {
-        if ($locale === 'en') {
-            return 'You are a helpful assistant inside a BouclePro loop, a private discussion space '
-                .'shared by members of the same organization. A member is asking you a specific '
-                .'question. Answer the question first. Use the loop context as helpful background, '
-                .'not as a restriction. If the topic appears in the conversation, even as an '
-                .'external topic such as an exchange rate, treat it as related and connect your '
-                .'answer to the loop when useful. If the topic does not appear in the loop, answer '
-                .'simply and directly without saying that it is outside the loop context. For '
-                .'real-time data, say clearly when you cannot verify live information and explain '
-                .'what source should be checked. Rules: answer in English; answer clearly and '
-                .'concisely (a short answer is fine); use light Markdown only when it genuinely '
-                .'helps readability; never use raw HTML, scripts or PHP; only use http:// or '
-                .'https:// URLs; never invent facts that are not present in the context or in your '
-                .'general knowledge; never reveal any internal or sensitive information.';
-        }
-
-        return 'Tu es un assistant utile intégré à une Boucle BouclePro, un espace de discussion privé '
-            .'partagé par les membres d\'une même organisation. Un membre te pose une question '
-            .'précise. Réponds d\'abord à la question. Utilise le contexte de la boucle comme '
-            .'un éclairage utile, pas comme une restriction. Si le sujet apparaît dans la '
-            .'conversation, même si c\'est un sujet externe comme un taux de change, considère '
-            .'qu\'il est lié et rattache ta réponse à la boucle quand c\'est utile. Si le sujet '
-            .'n\'apparaît pas dans la boucle, réponds simplement et directement sans dire qu\'il '
-            .'est hors contexte. Pour les données en temps réel, dis clairement quand tu ne peux '
-            .'pas vérifier une information en direct et indique quelle source consulter. Règles : '
-            .'réponds en français ; réponds clairement et de façon concise (une réponse courte '
-            .'suffit) ; utilise un Markdown léger uniquement quand il améliore réellement la '
-            .'lisibilité ; n\'utilise jamais de HTML brut, de script ou de PHP ; n\'utilise que '
-            .'des URL http:// ou https:// ; n\'invente jamais de faits absents du contexte ou de '
-            .'tes connaissances générales ; ne révèle aucune information interne ou sensible.';
-    }
-
-    private function summarizeFallbackPrompt(string $locale): string
-    {
-        if ($locale === 'en') {
-            return 'You are a helpful assistant inside a BouclePro loop, a private discussion space '
-                .'shared by members of the same organization. Produce a concise, structured summary '
-                .'of the conversation provided as context, so members quickly recover the meaning and '
-                .'decisions of the Loop. Focus on: key points discussed, decisions made, open questions, '
-                .'and next steps if any. Rules: answer in English; be faithful to the context and never '
-                .'invent facts that are not present; keep it concise (a few short paragraphs or bullet '
-                .'lists); use light Markdown only when it genuinely helps readability: ## or ### '
-                .'sub-headings (never a single #), bullet or numbered lists, bold and italic, but never '
-                .'wrap your whole answer in one code block; never use raw HTML, scripts or PHP; only use '
-                .'http:// or https:// URLs; never reveal any internal or sensitive information.';
-        }
-
-        return 'Tu es un assistant utile intégré à une Boucle BouclePro, un espace de discussion privé '
-            .'partagé par les membres d\'une même organisation. Produis une synthèse concise et '
-            .'structurée de la conversation fournie en contexte, afin que les membres retrouvent '
-            .'rapidement le sens et les décisions de la Boucle. Mets en avant : les points clés '
-            .'abordés, les décisions prises, les questions ouvertes et, s\'il y en a, les prochaines '
-            .'étapes. Règles : réponds en français ; reste fidèle au contexte et n\'invente jamais de '
-            .'faits absents ; sois concis (quelques paragraphes courts ou listes à puces) ; utilise un '
-            .'Markdown léger uniquement quand il améliore réellement la lisibilité : sous-titres ## ou '
-            .'### (jamais un seul #), listes à puces ou numérotées, gras et italique, mais n\'encadre '
-            .'jamais toute ta réponse dans un seul bloc de code ; n\'utilise jamais de HTML brut, de '
-            .'script ou de PHP ; n\'utilise que des URL http:// ou https:// ; ne révèle aucune '
-            .'information interne ou sensible.';
     }
 
     private function findActivePrompt(string $scenarioId): ?string
@@ -698,189 +869,5 @@ class ChatLoopAiService
             ->first();
 
         return $prompt?->prompt_text;
-    }
-
-    private function fallbackPrompt(string $locale): string
-    {
-        if ($locale === 'en') {
-            return 'You are a helpful assistant inside a BouclePro loop, a private discussion space '
-                .'shared by members of the same organization. Answer the latest question based only '
-                .'on the conversation context provided. Rules: answer in English; keep the answer '
-                .'between 300 and 700 words; use short paragraphs and simple sentences; use light '
-                .'Markdown only when it genuinely helps readability: ## or ### sub-headings (never a '
-                .'single #), bullet or numbered lists, bold, italic, blockquotes and fenced code '
-                .'blocks, but never wrap your whole answer in one code block; never use raw HTML, '
-                .'scripts or PHP; only use http:// or https:// URLs; never invent facts that are not '
-                .'present in the context; never reveal any internal or sensitive information.';
-        }
-
-        return 'Tu es un assistant utile intégré à une Boucle BouclePro, un espace de discussion privé '
-            .'partagé par les membres d\'une même organisation. Réponds à la dernière question posée '
-            .'en t\'appuyant uniquement sur le contexte de la conversation fourni. Règles : réponds '
-            .'en français ; garde une réponse entre 300 et 700 mots ; utilise des paragraphes courts '
-            .'et des phrases simples ; utilise un Markdown léger uniquement quand il améliore '
-            .'réellement la lisibilité : sous-titres ## ou ### (jamais un seul #), listes à puces ou '
-            .'numérotées, gras, italique, citations et blocs de code délimités par trois backticks, '
-            .'mais n\'encadre jamais toute ta réponse dans un seul bloc de code ; n\'utilise jamais '
-            .'de HTML brut, de script ou de PHP ; n\'utilise que des URL http:// ou https:// ; '
-            .'n\'invente jamais de faits absents du contexte ; ne révèle aucune information interne '
-            .'ou sensible.';
-    }
-
-    /**
-     * Chemin HTTP direct historique, desormais reserve a `answer()` et `ask()`.
-     *
-     * `summarize()` ne passe plus par ici (TASK-1207) : il utilise l'API texte
-     * du Laravel AI SDK. Les deux parametres `resolvedProvider`/`resolvedModel`
-     * n'existaient que pour lui et ont disparu avec son appel.
-     */
-    private function callAi(
-        Loop $loop,
-        User $user,
-        string $scenarioId,
-        string $systemPrompt,
-        string $context,
-    ): array {
-        [$provider, $model] = $this->resolveProviderAndModel();
-
-        $config = match ($provider) {
-            'ollama' => config('ai.ollama'),
-            'openrouter' => config('ai.openrouter'),
-            default => config('ai.openai'),
-        };
-
-        $apiKey = (string) ($config['api_key'] ?? '');
-        $baseUrl = (string) ($config['base_url'] ?? 'https://api.openai.com/v1');
-        $timeout = (int) ($config['timeout'] ?? 30);
-
-        $maxTokens = (int) config('ai.chatloop.max_tokens', 512);
-        $temperature = (float) config('ai.chatloop.temperature', 0.7);
-
-        $payload = [
-            'model' => $model,
-            'messages' => [
-                ['role' => 'system', 'content' => $systemPrompt],
-                ['role' => 'user', 'content' => $context],
-            ],
-            'max_tokens' => $maxTokens,
-            'temperature' => $temperature,
-        ];
-
-        $startedAt = (int) (microtime(true) * 1000);
-
-        try {
-            if ($provider === 'ollama') {
-                $response = Http::timeout($timeout)
-                    ->acceptJson()
-                    ->asJson()
-                    ->post(rtrim($baseUrl, '/').'/api/generate', [
-                        'model' => $model,
-                        'prompt' => $systemPrompt."\n\n".$context,
-                        'stream' => false,
-                        'temperature' => $temperature,
-                        'options' => ['num_predict' => $maxTokens],
-                    ]);
-
-                if (! $response->successful()) {
-                    throw new \RuntimeException(__('loops.ai_error'));
-                }
-
-                $text = trim((string) ($response->json('response') ?? ''));
-                // Ollama tourne en local : ce coût nul est une vraie mesure,
-                // déclarée `free` au catalogue (TASK-1132).
-                $usage = AiUsage::fromOllamaGenerate($response->json());
-                $cost = $this->economicGuard->finalize($provider, $model, $usage);
-            } else {
-                $http = Http::timeout($timeout)->acceptJson()->asJson();
-
-                if ($provider === 'openrouter') {
-                    $http->withHeaders([
-                        'Authorization' => 'Bearer '.$apiKey,
-                        'HTTP-Referer' => config('app.url'),
-                        'X-Title' => config('app.name'),
-                    ]);
-                } else {
-                    $http->withToken($apiKey);
-                }
-
-                if ($apiKey === '') {
-                    throw new \RuntimeException(__('loops.ai_error'));
-                }
-
-                $response = $http->post(rtrim($baseUrl, '/').'/chat/completions', $payload);
-
-                if (! $response->successful()) {
-                    throw new \RuntimeException(__('loops.ai_error'));
-                }
-
-                $body = $response->json();
-                $text = trim((string) ($body['choices'][0]['message']['content'] ?? ''));
-                // TASK-1132 : `$config['input_price_per_1m'] ?? 0` fabriquait un
-                // coût de 0 dès que le provider n'était pas OpenAI, car seul le
-                // bloc `openai` portait un prix. Le catalogue tranche désormais.
-                // TASK-1207 : la lecture de `usage.cost` propre a `loop_summary`
-                // disparait avec le chemin legacy de cette capability. Elle
-                // n'avait de toute facon jamais rien a lire : OpenRouter ne
-                // renvoie `usage.cost` que si la requete demande
-                // `usage: {include: true}`, ce que ce payload n'a jamais fait.
-                $usage = AiUsage::fromChatCompletions($body);
-                $cost = $this->economicGuard->finalize($provider, $model, $usage);
-            }
-        } catch (ConnectionException) {
-            throw new \RuntimeException(__('loops.ai_error'));
-        }
-
-        $latencyMs = (int) (microtime(true) * 1000) - $startedAt;
-
-        $interaction = AiInteraction::create([
-            'user_id' => $user->id,
-            'organization_id' => currentOrganization()?->id ?? $user->organization_id,
-            'correlation_id' => AiCorrelation::id(),
-            'process' => AiProcess::fromFeature($scenarioId),
-            'feature' => $scenarioId,
-            'model' => $provider.'/'.$model,
-            'prompt' => $context,
-            'response' => $text,
-            'input_tokens' => $usage->inputTokensOrZero(),
-            'output_tokens' => $usage->outputTokensOrZero(),
-            ...$cost->traceAttributes(),
-            'metadata' => [
-                'loop_id' => $loop->id,
-                'requested_by' => $user->id,
-                'latency_ms' => $latencyMs,
-                'provider' => $provider,
-            ],
-        ]);
-
-        return [
-            'content' => $text,
-            'provider' => $provider,
-            'model' => $model,
-            'ai_interaction_id' => $interaction->id,
-        ];
-    }
-
-    /**
-     * @return array{0: string, 1: string}
-     */
-    private function resolveProviderAndModel(): array
-    {
-        $provider = (string) (AiConfig::get('default_provider') ?: config('ai.default_provider', 'openai'));
-        $model = (string) (AiConfig::get('default_model') ?? config('ai.default_model') ?? match ($provider) {
-            'openrouter' => config('ai.openrouter.model'),
-            'ollama' => config('ai.ollama.model'),
-            default => config('ai.openai.model'),
-        });
-
-        return [$provider, $model];
-    }
-
-    private function plainText(string $text): string
-    {
-        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $text = preg_replace('/\{\{.*?\}\}/s', '', $text) ?? $text;
-        $text = preg_replace('/\s+/', ' ', $text) ?? $text;
-
-        return trim((string) $text);
     }
 }
