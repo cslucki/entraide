@@ -357,6 +357,21 @@ return [
     'platform_col_configure' => 'AI settings',
     'platform_configure' => 'Configure',
     'platform_configure_title' => 'Open this Organization’s AI settings (the key is never displayed)',
+    // TASK-1306: central cockpit — actions visible without scrolling, inline
+    // form reusing EXACTLY organization.admin.ai.update (no second
+    // credential authority).
+    'platform_col_credential' => 'Credential',
+    'platform_col_management' => 'Management',
+    'platform_credential_configured' => 'Configured',
+    'platform_credential_not_configured' => 'Not configured',
+    'platform_credential_updated_at' => 'updated :date',
+    'platform_details_toggle' => 'Details',
+    'platform_modal_close' => 'Close',
+    'platform_modal_title' => 'Configure :name\'s AI',
+    'platform_link_cockpit' => 'AI & knowledge',
+    'platform_link_behavior' => 'AI behaviour',
+    'platform_link_knowledge' => 'Knowledge',
+    'platform_link_consumption' => 'AI consumption',
 
     // TASK-1227: "AI behaviour" page — Constitution, Organization doctrine,
     // nervous-system coverage, sandbox.

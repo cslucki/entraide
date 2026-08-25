@@ -93,6 +93,15 @@ return [
     // never the key, same data as /admin/ai-organizations (isUsable()).
     'organization_ai_summary_ready' => 'Ready',
     'organization_ai_summary_not_ready' => 'Not configured',
+    // TASK-1306: who manages this Organization's AI credential.
+    'organization_ai_credential_mode_label' => 'Credential management',
+    'organization_ai_credential_mode_platform' => 'Managed by BouclePro',
+    'organization_ai_credential_mode_organization' => 'Managed by the Organization',
+    'organization_ai_credential_mode_help' => 'Who sets and replaces this Organization\'s provider, model and API key.',
+    'organization_ai_credential_mode_saved' => 'Credential management updated.',
+    'organization_ai_platform_managed_title' => 'AI credential',
+    'organization_ai_platform_managed_configured' => 'Configured and managed by BouclePro.',
+    'organization_ai_platform_managed_not_configured' => 'Not yet configured by BouclePro.',
     'organization_logo_removed' => 'Logo removed successfully.',
     'organization_logo_no_change' => 'No changes made to the logo.',
     'organization_save' => 'Save',

@@ -1073,6 +1073,13 @@ class OrgAdminController extends Controller
             'providers' => ProviderResolver::ALLOWED_PROVIDERS,
             'monthlyCost' => $monthlyCost,
             'defaultModel' => (string) (config('ai.default_model') ?: config('ai.openrouter.model', 'openai/gpt-4o-mini')),
+            // TASK-1306 : qui gere le credential — le SuperAdmin le voit et le
+            // modifie toujours ; l'admin d'Organization ne voit le formulaire
+            // que si cette Organization est passee en `organization_managed`.
+            'credentialMode' => OrganizationAiSetting::effectiveCredentialMode($setting),
+            'isSuperAdmin' => (bool) request()->user()?->is_admin,
+            'canEditCredential' => (bool) request()->user()?->is_admin
+                || OrganizationAiSetting::effectiveCredentialMode($setting) === OrganizationAiSetting::CREDENTIAL_MODE_ORGANIZATION,
             // TASK-1229 : credit IA par utilisateur — reglage plateforme,
             // override d'Organization, politique effective, membres qui
             // approchent leur limite (des comptes et des noms de MEMBRES de
@@ -1164,8 +1171,21 @@ class OrgAdminController extends Controller
             ->with('success', __('admin.organization_ai_user_credit_saved'));
     }
 
+    /**
+     * TASK-1306 : quand le credential est `platform_managed` (defaut), seul
+     * le SuperAdmin peut ecrire cette surface — protection SERVEUR, pas
+     * seulement l'absence du champ dans la vue. Une requete forgee par
+     * l'admin d'Organization est refusee AVANT toute validation.
+     */
     public function updateAi(Request $request, Organization $organization): RedirectResponse
     {
+        $existing = OrganizationAiSetting::query()->where('organization_id', $organization->id)->first();
+
+        if (! $request->user()->is_admin
+            && OrganizationAiSetting::effectiveCredentialMode($existing) === OrganizationAiSetting::CREDENTIAL_MODE_PLATFORM) {
+            abort(403);
+        }
+
         $data = $request->validate([
             'provider' => ['required', Rule::in(ProviderResolver::ALLOWED_PROVIDERS)],
             'model' => ['required', 'string', 'max:150'],
@@ -1195,6 +1215,42 @@ class OrgAdminController extends Controller
 
         return redirect()->route('organization.admin.ai', ['organization' => $organization->slug])
             ->with('success', __('admin.organization_ai_saved'));
+    }
+
+    /**
+     * TASK-1306 : qui gere le credential de cette Organization — reserve au
+     * SuperAdmin (`is_admin`) ; un admin d'Organization ne peut jamais se
+     * l'auto-attribuer, y compris par requete forgee. Cree la ligne avec des
+     * valeurs provider/modele de repli (colonnes NOT NULL) si aucune
+     * n'existe encore ; `is_enabled` reste false tant qu'aucun credential
+     * reel n'est pose.
+     */
+    public function updateAiCredentialMode(Request $request, Organization $organization): RedirectResponse
+    {
+        if (! $request->user()->is_admin) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'credential_management_mode' => ['required', Rule::in(OrganizationAiSetting::CREDENTIAL_MODES)],
+        ]);
+
+        $setting = OrganizationAiSetting::query()->where('organization_id', $organization->id)->first();
+
+        if ($setting === null) {
+            $setting = new OrganizationAiSetting([
+                'organization_id' => $organization->id,
+                'provider' => 'openrouter',
+                'model' => (string) (config('ai.default_model') ?: config('ai.openrouter.model', 'openai/gpt-4o-mini')),
+                'is_enabled' => false,
+            ]);
+        }
+
+        $setting->credential_management_mode = $data['credential_management_mode'];
+        $setting->save();
+
+        return redirect()->route('organization.admin.ai', ['organization' => $organization->slug])
+            ->with('success', __('admin.organization_ai_credential_mode_saved'));
     }
 
     public function identity(Organization $organization): View

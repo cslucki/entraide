@@ -1016,6 +1016,10 @@ Route::prefix('/org/{organization}')
                 // TASK-1229 : override d'Organization du credit IA par utilisateur
                 // (reglage plateforme / valeur propre / illimite), trace.
                 Route::put('/ai/user-credit', [OrgAdminController::class, 'updateAiUserCredit'])->name('ai.user-credit.update');
+                // TASK-1306 : qui gere le credential (plateforme / Organization).
+                // Reserve au SuperAdmin, protection serveur dans le controller —
+                // jamais seulement un masquage cote vue.
+                Route::put('/ai/credential-mode', [OrgAdminController::class, 'updateAiCredentialMode'])->name('ai.credential-mode.update');
 
                 // Design
                 Route::get('/homepage', [OrgAdminController::class, 'homepage'])->name('homepage');
