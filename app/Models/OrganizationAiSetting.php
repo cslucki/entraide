@@ -37,6 +37,23 @@ class OrganizationAiSetting extends Model
         self::USER_CREDIT_MODE_UNLIMITED,
     ];
 
+    /**
+     * TASK-1306 : qui gere le credential de cette Organization.
+     * `platform_managed` (defaut) : seul le SuperAdmin definit/remplace le
+     * credential ; l'admin d'Organization ne voit ni ne peut modifier le
+     * champ, meme par requete forgee (garde cote serveur dans
+     * OrgAdminController::updateAi()). `organization_managed` : comportement
+     * TASK-1212 inchange, l'admin d'Organization gere sa propre cle.
+     */
+    public const CREDENTIAL_MODE_PLATFORM = 'platform_managed';
+
+    public const CREDENTIAL_MODE_ORGANIZATION = 'organization_managed';
+
+    public const CREDENTIAL_MODES = [
+        self::CREDENTIAL_MODE_PLATFORM,
+        self::CREDENTIAL_MODE_ORGANIZATION,
+    ];
+
     protected $fillable = [
         'organization_id',
         'provider',
@@ -46,6 +63,7 @@ class OrganizationAiSetting extends Model
         'user_credit_mode',
         'user_credit_monthly_uses',
         'is_enabled',
+        'credential_management_mode',
         'api_key_updated_at',
     ];
 
@@ -75,5 +93,21 @@ class OrganizationAiSetting extends Model
     public function isUsable(): bool
     {
         return $this->is_enabled && trim((string) $this->provider) !== '' && trim((string) $this->model) !== '';
+    }
+
+    /**
+     * TASK-1306 : le mode effectif, y compris pour une Organization SANS
+     * ligne encore (`$setting` null) — son credential n'existe pas encore,
+     * mais qui pourra le creer reste `platform_managed` par defaut, comme
+     * toute ligne nouvellement creee (colonne DB `default('platform_managed')`).
+     */
+    public static function effectiveCredentialMode(?self $setting): string
+    {
+        return $setting?->credential_management_mode ?? self::CREDENTIAL_MODE_PLATFORM;
+    }
+
+    public function isPlatformManaged(): bool
+    {
+        return $this->credential_management_mode === self::CREDENTIAL_MODE_PLATFORM;
     }
 }

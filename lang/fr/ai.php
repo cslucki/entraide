@@ -357,6 +357,21 @@ return [
     'platform_col_configure' => 'Réglage IA',
     'platform_configure' => 'Configurer',
     'platform_configure_title' => 'Ouvrir le réglage IA de cette Organization (la clé n’est jamais affichée)',
+    // TASK-1306 : cockpit central — actions visibles sans scroll, formulaire
+    // inline reutilisant EXACTEMENT organization.admin.ai.update (aucune
+    // deuxieme autorite de credential).
+    'platform_col_credential' => 'Credential',
+    'platform_col_management' => 'Gestion',
+    'platform_credential_configured' => 'Configurée',
+    'platform_credential_not_configured' => 'Non configurée',
+    'platform_credential_updated_at' => 'maj :date',
+    'platform_details_toggle' => 'Détails',
+    'platform_modal_close' => 'Fermer',
+    'platform_modal_title' => 'Configurer l\'IA de :name',
+    'platform_link_cockpit' => 'IA & connaissances',
+    'platform_link_behavior' => 'Comportement IA',
+    'platform_link_knowledge' => 'Connaissances',
+    'platform_link_consumption' => 'Consommation IA',
 
     // TASK-1227 : page « Comportement IA » — Constitution, doctrine de
     // l'Organization, couverture du systeme nerveux, bac a sable.

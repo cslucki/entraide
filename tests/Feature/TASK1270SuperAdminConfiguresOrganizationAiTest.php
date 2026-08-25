@@ -19,6 +19,14 @@ use Tests\TestCase;
  * regle « champ api_key vide = cle conservee » est celle de updateAi(), deja
  * couverte par TASK1212OrganizationAiAdminTest — ici verifiee par le chemin
  * du SuperAdmin (lien -> formulaire -> budget seul -> cle intacte).
+ *
+ * TASK-1306 : « Configurer » ouvre desormais une modale inline (bouton, plus
+ * un <a href>) qui INCLUT le meme partiel de formulaire que
+ * /org/{organization}/admin/ai — meme route `organization.admin.ai.update`,
+ * meme controleur, aucune deuxieme autorite. Les modales sont rendues APRES
+ * le <table> (invariant TASK-1270 inchange : le tableau lui-meme ne porte
+ * jamais de <form> ni de <input>) ; la garde ci-dessous en verifie toujours
+ * la lettre.
  */
 class TASK1270SuperAdminConfiguresOrganizationAiTest extends TestCase
 {
@@ -64,45 +72,61 @@ class TASK1270SuperAdminConfiguresOrganizationAiTest extends TestCase
         $this->superAdmin = User::factory()->create(['is_admin' => true, 'organization_id' => $platform->id]);
     }
 
-    // (a) chaque Organization du listing expose un lien vers organization.admin.ai
+    // (a) chaque Organization du listing expose une action Configurer (bouton)
+    // et sa modale INCLUT le formulaire de la surface canonique
     public function test_the_listing_links_every_organization_to_its_existing_ai_settings_surface(): void
     {
         $response = $this->actingAs($this->superAdmin)->get(route('admin.ai-organizations'));
 
         $response->assertOk();
+        $html = $response->getContent();
 
         foreach (Organization::query()->get() as $organization) {
-            $href = route('organization.admin.ai', ['organization' => $organization->slug]);
             $response->assertSee('data-platform-org-configure="'.$organization->slug.'"', false);
-            $response->assertSee('href="'.$href.'"', false);
+            $response->assertSee('data-platform-org-modal="'.$organization->slug.'"', false);
+
+            $modal = $this->modalOf($html, $organization);
+            $expected = route('organization.admin.ai.update', ['organization' => $organization->slug]);
+            $this->assertStringContainsString('action="'.$expected.'"', $modal, 'la modale de '.$organization->slug.' poste vers la surface canonique');
+            $this->assertStringContainsString('data-ai-credential-form="'.$organization->slug.'"', $modal);
         }
 
-        // Une Organization SANS reglage a aussi son lien : c'est la que le
-        // SuperAdmin va creer le reglage, sur la meme surface.
+        // Une Organization SANS reglage a aussi son action et sa modale :
+        // c'est la que le SuperAdmin va creer le reglage, sur la meme surface.
         $this->assertSame(
             Organization::query()->count(),
-            substr_count($response->getContent(), 'data-platform-org-configure='),
-            'exactement un lien « Configurer » par Organization vivante',
+            substr_count($html, 'data-platform-org-configure='),
+            'exactement une action « Configurer » par Organization vivante',
+        );
+        $this->assertSame(
+            Organization::query()->count(),
+            substr_count($html, 'data-ai-credential-form="'),
+            'exactement un formulaire de credential par Organization vivante',
         );
     }
 
-    // (b) tenant : la ligne test20260822 pointe sur test20260822, pas ailleurs
+    // (b) tenant : la modale test20260822 poste sur test20260822, pas ailleurs
     public function test_the_test20260822_row_links_to_test20260822_and_to_no_other_organization(): void
     {
         $html = $this->actingAs($this->superAdmin)->get(route('admin.ai-organizations'))->assertOk()->getContent();
 
         $row = $this->rowOf($html, $this->test20260822);
-        $expected = route('organization.admin.ai', ['organization' => 'test20260822']);
-
-        $this->assertStringContainsString('href="'.$expected.'"', $row);
         $this->assertStringContainsString('data-platform-org-configure="test20260822"', $row);
-        $this->assertStringEndsWith('/org/test20260822/admin/ai', $expected);
         $this->assertStringNotContainsString('autre-org-1270', $row);
         $this->assertStringNotContainsString('sans-reglage-1270', $row);
+
+        $modal = $this->modalOf($html, $this->test20260822);
+        $expected = route('organization.admin.ai.update', ['organization' => 'test20260822']);
+        $this->assertStringContainsString('action="'.$expected.'"', $modal);
+        $this->assertStringEndsWith('/org/test20260822/admin/ai', route('organization.admin.ai', ['organization' => 'test20260822']));
+        $this->assertStringNotContainsString('autre-org-1270', $modal);
 
         $otherRow = $this->rowOf($html, $this->other);
         $this->assertStringContainsString('data-platform-org-configure="autre-org-1270"', $otherRow);
         $this->assertStringNotContainsString('test20260822', $otherRow);
+
+        $otherModal = $this->modalOf($html, $this->other);
+        $this->assertStringNotContainsString('test20260822', $otherModal);
     }
 
     // (c) aucune cle dans le HTML du listing — ni en clair, ni chiffree, ni par le nom du champ
@@ -122,17 +146,24 @@ class TASK1270SuperAdminConfiguresOrganizationAiTest extends TestCase
             $this->assertStringNotContainsString((string) $cipher, $html);
         }
 
-        $this->assertStringNotContainsString('api_key', $html);
-        $this->assertStringNotContainsString('type="password"', $html);
+        // TASK-1306 : le NOM du champ api_key apparait desormais legitimement
+        // (une modale de credential par Organization) — ce qui reste absolu,
+        // c'est que sa VALEUR est toujours vide, pour CHAQUE Organization.
+        $matched = preg_match_all('/name="api_key"[^>]*value="([^"]*)"/', $html, $apiKeyMatches);
+        $this->assertSame(Organization::query()->count(), $matched, 'un champ api_key par Organization, jamais plus');
+        foreach ($apiKeyMatches[1] as $value) {
+            $this->assertSame('', $value, 'le champ api_key est toujours rendu vide');
+        }
 
-        // Le tableau des Organizations ne porte aucun formulaire ni champ : la
-        // surface d'ecriture est ailleurs (le seul <form> de la page est la
-        // deconnexion du layout admin).
+        // Le tableau des Organizations lui-meme ne porte aucun formulaire ni
+        // champ : la surface d'ecriture (les modales) est rendue APRES le
+        // </table>, jamais dedans.
         $table = substr($html, strpos($html, '<table'), strpos($html, '</table>') - strpos($html, '<table'));
         $this->assertStringNotContainsString('<form', $table);
         $this->assertStringNotContainsString('<input', $table);
 
-        // La seule information transmise a la vue sur le credential : pret ou non.
+        // La seule information transmise a la vue sur le credential : pret ou
+        // non, defini ou non (jamais sa valeur), mis a jour quand, gere par qui.
         $response->assertViewHas('settings', function (array $settings): bool {
             foreach ($settings as $setting) {
                 if (array_key_exists('api_key', $setting)) {
@@ -140,7 +171,9 @@ class TASK1270SuperAdminConfiguresOrganizationAiTest extends TestCase
                 }
             }
 
-            return array_keys($settings[(string) $this->test20260822->id]) === ['provider', 'model', 'monthly_budget_usd', 'ready'];
+            return array_keys($settings[(string) $this->test20260822->id]) === [
+                'provider', 'model', 'monthly_budget_usd', 'ready', 'has_credential', 'api_key_updated_at', 'credential_management_mode',
+            ];
         });
     }
 
@@ -151,7 +184,12 @@ class TASK1270SuperAdminConfiguresOrganizationAiTest extends TestCase
         $otherBefore = DB::table('organization_ai_settings')->where('organization_id', $this->other->id)->first();
 
         $html = $this->actingAs($this->superAdmin)->get(route('admin.ai-organizations'))->assertOk()->getContent();
-        $href = $this->hrefOfConfigureLink($html, 'test20260822');
+
+        // TASK-1306 : la modale « Configurer » de test20260822 poste bien vers
+        // la surface canonique — c'est cette URL que le SuperAdmin « suit ».
+        $modal = $this->modalOf($html, $this->test20260822);
+        $href = route('organization.admin.ai', ['organization' => 'test20260822']);
+        $this->assertStringContainsString('action="'.route('organization.admin.ai.update', ['organization' => 'test20260822']).'"', $modal);
 
         // 1. Le formulaire s'ouvre pour le SuperAdmin (OrgAdminMiddleware : is_admin).
         $form = $this->actingAs($this->superAdmin)->get($href);
@@ -238,16 +276,23 @@ class TASK1270SuperAdminConfiguresOrganizationAiTest extends TestCase
         return substr($html, $start, $end - $start);
     }
 
-    /** Le href du lien « Configurer » de la ligne portant ce slug. */
-    private function hrefOfConfigureLink(string $html, string $slug): string
+    /**
+     * TASK-1306 : le HTML de la modale « Configurer » de cette Organization
+     * (rendue apres le </table>, `data-platform-org-modal="{slug}"`).
+     */
+    private function modalOf(string $html, Organization $organization): string
     {
-        $matched = preg_match(
-            '/<a href="([^"]+)"[^>]*data-platform-org-configure="'.preg_quote($slug, '/').'"/',
-            $html,
-            $m,
-        );
-        $this->assertSame(1, $matched, 'lien « Configurer » de '.$slug);
+        $needle = 'data-platform-org-modal="'.$organization->slug.'"';
+        $tagStart = strrpos(substr($html, 0, strpos($html, $needle) ?: 0), '<div');
+        $start = strpos($html, $needle);
+        $this->assertNotFalse($start, 'modale de '.$organization->slug.' presente');
+        $this->assertNotFalse($tagStart);
 
-        return html_entity_decode($m[1]);
+        // Modale suivante (ou fin du corps) : borne la recherche pour ne
+        // jamais deborder sur la modale d'une autre Organization.
+        $nextModal = strpos($html, 'data-platform-org-modal="', $start + strlen($needle));
+        $end = $nextModal !== false ? $nextModal : strlen($html);
+
+        return substr($html, $tagStart, $end - $tagStart);
     }
 }

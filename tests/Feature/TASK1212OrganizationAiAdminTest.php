@@ -41,14 +41,47 @@ class TASK1212OrganizationAiAdminTest extends TestCase
         $this->otherOrganization->update(['admin_id' => $this->otherOrgAdmin->id]);
     }
 
+    /**
+     * TASK-1306 : `credential_management_mode` par defaut est `platform_managed`
+     * — sans configuration prealable (donc sans mode explicite non plus),
+     * l'admin d'Organization ne voit JAMAIS le formulaire ni le champ
+     * api_key, seulement un statut.
+     */
     public function test_the_organization_admin_sees_the_ai_page_without_any_configuration(): void
     {
-        $this->actingAs($this->orgAdmin)
+        $html = $this->actingAs($this->orgAdmin)
             ->get(route('organization.admin.ai', $this->organization))
             ->assertOk()
             ->assertSee(__('admin.organization_ai'))
             ->assertSee('data-ai-settings-status="not-ready"', false)
-            ->assertSee('data-ai-api-key-state="not-set"', false);
+            ->assertSee('data-ai-credential-managed-by="platform"', false)
+            ->assertSee(__('admin.organization_ai_platform_managed_not_configured'))
+            ->getContent();
+
+        // Aucun champ api_key ni aucun formulaire de credential : seulement
+        // le statut lecture seule (le seul <input type=password> possible,
+        // celui du credential, est absent).
+        $this->assertStringNotContainsString('data-ai-api-key-state', $html);
+        $this->assertStringNotContainsString('type="password"', $html);
+    }
+
+    /**
+     * TASK-1306 : une fois passee en `organization_managed` (par le
+     * SuperAdmin), l'admin d'Organization retrouve le formulaire complet —
+     * y compris sans avoir encore pose sa propre cle.
+     */
+    public function test_the_organization_admin_sees_the_editable_form_once_organization_managed_even_without_a_key_yet(): void
+    {
+        OrganizationAiSetting::factory()->withoutCredential()->create([
+            'organization_id' => $this->organization->id,
+            'credential_management_mode' => OrganizationAiSetting::CREDENTIAL_MODE_ORGANIZATION,
+        ]);
+
+        $this->actingAs($this->orgAdmin)
+            ->get(route('organization.admin.ai', $this->organization))
+            ->assertOk()
+            ->assertSee('data-ai-api-key-state="not-set"', false)
+            ->assertDontSee('data-ai-credential-managed-by="platform"', false);
     }
 
     public function test_a_plain_member_and_a_foreign_admin_cannot_reach_the_page(): void
@@ -72,6 +105,15 @@ class TASK1212OrganizationAiAdminTest extends TestCase
 
     public function test_the_admin_configures_provider_model_key_and_budget_and_the_key_is_never_shown(): void
     {
+        // TASK-1306 : le SuperAdmin a prealablement autorise cette
+        // Organization a gerer son propre credential — sans quoi la requete
+        // serait refusee avant meme la validation (couvert par
+        // TASK1306CredentialManagementModeTest).
+        OrganizationAiSetting::factory()->withoutCredential()->create([
+            'organization_id' => $this->organization->id,
+            'credential_management_mode' => OrganizationAiSetting::CREDENTIAL_MODE_ORGANIZATION,
+        ]);
+
         $this->actingAs($this->orgAdmin)
             ->put(route('organization.admin.ai.update', $this->organization), [
                 'provider' => 'openrouter',
@@ -107,6 +149,7 @@ class TASK1212OrganizationAiAdminTest extends TestCase
         OrganizationAiSetting::factory()->create([
             'organization_id' => $this->organization->id,
             'api_key' => 'sk-keep-me',
+            'credential_management_mode' => OrganizationAiSetting::CREDENTIAL_MODE_ORGANIZATION,
         ]);
 
         $this->actingAs($this->orgAdmin)
@@ -136,6 +179,12 @@ class TASK1212OrganizationAiAdminTest extends TestCase
 
     public function test_an_unknown_provider_or_missing_model_is_refused(): void
     {
+        // TASK-1306 : autorisation prealable requise (voir test precedent).
+        OrganizationAiSetting::factory()->withoutCredential()->create([
+            'organization_id' => $this->organization->id,
+            'credential_management_mode' => OrganizationAiSetting::CREDENTIAL_MODE_ORGANIZATION,
+        ]);
+
         $this->actingAs($this->orgAdmin)
             ->from(route('organization.admin.ai', $this->organization))
             ->put(route('organization.admin.ai.update', $this->organization), [
@@ -143,7 +192,7 @@ class TASK1212OrganizationAiAdminTest extends TestCase
             ])
             ->assertSessionHasErrors(['provider', 'model']);
 
-        $this->assertDatabaseCount('organization_ai_settings', 0);
+        $this->assertDatabaseCount('organization_ai_settings', 1);
     }
 
     public function test_the_global_admin_can_manage_any_organization_configuration(): void

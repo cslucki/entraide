@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Ai\ProviderResolver;
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
@@ -43,16 +44,24 @@ class AdminAiOrganizationsController extends Controller
 
         $organizations = Organization::query()->orderBy('name')->get(['id', 'name', 'slug']);
 
-        $settings = OrganizationAiSetting::query()
-            ->get(['organization_id', 'provider', 'model', 'monthly_budget_usd', 'is_enabled', 'api_key'])
-            ->keyBy('organization_id')
+        // TASK-1306 : instances completes (jamais serialisees telles quelles —
+        // `$hidden` protege `api_key` de tout toArray()/toJson(), et cette vue
+        // ne l'affiche jamais) pour le formulaire inline reutilisant EXACTEMENT
+        // OrgAdminController::updateAi() (aucune deuxieme autorite de credential).
+        $aiSettingModels = OrganizationAiSetting::query()->get()->keyBy('organization_id');
+
+        $settings = $aiSettingModels
             ->map(static fn (OrganizationAiSetting $setting): array => [
                 'provider' => $setting->provider,
                 'model' => $setting->model,
                 'monthly_budget_usd' => $setting->monthly_budget_usd,
                 // La seule information transmise sur le credential : il est
-                // defini ou non. Jamais sa valeur, meme chiffree.
+                // defini ou non, quand il a change, et qui le gere. Jamais sa
+                // valeur, meme chiffree.
                 'ready' => $setting->isUsable(),
+                'has_credential' => $setting->hasCredential(),
+                'api_key_updated_at' => $setting->api_key_updated_at,
+                'credential_management_mode' => $setting->credential_management_mode,
             ])
             ->all();
 
@@ -85,6 +94,11 @@ class AdminAiOrganizationsController extends Controller
             'to' => $to,
             'organizations' => $organizations,
             'settings' => $settings,
+            // TASK-1306 : formulaire inline « Configurer » — memes props que
+            // /org/{slug}/admin/ai, une instance par Organization (jamais l'api_key).
+            'aiSettingModels' => $aiSettingModels,
+            'providers' => ProviderResolver::ALLOWED_PROVIDERS,
+            'defaultModel' => (string) (config('ai.default_model') ?: config('ai.openrouter.model', 'openai/gpt-4o-mini')),
             'economics' => $economics['organizations'],
             'unattributed' => $economics['unattributed'],
             'deleted' => $deleted,
