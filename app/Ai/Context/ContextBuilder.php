@@ -39,6 +39,7 @@ final class ContextBuilder
         UserLoopsSource $userLoops,
         OrganizationCategoriesSource $organizationCategories,
         DossierRetrievalSource $dossierRetrieval,
+        DossierManifestSource $dossierManifest,
         BlogPostSource $blogPost,
         MemberProfileSource $memberProfile,
     ) {
@@ -47,6 +48,7 @@ final class ContextBuilder
             $userLoops->name() => $userLoops,
             $organizationCategories->name() => $organizationCategories,
             $dossierRetrieval->name() => $dossierRetrieval,
+            $dossierManifest->name() => $dossierManifest,
             $blogPost->name() => $blogPost,
             $memberProfile->name() => $memberProfile,
         ];

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Ai\CapabilityRegistry;
 use App\Ai\Context\ContextBuilder;
 use App\Ai\Context\ContexteBorne;
+use App\Ai\Context\DossierManifestSource;
 use App\Ai\Context\DossierRetrievalSource;
 use App\Ai\Context\SourceDenied;
 use App\Ai\ContexteIa;
@@ -349,7 +350,9 @@ class TASK1294LoopScopedRetrievalTest extends TestCase
 
         $borne = $this->build($this->contexte($this->loopA->id));
 
-        $this->assertSame([DossierRetrievalSource::NAME], $borne->sourcesUsed);
+        // TASK-1307 : le manifest structurel contribue lui aussi sous le
+        // meme perimetre loop-scoped.
+        $this->assertSame([DossierManifestSource::NAME, DossierRetrievalSource::NAME], $borne->sourcesUsed);
         $provenance = $borne->provenanceFor(DossierRetrievalSource::NAME);
         $this->assertCount(1, $provenance);
         $this->assertSame('S1', $provenance[0]['ref']);
@@ -399,10 +402,10 @@ class Task1294FakeSearch extends DossierSemanticSearchService
 
     public function __construct() {}
 
-    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = []): array
+    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null): array
     {
-        $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'embeddingInstance', 'limit', 'traceMetadata');
+        $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'embeddingInstance', 'limit', 'traceMetadata', 'candidateLimit');
 
-        return array_slice($this->rows, 0, $limit);
+        return array_slice($this->rows, 0, $candidateLimit ?? $limit);
     }
 }

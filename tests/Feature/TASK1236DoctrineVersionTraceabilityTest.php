@@ -249,8 +249,8 @@ class Task1236FakeSearch extends DossierSemanticSearchService
 
     public function __construct() {}
 
-    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = []): array
+    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null): array
     {
-        return array_slice($this->rows, 0, $limit);
+        return array_slice($this->rows, 0, $candidateLimit ?? $limit);
     }
 }

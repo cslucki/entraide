@@ -355,7 +355,11 @@ class TASK1221NervousSystemConvergenceTest extends TestCase
         $knowledge = $registry->get(CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER);
         $this->assertFalse($knowledge->canWrite, 'knowledge: read-only, never publishes');
         $this->assertSame(
-            [CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL],
+            // TASK-1307 : le manifest structurel (metadonnees des Dossiers,
+            // sans recherche ni contenu) rejoint le retrieval semantique —
+            // toujours et seulement le corpus documentaire des Dossiers,
+            // jamais les messages de Boucle ni un autre perimetre.
+            [CapabilityRegistry::SOURCE_DOSSIER_MANIFEST, CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL],
             $knowledge->allowedSources,
             'knowledge reads ONLY the documentary corpus',
         );

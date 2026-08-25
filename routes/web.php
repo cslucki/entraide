@@ -1054,6 +1054,18 @@ Route::prefix('/org/{organization}')
                 // TASK-1226 : fragment de rafraichissement de l'Observatoire
                 // (polling leger, read-only, meme middleware que la page).
                 Route::get('/ai-knowledge/live', [OrgAdminController::class, 'aiKnowledgeLive'])->middleware('throttle:120,1')->name('ai-knowledge.live');
+                // TASK-1307 : inspecter les extraits REELLEMENT indexes d'une
+                // source (metadonnees + contenu des chunks, jamais le vecteur
+                // embedding) — read-only, 0 appel provider.
+                Route::get('/ai-knowledge/sources/{type}/{source}', [OrgAdminController::class, 'aiKnowledgeSourceChunks'])
+                    ->whereIn('type', ['article', 'file'])
+                    ->name('ai-knowledge.source');
+                // TASK-1307 : recherche documentaire BRUTE (pgvector, sans
+                // generation LLM) depuis la console — diagnostic deterministe
+                // du retrieval reel, borne a un embedding de requete par appel.
+                Route::get('/ai-knowledge/search', [OrgAdminController::class, 'aiKnowledgeSearch'])
+                    ->middleware('throttle:20,1')
+                    ->name('ai-knowledge.search');
                 // TASK-1219 : console de consommation IA read-only — ce que la
                 // garde economique compte deja pour cette Organization.
                 Route::get('/ai-consumption', [OrgAdminController::class, 'aiConsumption'])->name('ai-consumption');

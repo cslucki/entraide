@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\IndexDossierArticleChunks;
 use App\Models\AiProviderInvocation;
 use App\Models\Loop;
 use App\Models\LoopCard;
@@ -673,13 +674,22 @@ class TASK1275LoopTypesMembersRolesCardsTest extends TestCase
         $this->assertSame($first['members'], $this->snapshot()['members']);
     }
 
+    /**
+     * TASK-1307 : `$this->load()` (re)cree 10 Boucles par la chaine
+     * canonique ; chaque document racine dispatche desormais son indexation
+     * a la creation, comme tout Article attache a un Dossier (avant
+     * TASK-1307, un document racine n'etait jamais indexe avant sa premiere
+     * edition humaine — un oubli corrige, pas une garantie du pack). Aucun
+     * appel IA n'en decoule ici : le job reste en attente, aucun worker ne
+     * le traite pendant ce test.
+     */
     public function test_load_pushes_no_job_calls_no_ai_and_simulates_no_usage_of_any_card(): void
     {
         Queue::fake();
 
         $this->load();
 
-        Queue::assertNothingPushed();
+        Queue::assertPushed(IndexDossierArticleChunks::class, count(Test20260822DogfoodingPack::LOOP_DIRECTORIES));
         $this->assertSame(0, AiProviderInvocation::query()->count());
 
         // T1277, pas T1275 : aucune donnee dans aucune Card.

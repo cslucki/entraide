@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\IndexDossierArticleChunks;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\Loop;
@@ -12,6 +13,7 @@ use App\Services\LoopService;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -319,5 +321,50 @@ class TASK1082RootDocumentTest extends TestCase
         $this->assertSame(BlogPost::AUDIENCE_PUBLIC, $article->fresh()->audience);
         $this->assertTrue((bool) $article->fresh()->listed_in_blog);
         $this->assertNotNull(BlogPost::published()->find($article->id));
+    }
+
+    // ── Indexation (TASK-1307) ────────────────────────────────────────────
+
+    /**
+     * Avant TASK-1307, `designate()` ne dispatchait rien : un document racine
+     * (`listed_in_blog = false`) restait invisible du RAG indefiniment, sauf
+     * edition humaine ulterieure qui declenche `BlogPostObserver::updated()`.
+     * `designate()` est le SEUL endroit qui cree/deplace le lien Article <->
+     * Dossier pour un document racine — le meme geste que
+     * `DossierArticleController::store()`/`createAndAttach()` doit donc
+     * dispatcher la meme indexation.
+     */
+    public function test_creating_a_loop_dispatches_indexing_for_its_root_document(): void
+    {
+        Queue::fake();
+
+        $loop = $this->makeLoop();
+        $dossier = Dossier::where('loop_id', $loop->id)->firstOrFail();
+
+        Queue::assertPushed(
+            IndexDossierArticleChunks::class,
+            fn (IndexDossierArticleChunks $job): bool => $job->organizationId === $this->org->id
+                && $job->dossierId === $dossier->id
+                && $job->blogPostId === $dossier->root_blog_post_id,
+        );
+    }
+
+    /** `designate()` reassigning the root document dispatches indexing for the newly designated article too. */
+    public function test_replacing_the_root_document_dispatches_indexing_for_the_new_one(): void
+    {
+        $loop = $this->makeLoop();
+        $replacement = BlogPost::create([
+            'user_id' => $this->user->id, 'organization_id' => $this->org->id,
+            'title' => 'Nouveau manifeste', 'slug' => 'nouveau-manifeste-'.uniqid(), 'content' => 'x',
+            'status' => 'published', 'published_at' => now(),
+        ]);
+
+        Queue::fake();
+        $this->service()->replace($loop, $replacement);
+
+        Queue::assertPushed(
+            IndexDossierArticleChunks::class,
+            fn (IndexDossierArticleChunks $job): bool => $job->blogPostId === $replacement->id,
+        );
     }
 }

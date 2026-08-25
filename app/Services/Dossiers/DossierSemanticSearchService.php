@@ -230,6 +230,18 @@ class DossierSemanticSearchService
      * `slug`) de fichier (`dossier_file_id`/`filename`) — jamais les deux a
      * la fois sur une meme ligne.
      *
+     * TASK-1307 : `$candidateLimit`, optionnel, separe « combien de chunks la
+     * requete vectorielle ramene » de `$limit` (« combien de chunks un
+     * appelant cite/facture au modele », toujours valide entre 1 et 5,
+     * comportement INCHANGE). NULL (defaut, tous les appelants existants) ->
+     * la requete SQL ramene exactement `$limit` lignes, comme avant.
+     * Un appelant qui a besoin d'un bassin plus large pour diversifier APRES
+     * coup (`DossierRetrievalSource`) le passe explicitement ; aucun appel
+     * provider supplementaire n'en decoule (un seul embedding de requete,
+     * quelle que soit la taille du bassin) — seule la clause SQL `LIMIT`
+     * change. `$candidateLimit` est lui-meme borne (<=20) pour rester un
+     * bassin de reclassement, jamais un contournement de `top_k`.
+     *
      * @param  list<string>  $dossierIds
      * @return array<int, array{chunk_id: string, dossier_id: string, dossier_name: string, source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, mime_type: ?string, chunk_index: int, content: string, distance: float}>
      */
@@ -240,6 +252,7 @@ class DossierSemanticSearchService
         string $embeddingInstance,
         int $limit = 5,
         array $traceMetadata = [],
+        ?int $candidateLimit = null,
     ): array {
         $query = trim($query);
 
@@ -250,6 +263,12 @@ class DossierSemanticSearchService
         if ($limit < 1 || $limit > 5) {
             throw new InvalidArgumentException('Semantic search limit must be between 1 and 5.');
         }
+
+        if ($candidateLimit !== null && ($candidateLimit < $limit || $candidateLimit > 20)) {
+            throw new InvalidArgumentException('Semantic search candidate limit must be between the limit and 20.');
+        }
+
+        $fetchLimit = $candidateLimit ?? $limit;
 
         $dossierIds = array_values(array_unique(array_filter(array_map('strval', $dossierIds))));
 
@@ -342,7 +361,7 @@ class DossierSemanticSearchService
             ])
             ->selectVectorDistance('dossier_chunks.embedding', $embedding, as: 'distance')
             ->orderByVectorDistance('dossier_chunks.embedding', $embedding)
-            ->limit($limit)
+            ->limit($fetchLimit)
             ->get()
             ->map(fn (object $row): array => array_merge(
                 [
