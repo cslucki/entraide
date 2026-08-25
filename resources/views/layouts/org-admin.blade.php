@@ -145,7 +145,6 @@
                             ['route' => 'organization.admin.users', 'label' => __('navigation.org_admin_users'), 'icon' => 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z'],
                         ];
                         $adminItems = [
-                            ['route' => 'organization.admin.ai', 'label' => __('navigation.org_admin_ai'), 'icon' => 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z'],
                             ['route' => 'organization.admin.identity', 'label' => __('navigation.org_admin_identity'), 'icon' => 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z'],
                             ['route' => 'organization.admin.reports', 'label' => __('navigation.org_admin_reports'), 'icon' => 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'],
                             ['route' => 'organization.admin.invitations', 'label' => __('navigation.org_admin_invitations'), 'icon' => 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2zM15 11a3 3 0 11-6 0 3 3 0 016 0z'],
@@ -153,21 +152,26 @@
                             ['route' => 'organization.admin.system-email-templates', 'label' => __('admin.emailer_system'), 'icon' => 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z'],
                             ['route' => 'organization.admin.stats.login-history', 'label' => 'Connexions', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
                         ];
+                        // TASK-1305 : ordre = parcours naturel (etat -> configurer -> comportement
+                        // -> connaissances -> consommation). ai-supervision / member-ai-profiles /
+                        // ai-interactions restent des comingSoon() : masquees du menu tant qu'elles
+                        // ne sont pas reelles — routes et controllers conserves, uniquement retires
+                        // de la navigation. Identique pour toute Organization, `main` incluse :
+                        // aucune branche `if main`.
                         $orgIaItems = [
                             // TASK-1223 : hub d'etat — le point d'entree.
                             ['route' => 'organization.admin.ai-cockpit', 'label' => __('navigation.org_admin_ai_cockpit'), 'icon' => 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z'],
+                            // TASK-1212 / TASK-1305 : configuration du credential — deplacee
+                            // depuis le groupe Administration, elle vit desormais dans le
+                            // parcours IA lui-meme, juste apres le hub d'etat.
+                            ['route' => 'organization.admin.ai', 'label' => __('navigation.org_admin_ai'), 'icon' => 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z'],
                             // TASK-1227 : Constitution, doctrine de l'Organization, couverture
                             ['route' => 'organization.admin.ai-behavior', 'label' => __('navigation.org_admin_ai_behavior'), 'icon' => 'M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z'],
-                            ['route' => 'organization.admin.ai-supervision', 'label' => __('navigation.org_admin_ai_supervision'), 'icon' => 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z'],
                             // TASK-1217 : console RAG read-only
                             ['route' => 'organization.admin.ai-knowledge', 'label' => __('navigation.org_admin_ai_knowledge'), 'icon' => 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25'],
                             // TASK-1219 : console de consommation IA read-only
                             ['route' => 'organization.admin.ai-consumption', 'label' => __('navigation.org_admin_ai_consumption'), 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
                         ];
-                        if ($organization->ai_profiles_enabled) {
-                            $orgIaItems[] = ['route' => 'organization.admin.member-ai-profiles', 'label' => __('navigation.org_admin_member_ai_profiles'), 'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zm-4 7a5 5 0 00-5 5h10a5 5 0 00-5-5z'];
-                            $orgIaItems[] = ['route' => 'organization.admin.ai-interactions', 'label' => __('navigation.org_admin_ai_interactions'), 'icon' => 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z'];
-                        }
                     @endphp
 
                     <!-- Dashboard -->

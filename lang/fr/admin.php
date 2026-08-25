@@ -18,8 +18,13 @@ return [
     'ai_environment' => 'Environnement',
     'ai_production' => 'Production',
     'ai_development' => 'Local / Développement',
-    'ai_config_title' => 'Réglages IA',
+    'ai_config_title' => 'Réglages IA plateforme',
     'ai_config' => 'Configuration IA',
+    // TASK-1305 : lever l'ambiguïté avec la configuration ChatLoop/RAG de
+    // chaque Organization (/org/{organization}/admin/ai) — cette page ne la
+    // remplace pas, elle porte le fournisseur par défaut de la plateforme,
+    // le Blog IA et les profils IA par organisation.
+    'ai_config_intro' => 'Réglages IA de la plateforme : fournisseur par défaut, Blog IA et profils IA par organisation. Pour configurer l\'IA (résumé ChatLoop, connaissances) d\'une Organization précise, utilisez sa page « Configuration IA » depuis son administration dédiée.',
     'ai_current_status' => 'État actuel',
     'ai_edit_config' => 'Modifier la configuration',
     'ai_reset' => 'Réinitialiser',
@@ -84,6 +89,10 @@ return [
     'organization_ai_status' => 'État',
     'organization_ai_status_ready' => 'Prête : les fonctions IA utilisent la configuration de votre organisation.',
     'organization_ai_status_not_ready' => 'Non opérationnelle : aucune fonction IA ne sera appelée tant que la configuration n\'est pas complète et activée.',
+    // TASK-1305 : résumé compact affiché sur /admin/organizations/{organization}/edit —
+    // jamais la clé, mêmes données que /admin/ai-organizations (isUsable()).
+    'organization_ai_summary_ready' => 'Prête',
+    'organization_ai_summary_not_ready' => 'Non configurée',
     'organization_logo_removed' => 'Logo supprimé avec succès.',
     'organization_logo_no_change' => 'Aucune modification apportée au logo.',
     'organization_save' => 'Enregistrer',
