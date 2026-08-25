@@ -13,8 +13,11 @@ use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Ai\AiUserCreditSettings;
 use App\Services\Ai\Exceptions\SupervisionException;
+use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiRefusedException;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
@@ -279,6 +282,52 @@ class TASK1250SupervisionResolverEconomicAuthorityTest extends TestCase
         ]);
     }
 
+    /**
+     * TASK-1303 : depense REGISTRE (`ai_interactions`) datee EXPLICITEMENT —
+     * `created_at` n'est pas fillable, passe a `create()` il serait ignore
+     * en silence et la ligne serait datee de l'horloge figee du test.
+     */
+    private function registrySpend(string $process, float $cost, CarbonImmutable $at): void
+    {
+        $interaction = AiInteraction::create([
+            'user_id' => $this->member->id,
+            'organization_id' => $this->tenant->id,
+            'process' => $process,
+            'feature' => 'service_offer_formulation',
+            'model' => 'openrouter/router/catalogued',
+            'prompt' => 'p',
+            'response' => 'r',
+            'input_tokens' => 10,
+            'output_tokens' => 10,
+            'cost_usd' => $cost,
+            'cost_unknown' => false,
+            'metadata' => [],
+        ]);
+
+        $interaction->forceFill(['created_at' => $at])->saveQuietly();
+    }
+
+    /** TASK-1303 : depense LEDGER canonique datee explicitement (patron T1286). */
+    private function ledgerSpend(string $process, float $cost, CarbonImmutable $at): void
+    {
+        $invocation = AiProviderInvocation::create([
+            'organization_id' => $this->tenant->id,
+            'user_id' => $this->member->id,
+            'process' => $process,
+            'operation' => AiProviderInvocation::OPERATION_GENERATION,
+            'provider' => 'openrouter',
+            'model' => 'router/catalogued',
+            'credential_source' => AiProviderInvocation::CREDENTIAL_PLATFORM,
+            'provider_cost' => $cost,
+            'currency' => 'USD',
+            'cost_status' => AiProviderInvocation::COST_KNOWN,
+            'cost_source' => 'catalog_estimated',
+            'status' => AiProviderInvocation::STATUS_SUCCESS,
+        ]);
+
+        $invocation->forceFill(['created_at' => $at])->saveQuietly();
+    }
+
     private function assertNothingWritten(): void
     {
         $this->assertSame(0, AiProviderInvocation::query()->count(), 'Un refus n\'ecrit aucune ligne de ledger.');
@@ -357,32 +406,60 @@ class TASK1250SupervisionResolverEconomicAuthorityTest extends TestCase
         $this->assertSame(0, AdminAiInteraction::query()->count());
     }
 
-    public function test_the_process_budget_is_wired_on_service_offer_master(): void
+    /**
+     * TASK-1303 : le cutover ledger de `service_offer.master`
+     * (`LEDGER_AUTHORITY_SINCE_BY_PROCESS`, 2026-08-25T00:00Z, T1291) a
+     * transforme l'ancienne version de ce test en bombe calendaire — il
+     * semait le registre a l'horloge REELLE et a explose au premier minuit
+     * post-cutover. Idiome T1295/T1261 : DEUX fenetres FIGEES derivees de
+     * la constante, chaque autorite prouvee des deux cotes (celle qui
+     * compte refuse, l'autre est prouvee INERTE par un passage vert —
+     * sinon le refus pourrait venir de la mauvaise table, assertion
+     * creuse).
+     */
+    public function test_the_process_budget_is_wired_on_service_offer_master_before_the_ledger_cutover(): void
     {
-        // La garde lit le budget PAR PROCESS dans l'autorite actuelle
-        // (`ai_interactions`) : une depense connue sur `service_offer.master`
-        // ferme ce process, et lui seul.
-        Http::fake();
+        $cutover = CarbonImmutable::parse(AiEconomicGuard::LEDGER_AUTHORITY_SINCE_BY_PROCESS['service_offer.master']);
+        Carbon::setTestNow($cutover->subDay()->setTime(12, 0));
         config(['ai.supervision_resolver.economic_guard.monthly_budget_usd' => 0.10]);
-        AiInteraction::create([
-            'user_id' => $this->member->id,
-            'organization_id' => $this->tenant->id,
-            'process' => 'service_offer.master',
-            'feature' => 'service_offer_formulation',
-            'model' => 'openrouter/router/catalogued',
-            'prompt' => 'p',
-            'response' => 'r',
-            'input_tokens' => 10,
-            'output_tokens' => 10,
-            'cost_usd' => 0.20,
-            'cost_unknown' => false,
-            'metadata' => [],
-        ]);
+        $this->fakeOpenRouterScenario($this->serviceOfferPayload());
 
+        // Une depense LEDGER dans la meme fenetre : HORS autorite avant le
+        // cutover (fenetres disjointes T1260) — elle ne ferme rien.
+        $this->ledgerSpend('service_offer.master', 5.00, $cutover->subDay()->setTime(10, 0));
+        $this->formulate()->assertOk();
+        $this->assertSame(2, AiProviderInvocation::query()->count(), '1 fixture ledger inerte + 1 succes reel.');
+
+        // La MEME depense au REGISTRE `ai_interactions` : refus — c'est lui
+        // l'autorite pre-cutover, et ce process seul est ferme.
+        $this->registrySpend('service_offer.master', 0.20, $cutover->subDay()->setTime(11, 0));
         $this->formulate()->assertStatus(429)
             ->assertJsonPath('code', AiRefusedException::CODE_ORGANIZATION_BUDGET_REACHED);
-        Http::assertNothingSent();
-        $this->assertSame(0, AiProviderInvocation::query()->count());
+        Http::assertSentCount(1);
+        $this->assertSame(2, AiProviderInvocation::query()->count(), 'Un refus n\'ecrit aucune ligne de ledger.');
+    }
+
+    public function test_the_process_budget_is_wired_on_service_offer_master_after_the_ledger_cutover(): void
+    {
+        $cutover = CarbonImmutable::parse(AiEconomicGuard::LEDGER_AUTHORITY_SINCE_BY_PROCESS['service_offer.master']);
+        Carbon::setTestNow($cutover->addDay()->setTime(12, 0));
+        config(['ai.supervision_resolver.economic_guard.monthly_budget_usd' => 0.10]);
+        $this->fakeOpenRouterScenario($this->serviceOfferPayload());
+
+        // La trace REGISTRE jumelle post-cutover ne compte plus nulle part
+        // (T1286) : ce passage VERT le prouve — sans lui, le refus suivant
+        // pourrait etre prouve par la mauvaise table.
+        $this->registrySpend('service_offer.master', 5.00, $cutover->addDay()->setTime(10, 0));
+        $this->formulate()->assertOk();
+        $this->assertSame(1, AiProviderInvocation::query()->count(), '1 succes reel, aucune fixture ledger encore.');
+
+        // La MEME depense au LEDGER canonique : refus — c'est lui l'autorite
+        // depuis le cutover.
+        $this->ledgerSpend('service_offer.master', 0.20, $cutover->addDay()->setTime(11, 0));
+        $this->formulate()->assertStatus(429)
+            ->assertJsonPath('code', AiRefusedException::CODE_ORGANIZATION_BUDGET_REACHED);
+        Http::assertSentCount(1);
+        $this->assertSame(2, AiProviderInvocation::query()->count(), 'Un refus n\'ecrit rien (1 succes + 1 fixture).');
     }
 
     public function test_a_missing_platform_key_refuses_the_formulation_as_not_configured_before_any_call(): void

@@ -432,10 +432,14 @@ class TASK1251MemberProfileAgentLoopReplyEconomicAuthorityTest extends TestCase
         $loop = $this->aiAgentLoop();
         $this->fakeOpenRouterAnswer();
 
-        // Une depense connue sur un AUTRE process : sans effet.
-        $this->knownSpend($this->tenant, $this->owner, 'service_offer.master', 'service_offer_formulation');
+        // Une depense connue sur un AUTRE process : sans effet. TASK-1303 :
+        // `service_offer.master` a converge au cutover du 25/08 (T1291) — la
+        // depense doit etre au LEDGER pour etre reellement VUE de la garde
+        // (une trace registre post-cutover ne compterait nulle part et la
+        // sentinelle serait creuse, meme piege que T1252/T1286).
+        $this->knownLedgerSpend($this->tenant, $this->owner, 'service_offer.master');
         $this->runJob($loop, $this->visitorMessage($loop, body: 'Premiere question.'));
-        $this->assertSame(1, AiProviderInvocation::query()->count());
+        $this->assertSame(2, AiProviderInvocation::query()->count(), '1 fixture autre process + 1 succes.');
 
         // La meme depense sur LE process de ce chemin : refus. T1286 : ce
         // process a converge vers l'autorite ledger — la depense qui compte
@@ -443,7 +447,7 @@ class TASK1251MemberProfileAgentLoopReplyEconomicAuthorityTest extends TestCase
         $this->knownLedgerSpend($this->tenant, $this->owner, 'member_profile.loop_agent_reply');
         $this->runJob($loop, $this->visitorMessage($loop, body: 'Deuxieme question.'));
 
-        $this->assertSame(2, AiProviderInvocation::query()->count(), 'Le refus n\'a rien ecrit de plus (1 succes + 1 fixture).');
+        $this->assertSame(3, AiProviderInvocation::query()->count(), 'Le refus n\'a rien ecrit de plus (2 fixtures + 1 succes).');
         Http::assertSentCount(1);
         $this->assertSame(
             [AiRefusedException::CODE_ORGANIZATION_BUDGET_REACHED],
