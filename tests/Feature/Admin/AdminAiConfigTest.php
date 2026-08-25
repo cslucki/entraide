@@ -29,7 +29,11 @@ class AdminAiConfigTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('admin.ai-config'));
 
         $response->assertOk();
-        $response->assertSee('Réglages IA');
+        // TASK-1305 : le libellé du menu SuperAdmin est désormais traduit
+        // (__('admin.ai_config_title'), "Réglages IA plateforme" en FR) —
+        // l'ancien littéral français codé en dur ne suivait pas la locale
+        // de la page (déjà rendue en anglais ici, cf. 'AI Configuration').
+        $response->assertSee(__('admin.ai_config_title'));
         $response->assertSee('AI Configuration');
     }
 
@@ -90,7 +94,7 @@ class AdminAiConfigTest extends TestCase
     {
         $response = $this->actingAs($this->admin)->get(route('admin.ai-config'));
 
-        $response->assertSee('Réglages IA');
+        $response->assertSee(__('admin.ai_config_title'));
     }
 
     public function test_config_override_is_applied_at_runtime(): void

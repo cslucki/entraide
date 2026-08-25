@@ -2,7 +2,10 @@
 
 <x-admin-layout>
     <div class="max-w-3xl space-y-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('admin.ai_config') }}</h2>
+        <div>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('admin.ai_config') }}</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('admin.ai_config_intro') }}</p>
+        </div>
 
         {{-- État actuel --}}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 space-y-4">
