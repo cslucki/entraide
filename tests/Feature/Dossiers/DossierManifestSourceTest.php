@@ -38,6 +38,7 @@ class DossierManifestSourceTest extends TestCase
     public function test_lists_articles_and_files_of_the_loop_dossier_as_metadata_only(): void
     {
         [$organization, $owner, $loop, $dossier] = $this->fixture();
+        $this->draftRootDocument($loop);
 
         $this->attachArticle($organization, $owner, $dossier, 'Cadre du dialogue', '<p>Contenu prive qui ne doit pas fuiter.</p>');
         $this->attachFile($organization, $owner, $dossier, 'Manifeste.pdf', 'application/pdf');
@@ -46,11 +47,53 @@ class DossierManifestSourceTest extends TestCase
         $borne = $this->build($organization, $owner, $loop);
         $text = $this->manifestText($borne);
 
-        $this->assertStringContainsString('Article : Cadre du dialogue', $text);
+        $this->assertStringContainsString('[M1] Article : Cadre du dialogue', $text);
         $this->assertStringContainsString('Fichier PDF : Manifeste.pdf', $text);
         $this->assertStringContainsString('Fichier MD : Notes.md', $text);
         // Metadonnees seulement : jamais le contenu de l'article.
         $this->assertStringNotContainsString('Contenu prive', $text);
+    }
+
+    /**
+     * TASK-1307 (revue) : la provenance du manifest est desormais CITABLE
+     * ([M1]..[Mn], distincte de [S1]..[Sn]) et propagee jusqu'a
+     * `LoopKnowledgeAnswerService`. Chaque entree porte le strict minimum
+     * de metadonnees autorisees — jamais de contenu de document.
+     */
+    public function test_manifest_entries_are_citable_provenance_without_document_content(): void
+    {
+        [$organization, $owner, $loop, $dossier] = $this->fixture();
+        $this->draftRootDocument($loop);
+
+        $post = $this->attachArticle($organization, $owner, $dossier, 'Cadre du dialogue', '<p>Contenu prive.</p>');
+        $file = $this->attachFile($organization, $owner, $dossier, 'Manifeste.pdf', 'application/pdf');
+
+        $borne = $this->build($organization, $owner, $loop);
+        $provenance = $borne->provenanceFor(DossierManifestSource::NAME);
+
+        $this->assertCount(2, $provenance);
+
+        $article = $provenance[0];
+        $this->assertSame('M1', $article['ref']);
+        $this->assertSame(DossierManifestSource::NAME, $article['source']);
+        $this->assertSame('manifest', $article['type']);
+        $this->assertSame('article', $article['source_type']);
+        $this->assertSame((string) $post->id, $article['blog_post_id']);
+        $this->assertNull($article['dossier_file_id']);
+        $this->assertSame((string) $dossier->id, $article['dossier_id']);
+        $this->assertSame($dossier->name, $article['dossier_name']);
+        $this->assertSame('Cadre du dialogue', $article['title']);
+        // Aucune cle `extrait` : le manifest n'a jamais lu le contenu.
+        $this->assertArrayNotHasKey('extrait', $article);
+        $this->assertArrayNotHasKey('chunk_id', $article);
+
+        $fileEntry = $provenance[1];
+        $this->assertSame('M2', $fileEntry['ref']);
+        $this->assertSame('file', $fileEntry['source_type']);
+        $this->assertSame((string) $file->id, $fileEntry['dossier_file_id']);
+        $this->assertNull($fileEntry['blog_post_id']);
+        $this->assertSame('Manifeste.pdf', $fileEntry['title']);
+        $this->assertArrayNotHasKey('extrait', $fileEntry);
     }
 
     public function test_a_dossier_of_another_organization_never_appears(): void
@@ -233,8 +276,22 @@ class DossierManifestSourceTest extends TestCase
 
     private function manifestText(ContexteBorne $borne): string
     {
-        // TASK-1307 : le manifest ne porte aucune provenance citable ([Sn]) —
-        // seul son texte, fusionne dans `$borne->text`, est verifiable ici.
+        // TASK-1307 (revue) : le manifest porte desormais sa PROPRE
+        // provenance citable ([M1]..[Mn], voir `test_manifest_entries_are_
+        // citable_provenance_without_document_content`) — ce helper reste
+        // pratique pour verifier le texte compose sans en decoder la
+        // provenance structuree.
         return $borne->text;
+    }
+
+    /**
+     * TASK-1307 (revue) : depublie le document racine auto-cree
+     * (LoopRootDocumentService) pour isoler un fixture "un seul element
+     * connu" sans dependre de l'ordre d'insertion entre Dossiers.
+     */
+    private function draftRootDocument(Loop $loop): void
+    {
+        BlogPost::whereKey(Dossier::where('loop_id', $loop->id)->value('root_blog_post_id'))
+            ->update(['status' => 'draft']);
     }
 }

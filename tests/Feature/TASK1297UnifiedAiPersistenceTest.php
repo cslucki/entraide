@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Models\AiInteraction;
+use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopMessage;
@@ -135,12 +136,19 @@ class TASK1297UnifiedAiPersistenceTest extends TestCase
         // sans citation validée : on persiste ce qui a coûté.
         $aiMessage = LoopMessage::query()->where('type', 'ai')->firstOrFail();
         $this->assertFalse($aiMessage->metadata['grounded']);
-        $this->assertSame(['S1'], array_column($aiMessage->metadata['sources'], 'ref'));
+        // TASK-1307 (revue) : rien de cite ne correspond ([S9] n'existe pas)
+        // -> on montre TOUT ce qui a ete consulte, manifest compris (M1, le
+        // document racine auto-cree de la Boucle) en plus de S1.
+        $this->assertSame(['M1', 'S1'], array_column($aiMessage->metadata['sources'], 'ref'));
         $this->assertSame(AiInteraction::firstOrFail()->id, $aiMessage->metadata['ai_interaction_id']);
     }
 
     public function test_the_no_sources_answer_writes_nothing_and_calls_no_model(): void
     {
+        // TASK-1307 (revue) : une Boucle porte TOUJOURS un document racine
+        // publie que le manifest listerait sinon (LoopRootDocumentService) —
+        // ce test isole le cas "aucune provenance du tout" en le depubliant.
+        $this->draftRootDocument($this->loop);
         $this->search->rows = [];
         $this->fakeAgent('ne doit pas être appelé');
 
@@ -258,6 +266,16 @@ class TASK1297UnifiedAiPersistenceTest extends TestCase
         LoopKnowledgeAgent::fake([
             new TextResponse($text, new Usage(20, 10), new Meta('openrouter', 'openai/gpt-4o-mini')),
         ]);
+    }
+
+    /**
+     * TASK-1307 (revue) : depublie le document racine auto-cree
+     * (LoopRootDocumentService) pour isoler un scenario "manifest vide".
+     */
+    private function draftRootDocument(Loop $loop): void
+    {
+        BlogPost::whereKey(Dossier::where('loop_id', $loop->id)->value('root_blog_post_id'))
+            ->update(['status' => 'draft']);
     }
 }
 

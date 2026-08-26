@@ -10,7 +10,9 @@ use App\Ai\Context\DossierRetrievalSource;
 use App\Ai\ContexteIa;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
+use App\Models\BlogPost;
 use App\Models\Dossier;
+use App\Models\DossierFile;
 use App\Models\Loop;
 use App\Models\LoopMessage;
 use App\Models\Organization;
@@ -225,7 +227,12 @@ class TASK1213KnowledgeAnswerTest extends TestCase
         $this->assertSame('loop_knowledge.answer', $interaction->process);
         $this->assertSame('openrouter/openai/gpt-4o-mini', $interaction->model);
         $this->assertSame($this->organization->id, $interaction->organization_id);
-        $this->assertCount(2, $interaction->metadata['retrieval']['consulted']);
+        // TASK-1307 (revue) : `consulted` porte AUSSI le document racine de
+        // la Boucle via le manifest (auto-cree par LoopRootDocumentService,
+        // ref M1) en plus des 2 extraits de retrieval — `cited`, lui, ne
+        // reflete que ce que le modele a REELLEMENT cite (S1, S2 : le
+        // fakeAgent ne mentionne jamais [M1]).
+        $this->assertCount(3, $interaction->metadata['retrieval']['consulted']);
         $this->assertCount(2, $interaction->metadata['retrieval']['cited']);
         $this->assertStringNotContainsString('sk-or-tenant', json_encode($interaction->toArray()));
         $this->assertSame($interaction->id, $answer->interactionId);
@@ -239,13 +246,20 @@ class TASK1213KnowledgeAnswerTest extends TestCase
         $answer = app(LoopKnowledgeAnswerService::class)->answer($this->loop, $this->member, 'question ?');
 
         $this->assertFalse($answer->grounded);
-        // Rien de cite ne correspond : on montre ce qui a ete consulte, jamais S9.
-        $this->assertSame(['S1'], array_column($answer->sources, 'ref'));
-        $this->assertSame(['S1'], array_column($answer->consulted, 'ref'));
+        // Rien de cite ne correspond : on montre ce qui a ete consulte, jamais
+        // S9 — le manifest du document racine de la Boucle (M1, TASK-1307)
+        // fait partie de ce qui a ete consulte, au meme titre que S1.
+        $this->assertSame(['M1', 'S1'], array_column($answer->sources, 'ref'));
+        $this->assertSame(['M1', 'S1'], array_column($answer->consulted, 'ref'));
     }
 
     public function test_without_relevant_sources_the_answer_says_so_without_calling_the_model(): void
     {
+        // TASK-1307 (revue) : une Boucle porte TOUJOURS un document racine
+        // publie (LoopRootDocumentService) que le manifest listerait sinon —
+        // ce test isole volontairement le cas "aucune provenance du tout",
+        // manifest COMPRIS, en depubliant ce document racine.
+        $this->draftRootDocument($this->loop);
         $this->search->rows = [];
         $this->fakeAgent('ne doit pas etre appele');
 
@@ -310,7 +324,10 @@ class TASK1213KnowledgeAnswerTest extends TestCase
     {
         $prompt = AdminAiPrompt::query()->where('scenario_id', 'loop_knowledge_answer')->where('is_active', true)->first();
         $this->assertNotNull($prompt);
-        $this->assertSame(1, $prompt->version);
+        // TASK-1307 (revue) : v2 est desormais la version active (migration
+        // 2026_08_26_090000) — v1 reste en base, jamais modifiee, jamais
+        // supprimee (donnee administrable, TASK-1211).
+        $this->assertSame(2, $prompt->version);
 
         $this->search->rows = [$this->row('A', $this->visibleDossier)];
         $this->fakeAgent('ok [S1]');
@@ -319,11 +336,101 @@ class TASK1213KnowledgeAnswerTest extends TestCase
         LoopKnowledgeAgent::assertPrompted(function (AgentPrompt $prompt): bool {
             $instructions = (string) $prompt->agent->instructions();
             $this->assertStringContainsString('Constitution', $instructions);
-            $this->assertStringContainsString('SOURCES DOCUMENTAIRES fournies', $instructions);
-            $this->assertLessThan(strpos($instructions, 'SOURCES DOCUMENTAIRES fournies'), strpos($instructions, 'Constitution'));
+            // TASK-1307 (revue) : marqueur propre au prompt v2 (absent de
+            // v1) — prouve que c'est bien la version ACTIVE qui a ete
+            // composee, pas une version quelconque.
+            $this->assertStringContainsString('ELEMENTS DU DOSSIER', $instructions);
+            $this->assertLessThan(strpos($instructions, 'ELEMENTS DU DOSSIER'), strpos($instructions, 'Constitution'));
 
             return true;
         });
+    }
+
+    // =====================================================================
+    // TASK-1307 (revue) : manifest [Mn] comme provenance de premiere classe
+    // =====================================================================
+
+    /**
+     * BLOCKER 1 de la revue : un Dossier avec un element reel (manifest non
+     * vide) mais AUCUN chunk semantique pertinent ne doit plus etre refuse —
+     * le manifest seul peut repondre a une question d'inventaire. Avant
+     * cette revue, `$consulted` ne regardait que `DossierRetrievalSource` :
+     * ce test aurait echoue avec `knowledge_no_sources` malgre un manifest
+     * non vide (verifie par swap du code pre-revue, voir TASK file).
+     */
+    public function test_a_manifest_only_inventory_is_answered_without_any_semantic_hit(): void
+    {
+        $this->draftRootDocument($this->loop);
+        $this->attachFile($this->visibleDossier, 'Regles-du-jeu.md', 'text/markdown');
+        $this->search->rows = [];
+        $this->fakeAgent('Le fichier Regles-du-jeu.md fait partie de cette Boucle [M1].');
+
+        $answer = app(LoopKnowledgeAnswerService::class)->answer($this->loop, $this->member, 'Quels fichiers sont disponibles dans cette Boucle ?');
+
+        LoopKnowledgeAgent::assertPrompted(fn (AgentPrompt $prompt): bool => true);
+        $this->assertNotSame(__('loops.knowledge_no_sources'), $answer->answer);
+        $this->assertTrue($answer->grounded);
+        $this->assertSame(['M1'], array_column($answer->sources, 'ref'));
+        $this->assertSame('manifest', $answer->sources[0]['type']);
+        $this->assertSame('Regles-du-jeu.md', $answer->sources[0]['title']);
+    }
+
+    /**
+     * TEST_MIXED de la revue : une reponse peut combiner [Mn] (inventaire)
+     * et [Sn] (contenu) dans la MEME reponse — les deux familles coexistent
+     * sans collision de numerotation ([Mn] et [Sn] sont deux espaces
+     * distincts, jamais fusionnes).
+     */
+    public function test_a_manifest_reference_and_a_retrieval_reference_can_be_cited_together(): void
+    {
+        $this->draftRootDocument($this->loop);
+        $this->attachFile($this->visibleDossier, 'Regles-du-jeu.md', 'text/markdown');
+        $this->search->rows = [$this->row('A', $this->visibleDossier)];
+        $this->fakeAgent('Le fichier Regles-du-jeu.md fait partie de la Boucle [M1] et un autre document precise le contenu attendu [S1].');
+
+        $answer = app(LoopKnowledgeAnswerService::class)->answer($this->loop, $this->member, 'Quels fichiers y a-t-il et que documentent-ils ?');
+
+        $this->assertTrue($answer->grounded);
+        $this->assertSame(['M1', 'S1'], array_column($answer->sources, 'ref'));
+    }
+
+    /**
+     * TEST_CONTENT de la revue : une question de CONTENU pur (aucune
+     * question d'inventaire) reste portee par [Sn] uniquement quand le
+     * modele ne cite aucun [Mn] — la seule existence d'un manifest non vide
+     * ne force jamais une citation [Mn] non pertinente.
+     */
+    public function test_a_pure_content_question_is_answered_from_retrieval_alone(): void
+    {
+        $this->attachFile($this->visibleDossier, 'Regles-du-jeu.md', 'text/markdown');
+        $this->search->rows = [$this->row('A', $this->visibleDossier), $this->row('B', $this->visibleDossier)];
+        $this->fakeAgent('Une installation itinérante doit tenir dans une valise [S1] et documenter ses contraintes [S2].');
+
+        $answer = app(LoopKnowledgeAnswerService::class)->answer($this->loop, $this->member, 'Que doit contenir une installation itinérante ?');
+
+        $this->assertTrue($answer->grounded);
+        $this->assertSame(['S1', 'S2'], array_column($answer->sources, 'ref'));
+    }
+
+    /**
+     * Propriete de securite explicite de la revue : une entree de provenance
+     * `dossier.manifest` ne porte JAMAIS de contenu de document — ni
+     * `extrait`, ni `chunk_id`. Sa forme publique (`KnowledgeAnswer::publicSource`)
+     * n'expose donc jamais d'extrait pour une reference [Mn].
+     */
+    public function test_a_manifest_source_never_carries_document_content(): void
+    {
+        $this->draftRootDocument($this->loop);
+        $this->attachFile($this->visibleDossier, 'Contrat-confidentiel.md', 'text/markdown');
+        $this->search->rows = [];
+        $this->fakeAgent('Un fichier existe dans cette Boucle [M1].');
+
+        $answer = app(LoopKnowledgeAnswerService::class)->answer($this->loop, $this->member, 'Quels fichiers y a-t-il ?');
+
+        $source = $answer->sources[0];
+        $this->assertArrayNotHasKey('extrait', $source);
+        $this->assertArrayNotHasKey('chunk_id', $source);
+        $this->assertNull(\App\Services\Ai\DTO\KnowledgeAnswer::publicSource($source)['excerpt']);
     }
 
     // =====================================================================
@@ -465,6 +572,35 @@ class TASK1213KnowledgeAnswerTest extends TestCase
     {
         LoopKnowledgeAgent::fake([
             new TextResponse($text, new Usage(20, 10), new Meta('openrouter', 'openai/gpt-4o-mini')),
+        ]);
+    }
+
+    /**
+     * TASK-1307 (revue) : depublie le document racine auto-cree
+     * (LoopRootDocumentService) pour isoler un scenario "manifest vide" ou
+     * "un seul element connu" sans dependre de l'ordre d'insertion entre
+     * plusieurs Dossiers accessibles.
+     */
+    private function draftRootDocument(Loop $loop): void
+    {
+        BlogPost::whereKey(Dossier::where('loop_id', $loop->id)->value('root_blog_post_id'))
+            ->update(['status' => 'draft']);
+    }
+
+    private function attachFile(Dossier $dossier, string $name, string $mimeType): DossierFile
+    {
+        return DossierFile::create([
+            'organization_id' => $this->organization->id,
+            'dossier_id' => $dossier->id,
+            'uploaded_by' => $this->member->id,
+            'disk' => 'dossier_files',
+            'path' => 'dossier-files/'.$dossier->id.'/'.Str::uuid().'-'.$name,
+            'original_name' => $name,
+            'display_name' => $name,
+            'mime_type' => $mimeType,
+            'size_bytes' => 10,
+            'checksum_sha256' => hash('sha256', $name),
+            'source' => 'upload',
         ]);
     }
 }

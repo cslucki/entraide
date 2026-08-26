@@ -6,6 +6,7 @@ use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Jobs\GenerateAiAgentResponse;
 use App\Livewire\LoopChat;
 use App\Models\AiInteraction;
+use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopMessage;
@@ -437,6 +438,10 @@ class TASK1299SlashIaInvocationTest extends TestCase
 
     public function test_no_relevant_source_keeps_the_human_message_and_publishes_nothing(): void
     {
+        // TASK-1307 (revue) : une Boucle porte TOUJOURS un document racine
+        // publie que le manifest listerait sinon (LoopRootDocumentService) —
+        // ce test isole le cas "aucune provenance du tout" en le depubliant.
+        $this->draftRootDocument($this->loop);
         $this->search->rows = [];
         $this->fakeAgent('ne doit pas etre appele');
 
@@ -550,6 +555,16 @@ class TASK1299SlashIaInvocationTest extends TestCase
         LoopKnowledgeAgent::fake([
             new TextResponse($text, new Usage(20, 10), new Meta('openrouter', 'openai/gpt-4o-mini')),
         ]);
+    }
+
+    /**
+     * TASK-1307 (revue) : depublie le document racine auto-cree
+     * (LoopRootDocumentService) pour isoler un scenario "manifest vide".
+     */
+    private function draftRootDocument(Loop $loop): void
+    {
+        BlogPost::whereKey(Dossier::where('loop_id', $loop->id)->value('root_blog_post_id'))
+            ->update(['status' => 'draft']);
     }
 }
 

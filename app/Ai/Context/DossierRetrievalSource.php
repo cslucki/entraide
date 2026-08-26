@@ -4,14 +4,12 @@ namespace App\Ai\Context;
 
 use App\Ai\ContexteIa;
 use App\Ai\ProviderResolver;
-use App\Models\DossierFile;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Dossiers\DossierChunkEmbeddingService;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use DomainException;
-use Illuminate\Support\Facades\Route;
 
 /**
  * Source RAG `dossier.retrieval` (TASK-1213 / IA RAG V1).
@@ -210,8 +208,8 @@ final class DossierRetrievalSource implements ContextSource
                 'distance' => round($row['distance'], 4),
                 'extrait' => mb_strimwidth($content, 0, 240, '…'),
                 'url' => $row['source_type'] === 'file'
-                    ? $this->fileUrl($organizationSlug, $row['dossier_id'], $row['dossier_file_id'], $row['mime_type'] ?? null)
-                    : $this->articleUrl($organizationSlug, $row['slug']),
+                    ? DossierSourceUrl::forFile($organizationSlug, $row['dossier_id'], $row['dossier_file_id'], $row['mime_type'] ?? null)
+                    : DossierSourceUrl::forArticle($organizationSlug, $row['slug']),
             ];
         }
 
@@ -269,39 +267,5 @@ final class DossierRetrievalSource implements ContextSource
     private function topK(): int
     {
         return max(1, min(5, (int) config('ai.knowledge.top_k', 5)));
-    }
-
-    private function articleUrl(?string $organizationSlug, ?string $postSlug): ?string
-    {
-        if ($postSlug === null) {
-            return null;
-        }
-
-        if ($organizationSlug && Route::has('organization.blog.show')) {
-            return route('organization.blog.show', ['organization' => $organizationSlug, 'post' => $postSlug]);
-        }
-
-        return Route::has('blog.show') ? route('blog.show', ['post' => $postSlug]) : null;
-    }
-
-    private function fileUrl(?string $organizationSlug, string $dossierId, ?string $fileId, ?string $mimeType): ?string
-    {
-        // TASK-1296 : URL honnete. Un fichier previewable s'ouvre en apercu
-        // (`files.preview`, Content-Disposition inline) ; les autres gardent
-        // le telechargement (`files.show`). Les deux routes portent les memes
-        // gardes, dans le meme ordre.
-        $routeName = DossierFile::isPreviewableMime($mimeType)
-            ? 'organization.dossiers.files.preview'
-            : 'organization.dossiers.files.show';
-
-        if ($fileId === null || $organizationSlug === null || ! Route::has($routeName)) {
-            return null;
-        }
-
-        return route($routeName, [
-            'organization' => $organizationSlug,
-            'dossier' => $dossierId,
-            'file' => $fileId,
-        ]);
     }
 }
