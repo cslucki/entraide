@@ -592,7 +592,15 @@ class TASK1309DocumentaryOverviewTest extends TestCase
                     : "SUITE {$filename} — détails complémentaires sur {$topic}.",
                 'content_hash' => hash('sha256', $filename.$index),
                 'token_count' => 40,
-                'embedding' => array_fill(0, 4, 0.1),
+                // 1536 dimensions OBLIGATOIRES : sur PostgreSQL la colonne est
+                // `vector(1536)` et refuse toute autre taille, la ou SQLite
+                // (colonne `text`) accepte n'importe quoi. Un vecteur court
+                // passait en local et faisait tomber la CI PostgreSQL —
+                // divergence de moteur classique, jamais une regression.
+                // La VALEUR n'a aucune importance : aucune recherche
+                // vectorielle n'a lieu ici (le moteur est double, et le
+                // complement de vue d'ensemble ne lit que le texte).
+                'embedding' => array_fill(0, 1536, 0.1),
                 'embedding_provider' => 'openrouter',
                 'embedding_model' => 'text-embedding-3-small',
                 'indexed_at' => now(),

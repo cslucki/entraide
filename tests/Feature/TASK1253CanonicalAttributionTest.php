@@ -216,6 +216,10 @@ class TASK1253CanonicalAttributionTest extends TestCase
                 CapabilityRegistry::LOOP_SUMMARY,
                 CapabilityRegistry::CLARIFY_HELP_REQUEST,
                 CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER,
+                // TASK-1309 : le mode « IA + Dossiers » est une capability
+                // CANONIQUE de plus — declaree juste apres sa soeur
+                // documentaire, dont elle partage sources et process.
+                CapabilityRegistry::LOOP_HYBRID_ANSWER,
                 CapabilityRegistry::LOOP_ANSWER,
                 CapabilityRegistry::LOOP_ASK,
                 CapabilityRegistry::BLOG_GENERATE,
@@ -224,7 +228,7 @@ class TASK1253CanonicalAttributionTest extends TestCase
                 CapabilityRegistry::MEMBER_PROFILE_AGENT_VISITOR_CHAT,
             ],
             array_map(static fn ($definition): string => $definition->id, $registry->all()),
-            'Les neuf capabilities canoniques (TASK-1285 : + les deux reponses de l\'agent de profil) — aucune pour la suggestion sur selection, la configuration conversationnelle du profil, l\'Explorer, l\'offre, les bancs.',
+            'Les dix capabilities canoniques (TASK-1285 : + les deux reponses de l\'agent de profil ; TASK-1309 : + IA + Dossiers) — aucune pour la suggestion sur selection, la configuration conversationnelle du profil, l\'Explorer, l\'offre, les bancs.',
         );
     }
 
@@ -236,7 +240,7 @@ class TASK1253CanonicalAttributionTest extends TestCase
         $this->assertSame(BlogExplorerController::class, NervousSystemCoverage::INHERITED['blog_explorer']);
         $this->assertNotSame('ai.inherited_label.blog_explorer', __('ai.inherited_label.blog_explorer', [], 'fr'));
         $this->assertNotSame('ai.inherited_label.blog_explorer', __('ai.inherited_label.blog_explorer', [], 'en'));
-        $this->assertSame(9 + 4, $coverage->totalCount(), 'Neuf canoniques (TASK-1285 : + les deux reponses de l\'agent de profil) + quatre heritees (configuration conversationnelle du profil, suggestion sur selection Blog, Explorer, offre de service).');
+        $this->assertSame(10 + 4, $coverage->totalCount(), 'Dix canoniques (TASK-1285 : + les deux reponses de l\'agent de profil ; TASK-1309 : + IA + Dossiers) + quatre heritees (configuration conversationnelle du profil, suggestion sur selection Blog, Explorer, offre de service).');
     }
 
     // =====================================================================
