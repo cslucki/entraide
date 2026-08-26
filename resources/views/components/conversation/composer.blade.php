@@ -9,6 +9,11 @@
     'onCancelReply' => null,
     'showUpload' => false,
     'photo' => null,
+    // TASK-1308 : moteur du prochain tour ('ia'|'dossiers'|null), affiche en
+    // chip compact au-dessus du composeur — jamais un verrou (voir $onClearMode).
+    'mode' => null,
+    'modeLabel' => null,
+    'onClearMode' => null,
 ])
 
 @php
@@ -36,6 +41,22 @@
     </div>
     @endif
 
+    {{-- TASK-1308 : chip compacte du moteur choisi — sections 30/31/37.
+         `$onClearMode` ramene le composeur en mode normal ; le mode n'est
+         jamais un verrou, seulement un DEFAUT visible. --}}
+    @if($mode)
+    <div class="flex items-center gap-2 mb-2">
+        <span class="inline-flex items-center gap-1.5 rounded-full {{ $mode === 'dossiers' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200' : 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-200' }} px-2.5 py-1 text-xs font-semibold">
+            {{ $modeLabel }}
+            @if($onClearMode)
+            <button type="button" wire:click="{{ $onClearMode }}" class="ml-0.5 -mr-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-current transition hover:bg-black/10 dark:hover:bg-white/10" aria-label="{{ __('loops.composer_mode_clear') }}">
+                <span aria-hidden="true">×</span>
+            </button>
+            @endif
+        </span>
+    </div>
+    @endif
+
     @if($showUpload && $photo)
     <div class="flex items-center gap-2 mb-2 px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
         <img src="{{ $photo->temporaryUrl() }}" class="w-10 h-10 rounded object-cover flex-shrink-0" alt="{{ __('messages.image_preview') }}">
@@ -51,13 +72,20 @@
     </div>
     @endif
 
-    <form wire:submit="sendMessage" class="flex items-end gap-3">
+    {{-- `x-data="{}"` : racine Alpine inerte pour les autres usages (Message
+         Thread, agent chat) — necessaire ICI pour que le menu mobile
+         (`$leading`, TASK-1308) puisse declencher le meme selecteur de
+         fichier via `$refs.uploadInput`, sans dupliquer `wire:model`. --}}
+    <form wire:submit="sendMessage" class="flex items-end gap-3" x-data="{}">
+        @isset($leading)
+            {{ $leading }}
+        @endisset
         @if($showUpload)
-        <label class="flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 flex items-center justify-center cursor-pointer transition disabled:opacity-50">
+        <label class="{{ isset($leading) ? 'hidden md:flex' : 'flex' }} flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 items-center justify-center cursor-pointer transition disabled:opacity-50">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
             </svg>
-            <input type="file" wire:model.live="photo" accept="image/*" class="hidden">
+            <input type="file" x-ref="uploadInput" wire:model.live="photo" accept="image/*" class="hidden">
         </label>
         @endif
 

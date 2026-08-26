@@ -29,15 +29,41 @@
 
             @forelse($messages as $msg)
                 @php
+                    // TASK-1308 : identite tenant-generique d'une bulle IA —
+                    // jamais « Facilitateur IA », jamais un nom code en dur.
+                    // `ai_mode` est le discriminant canonique ('llm'|'rag') ;
+                    // les messages IA anterieurs a cette TASK sont derives
+                    // depuis leur `action` historique (aucune migration).
+                    $orgName = $viewLoop->organization?->name ?? config('app.name', 'BouclePro');
+                    $aiModeOf = function ($message) {
+                        $mode = $message?->metadata['ai_mode'] ?? null;
+                        if (in_array($mode, ['llm', 'rag'], true)) {
+                            return $mode;
+                        }
+                        $action = $message?->metadata['action'] ?? null;
+                        return in_array($action, ['knowledge', 'slash_ia', 'continuation', 'dossiers'], true) ? 'rag' : 'llm';
+                    };
+                    $aiBubbleLabel = fn ($message) => $orgName.' · '.($aiModeOf($message) === 'rag' ? __('loops.dossiers_mode_label') : __('loops.ia_mode_label'));
+
                     $isOwn = $msg->sender_id === auth()->id();
                     $senderDisplayable = $msg->sender?->isDisplayableIn(currentOrganization()) ?? false;
-                    $senderName = $msg->sender?->publicDisplayName() ?? 'BouclePro';
-                    $replySenderName = $msg->replyTo?->sender?->publicDisplayName() ?? 'BouclePro';
+                    $senderName = $msg->type === 'ai' ? $aiBubbleLabel($msg) : ($msg->sender?->publicDisplayName() ?? __('messages.member'));
+                    $replySenderName = $msg->replyTo
+                        ? ($msg->replyTo->type === 'ai' ? $aiBubbleLabel($msg->replyTo) : ($msg->replyTo->sender?->publicDisplayName() ?? __('messages.member')))
+                        : null;
                     $replyBody = $msg->replyTo?->isDeleted()
                         ? __('messages.deleted_message_placeholder')
                         : mb_substr((string) ($msg->replyTo?->body ?? ''), 0, 120);
                     $isDeleted = $msg->isDeleted();
                     $canEdit = $isMember && auth()->user() && $msg->isEditableBy(auth()->user());
+
+                    $aiBubbleSubtitle = null;
+                    if ($msg->type === 'ai') {
+                        $aiBubbleSubtitle = $aiModeOf($msg) === 'rag' ? __('loops.dossiers_bubble_subtitle') : __('loops.ia_bubble_subtitle');
+                        if (isset($requestedByNames[$msg->id])) {
+                            $aiBubbleSubtitle .= ' · '.__('loops.ai_requested_by', ['name' => $requestedByNames[$msg->id]]);
+                        }
+                    }
                 @endphp
                 <div id="loop-message-{{ $msg->id }}" wire:key="msg-{{ $msg->id }}" class="transition-all duration-300">
                     @if($isDeleted)
@@ -197,8 +223,8 @@
                         <x-conversation.message-bubble
                             type="received"
                             :time="$msg->created_at->diffForHumans()"
-                            :name="__('loops.ai_facilitator')"
-                            :subtitle="isset($requestedByNames[$msg->id]) ? __('loops.ai_requested_by', ['name' => $requestedByNames[$msg->id]]) : null"
+                            :name="$senderName"
+                            :subtitle="$aiBubbleSubtitle"
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"
                             :show-pin-button="$isMember"
@@ -254,33 +280,56 @@
         </x-slot:messages>
     </x-conversation.message-list>
 
+    @php
+        // Calcule tot pour etre partage entre la barre desktop et le menu
+        // mobile (TASK-1308).
+        $clarificationEnabled = \App\Models\AiConfig::get('clarification_enabled', false);
+        // TASK-1308 : dans une Boucle agent, l'agent (T-2) repond deja a
+        // chaque message — les deux moteurs du composeur unifie restent
+        // masques pour ne jamais laisser croire a un choix sans effet
+        // (sendMessage() les neutralise deja cote serveur, section 42).
+        $aiEnginesAvailable = ! $viewLoop->isAiAgent();
+    @endphp
+
     @if($isMember && $canContribute && config('ai.chatloop.enabled', true))
-        @php $clarificationEnabled = \App\Models\AiConfig::get('clarification_enabled', false); @endphp
-        {{-- TASK-1237 : le FAB dispatche `bp-open-ask-ai` pour ouvrir ce MEME
-             formulaire (route loops.ai canonique depuis TASK-1233) — aucun
-             second formulaire, aucune variante. --}}
-        <div class="flex-shrink-0 flex flex-wrap items-center gap-2 px-3 pt-2" x-data="{ askOpen: false, asking: false }"
+        {{-- TASK-1237 : le FAB dispatche `bp-open-ask-ai` / `bp-open-knowledge`
+             pour ouvrir CES MEMES modales historiques (route loops.ai /
+             loops.knowledge.ask) — elles restent en place, INCHANGEES, pour
+             cette dependance technique documentee (brief T-1308 section 39 :
+             ne pas refondre le FAB global). Les DEUX boutons ci-dessous, eux,
+             ne les ouvrent plus : ils selectionnent desormais le moteur du
+             composeur unique (sections 3-4). Masques sur mobile (section 33) :
+             le menu du composeur (`+`) les reprend. --}}
+        <div class="hidden md:flex flex-shrink-0 flex-wrap items-center gap-2 px-3 pt-2" x-data="{ askOpen: false, asking: false }"
              @bp-open-ask-ai.window="askOpen = true; $nextTick(() => $refs.askQuestion?.focus())">
+            @if($aiEnginesAvailable)
             <button
                 type="button"
-                x-on:click="askOpen = true"
-                class="inline-flex items-center gap-2 rounded-full border border-violet-100 bg-violet-50/70 px-3 py-1.5 text-xs font-semibold text-violet-700 transition hover:border-violet-200 hover:bg-violet-100 dark:border-violet-800/50 dark:bg-violet-900/20 dark:text-violet-200 dark:hover:bg-violet-900/40"
+                wire:click="setComposerMode('ia')"
+                aria-pressed="{{ $composerMode === 'ia' ? 'true' : 'false' }}"
+                class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition {{ $composerMode === 'ia'
+                    ? 'border-violet-400 bg-violet-600 text-white hover:bg-violet-700'
+                    : 'border-violet-100 bg-violet-50/70 text-violet-700 hover:border-violet-200 hover:bg-violet-100 dark:border-violet-800/50 dark:bg-violet-900/20 dark:text-violet-200 dark:hover:bg-violet-900/40' }}"
             >
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 5h.01M18 9h.01M6 4h.01"/></svg>
                 {{ __('loops.ask_ai_button') }}
+                @if($composerMode === 'ia')<span aria-hidden="true">×</span>@endif
             </button>
 
-            {{-- TASK-1213 : reponse documentaire sourcee (RAG V1), read-only. Le
-                 modal vit dans loops/show et s'ouvre par evenement window. --}}
             <button
                 type="button"
-                x-on:click="window.dispatchEvent(new CustomEvent('bp-open-knowledge'))"
+                wire:click="setComposerMode('dossiers')"
                 data-knowledge-open
-                class="inline-flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50/70 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:border-sky-200 hover:bg-sky-100 dark:border-sky-800/50 dark:bg-sky-900/20 dark:text-sky-200 dark:hover:bg-sky-900/40"
+                aria-pressed="{{ $composerMode === 'dossiers' ? 'true' : 'false' }}"
+                class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition {{ $composerMode === 'dossiers'
+                    ? 'border-sky-400 bg-sky-600 text-white hover:bg-sky-700'
+                    : 'border-sky-100 bg-sky-50/70 text-sky-700 hover:border-sky-200 hover:bg-sky-100 dark:border-sky-800/50 dark:bg-sky-900/20 dark:text-sky-200 dark:hover:bg-sky-900/40' }}"
             >
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>
                 {{ __('loops.knowledge_button') }}
+                @if($composerMode === 'dossiers')<span aria-hidden="true">×</span>@endif
             </button>
+            @endif
 
             @if($clarificationEnabled)
                 <button
@@ -331,14 +380,102 @@
     @endif
 
     @if($isMember && $canContribute)
+        @php
+            // TASK-1308 : chip + placeholder du composeur, derives du mode
+            // choisi — jamais un texte "RAG"/"LLM" (section 9), toujours le
+            // meme couple IA/Dossiers que la barre d'actions et le menu.
+            $composerModeLabel = match ($composerMode) {
+                'ia' => __('loops.ia_mode_label'),
+                'dossiers' => __('loops.dossiers_mode_label'),
+                default => null,
+            };
+            $composerPlaceholder = match ($composerMode) {
+                'ia' => __('loops.composer_placeholder_ia'),
+                'dossiers' => __('loops.composer_placeholder_dossiers'),
+                default => __('messages.write_message'),
+            };
+        @endphp
         <x-conversation.composer
             model="body"
-            :placeholder="__('messages.write_message')"
+            :placeholder="$composerPlaceholder"
             :replying-to="$replyingTo"
             on-cancel-reply="cancelReply"
             show-upload="true"
             :photo="$photo ?? null"
+            :mode="$composerMode !== 'normal' ? $composerMode : null"
+            :mode-label="$composerModeLabel"
+            on-clear-mode="setComposerMode('normal')"
         >
+            {{-- TASK-1308 : menu mobile (section 36) — reprend les DEUX
+                 actions IA/Dossiers (masquees dans la barre desktop sur
+                 mobile) + « Qui peut m'aider » + l'upload d'image existant,
+                 sans dupliquer sa saisie de fichier (voir composer.blade.php). --}}
+            <x-slot:leading>
+                <div class="md:hidden" x-data="{ sheetOpen: false }">
+                    <button
+                        type="button"
+                        x-on:click="sheetOpen = true"
+                        class="flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 flex items-center justify-center transition"
+                        aria-label="{{ __('loops.composer_more_actions') }}"
+                        aria-haspopup="true"
+                    >
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                    </button>
+                    <template x-teleport="body">
+                        <div
+                            x-show="sheetOpen"
+                            x-cloak
+                            class="fixed inset-0 z-50 flex items-end justify-center"
+                            x-effect="document.body.style.overflow = sheetOpen ? 'hidden' : ''"
+                            @keydown.escape.window="sheetOpen = false"
+                        >
+                            <div x-show="sheetOpen" class="fixed inset-0 bg-black/50" x-on:click="sheetOpen = false"></div>
+                            <div
+                                x-show="sheetOpen"
+                                x-transition:enter="transition ease-out duration-200"
+                                x-transition:enter-start="translate-y-full opacity-0"
+                                x-transition:enter-end="translate-y-0 opacity-100"
+                                class="relative w-full max-w-lg rounded-t-2xl bg-white p-4 shadow-2xl dark:bg-gray-800"
+                                style="padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px))"
+                                role="dialog"
+                                aria-modal="true"
+                                aria-label="{{ __('loops.composer_more_actions') }}"
+                            >
+                                <div class="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-600"></div>
+                                <div class="space-y-1">
+                                    @if($aiEnginesAvailable)
+                                    <button type="button" wire:click="setComposerMode('ia')" x-on:click="sheetOpen = false"
+                                        aria-pressed="{{ $composerMode === 'ia' ? 'true' : 'false' }}"
+                                        class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700">
+                                        <svg class="h-5 w-5 shrink-0 text-violet-600 dark:text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/></svg>
+                                        {{ __('loops.ask_ai_button') }}
+                                    </button>
+                                    <button type="button" wire:click="setComposerMode('dossiers')" x-on:click="sheetOpen = false"
+                                        aria-pressed="{{ $composerMode === 'dossiers' ? 'true' : 'false' }}"
+                                        class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700">
+                                        <svg class="h-5 w-5 shrink-0 text-sky-600 dark:text-sky-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>
+                                        {{ __('loops.knowledge_button') }}
+                                    </button>
+                                    @endif
+                                    @if($clarificationEnabled)
+                                    <button type="button" x-on:click="window.dispatchEvent(new CustomEvent('bp-open-help-request')); sheetOpen = false"
+                                        class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700">
+                                        <svg class="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                                        {{ __('loops.who_can_help') }}
+                                    </button>
+                                    @endif
+                                    <button type="button" x-on:click="$refs.uploadInput?.click(); sheetOpen = false"
+                                        class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700">
+                                        <svg class="h-5 w-5 shrink-0 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                        {{ __('loops.composer_add_image') }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </x-slot:leading>
+
             @error('body')
                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
             @enderror

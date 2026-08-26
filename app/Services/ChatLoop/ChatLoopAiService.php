@@ -19,6 +19,7 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\User;
+use App\Services\Ai\AiConversationContextBuilder;
 use App\Services\Ai\AiProviderInvocationLedger;
 use App\Support\Ai\AiCorrelation;
 use App\Support\Ai\AiCost;
@@ -40,7 +41,164 @@ class ChatLoopAiService
         private readonly ProviderResolver $providers,
         private readonly ContextBuilder $contextBuilder,
         private readonly LoopMessagesSource $loopMessages,
+        private readonly AiConversationContextBuilder $conversationContext,
     ) {}
+
+    /**
+     * Capability `loop_ask` — mode IA du composeur unifie (TASK-1308) :
+     * reponse LLM directe a un tour DEJA persiste par le composeur
+     * (`LoopChat::sendMessage()`), question libre ou reply explicite.
+     *
+     * A la difference de `ask()` (chemin herite T-1233, conserve pour le
+     * formulaire `loops.ai` uniquement) : le message humain n'est PAS
+     * re-cree ici — il existe deja dans le fil, choisi par le composeur, pas
+     * par cette methode — et le contexte n'est PAS le fenetrage
+     * `loop.messages` (activite generale de la Boucle) mais la chaine
+     * `reply_to_id` du declencheur, via `AiConversationContextBuilder` —
+     * la MEME autorite que le mode Dossiers (`LoopKnowledgeAnswerService`),
+     * pour que « repondre » signifie la meme chose des deux moteurs.
+     * Absence de reply (question libre, mode IA sans cible) : contexte vide,
+     * le prompt est la question seule.
+     */
+    public function respondInThread(Loop $loop, User $requester, string $question, LoopMessage $triggerMessage): LoopMessage
+    {
+        $this->assertCanRequest($loop, $requester);
+
+        $lockKey = 'chatloop_ai_lock:'.$loop->id;
+
+        $lockTtl = max(
+            (int) config('ai.chatloop.lock_ttl', 90),
+            (int) config('ai.chatloop.timeout', 30) + 30,
+        );
+
+        if (! Cache::add($lockKey, true, $lockTtl)) {
+            throw new \RuntimeException(__('loops.ai_generation_in_progress'));
+        }
+
+        try {
+            $locale = $this->resolveLocale($requester, $loop);
+            $capability = CapabilityRegistry::LOOP_ASK;
+            $definition = $this->capabilities->get($capability);
+
+            // La Boucle est une PORTEE a l'interieur du tenant, jamais le tenant.
+            $this->capabilities->assertScopeAllowed($capability, CapabilityRegistry::SCOPE_LOOP);
+
+            $organization = $loop->organization()->firstOrFail();
+
+            $contexte = new ContexteIa(
+                organizationId: (string) $organization->id,
+                userId: (string) $requester->id,
+                loopId: (string) $loop->id,
+                locale: $locale,
+                capability: $capability,
+                correlationId: AiCorrelation::id(),
+                source: CapabilityRegistry::SOURCE_LOOP_MESSAGES,
+            );
+
+            $scenarioId = (string) config('ai.chatloop.ask_scenario', 'chatloop_ai_ask');
+
+            $instructions = $this->prompts->compose(
+                $capability,
+                $this->resolvePromptOrFail($scenarioId, $locale, 'loops.ai_answer_prompt_missing'),
+                (string) $organization->id,
+            );
+            $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
+
+            $conversation = $this->conversationContext->build($triggerMessage);
+
+            $prompt = $conversation->isEmpty()
+                ? $question
+                : $conversation->text."\n\nQuestion : ".$question;
+
+            try {
+                $resolved = $this->providers->resolve($capability, $contexte);
+            } catch (\DomainException $exception) {
+                throw AiRefusedException::notConfigured($exception);
+            }
+
+            $verdict = $this->economicGuard->authorize(
+                $organization,
+                $definition->process,
+                $resolved->provider,
+                $resolved->model,
+                (float) config('ai.chatloop.economic_guard.monthly_budget_usd', 2.00),
+                (int) config('ai.chatloop.economic_guard.monthly_unknown_limit', 10),
+                $requester,
+            );
+
+            if (! $verdict->allowed) {
+                throw AiRefusedException::fromVerdict($verdict);
+            }
+
+            $agent = new LoopDirectAnswerAgent(
+                $instructions,
+                (int) config('ai.chatloop.max_tokens', 512),
+                (float) config('ai.chatloop.temperature', 0.7),
+            );
+
+            $interaction = $this->generateViaSdk(
+                agent: $agent,
+                loop: $loop,
+                requester: $requester,
+                contexte: $contexte,
+                definition: $definition,
+                resolved: $resolved,
+                scenarioId: $scenarioId,
+                prompt: $prompt,
+                extraMetadata: [
+                    'provenance' => [
+                        'conversation.thread' => $conversation->messageIds,
+                    ],
+                    'question' => $question,
+                ],
+                doctrineVersion: $doctrineVersion,
+            );
+
+            $answer = AiMarkdownSanitizer::sanitize(
+                (string) $interaction->response,
+                (int) config('ai.chatloop.max_response_chars', 1400),
+            );
+
+            if ($answer === '') {
+                throw new \RuntimeException(__('loops.ai_empty_response'));
+            }
+
+            return DB::transaction(function () use ($loop, $requester, $question, $answer, $resolved, $interaction, $triggerMessage, $conversation) {
+                $message = LoopMessage::create([
+                    'loop_id' => $loop->id,
+                    'sender_id' => null,
+                    'reply_to_id' => $triggerMessage->id,
+                    'body' => $answer,
+                    'image_path' => null,
+                    'type' => 'ai',
+                    'metadata' => [
+                        'requested_by' => $requester->id,
+                        // TASK-1308 : `ai_mode` est le discriminant canonique
+                        // d'identite de bulle (Organization · IA). `action`
+                        // distingue ce chemin (`ia`, compositeur unifie) du
+                        // chemin herite `ask` (formulaire `loops.ai`).
+                        'ai_mode' => 'llm',
+                        'action' => 'ia',
+                        'question' => $question,
+                        'context_message_ids' => $conversation->messageIds,
+                        'trigger_message_id' => $triggerMessage->id,
+                        'provider' => $resolved->provider,
+                        'model' => $resolved->model,
+                        'ai_interaction_id' => $interaction->id,
+                    ],
+                    'organization_id' => $loop->organization_id,
+                ]);
+
+                event(new LoopMessageCreated($message));
+
+                $loop->touch();
+
+                return $message;
+            });
+        } finally {
+            Cache::forget($lockKey);
+        }
+    }
 
     /**
      * Capability `loop_answer` — « Demander a l'IA » : intervention spontanee
