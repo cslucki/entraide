@@ -10,11 +10,11 @@ use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
+use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopMessageService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Services\UrlPreviewService;
 use App\Support\Loops\LoopPermissionResolver;
-use App\Support\Loops\SlashIa;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -38,6 +38,15 @@ class LoopChat extends Component
     public ?string $replyToMessageId = null;
 
     public ?array $replyingTo = null;
+
+    /**
+     * TASK-1308 : le moteur du PROCHAIN tour, choisi independamment du fil
+     * de conversation (reply_to_id) — `normal` (message humain, aucun appel
+     * IA), `ia` (LLM direct) ou `dossiers` (RAG Loop-scoped). Un reply
+     * PRESELECTIONNE ce mode depuis le parent (voir `replyTo()`) mais ne le
+     * verrouille jamais : le membre peut toujours le changer avant d'envoyer.
+     */
+    public string $composerMode = 'normal';
 
     public $photo = null;
 
@@ -126,14 +135,81 @@ class LoopChat extends Component
         $this->replyToMessageId = $message->id;
         $this->replyingTo = [
             'body' => $message->isDeleted() ? __('messages.deleted_message_placeholder') : mb_substr($message->body, 0, 120),
-            'sender_name' => $message->sender?->publicDisplayName() ?? 'BouclePro',
+            'sender_name' => $message->type === 'ai'
+                ? $this->aiBubbleLabel($message)
+                : ($message->sender?->publicDisplayName() ?? __('messages.member')),
         ];
+        // TASK-1308 : le mode herite du parent est un DEFAUT visible dans le
+        // composeur, jamais un verrou — voir setComposerMode().
+        $this->composerMode = $this->defaultModeForParent($message);
     }
 
     public function cancelReply(): void
     {
         $this->replyToMessageId = null;
         $this->replyingTo = null;
+        $this->composerMode = 'normal';
+    }
+
+    /**
+     * TASK-1308 : selection EXPLICITE du moteur du prochain tour. Ignore
+     * silencieusement une valeur inconnue plutot que de lever — un evenement
+     * front perime ou un double-clic ne doivent pas casser le composeur.
+     */
+    public function setComposerMode(string $mode): void
+    {
+        if (! in_array($mode, ['normal', 'ia', 'dossiers'], true)) {
+            return;
+        }
+
+        $this->composerMode = $mode;
+    }
+
+    /**
+     * TASK-1308 : le mode PRESELECTIONNE quand on repond a `$parent` — un
+     * message humain retombe toujours sur `normal` (section 16 : le mode
+     * Dossiers/IA reste possible, mais volontaire, jamais herite d'un
+     * humain) ; un message IA herite son propre moteur.
+     */
+    private function defaultModeForParent(LoopMessage $parent): string
+    {
+        if ($parent->type !== 'ai') {
+            return 'normal';
+        }
+
+        return $this->resolvedAiMode($parent) === 'rag' ? 'dossiers' : 'ia';
+    }
+
+    /**
+     * TASK-1308 : `ai_mode` est le discriminant canonique ('llm'|'rag'),
+     * ecrit par les deux moteurs unifies. Les messages IA anterieurs a cette
+     * TASK n'ont pas cette cle : leur `action` historique (knowledge /
+     * slash_ia / continuation / ask / answer) permet de deriver le meme
+     * discriminant sans migration de donnees.
+     */
+    private function resolvedAiMode(LoopMessage $message): string
+    {
+        $mode = $message->metadata['ai_mode'] ?? null;
+
+        if (in_array($mode, ['llm', 'rag'], true)) {
+            return $mode;
+        }
+
+        $action = $message->metadata['action'] ?? null;
+
+        return in_array($action, ['knowledge', 'slash_ia', 'continuation', 'dossiers'], true) ? 'rag' : 'llm';
+    }
+
+    /**
+     * TASK-1308 : identite tenant-generique d'une bulle IA — jamais
+     * « Facilitateur IA », jamais un nom d'Organization code en dur.
+     */
+    private function aiBubbleLabel(LoopMessage $message): string
+    {
+        $orgName = $this->loop->organization?->name ?? config('app.name', 'BouclePro');
+        $mode = $this->resolvedAiMode($message);
+
+        return $orgName.' · '.($mode === 'rag' ? __('loops.dossiers_mode_label') : __('loops.ia_mode_label'));
     }
 
     public function updatedPhoto(): void
@@ -180,16 +256,18 @@ class LoopChat extends Component
             return;
         }
 
-        // TASK-1299 : `/ia` en tete du corps invoque l'IA documentaire de
-        // CETTE Boucle. Une Boucle agent est exclue : son agent (T-2) repond
-        // deja a chaque message — une seconde IA serait une seconde depense.
-        $slashIaQuestion = $this->loop->isAiAgent() ? null : SlashIa::question($this->body);
+        // TASK-1308 : le moteur du tour est le mode EXPLICITE du composeur,
+        // jamais un texte special dans le corps (`/ia` retire) ni une
+        // auto-detection du parent (`continuationParent()` retiree). Une
+        // Boucle agent exclut les deux moteurs : son agent (T-2) repond deja
+        // a chaque message — une seconde IA serait une seconde depense.
+        $mode = $this->loop->isAiAgent() ? 'normal' : $this->composerMode;
 
-        if ($slashIaQuestion === '') {
-            // `/ia` vide : aide locale deterministe pour l'auteur seul. Rien
-            // n'est persiste, la saisie reste dans le composeur, aucun
-            // provider n'est appele, aucune ligne de ledger n'est ecrite.
-            $this->addError('body', __('loops.slash_ia_help'));
+        if ($mode !== 'normal' && trim($this->body) === '') {
+            // Une image seule ne pose pas de question : les modes IA et
+            // Dossiers exigent un texte, la meme regle que l'ancien modal
+            // Dossiers (`loops.knowledge_question_required`).
+            $this->addError('body', __('loops.knowledge_question_required'));
 
             return;
         }
@@ -207,21 +285,11 @@ class LoopChat extends Component
 
             $metadata = $preview !== null ? ['url_preview' => $preview] : null;
 
-            if ($slashIaQuestion !== null) {
-                // Le corps est persiste TEL QUE TAPE, prefixe compris — la
-                // provenance de l'invocation vit ici, en metadata.
-                $metadata = ($metadata ?? []) + ['slash_ia' => true];
+            if ($mode !== 'normal') {
+                $metadata = ($metadata ?? []) + ['requested_mode' => $mode];
             }
 
-            // TASK-1300 : `/ia` explicite d'abord — un corps `/ia ...` en
-            // reponse a un message IA reste une invocation /ia (une seule),
-            // le contexte de fil etant construit par le service depuis le
-            // lien de reponse (arbitrage Cyril 24/08, test dedie).
-            $continuationParent = $slashIaQuestion === null ? $this->continuationParent() : null;
-
-            if ($continuationParent !== null) {
-                $metadata = ($metadata ?? []) + ['ai_continuation' => true];
-            }
+            $question = trim($this->body);
 
             $message = $service->sendUserMessage($this->loop, $user, $this->body, $metadata, $this->replyToMessageId, $imagePath);
             $this->body = '';
@@ -232,15 +300,10 @@ class LoopChat extends Component
             return;
         }
 
-        if ($slashIaQuestion !== null) {
-            $this->answerSlashIa($message, $slashIaQuestion, $user);
-        } elseif ($continuationParent !== null && $message->reply_to_id === $continuationParent->id) {
-            // TASK-1300 : continuation — le membre a REPONDU au message IA,
-            // son corps est la question. Meme chaine knowledge, meme
-            // declencheur deja persiste (le piege de la double persistance
-            // reste ferme par T-3), meme conservation du message humain en
-            // cas de refus ou d'echec.
-            $this->answerSlashIa($message, trim($message->body), $user);
+        if ($mode === 'ia' && $question !== '') {
+            $this->respondWithAi($message, $question, $user);
+        } elseif ($mode === 'dossiers' && $question !== '') {
+            $this->respondWithDossiers($message, $question, $user);
         }
 
         $this->syncNewerMessages();
@@ -248,33 +311,24 @@ class LoopChat extends Component
     }
 
     /**
-     * TASK-1300 : le parent d'une CONTINUATION — le message IA (type `ai`
-     * strictement : jamais `member_agent`), non supprime, de CETTE Boucle,
-     * que le membre vise avec « Repondre ». Tout autre cas est un reply
-     * ordinaire : Boucle agent (l'agent T-2 repond deja a tout message —
-     * deux IA seraient deux depenses), reply a un humain, parent efface
-     * (conservateur : son contenu a quitte le fil), corps vide (photo
-     * seule : pas de question a poser). Un reply_to_id d'une AUTRE Boucle
-     * ne declenche rien : cette requete est bornee a la Boucle courante,
-     * `sendUserMessage()` annule le lien de son cote, et la branche
-     * appelante re-verifie le lien PERSISTE avant d'invoquer.
+     * Mode IA du composeur unifie (TASK-1308) : reponse LLM directe au
+     * message HUMAIN deja persiste. Le contexte de fil (reply_to_id, s'il
+     * existe) est construit par `ChatLoopAiService::respondInThread()` via
+     * `AiConversationContextBuilder` — jamais reconstruit ici.
      */
-    private function continuationParent(): ?LoopMessage
+    private function respondWithAi(LoopMessage $message, string $question, User $user): void
     {
-        if ($this->loop->isAiAgent() || $this->replyToMessageId === null || trim($this->body) === '') {
-            return null;
+        try {
+            app(ChatLoopAiService::class)->respondInThread($this->loop, $user, $question, $message);
+        } catch (\RuntimeException $exception) {
+            // AiRefusedException comprise : son message est le message
+            // produit (credit epuise, budget atteint, IA non configuree).
+            $this->addError('body', $exception->getMessage());
         }
-
-        return LoopMessage::query()
-            ->where('id', $this->replyToMessageId)
-            ->where('loop_id', $this->loop->id)
-            ->where('type', 'ai')
-            ->whereNull('deleted_at')
-            ->first();
     }
 
     /**
-     * Repondre au message `/ia` DEJA persiste — jamais l'inverse.
+     * Mode Dossiers du composeur unifie (TASK-1308, ex-« /ia » T-1299/T-1300).
      *
      * La chaine est celle de « Consulter les Dossiers » (T-1, TASK-1297) :
      * RAG Loop-scoped (TASK-1294), garde economique existante, sources
@@ -283,7 +337,7 @@ class LoopChat extends Component
      * panne provider, aucune source — le CONSERVE et ne publie aucune
      * fausse reponse : l'auteur seul est prevenu, dans le composeur.
      */
-    private function answerSlashIa(LoopMessage $message, string $question, User $user): void
+    private function respondWithDossiers(LoopMessage $message, string $question, User $user): void
     {
         try {
             $answer = app(LoopKnowledgeAnswerService::class)
@@ -296,8 +350,6 @@ class LoopChat extends Component
                 $this->addError('body', __('loops.knowledge_no_sources'));
             }
         } catch (\RuntimeException $exception) {
-            // AiRefusedException comprise : son message est le message
-            // produit (credit epuise, budget atteint, IA non configuree).
             $this->addError('body', $exception->getMessage());
         }
     }
@@ -630,9 +682,17 @@ class LoopChat extends Component
         // La vue retire le compositeur plutot que d'accepter un message que
         // sendMessage() refusera : un refus silencieux passe pour une panne.
         $canContribute = $this->canContribute(auth()->user());
+        // TASK-1308 : passe explicitement sous un nom DISTINCT de la
+        // propriete publique `loop` — Livewire partage deja ses propres
+        // proprietes publiques avec la vue par son propre mecanisme
+        // (Utils::getPublicPropertiesDefinedOnSubclass + View::with()), qui
+        // s'applique APRES le tableau rendu ici et en ecraserait toute
+        // entree nommee `loop` (array_merge, la derniere valeur gagne).
+        $viewLoop = $this->loop;
 
         return view('livewire.loop-chat', compact(
             'messages',
+            'viewLoop',
             'pinnedMessage',
             'reactionData',
             'myReactions',

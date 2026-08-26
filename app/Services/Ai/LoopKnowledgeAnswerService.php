@@ -70,6 +70,7 @@ class LoopKnowledgeAnswerService
         private readonly ContextBuilder $contextBuilder,
         private readonly AiEconomicGuard $economicGuard,
         private readonly AiProviderInvocationLedger $ledger,
+        private readonly AiConversationContextBuilder $conversationContext,
     ) {}
 
     /**
@@ -182,10 +183,12 @@ class LoopKnowledgeAnswerService
         );
 
         $startedAt = microtime(true);
-        // TASK-1300 : sur une continuation, l'echange precedent — borne —
-        // s'insere entre les sources et la question ; partout ailleurs le
-        // prompt T-3 est inchange octet pour octet.
-        $thread = $this->threadContext($inThreadTrigger);
+        // TASK-1300 / TASK-1308 : sur un reply (a une bulle IA OU humaine
+        // depuis TASK-1308), l'echange precedent — borne, agnostique du
+        // moteur — s'insere entre les sources et la question ; partout
+        // ailleurs le prompt T-3 est inchange octet pour octet.
+        $conversation = $this->conversationContext->build($inThreadTrigger);
+        $thread = $conversation->text;
         $prompt = $borne->text
             .($thread === '' ? '' : "\n\n".$thread)
             ."\n\nQuestion du membre :\n".$question;
@@ -227,7 +230,7 @@ class LoopKnowledgeAnswerService
 
         $sources = $cited !== [] ? $cited : $consulted;
 
-        $this->publishExchange($loop, $requester, $question, $answer, $resolved, $interaction, $cited, $sources, $inThreadTrigger);
+        $this->publishExchange($loop, $requester, $question, $answer, $resolved, $interaction, $cited, $sources, $inThreadTrigger, $conversation->messageIds);
 
         return new KnowledgeAnswer(
             answer: $answer,
@@ -243,83 +246,6 @@ class LoopKnowledgeAnswerService
     }
 
     /**
-     * TASK-1300 : profondeur maximale de remontee de la chaine reply_to_id
-     * pour le contexte d'une continuation — SIX messages, soit trois tours
-     * d'echange membre/IA.
-     *
-     * Pourquoi six : le « minimum utile » du brief T-4 tient en UN tour (la
-     * reponse IA continuee et la question humaine qui l'avait produite) ;
-     * trois tours couvrent une conversation de deux continuations avec une
-     * marge d'un tour, sans que les tours anterieurs — deja resumes de fait
-     * par la derniere reponse IA — ne gonflent le prompt : la connaissance
-     * vient du RAG Loop-scoped, pas du fil. Pourquoi une constante et pas
-     * une config : le brief impose les bornes EXISTANTES, on n'ouvre pas une
-     * surface de reglage que personne n'a demande a regler (arbitrage Cyril
-     * 24/08). La borne de CARACTERES, elle, reste la borne existante
-     * `ai.chatloop.max_context_chars`. Ce plafond garantit qu'une chaine de
-     * quarante continuations ne produit jamais un prompt de quarante tours —
-     * ni meme quarante lectures : la remontee s'arrete la, absolument.
-     */
-    private const MAX_THREAD_DEPTH = 6;
-
-    /**
-     * TASK-1300 : le contexte de continuation — l'echange precedent, remonte
-     * par la chaine `reply_to_id` depuis le declencheur, BORNE en profondeur
-     * (MAX_THREAD_DEPTH) et en caracteres (`ai.chatloop.max_context_chars`,
-     * le plus ancien coupe d'abord, le parent direct toujours conserve,
-     * tronque au besoin).
-     *
-     * Chaine vide (declencheur sans reply, `/ia` simple, chemin modal T-1)
-     * ou parent qui n'est pas un message IA visible : aucun contexte — le
-     * prompt T-3 reste inchange sur ces chemins. Seuls les types `user` et
-     * `ai` entrent au transcript ; un maillon d'un autre type arrete la
-     * remontee, un maillon supprime est saute (son slot de profondeur est
-     * consomme : la borne reste un nombre de LECTURES, pas de lignes).
-     */
-    private function threadContext(?LoopMessage $trigger): string
-    {
-        $parent = $trigger?->replyTo;
-
-        if ($parent === null || $parent->type !== 'ai' || $parent->isDeleted()) {
-            return '';
-        }
-
-        $budget = (int) config('ai.chatloop.max_context_chars', 12000);
-        $lines = [];
-        $total = 0;
-        $current = $parent;
-
-        for ($depth = 0; $depth < self::MAX_THREAD_DEPTH && $current !== null; $depth++) {
-            if (! in_array($current->type, ['user', 'ai'], true)) {
-                break;
-            }
-
-            if (! $current->isDeleted()) {
-                $line = ($current->type === 'ai' ? 'BouclePro : ' : 'Membre : ').trim((string) $current->body);
-
-                if ($lines === []) {
-                    $line = mb_substr($line, 0, $budget);
-                    $lines[] = $line;
-                    $total = mb_strlen($line);
-                } elseif ($total + mb_strlen($line) + 1 <= $budget) {
-                    $lines[] = $line;
-                    $total += mb_strlen($line) + 1;
-                } else {
-                    break;
-                }
-            }
-
-            $current = $current->replyTo;
-        }
-
-        if ($lines === []) {
-            return '';
-        }
-
-        return "Echange precedent dans la Boucle :\n".implode("\n", array_reverse($lines));
-    }
-
-    /**
      * TASK-1297 : publication de l'echange dans le fil, calquee sur
      * ChatLoopAiService::ask() — la question du membre (type `user`) puis la
      * reponse (type `ai`) liee par `reply_to_id`, sender_id null,
@@ -329,6 +255,7 @@ class LoopKnowledgeAnswerService
      *
      * @param  list<array<string, mixed>>  $cited
      * @param  list<array<string, mixed>>  $sources
+     * @param  list<string>  $contextMessageIds
      */
     private function publishExchange(
         Loop $loop,
@@ -340,8 +267,9 @@ class LoopKnowledgeAnswerService
         array $cited,
         array $sources,
         ?LoopMessage $inThreadTrigger = null,
+        array $contextMessageIds = [],
     ): void {
-        DB::transaction(function () use ($loop, $requester, $question, $answer, $resolved, $interaction, $cited, $sources, $inThreadTrigger): void {
+        DB::transaction(function () use ($loop, $requester, $question, $answer, $resolved, $interaction, $cited, $sources, $inThreadTrigger, $contextMessageIds): void {
             $questionMessage = null;
 
             // La ligne de reversibilite (gouvernance 24/08) : false = seule la
@@ -373,18 +301,22 @@ class LoopKnowledgeAnswerService
                 'type' => 'ai',
                 'metadata' => [
                     'requested_by' => $requester->id,
-                    // TASK-1300 : la provenance persistee du declencheur est
-                    // la source de verite — `slash_ia` pour une invocation
-                    // explicite, `continuation` pour une reponse au fil.
-                    'action' => $inThreadTrigger === null
-                        ? 'knowledge'
-                        : (($inThreadTrigger->metadata['slash_ia'] ?? false) ? 'slash_ia' : 'continuation'),
+                    // TASK-1308 : `ai_mode` est le discriminant canonique de
+                    // l'identite de bulle (Organization · Dossiers) — le seul
+                    // moteur qui ecrit `rag`. `action` reste pour l'audit
+                    // historique : `knowledge` sans declencheur (chemin JSON
+                    // T-1), `dossiers` pour tout reply explicite au mode
+                    // Dossiers — remplace l'ancienne distinction
+                    // slash_ia/continuation, retiree avec `/ia` (TASK-1308).
+                    'ai_mode' => 'rag',
+                    'action' => $inThreadTrigger === null ? 'knowledge' : 'dossiers',
                     'question' => $question,
                     'grounded' => $cited !== [],
                     'sources' => array_map(KnowledgeAnswer::publicSource(...), $sources),
                     'provider' => $resolved->provider,
                     'model' => $resolved->model,
                     'ai_interaction_id' => $interaction->id,
+                    'context_message_ids' => $contextMessageIds,
                 ],
                 'organization_id' => $loop->organization_id,
             ]);

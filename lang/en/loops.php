@@ -767,8 +767,19 @@ return [
     'ask_ai' => 'Make a summary',
     'ask_ai_short' => 'Summary',
     'ai_generating' => 'The AI is drafting its answer...',
-    'ai_facilitator' => 'AI Facilitator',
     'ai_requested_by' => 'Requested by :name',
+
+    // TASK-1308: tenant-generic bubble identity — {Organization} · AI /
+    // {Organization} · Folders, never "AI Facilitator".
+    'ia_mode_label' => 'AI',
+    'dossiers_mode_label' => 'Folders',
+    'ia_bubble_subtitle' => 'Discussion with the AI',
+    'dossiers_bubble_subtitle' => 'Answer grounded in this Loop\'s knowledge',
+    'composer_placeholder_ia' => 'Ask the AI your question...',
+    'composer_placeholder_dossiers' => 'Ask this Loop\'s Folders...',
+    'composer_mode_clear' => 'Back to a normal message',
+    'composer_more_actions' => 'More actions',
+    'composer_add_image' => 'Add an image',
     'ai_answer_requested' => 'The AI is drafting its answer...',
     'ai_generation_in_progress' => 'An AI answer is already being generated for this loop. Please wait.',
     'ai_error' => 'The AI could not answer right now. Please try again.',
