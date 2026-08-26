@@ -196,7 +196,14 @@ class TASK1300AiContinuationTest extends TestCase
         // Le message IA vit dans une AUTRE Boucle du meme membre : la
         // reutilisation voulue par le brief est que `sendUserMessage()`
         // annule ce reply_to_id hors Boucle — aucune garde nouvelle.
+        //
+        // TASK-1307 : la gate semantic_search est desactivee le temps de
+        // creer cette Boucle de decor — sinon son document racine (indexe
+        // des sa creation depuis TASK-1307) declenche un embedding REEL, non
+        // double dans cette classe, sans rapport avec ce que ce test prouve.
+        config(['ai.dossiers.semantic_search.enabled' => false]);
         $otherLoop = (new LoopService)->createLoop($this->member, 'Autre Boucle');
+        config(['ai.dossiers.semantic_search.enabled' => true]);
         $foreignAnswer = $this->aiMessage($otherLoop, 'Reponse IA d une autre Boucle.');
 
         $this->search->rows = [$this->row('A')];
@@ -923,11 +930,11 @@ class FakeContinuationSearch extends DossierSemanticSearchService
 
     public function __construct() {}
 
-    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = []): array
+    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null): array
     {
         $this->calls++;
-        $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'embeddingInstance', 'limit', 'traceMetadata');
+        $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'embeddingInstance', 'limit', 'traceMetadata', 'candidateLimit');
 
-        return array_slice($this->rows, 0, $limit);
+        return array_slice($this->rows, 0, $candidateLimit ?? $limit);
     }
 }

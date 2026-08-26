@@ -354,6 +354,120 @@ class PgvectorDossierRetrievalSourceTest extends TestCase
     }
 
     /**
+     * TASK-1307 : reproduit le bug reel constate sur `01-COMMUNICATION`
+     * (`/ia explique moi le contenu de cette boucle`) — un document tres
+     * pertinent avec BEAUCOUP de chunks proches ecrasait les 5 sources
+     * citees, alors que d'autres documents pertinents existaient. Sans
+     * diversification, les 5 meilleurs seraient les 5 premiers chunks de
+     * « Dominant » (0.001..0.005) : zero diversite documentaire. Avec
+     * `diversify()` (PER_DOCUMENT_CAP=2), au plus 2 chunks de CE document,
+     * puis les documents suivants par distance croissante.
+     */
+    public function test_a_broad_question_is_not_dominated_by_a_single_document_with_many_close_chunks(): void
+    {
+        $organization = Organization::factory()->create();
+        $owner = User::factory()->create(['organization_id' => $organization->id]);
+        $loop = (new LoopService)->createLoop($owner, 'Boucle diversification');
+        app()->instance('current_organization', $organization);
+
+        OrganizationAiSetting::factory()->create(['organization_id' => $organization->id, 'api_key' => 'sk-diversify']);
+        config([
+            'ai.providers.openrouter.driver' => 'openrouter',
+            'ai.providers.openrouter.key' => 'platform',
+            'ai.default_for_embeddings' => 'openrouter',
+            'ai.caching.embeddings.cache' => false,
+            'ai.providers.openrouter.models.embeddings.default' => 'openai/text-embedding-3-small',
+            'ai.providers.openrouter.models.embeddings.dimensions' => 1536,
+            'ai.dossiers.semantic_search.enabled' => true,
+            'ai.dossiers.semantic_search.organization_ids' => [$organization->id],
+            'ai.knowledge.max_distance' => 1.0,
+        ]);
+        Embeddings::fake(fn (EmbeddingsPrompt $prompt): array => array_map(fn (): array => $this->vector(0.0), $prompt->inputs))
+            ->preventStrayEmbeddings();
+
+        $dossier = $this->dossier($organization, $owner, Dossier::VISIBILITY_LOOP, 'Diversification', $loop->id);
+
+        $dominant = $this->article($organization, $dossier, $owner, 'Dominant');
+        foreach ([0.001, 0.002, 0.003, 0.004, 0.005, 0.006] as $index => $second) {
+            $this->chunkOf($organization, $dossier, $dominant, $index, $this->vector($second), 'Dominant chunk '.$index);
+        }
+
+        $this->chunkOf($organization, $dossier, $this->article($organization, $dossier, $owner, 'Second'), 0, $this->vector(0.10), 'Second content');
+        $this->chunkOf($organization, $dossier, $this->article($organization, $dossier, $owner, 'Third'), 0, $this->vector(0.11), 'Third content');
+        $this->chunkOf($organization, $dossier, $this->article($organization, $dossier, $owner, 'Fourth'), 0, $this->vector(0.12), 'Fourth content');
+
+        $borne = app(ContextBuilder::class)->build(new ContexteIa(
+            organizationId: $organization->id,
+            userId: $owner->id,
+            loopId: $loop->id,
+            locale: 'fr',
+            capability: CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER,
+            correlationId: (string) Str::uuid(),
+            source: CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL,
+            query: 'explique moi le contenu de cette boucle',
+        ), app(CapabilityRegistry::class)->get(CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER));
+
+        $provenance = $borne->provenanceFor(DossierRetrievalSource::NAME);
+        $titles = array_column($provenance, 'title');
+
+        $this->assertCount(5, $provenance);
+        $this->assertSame(2, count(array_filter($titles, fn (string $title): bool => $title === 'Dominant')), 'au plus 2 chunks du document dominant');
+        $this->assertEqualsCanonicalizing(['Dominant', 'Dominant', 'Second', 'Third', 'Fourth'], $titles);
+    }
+
+    /**
+     * TASK-1307 : la diversification ne doit JAMAIS appauvrir une question
+     * precise dont un seul document est reellement pertinent — le repechage
+     * de `diversify()` remplit les places restantes depuis CE document
+     * quand aucun autre candidat n'existe pour diversifier.
+     */
+    public function test_a_precise_question_can_still_return_several_chunks_of_the_same_document(): void
+    {
+        $organization = Organization::factory()->create();
+        $owner = User::factory()->create(['organization_id' => $organization->id]);
+        $loop = (new LoopService)->createLoop($owner, 'Boucle precision');
+        app()->instance('current_organization', $organization);
+
+        OrganizationAiSetting::factory()->create(['organization_id' => $organization->id, 'api_key' => 'sk-precise']);
+        config([
+            'ai.providers.openrouter.driver' => 'openrouter',
+            'ai.providers.openrouter.key' => 'platform',
+            'ai.default_for_embeddings' => 'openrouter',
+            'ai.caching.embeddings.cache' => false,
+            'ai.providers.openrouter.models.embeddings.default' => 'openai/text-embedding-3-small',
+            'ai.providers.openrouter.models.embeddings.dimensions' => 1536,
+            'ai.dossiers.semantic_search.enabled' => true,
+            'ai.dossiers.semantic_search.organization_ids' => [$organization->id],
+            'ai.knowledge.max_distance' => 1.0,
+        ]);
+        Embeddings::fake(fn (EmbeddingsPrompt $prompt): array => array_map(fn (): array => $this->vector(0.0), $prompt->inputs))
+            ->preventStrayEmbeddings();
+
+        $dossier = $this->dossier($organization, $owner, Dossier::VISIBILITY_LOOP, 'Precision', $loop->id);
+
+        $solo = $this->article($organization, $dossier, $owner, 'Solo');
+        foreach ([0.001, 0.002, 0.003, 0.004, 0.005] as $index => $second) {
+            $this->chunkOf($organization, $dossier, $solo, $index, $this->vector($second), 'Solo chunk '.$index);
+        }
+
+        $borne = app(ContextBuilder::class)->build(new ContexteIa(
+            organizationId: $organization->id,
+            userId: $owner->id,
+            loopId: $loop->id,
+            locale: 'fr',
+            capability: CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER,
+            correlationId: (string) Str::uuid(),
+            source: CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL,
+            query: 'Que dit Solo precisement ?',
+        ), app(CapabilityRegistry::class)->get(CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER));
+
+        $provenance = $borne->provenanceFor(DossierRetrievalSource::NAME);
+
+        $this->assertCount(5, $provenance);
+        $this->assertSame(['Solo', 'Solo', 'Solo', 'Solo', 'Solo'], array_column($provenance, 'title'));
+    }
+
+    /**
      * Revue MASTER (TASK-1216) : un fichier deplace A->B garde son id ;
      * seul `dossier_files.dossier_id` change. Avant que le job de nettoyage
      * asynchrone (dispatch sur l'observer `updated()`) n'ait tourne, le
@@ -469,6 +583,47 @@ class PgvectorDossierRetrievalSourceTest extends TestCase
             'dossier_id' => $dossier->id,
             'blog_post_id' => $post->id,
             'chunk_index' => 0,
+            'content' => $content,
+            'content_hash' => hash('sha256', $content.Str::uuid()),
+            'token_count' => 3,
+            'embedding' => $vector,
+            'embedding_provider' => 'openrouter',
+            'embedding_model' => 'openai/text-embedding-3-small',
+            'indexed_at' => now(),
+        ]);
+    }
+
+    /** Article attache a un Dossier, sans chunk — pour construire plusieurs chunks du MEME document via chunkOf(). */
+    private function article(Organization $organization, Dossier $dossier, User $owner, string $title): BlogPost
+    {
+        $post = BlogPost::create([
+            'organization_id' => $organization->id,
+            'user_id' => $owner->id,
+            'title' => $title,
+            'slug' => 'article-'.Str::uuid(),
+            'content' => '<p>'.$title.'</p>',
+            'status' => 'published',
+            'published_at' => now()->subMinute(),
+        ]);
+        DossierBlogPost::create([
+            'organization_id' => $organization->id,
+            'dossier_id' => $dossier->id,
+            'blog_post_id' => $post->id,
+            'added_by' => $owner->id,
+            'position' => 1,
+        ]);
+
+        return $post;
+    }
+
+    /** Un chunk supplementaire d'un Article DEJA attache (chunkIndex distinct, meme document). */
+    private function chunkOf(Organization $organization, Dossier $dossier, BlogPost $post, int $chunkIndex, array $vector, string $content): DossierChunk
+    {
+        return DossierChunk::create([
+            'organization_id' => $organization->id,
+            'dossier_id' => $dossier->id,
+            'blog_post_id' => $post->id,
+            'chunk_index' => $chunkIndex,
             'content' => $content,
             'content_hash' => hash('sha256', $content.Str::uuid()),
             'token_count' => 3,

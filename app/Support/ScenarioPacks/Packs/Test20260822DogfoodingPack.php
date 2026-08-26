@@ -64,16 +64,24 @@ use Symfony\Component\HttpFoundation\File\File;
  *    `admin.users.store`) AVANT le chargement ; le pack les retrouve
  *    (`reused`, jamais modifies, jamais supprimes) et refuse de tourner s'il
  *    en manque un ;
- *  - dispatcher le moindre job : la creation des `DossierFile` est enveloppee
- *    dans `DossierFile::withoutEvents()` — closure qui ne contient QUE
- *    l'ecriture de la ligne, pour que `DossierFileObserver::created()` ne
+ *  - dispatcher le moindre job de FICHIER : la creation des `DossierFile` est
+ *    enveloppee dans `DossierFile::withoutEvents()` — closure qui ne contient
+ *    QUE l'ecriture de la ligne, pour que `DossierFileObserver::created()` ne
  *    pousse pas un `IndexDossierFileChunks` sur la queue `default` (queue
  *    sans worker sur la surface Apache, qui porte deja 138 jobs historiques).
- *    La chaine Loop, elle, ne dispatche rien (`BlogPostObserver::updated()`
- *    ne reagit qu'a `content/status/published_at`, que `designate()` ne
- *    touche pas). L'indexation viendra plus tard, explicitement, par
+ *    L'indexation des fichiers vient plus tard, explicitement, par
  *    `dossiers:index-files test20260822 --queue=dossier-files-indexing`
  *    (TASK-1268), apres validation du credential par Cyril.
+ *    TASK-1307 : la chaine Loop, elle, DISPATCHE desormais un
+ *    `IndexDossierArticleChunks` par document racine cree — `designate()`
+ *    (appele par `createLoopForOrg()` via `LoopRootDocumentService`) l'envoie
+ *    explicitement depuis TASK-1307 (avant, un document racine n'etait jamais
+ *    indexe avant sa premiere edition humaine, un oubli — pas une garantie du
+ *    pack). Ce dispatch part sur la queue `default`, comme tout autre Article
+ *    attache a un Dossier ; sans worker dessus au moment du chargement, ces
+ *    10 jobs restent en attente au meme titre que les 138 historiques, et se
+ *    rattrapent par `dossiers:index-articles test20260822
+ *    --queue=dossier-files-indexing` (meme convention que TASK-1268).
  *
  * Ownership (TASK-1245) : `createLoopForOrg()` cree le Dossier racine, le
  * document racine et le membre `owner` sans rendre ces instances ; le pack les

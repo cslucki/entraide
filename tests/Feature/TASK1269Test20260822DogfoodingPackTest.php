@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\IndexDossierArticleChunks;
 use App\Jobs\IndexDossierFileChunks;
 use App\Models\BlogPost;
 use App\Models\Dossier;
@@ -238,13 +239,23 @@ class TASK1269Test20260822DogfoodingPackTest extends TestCase
     // C. HARD GATE : aucun job sur la queue `default`
     // =====================================================================
 
-    public function test_loading_pushes_no_job_at_all_while_an_ordinary_file_creation_would(): void
+    /**
+     * TASK-1307 : `$this->load()` cree 10 Boucles par la chaine canonique
+     * (`LoopService::createLoopForOrg()` -> `LoopRootDocumentService`), et
+     * chaque document racine dispatche desormais son indexation a la
+     * creation (meme regle que tout autre Article attache a un Dossier —
+     * corrige de l'oubli TASK-1307 : avant, un document racine ne
+     * s'indexait jamais avant sa premiere edition). Le pack N'ecrit
+     * toujours AUCUN `DossierFile` hors de `withoutEvents()` : c'est CETTE
+     * garantie que le temoin ci-dessous continue de prouver.
+     */
+    public function test_loading_pushes_no_file_indexing_job_while_root_documents_are_indexed_like_any_article(): void
     {
         Queue::fake();
 
         $this->load();
 
-        Queue::assertNothingPushed();
+        Queue::assertPushed(IndexDossierArticleChunks::class, count(Test20260822DogfoodingPack::LOOP_DIRECTORIES));
         Queue::assertNotPushed(IndexDossierFileChunks::class);
 
         // Temoin : le meme modele, cree sans la closure withoutEvents du pack,

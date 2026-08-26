@@ -4,18 +4,12 @@ namespace App\Ai\Context;
 
 use App\Ai\ContexteIa;
 use App\Ai\ProviderResolver;
-use App\Models\Dossier;
-use App\Models\DossierFile;
-use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Dossiers\DossierChunkEmbeddingService;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use DomainException;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Route;
 
 /**
  * Source RAG `dossier.retrieval` (TASK-1213 / IA RAG V1).
@@ -25,6 +19,14 @@ use Illuminate\Support\Facades\Route;
  * l'Organization que l'utilisateur a le droit de voir, garde au plus
  * `top_k` <= 5 extraits, et les rend numerotes [S1]..[Sn] avec une provenance
  * complete (Dossier, Article, chunk, distance, lien canonique).
+ *
+ * TASK-1307 : les `top_k` extraits cites sont choisis par `diversify()` parmi
+ * un bassin de candidats plus large (CANDIDATE_POOL_SIZE, meme cout provider
+ * — un seul embedding de requete), au plus PER_DOCUMENT_CAP par document en
+ * premiere passe. Une question large qui trouve plusieurs documents
+ * pertinents n'est plus ecrasee par les meilleurs chunks d'un seul fichier ;
+ * une question precise dont un seul document est pertinent garde jusqu'a
+ * `top_k` chunks de ce document (repechage).
  *
  * Ce qu'elle garantit :
  * - Organization = Tenant : le perimetre est l'Organization du contexte, et la
@@ -57,13 +59,33 @@ final class DossierRetrievalSource implements ContextSource
 
     public const REASON_NO_ACCESSIBLE_DOSSIER = 'no_accessible_dossier';
 
-    private const MAX_CANDIDATE_DOSSIERS = 200;
+    /**
+     * TASK-1307 : au plus 2 chunks du MEME document dans la selection finale.
+     * Une question precise sur un document tres pertinent peut toujours
+     * remplir tout `topK()` depuis ce seul document (voir `diversify()` —
+     * le repechage relache le plafond quand la diversite ne peut pas, a
+     * elle seule, completer la selection) ; une question large qui trouve
+     * plusieurs documents pertinents proches n'est plus ecrasee par les 5
+     * meilleurs chunks du MEME fichier.
+     */
+    private const PER_DOCUMENT_CAP = 2;
+
+    /**
+     * TASK-1307 : bassin de candidats interroge en base (recherche vectorielle
+     * seule, AUCUN appel provider supplementaire — un seul embedding de
+     * requete est calcule, comme avant) pour que `diversify()` ait de quoi
+     * choisir. Le nombre de sources CITEES reste borne par `topK()` (<=5) :
+     * elargir ce bassin ne change jamais combien de sources sont montrees ou
+     * facturees au modele, seulement lesquelles sont candidates.
+     */
+    private const CANDIDATE_POOL_SIZE = 20;
 
     public function __construct(
         private readonly DossierSemanticSearchService $search,
         private readonly DossierSemanticSearchGate $gate,
         private readonly DossierChunkEmbeddingService $embeddings,
         private readonly ProviderResolver $providers,
+        private readonly DossierAccessScope $scope,
     ) {}
 
     public function name(): string
@@ -109,32 +131,39 @@ final class DossierRetrievalSource implements ContextSource
         // identifiants deja autorises par l'appelant, mais une source ne fait
         // jamais confiance sur parole — une Boucle d'une autre Organization
         // ne definit aucun perimetre ici.
-        if ($contexte->loopId !== null && Loop::query()
-            ->whereKey($contexte->loopId)
-            ->where('organization_id', $contexte->organizationId)
-            ->doesntExist()) {
+        if ($contexte->loopId !== null && ! $this->scope->loopBelongsToOrganization($contexte->loopId, $contexte->organizationId)) {
             throw new SourceDenied(self::NAME, SourceDenied::REASON_LOOP_OUTSIDE_ORGANIZATION);
         }
 
-        $dossierIds = $this->accessibleDossierIds($contexte->organizationId, $user, $contexte->loopId);
+        $dossierIds = $this->scope->accessibleDossierIds($contexte->organizationId, $user, $contexte->loopId);
 
         if ($dossierIds === []) {
             throw new SourceDenied(self::NAME, self::REASON_NO_ACCESSIBLE_DOSSIER);
         }
 
+        $topK = $this->topK();
+
+        // TASK-1307 : le bassin de candidats (CANDIDATE_POOL_SIZE) est plus
+        // large que ce qui est finalement cite (topK) — UN SEUL embedding de
+        // requete est calcule quel que soit le nombre de candidats, la
+        // recherche vectorielle elle-meme n'appelle aucun provider
+        // supplementaire. `diversify()` choisit ensuite, parmi ces candidats
+        // deja tries par distance, au plus `topK` chunks a citer.
         $rows = $this->search->searchAcrossDossiers(
             $contexte->organizationId,
             $dossierIds,
             $query,
             $resolved->instance,
-            $this->topK(),
+            $topK,
             // TASK-1229 : la feature emettrice (essais de doctrine) suit la
             // recherche jusqu'au ledger.
             ['capability' => $contexte->capability, 'loop_id' => $contexte->loopId, 'feature' => $contexte->feature],
+            max($topK, self::CANDIDATE_POOL_SIZE),
         );
 
         $maxDistance = (float) config('ai.knowledge.max_distance', 1.0);
         $rows = array_values(array_filter($rows, fn (array $row): bool => $row['distance'] <= $maxDistance));
+        $rows = $this->diversify($rows, $topK);
 
         if ($rows === []) {
             return SourceFragment::empty();
@@ -179,8 +208,8 @@ final class DossierRetrievalSource implements ContextSource
                 'distance' => round($row['distance'], 4),
                 'extrait' => mb_strimwidth($content, 0, 240, '…'),
                 'url' => $row['source_type'] === 'file'
-                    ? $this->fileUrl($organizationSlug, $row['dossier_id'], $row['dossier_file_id'], $row['mime_type'] ?? null)
-                    : $this->articleUrl($organizationSlug, $row['slug']),
+                    ? DossierSourceUrl::forFile($organizationSlug, $row['dossier_id'], $row['dossier_file_id'], $row['mime_type'] ?? null)
+                    : DossierSourceUrl::forArticle($organizationSlug, $row['slug']),
             ];
         }
 
@@ -192,145 +221,51 @@ final class DossierRetrievalSource implements ContextSource
     }
 
     /**
-     * Les Dossiers de l'Organization que CET utilisateur peut voir — la
-     * politique du produit (`DossierPolicy::view`), pas une regle locale.
+     * TASK-1307 : choisit, parmi des candidats DEJA tries par distance
+     * croissante, au plus `$limit` chunks a citer — au plus `PER_DOCUMENT_CAP`
+     * par document en premiere passe (diversite), puis un repechage dans
+     * l'ordre de distance pour completer jusqu'a `$limit` si la diversite
+     * seule n'y suffit pas (une question precise dont le seul document
+     * pertinent porte tous les bons chunks garde son comportement actuel :
+     * jusqu'a `$limit` chunks de CE document).
      *
-     * Avec une Boucle dans le contexte (TASK-1294), le perimetre se resserre
-     * d'abord sur les Dossiers de CETTE Boucle ; la policy s'applique ensuite,
-     * inchangee, sur ce qui reste.
-     *
-     * @return list<string>
+     * @param  list<array{chunk_id: string, dossier_id: string, dossier_name: string, source_type: string, blog_post_id: ?string, dossier_file_id: ?string, distance: float}>  $rows
+     * @return list<array{chunk_id: string, dossier_id: string, dossier_name: string, source_type: string, blog_post_id: ?string, dossier_file_id: ?string, distance: float}>
      */
-    private function accessibleDossierIds(string $organizationId, User $user, ?string $loopId): array
+    private function diversify(array $rows, int $limit): array
     {
-        $gate = Gate::forUser($user);
+        $selected = [];
+        $countByDocument = [];
+        $leftover = [];
 
-        return $this->candidateDossiers($organizationId, $loopId)
-            ->filter(fn (Dossier $dossier): bool => ($loopId === null || $this->belongsToLoop($dossier, $loopId))
-                && $gate->allows('view', $dossier))
-            ->map(fn (Dossier $dossier): string => (string) $dossier->id)
-            ->values()
-            ->all();
-    }
+        foreach ($rows as $row) {
+            if (count($selected) >= $limit) {
+                break;
+            }
 
-    /**
-     * Les candidats sur lesquels le filtre s'exerce.
-     *
-     * Sans Boucle : les Dossiers de l'Organization sous le cap
-     * MAX_CANDIDATE_DOSSIERS — le comportement historique, inchange.
-     *
-     * Avec une Boucle (revue TASK-1294) : la restriction Boucle s'applique
-     * AVANT le cap, sinon une Boucle plus recente que les
-     * MAX_CANDIDATE_DOSSIERS premiers Dossiers de l'Organization (tri
-     * created_at) aurait un perimetre VIDE. Les racines liees a la Boucle se
-     * disent en SQL ; leurs enfants ne portent ni `loop_id` ni
-     * `shared_with_loop_id` (doctrine T1130) et se recuperent par descente
-     * `parent_id`, bornee par `Dossier::MAX_DEPTH` comme `governingDossier()`.
-     * La descente ne fait que GENERER des candidats : `belongsToLoop()` reste
-     * seul juge de l'appartenance, en aval.
-     *
-     * @return Collection<int, Dossier>
-     */
-    private function candidateDossiers(string $organizationId, ?string $loopId): Collection
-    {
-        $query = Dossier::query()
-            ->where('organization_id', $organizationId)
-            ->whereNull('deleted_at')
-            ->orderBy('created_at')
-            ->limit(self::MAX_CANDIDATE_DOSSIERS);
+            $documentKey = $row['source_type'].':'.($row['dossier_file_id'] ?? $row['blog_post_id']);
 
-        if ($loopId === null) {
-            return $query->get();
+            if (($countByDocument[$documentKey] ?? 0) < self::PER_DOCUMENT_CAP) {
+                $selected[] = $row;
+                $countByDocument[$documentKey] = ($countByDocument[$documentKey] ?? 0) + 1;
+            } else {
+                $leftover[] = $row;
+            }
         }
 
-        $candidates = $query->clone()
-            ->where(fn ($roots) => $roots
-                ->where('loop_id', $loopId)
-                ->orWhere(fn ($shared) => $shared
-                    ->where('shared_with_loop_id', $loopId)
-                    ->where('visibility', Dossier::VISIBILITY_LOOP)))
-            ->get();
+        foreach ($leftover as $row) {
+            if (count($selected) >= $limit) {
+                break;
+            }
 
-        $parentIds = $candidates->pluck('id');
-        $depth = 0;
-
-        while ($parentIds->isNotEmpty()
-            && $depth < Dossier::MAX_DEPTH
-            && $candidates->count() < self::MAX_CANDIDATE_DOSSIERS) {
-            $children = Dossier::query()
-                ->where('organization_id', $organizationId)
-                ->whereNull('deleted_at')
-                ->whereIn('parent_id', $parentIds)
-                ->orderBy('created_at')
-                ->limit(self::MAX_CANDIDATE_DOSSIERS - $candidates->count())
-                ->get();
-
-            $candidates = $candidates->concat($children);
-            $parentIds = $children->pluck('id');
-            $depth++;
+            $selected[] = $row;
         }
 
-        // Un cycle parent_id (donnee corrompue) ne doit ni boucler — la borne
-        // ci-dessus — ni produire un doublon dans le perimetre.
-        return $candidates->unique('id')->values();
-    }
-
-    /**
-     * Le Dossier appartient-il a CETTE Boucle ? La meme lecture que
-     * `DossierPolicy::view` : un enfant ne porte ni `loop_id` ni
-     * `shared_with_loop_id`, la question se pose a sa racine gouvernante
-     * (doctrine T1130), qui n'a que deux manieres d'etre liee a une Boucle —
-     * etre SON Dossier racine, ou lui etre partagee (et le partage exige la
-     * visibilite ET la colonne, comme dans la policy).
-     */
-    private function belongsToLoop(Dossier $dossier, string $loopId): bool
-    {
-        $governing = $dossier->governingDossier();
-
-        if ($governing->isLoopDossier()) {
-            return (string) $governing->loop_id === $loopId;
-        }
-
-        return $governing->visibility === Dossier::VISIBILITY_LOOP
-            && (string) $governing->shared_with_loop_id === $loopId;
+        return $selected;
     }
 
     private function topK(): int
     {
         return max(1, min(5, (int) config('ai.knowledge.top_k', 5)));
-    }
-
-    private function articleUrl(?string $organizationSlug, ?string $postSlug): ?string
-    {
-        if ($postSlug === null) {
-            return null;
-        }
-
-        if ($organizationSlug && Route::has('organization.blog.show')) {
-            return route('organization.blog.show', ['organization' => $organizationSlug, 'post' => $postSlug]);
-        }
-
-        return Route::has('blog.show') ? route('blog.show', ['post' => $postSlug]) : null;
-    }
-
-    private function fileUrl(?string $organizationSlug, string $dossierId, ?string $fileId, ?string $mimeType): ?string
-    {
-        // TASK-1296 : URL honnete. Un fichier previewable s'ouvre en apercu
-        // (`files.preview`, Content-Disposition inline) ; les autres gardent
-        // le telechargement (`files.show`). Les deux routes portent les memes
-        // gardes, dans le meme ordre.
-        $routeName = DossierFile::isPreviewableMime($mimeType)
-            ? 'organization.dossiers.files.preview'
-            : 'organization.dossiers.files.show';
-
-        if ($fileId === null || $organizationSlug === null || ! Route::has($routeName)) {
-            return null;
-        }
-
-        return route($routeName, [
-            'organization' => $organizationSlug,
-            'dossier' => $dossierId,
-            'file' => $fileId,
-        ]);
     }
 }

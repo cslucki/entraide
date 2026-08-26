@@ -6,6 +6,7 @@ use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Ai\CapabilityDefinition;
 use App\Ai\CapabilityRegistry;
 use App\Ai\Context\ContextBuilder;
+use App\Ai\Context\DossierManifestSource;
 use App\Ai\Context\DossierRetrievalSource;
 use App\Ai\ContexteIa;
 use App\Ai\PromptRepository;
@@ -36,13 +37,20 @@ use RuntimeException;
  * 1. verifie l'appartenance (Boucle active, meme Organization) ;
  * 2. resout provider/modele/credential de l'Organization (P4, jamais de repli) ;
  * 3. applique la garde economique ;
- * 4. fait construire le contexte par le Context Builder — la seule source
- *    autorisee est `dossier.retrieval`, tenant- et permission-safe ;
- * 5. sans extrait pertinent : repond « pas trouve dans mes sources » SANS
- *    appeler le modele (aucune hallucination possible, aucun cout) ;
+ * 4. fait construire le contexte par le Context Builder — deux sources
+ *    autorisees, tenant- et permission-safe, la MEME `DossierAccessScope` :
+ *    `dossier.manifest` (inventaire deterministe, references [Mn], AUCUN
+ *    contenu de document) et `dossier.retrieval` (extraits pgvector,
+ *    references [Sn]) ;
+ * 5. sans AUCUNE provenance — ni manifest ni extrait — : repond « pas trouve
+ *    dans mes sources » SANS appeler le modele (aucune hallucination
+ *    possible, aucun cout). Des que l'une des deux fournit quelque chose, le
+ *    modele est appele : le manifest seul peut repondre a une question
+ *    d'inventaire (TASK-1307, revue) ;
  * 6. sinon interroge le SDK (Constitution → capability → AdminAiPrompt), borne
- *    la reponse et ne retient comme sources citees que les references [Sn]
- *    reellement fournies.
+ *    la reponse et ne retient comme sources citees que les references [Mn]
+ *    ou [Sn] REELLEMENT presentes dans la provenance fournie — jamais une
+ *    reference inventee par le modele, quel que soit son prefixe.
  *
  * TASK-1297 : le chemin n'est PLUS read-only. L'echange est publie dans le
  * fil de la Boucle sur le modele exact de ChatLoopAiService::ask() : la
@@ -139,7 +147,18 @@ class LoopKnowledgeAnswerService
         $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
 
         $borne = $this->contextBuilder->build($contexte, $definition);
-        $consulted = $borne->provenanceFor(DossierRetrievalSource::NAME);
+        // TASK-1307 (revue) : la connaissance disponible est la provenance des
+        // DEUX sources autorisees de cette capability — le manifest
+        // (existence des elements du Dossier, [Mn]) ET le retrieval (contenu
+        // documentaire, [Sn]). Ni l'un ni l'autre n'est privilegie a priori :
+        // le manifest seul suffit a une question d'inventaire, le retrieval
+        // seul a une question de contenu, les deux ensemble a une question
+        // mixte. Le refus ci-dessous ne se declenche que si AUCUNE des deux
+        // n'a fourni quoi que ce soit.
+        $consulted = [
+            ...$borne->provenanceFor(DossierManifestSource::NAME),
+            ...$borne->provenanceFor(DossierRetrievalSource::NAME),
+        ];
 
         if ($consulted === []) {
             // Rien de pertinent dans les Dossiers accessibles : on le dit, sans
@@ -197,8 +216,9 @@ class LoopKnowledgeAnswerService
         $usage = AiUsage::fromSdkTextTokens($response->usage->promptTokens, $response->usage->completionTokens);
         $cost = $this->economicGuard->finalize($resolved->provider, $resolved->model, $usage);
 
-        // Citations : uniquement les references [Sn] presentes dans la
-        // provenance. Une reference inventee est ignoree.
+        // Citations : uniquement les references ([Mn] ou [Sn]) presentes
+        // dans la provenance REELLEMENT fournie. Une reference inventee est
+        // ignoree.
         $cited = $this->citedSources($answer, $consulted);
 
         $interaction = $this->recordInteraction($loop, $requester, $contexte, $definition, $resolved, $prompt,
@@ -376,21 +396,27 @@ class LoopKnowledgeAnswerService
     }
 
     /**
+     * TASK-1307 (revue) : ne suppose JAMAIS la forme d'une reference — pas de
+     * regex `[S\d+]` qui « croirait » que toute source commence par S. Pour
+     * chaque entree REELLEMENT fournie (manifest [Mn] ou retrieval [Sn]), on
+     * verifie si son propre marqueur `[ref]` apparait litteralement dans la
+     * reponse. La propriete de securite est la meme qu'avant, garantie
+     * autrement : une reference que le modele invente ne correspond a AUCUNE
+     * entree de `$consulted`, donc ne peut jamais devenir une source publique
+     * — quel que soit son prefixe.
+     *
      * @param  list<array<string, mixed>>  $consulted
      * @return list<array<string, mixed>>
      */
     private function citedSources(string $answer, array $consulted): array
     {
-        preg_match_all('/\[(S\d+)\]/u', $answer, $matches);
-        $refs = array_values(array_unique($matches[1] ?? []));
-
-        if ($refs === []) {
-            return [];
-        }
-
         return array_values(array_filter(
             $consulted,
-            static fn (array $source): bool => in_array($source['ref'] ?? null, $refs, true),
+            static function (array $source) use ($answer): bool {
+                $ref = $source['ref'] ?? null;
+
+                return $ref !== null && str_contains($answer, '['.$ref.']');
+            },
         ));
     }
 

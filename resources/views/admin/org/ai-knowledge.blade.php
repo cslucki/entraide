@@ -16,6 +16,8 @@
 <x-org-admin-layout :title="__('ai.observatory_title')" :organization="$organization">
     <div x-data="knowledgeObservatory({
             url: @js($liveUrl),
+            sourceUrlTemplate: @js($sourceUrlTemplate),
+            searchUrl: @js($searchUrl),
             intervalMs: 2000,
             labels: {
                 live: @js(__('ai.observatory_auto_refresh')),
@@ -23,9 +25,12 @@
                 error: @js(__('ai.observatory_auto_refresh_error')),
                 stopped: @js(__('ai.observatory_auto_refresh_stopped')),
                 lastChecked: @js(__('ai.observatory_last_checked')),
+                filterCount: @js(__('ai.knowledge_console_filter_count')),
             },
         })"
         x-init="start()"
+        @click="handleClick($event)"
+        @input.debounce.200ms="handleInput($event)"
         data-knowledge-observatory
         data-knowledge-live-url="{{ $liveUrl }}">
 
@@ -64,8 +69,50 @@
             </div>
         </div>
 
+        {{-- TASK-1307 : recherche documentaire BRUTE — pgvector seul, aucune
+             generation LLM. Hors de la zone rafraichie automatiquement : un
+             resultat obtenu ne disparait pas au prochain poll. --}}
+        <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800" data-knowledge-search>
+            <div class="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.knowledge_console_search_title') }}</h2>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_search_hint') }}</p>
+            </div>
+            <form class="flex flex-wrap items-center gap-2 px-4 py-3" @submit.prevent="runSearch()">
+                <input type="search" x-model="searchQuery" placeholder="{{ __('ai.knowledge_console_search_placeholder') }}" required
+                       class="min-w-[16rem] flex-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                <select x-model="searchLoopId" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                    <option value="">{{ __('ai.knowledge_console_search_scope_all') }}</option>
+                    @foreach($loops as $loopOption)
+                        <option value="{{ $loopOption->id }}">{{ $loopOption->name }}</option>
+                    @endforeach
+                </select>
+                <button type="submit" :disabled="searchBusy || !searchQuery"
+                        class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+                    <svg x-show="searchBusy" class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+                    {{ __('ai.knowledge_console_search_submit') }}
+                </button>
+            </form>
+            <div class="border-t border-gray-200 px-4 py-3 dark:border-gray-700" data-search-results x-show="searchHtml" x-html="searchHtml"></div>
+        </div>
+
         <div x-ref="live" data-knowledge-live aria-live="polite" :aria-busy="busy ? 'true' : 'false'">
             @include('admin.org.partials.ai-knowledge-live')
+        </div>
+
+        {{-- TASK-1307 : drawer « Inspecter » — chunks reellement indexes d'une source. --}}
+        <div x-show="inspectOpen" x-cloak
+             class="fixed inset-0 z-50 flex items-start justify-end bg-gray-900/40 p-4 sm:p-6"
+             @click.self="inspectOpen = false" @keydown.escape.window="inspectOpen = false">
+            <div class="flex h-full w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl dark:bg-gray-800">
+                <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                    <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.knowledge_console_inspect') }}</h2>
+                    <button type="button" @click="inspectOpen = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" aria-label="{{ __('ai.knowledge_console_close') }}">&times;</button>
+                </div>
+                <div class="flex-1 overflow-y-auto px-4 py-4">
+                    <p x-show="inspectLoading" class="text-sm text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_loading') }}</p>
+                    <div x-show="!inspectLoading" x-html="inspectHtml"></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -74,6 +121,8 @@
         document.addEventListener('alpine:init', () => {
             Alpine.data('knowledgeObservatory', (config) => ({
                 url: config.url,
+                sourceUrlTemplate: config.sourceUrlTemplate || '',
+                searchUrl: config.searchUrl || '',
                 intervalMs: config.intervalMs || 2000,
                 labels: config.labels || {},
                 status: 'idle',
@@ -85,6 +134,22 @@
                 lastCheckedAt: Date.now(),
                 secondsAgo: 0,
                 onVisibilityChange: null,
+
+                // TASK-1307 — filtres cote client (texte + Boucle active).
+                filterText: '',
+                filterLoopId: null,
+                filterLoopName: '',
+
+                // TASK-1307 — drawer « Inspecter ».
+                inspectOpen: false,
+                inspectLoading: false,
+                inspectHtml: '',
+
+                // TASK-1307 — recherche documentaire brute.
+                searchQuery: '',
+                searchLoopId: '',
+                searchBusy: false,
+                searchHtml: '',
 
                 start() {
                     this.onVisibilityChange = () => this.applyVisibility();
@@ -187,6 +252,7 @@
                             || previous.chunks !== row.dataset.sourceChunks;
                         if (changed) this.flash(row);
                     });
+                    this.applyFilter();
                 },
 
                 snapshot(root) {
@@ -216,6 +282,106 @@
 
                 lastCheckedLabel() {
                     return (this.labels.lastChecked || ':seconds').replace(':seconds', String(this.secondsAgo));
+                },
+
+                // TASK-1307 — un seul point d'entree, delegue depuis la
+                // racine (survit au remplacement de $refs.live par le poll).
+                handleClick(event) {
+                    const loopButton = event.target.closest('[data-filter-loop]');
+                    if (loopButton) {
+                        this.filterLoopId = loopButton.dataset.filterLoop;
+                        this.filterLoopName = loopButton.textContent.trim();
+                        this.applyFilter();
+                        return;
+                    }
+
+                    if (event.target.closest('[data-filter-loop-clear]')) {
+                        this.filterLoopId = null;
+                        this.filterLoopName = '';
+                        this.applyFilter();
+                        return;
+                    }
+
+                    const inspectButton = event.target.closest('[data-inspect-source]');
+                    if (inspectButton) {
+                        this.openInspect(inspectButton.dataset.inspectSource, inspectButton.dataset.inspectId);
+                    }
+                },
+
+                handleInput(event) {
+                    if (event.target.matches('[data-filter-text]')) {
+                        this.filterText = event.target.value;
+                        this.applyFilter();
+                    }
+                },
+
+                // Filtre les lignes DEJA rendues — aucune requete. Le
+                // perimetre reel (tenant, permissions) reste celui du
+                // serveur : ceci ne fait que montrer/cacher.
+                applyFilter() {
+                    const live = this.$refs.live;
+                    if (!live) return;
+
+                    const text = this.filterText.trim().toLowerCase();
+                    let visible = 0;
+
+                    live.querySelectorAll('tr[data-rag-source]').forEach((row) => {
+                        const matchesLoop = !this.filterLoopId || row.dataset.sourceLoopId === this.filterLoopId;
+                        const matchesText = !text
+                            || (row.dataset.sourceTitle || '').includes(text)
+                            || (row.dataset.sourceDossier || '').includes(text);
+                        const show = matchesLoop && matchesText;
+                        row.classList.toggle('hidden', !show);
+                        if (show) visible++;
+                    });
+
+                    const chip = live.parentElement?.querySelector('[data-filter-loop-chip]')
+                        || document.querySelector('[data-filter-loop-chip]');
+                    if (chip) {
+                        chip.classList.toggle('hidden', !this.filterLoopId);
+                        const nameEl = chip.querySelector('[data-filter-loop-name]');
+                        if (nameEl) nameEl.textContent = this.filterLoopName;
+                    }
+
+                    const countEl = document.querySelector('[data-filter-count]');
+                    if (countEl && (this.filterLoopId || text)) {
+                        countEl.textContent = (this.labels.filterCount || ':count').replace(':count', String(visible));
+                    } else if (countEl) {
+                        countEl.textContent = '';
+                    }
+                },
+
+                async openInspect(type, id) {
+                    this.inspectOpen = true;
+                    this.inspectLoading = true;
+                    this.inspectHtml = '';
+                    try {
+                        const url = this.sourceUrlTemplate.replace('__TYPE__', type).replace('__ID__', id);
+                        const response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
+                        this.inspectHtml = response.ok ? await response.text() : '';
+                    } catch (error) {
+                        this.inspectHtml = '';
+                    } finally {
+                        this.inspectLoading = false;
+                    }
+                },
+
+                async runSearch() {
+                    if (!this.searchQuery || this.searchBusy) return;
+                    this.searchBusy = true;
+                    try {
+                        const params = new URLSearchParams({ q: this.searchQuery });
+                        if (this.searchLoopId) params.set('loop_id', this.searchLoopId);
+                        const response = await fetch(this.searchUrl + '?' + params.toString(), {
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                            credentials: 'same-origin',
+                        });
+                        this.searchHtml = response.ok ? await response.text() : '';
+                    } catch (error) {
+                        this.searchHtml = '';
+                    } finally {
+                        this.searchBusy = false;
+                    }
                 },
             }));
         });

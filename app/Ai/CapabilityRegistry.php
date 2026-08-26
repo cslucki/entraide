@@ -33,6 +33,14 @@ final class CapabilityRegistry
     public const SOURCE_DOSSIER_RETRIEVAL = 'dossier.retrieval';
 
     /**
+     * TASK-1307 : inventaire deterministe (metadonnees, sans recherche ni
+     * embedding) des Articles/DossierFiles des Dossiers de la Boucle du
+     * contexte. Repond aux questions structurelles (« quels fichiers ? »)
+     * qu'une recherche semantique sur des chunks ne peut pas atteindre.
+     */
+    public const SOURCE_DOSSIER_MANIFEST = 'dossier.manifest';
+
+    /**
      * TASK-1213 : reponse documentaire sourcee depuis une Boucle. Read-only :
      * elle n'ecrit ni message ni objet metier.
      */
@@ -136,8 +144,10 @@ final class CapabilityRegistry
             allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
             // Uniquement le corpus documentaire autorise : ni messages de
             // Boucle, ni catalogue, ni profil — la question porte sur ce que
-            // les Dossiers savent.
-            allowedSources: [self::SOURCE_DOSSIER_RETRIEVAL],
+            // les Dossiers savent. TASK-1307 : le manifest structurel est
+            // declare EN PREMIER (petit, deterministe, prioritaire sur le
+            // budget) — le retrieval semantique consomme le reste.
+            allowedSources: [self::SOURCE_DOSSIER_MANIFEST, self::SOURCE_DOSSIER_RETRIEVAL],
             maxOutput: 4000,
             promptKey: 'loop_knowledge_answer',
             contextCharBudget: self::knowledgeContextBudget(),
