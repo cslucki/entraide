@@ -25,7 +25,15 @@ use App\Services\Ai\DTO\ConversationContext;
  * caracteres, le plus ancien tronque en premier, le parent direct toujours
  * conserve (tronque au besoin). Seuls les types `user` et `ai` entrent au
  * transcript ; un maillon d'un autre type arrete la remontee, un maillon
- * supprime est saute (son slot de profondeur est consomme).
+ * supprime est saute (son slot de profondeur est consomme, la remontee
+ * continue au-dela).
+ *
+ * DEFENSE EN PROFONDEUR (revue TASK-1308) : la chaine ne remonte JAMAIS hors
+ * de la Boucle du declencheur. En pratique, `LoopMessageService::sendUserMessage()`
+ * annule deja tout `reply_to_id` etranger AVANT que ce service ne soit
+ * appele — mais un futur appelant qui construirait un trigger a la main
+ * (sans passer par ce garde-fou) ne doit pas pouvoir faire fuiter le
+ * contenu d'une autre Boucle via un `reply_to_id` mal forme.
  */
 class AiConversationContextBuilder
 {
@@ -39,6 +47,10 @@ class AiConversationContextBuilder
             return new ConversationContext('', []);
         }
 
+        if ($parent->loop_id !== $trigger->loop_id) {
+            return new ConversationContext('', []);
+        }
+
         $budget = (int) config('ai.chatloop.max_context_chars', 12000);
         $lines = [];
         $ids = [];
@@ -46,7 +58,7 @@ class AiConversationContextBuilder
         $current = $parent;
 
         for ($depth = 0; $depth < self::MAX_THREAD_DEPTH && $current !== null; $depth++) {
-            if (! in_array($current->type, ['user', 'ai'], true)) {
+            if (! in_array($current->type, ['user', 'ai'], true) || $current->loop_id !== $trigger->loop_id) {
                 break;
             }
 

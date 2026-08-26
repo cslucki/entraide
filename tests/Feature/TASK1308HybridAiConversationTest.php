@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Ai\Agents\LoopDirectAnswerAgent;
 use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Livewire\LoopChat;
+use App\Models\AiInteraction;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\Loop;
@@ -24,6 +25,7 @@ use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\TextResponse;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
 /**
@@ -51,6 +53,8 @@ use Tests\TestCase;
  *  - Boucle agent : les deux moteurs restent neutralises cote serveur, meme
  *    si un mode a ete selectionne avant que le composant ne le redecouvre.
  */
+#[Group('ai')]
+#[Group('sensitive')]
 class TASK1308HybridAiConversationTest extends TestCase
 {
     use RefreshDatabase;
@@ -543,6 +547,109 @@ class TASK1308HybridAiConversationTest extends TestCase
         LoopDirectAnswerAgent::assertNotPrompted(fn (AgentPrompt $prompt): bool => true);
         LoopKnowledgeAgent::assertNotPrompted(fn (AgentPrompt $prompt): bool => true);
         $this->assertDatabaseCount('ai_provider_invocations', 0);
+    }
+
+    // =====================================================================
+    // Reply etranger cross-Organization — jamais attache, jamais dans le
+    // contexte (revue TASK-1308, BLOCKER 2C).
+    // =====================================================================
+
+    public function test_replying_to_a_message_of_another_organization_never_attaches_and_never_leaks(): void
+    {
+        $otherOrganization = Organization::factory()->create();
+        $otherOwner = User::factory()->create(['organization_id' => $otherOrganization->id]);
+        app()->instance('current_organization', $otherOrganization);
+        $otherLoop = (new LoopService)->createLoop($otherOwner, 'Boucle etrangere');
+        $foreignMessage = LoopMessage::create([
+            'loop_id' => $otherLoop->id,
+            'sender_id' => null,
+            'body' => 'SECRET-DE-B ne doit jamais fuiter.',
+            'type' => 'ai',
+            'metadata' => ['ai_mode' => 'llm', 'action' => 'ia'],
+            'organization_id' => $otherLoop->organization_id,
+        ]);
+        app()->instance('current_organization', $this->organization);
+
+        $this->fakeDirect('Reponse sans contexte etranger.');
+        $this->actingAs($this->member);
+
+        // Chemin 1 : replyTo() cherche le message DANS la Boucle courante —
+        // un message d'une autre Boucle/Organization n'est jamais trouve,
+        // aucun reply n'est attache.
+        $component = Livewire::test(LoopChat::class, ['loop' => $this->loop])
+            ->call('replyTo', $foreignMessage->id)
+            ->assertSet('replyToMessageId', null)
+            ->assertSet('composerMode', 'normal');
+
+        // Chemin 2 : meme si `replyToMessageId` est force directement (bypass
+        // de replyTo(), simule un evenement front perime ou manipule) —
+        // LoopMessageService::sendUserMessage() annule le reply_to_id
+        // etranger AVANT toute persistance : AiConversationContextBuilder ne
+        // voit donc jamais ce parent.
+        $component
+            ->call('setComposerMode', 'ia')
+            ->set('replyToMessageId', $foreignMessage->id)
+            ->set('body', 'Question posee depuis Organization A.')
+            ->call('sendMessage')
+            ->assertHasNoErrors();
+
+        $question = LoopMessage::query()->where('loop_id', $this->loop->id)->where('type', 'user')->sole();
+        $this->assertNull($question->reply_to_id, 'le reply_to_id etranger doit avoir ete annule a la persistance');
+
+        LoopDirectAnswerAgent::assertPrompted(function (AgentPrompt $prompt): bool {
+            $this->assertStringNotContainsString('SECRET-DE-B', $prompt->prompt);
+
+            return true;
+        });
+
+        $answer = LoopMessage::query()->where('loop_id', $this->loop->id)->where('type', 'ai')->sole();
+        $this->assertSame([], $answer->metadata['context_message_ids']);
+    }
+
+    // =====================================================================
+    // Echec provider — message humain CONSERVE, aucune fausse reponse
+    // (revue TASK-1308, BLOCKER 2F).
+    // =====================================================================
+
+    public function test_ia_mode_provider_failure_preserves_the_human_message_and_publishes_nothing(): void
+    {
+        LoopDirectAnswerAgent::fake(function (): never {
+            throw new \RuntimeException('provider down');
+        });
+
+        $this->actingAs($this->member);
+        Livewire::test(LoopChat::class, ['loop' => $this->loop])
+            ->call('setComposerMode', 'ia')
+            ->set('body', 'Question qui echoue.')
+            ->call('sendMessage')
+            ->assertHasErrors('body');
+
+        $message = LoopMessage::query()->sole();
+        $this->assertSame('user', $message->type);
+        $this->assertSame('Question qui echoue.', $message->body);
+        $this->assertSame(0, LoopMessage::query()->where('type', 'ai')->count());
+        $this->assertSame('failed', AiInteraction::sole()->metadata['status']);
+    }
+
+    public function test_dossiers_mode_provider_failure_preserves_the_human_message_and_publishes_nothing(): void
+    {
+        $this->search->rows = [$this->row('A')];
+        LoopKnowledgeAgent::fake(function (): never {
+            throw new \RuntimeException('provider down');
+        });
+
+        $this->actingAs($this->member);
+        Livewire::test(LoopChat::class, ['loop' => $this->loop])
+            ->call('setComposerMode', 'dossiers')
+            ->set('body', 'Question documentaire qui echoue.')
+            ->call('sendMessage')
+            ->assertHasErrors('body');
+
+        $message = LoopMessage::query()->sole();
+        $this->assertSame('user', $message->type);
+        $this->assertSame('Question documentaire qui echoue.', $message->body);
+        $this->assertSame(0, LoopMessage::query()->where('type', 'ai')->count());
+        $this->assertSame('failed', AiInteraction::sole()->metadata['status']);
     }
 
     // =====================================================================
