@@ -47,6 +47,22 @@ final class CapabilityRegistry
     public const LOOP_KNOWLEDGE_ANSWER = 'loop_knowledge_answer';
 
     /**
+     * TASK-1309 : « IA + Dossiers » — reponse CROISEE entre les connaissances
+     * generales du modele et les connaissances documentaires de la Boucle.
+     *
+     * Pourquoi une capability distincte de `loop_knowledge_answer` alors que
+     * les sources autorisees sont les MEMES : ce qui change est le CONTRAT de
+     * reponse, et il est incompatible. Le mode Dossiers est un grounding
+     * STRICT — sans source, il refuse, et c'est sa valeur. Le mode
+     * IA + Dossiers doit pouvoir repondre depuis la connaissance generale du
+     * modele quand les Dossiers n'ont rien a dire, en disant clairement que
+     * les Dossiers n'ont rien apporte. Une seule capability porterait donc
+     * deux instructions contradictoires — exactement la faute que TASK-1309
+     * corrige par ailleurs dans le prompt v2 de `loop_knowledge_answer`.
+     */
+    public const LOOP_HYBRID_ANSWER = 'loop_hybrid_answer';
+
+    /**
      * TASK-1233 : « Demander a l'IA » dans une Boucle — intervention spontanee
      * (`loop_answer`, prompt `chatloop_ai_answer`) et question d'un membre
      * (`loop_ask`, prompt `chatloop_ai_ask`). Ex-chemin herite
@@ -153,6 +169,32 @@ final class CapabilityRegistry
             contextCharBudget: self::knowledgeContextBudget(),
         );
 
+        // TASK-1309 : « IA + Dossiers ». MEMES sources autorisees, MEME
+        // perimetre tenant/Boucle, MEME budget de contexte que le mode
+        // Dossiers — seule l'instruction change (prompt `loop_hybrid_answer`).
+        //
+        // PROCESS VOLONTAIREMENT IDENTIQUE a `loop_knowledge.answer` : c'est
+        // le meme acte economique (recherche documentaire + generation depuis
+        // une Boucle), donc le meme seau de credit, le meme plafond
+        // Organization et la meme fenetre d'autorite du ledger
+        // (`LEDGER_AUTHORITY_SINCE_BY_PROCESS`, cutover 2026-08-18 deja
+        // franchi). Creer un 15e process rouvrirait la convergence economique
+        // fermee par TASK-1286/1291 pour zero gain — ce serait precisement
+        // l'« economie parallele » que le brief interdit. Ce qui trace le
+        // mode reste EXPLICITE : la capability (`loop_hybrid_answer`) est une
+        // colonne de premier rang du ledger et de `metadata.capability`.
+        $loopHybridAnswer = new CapabilityDefinition(
+            id: self::LOOP_HYBRID_ANSWER,
+            process: AiProcess::fromScenarioId('loop_knowledge_answer'),
+            requiresHumanConfirmation: false,
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
+            allowedSources: [self::SOURCE_DOSSIER_MANIFEST, self::SOURCE_DOSSIER_RETRIEVAL],
+            maxOutput: 4000,
+            promptKey: 'loop_hybrid_answer',
+            contextCharBudget: self::knowledgeContextBudget(),
+        );
+
         // TASK-1233 : les deux faces de « Demander a l'IA », desormais
         // canoniques. Meme source que le resume (les messages de la Boucle),
         // meme budget de contexte que `buildContext()` lisait avant.
@@ -244,6 +286,7 @@ final class CapabilityRegistry
             $loopSummary->id => $loopSummary,
             $clarifyHelpRequest->id => $clarifyHelpRequest,
             $loopKnowledgeAnswer->id => $loopKnowledgeAnswer,
+            $loopHybridAnswer->id => $loopHybridAnswer,
             $loopAnswer->id => $loopAnswer,
             $loopAsk->id => $loopAsk,
             $blogGenerate->id => $blogGenerate,

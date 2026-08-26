@@ -406,6 +406,7 @@ return [
         'clarify_help_request' => 'Clarification des demandes',
         'loop_summary' => 'Résumé des Boucles',
         'loop_knowledge_answer' => 'Questions aux Dossiers',
+        'loop_hybrid_answer' => 'Questions croisées IA + Dossiers',
         'loop_answer' => 'Réponse IA dans la Boucle',
         'loop_ask' => 'Question à l\'IA dans la Boucle',
         'blog_generate' => 'Génération d\'article de blog',

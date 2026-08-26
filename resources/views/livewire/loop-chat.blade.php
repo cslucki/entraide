@@ -35,15 +35,21 @@
                     // les messages IA anterieurs a cette TASK sont derives
                     // depuis leur `action` historique (aucune migration).
                     $orgName = $viewLoop->organization?->name ?? config('app.name', 'BouclePro');
+                    // TASK-1309 : troisieme valeur `llm_rag` (IA + Dossiers).
                     $aiModeOf = function ($message) {
                         $mode = $message?->metadata['ai_mode'] ?? null;
-                        if (in_array($mode, ['llm', 'rag'], true)) {
+                        if (in_array($mode, ['llm', 'rag', 'llm_rag'], true)) {
                             return $mode;
                         }
                         $action = $message?->metadata['action'] ?? null;
                         return in_array($action, ['knowledge', 'slash_ia', 'continuation', 'dossiers'], true) ? 'rag' : 'llm';
                     };
-                    $aiBubbleLabel = fn ($message) => $orgName.' · '.($aiModeOf($message) === 'rag' ? __('loops.dossiers_mode_label') : __('loops.ia_mode_label'));
+                    $aiModeLabel = fn ($mode) => match ($mode) {
+                        'rag' => __('loops.dossiers_mode_label'),
+                        'llm_rag' => __('loops.hybrid_mode_label'),
+                        default => __('loops.ia_mode_label'),
+                    };
+                    $aiBubbleLabel = fn ($message) => $orgName.' · '.$aiModeLabel($aiModeOf($message));
 
                     $isOwn = $msg->sender_id === auth()->id();
                     $senderDisplayable = $msg->sender?->isDisplayableIn(currentOrganization()) ?? false;
@@ -59,7 +65,11 @@
 
                     $aiBubbleSubtitle = null;
                     if ($msg->type === 'ai') {
-                        $aiBubbleSubtitle = $aiModeOf($msg) === 'rag' ? __('loops.dossiers_bubble_subtitle') : __('loops.ia_bubble_subtitle');
+                        $aiBubbleSubtitle = match ($aiModeOf($msg)) {
+                            'rag' => __('loops.dossiers_bubble_subtitle'),
+                            'llm_rag' => __('loops.hybrid_bubble_subtitle'),
+                            default => __('loops.ia_bubble_subtitle'),
+                        };
                         if (isset($requestedByNames[$msg->id])) {
                             $aiBubbleSubtitle .= ' · '.__('loops.ai_requested_by', ['name' => $requestedByNames[$msg->id]]);
                         }
@@ -237,6 +247,7 @@
                             :my-reaction="$myReactions[$msg->id] ?? null"
                             :reply-to="$msg->replyTo ? ['body' => $replyBody, 'sender_name' => $replySenderName] : null"
                             :sources="$msg->metadata['sources'] ?? null"
+                            :consulted-sources="$msg->metadata['consulted'] ?? null"
                             is-ai="true"
                         >
                             {!! $msg->body !!}
@@ -289,6 +300,13 @@
         // masques pour ne jamais laisser croire a un choix sans effet
         // (sendMessage() les neutralise deja cote serveur, section 42).
         $aiEnginesAvailable = ! $viewLoop->isAiAgent();
+        // TASK-1309 : les deux actions existantes sont desormais deux
+        // INTERRUPTEURS qui se combinent — les quatre etats (aucun / IA /
+        // Dossiers / IA + Dossiers) s'atteignent sans troisieme bouton.
+        $engineActive = [
+            'ia' => in_array($composerMode, ['ia', 'ia_dossiers'], true),
+            'dossiers' => in_array($composerMode, ['dossiers', 'ia_dossiers'], true),
+        ];
     @endphp
 
     @if($isMember && $canContribute && config('ai.chatloop.enabled', true))
@@ -305,30 +323,43 @@
             @if($aiEnginesAvailable)
             <button
                 type="button"
-                wire:click="setComposerMode('ia')"
-                aria-pressed="{{ $composerMode === 'ia' ? 'true' : 'false' }}"
-                class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition {{ $composerMode === 'ia'
+                wire:click="toggleComposerEngine('ia')"
+                data-engine-toggle="ia"
+                aria-pressed="{{ $engineActive['ia'] ? 'true' : 'false' }}"
+                class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition {{ $engineActive['ia']
                     ? 'border-violet-400 bg-violet-600 text-white hover:bg-violet-700'
                     : 'border-violet-100 bg-violet-50/70 text-violet-700 hover:border-violet-200 hover:bg-violet-100 dark:border-violet-800/50 dark:bg-violet-900/20 dark:text-violet-200 dark:hover:bg-violet-900/40' }}"
             >
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 5h.01M18 9h.01M6 4h.01"/></svg>
                 {{ __('loops.ask_ai_button') }}
-                @if($composerMode === 'ia')<span aria-hidden="true">×</span>@endif
+                @if($engineActive['ia'])<span aria-hidden="true">×</span>@endif
             </button>
 
             <button
                 type="button"
-                wire:click="setComposerMode('dossiers')"
+                wire:click="toggleComposerEngine('dossiers')"
                 data-knowledge-open
-                aria-pressed="{{ $composerMode === 'dossiers' ? 'true' : 'false' }}"
-                class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition {{ $composerMode === 'dossiers'
+                data-engine-toggle="dossiers"
+                aria-pressed="{{ $engineActive['dossiers'] ? 'true' : 'false' }}"
+                class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition {{ $engineActive['dossiers']
                     ? 'border-sky-400 bg-sky-600 text-white hover:bg-sky-700'
                     : 'border-sky-100 bg-sky-50/70 text-sky-700 hover:border-sky-200 hover:bg-sky-100 dark:border-sky-800/50 dark:bg-sky-900/20 dark:text-sky-200 dark:hover:bg-sky-900/40' }}"
             >
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>
                 {{ __('loops.knowledge_button') }}
-                @if($composerMode === 'dossiers')<span aria-hidden="true">×</span>@endif
+                @if($engineActive['dossiers'])<span aria-hidden="true">×</span>@endif
             </button>
+
+            {{-- TASK-1309 : l'etat combine se NOMME, pour qu'un membre voie
+                 qu'il a atteint « IA + Dossiers » et ne croie pas avoir
+                 simplement clique deux boutons sans effet. --}}
+            @if($composerMode === 'ia_dossiers')
+            <span data-hybrid-indicator
+                  class="inline-flex items-center gap-1.5 rounded-full border border-indigo-300 bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white dark:border-indigo-500">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5a4.5 4.5 0 0 0 0-9H15M16.5 3 21 7.5"/></svg>
+                {{ __('loops.hybrid_mode_label') }}
+            </span>
+            @endif
             @endif
 
             @if($clarificationEnabled)
@@ -387,11 +418,13 @@
             $composerModeLabel = match ($composerMode) {
                 'ia' => __('loops.ia_mode_label'),
                 'dossiers' => __('loops.dossiers_mode_label'),
+                'ia_dossiers' => __('loops.hybrid_mode_label'),
                 default => null,
             };
             $composerPlaceholder = match ($composerMode) {
                 'ia' => __('loops.composer_placeholder_ia'),
                 'dossiers' => __('loops.composer_placeholder_dossiers'),
+                'ia_dossiers' => __('loops.composer_placeholder_hybrid'),
                 default => __('messages.write_message'),
             };
         @endphp
@@ -444,17 +477,36 @@
                                 <div class="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-600"></div>
                                 <div class="space-y-1">
                                     @if($aiEnginesAvailable)
-                                    <button type="button" wire:click="setComposerMode('ia')" x-on:click="sheetOpen = false"
-                                        aria-pressed="{{ $composerMode === 'ia' ? 'true' : 'false' }}"
-                                        class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700">
+                                    {{-- TASK-1309 : sur mobile, le bottom sheet du composeur
+                                         (T1308) propose les MEMES quatre etats. Les deux
+                                         premieres lignes restent des interrupteurs
+                                         combinables (elles ne ferment donc pas la feuille,
+                                         pour qu'on puisse en activer deux) ; la troisieme
+                                         est un raccourci direct vers l'etat combine, parce
+                                         qu'au pouce, deux gestes precis valent moins qu'un
+                                         seul explicite. --}}
+                                    <button type="button" wire:click="toggleComposerEngine('ia')"
+                                        data-engine-toggle="ia"
+                                        aria-pressed="{{ $engineActive['ia'] ? 'true' : 'false' }}"
+                                        class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 {{ $engineActive['ia'] ? 'bg-violet-50 text-violet-800 dark:bg-violet-900/30 dark:text-violet-100' : 'text-gray-800 dark:text-gray-100' }}">
                                         <svg class="h-5 w-5 shrink-0 text-violet-600 dark:text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/></svg>
-                                        {{ __('loops.ask_ai_button') }}
+                                        <span class="flex-1">{{ __('loops.ask_ai_button') }}</span>
+                                        @if($engineActive['ia'])<span aria-hidden="true" class="text-violet-600 dark:text-violet-300">✓</span>@endif
                                     </button>
-                                    <button type="button" wire:click="setComposerMode('dossiers')" x-on:click="sheetOpen = false"
-                                        aria-pressed="{{ $composerMode === 'dossiers' ? 'true' : 'false' }}"
-                                        class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700">
+                                    <button type="button" wire:click="toggleComposerEngine('dossiers')"
+                                        data-engine-toggle="dossiers"
+                                        aria-pressed="{{ $engineActive['dossiers'] ? 'true' : 'false' }}"
+                                        class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 {{ $engineActive['dossiers'] ? 'bg-sky-50 text-sky-800 dark:bg-sky-900/30 dark:text-sky-100' : 'text-gray-800 dark:text-gray-100' }}">
                                         <svg class="h-5 w-5 shrink-0 text-sky-600 dark:text-sky-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>
-                                        {{ __('loops.knowledge_button') }}
+                                        <span class="flex-1">{{ __('loops.knowledge_button') }}</span>
+                                        @if($engineActive['dossiers'])<span aria-hidden="true" class="text-sky-600 dark:text-sky-300">✓</span>@endif
+                                    </button>
+                                    <button type="button" wire:click="setComposerMode('ia_dossiers')" x-on:click="sheetOpen = false"
+                                        data-hybrid-shortcut
+                                        aria-pressed="{{ $composerMode === 'ia_dossiers' ? 'true' : 'false' }}"
+                                        class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 {{ $composerMode === 'ia_dossiers' ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-100' : 'text-gray-800 dark:text-gray-100' }}">
+                                        <svg class="h-5 w-5 shrink-0 text-indigo-600 dark:text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5a4.5 4.5 0 0 0 0-9H15M16.5 3 21 7.5"/></svg>
+                                        <span class="flex-1">{{ __('loops.hybrid_button') }}</span>
                                     </button>
                                     @endif
                                     @if($clarificationEnabled)

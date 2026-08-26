@@ -406,6 +406,7 @@ return [
         'clarify_help_request' => 'Request clarification',
         'loop_summary' => 'Loop summaries',
         'loop_knowledge_answer' => 'Questions to Folders',
+        'loop_hybrid_answer' => 'Combined AI + Folders questions',
         'loop_answer' => 'AI answer in the Loop',
         'loop_ask' => 'Question to the AI in the Loop',
         'blog_generate' => 'Blog article generation',

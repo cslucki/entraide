@@ -246,10 +246,12 @@ class TASK1213KnowledgeAnswerTest extends TestCase
         $answer = app(LoopKnowledgeAnswerService::class)->answer($this->loop, $this->member, 'question ?');
 
         $this->assertFalse($answer->grounded);
-        // Rien de cite ne correspond : on montre ce qui a ete consulte, jamais
-        // S9 — le manifest du document racine de la Boucle (M1, TASK-1307)
-        // fait partie de ce qui a ete consulte, au meme titre que S1.
-        $this->assertSame(['M1', 'S1'], array_column($answer->sources, 'ref'));
+        // TASK-1309 : contrat CORRIGE. Rien de cite ne correspond ([S9]
+        // n'existe pas) -> AUCUNE source « utilisee ». Jusqu'ici on retombait
+        // sur tout ce qui avait ete consulte, ce qui presentait comme appui
+        // d'une affirmation des documents qui n'en avaient soutenu aucune.
+        // La provenance consultee reste disponible, sous son vrai nom.
+        $this->assertSame([], $answer->sources);
         $this->assertSame(['M1', 'S1'], array_column($answer->consulted, 'ref'));
     }
 
@@ -324,10 +326,10 @@ class TASK1213KnowledgeAnswerTest extends TestCase
     {
         $prompt = AdminAiPrompt::query()->where('scenario_id', 'loop_knowledge_answer')->where('is_active', true)->first();
         $this->assertNotNull($prompt);
-        // TASK-1307 (revue) : v2 est desormais la version active (migration
-        // 2026_08_26_090000) — v1 reste en base, jamais modifiee, jamais
-        // supprimee (donnee administrable, TASK-1211).
-        $this->assertSame(2, $prompt->version);
+        // TASK-1309 : v3 est desormais la version active (migration
+        // 2026_08_27_090000) — v1 et v2 restent en base, jamais modifiees,
+        // jamais supprimees (donnee administrable, TASK-1211).
+        $this->assertSame(3, $prompt->version);
 
         $this->search->rows = [$this->row('A', $this->visibleDossier)];
         $this->fakeAgent('ok [S1]');

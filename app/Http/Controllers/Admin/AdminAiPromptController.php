@@ -108,6 +108,8 @@ class AdminAiPromptController extends Controller
             'supervision_content' => 'Supervision de contenu',
             'clarify_help_request' => 'Clarification de demande d\'aide',
             'loop_knowledge_answer' => 'Réponse documentaire sourcée (Boucle)',
+            // TASK-1309 : instruction du mode « IA + Dossiers ».
+            'loop_hybrid_answer' => 'Réponse croisée IA + Dossiers (Boucle)',
             'blog_generate' => 'Blog — Génération d\'article',
             'blog_correct' => 'Blog — Correction d\'article',
             'blog_method_selection_explorer_fr' => 'SuperBlog — Méthode IA sélection — Explorer — FR',

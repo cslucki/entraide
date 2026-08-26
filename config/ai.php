@@ -294,6 +294,22 @@ return [
         // ask()). Reversible en UNE ligne si l'arbitrage produit tranche
         // autrement : false = seule la reponse IA est publiee.
         'publish_question' => (bool) env('AI_KNOWLEDGE_PUBLISH_QUESTION', true),
+        /*
+         * TASK-1309 — vue d'ensemble documentaire.
+         *
+         * Une question panoramique n'a aucun bon voisin vectoriel : la
+         * selection semantique sort vide et le mode Dossiers ne peut plus
+         * parler que de metadonnees. `DossierRetrievalSource` reconstruit
+         * alors la selection en LARGEUR — un extrait court par document, au
+         * plus `max_documents` documents. Ces deux nombres bornent la vue
+         * d'ensemble ; ils ne touchent NI `top_k`, NI `max_distance`, et
+         * n'entrainent aucun appel provider supplementaire (le complement est
+         * une lecture SQL, sans embedding).
+         */
+        'overview' => [
+            'max_documents' => (int) env('AI_KNOWLEDGE_OVERVIEW_MAX_DOCUMENTS', 6),
+            'chars_per_document' => (int) env('AI_KNOWLEDGE_OVERVIEW_CHARS_PER_DOCUMENT', 700),
+        ],
         'economic_guard' => [
             'monthly_budget_usd' => (float) env('AI_KNOWLEDGE_MONTHLY_BUDGET_USD', 2.00),
             'monthly_unknown_limit' => (int) env('AI_KNOWLEDGE_MONTHLY_UNKNOWN_LIMIT', 10),

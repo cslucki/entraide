@@ -122,7 +122,7 @@ class TASK1297UnifiedAiPersistenceTest extends TestCase
             ->assertSee('Que contient le dossier de la Boucle ?', false);
     }
 
-    public function test_an_ungrounded_but_billed_answer_is_persisted_with_its_consulted_sources(): void
+    public function test_an_ungrounded_but_billed_answer_is_persisted_without_presenting_consulted_sources_as_used(): void
     {
         $this->search->rows = [$this->row('A')];
         $this->fakeAgent('Réponse sans citation valable [S9].');
@@ -136,11 +136,17 @@ class TASK1297UnifiedAiPersistenceTest extends TestCase
         // sans citation validée : on persiste ce qui a coûté.
         $aiMessage = LoopMessage::query()->where('type', 'ai')->firstOrFail();
         $this->assertFalse($aiMessage->metadata['grounded']);
-        // TASK-1307 (revue) : rien de cite ne correspond ([S9] n'existe pas)
-        // -> on montre TOUT ce qui a ete consulte, manifest compris (M1, le
-        // document racine auto-cree de la Boucle) en plus de S1.
-        $this->assertSame(['M1', 'S1'], array_column($aiMessage->metadata['sources'], 'ref'));
-        $this->assertSame(AiInteraction::firstOrFail()->id, $aiMessage->metadata['ai_interaction_id']);
+        // TASK-1309 : rien de cite ne correspond ([S9] n'existe pas) -> la
+        // bulle n'affiche AUCUNE « source utilisee ». Montrer ici les
+        // documents seulement consultes reviendrait a affirmer qu'ils ont
+        // etaye une reponse qui, precisement, n'en cite aucun.
+        $this->assertSame([], $aiMessage->metadata['sources']);
+        // Ce qui a ete consulte n'est pas perdu : il reste dans la trace de
+        // l'interaction, la ou il sert au diagnostic et non a la preuve.
+        $interaction = AiInteraction::firstOrFail();
+        $this->assertCount(2, $interaction->metadata['retrieval']['consulted']);
+        $this->assertSame([], $interaction->metadata['retrieval']['cited']);
+        $this->assertSame($interaction->id, $aiMessage->metadata['ai_interaction_id']);
     }
 
     public function test_the_no_sources_answer_writes_nothing_and_calls_no_model(): void
