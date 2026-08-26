@@ -104,7 +104,15 @@ class TASK932StructuredProfileTest extends TestCase
         $this->seed(AiPromptSeeder::class);
 
         $admin = User::factory()->create(['is_admin' => true]);
-        $response = $this->actingAs($admin)->get(route('admin.ai-prompts'));
+        // TASK-1307 : la liste (25/page, triee par scenario_id) grandit a
+        // chaque nouvelle version de prompt provisionnee ailleurs dans le
+        // produit (ex. loop_knowledge_answer v2) — plus de 25 lignes au
+        // total fait passer les scenarios "profile_agent_*" (qui trient
+        // apres alphabetiquement) sur une page suivante. Le test cible ce
+        // qu'il verifie reellement (ces deux prompts existent et sont
+        // visibles) via le filtre `search` deja fourni par le controleur,
+        // plutot que de supposer que la page 1 contient tout le catalogue.
+        $response = $this->actingAs($admin)->get(route('admin.ai-prompts', ['search' => 'Agent de profil IA']));
 
         $response->assertOk();
         $response->assertSee('Agent de profil IA — Prompt setup v1');
