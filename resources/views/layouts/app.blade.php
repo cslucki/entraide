@@ -135,6 +135,13 @@
         {{-- TASK-1231 : FAB « BouclePro IA » — layout membre uniquement (jamais
              guest / admin / org-admin). Contexte calcule cote serveur. --}}
         <x-ai-fab />
+        {{-- TASK-1315 : le Shell « BouclePro IA ». Monte ici, donc remonte a
+             chaque page — l'application ne fait aucune navigation SPA. Ce qui
+             survit a la navigation est le FIL, relu en base a chaque montage,
+             pas l'etat de ce composant. --}}
+        @auth
+        <livewire:ai-shell />
+        @endauth
 
         <x-app-side-nav />
 
