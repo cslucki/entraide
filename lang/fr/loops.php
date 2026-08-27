@@ -779,6 +779,7 @@ return [
     'dossiers_bubble_subtitle' => 'Réponse fondée sur les connaissances de cette Boucle',
     'composer_placeholder_ia' => 'Posez votre question à l\'IA...',
     'composer_placeholder_dossiers' => 'Interrogez les Dossiers de cette Boucle...',
+    'capitalize_reserved_to_facilitators' => 'Réservé aux animateurs de cette Boucle.',
     'capitalize_action' => 'Ajouter au Dossier',
     'capitalize_title' => 'Ajouter cette réponse au Dossier',
     'capitalize_intro' => 'Relisez et modifiez avant d\'enregistrer : l\'Article sera signé de votre nom.',

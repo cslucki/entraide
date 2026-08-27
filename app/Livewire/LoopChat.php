@@ -952,22 +952,35 @@ class LoopChat extends Component
         // entree nommee `loop` (array_merge, la derniere valeur gagne).
         $viewLoop = $this->loop;
 
-        // TASK-1310 : l'action « Ajouter au Dossier » ne s'affiche que la ou
-        // elle est REELLEMENT possible. La vue lit une decision deja prise ici
-        // par le service — jamais une regle d'eligibilite reimplantee en Blade,
-        // qui pourrait diverger de celle que le serveur applique.
+        // TASK-1310 : la vue lit une decision deja prise ici par le service —
+        // jamais une regle d'eligibilite reimplantee en Blade, qui pourrait
+        // diverger de celle que le serveur applique.
+        //
+        // TASK-1313 : deux questions DISTINCTES, la ou il n'y en avait qu'une.
+        //
+        //   `$capitalizableMessageIds` — cette BULLE se prete-t-elle au geste ?
+        //   `$canCapitalize`           — cette PERSONNE a-t-elle le droit ?
+        //
+        // Les confondre revenait a cacher la fonctionnalite a qui n'y a pas
+        // droit : un membre ordinaire ne pouvait pas meme SAVOIR qu'elle
+        // existe. Elle doit etre decouvrable par tous, et refusee clairement a
+        // qui ne peut pas — ce qui est une information, pas une frustration.
+        //
+        // L'affichage ne fait bien sur autorite sur rien :
+        // `startCapitalization()` et `saveCapitalization()` reposent sur le
+        // service, qui revalide tout.
         $capitalization = app(LoopAnswerCapitalizationService::class);
         $capitalizableMessageIds = [];
         $writableDossiers = collect();
+        $canCapitalize = false;
 
         if ($canContribute && auth()->user()) {
             $writableDossiers = $capitalization->writableDossiers($this->loop, auth()->user());
+            $canCapitalize = $writableDossiers->isNotEmpty();
 
-            if ($writableDossiers->isNotEmpty()) {
-                foreach ($messages as $msg) {
-                    if ($capitalization->isCapitalizable($this->loop, $msg)) {
-                        $capitalizableMessageIds[] = $msg->id;
-                    }
+            foreach ($messages as $msg) {
+                if ($capitalization->isCapitalizable($this->loop, $msg)) {
+                    $capitalizableMessageIds[] = $msg->id;
                 }
             }
         }
@@ -983,6 +996,7 @@ class LoopChat extends Component
             'projectedRequestUrls',
             'aiRoute',
             'canDeleteMessages',
+            'canCapitalize',
             'canContribute',
             'capitalizableMessageIds',
             'writableDossiers',

@@ -555,7 +555,16 @@ return [
          */
         'facilitator' => [
             'loops.view',
-            'loop_members.view', 'loop_members.invite', 'loop_members.review_join_requests',
+            // TASK-1313 : `loop_members.add` — un animateur peut faire entrer
+            // dans SA Boucle quelqu'un qui est DEJA membre de l'Organization.
+            // Il ne gagne aucun pouvoir de tenant : ni creation d'adhesion
+            // Organization, ni invitation d'une adresse exterieure — celle-ci
+            // reste gouvernee par `LoopPolicy::update()`, ability distincte.
+            //
+            // Cette ligne reconcilie aussi la matrice et le code : le
+            // facilitator avait deja `loop_members.review_join_requests`, mais
+            // le chemin `manageJoinRequests` le refusait.
+            'loop_members.view', 'loop_members.invite', 'loop_members.add', 'loop_members.review_join_requests',
             'manifesto.view', 'manifesto.update', 'manifesto.manage_sources',
             'roadmap.view', 'roadmap.manage',
             'chatloop.view', 'chatloop.post', 'chatloop.manage',
@@ -563,7 +572,11 @@ return [
             'polls.view', 'polls.create', 'polls.vote', 'polls.manage',
             'events.view', 'events.create', 'events.respond', 'events.manage',
             'events.publish_organization',
-            'dossiers.view',
+            // TASK-1313 : `dossiers.create_article` — capitaliser une reponse IA
+            // utile en Article du Dossier est un geste d'ANIMATION, pas un geste
+            // de propriete. `dossiers.upload_file` reste a l'owner : deposer des
+            // fichiers dans l'espace documentaire n'est pas le meme acte.
+            'dossiers.view', 'dossiers.create_article',
             // Le Support de cours, monte et tenu : dans une Boucle Formation,
             // c'est le travail quotidien du facilitateur.
             'course_material.view', 'course_material.manage',
