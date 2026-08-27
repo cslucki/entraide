@@ -1,11 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { login } from '../../ai/playwright/helpers/auth.js';
 
-const BASE_URL = 'http://127.0.0.1:8000';
 const PASSWORD = 'password';
 
-async function dossierBench(browser) {
-    const ownerContext = await browser.newContext({ baseURL: BASE_URL });
+async function dossierBench(browser, baseURL) {
+    const ownerContext = await browser.newContext({ baseURL });
     const ownerPage = await ownerContext.newPage();
     await login(ownerPage, 'admin@bouclepro.test', PASSWORD);
     await ownerPage.goto('/org/main/dossiers');
@@ -32,9 +31,9 @@ for (const viewport of [
     { label: 'desktop', width: 1280, height: 800 },
     { label: 'mobile', width: 390, height: 844 },
 ]) {
-    test(`TASK-1140 shared reader surface — ${viewport.label}`, async ({ browser }) => {
-        const bench = await dossierBench(browser);
-        const context = await browser.newContext({ baseURL: BASE_URL, viewport });
+    test(`TASK-1140 shared reader surface — ${viewport.label}`, async ({ browser, baseURL }) => {
+        const bench = await dossierBench(browser, baseURL);
+        const context = await browser.newContext({ baseURL, viewport });
         const page = await context.newPage();
         const consoleErrors = [];
         page.on('console', message => {
