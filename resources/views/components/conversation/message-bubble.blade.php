@@ -25,6 +25,11 @@
     // valide n'en sorte. Rendus sous « Sources consultées », et seulement
     // quand il n'y a aucune source utilisee — jamais melanges aux deux.
     'consultedSources' => null,
+    // TASK-1312 : moteur de la reponse — `llm`, `rag` ou `llm_rag`. Vient de
+    // `metadata['ai_mode']`, la provenance canonique du message : JAMAIS deduit
+    // d'une couleur, d'une classe CSS ou du texte de la bulle. `null` sur toute
+    // bulle humaine — il n'y a pas de badge « Humain ».
+    'aiMode' => null,
 ])
 
 @php
@@ -54,6 +59,15 @@ $primaryReactionTypes = ['thumbs_up', 'heart', 'thanks', 'surprised', 'sad'];
 $secondaryReactionTypes = array_values(array_diff($reactionTypes, $primaryReactionTypes));
 $reactionEmojis = App\Models\Reaction::emojiMap();
 $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0);
+
+// TASK-1312 : le badge n'existe QUE pour une bulle IA portant un mode connu.
+// Un mode inconnu ne produit rien plutot qu'un badge menteur.
+$aiModeLabels = [
+    'llm' => __('loops.ia_mode_label'),
+    'rag' => __('loops.dossiers_mode_label'),
+    'llm_rag' => __('loops.hybrid_mode_label'),
+];
+$aiModeBadge = ($isAi && is_string($aiMode)) ? ($aiModeLabels[$aiMode] ?? null) : null;
 
 $escapePlainMarkdown = static function (string $text): string {
     $text = str_replace('\\', '\\\\', $text);
@@ -163,8 +177,31 @@ $renderableBody = preg_replace_callback(
                 </span>
                 @endif
                 <div class="min-w-0">
-                    @if($name)
-                    <span class="{{ $nameClasses }} block truncate">{{ $name }}</span>
+                    @if($name || $aiModeBadge)
+                    {{-- TASK-1312 : l'identite tenant (le nom) et le MOTEUR (le
+                         badge) sont deux informations distinctes, et cessent
+                         d'etre concatenees dans une seule chaine.
+
+                         Le separateur « · » reste rendu comme TEXTE entre les
+                         deux : le contenu textuel de la bulle demeure
+                         « Organization · Mode », exactement ce que le parcours
+                         E2E canonique verifie par `toContainText`. Le scinder
+                         sans lui aurait impose de rejouer l'E2E — donc de
+                         depenser des appels provider — pour un changement
+                         purement visuel. --}}
+                    <span class="flex min-w-0 flex-wrap items-center gap-1.5">
+                        @if($name)
+                        <span class="{{ $nameClasses }} truncate">{{ $name }}</span>
+                        @endif
+                        @if($aiModeBadge)
+                        <span class="{{ $nameClasses }} shrink-0" aria-hidden="true">·</span>
+                        {{-- `data-ai-mode` porte la valeur CANONIQUE, jamais le
+                             libelle traduit : c'est elle qu'un test asserte,
+                             jamais une couleur ni un texte. --}}
+                        <span data-ai-mode="{{ $aiMode }}"
+                              class="inline-flex shrink-0 items-center rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 ring-1 ring-violet-200 dark:bg-violet-800/60 dark:text-violet-100 dark:ring-violet-700">{{ $aiModeBadge }}</span>
+                        @endif
+                    </span>
                     @endif
                     @if($subtitle)
                     <span class="block truncate text-[10px] text-gray-400 dark:text-gray-500">{{ $subtitle }}</span>
@@ -222,11 +259,59 @@ $renderableBody = preg_replace_callback(
             $shownSourcesAreCited = (bool) $sources;
         @endphp
         @if($shownSources)
-        <div class="mt-2 border-t border-violet-200/70 dark:border-violet-800/70 pt-2"
-             data-message-sources
-             data-sources-kind="{{ $shownSourcesAreCited ? 'used' : 'consulted' }}">
-            <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{{ $shownSourcesAreCited ? __('loops.knowledge_sources_title') : __('loops.knowledge_consulted_title') }}</p>
-            <ul class="space-y-2">
+        {{-- TASK-1312 : replie par defaut. Une reponse documentaire peut citer
+             cinq a dix sources ; deployees, elles reléguaient la REPONSE hors
+             de l'ecran — le contenu se retrouvait enseveli sous sa propre
+             provenance.
+
+             `<details>`/`<summary>` est natif : deployable au clavier, annonce
+             comme tel par les lecteurs d'ecran, et il fonctionne sans une seule
+             ligne de JavaScript. Un accordeon maison aurait demande du JS, un
+             `aria-expanded` a tenir a jour, et un piege de plus dans une bulle
+             qui en a deja coute trois (T1310).
+
+             Les references, les URLs et le distinguo T1309
+             « utilisees / consultees » sont INCHANGES : seul l'etat initial du
+             bloc change. --}}
+        {{-- TASK-1312 (bug de recette) : `wire:ignore.self` est ce qui empeche le
+             bloc de se REFERMER TOUT SEUL.
+
+             Le ChatLoop porte `wire:poll.3s`. A chaque cycle, le morph de
+             Livewire realigne les attributs de chaque element sur le HTML rendu
+             par le SERVEUR — lequel ignore evidemment que l'utilisateur vient
+             de deplier ce bloc. L'attribut `open`, pose cote client par le
+             navigateur, etait donc efface au premier poll : ouvert, puis referme
+             trois secondes plus tard, sans que personne n'ait rien touche.
+             Constate en recette : `open` vrai apres le clic, faux apres 12 s et
+             4 requetes `/update`.
+
+             `.self` ne gele QUE cet element — ses enfants (le resume et la liste
+             des sources) continuent d'etre morphes normalement. Ce n'est donc
+             pas un `wire:ignore` global.
+
+             Et ce qui est gele ici ne bouge jamais : `data-sources-kind` et
+             `data-sources-count` derivent de `metadata['sources']`, ecrit UNE
+             fois a la publication. Une bulle IA n'est pas editable —
+             `LoopMessage::isEditableBy()` n'accepte que `user` et
+             `member_agent`. Verifie, pas suppose. --}}
+        <details wire:ignore.self class="group mt-2 border-t border-violet-200/70 pt-2 dark:border-violet-800/70"
+                 data-message-sources
+                 data-sources-kind="{{ $shownSourcesAreCited ? 'used' : 'consulted' }}"
+                 data-sources-count="{{ count($shownSources) }}">
+            <summary class="flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 marker:content-none dark:text-gray-400 [&::-webkit-details-marker]:hidden">
+                {{-- Le chevron doit DIRE dans quel etat on est : pointe a droite
+                     replie, vers le bas deplie. `group-open:` est la forme que
+                     Tailwind genere reellement — un variant arbitraire imbrique
+                     du type `[details[open]_&]` n'est pas produit, et le chevron
+                     restait alors identique dans les deux etats (constate a
+                     l'ecran). Le `group` correspondant est sur le `<details>`. --}}
+                <svg class="h-3 w-3 shrink-0 text-violet-500 transition-transform duration-200 group-open:rotate-90 dark:text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                </svg>
+                <span>{{ $shownSourcesAreCited ? __('loops.knowledge_sources_title') : __('loops.knowledge_consulted_title') }}</span>
+                <span class="font-normal normal-case tracking-normal text-gray-400 dark:text-gray-500">· {{ count($shownSources) }}</span>
+            </summary>
+            <ul class="mt-1.5 space-y-2">
                 @foreach($shownSources as $source)
                 <li class="rounded-lg border border-gray-200 dark:border-gray-700 p-2.5 text-xs" data-message-source>
                     <div class="flex items-start justify-between gap-2">
@@ -247,7 +332,7 @@ $renderableBody = preg_replace_callback(
                 </li>
                 @endforeach
             </ul>
-        </div>
+        </details>
         @endif
 
         {{-- TASK-1310 : pied de bulle, rendu tel quel APRES les sources.

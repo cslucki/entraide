@@ -1326,7 +1326,9 @@ class LoopChatTest extends TestCase
         // TASK-1308 : identite tenant-generique — jamais « Facilitateur IA ».
         Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertSee($this->organization->name.' · '.__('loops.ia_mode_label'))
+            ->assertSee($this->organization->name)
+            ->assertSee('data-ai-mode="llm"', false)
+            ->assertSee(__('loops.ia_mode_label'))
             ->assertDontSee('Facilitateur IA')
             ->assertSee(__('loops.ai_requested_by', ['name' => $this->member->publicDisplayName()]))
             ->assertSee('Réponse de l\'IA.', false);
@@ -1405,7 +1407,9 @@ class LoopChatTest extends TestCase
 
         Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertSee($this->organization->name.' · '.__('loops.ia_mode_label'))
+            ->assertSee($this->organization->name)
+            ->assertSee('data-ai-mode="llm"', false)
+            ->assertSee(__('loops.ia_mode_label'))
             ->assertSee('Réponse IA sans demandeur')
             ->assertDontSee($subtitlePrefix);
     }
@@ -1431,7 +1435,9 @@ class LoopChatTest extends TestCase
 
         Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertSee($this->organization->name.' · '.__('loops.ia_mode_label'))
+            ->assertSee($this->organization->name)
+            ->assertSee('data-ai-mode="llm"', false)
+            ->assertSee(__('loops.ia_mode_label'))
             ->assertSee('Réponse IA orpheline')
             ->assertDontSee($subtitlePrefix);
     }
