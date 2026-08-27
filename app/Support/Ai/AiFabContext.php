@@ -56,6 +56,7 @@ final class AiFabContext
         private readonly LoopCardRegistry $cards,
         private readonly DossierSemanticSearchGate $dossierSearchGate,
         private readonly LoopLifecycleService $lifecycle,
+        private readonly AiShellPageContext $pageContext,
     ) {}
 
     /**
@@ -70,7 +71,9 @@ final class AiFabContext
      *     offers_url: ?string,
      *     usage_url: string,
      *     actions: list<array<string, mixed>>,
-     *     page: string
+     *     page: string,
+     *     page_context: array<string, mixed>,
+     *     shell_enabled: bool
      * }|null
      */
     public function forRequest(Request $request, ?User $user): ?array
@@ -120,7 +123,39 @@ final class AiFabContext
             'usage_url' => $this->usageUrl($request),
             'actions' => $actions,
             'page' => $page,
+            // TASK-1315 : OU se trouve l'utilisateur, decrit par la seule
+            // autorite qui rejoue les gardes des pages. Cette entree ne donne
+            // aucun droit : elle nomme ce que la page montre deja.
+            'page_context' => $this->pageContext->forRequest($request, $user, $organization),
+            'shell_enabled' => (bool) config('ai.shell.enabled', true),
         ];
+    }
+
+    /**
+     * Le Shell doit-il etre MONTE sur cette page ?
+     *
+     * TASK-1315 — la question n'est pas cosmetique, et la reponse ne peut pas
+     * vivre dans le composant : monter un composant Livewire suffit a inscrire
+     * dans la page son instantane, dont `memo.path` — c'est-a-dire l'URL
+     * COURANTE. Sur une page de refus (`/dossiers/{id}` sans le droit de voir
+     * ce Dossier), cette URL porte l'identifiant refuse. Le composant peut bien
+     * ne rien nommer — TASK-1145 exige que la page de refus ne divulgue RIEN de
+     * l'objet, pas meme son identifiant, et Livewire l'y remettrait.
+     *
+     * D'ou la regle, qui vaut aussi comme regle produit : **le Shell n'est pas
+     * offert sur une page dont l'objet a ete refuse a l'utilisateur.** Le
+     * contexte le sait deja (`page_context.refused`) ; il suffit de ne pas
+     * monter.
+     */
+    public function shouldMountShell(Request $request, ?User $user): bool
+    {
+        $fab = $this->forRequest($request, $user);
+
+        if ($fab === null || ! ($fab['shell_enabled'] ?? false)) {
+            return false;
+        }
+
+        return ! ($fab['page_context']['refused'] ?? false);
     }
 
     private function creditLabel(AiUserCreditStatus $credit): string
@@ -165,9 +200,14 @@ final class AiFabContext
      * « Consulter les Dossiers », « Qui peut m'aider ») et de header-actions
      * (Resume) — un membre actif, une Boucle ouverte, ChatLoop actif.
      *
+     * TASK-1315 : rendue publique pour que le Shell propose la MEME action que
+     * le FAB, calculee par le MEME code. Un second calcul, meme fidele au
+     * depart, aurait fini par diverger — c'est exactement ce que la regle
+     * « jamais de seconde autorite » interdit.
+     *
      * @return list<array<string, mixed>>
      */
-    private function loopActions(Loop $loop, User $user): array
+    public function loopActions(Loop $loop, User $user): array
     {
         $isMember = LoopMember::query()
             ->where('loop_id', $loop->id)
