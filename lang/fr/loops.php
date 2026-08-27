@@ -802,7 +802,11 @@ return [
     'composer_more_actions' => 'Plus d\'actions',
     'composer_add_image' => 'Ajouter une image',
     'ai_answer_requested' => 'L\'IA rédige sa réponse...',
-    'ai_generation_in_progress' => 'Une réponse de l\'IA est déjà en cours de génération pour cette boucle. Veuillez patienter.',
+    // TASK-1311 : le verrou est desormais scope par membre, plus par Boucle
+    // entiere — le message doit dire la verite : un autre membre peut tres
+    // bien generer en meme temps.
+    'ai_generation_in_progress' => 'Une réponse de l\'IA est déjà en cours de génération pour vous dans cette Boucle. Veuillez patienter.',
+    'ai_turn_already_answered' => 'Ce message a déjà reçu une réponse de l\'IA.',
     'ai_error' => 'L\'IA n\'a pas pu répondre pour le moment. Veuillez réessayer.',
     'ai_empty_response' => 'L\'IA n\'a pas produit de réponse exploitable.',
     'ask_question' => 'Poser une question',

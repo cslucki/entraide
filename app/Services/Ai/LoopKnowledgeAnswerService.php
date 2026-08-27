@@ -25,6 +25,8 @@ use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiRefusedException;
+use App\Support\Ai\AiTurnIdempotency;
+use App\Support\Ai\AiTurnLock;
 use App\Support\Ai\AiUsage;
 use DomainException;
 use Illuminate\Support\Facades\DB;
@@ -89,7 +91,7 @@ class LoopKnowledgeAnswerService
      */
     private const HYBRID_NO_DOCUMENTARY_SOURCE_NOTICE =
         "--- SOURCES DOCUMENTAIRES ---\n"
-        ."Aucun element des Dossiers accessibles de cette Boucle ne correspond a cette question : "
+        .'Aucun element des Dossiers accessibles de cette Boucle ne correspond a cette question : '
         .'il n\'y a AUCUNE reference [Mn] ni [Sn] disponible pour cette reponse.';
 
     public function __construct(
@@ -150,6 +152,41 @@ class LoopKnowledgeAnswerService
 
         $this->assertCanRequest($loop, $requester);
 
+        // TASK-1311 : le REJEU d'un tour deja repondu. Lit la table, pas le
+        // cache : tant que la reponse existe dans le fil, le tour est clos —
+        // aucun TTL, aucune fenetre de temps a esperer.
+        AiTurnIdempotency::assertNotAnswered($inThreadTrigger);
+
+        // TASK-1311 : la COURSE. Ce chemin est le plus CHER de tous — un tour
+        // documentaire paie un embedding de requete PUIS une generation, la ou
+        // le mode IA ne paie qu'une generation. Un double envoi y coutait donc
+        // QUATRE invocations, et il n'avait jamais eu de verrou : ce n'etait pas
+        // une decision d'architecture, seulement une garde jamais reportee
+        // depuis `ChatLoopAiService`.
+        //
+        // Le verrou englobe l'acte economique ENTIER — recherche documentaire,
+        // generation, trace de l'interaction, publication dans le fil. Le poser
+        // plus bas ne protegerait que la moitie de la depense.
+        //
+        // Un seul point d'ancrage couvre les DEUX modes : `respond()` est le
+        // corps partage de `answer()` (Dossiers) et `answerHybrid()`
+        // (IA + Dossiers).
+        return AiTurnLock::run(
+            $loop,
+            $requester,
+            fn (): KnowledgeAnswer => $this->generateUnderLock($mode, $loop, $requester, $question, $inThreadTrigger),
+        );
+    }
+
+    /**
+     * Le corps economique du tour, execute SOUS VERROU (TASK-1311).
+     *
+     * Extrait tel quel de `respond()` : aucune ligne de logique n'a change, le
+     * seul but de la separation est que le verrou puisse englober exactement
+     * cet acte-la, sans re-indenter deux cents lignes pour le prouver.
+     */
+    private function generateUnderLock(string $mode, Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger): KnowledgeAnswer
+    {
         $capability = $mode === self::MODE_HYBRID
             ? CapabilityRegistry::LOOP_HYBRID_ANSWER
             : CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER;
