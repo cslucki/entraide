@@ -20,25 +20,31 @@ namespace App\Ai\Context;
  * organisation test20260822, Boucle 01-COMMUNICATION, 26 chunks indexes sur 5
  * documents, ZERO [Sn] rendu).
  *
- * ## Ce que cet indice n'est pas
+ * ## Cet indice est la SEULE autorite de l'elargissement (revue TASK-1309)
  *
- * Ce n'est PAS l'autorite qui decide si une reponse est possible : le filet
- * STRUCTUREL — et prioritaire — reste « la selection semantique est vide »
- * (`DossierRetrievalSource`), qui ne depend d'aucun mot et couvre a lui seul
- * le cas reproduit. Cet indice ne sert qu'au second cas : la recherche a
- * trouve QUELQUE CHOSE, mais la question demandait de la LARGEUR (plusieurs
- * documents) la ou le classement par distance donne de la PROFONDEUR (les
- * meilleurs chunks d'un ou deux documents).
+ * Une premiere version le doublait d'un « filet structurel » —  elargir des
+ * que la selection semantique etait vide, sans regarder la question. C'etait
+ * une faute de contrat : une question sans voisin vectoriel n'est pas
+ * panoramique, elle est sans reponse. Une question PRECISE sans hit basculait
+ * en vue d'ensemble, et le mode Dossiers fabriquait de la pertinence a partir
+ * de l'ouverture arbitraire de plusieurs documents, au lieu de dire qu'il ne
+ * peut rien etayer.
  *
- * ## Pourquoi il ne peut qu'ELARGIR
+ * Desormais : pas de marqueur, pas d'elargissement. Zero hit n'autorise rien.
+ *
+ * ## Asymetrie du cout, et ou elle s'arrete
  *
  * Un faux positif ajoute des extraits courts d'autres documents : le contexte
  * est plus large, jamais tronque de ce qu'il portait deja, et AUCUN appel
  * provider supplementaire n'en decoule (les extraits representatifs sont une
- * lecture SQL, sans embedding). Un faux negatif, lui, laisse une question
- * panoramique sans vue d'ensemble. Le cout de l'erreur est donc asymetrique :
- * l'indice est volontairement genereux — c'est le « biais vers le chemin
- * complet en cas de doute ».
+ * lecture SQL, sans embedding). Un faux negatif laisse une question
+ * panoramique formulee autrement sans vue d'ensemble — elle repondra depuis
+ * le manifest et ce que la recherche a trouve, ce qui reste honnete.
+ *
+ * C'est pourquoi les marqueurs couvrent large A L'INTERIEUR de l'intention de
+ * largeur, et pourquoi ils n'en sortent JAMAIS : mieux vaut manquer un
+ * panorama que degrader une question precise. « Securite avant
+ * sophistication », et en cas de doute on n'elargit pas.
  *
  * ## Pourquoi des marqueurs de LARGEUR, et non de corpus
  *
@@ -82,12 +88,12 @@ final class DocumentaryQuestionShape
     /**
      * `true` quand la question demande une vue d'ensemble du corpus.
      *
-     * Volontairement conservateur sur UN point : une question qui ne porte
-     * aucun marqueur de largeur n'est jamais elargie ici — c'est ce qui
-     * protege la question precise (« Que dit precisement DOCUMENT.md sur
-     * X ? ») de la dilution. Le cas ou une question panoramique n'emploie
-     * aucun de ces mots reste couvert par le filet structurel de
-     * `DossierRetrievalSource` (selection semantique vide).
+     * Une question qui ne porte aucun marqueur de largeur n'est JAMAIS
+     * elargie — c'est ce qui protege la question precise (« Que dit
+     * precisement DOCUMENT.md sur X ? ») de la dilution, qu'elle ait trouve
+     * des extraits ou non. Un inventaire pur (« Liste les fichiers. »,
+     * « Quels documents sont disponibles ? ») n'en porte pas non plus : il
+     * reste servi par le manifest seul, sans qu'aucun [Sn] lui soit injecte.
      */
     public static function wantsCorpusOverview(?string $question): bool
     {

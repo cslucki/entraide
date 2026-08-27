@@ -23,16 +23,29 @@ use DomainException;
  * TASK-1309 : une question PANORAMIQUE (« que contiennent les dossiers ? »)
  * n'a par construction aucun excellent voisin vectoriel — le filtre
  * `max_distance` ecarte alors tout, et cette source rend zero extrait alors
- * que le corpus est riche. Dans ce cas SEULEMENT (selection semantique vide,
- * ou marqueur de largeur reconnu localement par `DocumentaryQuestionShape`),
- * la selection est reconstruite en VUE D'ENSEMBLE : un extrait court par
+ * que le corpus est riche. Quand — et SEULEMENT quand — la question porte un
+ * marqueur de largeur reconnu localement par `DocumentaryQuestionShape`, la
+ * selection est reconstruite en VUE D'ENSEMBLE : un extrait court par
  * DOCUMENT, plusieurs documents, complete au besoin par l'ouverture
  * representative des documents absents
  * (`DossierSemanticSearchService::representativeChunksAcrossDossiers()`).
  * Aucun `top_k` gonfle, aucun `max_distance` desactive, aucun appel provider
  * supplementaire, aucun second pipeline — la meme source, le meme perimetre,
- * la meme provenance [Sn]. Une question precise dont la recherche a ramene
- * des extraits n'est jamais touchee.
+ * la meme provenance [Sn].
+ *
+ * TASK-1309 (revue) : l'absence de resultat n'est PAS un declencheur. Une
+ * premiere version elargissait aussi des que la selection semantique etait
+ * vide ; une question documentaire PRECISE sans voisin basculait alors en vue
+ * d'ensemble, et ce mode se mettait a fabriquer de la pertinence a partir de
+ * l'ouverture arbitraire de plusieurs documents. Le contrat du mode Dossiers
+ * est le grounding STRICT : sans extrait pertinent, il le dit — il n'invente
+ * pas un panorama. La table de verite tient en cinq lignes :
+ *
+ *   panoramique + zero hit   -> ouvertures representatives multi-document
+ *   panoramique + hits       -> semantique + largeur multi-document
+ *   inventaire               -> manifest seul, aucun [Sn] injecte
+ *   precise    + hits        -> semantique normale, extraits entiers
+ *   precise    + zero hit    -> RIEN. Le manifest seul, et un refus honnete.
  *
  * TASK-1307 : les `top_k` extraits cites sont choisis par `diversify()` parmi
  * un bassin de candidats plus large (CANDIDATE_POOL_SIZE, meme cout provider
@@ -179,9 +192,23 @@ final class DossierRetrievalSource implements ContextSource
         $rows = array_values(array_filter($rows, fn (array $row): bool => $row['distance'] <= $maxDistance));
         $rows = $this->diversify($rows, $topK);
 
-        // TASK-1309 : complement panoramique. Deux declencheurs, tous deux
-        // deterministes et locaux — voir `wantsOverview()`.
-        $overview = $this->wantsOverview($query, $rows);
+        // TASK-1309 (revue) : le complement panoramique depend de la FORME DE
+        // LA QUESTION, et d'elle seule.
+        //
+        // Une premiere version ajoutait un second declencheur — « la
+        // selection semantique est vide » — pense comme un filet structurel.
+        // C'etait une faute de contrat : une question sans voisin vectoriel
+        // n'est pas panoramique pour autant, elle est simplement sans
+        // reponse. Une question documentaire PRECISE dont aucun chunk ne
+        // passe `max_distance` basculait alors en vue d'ensemble
+        // multi-document, et le mode Dossiers fabriquait de la pertinence a
+        // partir de l'ouverture arbitraire de plusieurs documents — au lieu
+        // de dire qu'il ne peut rien etayer. Le grounding STRICT, qui est
+        // toute la valeur de ce mode, s'en trouvait affaibli.
+        //
+        // Zero hit n'autorise donc rien. En cas de doute sur une question, on
+        // n'elargit pas.
+        $overview = DocumentaryQuestionShape::wantsCorpusOverview($query);
 
         if ($overview) {
             $rows = $this->overviewSelection($rows, $contexte, $dossierIds);
@@ -301,36 +328,6 @@ final class DossierRetrievalSource implements ContextSource
         }
 
         return $selected;
-    }
-
-    /**
-     * TASK-1309 : faut-il completer la selection par une vue d'ensemble ?
-     *
-     * DEUX declencheurs, dans cet ordre d'autorite :
-     *
-     * 1. STRUCTUREL (prioritaire, sans aucun mot) — la selection semantique
-     *    est VIDE : aucun chunk n'est passe sous `max_distance`. C'est
-     *    exactement l'etat reproduit sur le corpus reel pour « Que
-     *    contiennent les dossiers ? » (26 chunks indexes, ZERO [Sn] rendu).
-     *    Sans complement, la reponse ne peut s'appuyer que sur le manifest
-     *    [Mn] — des metadonnees — et ne peut donc RIEN dire du contenu.
-     *    Completer ne retire rien : il n'y avait rien.
-     *
-     * 2. LEXICAL (indice, jamais autorite) — la question demande de la
-     *    LARGEUR (`DocumentaryQuestionShape`). La recherche a trouve quelque
-     *    chose, mais le classement par distance donne de la PROFONDEUR sur un
-     *    ou deux documents la ou la question portait sur le corpus.
-     *
-     * Ce qui NE declenche jamais : une question precise dont la recherche a
-     * ramene des extraits et qui ne porte aucun marqueur de largeur. Sa
-     * selection reste intacte, ses extraits entiers — « question precise non
-     * degradee ».
-     *
-     * @param  list<array<string, mixed>>  $selected
-     */
-    private function wantsOverview(string $query, array $selected): bool
-    {
-        return $selected === [] || DocumentaryQuestionShape::wantsCorpusOverview($query);
     }
 
     /**

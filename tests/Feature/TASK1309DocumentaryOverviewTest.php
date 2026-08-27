@@ -250,8 +250,134 @@ class TASK1309DocumentaryOverviewTest extends TestCase
     }
 
     // =====================================================================
+    // B-bis. LE BLOCKER DE REVUE : zero hit n'est PAS une autorisation
+    //        d'elargir. Une question sans voisin vectoriel n'est pas
+    //        panoramique pour autant — elle est juste sans reponse.
+    // =====================================================================
+
+    /**
+     * Revue T1309 (blocker) : avant correctif, `wantsOverview()` retournait
+     * vrai des que la selection semantique etait vide, QUELLE QUE SOIT la
+     * question. Une question documentaire PRECISE dont aucun chunk ne passe
+     * `max_distance` basculait donc automatiquement en vue d'ensemble
+     * multi-document — le mode Dossiers fabriquait de la pertinence a partir
+     * de l'ouverture arbitraire de plusieurs documents, au lieu de dire
+     * qu'il ne peut rien etayer.
+     *
+     * C'est le contrat « DOSSIERS = grounding documentaire STRICT » qui
+     * etait en cause, pas seulement une question de bruit.
+     */
+    public function test_a_precise_question_without_any_hit_never_falls_back_to_a_panoramic_view(): void
+    {
+        // Le candidat existe mais reste au-dela de `max_distance` : la
+        // selection semantique sort VIDE — l'etat qui declenchait le defaut.
+        $this->search->rows = [$this->semanticRow('alpha', distance: 0.93)];
+
+        $provenance = $this->retrievalProvenance('Que dit précisément Manifeste.md sur la gouvernance des rôles ?');
+
+        $this->assertSame([], $provenance, 'aucun [S] ne doit etre fabrique pour une question precise sans voisin');
+        $this->assertSame(
+            0,
+            $this->search->representativeCalls,
+            'le complement de vue d\'ensemble ne doit meme pas etre demande',
+        );
+    }
+
+    /**
+     * Le mode Dossiers reste STRICT de bout en bout : la question precise
+     * sans voisin atteint bien le modele, mais avec le manifest SEUL — des
+     * metadonnees, aucun contenu. Rien ne laisse croire qu'un document a ete
+     * lu.
+     */
+    public function test_a_precise_question_without_any_hit_reaches_the_model_with_metadata_only(): void
+    {
+        $this->search->rows = [$this->semanticRow('alpha', distance: 0.93)];
+        $this->fakeAgent('Je n\'ai pas trouvé cette information dans les sources auxquelles j\'ai accès.');
+
+        $answer = app(LoopKnowledgeAnswerService::class)->answer(
+            $this->loop,
+            $this->member,
+            'Que dit précisément Manifeste.md sur la gouvernance des rôles ?',
+        );
+
+        LoopKnowledgeAgent::assertPrompted(function (AgentPrompt $prompt): bool {
+            $this->assertStringContainsString('ELEMENTS DU DOSSIER', $prompt->prompt);
+            $this->assertStringNotContainsString('SOURCES DOCUMENTAIRES', $prompt->prompt);
+            $this->assertStringNotContainsString('OUVERTURE', $prompt->prompt);
+
+            return true;
+        });
+
+        // Toute la provenance est du manifest : aucune entree de contenu.
+        $this->assertNotEmpty($answer->consulted);
+        foreach ($answer->consulted as $source) {
+            $this->assertSame(DossierManifestSource::NAME, $source['source']);
+        }
+    }
+
+    /**
+     * La table de verite ENTIERE, en un seul endroit lisible.
+     *
+     * Les tests ci-dessus prouvent chaque ligne dans son detail ; celui-ci
+     * protege le TABLEAU — c'est lui qui rougit si une future modification
+     * deplace une seule case, meme si chaque cas isole continue de passer.
+     */
+    public function test_the_truth_table_of_the_overview_decision(): void
+    {
+        $near = fn (): array => [$this->semanticRow('alpha', distance: 0.2)];
+        $far = fn (): array => [$this->semanticRow('alpha', distance: 0.93)];
+
+        $cases = [
+            // libelle,                question,                                        moteur, vue d'ensemble ?, documents [S]
+            ['panoramique + zero hit', 'Que contiennent les dossiers ?', $far, true, 4],
+            ['panoramique + hits', 'Résume les principaux sujets de cette Boucle.', $near, true, 4],
+            ['inventaire', 'Liste les fichiers.', $far, false, 0],
+            ['precise + hits', 'Que dit précisément Manifeste.md sur les rôles ?', $near, false, 1],
+            ['precise + zero hit', 'Que dit précisément Manifeste.md sur les rôles ?', $far, false, 0],
+        ];
+
+        foreach ($cases as [$label, $question, $rows, $expectsOverview, $expectedDocuments]) {
+            $this->search->rows = $rows();
+            $this->search->representativeCalls = 0;
+
+            $provenance = $this->retrievalProvenance($question);
+
+            $this->assertSame(
+                $expectsOverview,
+                $this->search->representativeCalls > 0,
+                "[{$label}] declenchement de la vue d'ensemble",
+            );
+            $this->assertCount(
+                $expectedDocuments,
+                $this->documentTitles($provenance),
+                "[{$label}] documents representes par un extrait",
+            );
+        }
+    }
+
+    // =====================================================================
     // C. Inventaire pur : le manifest reste l'autorite, inchange.
     // =====================================================================
+
+    /**
+     * Revue T1309 (blocker, second volet) : un inventaire pur n'a AUCUN
+     * besoin d'extraits documentaires. Avant correctif, une recherche vide
+     * lui en injectait quand meme — du bruit factured en contexte, et une
+     * invitation a decrire des contenus qu'on n'a pas lus.
+     */
+    public function test_a_pure_inventory_question_without_any_hit_stays_on_the_manifest(): void
+    {
+        $this->search->rows = [];
+
+        $borne = $this->retrievalBorne('Liste les fichiers.');
+
+        $this->assertSame([], $this->retrievalOnly($borne), 'aucun [S] injecte pour un inventaire pur');
+        $this->assertNotEmpty(
+            $borne->provenanceFor(DossierManifestSource::NAME),
+            'le manifest reste l\'autorite de l\'inventaire',
+        );
+        $this->assertSame(0, $this->search->representativeCalls);
+    }
 
     public function test_a_pure_inventory_question_is_still_answered_from_the_manifest(): void
     {
@@ -688,6 +814,14 @@ class FakeOverviewSearch extends DossierSemanticSearchService
 
     public int $calls = 0;
 
+    /**
+     * Revue T1309 : le complement de vue d'ensemble est COMPTE, mais toujours
+     * DELEGUE au vrai SQL — savoir s'il a ete demande est une propriete a
+     * prouver, et son execution reelle sur les deux moteurs en est une autre.
+     * Doubler la methode ferait perdre la seconde.
+     */
+    public int $representativeCalls = 0;
+
     public function __construct() {}
 
     public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null): array
@@ -695,5 +829,12 @@ class FakeOverviewSearch extends DossierSemanticSearchService
         $this->calls++;
 
         return array_slice($this->rows, 0, $candidateLimit ?? $limit);
+    }
+
+    public function representativeChunksAcrossDossiers(string $organizationId, array $dossierIds, int $documentLimit = 6): array
+    {
+        $this->representativeCalls++;
+
+        return parent::representativeChunksAcrossDossiers($organizationId, $dossierIds, $documentLimit);
     }
 }
