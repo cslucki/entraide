@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
@@ -10,11 +11,12 @@ use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
-use App\Services\Loops\LoopAnswerCapitalizationService;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopMessageService;
+use App\Services\Loops\LoopAnswerCapitalizationService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Services\UrlPreviewService;
+use App\Support\Ai\AiTurnLock;
 use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
@@ -363,44 +365,85 @@ class LoopChat extends Component
             return;
         }
 
-        try {
-            $imagePath = null;
+        // TASK-1311 : publication du message humain PUIS reponse du moteur —
+        // les deux moities d'un meme tour, qui doivent tenir sous un seul
+        // verrou. Rendu ici sous forme de fermeture pour cette seule raison ;
+        // le corps n'a pas change.
+        $tour = function () use ($service, $mode, $user): bool {
+            try {
+                $imagePath = null;
 
-            if ($this->photo) {
-                $imagePath = $this->storeImage($this->photo, 'loop-messages');
-                $this->photo = null;
+                if ($this->photo) {
+                    $imagePath = $this->storeImage($this->photo, 'loop-messages');
+                    $this->photo = null;
+                }
+
+                $url = UrlPreviewService::extractFirstUrl($this->body);
+                $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
+
+                $metadata = $preview !== null ? ['url_preview' => $preview] : null;
+
+                if ($mode !== 'normal') {
+                    $metadata = ($metadata ?? []) + ['requested_mode' => $mode];
+                }
+
+                $question = trim($this->body);
+
+                $message = $service->sendUserMessage($this->loop, $user, $this->body, $metadata, $this->replyToMessageId, $imagePath);
+                $this->body = '';
+                $this->cancelReply();
+            } catch (\RuntimeException) {
+                $this->addError('body', 'Impossible d\'envoyer le message.');
+
+                return false;
             }
 
-            $url = UrlPreviewService::extractFirstUrl($this->body);
-            $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
-
-            $metadata = $preview !== null ? ['url_preview' => $preview] : null;
-
-            if ($mode !== 'normal') {
-                $metadata = ($metadata ?? []) + ['requested_mode' => $mode];
+            if ($question !== '') {
+                match ($mode) {
+                    'ia' => $this->respondWithAi($message, $question, $user),
+                    'dossiers' => $this->respondWithDossiers($message, $question, $user),
+                    // TASK-1309 : un SEUL tour, un seul appel de generation —
+                    // « IA + Dossiers » n'est pas « IA puis Dossiers », ce serait
+                    // deux reponses et deux depenses.
+                    'ia_dossiers' => $this->respondWithHybrid($message, $question, $user),
+                    default => null,
+                };
             }
 
-            $question = trim($this->body);
+            return true;
+        };
 
-            $message = $service->sendUserMessage($this->loop, $user, $this->body, $metadata, $this->replyToMessageId, $imagePath);
-            $this->body = '';
-            $this->cancelReply();
-        } catch (\RuntimeException) {
-            $this->addError('body', 'Impossible d\'envoyer le message.');
+        if ($mode === 'normal') {
+            // Aucun moteur, aucune depense : rien a verrouiller. Un tour NORMAL
+            // doit rester exactement ce qu'il etait.
+            if (! $tour()) {
+                return;
+            }
+        } else {
+            // TASK-1311 : le verrou est pris ICI, AVANT que le message humain
+            // n'existe.
+            //
+            // Le poser seulement dans le service bloquerait bien la seconde
+            // generation, mais les DEUX messages humains auraient deja ete
+            // publies : le fil mentirait sur ce que l'utilisateur a fait, et le
+            // contrat produit dit « double clic -> UN message humain ».
+            //
+            // `AiTurnLock` est reentrant dans une meme requete : le service
+            // reprendra ce meme verrou sans echouer sur lui-meme. Et il garde
+            // SA prise — c'est elle, et non celle-ci, qui protege le FAB, le
+            // chemin herite et tout appel forge. L'UI n'est jamais la garantie.
+            try {
+                if (! AiTurnLock::run($this->loop, $user, $tour)) {
+                    return;
+                }
+            } catch (\RuntimeException $exception) {
+                // Un tour est deja en cours pour ce membre dans cette Boucle,
+                // ou ce declencheur a deja sa reponse. Le message humain n'a PAS
+                // ete cree : c'est tout l'interet de verrouiller si tot.
+                $this->addError('body', $exception->getMessage());
 
-            return;
-        }
-
-        if ($question !== '') {
-            match ($mode) {
-                'ia' => $this->respondWithAi($message, $question, $user),
-                'dossiers' => $this->respondWithDossiers($message, $question, $user),
-                // TASK-1309 : un SEUL tour, un seul appel de generation —
-                // « IA + Dossiers » n'est pas « IA puis Dossiers », ce serait
-                // deux reponses et deux depenses.
-                'ia_dossiers' => $this->respondWithHybrid($message, $question, $user),
-                default => null,
-            };
+                return;
+            }
         }
 
         $this->syncNewerMessages();
@@ -563,7 +606,7 @@ class LoopChat extends Component
             return;
         }
 
-        $dossierName = (string) \App\Models\Dossier::query()->whereKey($this->capitalizeDossierId)->value('name');
+        $dossierName = (string) Dossier::query()->whereKey($this->capitalizeDossierId)->value('name');
 
         // Fermer AVANT d'annoncer : le brouillon disparait, donc une seconde
         // soumission triviale n'a plus d'etat a renvoyer.

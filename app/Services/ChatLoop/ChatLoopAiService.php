@@ -27,8 +27,9 @@ use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiProcess;
 use App\Support\Ai\AiRefusedException;
+use App\Support\Ai\AiTurnIdempotency;
+use App\Support\Ai\AiTurnLock;
 use App\Support\Ai\AiUsage;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class ChatLoopAiService
@@ -64,18 +65,16 @@ class ChatLoopAiService
     {
         $this->assertCanRequest($loop, $requester);
 
-        $lockKey = 'chatloop_ai_lock:'.$loop->id;
+        // TASK-1311 : le REJEU. Ce message declencheur a-t-il deja sa reponse ?
+        // Le verrou ci-dessous n'y peut rien — a trois secondes d'intervalle il
+        // est deja libere, et la seconde generation partirait.
+        AiTurnIdempotency::assertNotAnswered($triggerMessage);
 
-        $lockTtl = max(
-            (int) config('ai.chatloop.lock_ttl', 90),
-            (int) config('ai.chatloop.timeout', 30) + 30,
-        );
-
-        if (! Cache::add($lockKey, true, $lockTtl)) {
-            throw new \RuntimeException(__('loops.ai_generation_in_progress'));
-        }
-
-        try {
+        // TASK-1311 : verrou du tour, extrait dans `AiTurnLock` — meme
+        // TTL, meme message de refus, meme liberation en `finally`. La cle
+        // devient `{organization}:{loop}:{user}` : deux membres d'une meme
+        // Boucle sont deux tours differents et ne se bloquent plus.
+        return AiTurnLock::run($loop, $requester, function () use ($loop, $requester, $question, $triggerMessage) {
             $locale = $this->resolveLocale($requester, $loop);
             $capability = CapabilityRegistry::LOOP_ASK;
             $definition = $this->capabilities->get($capability);
@@ -195,9 +194,7 @@ class ChatLoopAiService
 
                 return $message;
             });
-        } finally {
-            Cache::forget($lockKey);
-        }
+        });
     }
 
     /**
@@ -217,18 +214,11 @@ class ChatLoopAiService
     {
         $this->assertCanRequest($loop, $requester);
 
-        $lockKey = 'chatloop_ai_lock:'.$loop->id;
-
-        $lockTtl = max(
-            (int) config('ai.chatloop.lock_ttl', 90),
-            (int) config('ai.chatloop.timeout', 30) + 30,
-        );
-
-        if (! Cache::add($lockKey, true, $lockTtl)) {
-            throw new \RuntimeException(__('loops.ai_generation_in_progress'));
-        }
-
-        try {
+        // TASK-1311 : verrou du tour, extrait dans `AiTurnLock` — meme
+        // TTL, meme message de refus, meme liberation en `finally`. La cle
+        // devient `{organization}:{loop}:{user}` : deux membres d'une meme
+        // Boucle sont deux tours differents et ne se bloquent plus.
+        return AiTurnLock::run($loop, $requester, function () use ($loop, $requester) {
             $locale = $this->resolveLocale($requester, $loop);
 
             if (! $this->loopHasEnoughContent($loop)) {
@@ -284,9 +274,7 @@ class ChatLoopAiService
 
                 return $message;
             });
-        } finally {
-            Cache::forget($lockKey);
-        }
+        });
     }
 
     /**
@@ -302,18 +290,11 @@ class ChatLoopAiService
     {
         $this->assertCanRequest($loop, $requester);
 
-        $lockKey = 'chatloop_ai_lock:'.$loop->id;
-
-        $lockTtl = max(
-            (int) config('ai.chatloop.lock_ttl', 90),
-            (int) config('ai.chatloop.timeout', 30) + 30,
-        );
-
-        if (! Cache::add($lockKey, true, $lockTtl)) {
-            throw new \RuntimeException(__('loops.ai_generation_in_progress'));
-        }
-
-        try {
+        // TASK-1311 : verrou du tour, extrait dans `AiTurnLock` — meme
+        // TTL, meme message de refus, meme liberation en `finally`. La cle
+        // devient `{organization}:{loop}:{user}` : deux membres d'une meme
+        // Boucle sont deux tours differents et ne se bloquent plus.
+        return AiTurnLock::run($loop, $requester, function () use ($loop, $requester) {
             $locale = $this->resolveLocale($requester, $loop);
 
             if (! $this->loopHasEnoughContent($loop)) {
@@ -411,9 +392,7 @@ class ChatLoopAiService
             }
 
             return $summary;
-        } finally {
-            Cache::forget($lockKey);
-        }
+        });
     }
 
     /**
@@ -688,18 +667,11 @@ class ChatLoopAiService
     {
         $this->assertCanRequest($loop, $requester);
 
-        $lockKey = 'chatloop_ai_lock:'.$loop->id;
-
-        $lockTtl = max(
-            (int) config('ai.chatloop.lock_ttl', 90),
-            (int) config('ai.chatloop.timeout', 30) + 30,
-        );
-
-        if (! Cache::add($lockKey, true, $lockTtl)) {
-            throw new \RuntimeException(__('loops.ai_generation_in_progress'));
-        }
-
-        try {
+        // TASK-1311 : verrou du tour, extrait dans `AiTurnLock` — meme
+        // TTL, meme message de refus, meme liberation en `finally`. La cle
+        // devient `{organization}:{loop}:{user}` : deux membres d'une meme
+        // Boucle sont deux tours differents et ne se bloquent plus.
+        return AiTurnLock::run($loop, $requester, function () use ($loop, $requester, $question) {
             $locale = $this->resolveLocale($requester, $loop);
             $scenarioId = (string) config('ai.chatloop.ask_scenario', 'chatloop_ai_ask');
 
@@ -761,9 +733,7 @@ class ChatLoopAiService
 
                 return $message;
             });
-        } finally {
-            Cache::forget($lockKey);
-        }
+        });
     }
 
     /**

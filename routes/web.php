@@ -389,7 +389,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
         Route::post('/loops/{loop}/help-request/continue', [LoopController::class, 'prepareHelpRequest'])->name('loops.help-request.continue');
         // TASK-1213 : reponse documentaire sourcee (RAG V1), read-only, JSON.
-        Route::post('/loops/{loop}/knowledge', [LoopController::class, 'knowledge'])->name('loops.knowledge.ask');
+        Route::post('/loops/{loop}/knowledge', [LoopController::class, 'knowledge'])->middleware('throttle:5,1')->name('loops.knowledge.ask');
     });
 });
 
@@ -795,7 +795,7 @@ Route::prefix('/org/{organization}')
                 Route::post('/loops/{loop}/ask-ai', [LoopController::class, 'askAi'])->middleware('throttle:5,1')->name('loops.ai');
                 Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
                 Route::post('/loops/{loop}/help-request/continue', [LoopController::class, 'prepareHelpRequest'])->name('loops.help-request.continue');
-                Route::post('/loops/{loop}/knowledge', [LoopController::class, 'knowledge'])->name('loops.knowledge.ask');
+                Route::post('/loops/{loop}/knowledge', [LoopController::class, 'knowledge'])->middleware('throttle:5,1')->name('loops.knowledge.ask');
                 // « Ecrire un article » depuis la Card Dossiers : un brouillon
                 // lie d'un coup au Dossier racine ET a la Boucle, puis
                 // l'editeur Blog existant. Contexte Organization seulement,
