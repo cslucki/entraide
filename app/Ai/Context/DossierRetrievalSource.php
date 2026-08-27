@@ -20,6 +20,33 @@ use DomainException;
  * `top_k` <= 5 extraits, et les rend numerotes [S1]..[Sn] avec une provenance
  * complete (Dossier, Article, chunk, distance, lien canonique).
  *
+ * TASK-1309 : une question PANORAMIQUE (« que contiennent les dossiers ? »)
+ * n'a par construction aucun excellent voisin vectoriel — le filtre
+ * `max_distance` ecarte alors tout, et cette source rend zero extrait alors
+ * que le corpus est riche. Quand — et SEULEMENT quand — la question porte un
+ * marqueur de largeur reconnu localement par `DocumentaryQuestionShape`, la
+ * selection est reconstruite en VUE D'ENSEMBLE : un extrait court par
+ * DOCUMENT, plusieurs documents, complete au besoin par l'ouverture
+ * representative des documents absents
+ * (`DossierSemanticSearchService::representativeChunksAcrossDossiers()`).
+ * Aucun `top_k` gonfle, aucun `max_distance` desactive, aucun appel provider
+ * supplementaire, aucun second pipeline — la meme source, le meme perimetre,
+ * la meme provenance [Sn].
+ *
+ * TASK-1309 (revue) : l'absence de resultat n'est PAS un declencheur. Une
+ * premiere version elargissait aussi des que la selection semantique etait
+ * vide ; une question documentaire PRECISE sans voisin basculait alors en vue
+ * d'ensemble, et ce mode se mettait a fabriquer de la pertinence a partir de
+ * l'ouverture arbitraire de plusieurs documents. Le contrat du mode Dossiers
+ * est le grounding STRICT : sans extrait pertinent, il le dit — il n'invente
+ * pas un panorama. La table de verite tient en cinq lignes :
+ *
+ *   panoramique + zero hit   -> ouvertures representatives multi-document
+ *   panoramique + hits       -> semantique + largeur multi-document
+ *   inventaire               -> manifest seul, aucun [Sn] injecte
+ *   precise    + hits        -> semantique normale, extraits entiers
+ *   precise    + zero hit    -> RIEN. Le manifest seul, et un refus honnete.
+ *
  * TASK-1307 : les `top_k` extraits cites sont choisis par `diversify()` parmi
  * un bassin de candidats plus large (CANDIDATE_POOL_SIZE, meme cout provider
  * — un seul embedding de requete), au plus PER_DOCUMENT_CAP par document en
@@ -165,6 +192,28 @@ final class DossierRetrievalSource implements ContextSource
         $rows = array_values(array_filter($rows, fn (array $row): bool => $row['distance'] <= $maxDistance));
         $rows = $this->diversify($rows, $topK);
 
+        // TASK-1309 (revue) : le complement panoramique depend de la FORME DE
+        // LA QUESTION, et d'elle seule.
+        //
+        // Une premiere version ajoutait un second declencheur — « la
+        // selection semantique est vide » — pense comme un filet structurel.
+        // C'etait une faute de contrat : une question sans voisin vectoriel
+        // n'est pas panoramique pour autant, elle est simplement sans
+        // reponse. Une question documentaire PRECISE dont aucun chunk ne
+        // passe `max_distance` basculait alors en vue d'ensemble
+        // multi-document, et le mode Dossiers fabriquait de la pertinence a
+        // partir de l'ouverture arbitraire de plusieurs documents — au lieu
+        // de dire qu'il ne peut rien etayer. Le grounding STRICT, qui est
+        // toute la valeur de ce mode, s'en trouvait affaibli.
+        //
+        // Zero hit n'autorise donc rien. En cas de doute sur une question, on
+        // n'elargit pas.
+        $overview = DocumentaryQuestionShape::wantsCorpusOverview($query);
+
+        if ($overview) {
+            $rows = $this->overviewSelection($rows, $contexte, $dossierIds);
+        }
+
         if ($rows === []) {
             return SourceFragment::empty();
         }
@@ -180,6 +229,17 @@ final class DossierRetrievalSource implements ContextSource
             $displayTitle = $row['source_type'] === 'file' ? $row['filename'] : $row['title'];
             $header = "[{$ref}] {$displayTitle} — Dossier « {$row['dossier_name']} »";
             $available = $charBudget - $used - mb_strlen($header) - 4;
+
+            // TASK-1309 : en vue d'ensemble, la LARGEUR prime sur la
+            // profondeur. Sans ce plafond par document, les deux premiers
+            // extraits (~2900 caracteres chacun sur le corpus reel)
+            // consommeraient tout `max_context_chars` et les documents
+            // suivants seraient coupes a rien — une « vue d'ensemble » de
+            // deux documents. Le plafond n'a AUCUN effet hors vue d'ensemble :
+            // une question precise garde ses extraits entiers.
+            if ($overview) {
+                $available = min($available, $this->overviewCharsPerDocument());
+            }
 
             if ($available < 80) {
                 break;
@@ -205,7 +265,13 @@ final class DossierRetrievalSource implements ContextSource
                 'dossier_file_id' => $row['dossier_file_id'],
                 'title' => $displayTitle,
                 'slug' => $row['slug'],
-                'distance' => round($row['distance'], 4),
+                'distance' => $row['distance'] === null ? null : round($row['distance'], 4),
+                // TASK-1309 : COMMENT cet extrait a ete choisi — par
+                // proximite semantique, ou comme ouverture representative de
+                // son document (vue d'ensemble). Trace de diagnostic
+                // uniquement : `KnowledgeAnswer::publicSource()` ne l'expose
+                // jamais, ni au JSON, ni a la metadata du message.
+                'selection' => $row['distance'] === null ? 'overview' : 'semantic',
                 'extrait' => mb_strimwidth($content, 0, 240, '…'),
                 'url' => $row['source_type'] === 'file'
                     ? DossierSourceUrl::forFile($organizationSlug, $row['dossier_id'], $row['dossier_file_id'], $row['mime_type'] ?? null)
@@ -262,6 +328,91 @@ final class DossierRetrievalSource implements ContextSource
         }
 
         return $selected;
+    }
+
+    /**
+     * TASK-1309 : UNE entree par DOCUMENT, plusieurs documents.
+     *
+     * Reconstruit la selection en vue d'ensemble :
+     * 1. le MEILLEUR extrait semantique de chaque document deja represente
+     *    (l'ordre par distance est conserve : le document le plus pertinent
+     *    reste [S1]) ;
+     * 2. puis, pour les documents accessibles encore absents, leur extrait
+     *    REPRESENTATIF (premier chunk), dans l'ordre deterministe rendu par
+     *    `representativeChunksAcrossDossiers()`.
+     *
+     * Le tout borne a `ai.knowledge.overview.max_documents` DOCUMENTS — pas a
+     * un `top_k` gonfle : ce qui grandit est le nombre de documents
+     * representes, chacun par un extrait court, jamais le nombre d'extraits
+     * d'un meme document. AUCUN appel provider supplementaire : un seul
+     * embedding de requete a ete calcule plus haut, le complement est une
+     * lecture SQL.
+     *
+     * @param  list<array<string, mixed>>  $selected
+     * @param  list<string>  $dossierIds
+     * @return list<array<string, mixed>>
+     */
+    private function overviewSelection(array $selected, ContexteIa $contexte, array $dossierIds): array
+    {
+        $maxDocuments = $this->overviewMaxDocuments();
+
+        $byDocument = [];
+
+        foreach ($selected as $row) {
+            $key = self::documentKey($row);
+
+            // Les lignes arrivent triees par distance : la premiere vue d'un
+            // document EST son meilleur extrait.
+            if (! isset($byDocument[$key]) && count($byDocument) < $maxDocuments) {
+                $byDocument[$key] = $row;
+            }
+        }
+
+        if (count($byDocument) >= $maxDocuments) {
+            return array_values($byDocument);
+        }
+
+        $representative = $this->search->representativeChunksAcrossDossiers(
+            $contexte->organizationId,
+            $dossierIds,
+            $maxDocuments,
+        );
+
+        foreach ($representative as $row) {
+            if (count($byDocument) >= $maxDocuments) {
+                break;
+            }
+
+            $key = self::documentKey($row);
+
+            if (! isset($byDocument[$key])) {
+                $byDocument[$key] = $row;
+            }
+        }
+
+        return array_values($byDocument);
+    }
+
+    /**
+     * Identite d'un DOCUMENT (Article ou fichier), jamais d'un chunk — la
+     * meme cle que `diversify()`, pour que « deja represente » veuille dire
+     * la meme chose des deux cotes.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private static function documentKey(array $row): string
+    {
+        return $row['source_type'].':'.($row['dossier_file_id'] ?? $row['blog_post_id']);
+    }
+
+    private function overviewMaxDocuments(): int
+    {
+        return max(1, min(12, (int) config('ai.knowledge.overview.max_documents', 6)));
+    }
+
+    private function overviewCharsPerDocument(): int
+    {
+        return max(120, (int) config('ai.knowledge.overview.chars_per_document', 700));
     }
 
     private function topK(): int

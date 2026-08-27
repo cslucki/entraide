@@ -21,6 +21,10 @@
     'reactionCounts' => [],
     'myReaction' => null,
     'sources' => null,
+    // TASK-1309 : documents dont le CONTENU a ete lu sans qu'aucune citation
+    // valide n'en sorte. Rendus sous « Sources consultées », et seulement
+    // quand il n'y a aucune source utilisee — jamais melanges aux deux.
+    'consultedSources' => null,
 ])
 
 @php
@@ -126,7 +130,16 @@ $renderableBody = preg_replace_callback(
     x-on:click.outside="open = false; showMore = false"
     @endif
 >
-    <div class="relative">
+    {{-- TASK-1309 (recette mobile) : `min-w-0` sur l'element flex.
+         Sans lui, sa taille MIN-CONTENT est celle de son plus long descendant
+         non secable — et l'apercu de reply (`truncate`, donc `nowrap`) en est
+         un : une question un peu longue poussait la bulle a 461 px dans un
+         conteneur de 358, et `max-w-[90%]`, calcule sur ce parent deja trop
+         large, n'y pouvait rien. Le texte etait alors coupe a droite, sur
+         mobile, pour TOUTE bulle portant un reply — defaut PREEXISTANT,
+         mesure sur le banc reel a l'identique sur une bulle « Dossiers »
+         anterieure a cette TASK ; la recette T1309 l'a rendu visible. --}}
+    <div class="relative min-w-0">
     <div
         class="max-w-[90%] sm:max-w-md md:max-w-lg {{ $bubbleClasses }} px-3 py-2"
         @if($showReactions && $messageId)
@@ -198,11 +211,23 @@ $renderableBody = preg_replace_callback(
              jamais re-derivee ici. title/dossier_name/excerpt sont du contenu
              de document uploade : rendu ECHAPPE ({{ }}), jamais {!! !!}.
              Presentation reprise du panneau knowledge de loops/show. --}}
-        @if($sources)
-        <div class="mt-2 border-t border-violet-200/70 dark:border-violet-800/70 pt-2" data-message-sources>
-            <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{{ __('loops.knowledge_sources_title') }}</p>
+        {{-- TASK-1309 : DEUX etats mutuellement exclusifs, jamais confondus —
+             les sources qui ont REELLEMENT soutenu une affirmation
+             (« Sources utilisées ») ou, a defaut, les documents dont le
+             contenu a ete lu sans qu'aucune citation n'en sorte
+             (« Sources consultées »). Un document consulte n'est jamais
+             presente comme un appui. --}}
+        @php
+            $shownSources = $sources ?: ($consultedSources ?: null);
+            $shownSourcesAreCited = (bool) $sources;
+        @endphp
+        @if($shownSources)
+        <div class="mt-2 border-t border-violet-200/70 dark:border-violet-800/70 pt-2"
+             data-message-sources
+             data-sources-kind="{{ $shownSourcesAreCited ? 'used' : 'consulted' }}">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{{ $shownSourcesAreCited ? __('loops.knowledge_sources_title') : __('loops.knowledge_consulted_title') }}</p>
             <ul class="space-y-2">
-                @foreach($sources as $source)
+                @foreach($shownSources as $source)
                 <li class="rounded-lg border border-gray-200 dark:border-gray-700 p-2.5 text-xs" data-message-source>
                     <div class="flex items-start justify-between gap-2">
                         <div class="min-w-0">

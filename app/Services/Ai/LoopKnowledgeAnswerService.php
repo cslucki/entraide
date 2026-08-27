@@ -60,9 +60,38 @@ use RuntimeException;
  * n'a coute : pas de sources -> aucun appel, aucune interaction, aucun
  * message ; echec provider ou reponse vide -> aucun message, la trace seule.
  * Aucun autre objet metier, une seule trace P1.
+ *
+ * TASK-1309 : ce service porte DEUX moteurs documentaires, et un seul corps.
+ * `answer()` = mode Dossiers (grounding strict, refus possible) ;
+ * `answerHybrid()` = mode « IA + Dossiers » (capability `loop_hybrid_answer`,
+ * prompt dedie) qui peut repondre depuis la connaissance generale du modele
+ * quand les Dossiers ne fournissent rien, en le disant. Tout le reste — garde
+ * d'appartenance, resolution P4, garde economique, Context Builder,
+ * validation des citations, ledger, trace, publication — est le MEME code :
+ * deux services separes auraient laisse ces regles diverger.
  */
 class LoopKnowledgeAnswerService
 {
+    /**
+     * TASK-1309 : les deux moteurs documentaires de ce service. Le mode n'est
+     * jamais lu depuis une requete : il est choisi par l'appelant, en dur, a
+     * l'entree publique correspondante.
+     */
+    private const MODE_DOSSIERS = 'dossiers';
+
+    private const MODE_HYBRID = 'ia_dossiers';
+
+    /**
+     * TASK-1309 : ce que le mode IA + Dossiers met a la place du bloc de
+     * sources quand les Dossiers accessibles n'ont RIEN fourni. Ce n'est pas
+     * une source : c'est le constat de leur silence, dit au modele pour qu'il
+     * le dise a l'utilisateur au lieu de le masquer.
+     */
+    private const HYBRID_NO_DOCUMENTARY_SOURCE_NOTICE =
+        "--- SOURCES DOCUMENTAIRES ---\n"
+        ."Aucun element des Dossiers accessibles de cette Boucle ne correspond a cette question : "
+        .'il n\'y a AUCUNE reference [Mn] ni [Sn] disponible pour cette reponse.';
+
     public function __construct(
         private readonly CapabilityRegistry $capabilities,
         private readonly PromptRepository $prompts,
@@ -74,14 +103,44 @@ class LoopKnowledgeAnswerService
     ) {}
 
     /**
+     * TASK-1309 : mode Dossiers — grounding documentaire STRICT. Sans aucune
+     * provenance, il refuse SANS appeler le modele : c'est sa valeur, pas une
+     * limite.
+     *
      * TASK-1299 : `$inThreadTrigger` est le message HUMAIN deja persiste par
-     * le composeur (`/ia` via `LoopChat::sendMessage()`). Fourni, la question
-     * n'est PAS re-publiee — elle existe deja dans le fil, la re-ecrire est
-     * le piege de la double persistance — et la reponse lui est liee par
-     * `reply_to_id`. A null, le chemin T-1 est inchange octet pour octet
-     * (modal knowledge, flag `ai.knowledge.publish_question` gouvernant).
+     * le composeur (`LoopChat::sendMessage()`). Fourni, la question n'est PAS
+     * re-publiee — elle existe deja dans le fil, la re-ecrire est le piege de
+     * la double persistance — et la reponse lui est liee par `reply_to_id`. A
+     * null, le chemin T-1 est inchange octet pour octet (modal knowledge,
+     * flag `ai.knowledge.publish_question` gouvernant).
      */
     public function answer(Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger = null): KnowledgeAnswer
+    {
+        return $this->respond(self::MODE_DOSSIERS, $loop, $requester, $question, $inThreadTrigger);
+    }
+
+    /**
+     * TASK-1309 : mode « IA + Dossiers » — reponse CROISEE.
+     *
+     * Meme chaine, meme perimetre, meme garde economique, meme ledger que
+     * `answer()`. UNE seule difference de comportement, et elle est le coeur
+     * du mode : l'absence de provenance documentaire n'est PAS un refus. Le
+     * modele repond alors depuis sa connaissance generale, en disant que les
+     * Dossiers accessibles n'ont rien apporte — jamais en habillant cette
+     * connaissance generale d'une reference [Mn]/[Sn].
+     */
+    public function answerHybrid(Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger = null): KnowledgeAnswer
+    {
+        return $this->respond(self::MODE_HYBRID, $loop, $requester, $question, $inThreadTrigger);
+    }
+
+    /**
+     * Le chemin PARTAGE des deux modes (TASK-1309). Un seul corps : la garde
+     * d'appartenance, la resolution P4, la garde economique, le Context
+     * Builder, la validation de citations, le ledger, la trace et la
+     * publication ne peuvent pas diverger entre Dossiers et IA + Dossiers.
+     */
+    private function respond(string $mode, Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger): KnowledgeAnswer
     {
         $question = trim($question);
 
@@ -91,7 +150,9 @@ class LoopKnowledgeAnswerService
 
         $this->assertCanRequest($loop, $requester);
 
-        $capability = CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER;
+        $capability = $mode === self::MODE_HYBRID
+            ? CapabilityRegistry::LOOP_HYBRID_ANSWER
+            : CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER;
         $definition = $this->capabilities->get($capability);
         $this->capabilities->assertScopeAllowed($capability, CapabilityRegistry::SCOPE_LOOP);
 
@@ -142,7 +203,7 @@ class LoopKnowledgeAnswerService
         // Constitution ; la regle « repondre depuis les sources [S] » reste
         // appliquee en code (citations revalidees), la doctrine ne peut pas
         // autoriser d'inventer.
-        $instructions = $this->prompts->compose($capability, $this->knowledgeInstructions(), (string) $organization->id);
+        $instructions = $this->prompts->compose($capability, $this->capabilityInstructions($definition->promptKey), (string) $organization->id);
         // TASK-1236 : version de doctrine reellement composee ci-dessus, tracee
         // sur l'interaction enregistree plutot que reconstituee a posteriori.
         $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
@@ -161,7 +222,11 @@ class LoopKnowledgeAnswerService
             ...$borne->provenanceFor(DossierRetrievalSource::NAME),
         ];
 
-        if ($consulted === []) {
+        // TASK-1309 : le refus « aucune source » n'appartient QU'au mode
+        // Dossiers. En mode IA + Dossiers, l'absence de provenance
+        // documentaire est une information a transmettre au modele, pas une
+        // raison de se taire : c'est tout l'interet du mode.
+        if ($consulted === [] && $mode !== self::MODE_HYBRID) {
             // Rien de pertinent dans les Dossiers accessibles : on le dit, sans
             // inventer et sans appeler le modele.
             return new KnowledgeAnswer(
@@ -189,7 +254,15 @@ class LoopKnowledgeAnswerService
         // ailleurs le prompt T-3 est inchange octet pour octet.
         $conversation = $this->conversationContext->build($inThreadTrigger);
         $thread = $conversation->text;
-        $prompt = $borne->text
+        // TASK-1309 : en mode IA + Dossiers sans AUCUNE provenance, le bloc
+        // de sources est vide. Le laisser vide, c'est laisser le modele
+        // deviner ce que valent les Dossiers ; on le lui DIT, explicitement,
+        // pour qu'il puisse repondre depuis sa connaissance generale tout en
+        // signalant que les Dossiers n'ont rien apporte (brief section 16).
+        $sourcesBlock = $borne->text !== ''
+            ? $borne->text
+            : ($mode === self::MODE_HYBRID ? self::HYBRID_NO_DOCUMENTARY_SOURCE_NOTICE : '');
+        $prompt = $sourcesBlock
             .($thread === '' ? '' : "\n\n".$thread)
             ."\n\nQuestion du membre :\n".$question;
 
@@ -228,9 +301,17 @@ class LoopKnowledgeAnswerService
             $answer, $usage, $cost->traceAttributes(), $cost, 'success', $startedAt, $response->invocationId, null,
             $consulted, $cited, $doctrineVersion);
 
-        $sources = $cited !== [] ? $cited : $consulted;
+        // TASK-1309 : « Sources utilisées » = sources REELLEMENT CITEES.
+        // Jusqu'ici, faute de citation valide, on retombait sur TOUT ce qui
+        // avait ete consulte — une reponse qui refusait de repondre affichait
+        // alors dix « sources utilisees » qui n'avaient soutenu aucune
+        // affirmation. En mode IA + Dossiers, ce repli aurait ete pire
+        // encore : une reponse 100 % connaissance generale se serait parée de
+        // sources documentaires.
+        $sources = $cited;
 
-        $this->publishExchange($loop, $requester, $question, $answer, $resolved, $interaction, $cited, $sources, $inThreadTrigger, $conversation->messageIds);
+        $this->publishExchange($mode, $loop, $requester, $question, $answer, $resolved, $interaction, $cited,
+            $sources, $this->consultedForDisplay($cited, $consulted), $inThreadTrigger, $conversation->messageIds);
 
         return new KnowledgeAnswer(
             answer: $answer,
@@ -258,6 +339,7 @@ class LoopKnowledgeAnswerService
      * @param  list<string>  $contextMessageIds
      */
     private function publishExchange(
+        string $mode,
         Loop $loop,
         User $requester,
         string $question,
@@ -266,10 +348,11 @@ class LoopKnowledgeAnswerService
         AiInteraction $interaction,
         array $cited,
         array $sources,
+        array $consultedForDisplay = [],
         ?LoopMessage $inThreadTrigger = null,
         array $contextMessageIds = [],
     ): void {
-        DB::transaction(function () use ($loop, $requester, $question, $answer, $resolved, $interaction, $cited, $sources, $inThreadTrigger, $contextMessageIds): void {
+        DB::transaction(function () use ($mode, $loop, $requester, $question, $answer, $resolved, $interaction, $cited, $sources, $consultedForDisplay, $inThreadTrigger, $contextMessageIds): void {
             $questionMessage = null;
 
             // La ligne de reversibilite (gouvernance 24/08) : false = seule la
@@ -308,11 +391,26 @@ class LoopKnowledgeAnswerService
                     // T-1), `dossiers` pour tout reply explicite au mode
                     // Dossiers — remplace l'ancienne distinction
                     // slash_ia/continuation, retiree avec `/ia` (TASK-1308).
-                    'ai_mode' => 'rag',
-                    'action' => $inThreadTrigger === null ? 'knowledge' : 'dossiers',
+                    // TASK-1309 : le troisieme moteur ecrit son propre
+                    // discriminant `llm_rag` — l'identite de bulle
+                    // « {Organization} · IA + Dossiers » en decoule, sans
+                    // migration de donnees ni relecture des messages existants.
+                    'ai_mode' => $mode === self::MODE_HYBRID ? 'llm_rag' : 'rag',
+                    'action' => $mode === self::MODE_HYBRID
+                        ? 'ia_dossiers'
+                        : ($inThreadTrigger === null ? 'knowledge' : 'dossiers'),
                     'question' => $question,
                     'grounded' => $cited !== [],
                     'sources' => array_map(KnowledgeAnswer::publicSource(...), $sources),
+                    // TASK-1309 (recette E2E) : les documents dont le CONTENU
+                    // a ete lu sans qu'aucune citation valide n'en sorte.
+                    // Presents SOUS LEUR VRAI TITRE (« Sources consultées »),
+                    // jamais comme un appui — et seulement quand il n'y a
+                    // aucune source utilisee a montrer, sinon la cle est
+                    // absente et la metadata reste identique a avant.
+                    ...($consultedForDisplay === [] ? [] : [
+                        'consulted' => array_map(KnowledgeAnswer::publicSource(...), $consultedForDisplay),
+                    ]),
                     'provider' => $resolved->provider,
                     'model' => $resolved->model,
                     'ai_interaction_id' => $interaction->id,
@@ -340,6 +438,42 @@ class LoopKnowledgeAnswerService
      * @param  list<array<string, mixed>>  $consulted
      * @return list<array<string, mixed>>
      */
+    /**
+     * TASK-1309 (recette E2E reelle) : ce qu'on montre quand RIEN n'est cite.
+     *
+     * Decouvert en recette : un modele peut produire une reponse parfaitement
+     * fondee sur un extrait fourni SANS ecrire son marqueur `[Sn]` (constate
+     * sur le banc ai-validation, run 2b66b90e). La regle « sources utilisees
+     * = sources citees » est juste, mais appliquee seule elle faisait alors
+     * disparaitre TOUTE provenance : le membre n'avait plus rien a verifier.
+     *
+     * On montre donc, sous le titre « Sources consultées » et jamais sous
+     * « Sources utilisées », les documents dont le CONTENU a reellement ete
+     * lu — les entrees `dossier.retrieval` uniquement. Le manifest en est
+     * exclu volontairement : « j'ai regarde la liste des fichiers » n'est pas
+     * une provenance a offrir a la verification, c'est du bruit (et jusqu'a
+     * 30 lignes). Aucune de ces entrees n'est presentee comme ayant soutenu
+     * une affirmation.
+     *
+     * Vide des qu'une citation valide existe : dans ce cas la bulle montre
+     * les sources utilisees, et la metadata reste identique a avant.
+     *
+     * @param  list<array<string, mixed>>  $cited
+     * @param  list<array<string, mixed>>  $consulted
+     * @return list<array<string, mixed>>
+     */
+    private function consultedForDisplay(array $cited, array $consulted): array
+    {
+        if ($cited !== []) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $consulted,
+            static fn (array $source): bool => ($source['source'] ?? null) === DossierRetrievalSource::NAME,
+        ));
+    }
+
     private function citedSources(string $answer, array $consulted): array
     {
         return array_values(array_filter(
@@ -371,11 +505,15 @@ class LoopKnowledgeAnswerService
     /**
      * Instruction capability chargee depuis la source editable ; son absence
      * est une indisponibilite explicite (aucun prompt metier hardcode).
+     *
+     * TASK-1309 : le scenario vient de `CapabilityDefinition::$promptKey` —
+     * `loop_knowledge_answer` ou `loop_hybrid_answer`. Deux capabilities, deux
+     * lignes administrables, une seule regle de chargement.
      */
-    private function knowledgeInstructions(): string
+    private function capabilityInstructions(string $scenarioId): string
     {
         $prompt = AdminAiPrompt::query()
-            ->where('scenario_id', 'loop_knowledge_answer')
+            ->where('scenario_id', $scenarioId)
             ->where('is_active', true)
             ->orderByDesc('version')
             ->first();
@@ -438,7 +576,11 @@ class LoopKnowledgeAnswerService
             'organization_id' => $contexte->organizationId,
             'correlation_id' => $contexte->correlationId,
             'process' => $definition->process,
-            'feature' => 'loop_knowledge_answer',
+            // TASK-1309 : la capability EST la feature de cette trace —
+            // `loop_knowledge_answer` (valeur historique, inchangee) ou
+            // `loop_hybrid_answer`. Le `process` economique, lui, reste
+            // commun aux deux (voir CapabilityRegistry).
+            'feature' => $definition->id,
             'model' => $resolved->trace(),
             'prompt' => $prompt,
             'response' => $response,

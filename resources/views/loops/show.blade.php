@@ -529,10 +529,16 @@
                                             <p class="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-800/50 dark:bg-sky-900/20 dark:text-sky-200" data-ai-credit-alert
                                                x-text="@js(__('ai.credit_alert_remaining')).replace(':remaining', result.credit.remaining).replace(':used', result.credit.used).replace(':quota', result.credit.quota)"></p>
                                         </template>
-                                        <div x-show="result.sources && result.sources.length" data-knowledge-sources>
+                                        {{-- TASK-1309 : « Sources utilisées » ne montre QUE les
+                                             sources reellement citees (result.sources, desormais
+                                             les seules citations validees). Ce qui a ete consulte
+                                             sans etayer aucune affirmation garde sa place ici,
+                                             mais sous son vrai titre — « Sources consultées » —
+                                             jamais presente comme un appui. --}}
+                                        <div x-show="(result.grounded ? result.sources : result.consulted || []).length" data-knowledge-sources>
                                             <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1" x-text="result.grounded ? @js(__('loops.knowledge_sources_title')) : @js(__('loops.knowledge_consulted_title'))"></p>
                                             <ul class="space-y-2">
-                                                <template x-for="source in result.sources" :key="source.ref">
+                                                <template x-for="source in (result.grounded ? result.sources : result.consulted || [])" :key="source.ref">
                                                     <li class="rounded-lg border border-gray-200 dark:border-gray-700 p-2.5 text-xs" data-knowledge-source>
                                                         <div class="flex items-start justify-between gap-2">
                                                             <div class="min-w-0">

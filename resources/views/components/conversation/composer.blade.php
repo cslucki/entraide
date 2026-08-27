@@ -11,6 +11,7 @@
     'photo' => null,
     // TASK-1308 : moteur du prochain tour ('ia'|'dossiers'|null), affiche en
     // chip compact au-dessus du composeur — jamais un verrou (voir $onClearMode).
+    // TASK-1309 : quatrieme etat 'ia_dossiers' (IA + Dossiers).
     'mode' => null,
     'modeLabel' => null,
     'onClearMode' => null,
@@ -46,7 +47,11 @@
          jamais un verrou, seulement un DEFAUT visible. --}}
     @if($mode)
     <div class="flex items-center gap-2 mb-2">
-        <span class="inline-flex items-center gap-1.5 rounded-full {{ $mode === 'dossiers' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200' : 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-200' }} px-2.5 py-1 text-xs font-semibold">
+        <span data-composer-mode="{{ $mode }}" class="inline-flex items-center gap-1.5 rounded-full {{ match ($mode) {
+                'dossiers' => 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200',
+                'ia_dossiers' => 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200',
+                default => 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-200',
+            } }} px-2.5 py-1 text-xs font-semibold">
             {{ $modeLabel }}
             @if($onClearMode)
             <button type="button" wire:click="{{ $onClearMode }}" class="ml-0.5 -mr-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-current transition hover:bg-black/10 dark:hover:bg-white/10" aria-label="{{ __('loops.composer_mode_clear') }}">

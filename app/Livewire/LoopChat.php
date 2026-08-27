@@ -45,8 +45,20 @@ class LoopChat extends Component
      * IA), `ia` (LLM direct) ou `dossiers` (RAG Loop-scoped). Un reply
      * PRESELECTIONNE ce mode depuis le parent (voir `replyTo()`) mais ne le
      * verrouille jamais : le membre peut toujours le changer avant d'envoyer.
+     *
+     * TASK-1309 : quatrieme etat `ia_dossiers` — les DEUX moteurs sur le meme
+     * message. Ce n'est pas un troisieme bouton : c'est les deux boutons
+     * existants actifs en meme temps (voir `toggleComposerEngine()`).
      */
     public string $composerMode = 'normal';
+
+    /**
+     * Les quatre etats du composeur (TASK-1308 / TASK-1309), et le seul
+     * endroit ou cette liste existe.
+     *
+     * @var list<string>
+     */
+    private const COMPOSER_MODES = ['normal', 'ia', 'dossiers', 'ia_dossiers'];
 
     public $photo = null;
 
@@ -158,11 +170,53 @@ class LoopChat extends Component
      */
     public function setComposerMode(string $mode): void
     {
-        if (! in_array($mode, ['normal', 'ia', 'dossiers'], true)) {
+        if (! in_array($mode, self::COMPOSER_MODES, true)) {
             return;
         }
 
         $this->composerMode = $mode;
+    }
+
+    /**
+     * TASK-1309 : les DEUX actions existantes — « Demander a l'IA » et
+     * « Consulter les Dossiers » — deviennent deux interrupteurs qui se
+     * combinent. Quatre etats accessibles sans troisieme bouton et sans
+     * redesign : aucun -> normal, IA -> ia, Dossiers -> dossiers, les deux ->
+     * ia_dossiers. Le clic sur un moteur DEJA actif l'eteint, ce qui donne
+     * enfin son sens au « × » que ces boutons affichaient deja.
+     *
+     * Ignore une valeur inconnue en silence, comme `setComposerMode()` : un
+     * evenement front perime ne doit pas casser le composeur.
+     */
+    public function toggleComposerEngine(string $engine): void
+    {
+        if (! in_array($engine, ['ia', 'dossiers'], true)) {
+            return;
+        }
+
+        $active = $this->activeEngines();
+        $active[$engine] = ! ($active[$engine] ?? false);
+
+        $this->composerMode = match (true) {
+            $active['ia'] && $active['dossiers'] => 'ia_dossiers',
+            $active['ia'] => 'ia',
+            $active['dossiers'] => 'dossiers',
+            default => 'normal',
+        };
+    }
+
+    /**
+     * Les moteurs actuellement selectionnes, derives du mode — jamais un
+     * second etat a maintenir en parallele de `$composerMode`.
+     *
+     * @return array{ia: bool, dossiers: bool}
+     */
+    public function activeEngines(): array
+    {
+        return [
+            'ia' => in_array($this->composerMode, ['ia', 'ia_dossiers'], true),
+            'dossiers' => in_array($this->composerMode, ['dossiers', 'ia_dossiers'], true),
+        ];
     }
 
     /**
@@ -177,7 +231,11 @@ class LoopChat extends Component
             return 'normal';
         }
 
-        return $this->resolvedAiMode($parent) === 'rag' ? 'dossiers' : 'ia';
+        return match ($this->resolvedAiMode($parent)) {
+            'rag' => 'dossiers',
+            'llm_rag' => 'ia_dossiers',
+            default => 'ia',
+        };
     }
 
     /**
@@ -186,12 +244,16 @@ class LoopChat extends Component
      * TASK n'ont pas cette cle : leur `action` historique (knowledge /
      * slash_ia / continuation / ask / answer) permet de deriver le meme
      * discriminant sans migration de donnees.
+     *
+     * TASK-1309 : troisieme valeur `llm_rag` (mode IA + Dossiers). Aucun
+     * message anterieur ne peut la porter — elle n'a donc pas de derivation
+     * historique, et n'en aura jamais besoin.
      */
     private function resolvedAiMode(LoopMessage $message): string
     {
         $mode = $message->metadata['ai_mode'] ?? null;
 
-        if (in_array($mode, ['llm', 'rag'], true)) {
+        if (in_array($mode, ['llm', 'rag', 'llm_rag'], true)) {
             return $mode;
         }
 
@@ -207,9 +269,12 @@ class LoopChat extends Component
     private function aiBubbleLabel(LoopMessage $message): string
     {
         $orgName = $this->loop->organization?->name ?? config('app.name', 'BouclePro');
-        $mode = $this->resolvedAiMode($message);
 
-        return $orgName.' · '.($mode === 'rag' ? __('loops.dossiers_mode_label') : __('loops.ia_mode_label'));
+        return $orgName.' · '.match ($this->resolvedAiMode($message)) {
+            'rag' => __('loops.dossiers_mode_label'),
+            'llm_rag' => __('loops.hybrid_mode_label'),
+            default => __('loops.ia_mode_label'),
+        };
     }
 
     public function updatedPhoto(): void
@@ -300,10 +365,16 @@ class LoopChat extends Component
             return;
         }
 
-        if ($mode === 'ia' && $question !== '') {
-            $this->respondWithAi($message, $question, $user);
-        } elseif ($mode === 'dossiers' && $question !== '') {
-            $this->respondWithDossiers($message, $question, $user);
+        if ($question !== '') {
+            match ($mode) {
+                'ia' => $this->respondWithAi($message, $question, $user),
+                'dossiers' => $this->respondWithDossiers($message, $question, $user),
+                // TASK-1309 : un SEUL tour, un seul appel de generation —
+                // « IA + Dossiers » n'est pas « IA puis Dossiers », ce serait
+                // deux reponses et deux depenses.
+                'ia_dossiers' => $this->respondWithHybrid($message, $question, $user),
+                default => null,
+            };
         }
 
         $this->syncNewerMessages();
@@ -349,6 +420,27 @@ class LoopChat extends Component
                 // reste muet.
                 $this->addError('body', __('loops.knowledge_no_sources'));
             }
+        } catch (\RuntimeException $exception) {
+            $this->addError('body', $exception->getMessage());
+        }
+    }
+
+    /**
+     * Mode « IA + Dossiers » du composeur unifie (TASK-1309).
+     *
+     * Meme chaine que le mode Dossiers — meme service, meme RAG loop-scoped,
+     * meme garde economique, meme publication — avec la capability
+     * `loop_hybrid_answer` et son prompt dedie. Une seule difference visible
+     * ici : le mode peut repondre sans aucune source documentaire, donc
+     * `interactionId === null` (le refus « zero source ») ne s'y produit
+     * jamais ; seuls les refus economiques et les pannes provider restent, et
+     * ils conservent le message humain exactement comme les deux autres modes.
+     */
+    private function respondWithHybrid(LoopMessage $message, string $question, User $user): void
+    {
+        try {
+            app(LoopKnowledgeAnswerService::class)
+                ->answerHybrid($this->loop, $user, $question, inThreadTrigger: $message);
         } catch (\RuntimeException $exception) {
             $this->addError('body', $exception->getMessage());
         }
