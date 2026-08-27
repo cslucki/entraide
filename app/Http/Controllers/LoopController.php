@@ -448,7 +448,7 @@ class LoopController extends Controller
             abort(404);
         }
 
-        $this->authorize('manageJoinRequests', $loop);
+        $this->authorize('addMembers', $loop);
 
         return view('loops.invite', [
             'loop' => $loop,
@@ -482,7 +482,7 @@ class LoopController extends Controller
             abort(404);
         }
 
-        $this->authorize('manageJoinRequests', $loop);
+        $this->authorize('addMembers', $loop);
 
         $data = $request->validate([
             'user_ids' => 'required|array|min:1',

@@ -10,11 +10,13 @@ use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
+use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
+use App\Services\LoopPermissionSettingsService;
 use App\Services\Loops\LoopAnswerCapitalizationService;
 use App\Services\LoopService;
 use App\Support\Loops\LoopPermissionResolver;
@@ -502,6 +504,168 @@ class TASK1313FacilitatorAuthorityTest extends TestCase
     }
 
     // =====================================================================
+    // E. LES DEUX GESTES SONT REELLEMENT SEPARES (review fix)
+    // =====================================================================
+
+    /**
+     * Repondre a une demande d'adhesion et ajouter quelqu'un de sa propre
+     * initiative ne sont pas le meme acte : l'un repond a une sollicitation,
+     * l'autre en prend l'initiative. Deux permissions, deux abilities.
+     */
+    public function test_the_two_gestures_answer_to_two_distinct_permissions(): void
+    {
+        // Le facilitator peut les deux — c'est la regle produit.
+        $this->assertTrue($this->facilitator->can('addMembers', $this->loop));
+        $this->assertTrue($this->facilitator->can('manageJoinRequests', $this->loop));
+
+        $this->assertFalse($this->member->can('addMembers', $this->loop));
+        $this->assertFalse($this->member->can('manageJoinRequests', $this->loop));
+    }
+
+    public function test_a_facilitator_accepts_a_join_request(): void
+    {
+        $request = $this->pendingJoinRequest();
+
+        $this->actingAs($this->facilitator)
+            ->post(route('loop-join-requests.accept', $request))
+            ->assertRedirect();
+
+        $this->assertSame(LoopJoinRequest::STATUS_ACCEPTED, $request->fresh()->status);
+        $this->assertSame(1, $this->activeMemberships($this->orgMemberOutsideLoop));
+    }
+
+    public function test_a_facilitator_rejects_a_join_request(): void
+    {
+        $request = $this->pendingJoinRequest();
+
+        $this->actingAs($this->facilitator)
+            ->post(route('loop-join-requests.reject', $request))
+            ->assertRedirect();
+
+        $this->assertSame(LoopJoinRequest::STATUS_REJECTED, $request->fresh()->status);
+        $this->assertSame(0, $this->activeMemberships($this->orgMemberOutsideLoop));
+    }
+
+    public function test_an_ordinary_member_can_neither_accept_nor_reject(): void
+    {
+        foreach (['loop-join-requests.accept', 'loop-join-requests.reject'] as $route) {
+            $request = $this->pendingJoinRequest();
+
+            $this->actingAs($this->member)
+                ->post(route($route, $request))
+                ->assertForbidden();
+
+            $this->assertSame(LoopJoinRequest::STATUS_PENDING, $request->fresh()->status);
+            $request->delete();
+        }
+
+        $this->assertSame(0, $this->activeMemberships($this->orgMemberOutsideLoop));
+    }
+
+    /**
+     * Frontiere de tenant : une demande d'adhesion d'une AUTRE Organization
+     * n'est pas decidable ici, meme par un facilitator legitime chez lui.
+     */
+    public function test_a_join_request_of_another_organization_is_never_decidable_here(): void
+    {
+        $foreignLoop = LoopMember::query()->where('user_id', $this->stranger->id)->first();
+        $this->assertNull($foreignLoop, 'l\'etranger ne doit appartenir a aucune Boucle de ce jeu');
+
+        $request = LoopJoinRequest::create([
+            'organization_id' => $this->otherOrganization->id,
+            'loop_id' => $this->loop->id,
+            'user_id' => $this->stranger->id,
+            'status' => LoopJoinRequest::STATUS_PENDING,
+        ]);
+
+        $this->actingAs($this->facilitator)
+            ->post(route('loop-join-requests.accept', $request))
+            ->assertNotFound();
+
+        $this->assertSame(LoopJoinRequest::STATUS_PENDING, $request->fresh()->status);
+    }
+
+    public function test_a_facilitator_of_one_loop_decides_nothing_in_another(): void
+    {
+        $this->assertFalse(
+            app(LoopPermissionResolver::class)
+                ->can($this->facilitator, $this->otherLoop, 'loop_members.review_join_requests'),
+        );
+        $this->assertFalse($this->facilitator->can('manageJoinRequests', $this->otherLoop));
+    }
+
+    // ---------------------------------------------------------------------
+    // LA preuve que la separation est reelle : les overrides d'Organization
+    // ---------------------------------------------------------------------
+
+    /**
+     * `loop_members.add` revoque, `review_join_requests` conserve.
+     *
+     * C'EST LE TEST QUI COMPTE. Avant le review fix, les deux gestes passaient
+     * par une seule permission : revoquer l'ajout direct aurait FERME au passage
+     * la revue des demandes, sans que personne l'ait voulu. Un override doit
+     * pouvoir dire « pas d'ajout de sa propre initiative, mais oui a la reponse
+     * aux demandes » — et l'inverse.
+     */
+    public function test_revoking_the_add_permission_leaves_join_request_review_intact(): void
+    {
+        $this->revokeForFacilitator('loop_members.add');
+
+        $this->assertFalse($this->facilitator->can('addMembers', $this->loop));
+        $this->assertTrue($this->facilitator->can('manageJoinRequests', $this->loop));
+
+        // La demande d'adhesion reste decidable...
+        //
+        // L'ORDRE COMPTE, et pas pour une raison de logique metier :
+        // `LoopController::acceptJoinRequest()` declare `: RedirectResponse`,
+        // mais `redirect()` rend un `Livewire\...\Redirector` des qu'un
+        // composant Livewire a ete monte dans le meme processus — d'ou un
+        // TypeError, donc un 500, si l'on monte la Card AVANT. En HTTP reel
+        // aucun composant n'est monte : la production n'est pas concernee.
+        // Fragilite signalee comme dette, non corrigee ici (hors perimetre).
+        $request = $this->pendingJoinRequest();
+        $this->actingAs($this->facilitator)
+            ->post(route('loop-join-requests.accept', $request))
+            ->assertRedirect();
+
+        $this->assertSame(LoopJoinRequest::STATUS_ACCEPTED, $request->fresh()->status);
+
+        // ...tandis que l'ajout direct, lui, est refuse.
+        $this->actingAs($this->facilitator);
+        Livewire::test(LoopMembersCard::class, ['loop' => $this->loop])
+            ->set('selected', [$this->stranger->id])
+            ->call('add')
+            ->assertForbidden();
+    }
+
+    /**
+     * Le miroir : `review_join_requests` revoque, `add` conserve.
+     */
+    public function test_revoking_join_request_review_leaves_the_direct_add_intact(): void
+    {
+        $this->revokeForFacilitator('loop_members.review_join_requests');
+
+        $this->assertTrue($this->facilitator->can('addMembers', $this->loop));
+        $this->assertFalse($this->facilitator->can('manageJoinRequests', $this->loop));
+
+        // La demande d'adhesion n'est plus decidable...
+        $request = $this->pendingJoinRequest();
+        $this->actingAs($this->facilitator)
+            ->post(route('loop-join-requests.accept', $request))
+            ->assertForbidden();
+        $this->assertSame(LoopJoinRequest::STATUS_PENDING, $request->fresh()->status);
+        $request->delete();
+
+        // ...mais l'ajout direct fonctionne toujours.
+        $this->actingAs($this->facilitator);
+        Livewire::test(LoopMembersCard::class, ['loop' => $this->loop])
+            ->set('selected', [$this->orgMemberOutsideLoop->id])
+            ->call('add');
+
+        $this->assertSame(1, $this->activeMemberships($this->orgMemberOutsideLoop));
+    }
+
+    // =====================================================================
     // Helpers
     // =====================================================================
 
@@ -528,6 +692,35 @@ class TASK1313FacilitatorAuthorityTest extends TestCase
             ->assertHasNoErrors();
 
         return BlogPost::query()->whereNotNull('ai_origin')->sole();
+    }
+
+    /** Une demande d'adhesion en attente, de l'Organization de la Boucle. */
+    private function pendingJoinRequest(): LoopJoinRequest
+    {
+        return LoopJoinRequest::create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'user_id' => $this->orgMemberOutsideLoop->id,
+            'status' => LoopJoinRequest::STATUS_PENDING,
+        ]);
+    }
+
+    /**
+     * Revoque une permission pour le facilitator, par le chemin canonique des
+     * overrides d'Organization — jamais en reecrivant la config a la main.
+     */
+    private function revokeForFacilitator(string $permission): void
+    {
+        $ok = app(LoopPermissionSettingsService::class)->setOrganization(
+            $this->organization->fresh(),
+            $this->loop->type,
+            'facilitator',
+            $permission,
+            false,
+        );
+
+        $this->assertTrue($ok, "l'override doit etre accepte pour {$permission}");
+        $this->loop = $this->loop->fresh();
     }
 
     private function activeMemberships(User $user): int
