@@ -64,14 +64,25 @@
                     $canEdit = $isMember && auth()->user() && $msg->isEditableBy(auth()->user());
 
                     $aiBubbleSubtitle = null;
+                    // TASK-1316 : l'attribution humaine cesse d'etre CONCATENEE au
+                    // sous-titre. Elle voyage a part, avec l'identifiant de la
+                    // personne, et la bulle lui donne sa propre ligne : dans un
+                    // groupe, « qui a demande cette reponse » n'est pas un detail
+                    // qu'on tronque quand la place manque.
+                    $aiRequestedBy = null;
                     if ($msg->type === 'ai') {
                         $aiBubbleSubtitle = match ($aiModeOf($msg)) {
                             'rag' => __('loops.dossiers_bubble_subtitle'),
                             'llm_rag' => __('loops.hybrid_bubble_subtitle'),
                             default => __('loops.ia_bubble_subtitle'),
                         };
-                        if (isset($requestedByNames[$msg->id])) {
-                            $aiBubbleSubtitle .= ' · '.__('loops.ai_requested_by', ['name' => $requestedByNames[$msg->id]]);
+                        // La provenance est la metadata persistee — jamais le texte
+                        // de la bulle, jamais un nom relu dans le corps.
+                        if (isset($requestedByNames[$msg->id]) && isset($msg->metadata['requested_by'])) {
+                            $aiRequestedBy = [
+                                'id' => (string) $msg->metadata['requested_by'],
+                                'name' => $requestedByNames[$msg->id],
+                            ];
                         }
                     }
                 @endphp
@@ -240,6 +251,7 @@
                             :name="$orgName"
                             :ai-mode="$aiModeOf($msg)"
                             :subtitle="$aiBubbleSubtitle"
+                            :requested-by="$aiRequestedBy"
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"
                             :show-pin-button="$isMember"
@@ -345,6 +357,37 @@
                 </x-slot:empty>
             @endforelse
         </x-slot:messages>
+
+        {{-- TASK-1316 : le signal PARTAGE « une reponse IA est en cours ».
+             Il vit apres le fil, la ou la reponse va paraitre — et il DISPARAIT
+             de lui-meme : `LoopAiTurnSignal` ne le produit plus des que la
+             reponse existe (meme condition de fin que `AiTurnIdempotency`), que
+             le verrou du tour a ete rendu (refus economique, panne provider) ou
+             que la borne de temps du verrou est passee.
+
+             Aucun faux streaming : rien n'est affiche du texte a venir. Le
+             `wire:poll.3s` deja porte par ce composant suffit — c'est le
+             transport accepte pour la V1, et il n'y a pas de second moteur de
+             conversation. --}}
+        <x-slot:after>
+            @foreach($pendingAiTurns as $turn)
+                <div wire:key="ai-turn-{{ $turn['message_id'] }}"
+                     data-ai-turn-pending="{{ $turn['message_id'] }}"
+                     data-ai-turn-mode="{{ $turn['ai_mode'] }}"
+                     data-ai-turn-requester="{{ $turn['requester_id'] }}"
+                     role="status"
+                     aria-live="polite"
+                     class="flex justify-start pt-1">
+                    <p class="inline-flex max-w-[90%] items-center gap-2 rounded-2xl rounded-bl-sm bg-violet-50 px-3 py-2 text-[11px] font-medium leading-tight text-violet-800 ring-1 ring-violet-200 dark:bg-violet-900/40 dark:text-violet-100 dark:ring-violet-800">
+                        <span aria-hidden="true" class="relative flex h-2 w-2 shrink-0">
+                            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet-500 opacity-75"></span>
+                            <span class="relative inline-flex h-2 w-2 rounded-full bg-violet-500"></span>
+                        </span>
+                        <span class="min-w-0">{{ __('loops.ai_turn_in_progress', ['ai' => $turn['identity'], 'name' => $turn['requester_name']]) }}</span>
+                    </p>
+                </div>
+            @endforeach
+        </x-slot:after>
     </x-conversation.message-list>
 
     @php

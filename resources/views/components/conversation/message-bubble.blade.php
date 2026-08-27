@@ -30,6 +30,10 @@
     // d'une couleur, d'une classe CSS ou du texte de la bulle. `null` sur toute
     // bulle humaine — il n'y a pas de badge « Humain ».
     'aiMode' => null,
+    // TASK-1316 : l'humain qui a demande cette reponse IA — ['id' => ..., 'name' => ...],
+    // lu depuis `metadata.requested_by`, JAMAIS reconstruit en analysant un texte.
+    // `null` sur toute bulle qui n'est pas une reponse IA a une demande nommee.
+    'requestedBy' => null,
 ])
 
 @php
@@ -164,7 +168,7 @@ $renderableBody = preg_replace_callback(
         x-on:contextmenu.prevent="$dispatch('reaction-menu-opened', { id }); open = true"
         @endif
     >
-        @if($avatar || $name || $subtitle || $time || $isEdited || $isAi)
+        @if($avatar || $name || $subtitle || $requestedBy || $time || $isEdited || $isAi)
         <div class="mb-1 flex items-start justify-between gap-3">
             <div class="flex min-w-0 items-center gap-2">
                 @if($avatar)
@@ -205,6 +209,20 @@ $renderableBody = preg_replace_callback(
                     @endif
                     @if($subtitle)
                     <span class="block truncate text-[10px] text-gray-400 dark:text-gray-500">{{ $subtitle }}</span>
+                    @endif
+                    {{-- TASK-1316 : l'attribution humaine a sa PROPRE ligne.
+                         Concatenee au sous-titre, elle tombait sous le `truncate`
+                         ci-dessus : sur mobile, « Réponse croisée entre l'IA et les
+                         connaissances de cette Boucle » consomme deja toute la
+                         largeur, et « Demandé par … » — la seule information qui
+                         dise a un groupe QUI a engage la depense — disparaissait
+                         en silence.
+
+                         `data-ai-requested-by` porte l'identifiant de la personne,
+                         jamais son nom traduit : c'est lui qu'un test asserte. --}}
+                    @if($requestedBy)
+                    <span data-ai-requested-by="{{ $requestedBy['id'] }}"
+                          class="mt-0.5 block text-[10px] font-medium leading-tight text-violet-700 dark:text-violet-300">{{ __('loops.ai_requested_by', ['name' => $requestedBy['name']]) }}</span>
                     @endif
                 </div>
             </div>

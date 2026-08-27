@@ -768,6 +768,10 @@ return [
     'ask_ai_short' => 'Summary',
     'ai_generating' => 'The AI is drafting its answer...',
     'ai_requested_by' => 'Requested by :name',
+    // TASK-1316 : the SHARED signal — what other members see while an AI
+    // turn is running. `:ai` is the « Organization · Mode » identity, the
+    // very one the answer bubble will carry.
+    'ai_turn_in_progress' => ':ai is preparing an answer requested by :name…',
 
     // TASK-1308: tenant-generic bubble identity — {Organization} · AI /
     // {Organization} · Folders, never "AI Facilitator".
