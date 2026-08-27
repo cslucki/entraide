@@ -568,4 +568,7 @@ return [
     'dossier_series_root_short' => 'Racine',
     'dossier_series_open' => 'Voir la Série',
     'dossier_series_current' => '(cet article)',
+
+    'ai_origin_notice' => 'Synthèse IA relue et enregistrée par :curator.',
+    'ai_origin_sources' => 'Appuyée sur :count source(s) documentaire(s).',
 ];

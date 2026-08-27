@@ -250,6 +250,16 @@ $renderableBody = preg_replace_callback(
         </div>
         @endif
 
+        {{-- TASK-1310 : pied de bulle, rendu tel quel APRES les sources.
+             Le slot par defaut, lui, traverse le pipeline markdown
+             (`$renderableBody`) : y glisser du HTML d'action le ferait avaler
+             — constate en recette, l'action « Ajouter au Dossier » etait
+             invisible alors que le serveur l'autorisait. Un slot nomme est le
+             seul endroit ou du balisage survit intact. --}}
+        @isset($footer)
+        {{ $footer }}
+        @endisset
+
         @if($messageId && ($showReplyButton || $showPinButton || $showCopyButton || $showEditButton || $showDeleteButton || $showReactions))
         <div class="mt-1 flex items-center justify-end gap-3">
             @if($showReplyButton || $showPinButton || $showCopyButton || $showEditButton || $showDeleteButton)

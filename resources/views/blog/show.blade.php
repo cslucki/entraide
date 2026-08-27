@@ -95,6 +95,23 @@
                     </div>
                 </div>
 
+                {{-- TASK-1310 : provenance d'un Article ne d'une reponse IA.
+                     L'auteur reste l'humain qui a valide — c'est lui qui signe
+                     plus haut. Cette ligne dit d'ou vient le TEXTE, sans jamais
+                     faire de l'IA un auteur, et sans quoi `blog_posts.ai_origin`
+                     serait une colonne que personne ne lit. --}}
+                @if(is_array($post->ai_origin) && ($post->ai_origin['origin_type'] ?? null) === \App\Services\Loops\LoopAnswerCapitalizationService::ORIGIN_AI_SYNTHESIS)
+                <div class="mb-6 flex items-start gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-800 dark:border-violet-800/60 dark:bg-violet-900/20 dark:text-violet-200" data-ai-origin="{{ $post->ai_origin['ai_mode'] ?? '' }}">
+                    <svg class="mt-0.5 h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    <span class="min-w-0">
+                        {{ __('blog.ai_origin_notice', ['curator' => $_publicName($post->user)]) }}
+                        @if(! empty($post->ai_origin['sources']))
+                            <span class="opacity-80">{{ __('blog.ai_origin_sources', ['count' => count($post->ai_origin['sources'])]) }}</span>
+                        @endif
+                    </span>
+                </div>
+                @endif
+
                 <!-- Boutons auteur / admin -->
                 @auth
                 @if(auth()->id() === $post->user_id || auth()->user()->is_admin)

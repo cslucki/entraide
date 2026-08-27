@@ -251,6 +251,40 @@
                             is-ai="true"
                         >
                             {!! $msg->body !!}
+
+                            {{-- TASK-1310 : « Ajouter au Dossier ». Discret, sous
+                                 la reponse, et affiche UNIQUEMENT quand le
+                                 serveur a deja juge la bulle capitalisable ET
+                                 l'utilisateur ecrivain quelque part
+                                 (`$capitalizableMessageIds`). L'UI n'est pas la
+                                 barriere — le service refait toutes les gardes —
+                                 mais elle ne propose pas une action vouee au
+                                 refus. --}}
+                            {{-- Le `@if` vit A L'INTERIEUR du slot, jamais autour.
+                                 Livewire encadre chaque bloc conditionnel de
+                                 marqueurs `<!--[if BLOCK]><![endif]-->` ; places
+                                 entre la balise du composant et ses slots, ils
+                                 tombent dans le slot PAR DEFAUT, lequel traverse
+                                 `markdown()` qui les echappe — et l'utilisateur
+                                 lit ces marqueurs en clair dans la bulle.
+                                 Constate en recette reelle. --}}
+                            <x-slot:footer>
+                            @if(in_array($msg->id, $capitalizableMessageIds, true))
+                                <div class="mt-2 border-t border-violet-200/70 pt-2 dark:border-violet-800/70">
+                                    <button
+                                        type="button"
+                                        wire:click="startCapitalization('{{ $msg->id }}')"
+                                        wire:loading.attr="disabled"
+                                        wire:target="startCapitalization('{{ $msg->id }}')"
+                                        data-capitalize-open="{{ $msg->id }}"
+                                        class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50/80 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 transition hover:border-emerald-300 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-200 dark:hover:bg-emerald-900/40"
+                                    >
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v4m2-2h-4"/></svg>
+                                        {{ __('loops.capitalize_action') }}
+                                    </button>
+                                </div>
+                            @endif
+                            </x-slot:footer>
                         </x-conversation.message-bubble>
                     @else
                         <x-conversation.message-bubble
@@ -535,5 +569,67 @@
                 <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
             @enderror
         </x-conversation.composer>
+    @endif
+
+    {{-- TASK-1310 : formulaire « Ajouter au Dossier ». Monte UNE seule fois,
+         hors de la boucle des messages : l'etat vit cote serveur
+         (`$capitalizingMessageId`), donc un seul brouillon a la fois — et un
+         double-clic sur l'action ne peut pas ouvrir deux formulaires.
+         `wire:loading.attr="disabled"` sur l'enregistrement couvre la double
+         soumission triviale ; le verrou IA global reste hors scope (FILE-2). --}}
+    @if($capitalizingMessageId !== null)
+        <template x-teleport="body">
+            <div class="fixed inset-0 z-50 flex items-center justify-center px-3" data-capitalize-modal
+                 x-data x-effect="document.body.style.overflow = 'hidden'"
+                 x-on:keydown.escape.window="$wire.cancelCapitalization()">
+                <div class="fixed inset-0 bg-black/50" wire:click="cancelCapitalization"></div>
+                <form wire:submit="saveCapitalization"
+                      class="relative w-full max-w-xl rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-800"
+                      style="max-height: calc(100dvh - 2rem); overflow-y: auto; padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px))">
+                    <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('loops.capitalize_title') }}</h2>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('loops.capitalize_intro') }}</p>
+
+                    <label for="capitalize-dossier" class="mt-4 block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('loops.capitalize_dossier_label') }}</label>
+                    <select id="capitalize-dossier" wire:model="capitalizeDossierId" data-capitalize-dossier
+                            class="mt-1 w-full rounded-lg border-gray-300 bg-white text-sm text-gray-900 focus:border-emerald-500 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                        @foreach($writableDossiers as $dossier)
+                            <option value="{{ $dossier->id }}">{{ $dossier->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('capitalizeDossierId')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+
+                    <label for="capitalize-title" class="mt-3 block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('loops.capitalize_article_title_label') }}</label>
+                    <input id="capitalize-title" type="text" wire:model="capitalizeTitle" maxlength="255" data-capitalize-title
+                           class="mt-1 w-full rounded-lg border-gray-300 bg-white text-sm text-gray-900 focus:border-emerald-500 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                    @error('capitalizeTitle')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+
+                    <label for="capitalize-content" class="mt-3 block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('loops.capitalize_article_content_label') }}</label>
+                    <textarea id="capitalize-content" wire:model="capitalizeContent" rows="10" data-capitalize-content
+                              class="mt-1 w-full rounded-lg border-gray-300 bg-white text-sm text-gray-900 focus:border-emerald-500 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"></textarea>
+                    @error('capitalizeContent')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+
+                    <div class="mt-4 flex items-center justify-end gap-2">
+                        <button type="button" wire:click="cancelCapitalization"
+                                class="text-xs font-medium text-gray-600 transition hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100">
+                            {{ __('loops.cancel') }}
+                        </button>
+                        <button type="submit" wire:loading.attr="disabled" wire:target="saveCapitalization" data-capitalize-submit
+                                class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+                            {{ __('loops.capitalize_submit') }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </template>
+    @endif
+
+    {{-- Etat du composant, jamais un flash de session : le `wire:poll` de cette
+         page consommerait le flash avant que l'utilisateur ne le lise. --}}
+    @if($capitalizeFlash !== '')
+        <div class="px-3 pb-2" data-capitalize-flash>
+            <p class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-200">
+                {{ $capitalizeFlash }}
+            </p>
+        </div>
     @endif
 </div>
