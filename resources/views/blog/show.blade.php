@@ -95,6 +95,65 @@
                     </div>
                 </div>
 
+                {{-- TASK-1310 : provenance d'un Article ne d'une reponse IA.
+                     L'auteur reste l'humain qui a valide — c'est lui qui signe
+                     plus haut. Cette ligne dit d'ou vient le TEXTE, sans jamais
+                     faire de l'IA un auteur, et sans quoi `blog_posts.ai_origin`
+                     serait une colonne que personne ne lit. --}}
+                @if(is_array($post->ai_origin) && ($post->ai_origin['origin_type'] ?? null) === \App\Services\Loops\LoopAnswerCapitalizationService::ORIGIN_AI_SYNTHESIS)
+                <div class="mb-6 flex items-start gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-800 dark:border-violet-800/60 dark:bg-violet-900/20 dark:text-violet-200" data-ai-origin="{{ $post->ai_origin['ai_mode'] ?? '' }}">
+                    <svg class="mt-0.5 h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    <span class="min-w-0">
+                        {{ __('blog.ai_origin_notice', ['curator' => $_publicName($post->user)]) }}
+                        @if(! empty($post->ai_origin['sources']))
+                            <span class="opacity-80">{{ __('blog.ai_origin_sources', ['count' => count($post->ai_origin['sources'])]) }}</span>
+                        @endif
+                    </span>
+                </div>
+
+                {{-- REVIEW FIX T1310 : la correspondance `[Sn] -> document`.
+                     Le texte capitalise porte ses citations dans le corps
+                     (« … [S1] … [S2] … ») et devient DURABLE. Sans ce bloc, le
+                     lecteur d'un Article publie voit des references qui ne
+                     renvoient a rien : la provenance serait detruite au moment
+                     meme ou elle devient permanente.
+
+                     Lecture SEULE de `ai_origin.sources` — les sources
+                     REELLEMENT CITEES, figees a l'enregistrement. Jamais
+                     `consulted`, jamais un nouveau retrieval, jamais un appel
+                     provider : cet Article doit se lire a l'identique dans dix
+                     ans, meme si le Dossier a change depuis.
+
+                     `title`, `dossier_name` et `excerpt` sont du contenu de
+                     document uploade : rendus ECHAPPES ({{ }}), jamais {!! !!}.
+                     Le lien n'est propose que si une URL existe — aucun lien
+                     n'est invente — et seulement pour un schema sur : une URL
+                     `javascript:` persistee ne doit jamais devenir cliquable. --}}
+                @if(! empty($post->ai_origin['sources']))
+                <div class="mb-6" data-ai-origin-sources="{{ count($post->ai_origin['sources']) }}">
+                    <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('blog.ai_origin_sources_title') }}</p>
+                    <ul class="space-y-1">
+                        @foreach($post->ai_origin['sources'] as $origin_source)
+                        @php
+                            $origin_url = (string) ($origin_source['url'] ?? '');
+                            $origin_safe = $origin_url !== '' && preg_match('#^(https?://|/)#i', $origin_url) === 1;
+                        @endphp
+                        <li class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs text-gray-600 dark:text-gray-300" data-ai-origin-source>
+                            <span class="font-mono text-[10px] text-sky-700 dark:text-sky-300">[{{ $origin_source['ref'] ?? '' }}]</span>
+                            <span class="min-w-0 break-words font-medium text-gray-900 dark:text-gray-100">{{ $origin_source['title'] ?? '' }}</span>
+                            @if(! empty($origin_source['dossier_name']))
+                            <span class="min-w-0 break-words text-gray-500 dark:text-gray-400">· {{ $origin_source['dossier_name'] }}</span>
+                            @endif
+                            @if($origin_safe)
+                            <a href="{{ $origin_url }}" target="_blank" rel="noopener" data-ai-origin-open class="text-sky-700 hover:underline dark:text-sky-300">{{ __('blog.ai_origin_open_source') }}</a>
+                            @endif
+                        </li>
+                        @endforeach
+                    </ul>
+                </div>
+                @endif
+                @endif
+
                 <!-- Boutons auteur / admin -->
                 @auth
                 @if(auth()->id() === $post->user_id || auth()->user()->is_admin)

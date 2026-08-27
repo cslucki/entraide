@@ -10,6 +10,7 @@ use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
+use App\Services\Loops\LoopAnswerCapitalizationService;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopMessageService;
 use App\Services\Loops\LoopLifecycleService;
@@ -67,6 +68,31 @@ class LoopChat extends Component
     public array $loadedMessageIds = [];
 
     public bool $hasOlderMessages = false;
+
+    /**
+     * TASK-1310 : etat du formulaire « Ajouter au Dossier ». `null` = ferme.
+     * Rien n'est ecrit tant que l'humain n'a pas valide : ces quatre champs
+     * sont un BROUILLON, editable jusqu'a l'enregistrement.
+     */
+    public ?string $capitalizingMessageId = null;
+
+    public string $capitalizeTitle = '';
+
+    public string $capitalizeContent = '';
+
+    public string $capitalizeDossierId = '';
+
+    /**
+     * La confirmation d'enregistrement, portee par l'ETAT du composant et non
+     * par un flash de session.
+     *
+     * PIEGE DEJA PAYE AILLEURS (T1213) : cette page porte un `wire:poll`. Un
+     * flash de session est lu — donc consomme — par le premier re-render venu,
+     * y compris celui du poll, et l'utilisateur ne voit rien. Constate en
+     * recette reelle sur ce meme geste. Une propriete publique, elle, survit
+     * aux re-renders et ne disparait que lorsque NOUS la vidons.
+     */
+    public string $capitalizeFlash = '';
 
     public ?string $editingMessageId = null;
 
@@ -446,6 +472,107 @@ class LoopChat extends Component
         }
     }
 
+    /**
+     * TASK-1310 : ouvre le brouillon « Ajouter au Dossier » pour une bulle IA.
+     *
+     * Rien n'est ecrit : on prepare un titre et un contenu PRE-REMPLIS, que
+     * l'humain relit et modifie avant d'enregistrer. Le message est relu DANS
+     * cette Boucle — un identifiant venu du front n'ouvre jamais une bulle
+     * d'ailleurs — et l'eligibilite est celle du service, jamais une seconde
+     * regle locale.
+     */
+    public function startCapitalization(string $messageId, LoopAnswerCapitalizationService $service): void
+    {
+        $user = auth()->user();
+
+        if (! $this->canContribute($user)) {
+            return;
+        }
+
+        $message = LoopMessage::where('id', $messageId)
+            ->where('loop_id', $this->loop->id)
+            ->first();
+
+        if ($message === null || ! $service->isCapitalizable($this->loop, $message)) {
+            return;
+        }
+
+        $dossier = $service->defaultDossier($this->loop, $user);
+
+        if ($dossier === null) {
+            $this->addError('capitalizeDossierId', __('loops.capitalize_no_dossier'));
+
+            return;
+        }
+
+        $this->resetErrorBag();
+        $this->capitalizeFlash = '';
+        $this->capitalizingMessageId = $message->id;
+        $this->capitalizeDossierId = (string) $dossier->id;
+        $this->capitalizeTitle = $service->suggestedTitle($message);
+        $this->capitalizeContent = (string) $message->body;
+    }
+
+    public function cancelCapitalization(): void
+    {
+        $this->capitalizingMessageId = null;
+        $this->capitalizeTitle = '';
+        $this->capitalizeContent = '';
+        $this->capitalizeDossierId = '';
+        $this->resetErrorBag();
+    }
+
+    /**
+     * Enregistre le brouillon relu comme Article du Dossier.
+     *
+     * Le composant ne decide RIEN : il transmet ce que l'humain a valide et
+     * traduit un refus. Toutes les gardes — tenant, Boucle, eligibilite,
+     * permission d'ecriture, appartenance du Dossier au perimetre ecrivable —
+     * vivent dans le service, qui est aussi ce qu'atteint une requete forgee.
+     */
+    public function saveCapitalization(LoopAnswerCapitalizationService $service): void
+    {
+        $user = auth()->user();
+
+        if (! $this->canContribute($user) || $this->capitalizingMessageId === null) {
+            return;
+        }
+
+        $message = LoopMessage::where('id', $this->capitalizingMessageId)
+            ->where('loop_id', $this->loop->id)
+            ->first();
+
+        if ($message === null) {
+            $this->cancelCapitalization();
+
+            return;
+        }
+
+        try {
+            $post = $service->capitalize(
+                $this->loop,
+                $user,
+                $message,
+                $this->capitalizeDossierId,
+                $this->capitalizeTitle,
+                $this->capitalizeContent,
+            );
+        } catch (\RuntimeException $exception) {
+            $this->addError('capitalizeTitle', $exception->getMessage());
+
+            return;
+        }
+
+        $dossierName = (string) \App\Models\Dossier::query()->whereKey($this->capitalizeDossierId)->value('name');
+
+        // Fermer AVANT d'annoncer : le brouillon disparait, donc une seconde
+        // soumission triviale n'a plus d'etat a renvoyer.
+        $this->cancelCapitalization();
+
+        $this->dispatch('loop-article-created', articleId: $post->id, title: $post->title);
+        $this->capitalizeFlash = __('loops.capitalize_saved', ['dossier' => $dossierName]);
+    }
+
     public function removePhoto(): void
     {
         $this->photo = null;
@@ -782,6 +909,26 @@ class LoopChat extends Component
         // entree nommee `loop` (array_merge, la derniere valeur gagne).
         $viewLoop = $this->loop;
 
+        // TASK-1310 : l'action « Ajouter au Dossier » ne s'affiche que la ou
+        // elle est REELLEMENT possible. La vue lit une decision deja prise ici
+        // par le service — jamais une regle d'eligibilite reimplantee en Blade,
+        // qui pourrait diverger de celle que le serveur applique.
+        $capitalization = app(LoopAnswerCapitalizationService::class);
+        $capitalizableMessageIds = [];
+        $writableDossiers = collect();
+
+        if ($canContribute && auth()->user()) {
+            $writableDossiers = $capitalization->writableDossiers($this->loop, auth()->user());
+
+            if ($writableDossiers->isNotEmpty()) {
+                foreach ($messages as $msg) {
+                    if ($capitalization->isCapitalizable($this->loop, $msg)) {
+                        $capitalizableMessageIds[] = $msg->id;
+                    }
+                }
+            }
+        }
+
         return view('livewire.loop-chat', compact(
             'messages',
             'viewLoop',
@@ -794,6 +941,8 @@ class LoopChat extends Component
             'aiRoute',
             'canDeleteMessages',
             'canContribute',
+            'capitalizableMessageIds',
+            'writableDossiers',
         ));
     }
 

@@ -568,4 +568,9 @@ return [
     'dossier_series_root_short' => 'Root',
     'dossier_series_open' => 'View the series',
     'dossier_series_current' => '(this article)',
+
+    'ai_origin_notice' => 'AI synthesis reviewed and saved by :curator.',
+    'ai_origin_sources' => 'Grounded in :count documentary source(s).',
+    'ai_origin_sources_title' => 'Documentary sources',
+    'ai_origin_open_source' => 'Open',
 ];
