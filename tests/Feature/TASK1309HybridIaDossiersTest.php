@@ -187,8 +187,14 @@ class TASK1309HybridIaDossiersTest extends TestCase
             ->set('body', 'Que disent nos documents, et que sais-tu par ailleurs ?')
             ->call('sendMessage')
             ->assertHasNoErrors()
-            ->assertSee('LaunchPals · '.__('loops.hybrid_mode_label'))
-            ->assertDontSee('launchpals · '.__('loops.hybrid_mode_label'))
+            // TASK-1312 : nom (identite tenant) et badge (moteur) sont scindes.
+            // L'identite de bulle est le NOM de l'Organization, JAMAIS son slug
+            // (invariant T1308). Vise le contenu de l'element, pas la page :
+            // le slug apparait legitimement dans les URLs.
+            ->assertSee('>LaunchPals</span>', false)
+            ->assertDontSee('>launchpals</span>', false)
+            ->assertSee('data-ai-mode="llm_rag"', false)
+            ->assertSee(__('loops.hybrid_mode_label'))
             ->assertDontSee('BouclePro')
             ->assertSee(__('loops.hybrid_bubble_subtitle'))
             ->assertSee(__('loops.knowledge_sources_title'));

@@ -233,7 +233,12 @@
                         <x-conversation.message-bubble
                             type="received"
                             :time="$msg->created_at->diffForHumans()"
-                            :name="$senderName"
+                            {{-- TASK-1312 : le nom porte l'identite TENANT, le badge
+                                 porte le moteur. `$aiBubbleLabel` reste la forme
+                                 concatenee, employee la ou aucun badge n'existe
+                                 (apercu de reply, composeur). --}}
+                            :name="$orgName"
+                            :ai-mode="$aiModeOf($msg)"
                             :subtitle="$aiBubbleSubtitle"
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"

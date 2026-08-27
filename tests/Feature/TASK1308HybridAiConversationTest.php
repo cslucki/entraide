@@ -180,8 +180,17 @@ class TASK1308HybridAiConversationTest extends TestCase
             ->set('body', 'Quelle est la capitale de la France ?')
             ->call('sendMessage')
             ->assertHasNoErrors()
-            ->assertSee('LaunchPals · '.__('loops.ia_mode_label'))
-            ->assertDontSee('launchpals · '.__('loops.ia_mode_label'))
+            // TASK-1312 : l'identite tenant et le MOTEUR ne sont plus une seule
+            // chaine — le nom porte l'Organization, un badge porte le mode. On
+            // asserte donc les DEUX, et surtout la valeur CANONIQUE
+            // `data-ai-mode`, jamais une couleur ni un libelle seul.
+            // L'identite de bulle est le NOM de l'Organization, JAMAIS son slug
+            // (invariant T1308). Vise le contenu de l'element, pas la page :
+            // le slug apparait legitimement dans les URLs.
+            ->assertSee('>LaunchPals</span>', false)
+            ->assertDontSee('>launchpals</span>', false)
+            ->assertSee('data-ai-mode="llm"', false)
+            ->assertSee(__('loops.ia_mode_label'))
             ->assertDontSee('BouclePro');
 
         $question = LoopMessage::query()->where('type', 'user')->sole();
@@ -212,7 +221,9 @@ class TASK1308HybridAiConversationTest extends TestCase
             ->set('body', 'Que dit le manifeste sur le role de l IA ?')
             ->call('sendMessage')
             ->assertHasNoErrors()
-            ->assertSee('LaunchPals · '.__('loops.dossiers_mode_label'))
+            ->assertSee('LaunchPals')
+            ->assertSee('data-ai-mode="rag"', false)
+            ->assertSee(__('loops.dossiers_mode_label'))
             ->assertSee(__('loops.knowledge_sources_title'));
 
         $answer = LoopMessage::query()->where('type', 'ai')->sole();
