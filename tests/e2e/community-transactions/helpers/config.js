@@ -3,7 +3,7 @@
  */
 
 // Get API base URL from environment or default to current origin
-export const API_BASE_URL = process.env.PLAYWRIGHT_API_BASE_URL || 'https://test.laravel';
+export const API_BASE_URL = process.env.PLAYWRIGHT_API_BASE_URL || process.env.PLAYWRIGHT_BASE_URL || 'https://test.laravel';
 
 // Community routes
 export const COMMUNITY_ROUTES = {
