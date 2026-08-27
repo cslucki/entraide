@@ -699,8 +699,206 @@ class TASK1310AddAnswerToDossierTest extends TestCase
     }
 
     // =====================================================================
+    // REVIEW FIX — provenance resoluble : [S1] doit vouloir dire quelque chose
+    // =====================================================================
+
+    /**
+     * LE test du blocker de revue.
+     *
+     * Une reponse Dossiers cite ses appuis dans le TEXTE, sous forme `[S1]`,
+     * `[S2]`. Ce texte devient un Article DURABLE. Si l'Article publie ne rend
+     * pas la correspondance `[Sn] -> document`, le lecteur voit des references
+     * qui ne renvoient a rien : la provenance est detruite au moment meme ou
+     * elle devrait devenir permanente.
+     *
+     * `ai_origin.sources` conserve pourtant la correspondance. Le defaut est
+     * donc entierement dans le RENDU.
+     */
+    public function test_a_published_article_lets_the_reader_resolve_the_citations_in_its_text(): void
+    {
+        $message = $this->aiMessage(
+            'rag',
+            'Les Boucles sont des espaces de memoire [S1], et le cadre du dialogue les encadre [S2].',
+            'Que disent nos documents ?',
+            [
+                ['ref' => 'S1', 'title' => '02-ManifesteV2.md', 'dossier_name' => '01-COMMUNICATION', 'excerpt' => 'Une Boucle est un espace social.', 'url' => 'https://test.laravel/files/manifeste'],
+                ['ref' => 'S2', 'title' => 'Cadre du dialogue', 'dossier_name' => '01-COMMUNICATION', 'excerpt' => 'Pourquoi cette Boucle existe.', 'url' => null],
+            ],
+        );
+
+        $this->actingAs($this->curator);
+        Livewire::test(LoopChat::class, ['loop' => $this->loop])
+            ->call('startCapitalization', $message->id)
+            ->call('saveCapitalization')
+            ->assertHasNoErrors();
+
+        $post = BlogPost::query()->whereNotNull('ai_origin')->sole();
+
+        $response = $this->get(route('organization.blog.show', [
+            'organization' => $this->organization->slug,
+            'post' => $post->slug,
+        ]))->assertOk();
+
+        // Le texte porte bien les references...
+        $response->assertSee('[S1]')->assertSee('[S2]');
+
+        // ...et le lecteur doit pouvoir les RESOUDRE.
+        $response
+            ->assertSee('02-ManifesteV2.md')
+            ->assertSee('Cadre du dialogue');
+    }
+
+    /**
+     * Le Dossier d'origine est rendu quand il est connu, et le lien « Ouvrir »
+     * n'apparait QUE si une URL existe. Aucun lien n'est invente : une source
+     * sans URL reste une source, lisible, mais non cliquable.
+     */
+    public function test_the_dossier_name_is_shown_and_a_link_appears_only_when_a_url_exists(): void
+    {
+        $post = $this->capitalizedArticleWithSources([
+            ['ref' => 'S1', 'title' => 'Avec URL.md', 'dossier_name' => 'DOSSIER-VISIBLE', 'excerpt' => 'x', 'url' => 'https://test.laravel/files/avec-url'],
+            ['ref' => 'S2', 'title' => 'Sans URL.md', 'dossier_name' => null, 'excerpt' => 'x', 'url' => null],
+        ]);
+
+        $html = $this->articleHtml($post);
+
+        $this->assertStringContainsString('DOSSIER-VISIBLE', $html);
+        $this->assertStringContainsString('https://test.laravel/files/avec-url', $html);
+
+        // Une seule source cliquable sur les deux. On compte le MARQUEUR du
+        // lien, jamais son libelle : « Ouvrir » apparait ailleurs sur la page,
+        // et compter des mots ferait passer un test pour la mauvaise raison.
+        $this->assertSame(2, substr_count($html, 'data-ai-origin-source>'));
+        $this->assertSame(1, substr_count($html, 'data-ai-origin-open'));
+    }
+
+    /**
+     * Une URL a schema non navigable, meme persistee, ne devient JAMAIS un
+     * lien. La colonne est ecrite cote serveur aujourd'hui — cette garde ne
+     * depend pas de cette hypothese pour tenir demain.
+     */
+    public function test_a_non_navigable_url_never_becomes_a_clickable_link(): void
+    {
+        $post = $this->capitalizedArticleWithSources([
+            ['ref' => 'S1', 'title' => 'Source hostile.md', 'dossier_name' => 'D', 'excerpt' => 'x', 'url' => 'javascript:alert(1)'],
+        ]);
+
+        $html = $this->articleHtml($post);
+
+        $this->assertStringContainsString('Source hostile.md', $html);
+        $this->assertStringNotContainsString('javascript:alert', $html);
+        $this->assertStringNotContainsString('data-ai-origin-open', $html);
+    }
+
+    /**
+     * Un document seulement CONSULTE n'a etaye aucune affirmation. Il n'a donc
+     * rien a faire sous un texte durable : l'y afficher en ferait
+     * retroactivement un appui.
+     */
+    public function test_a_merely_consulted_document_is_never_rendered_on_the_article(): void
+    {
+        $message = LoopMessage::create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => 'Une reponse qui ne cite rien.',
+            'type' => 'ai',
+            'metadata' => [
+                'ai_mode' => 'rag',
+                'consulted' => [
+                    ['ref' => 'S1', 'title' => 'DOCUMENT-SEULEMENT-CONSULTE.md', 'dossier_name' => 'D', 'excerpt' => 'x', 'url' => null],
+                ],
+            ],
+            'organization_id' => $this->loop->organization_id,
+        ]);
+
+        $this->actingAs($this->curator);
+        Livewire::test(LoopChat::class, ['loop' => $this->loop])
+            ->call('startCapitalization', $message->id)
+            ->call('saveCapitalization')
+            ->assertHasNoErrors();
+
+        $post = BlogPost::query()->whereNotNull('ai_origin')->sole();
+        $html = $this->articleHtml($post);
+
+        $this->assertStringNotContainsString('DOCUMENT-SEULEMENT-CONSULTE', $html);
+        $this->assertStringNotContainsString(__('blog.ai_origin_sources_title'), $html);
+    }
+
+    /**
+     * Une synthese IA sans aucune source citee affiche la mention de
+     * provenance, mais AUCUN bloc de sources vide : un titre « Sources
+     * documentaires » suivi de rien serait une promesse non tenue.
+     */
+    public function test_an_ai_synthesis_without_any_cited_source_shows_no_empty_block(): void
+    {
+        $post = $this->capitalizedArticleWithSources(null);
+
+        $html = $this->articleHtml($post);
+
+        $this->assertStringContainsString(
+            __('blog.ai_origin_notice', ['curator' => $this->curator->publicDisplayName()]),
+            $html,
+        );
+        $this->assertStringNotContainsString(__('blog.ai_origin_sources_title'), $html);
+        $this->assertStringNotContainsString('data-ai-origin-source', $html);
+    }
+
+    /**
+     * `title` et `excerpt` viennent de documents uploades : du contenu
+     * utilisateur. Ils sont rendus ECHAPPES, sur une page durable et
+     * publiquement lisible.
+     */
+    public function test_hostile_html_in_a_source_title_stays_escaped(): void
+    {
+        $post = $this->capitalizedArticleWithSources([
+            ['ref' => 'S1', 'title' => '<script>alert("xss")</script>', 'dossier_name' => '"><img src=x onerror=alert(1)>', 'excerpt' => 'x', 'url' => null],
+        ]);
+
+        $html = $this->articleHtml($post);
+
+        $this->assertStringNotContainsString('<script>alert("xss")</script>', $html);
+        $this->assertStringNotContainsString('<img src=x onerror=alert(1)>', $html);
+        $this->assertStringContainsString('&lt;script&gt;', $html);
+        $this->assertStringContainsString('onerror=alert(1)&gt;', $html);
+    }
+
+    // =====================================================================
     // Helpers
     // =====================================================================
+
+    /**
+     * Capitalise une reponse IA portant CES sources citees, et rend l'Article.
+     *
+     * @param list<array<string, mixed>>|null $sources
+     */
+    private function capitalizedArticleWithSources(?array $sources): BlogPost
+    {
+        $message = $this->aiMessage(
+            'rag',
+            'Un texte qui cite ses appuis [S1] et [S2].',
+            'Une question',
+            $sources,
+        );
+
+        $this->actingAs($this->curator);
+        Livewire::test(LoopChat::class, ['loop' => $this->loop])
+            ->call('startCapitalization', $message->id)
+            ->call('saveCapitalization')
+            ->assertHasNoErrors();
+
+        return BlogPost::query()->whereNotNull('ai_origin')->sole();
+    }
+
+    private function articleHtml(BlogPost $post): string
+    {
+        return $this->actingAs($this->curator)
+            ->get(route('organization.blog.show', [
+                'organization' => $this->organization->slug,
+                'post' => $post->slug,
+            ]))
+            ->assertOk()
+            ->getContent();
+    }
 
     /** @param list<array<string, mixed>>|null $sources */
     private function aiMessage(string $aiMode, string $body = 'Reponse IA capitalisable.', ?string $question = null, ?array $sources = null, ?string $interactionId = null): LoopMessage

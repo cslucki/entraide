@@ -571,4 +571,6 @@ return [
 
     'ai_origin_notice' => 'Synthèse IA relue et enregistrée par :curator.',
     'ai_origin_sources' => 'Appuyée sur :count source(s) documentaire(s).',
+    'ai_origin_sources_title' => 'Sources documentaires',
+    'ai_origin_open_source' => 'Ouvrir',
 ];

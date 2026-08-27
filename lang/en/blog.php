@@ -571,4 +571,6 @@ return [
 
     'ai_origin_notice' => 'AI synthesis reviewed and saved by :curator.',
     'ai_origin_sources' => 'Grounded in :count documentary source(s).',
+    'ai_origin_sources_title' => 'Documentary sources',
+    'ai_origin_open_source' => 'Open',
 ];
