@@ -20,7 +20,6 @@ use App\Services\Ai\AiUserCreditSettings;
 use App\Services\LoopService;
 use App\Support\Ai\AiShellPageContext;
 use App\Support\Ai\AiShellThread;
-use App\Support\Ai\AiShellTurnLock;
 use App\Support\Loops\HelpRequestHandoff;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -451,7 +450,7 @@ class TASK1315AiShellTest extends TestCase
     {
         $this->fakeClarifier();
 
-        Cache::add(AiShellTurnLock::key($this->organizationA, $this->memberA), true, 90);
+        Cache::add(AiShellResponder::lockKey($this->organizationA, $this->memberA), true, 90);
 
         Livewire::actingAs($this->memberA)
             ->test(AiShell::class)
@@ -478,6 +477,78 @@ class TASK1315AiShellTest extends TestCase
         $thread->appendAssistant($this->organizationA, $this->memberA, 'Deuxieme reponse.', $trigger);
     }
 
+    /**
+     * DECISION MASTER §7 : un double submit ne doit JAMAIS produire deux appels
+     * provider, deux reponses assistant, ni deux ecritures economiques.
+     */
+    public function test_a_double_submit_produces_one_generation_one_answer_one_economic_write(): void
+    {
+        $this->fakeClarifier();
+
+        $component = Livewire::actingAs($this->memberA)
+            ->test(AiShell::class)
+            ->set('draft', 'Je clique deux fois.');
+
+        // Deux `send()` de suite, sans reposer le brouillon entre les deux :
+        // c'est exactement ce que produit un double clic (Livewire serialise
+        // les requetes d'un meme composant, le second part avec le brouillon
+        // deja vide).
+        $component->call('send')->call('send');
+
+        $this->assertSame(1, AiShellMessage::query()->where('role', AiShellMessage::ROLE_USER)->count());
+        $this->assertSame(1, AiShellMessage::query()->where('role', AiShellMessage::ROLE_ASSISTANT)->count());
+        $this->assertSame(1, AiInteraction::query()->count());
+        $this->assertSame(1, AiProviderInvocation::query()->count());
+    }
+
+    /**
+     * DECISION MASTER §3 : le verrou du Shell EST celui de T1311, sur une cle
+     * fournie. Deux utilisateurs ne se bloquent pas ; deux Organizations ne
+     * partagent jamais une cle ; une panne libere le verrou.
+     */
+    public function test_the_shell_lock_is_the_t1311_primitive_on_its_own_scoped_key(): void
+    {
+        $key = AiShellResponder::lockKey($this->organizationA, $this->memberA);
+
+        $this->assertStringContainsString((string) $this->organizationA->id, $key);
+        $this->assertStringContainsString((string) $this->memberA->id, $key);
+
+        // Deux utilisateurs : cles distinctes, aucun blocage mutuel.
+        $this->assertNotSame($key, AiShellResponder::lockKey($this->organizationA, $this->strangerA));
+        // Deux Organizations : cles distinctes, et cela se LIT dans la cle.
+        $this->assertNotSame($key, AiShellResponder::lockKey($this->organizationB, $this->memberA));
+
+        // Une panne pendant la generation libere le verrou (le `finally` de
+        // T1311) : le tour suivant passe.
+        HelpRequestClarifierAgent::fake(function (): never {
+            throw new \RuntimeException('panne provider');
+        });
+
+        Livewire::actingAs($this->memberA)->test(AiShell::class)
+            ->set('draft', 'Un tour qui echoue.')
+            ->call('send');
+
+        $this->assertFalse(Cache::has($key), 'Une panne ne doit jamais geler le tour jusqu\'au TTL.');
+
+        $this->fakeClarifier();
+        Livewire::actingAs($this->memberA)->test(AiShell::class)
+            ->set('draft', 'Le tour suivant passe.')
+            ->call('send');
+
+        // Deux tours, deux reponses : le premier dit honnetement son
+        // indisponibilite (la clarification retombe sur son repli deterministe
+        // et le Shell ne la presente jamais comme une reponse de l'IA), le
+        // second aboutit. Le verrou n'a bloque ni l'un ni l'autre.
+        $reponses = AiShellMessage::query()
+            ->where('role', AiShellMessage::ROLE_ASSISTANT)
+            ->orderBy('created_at')
+            ->get();
+
+        $this->assertCount(2, $reponses);
+        $this->assertSame(AiShellResponder::STATUS_UNAVAILABLE, $reponses[0]->metadata['status']);
+        $this->assertSame(AiShellResponder::STATUS_ANSWERED, $reponses[1]->metadata['status']);
+    }
+
     // =====================================================================
     // E. Organization = Tenant
     // =====================================================================
@@ -496,6 +567,61 @@ class TASK1315AiShellTest extends TestCase
         Livewire::actingAs($this->memberB)
             ->test(AiShell::class)
             ->assertDontSee('Secret de A.');
+    }
+
+    /**
+     * DECISION MASTER §1 : `conversation_id` est un identifiant OPAQUE de
+     * regroupement, JAMAIS une autorite d'acces. Toute lecture est re-scopee
+     * par Organization + utilisateur AVANT d'etre filtree par conversation.
+     */
+    public function test_a_forged_conversation_id_never_reads_across_users_or_organizations(): void
+    {
+        $thread = app(AiShellThread::class);
+
+        $triggerA = $thread->appendUser($this->organizationA, $this->memberA, 'Secret de Ada.');
+        $thread->appendAssistant($this->organizationA, $this->memberA, 'Reponse a Ada.', $triggerA);
+        $conversationA = (string) $triggerA->conversation_id;
+
+        $triggerB = $thread->appendUser($this->organizationB, $this->memberB, 'Secret de Bo.');
+        $conversationB = (string) $triggerB->conversation_id;
+
+        // La conversation d'Ada, demandee avec l'identite de Sam : rien.
+        $this->assertCount(0, $thread->messages($this->organizationA, $this->strangerA, $conversationA));
+        // La conversation d'Ada, demandee dans l'autre Organization : rien.
+        $this->assertCount(0, $thread->messages($this->organizationB, $this->memberA, $conversationA));
+        // La conversation de Bo, demandee par Ada : rien.
+        $this->assertCount(0, $thread->messages($this->organizationA, $this->memberA, $conversationB));
+        // Un identifiant purement invente : rien.
+        $this->assertCount(0, $thread->messages($this->organizationA, $this->memberA, (string) Str::uuid()));
+        // Et la sienne, elle, revient.
+        $this->assertCount(2, $thread->messages($this->organizationA, $this->memberA, $conversationA));
+
+        // Effacer avec l'identifiant d'autrui n'efface rien.
+        $this->assertSame(0, $thread->clear($this->organizationA, $this->memberA, $conversationB));
+        $this->assertSame(1, AiShellMessage::query()->where('user_id', $this->memberB->id)->count());
+    }
+
+    /**
+     * DECISION MASTER — TASK-1145 : sur une page dont l'objet a ete REFUSE,
+     * le Shell ne se monte pas du tout. Monter un composant Livewire y
+     * inscrirait `memo.path`, donc l'URL, donc l'identifiant refuse.
+     */
+    public function test_the_shell_is_not_mounted_on_a_page_whose_subject_was_refused(): void
+    {
+        $url = $this->dossierUrl();
+
+        // Le proprietaire du Dossier : le Shell est la.
+        $this->actingAs($this->memberA)->get($url)
+            ->assertOk()
+            ->assertSee('data-ai-shell-panel', false);
+
+        // Un tiers sans acces : page de refus, aucun Shell, et surtout aucun
+        // instantane Livewire portant l'identifiant du Dossier.
+        $refus = $this->actingAs($this->strangerA)->get($url);
+        $refus->assertForbidden();
+        $this->assertStringNotContainsString('data-ai-shell', $refus->getContent());
+        $this->assertStringNotContainsString('wire:name="ai-shell"', $refus->getContent());
+        $this->assertStringNotContainsString((string) $this->dossierA->getKey(), $refus->getContent());
     }
 
     public function test_clearing_deletes_only_my_thread_in_this_organization(): void

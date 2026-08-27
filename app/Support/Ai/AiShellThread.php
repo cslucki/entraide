@@ -19,23 +19,42 @@ use Illuminate\Support\Str;
  * l'utilisateur peut l'effacer. Rien n'est resume, rien n'est rappele d'un fil
  * a l'autre : « memoire avancee » reste hors V1.
  *
- * Organization = Tenant : toutes les lectures passent par `forThread()`, qui
- * porte le couple `(organization_id, user_id)`. Changer d'Organization change
- * de fil, sans qu'aucun appelant ait a y penser.
+ * ## `conversation_id` n'est JAMAIS une autorite d'acces
+ *
+ * C'est un identifiant OPAQUE de regroupement. Toute lecture et toute ecriture
+ * est re-scopee serveur par `(organization_id, user_id)` — porte unique
+ * `forThread()` — PUIS filtree par `conversation_id`. L'ordre compte : le
+ * tenant et l'acteur bornent d'abord, la conversation precise ensuite.
+ *
+ * Consequence, et c'est la propriete a retenir : un `conversation_id` forge ne
+ * peut pas lire le fil d'un autre utilisateur, ni celui d'une autre
+ * Organization, ni faire fuir un nom ou une metadonnee. Il ne rend rien —
+ * l'ensemble vide, qui est une reponse parfaitement valide.
+ *
+ * Organization = Tenant : changer d'Organization change de fil, sans qu'aucun
+ * appelant ait a y penser.
  */
 final class AiShellThread
 {
     /**
-     * Les derniers messages du fil, du plus ancien au plus recent.
+     * Les derniers messages d'UNE conversation, du plus ancien au plus recent.
      *
+     * @param  string|null  $conversationId  filtre supplementaire, jamais une
+     *                                       autorite : le tenant et l'acteur
+     *                                       bornent deja la requete.
      * @return Collection<int, AiShellMessage>
      */
-    public function messages(Organization $organization, User $user, ?int $limit = null): Collection
-    {
+    public function messages(
+        Organization $organization,
+        User $user,
+        ?string $conversationId = null,
+        ?int $limit = null,
+    ): Collection {
         $limit ??= $this->limit();
 
         return AiShellMessage::query()
             ->forThread((string) $organization->id, (string) $user->id)
+            ->when($conversationId !== null && $conversationId !== '', fn ($query) => $query->where('conversation_id', $conversationId))
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->limit($limit)
@@ -57,8 +76,14 @@ final class AiShellThread
         return $this->persistedConversationId($organization, $user) ?? (string) Str::uuid();
     }
 
-    /** L'identifiant reellement inscrit dans le fil, ou null s'il est vide. */
-    private function persistedConversationId(Organization $organization, User $user): ?string
+    /**
+     * L'identifiant reellement INSCRIT dans le fil, ou null s'il est vide.
+     *
+     * Publique parce que la surface doit pouvoir distinguer « le fil impose son
+     * identifiant » de « le fil est vide, je garde celui que j'affiche deja » —
+     * sans quoi un rendu sur fil vide en fabriquerait un nouveau a chaque fois.
+     */
+    public function persistedConversationId(Organization $organization, User $user): ?string
     {
         $latest = AiShellMessage::query()
             ->forThread((string) $organization->id, (string) $user->id)
@@ -124,20 +149,32 @@ final class AiShellThread
     /**
      * La reponse de CE declencheur, si elle existe deja (T1311 : l'idempotence
      * traite le rejeu, pas la course).
+     *
+     * Re-scopee comme tout le reste, bien que `reply_to_id` soit deja UNIQUE :
+     * une garde qui ne depend pas de l'unicite d'un identifiant se relit sans
+     * avoir a faire confiance a cet identifiant.
      */
     public function answerFor(AiShellMessage $trigger): ?AiShellMessage
     {
         return AiShellMessage::query()
+            ->forThread((string) $trigger->organization_id, (string) $trigger->user_id)
+            ->where('conversation_id', $trigger->conversation_id)
             ->where('reply_to_id', $trigger->id)
             ->where('role', AiShellMessage::ROLE_ASSISTANT)
             ->first();
     }
 
-    /** Efface le fil de cet utilisateur dans CETTE Organization, et lui seul. */
-    public function clear(Organization $organization, User $user): int
+    /**
+     * Efface UNE conversation de cet utilisateur dans CETTE Organization.
+     *
+     * Sans identifiant, efface tout son fil dans cette Organization — jamais
+     * celui d'un autre, jamais celui d'une autre Organization.
+     */
+    public function clear(Organization $organization, User $user, ?string $conversationId = null): int
     {
         return AiShellMessage::query()
             ->forThread((string) $organization->id, (string) $user->id)
+            ->when($conversationId !== null && $conversationId !== '', fn ($query) => $query->where('conversation_id', $conversationId))
             ->delete();
     }
 

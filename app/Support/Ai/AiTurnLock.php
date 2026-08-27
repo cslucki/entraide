@@ -107,8 +107,41 @@ final class AiTurnLock
      */
     public static function run(Loop $loop, User $user, callable $work): mixed
     {
-        $key = self::key($loop, $user);
+        return self::runOnKey(
+            self::key($loop, $user),
+            self::ttl(),
+            __('loops.ai_generation_in_progress'),
+            $work,
+        );
+    }
 
+    /**
+     * La MEME doctrine, sur une cle fournie par l'appelant.
+     *
+     * TASK-1315 : extraction strictement ADDITIVE du corps de `run()`. Rien de
+     * ce que T1311 a etabli ne change — ni `key()`, ni `ttl()`, ni le
+     * comportement public de `run()`, ni la reentrance intra-requete, ni
+     * `AiTurnIdempotency`. `run()` delegue, et reste seule a connaitre la cle
+     * ChatLoop `{organization}:{loop}:{user}` et son TTL.
+     *
+     * Elle existe parce que le Shell « BouclePro IA » a exactement le meme
+     * probleme — une course entre deux tours du meme acteur — sans avoir de
+     * Boucle. Lui faire recopier `Cache::add()` + `finally` aurait donne deux
+     * doctrines a maintenir ; c'etait deja le defaut que T1311 a corrige en
+     * extrayant cette classe des quatre copies de `ChatLoopAiService`.
+     *
+     * L'appelant fournit sa propre cle, explicitement scopee — deux
+     * Organizations ne partagent jamais une cle, et cela se lit dans la cle.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $work
+     * @return T
+     *
+     * @throws RuntimeException si un tour est deja en cours sur cette cle
+     */
+    public static function runOnKey(string $key, int $ttl, string $busyMessage, callable $work): mixed
+    {
         // Deja tenu par cette requete : le composeur l'a pris avant de publier
         // le message humain, le service le reprend ici. Un seul proprietaire,
         // une seule liberation — celle du plus englobant.
@@ -116,8 +149,8 @@ final class AiTurnLock
             return $work();
         }
 
-        if (! Cache::add($key, true, self::ttl())) {
-            throw new RuntimeException(__('loops.ai_generation_in_progress'));
+        if (! Cache::add($key, true, $ttl)) {
+            throw new RuntimeException($busyMessage);
         }
 
         self::$heldInThisRequest[$key] = true;

@@ -131,6 +131,33 @@ final class AiFabContext
         ];
     }
 
+    /**
+     * Le Shell doit-il etre MONTE sur cette page ?
+     *
+     * TASK-1315 — la question n'est pas cosmetique, et la reponse ne peut pas
+     * vivre dans le composant : monter un composant Livewire suffit a inscrire
+     * dans la page son instantane, dont `memo.path` — c'est-a-dire l'URL
+     * COURANTE. Sur une page de refus (`/dossiers/{id}` sans le droit de voir
+     * ce Dossier), cette URL porte l'identifiant refuse. Le composant peut bien
+     * ne rien nommer — TASK-1145 exige que la page de refus ne divulgue RIEN de
+     * l'objet, pas meme son identifiant, et Livewire l'y remettrait.
+     *
+     * D'ou la regle, qui vaut aussi comme regle produit : **le Shell n'est pas
+     * offert sur une page dont l'objet a ete refuse a l'utilisateur.** Le
+     * contexte le sait deja (`page_context.refused`) ; il suffit de ne pas
+     * monter.
+     */
+    public function shouldMountShell(Request $request, ?User $user): bool
+    {
+        $fab = $this->forRequest($request, $user);
+
+        if ($fab === null || ! ($fab['shell_enabled'] ?? false)) {
+            return false;
+        }
+
+        return ! ($fab['page_context']['refused'] ?? false);
+    }
+
     private function creditLabel(AiUserCreditStatus $credit): string
     {
         if ($credit->isUnlimited()) {

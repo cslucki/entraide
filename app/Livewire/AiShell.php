@@ -167,7 +167,9 @@ class AiShell extends Component
             return;
         }
 
-        $thread->clear($organization, $user);
+        // On efface la conversation que la BASE designe comme courante, jamais
+        // un identifiant venu du client.
+        $thread->clear($organization, $user, $thread->currentConversationId($organization, $user));
 
         // Effacer, c'est ouvrir une conversation neuve — pas continuer la
         // precedente sans ses messages.
@@ -227,13 +229,23 @@ class AiShell extends Component
         }
 
         $thread = app(AiShellThread::class);
-        $messages = $thread->messages($organization, $user);
+
+        // La conversation lue est celle que la BASE porte, pas celle que le
+        // client annonce : `conversation_id` regroupe, il n'ouvre rien. Sur un
+        // fil VIDE il n'y a rien a imposer — on garde alors l'identifiant deja
+        // affiche, sinon chaque rendu en fabriquerait un nouveau.
+        $conversationId = $thread->persistedConversationId($organization, $user)
+            ?? $this->conversationId
+            ?? $thread->currentConversationId($organization, $user);
+        $this->conversationId = $conversationId;
+
+        $messages = $thread->messages($organization, $user, $conversationId);
         $context = $this->pageContext();
 
         return view('livewire.ai-shell', [
             'shell' => [
                 'context' => $context,
-                'conversation_id' => $this->conversationId ?? $thread->currentConversationId($organization, $user),
+                'conversation_id' => $conversationId,
                 'messages' => $messages,
                 'actions' => $this->actions($context, $messages->last()),
                 'refusal' => $this->creditRefusal(),
@@ -359,7 +371,8 @@ class AiShell extends Component
             return null;
         }
 
-        $last = app(AiShellThread::class)->messages($organization, $user, 1)->last();
+        $thread = app(AiShellThread::class);
+        $last = $thread->messages($organization, $user, $thread->currentConversationId($organization, $user), 1)->last();
 
         return $last instanceof AiShellMessage && $last->role === AiShellMessage::ROLE_ASSISTANT ? $last : null;
     }

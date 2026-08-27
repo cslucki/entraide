@@ -6,7 +6,7 @@ use App\Models\AiShellMessage;
 use App\Models\Organization;
 use App\Models\User;
 use App\Support\Ai\AiShellThread;
-use App\Support\Ai\AiShellTurnLock;
+use App\Support\Ai\AiTurnLock;
 use DomainException;
 use Illuminate\Support\Str;
 
@@ -39,6 +39,14 @@ use Illuminate\Support\Str;
  * l'idempotence par declencheur. Il ne publie RIEN : aucune Demande, aucun
  * message de Boucle, aucun Article. La validation humaine reste devant toute
  * publication durable.
+ *
+ * ## Le verrou : la doctrine T1311, pas une copie
+ *
+ * La course est arbitree par `AiTurnLock::runOnKey()` — la primitive de T1311
+ * elle-meme, sur une cle fournie ici. Le Shell n'a pas de Boucle : il apporte
+ * donc sa propre cle, `{organization}:{user}`, et rien d'autre ne change. Le
+ * rejeu, lui, est arbitre par la BASE (`ai_shell_messages.reply_to_id` UNIQUE) :
+ * le verrou traite la course, l'idempotence traite le rejeu.
  */
 final class AiShellResponder
 {
@@ -50,6 +58,29 @@ final class AiShellResponder
 
     /** Aucune IA n'a repondu (desactivee, tenant non configure, refus economique). */
     public const STATUS_UNAVAILABLE = 'unavailable';
+
+    /**
+     * La cle de verrou d'un tour du Shell.
+     *
+     * `{organization}:{user}` : le Shell est personnel, il n'y a pas de
+     * troisieme dimension. Deux onglets du meme utilisateur dans la meme
+     * Organization sont UN tour ; deux utilisateurs ne se bloquent jamais ;
+     * deux Organizations ne partagent jamais une cle, et cela se LIT dans la
+     * cle plutot que de reposer sur l'unicite des UUID.
+     */
+    public static function lockKey(Organization $organization, User $user): string
+    {
+        return 'ai_shell_turn_lock:'.$organization->id.':'.$user->id;
+    }
+
+    /** Jamais sous le timeout provider + 30 s : meme regle que T1311. */
+    public static function lockTtl(): int
+    {
+        return max(
+            (int) config('ai.shell.lock_ttl', 90),
+            (int) config('ai.shell.timeout', 30) + 30,
+        );
+    }
 
     public function __construct(
         private readonly ClarifyUserHelpRequestService $clarifier,
@@ -73,8 +104,7 @@ final class AiShellResponder
         string $prompt,
         array $pageContext,
         ?string $conversationId = null,
-    ): array
-    {
+    ): array {
         $prompt = trim($prompt);
 
         if ($prompt === '') {
@@ -83,28 +113,33 @@ final class AiShellResponder
 
         $prompt = Str::limit($prompt, (int) config('ai.shell.max_input_chars', 2000), '');
 
-        return AiShellTurnLock::run($organization, $user, function () use ($organization, $user, $prompt, $pageContext, $conversationId) {
-            // Le message humain est ecrit AVANT l'appel : meme si la generation
-            // echoue, l'utilisateur retrouve ce qu'il a demande dans son fil.
-            $trigger = $this->thread->appendUser($organization, $user, $prompt, [
-                'page_context' => $this->traceable($pageContext),
-            ], $conversationId);
+        return AiTurnLock::runOnKey(
+            self::lockKey($organization, $user),
+            self::lockTtl(),
+            __('ai.shell_turn_in_progress'),
+            function () use ($organization, $user, $prompt, $pageContext, $conversationId) {
+                // Le message humain est ecrit AVANT l'appel : meme si la generation
+                // echoue, l'utilisateur retrouve ce qu'il a demande dans son fil.
+                $trigger = $this->thread->appendUser($organization, $user, $prompt, [
+                    'page_context' => $this->traceable($pageContext),
+                ], $conversationId);
 
-            // Idempotence (T1311) : un tour deja repondu ne se rejoue pas. La
-            // contrainte UNIQUE sur `reply_to_id` fait foi en base ; cette
-            // lecture evite simplement l'appel provider avant de s'y heurter.
-            $existing = $this->thread->answerFor($trigger);
+                // Idempotence (T1311) : un tour deja repondu ne se rejoue pas. La
+                // contrainte UNIQUE sur `reply_to_id` fait foi en base ; cette
+                // lecture evite simplement l'appel provider avant de s'y heurter.
+                $existing = $this->thread->answerFor($trigger);
 
-            if ($existing instanceof AiShellMessage) {
-                return ['trigger' => $trigger, 'answer' => $existing];
-            }
+                if ($existing instanceof AiShellMessage) {
+                    return ['trigger' => $trigger, 'answer' => $existing];
+                }
 
-            [$content, $metadata] = $this->generate($organization, $user, $prompt, $pageContext);
+                [$content, $metadata] = $this->generate($organization, $user, $prompt, $pageContext);
 
-            $answer = $this->thread->appendAssistant($organization, $user, $content, $trigger, $metadata);
+                $answer = $this->thread->appendAssistant($organization, $user, $content, $trigger, $metadata);
 
-            return ['trigger' => $trigger, 'answer' => $answer];
-        });
+                return ['trigger' => $trigger, 'answer' => $answer];
+            },
+        );
     }
 
     /**

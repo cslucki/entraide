@@ -100,7 +100,17 @@ final class AiShellPageContext
 
         $resolvedKind = $object['type'] ?? ($kind === self::KIND_DASHBOARD ? self::KIND_DASHBOARD : self::KIND_OTHER);
 
+        // La page portait un objet, et cet objet n'a pas passe sa garde : nous
+        // sommes sur un REFUS. Ce n'est pas la meme chose qu'une page sans
+        // objet, et le Shell doit pouvoir faire la difference — voir
+        // `AiFabContext::shouldMountShell()`.
+        $refused = $object === null
+            && $objectId !== null
+            && $objectId !== ''
+            && in_array($kind, [self::KIND_LOOP, self::KIND_DOSSIER, self::KIND_ARTICLE], true);
+
         return [
+            'refused' => $refused,
             'organization' => [
                 'id' => (string) $organization->id,
                 'name' => (string) $organization->name,
