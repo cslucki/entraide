@@ -7,6 +7,7 @@ use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\Loops\LoopPermissionResolver;
 
 class LoopPolicy
 {
@@ -172,8 +173,31 @@ class LoopPolicy
      * Accepting/rejecting join requests — same "who can manage this Loop"
      * rule as update(): owner or Organization admin, no is_admin bypass.
      */
+    /**
+     * Gerer QUI est dans la Boucle : ajouter un membre deja present dans
+     * l'Organization, accepter ou refuser une demande d'adhesion.
+     *
+     * TASK-1313 : demande `loop_members.add` au resolveur canonique, au lieu de
+     * deleguer a `update()`.
+     *
+     * `update()` exige le role `owner` et gouverne aussi l'identite de la
+     * Boucle et l'invitation d'une adresse e-mail EXTERIEURE. Y faire passer la
+     * gestion des membres liait deux autorites qui n'ont pas la meme portee :
+     * un animateur doit pouvoir composer son equipe sans pouvoir renommer la
+     * Boucle ni faire entrer quelqu'un dans le tenant.
+     *
+     * Cela reconcilie aussi la matrice et le code : le facilitator portait deja
+     * `loop_members.review_join_requests`, mais ce chemin le refusait.
+     *
+     * L'invitation externe, elle, reste gouvernee par `update()` — ability
+     * distincte, volontairement non elargie ici.
+     */
     public function manageJoinRequests(User $user, Loop $loop): bool
     {
-        return $this->update($user, $loop);
+        if ($user->isDeactivated() || $loop->isArchived()) {
+            return false;
+        }
+
+        return app(LoopPermissionResolver::class)->can($user, $loop, 'loop_members.add');
     }
 }

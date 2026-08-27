@@ -777,6 +777,7 @@ return [
     'dossiers_bubble_subtitle' => 'Answer grounded in this Loop\'s knowledge',
     'composer_placeholder_ia' => 'Ask the AI your question...',
     'composer_placeholder_dossiers' => 'Ask this Loop\'s Folders...',
+    'capitalize_reserved_to_facilitators' => 'Reserved for the facilitators of this Loop.',
     'capitalize_action' => 'Add to Folder',
     'capitalize_title' => 'Add this answer to the Folder',
     'capitalize_intro' => 'Review and edit before saving: the Article will carry your name.',

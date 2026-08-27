@@ -275,18 +275,35 @@
                                  Constate en recette reelle. --}}
                             <x-slot:footer>
                             @if(in_array($msg->id, $capitalizableMessageIds, true))
+                                {{-- TASK-1313 : l'action est VISIBLE par tout membre,
+                                     et seulement ACTIVE pour qui en a le droit.
+                                     La masquer revenait a ce qu'un membre
+                                     ordinaire ne puisse pas meme savoir qu'elle
+                                     existe : un refus explique informe, une
+                                     absence laisse croire que rien n'est
+                                     possible. `disabled` n'est evidemment pas la
+                                     garantie — le service revalide tout. --}}
                                 <div class="mt-2 border-t border-violet-200/70 pt-2 dark:border-violet-800/70">
                                     <button
                                         type="button"
+                                        @if($canCapitalize)
                                         wire:click="startCapitalization('{{ $msg->id }}')"
                                         wire:loading.attr="disabled"
                                         wire:target="startCapitalization('{{ $msg->id }}')"
+                                        @else
+                                        disabled
+                                        aria-describedby="capitalize-hint-{{ $msg->id }}"
+                                        @endif
                                         data-capitalize-open="{{ $msg->id }}"
-                                        class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50/80 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 transition hover:border-emerald-300 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-200 dark:hover:bg-emerald-900/40"
+                                        data-capitalize-allowed="{{ $canCapitalize ? '1' : '0' }}"
+                                        class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50/80 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 transition disabled:cursor-not-allowed disabled:opacity-50 enabled:hover:border-emerald-300 enabled:hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-200 dark:enabled:hover:bg-emerald-900/40"
                                     >
                                         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v4m2-2h-4"/></svg>
                                         {{ __('loops.capitalize_action') }}
                                     </button>
+                                    @if(! $canCapitalize)
+                                    <p id="capitalize-hint-{{ $msg->id }}" data-capitalize-hint class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{{ __('loops.capitalize_reserved_to_facilitators') }}</p>
+                                    @endif
                                 </div>
                             @endif
                             </x-slot:footer>
