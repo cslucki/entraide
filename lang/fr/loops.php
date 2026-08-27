@@ -770,6 +770,10 @@ return [
     'ask_ai_short' => 'Résumé',
     'ai_generating' => 'L\'IA rédige sa réponse...',
     'ai_requested_by' => 'Demandé par :name',
+    // TASK-1316 : le signal PARTAGE — ce que les autres membres voient
+    // pendant qu'un tour IA tourne. `:ai` est l'identite « Organization ·
+    // Mode », exactement celle que portera la bulle de reponse.
+    'ai_turn_in_progress' => ':ai prépare une réponse demandée par :name…',
 
     // TASK-1308 : identite de bulle tenant-generique — {Organization} · IA /
     // {Organization} · Dossiers, jamais « Facilitateur IA ».

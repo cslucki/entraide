@@ -17,6 +17,7 @@ use App\Services\Loops\LoopAnswerCapitalizationService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Services\UrlPreviewService;
 use App\Support\Ai\AiTurnLock;
+use App\Support\Ai\LoopAiTurnSignal;
 use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
@@ -296,9 +297,25 @@ class LoopChat extends Component
      */
     private function aiBubbleLabel(LoopMessage $message): string
     {
+        return $this->aiIdentity($this->resolvedAiMode($message));
+    }
+
+    /**
+     * TASK-1316 : l'identite affichee d'un moteur — « Organization · Mode ».
+     *
+     * Extraite d'`aiBubbleLabel()` parce qu'elle sert desormais AUSSI a une
+     * ligne qui n'a pas de message a lui : le signal « une reponse est en
+     * cours ». Un tour annonce sous une identite puis publie sous une autre
+     * serait une promesse trahie ; il n'y a donc qu'un seul endroit ou elle
+     * s'ecrit.
+     *
+     * @param  string  $aiMode  le discriminant canonique T1312 ('llm'|'rag'|'llm_rag')
+     */
+    private function aiIdentity(string $aiMode): string
+    {
         $orgName = $this->loop->organization?->name ?? config('app.name', 'BouclePro');
 
-        return $orgName.' · '.match ($this->resolvedAiMode($message)) {
+        return $orgName.' · '.match ($aiMode) {
             'rag' => __('loops.dossiers_mode_label'),
             'llm_rag' => __('loops.hybrid_mode_label'),
             default => __('loops.ia_mode_label'),
@@ -937,6 +954,10 @@ class LoopChat extends Component
         }
 
         $requestedByNames = $this->requestedByNames($messages);
+        // TASK-1316 : les tours IA en cours, vus par les AUTRES membres. Derive
+        // des messages deja charges ci-dessus — voir `LoopAiTurnSignal` pour
+        // l'audit qui a ecarte `AiTurnLock` comme source d'etat d'interface.
+        $pendingAiTurns = $this->pendingAiTurns($messages);
         $projectedRequests = $this->projectedRequests($messages);
         $projectedRequestUrls = $this->projectedRequestUrls($projectedRequests);
         $aiRoute = $this->aiRoute();
@@ -992,6 +1013,7 @@ class LoopChat extends Component
             'reactionData',
             'myReactions',
             'requestedByNames',
+            'pendingAiTurns',
             'projectedRequests',
             'projectedRequestUrls',
             'aiRoute',
@@ -1205,6 +1227,25 @@ class LoopChat extends Component
 
         return $user !== null
             && app(LoopPermissionResolver::class)->can($user, $this->loop, 'chatloop.manage');
+    }
+
+    /**
+     * TASK-1316 : les tours IA en cours dans cette Boucle, prets a afficher.
+     *
+     * La REGLE vit dans `LoopAiTurnSignal` — messages persistes pour l'identite
+     * et le mode, verrou T1311 pour la vivacite. Ce qui se decide ici est
+     * uniquement l'habillage : l'identite « Organization · Mode », la meme que
+     * portera la bulle de reponse.
+     *
+     * @param  Collection<int, LoopMessage>  $messages
+     * @return array<int, array{message_id: string, requester_id: string, requester_name: string, ai_mode: string, identity: string}>
+     */
+    private function pendingAiTurns(Collection $messages): array
+    {
+        return array_map(
+            fn (array $turn): array => $turn + ['identity' => $this->aiIdentity($turn['ai_mode'])],
+            LoopAiTurnSignal::pendingTurns($this->loop, $messages),
+        );
     }
 
     private function requestedByNames(Collection $messages): array
