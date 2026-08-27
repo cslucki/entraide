@@ -239,6 +239,31 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Shell « BouclePro IA » (TASK-1315)
+    |--------------------------------------------------------------------------
+    |
+    | Le Shell est une SURFACE, pas un moteur : son tour de conversation
+    | delegue a `ClarifyUserHelpRequestService::clarifyForOrganization()`, dont
+    | la garde economique, le budget et le ledger restent ceux de la
+    | clarification. Aucune cle de budget ici — il n'y en a pas a inventer.
+    |
+    | `max_thread_messages` borne la FENETRE affichee et relue ; le fil est
+    | elague au-dela du double. Il n'y a ni resume ni rappel d'un fil a
+    | l'autre : « memoire avancee » est hors V1.
+    |
+    */
+    'shell' => [
+        'enabled' => (bool) env('AI_SHELL_ENABLED', true),
+        'max_thread_messages' => (int) env('AI_SHELL_MAX_THREAD_MESSAGES', 40),
+        'max_input_chars' => (int) env('AI_SHELL_MAX_INPUT_CHARS', 2000),
+        // Meme forme que `ai.chatloop.lock_ttl` : jamais sous le timeout
+        // provider + 30 s, sinon le verrou expire pendant la generation.
+        'lock_ttl' => (int) env('AI_SHELL_LOCK_TTL', 90),
+        'timeout' => (int) env('AI_SHELL_TIMEOUT', 30),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Credit IA par utilisateur — defauts plateforme (TASK-1229)
     |--------------------------------------------------------------------------
     |

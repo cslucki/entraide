@@ -38,6 +38,15 @@ class UserDataLifecycleRegistry
             // durabilite economique n'est pas le role de cette table mais celui
             // du ledger `ai_provider_invocations` (sans contenu, sans FK).
             ['key' => 'ai_interactions', 'type' => 'sql', 'table' => 'ai_interactions', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'User AI interactions carry the full personal prompt and response; the FK cascades (NOT NULL, ON DELETE CASCADE) and the registry says so. The economic fact of each call lives in the content-free ledger ai_provider_invocations, which survives (TASK-1254).'],
+            // TASK-1315 : le fil du Shell « BouclePro IA ». Meme raison, meme
+            // regime que `ai_interactions` juste au-dessus — la ligne porte la
+            // question et la reponse PERSONNELLES d'une conversation de travail
+            // individuelle : ni publication collective, ni historique editorial
+            // partage, ni audit devant survivre au membre. La FK est NOT NULL
+            // ON DELETE CASCADE, et le registre dit ce que le schema fait. Le
+            // fait economique de chaque tour, lui, survit sans contenu dans
+            // `ai_provider_invocations` (RETAIN, plus bas).
+            ['key' => 'ai_shell_messages', 'type' => 'sql', 'table' => 'ai_shell_messages', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'The AI Shell thread (TASK-1315) is a personal working conversation: each row carries the member own question or the answer addressed to them. It is neither collective publication nor shared editorial history, and no audit depends on it, so it follows the person (FK NOT NULL, ON DELETE CASCADE). The content-free economic fact of every turn survives in ai_provider_invocations (TASK-1220).'],
             ['key' => 'ai_interaction_feedbacks', 'type' => 'sql', 'table' => 'ai_interaction_feedbacks', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'A human verdict on one AI response (TASK-1256) is the personal opinion of its author and is anchored by FK CASCADE on the interaction it judges: it follows the person (and the interaction) and never outlives either. No export, training or consent flag exists on this table by construction.'],
             ['key' => 'ai_credit_setting_changes_changed_by', 'type' => 'sql', 'table' => 'ai_credit_setting_changes', 'column' => 'changed_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'A change of the AI credit setting (platform or Organization) is administration audit, not personal data: it must outlive its author, who is simply detached (TASK-1229).'],
             ['key' => 'custom_loop_types_created_by', 'type' => 'sql', 'table' => 'custom_loop_types', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'A created Loop type is organization configuration, not personal data: it must outlive whoever created it, with the author simply detached.'],
