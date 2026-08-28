@@ -68,7 +68,13 @@ return [
     'help_type_request' => 'Faire une demande d\'aide',
     'help_type_service' => 'Proposer un service',
     'continue_to_exchanges' => 'Continuer vers Échanges',
-    'clarification_disabled' => 'La clarification IA n\'est pas activée pour cette organisation.',
+
+    // TASK-1322 (Core-2) : dégradation propre quand l'IA n'est pas disponible.
+    // Le parcours continue manuellement — jamais d'impasse, jamais de contenu
+    // présenté comme produit par une IA quand aucune IA n'a répondu.
+    'help_request_ai_unavailable' => 'L\'assistance IA n\'est pas disponible pour le moment. Vous pouvez néanmoins préparer votre demande manuellement.',
+    'help_request_prepare_manually' => 'Préparer ma demande',
+    'help_request_prepared_without_ai' => 'L\'assistance IA n\'est pas disponible : cette préparation a été générée automatiquement, sans IA. Relisez et modifiez librement avant de continuer.',
 
     // Boucle Workspace Cards
     'cards_bar_label' => 'Cards de la Boucle',

@@ -579,9 +579,13 @@
                     </form>
                 </div>
 
-            @elseif($clarificationEnabled || $analysis)
+            @elseif($isMember)
                 {{-- Help-request modal. Trigger lives above the composer (in loop-chat) and
-                     opens this modal via the `bp-open-help-request` window event. --}}
+                     opens this modal via the `bp-open-help-request` window event.
+                     TASK-1322 (Core-2) : rendu pour tout membre, gate ou pas —
+                     quand la clarification IA n'est pas disponible, le modal
+                     degrade proprement (message explicite + chemin manuel
+                     canonique) au lieu de disparaitre. --}}
                 <div x-data="{ open: @js($analysis ? true : false) }" @bp-open-help-request.window="open = true">
                     <template x-teleport="body">
                         <div x-show="open" x-cloak
@@ -618,7 +622,18 @@
                                             $originalPhrase = $analysis['original_phrase'] ?? ($helpRequestIntention ?? '');
                                             $fallbackNeedEmpty = $needsFallback && empty($analysis['need']) && $originalPhrase;
                                             $needValue = $fallbackNeedEmpty ? $originalPhrase : ($analysis['need'] ?? '');
+                                            // TASK-1322 (Core-2) : un repli deterministe n'est pas
+                                            // une reponse IA et ne se presente jamais comme telle —
+                                            // meme discipline que RequestController::formulate().
+                                            $preparedWithoutAi = ($analysis['_producer'] ?? null) === 'deterministic_fallback';
                                         @endphp
+
+                                        @if($preparedWithoutAi)
+                                            <div data-prepared-without-ai
+                                                 class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-lg p-3 text-sm text-amber-700 dark:text-amber-300 mb-3">
+                                                {{ __('loops.help_request_prepared_without_ai') }}
+                                            </div>
+                                        @endif
 
                                         @if($needsFallback)
                                             <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700/50 rounded-lg p-3 text-sm text-orange-700 dark:text-orange-300 mb-3">
@@ -720,7 +735,7 @@
                                                 </button>
                                             </div>
                                         </form>
-                                    @else
+                                    @elseif($clarificationEnabled)
                                         <form method="POST" action="{{ $_loopRoute('help-request.analyze', ['loop' => $currentLoop]) }}" class="space-y-3">
                                             @csrf
                                             <label for="intention" class="block text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -739,6 +754,28 @@
                                             </button>
                                         </form>
                                         <p class="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center">{{ __('loops.help_booster_ai') }}</p>
+                                    @else
+                                        {{-- TASK-1322 (Core-2) : la clarification IA n'est pas
+                                             disponible (gate AiConfig::clarification_enabled OFF).
+                                             Degradation propre : message non trompeur + poursuite
+                                             manuelle vers le formulaire canonique — jamais une
+                                             impasse, jamais une fausse IA. --}}
+                                        @php
+                                            $_prepareManuallyUrl = ($_org && request()->routeIs('organization.*') && Route::has('organization.requests.create'))
+                                                ? route('organization.requests.create', ['organization' => $_org])
+                                                : route('requests.create');
+                                        @endphp
+                                        <div data-ai-unavailable
+                                             class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-lg p-3 text-sm text-amber-700 dark:text-amber-300 mb-3">
+                                            {{ __('loops.help_request_ai_unavailable') }}
+                                        </div>
+                                        <a href="{{ $_prepareManuallyUrl }}" data-prepare-manually
+                                           class="w-full px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition flex items-center justify-center gap-1.5">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                            </svg>
+                                            {{ __('loops.help_request_prepare_manually') }}
+                                        </a>
                                     @endif
                                 </div>
                             </div>
@@ -746,19 +783,11 @@
                     </template>
                 </div>
 
-            @elseif(session('help_request_error'))
-                <div class="px-4 py-3">
-                    <div class="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 mb-3">
-                        <span>{{ session('help_request_error') }}</span>
-                    </div>
-                    <div class="flex gap-2">
-                        <a href="{{ $_loopRoute('show', ['loop' => $currentLoop]) }}"
-                           class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-xl transition">
-                            {{ __('loops.back') }}
-                        </a>
-                    </div>
-                </div>
-
+            {{-- TASK-1322 : l'ancienne impasse « clarification desactivee »
+                 (bandeau d'erreur + bouton Revenir) disparait — un membre a
+                 desormais toujours le modal ci-dessus, qui degrade proprement.
+                 Les erreurs reelles (demande bloquee) restent affichees par le
+                 bandeau help_request_error en haut de page. --}}
             @endif
         </div>
     </div>
