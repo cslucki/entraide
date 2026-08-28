@@ -79,9 +79,10 @@
             @else
                 <ul class="space-y-3">
                     @foreach($shell['messages'] as $message)
+                        @php $turnCards = $shell['cards'][(string) $message->id] ?? []; @endphp
                         <li wire:key="ai-shell-msg-{{ $message->id }}"
                             data-ai-shell-message="{{ $message->role }}"
-                            class="flex {{ $message->role === \App\Models\AiShellMessage::ROLE_USER ? 'justify-end' : 'justify-start' }}">
+                            class="flex flex-col {{ $message->role === \App\Models\AiShellMessage::ROLE_USER ? 'items-end' : 'items-start' }}">
                             <div class="max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-5 {{ $message->role === \App\Models\AiShellMessage::ROLE_USER
                                     ? 'bg-indigo-600 text-white'
                                     : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100' }}">
@@ -91,6 +92,79 @@
                                 @endif
                                 <span class="block whitespace-pre-line">{{ $message->content }}</span>
                             </div>
+
+                            {{-- TASK-1325 — les cartes structurees de CE tour. Chaque
+                                 carte a ete re-resolue et re-autorisee au rendu
+                                 (AiShellTurnCards) : nom et URL sont relus a
+                                 l'instant, jamais depuis le fil. Une carte dont
+                                 l'objet ne passe plus sa garde n'arrive pas ici. --}}
+                            @if(count($turnCards) > 0)
+                                <div class="mt-2 w-full max-w-[92%] space-y-2" data-ai-shell-cards data-ai-shell-cards-turn="{{ $message->id }}">
+                                    @foreach($turnCards as $card)
+                                        <div data-ai-shell-card="{{ $card['type'] }}"
+                                             data-ai-shell-card-turn="{{ $card['turn_id'] }}"
+                                             class="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-600 dark:bg-gray-800/80">
+                                            @if($card['type'] === \App\Support\Ai\AiShellTurnCards::TYPE_LOOP)
+                                                <p class="flex items-center gap-1.5">
+                                                    <span class="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200">{{ __('ai.shell_card_loop_badge') }}</span>
+                                                    <span class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $card['title'] }}</span>
+                                                </p>
+                                                @if($card['ai_wording'])
+                                                    <p class="mt-1 text-xs italic text-gray-600 dark:text-gray-300" data-ai-shell-card-ai-wording>
+                                                        « {{ $card['ai_wording'] }} »
+                                                        <span class="not-italic text-[10px] text-gray-400 dark:text-gray-500">— {{ __('ai.shell_card_ai_wording_note') }}</span>
+                                                    </p>
+                                                @else
+                                                    <p class="mt-1 text-xs text-gray-600 dark:text-gray-300">{{ __('ai.shell_card_loop_reason_membership') }}</p>
+                                                @endif
+                                                <div class="mt-2 flex flex-wrap gap-2">
+                                                    <a href="{{ $card['url'] }}" data-ai-shell-card-action="open_loop"
+                                                       class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800/60 dark:bg-indigo-900/30 dark:text-indigo-200">
+                                                        {{ __('ai.shell_card_open') }}
+                                                    </a>
+                                                    <button type="button" wire:click="prepareRequest('{{ $card['turn_id'] }}')" data-ai-shell-card-action="prepare_request"
+                                                            class="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600">
+                                                        {{ __('ai.shell_card_prepare_here') }}
+                                                    </button>
+                                                </div>
+                                            @elseif($card['type'] === \App\Support\Ai\AiShellTurnCards::TYPE_PERSON)
+                                                <p class="flex items-center gap-2">
+                                                    @if($card['avatar'])
+                                                        <img src="{{ $card['avatar'] }}" alt="" class="h-6 w-6 flex-shrink-0 rounded-full object-cover" />
+                                                    @endif
+                                                    <span class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $card['title'] }}</span>
+                                                    <span class="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">{{ __('ai.shell_card_person_badge') }}</span>
+                                                </p>
+                                                @if(count($card['reasons']) > 0)
+                                                    <ul class="mt-1 space-y-0.5" data-ai-shell-card-reasons>
+                                                        @foreach($card['reasons'] as $reason)
+                                                            <li class="text-xs text-gray-600 dark:text-gray-300">{{ $reason }}</li>
+                                                        @endforeach
+                                                    </ul>
+                                                @endif
+                                                <div class="mt-2">
+                                                    <a href="{{ $card['url'] }}" data-ai-shell-card-action="view_profile"
+                                                       class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800/60 dark:bg-indigo-900/30 dark:text-indigo-200">
+                                                        {{ __('ai.shell_card_view_profile') }}
+                                                    </a>
+                                                </div>
+                                            @elseif($card['type'] === \App\Support\Ai\AiShellTurnCards::TYPE_DOCUMENT)
+                                                <p class="flex items-center gap-1.5">
+                                                    <span class="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">{{ $card['kind'] === \App\Support\Ai\AiShellPageContext::KIND_DOSSIER ? __('ai.shell_card_document_badge_dossier') : __('ai.shell_card_document_badge_article') }}</span>
+                                                    <span class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $card['title'] }}</span>
+                                                </p>
+                                                <p class="mt-1 text-xs text-gray-600 dark:text-gray-300">{{ __('ai.shell_card_document_origin_page') }}</p>
+                                                <div class="mt-2">
+                                                    <a href="{{ $card['url'] }}" data-ai-shell-card-action="open_document"
+                                                       class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800/60 dark:bg-indigo-900/30 dark:text-indigo-200">
+                                                        {{ __('ai.shell_card_open') }}
+                                                    </a>
+                                                </div>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
                         </li>
                     @endforeach
                 </ul>

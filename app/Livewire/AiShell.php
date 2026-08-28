@@ -11,6 +11,7 @@ use App\Services\Ai\AiShellResponder;
 use App\Support\Ai\AiFabContext;
 use App\Support\Ai\AiShellPageContext;
 use App\Support\Ai\AiShellThread;
+use App\Support\Ai\AiShellTurnCards;
 use App\Support\Loops\HelpRequestHandoff;
 use DomainException;
 use Illuminate\Support\Facades\Route as RouteFacade;
@@ -182,8 +183,13 @@ class AiShell extends Component
      * canonique. AUCUNE publication — exactement le trajet de « Continuer ma
      * demande » (T1211), y compris la revalidation de la categorie et de la
      * Boucle de relais contre cette Organization.
+     *
+     * TASK-1325 : la LoopCard d'un tour transmet l'identifiant de SON message
+     * — le brouillon vient de CE tour, pas du dernier. L'identifiant est
+     * revalide par le scope `forThread` : celui d'un autre utilisateur, d'une
+     * autre Organization ou d'un message inexistant ne resout rien.
      */
-    public function prepareRequest(HelpRequestHandoff $handoff)
+    public function prepareRequest(HelpRequestHandoff $handoff, ?string $messageId = null)
     {
         [$user, $organization] = $this->actor();
 
@@ -191,7 +197,13 @@ class AiShell extends Component
             return null;
         }
 
-        $answer = $this->lastAnswer();
+        $answer = $messageId !== null
+            ? AiShellMessage::query()
+                ->forThread((string) $organization->id, (string) $user->id)
+                ->whereKey($messageId)
+                ->where('role', AiShellMessage::ROLE_ASSISTANT)
+                ->first()
+            : $this->lastAnswer();
 
         if (! $answer instanceof AiShellMessage) {
             return null;
@@ -242,12 +254,28 @@ class AiShell extends Component
         $messages = $thread->messages($organization, $user, $conversationId);
         $context = $this->pageContext();
 
+        // TASK-1325 : les cartes de chaque tour, re-resolues et re-autorisees
+        // MAINTENANT — une carte dont l'objet ne passe plus sa garde n'existe
+        // plus. Une instance unique par rendu : son memo d'eligibilite tient
+        // le cout constant.
+        $turnCards = app(AiShellTurnCards::class);
+        $cards = [];
+
+        foreach ($messages as $message) {
+            $displayable = $turnCards->forDisplay($organization, $user, $message);
+
+            if ($displayable !== []) {
+                $cards[(string) $message->id] = $displayable;
+            }
+        }
+
         return view('livewire.ai-shell', [
             'shell' => [
                 'context' => $context,
                 'conversation_id' => $conversationId,
                 'messages' => $messages,
-                'actions' => $this->actions($context, $messages->last()),
+                'cards' => $cards,
+                'actions' => $this->actions($context),
                 'refusal' => $this->creditRefusal(),
                 'offers_url' => $this->fab()['offers_url'] ?? null,
                 'max_input_chars' => (int) config('ai.shell.max_input_chars', 2000),
@@ -256,14 +284,16 @@ class AiShell extends Component
     }
 
     /**
-     * Les 2-3 actions natives du Shell. Chacune est soit un lien vers un objet
-     * REVALIDE, soit un evenement vers une surface qui existe deja avec sa
-     * propre garde. Aucune n'ouvre un droit nouveau.
+     * Les actions natives du Shell restantes. TASK-1325 : « ouvrir la Boucle
+     * suggeree » et « preparer ma demande » ne vivent plus en bas de fil —
+     * elles appartiennent a la LoopCard de CHAQUE tour ({@see AiShellTurnCards}),
+     * ou elles restent revalidees de la meme facon. Ne subsiste ici que
+     * l'action liee au CONTEXTE de page, pas a un tour.
      *
      * @param  array<string, mixed>  $context
      * @return list<array<string, mixed>>
      */
-    private function actions(array $context, ?AiShellMessage $last): array
+    private function actions(array $context): array
     {
         [$user, $organization] = $this->actor();
 
@@ -272,46 +302,9 @@ class AiShell extends Component
         }
 
         $actions = [];
-        $answer = $last instanceof AiShellMessage && $last->role === AiShellMessage::ROLE_ASSISTANT ? $last : null;
-        $answered = $answer !== null
-            && (($answer->metadata['status'] ?? null) === AiShellResponder::STATUS_ANSWERED);
 
-        // 1. Ouvrir la Boucle suggeree — revalidee MAINTENANT, jamais depuis le
-        //    libelle stocke au moment du tour.
-        if ($answered) {
-            $loop = $this->suggestedLoop($answer);
-
-            if ($loop instanceof Loop) {
-                $resolved = app(AiShellPageContext::class)->resolve(
-                    $user,
-                    $organization,
-                    AiShellPageContext::KIND_LOOP,
-                    (string) $loop->id,
-                );
-
-                if (is_array($resolved['object'] ?? null)) {
-                    $actions[] = [
-                        'key' => 'shell_open_loop',
-                        'kind' => 'link',
-                        'label' => __('ai.shell_action_open_loop', ['name' => $resolved['object']['label']]),
-                        'url' => $resolved['object']['url'],
-                    ];
-                }
-            }
-        }
-
-        // 2. Preparer ma demande — brouillon, jamais publication.
-        if ($answered) {
-            $actions[] = [
-                'key' => 'shell_prepare_request',
-                'kind' => 'method',
-                'label' => __('ai.shell_action_prepare_request'),
-                'method' => 'prepareRequest',
-            ];
-        }
-
-        // 3. Interroger les Dossiers de la Boucle courante — MEME garde que le
-        //    bouton de la page, calculee par la seule autorite qui la connait.
+        // Interroger les Dossiers de la Boucle courante — MEME garde que le
+        // bouton de la page, calculee par la seule autorite qui la connait.
         if (($context['kind'] ?? null) === AiShellPageContext::KIND_LOOP) {
             $loop = Loop::query()->find($context['object']['id'] ?? null);
 
