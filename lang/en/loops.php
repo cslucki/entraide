@@ -68,7 +68,13 @@ return [
     'help_type_request' => 'Ask for help',
     'help_type_service' => 'Offer a service',
     'continue_to_exchanges' => 'Continue to Exchanges',
-    'clarification_disabled' => 'AI clarification is not enabled for this organization.',
+
+    // TASK-1322 (Core-2): clean degradation when AI is unavailable. The
+    // journey continues manually — never a dead end, never content presented
+    // as AI-produced when no AI answered.
+    'help_request_ai_unavailable' => 'AI assistance is not available right now. You can still prepare your request manually.',
+    'help_request_prepare_manually' => 'Prepare my request',
+    'help_request_prepared_without_ai' => 'AI assistance is not available: this preparation was generated automatically, without AI. Review and edit freely before continuing.',
 
     // Boucle Workspace Cards
     'cards_bar_label' => 'Loop Cards',

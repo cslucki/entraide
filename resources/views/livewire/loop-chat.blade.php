@@ -391,9 +391,11 @@
     </x-conversation.message-list>
 
     @php
-        // Calcule tot pour etre partage entre la barre desktop et le menu
-        // mobile (TASK-1308).
-        $clarificationEnabled = \App\Models\AiConfig::get('clarification_enabled', false);
+        // TASK-1322 (Core-2) : « Qui peut m'aider ? » n'est plus conditionne a
+        // AiConfig::clarification_enabled. L'entree du parcours reste visible
+        // et le modal (loops/show) degrade proprement quand l'IA n'est pas
+        // disponible — message explicite + chemin manuel canonique — au lieu
+        // de disparaitre ou de bloquer.
         // TASK-1308 : dans une Boucle agent, l'agent (T-2) repond deja a
         // chaque message — les deux moteurs du composeur unifie restent
         // masques pour ne jamais laisser croire a un choix sans effet
@@ -461,16 +463,14 @@
             @endif
             @endif
 
-            @if($clarificationEnabled)
-                <button
-                    type="button"
-                    x-on:click="window.dispatchEvent(new CustomEvent('bp-open-help-request'))"
-                    class="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/80 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200 dark:hover:bg-amber-900/40"
-                >
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                    {{ __('loops.who_can_help') }}
-                </button>
-            @endif
+            <button
+                type="button"
+                x-on:click="window.dispatchEvent(new CustomEvent('bp-open-help-request'))"
+                class="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/80 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200 dark:hover:bg-amber-900/40"
+            >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                {{ __('loops.who_can_help') }}
+            </button>
 
             <template x-teleport="body">
                 <div x-show="askOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center px-3"
@@ -608,13 +608,11 @@
                                         <span class="flex-1">{{ __('loops.hybrid_button') }}</span>
                                     </button>
                                     @endif
-                                    @if($clarificationEnabled)
                                     <button type="button" x-on:click="window.dispatchEvent(new CustomEvent('bp-open-help-request')); sheetOpen = false"
                                         class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700">
                                         <svg class="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                                         {{ __('loops.who_can_help') }}
                                     </button>
-                                    @endif
                                     <button type="button" x-on:click="$refs.uploadInput?.click(); sheetOpen = false"
                                         class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700">
                                         <svg class="h-5 w-5 shrink-0 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
