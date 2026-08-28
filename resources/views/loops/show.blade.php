@@ -669,11 +669,17 @@
                                             @endif
                                             {{-- TASK-1210 : la destination. L'IA propose, l'humain choisit.
                                                  Le select n'offre que des Boucles dont il est membre actif, et
-                                                 le serveur revalide de toute facon a la publication. --}}
+                                                 le serveur revalide de toute facon a la publication.
+                                                 TASK-1321 : la justification affichee distingue explicitement
+                                                 le fait verifie cote serveur (provenance.verified) de la
+                                                 formulation du modele (provenance.ai_wording, jamais une preuve). --}}
                                             @php
                                                 $suggested = $analysis['suggested_loop'] ?? null;
                                                 $suggestedId = is_array($suggested) ? ($suggested['id'] ?? null) : null;
                                                 $selectedLoopId = old('relay_loop_id', $suggestedId ?? $currentLoop->id);
+                                                $verifiedMembership = $suggestedId && collect($suggested['provenance']['verified'] ?? [])
+                                                    ->contains(fn ($fact) => ($fact['type'] ?? null) === 'active_membership');
+                                                $aiWording = $suggestedId ? trim((string) ($suggested['provenance']['ai_wording']['text'] ?? '')) : '';
                                             @endphp
                                             <div>
                                                 <label for="hr-loop" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('loops.help_request_choose_loop') }}</label>
@@ -684,10 +690,19 @@
                                                         <option value="{{ $candidate->id }}" @selected($selectedLoopId === $candidate->id)>{{ $candidate->name }}</option>
                                                     @endforeach
                                                 </select>
-                                                @if($suggestedId && !empty($suggested['reason']))
-                                                    <p class="mt-1.5 text-xs text-indigo-600 dark:text-indigo-300">
-                                                        <span class="font-semibold">{{ __('loops.help_request_suggested_loop') }}</span> · {{ $suggested['reason'] }}
-                                                    </p>
+                                                @if($suggestedId && ($verifiedMembership || $aiWording !== ''))
+                                                    <div class="mt-1.5 space-y-0.5">
+                                                        @if($verifiedMembership)
+                                                            <p class="text-xs text-indigo-600 dark:text-indigo-300">
+                                                                <span class="font-semibold">{{ __('loops.help_request_suggested_loop') }}</span> · {{ __('loops.help_request_suggested_loop_verified_active_membership') }}
+                                                            </p>
+                                                        @endif
+                                                        @if($aiWording !== '')
+                                                            <p class="text-xs text-gray-500 dark:text-gray-400 italic">
+                                                                {{ __('loops.help_request_suggested_loop_ai_wording') }} : « {{ $aiWording }} »
+                                                            </p>
+                                                        @endif
+                                                    </div>
                                                 @endif
                                                 @error('relay_loop_id')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                                             </div>

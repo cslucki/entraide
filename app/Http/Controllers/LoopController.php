@@ -131,7 +131,17 @@ class LoopController extends Controller
      * l'utilisateur peut reellement utiliser. Le libelle est relu en base :
      * l'IA propose un identifiant, jamais un nom qui fait autorite.
      *
-     * @return array{id: string, label: string, reason: ?string}|null
+     * TASK-1321 : c'est le DERNIER point de validation avant l'ecran et le
+     * handoff — le point qui compte le plus. `provenance.verified` n'est
+     * JAMAIS repris tel quel de la couche precedente (elle pourrait avoir ete
+     * produite par le repli deterministe `FakeAIProvider`, dont les Boucles
+     * de scenario sont fictives) : il est reconstruit ici a partir du seul
+     * fait que cette methode vient elle-meme de confirmer,
+     * `publishableLoopOrNull()` = appartenance active reelle. Seul
+     * `provenance.ai_wording` (texte du modele, jamais une preuve) traverse
+     * tel quel depuis la couche precedente, toujours marque `verified: false`.
+     *
+     * @return array{id: string, label: string, provenance: array{verified: list<array{type: string, loop_id: string}>, ai_wording: array{text: string, verified: false}|null}}|null
      */
     private function validatedSuggestedLoopFor(mixed $suggested, Organization $organization, User $user): ?array
     {
@@ -145,12 +155,17 @@ class LoopController extends Controller
             return null;
         }
 
-        $reason = trim((string) ($suggested['reason'] ?? ''));
+        $aiWordingText = trim((string) ($suggested['provenance']['ai_wording']['text'] ?? ''));
 
         return [
             'id' => $loop->id,
             'label' => $loop->name,
-            'reason' => $reason !== '' ? $reason : null,
+            'provenance' => [
+                'verified' => [
+                    ['type' => 'active_membership', 'loop_id' => $loop->id],
+                ],
+                'ai_wording' => $aiWordingText !== '' ? ['text' => $aiWordingText, 'verified' => false] : null,
+            ],
         ];
     }
 
