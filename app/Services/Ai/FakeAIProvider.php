@@ -84,10 +84,21 @@ class FakeAIProvider implements AiProvider
                 'context' => 'La personne lance son activité et cherche des retours d\'expérience ou des contacts utiles.',
                 'expected_help_type' => 'conseils, retours d\'expérience, mise en relation',
                 'deadline' => ['has_deadline' => false, 'label' => null, 'date' => null],
+                // TASK-1321 : ce repli est deterministe, jamais lie a un
+                // membre ou une Organization reels — `verified` reste donc
+                // toujours vide ici. `loop-dev-commercial` n'est qu'un
+                // identifiant de demonstration ; c'est ce qui garantit qu'il
+                // ne survit jamais a `validatedSuggestedLoopFor()`.
                 'suggested_loop' => [
                     'id' => 'loop-dev-commercial',
                     'label' => 'Développement commercial',
-                    'reason' => 'Cette Boucle regroupe les membres qui échangent sur la prospection et les premiers clients.',
+                    'provenance' => [
+                        'verified' => [],
+                        'ai_wording' => [
+                            'text' => 'Cette Boucle regroupe les membres qui échangent sur la prospection et les premiers clients.',
+                            'verified' => false,
+                        ],
+                    ],
                 ],
                 'tone' => [
                     'label' => 'clair et accessible',
@@ -142,7 +153,13 @@ class FakeAIProvider implements AiProvider
                 'suggested_loop' => [
                     'id' => 'loop-communication',
                     'label' => 'Communication & rédaction',
-                    'reason' => 'Cette Boucle traite des sujets de rédaction, relecture et communication professionnelle.',
+                    'provenance' => [
+                        'verified' => [],
+                        'ai_wording' => [
+                            'text' => 'Cette Boucle traite des sujets de rédaction, relecture et communication professionnelle.',
+                            'verified' => false,
+                        ],
+                    ],
                 ],
                 'tone' => [
                     'label' => 'direct et efficace',
@@ -248,7 +265,13 @@ class FakeAIProvider implements AiProvider
                 'suggested_loop' => [
                     'id' => 'loop-communication',
                     'label' => 'Communication & rédaction',
-                    'reason' => 'Cette Boucle est la plus pertinente pour une proposition d\'aide en rédaction et conversion.',
+                    'provenance' => [
+                        'verified' => [],
+                        'ai_wording' => [
+                            'text' => 'Cette Boucle est la plus pertinente pour une proposition d\'aide en rédaction et conversion.',
+                            'verified' => false,
+                        ],
+                    ],
                 ],
                 'tone' => [
                     'label' => 'propositif et clair',

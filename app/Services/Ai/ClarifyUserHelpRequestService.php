@@ -235,6 +235,15 @@ class ClarifyUserHelpRequestService implements AiProvider
      * fournie au contexte est retenue ; tout le reste devient `null`, qui est un
      * resultat parfaitement valide.
      *
+     * TASK-1321 (dette P0 §7.3) : `suggestion_reason` est un texte LIBRE du
+     * modele — il ne constitue jamais une preuve. `provenance.verified` est
+     * reconstruit ici, INDEPENDAMMENT du texte du modele, a partir du seul
+     * fait confirme par cette methode : `$loop` figure dans `$loopsOffertes`,
+     * c'est-a-dire `UserLoopsSource` = appartenance active de ce membre a
+     * cette Boucle. `provenance.ai_wording` porte le texte du modele,
+     * explicitement marque `verified: false` — jamais fusionne avec le fait
+     * verifie.
+     *
      * @param  list<string>  $loopsOffertes
      */
     private function validatedLoopSuggestion(array $structured, array $loopsOffertes): ?array
@@ -256,7 +265,12 @@ class ClarifyUserHelpRequestService implements AiProvider
         return [
             'id' => $loop->id,
             'label' => $loop->name,
-            'reason' => $reason !== '' ? $reason : null,
+            'provenance' => [
+                'verified' => [
+                    ['type' => 'active_membership', 'loop_id' => $loop->id],
+                ],
+                'ai_wording' => $reason !== '' ? ['text' => $reason, 'verified' => false] : null,
+            ],
         ];
     }
 

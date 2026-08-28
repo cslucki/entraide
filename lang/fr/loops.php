@@ -27,6 +27,8 @@ return [
     'help_request_no_relay_loop' => 'Aucune Boucle',
     'help_request_continue_cta' => 'Continuer ma demande',
     'help_request_suggested_loop' => 'Boucle suggérée',
+    'help_request_suggested_loop_verified_active_membership' => 'vous êtes membre actif de cette Boucle',
+    'help_request_suggested_loop_ai_wording' => 'Formulation de l\'IA, non vérifiée',
     'help_request_suggested_category' => 'Catégorie suggérée',
     'help_request_publish_cta' => 'Publier dans cette Boucle',
     'help_request_no_loop_option' => '— Choisir une Boucle —',

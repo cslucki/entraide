@@ -2,6 +2,14 @@
 
 namespace App\Services\Ai\DTO;
 
+/**
+ * TASK-1321 : `$suggestedLoop`, quand non null, a la forme
+ * `{id, label, provenance: {verified: list<{type, loop_id}>, ai_wording: {text, verified: false}|null}}`.
+ * `provenance.verified` est un fait reconstruit cote serveur au point de
+ * validation (jamais transmis tel quel) ; `provenance.ai_wording` est le
+ * texte libre du modele, toujours marque `verified: false` — jamais presente
+ * comme une preuve.
+ */
 class AssistedInteractionLabResult
 {
     public function __construct(
