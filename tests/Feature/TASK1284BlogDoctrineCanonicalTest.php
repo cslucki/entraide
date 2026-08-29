@@ -375,8 +375,9 @@ class TASK1284BlogDoctrineCanonicalTest extends TestCase
         // (l'invariant de CE test est la presence des capabilities Blog et la
         // verite de l'inventaire herite, pas un total fige a jamais).
         // TASK-1309 : + `loop_hybrid_answer` (mode IA + Dossiers) = 10.
-        $this->assertSame(10, $coverage->coveredCount());
-        $this->assertSame(14, $coverage->totalCount());
+        // TASK-1327 : + `loop_decision_suggestion` (Decision Memory) = 11.
+        $this->assertSame(11, $coverage->coveredCount());
+        $this->assertSame(15, $coverage->totalCount());
     }
 
     public function test_the_constitution_is_actually_the_head_of_the_composed_prompt(): void
