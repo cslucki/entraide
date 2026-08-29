@@ -441,6 +441,10 @@ return [
         'scenario' => env('CHATLOOP_AI_SCENARIO', 'chatloop_ai_answer'),
         'ask_scenario' => env('CHATLOOP_AI_ASK_SCENARIO', 'chatloop_ai_ask'),
         'summarize_scenario' => env('CHATLOOP_AI_SUMMARIZE_SCENARIO', 'chatloop_ai_summarize'),
+        // TASK-1327 : suggestion de capitalisation d'une Decision (Premium-1).
+        // Temperature basse dediee : une extraction bornee, pas une redaction.
+        'decision_suggestion_scenario' => env('CHATLOOP_AI_DECISION_SUGGESTION_SCENARIO', 'loop_decision_suggestion'),
+        'decision_suggestion_temperature' => (float) env('CHATLOOP_AI_DECISION_SUGGESTION_TEMPERATURE', 0.2),
         'min_summary_words' => (int) env('CHATLOOP_AI_MIN_SUMMARY_WORDS', 30),
         'max_context_messages' => (int) env('CHATLOOP_AI_MAX_CONTEXT_MESSAGES', 30),
         'max_context_chars' => (int) env('CHATLOOP_AI_MAX_CONTEXT_CHARS', 12000),

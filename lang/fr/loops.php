@@ -239,6 +239,7 @@ return [
     'knowledge_prompt_missing' => 'La réponse documentaire n\'est pas configurée (prompt administrable absent).',
     'ai_summary_prompt_missing' => 'La synthèse IA n\'est pas configurée (prompt administrable absent).',
     'ai_answer_prompt_missing' => 'La réponse IA n\'est pas configurée (prompt administrable absent).',
+    'decision_suggestion_prompt_missing' => 'La suggestion de décision n\'est pas configurée (prompt administrable absent).',
     'knowledge_error' => 'La réponse documentaire est indisponible pour le moment. Réessayez plus tard.',
     'knowledge_disclaimer' => 'Réponse générée par l\'IA à partir des seuls extraits cités : vérifiez les sources avant toute décision.',
     'knowledge_open_source' => 'Ouvrir',
@@ -506,6 +507,16 @@ return [
             'action_started' => 'Action ajoutée à la Roadmap.',
 
             'message_removed' => 'Ce message a été retiré du ChatLoop.',
+
+            // TASK-1327 (Premium-1) : Decision Memory IA.
+            'suggest' => 'Cette discussion a-t-elle abouti à une décision ? (IA)',
+            'suggest_loading' => 'Lecture de la discussion…',
+            'suggest_title' => 'Cette discussion semble avoir abouti à une décision. La capitaliser ?',
+            'suggest_ai_note' => 'Proposition de l\'IA, non vérifiée : relisez, modifiez, puis capitalisez. Rien n\'est enregistré sans votre validation.',
+            'suggest_none' => 'Aucune décision claire détectée dans la discussion récente. Rien n\'a été enregistré.',
+            'suggest_promote' => 'Capitaliser cette décision',
+            'suggest_rate_limited' => 'Trop de demandes de suggestion. Réessayez dans une minute.',
+            'suggest_forbidden' => 'La suggestion de décision est réservée aux membres qui peuvent consigner.',
 
             'title_required' => 'Écrivez ce qui a été décidé.',
             'action_title_required' => 'Écrivez ce qu\'il faut faire.',
