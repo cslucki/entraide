@@ -7,6 +7,10 @@ use App\Livewire\LoopAiSummaryCard;
 use App\Models\AiInteraction;
 use App\Models\AiProviderInvocation;
 use App\Models\Loop;
+use App\Models\LoopDecision;
+use App\Models\LoopEvent;
+use App\Models\LoopMember;
+use App\Models\LoopRoadmapItem;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
@@ -70,7 +74,129 @@ class LoopAiSummaryCardTest extends TestCase
         Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
             ->assertSet('hasSummary', false)
             ->assertSet('canGenerate', true)
+            ->assertSeeHtml('data-loop-pulse')
+            ->assertViewHas('pulse', [
+                'members' => 1,
+                'roadmap' => 0,
+                'decisions' => 0,
+                'events' => 0,
+            ])
             ->assertSee(__('loops.cards.ai_summary.empty_title'));
+
+        LoopSummaryAgent::assertNeverPrompted();
+        Http::assertNothingSent();
+        $this->assertSame(0, AiProviderInvocation::count());
+    }
+
+    public function test_member_sees_exact_deterministic_loop_pulse_counts_and_canonical_ctas(): void
+    {
+        $secondMember = User::factory()->create(['organization_id' => $this->organization->id]);
+        LoopMember::factory()->create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'user_id' => $secondMember->id,
+        ]);
+        LoopMember::factory()->invited()->create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'user_id' => User::factory()->create(['organization_id' => $this->organization->id])->id,
+        ]);
+
+        LoopRoadmapItem::factory()->todo()->create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'created_by' => $this->member->id,
+        ]);
+        LoopRoadmapItem::factory()->inProgress()->create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'created_by' => $this->member->id,
+        ]);
+        LoopRoadmapItem::factory()->done()->create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'created_by' => $this->member->id,
+        ]);
+
+        foreach (['Décision A', 'Décision B'] as $title) {
+            LoopDecision::create([
+                'organization_id' => $this->organization->id,
+                'loop_id' => $this->loop->id,
+                'author_id' => $this->member->id,
+                'title' => $title,
+                'decided_on' => today(),
+            ]);
+        }
+
+        $this->createEvent([
+            'title' => 'Événement futur',
+            'starts_at' => now()->addDay(),
+            'ends_at' => now()->addDay()->addHour(),
+        ]);
+        $this->createEvent([
+            'title' => 'Événement en cours',
+            'starts_at' => now()->subHour(),
+            'ends_at' => now()->addHour(),
+        ]);
+        $this->createEvent([
+            'title' => 'Événement annulé',
+            'starts_at' => now()->addDays(2),
+            'ends_at' => now()->addDays(2)->addHour(),
+            'status' => LoopEvent::STATUS_CANCELLED,
+        ]);
+        $this->createEvent([
+            'title' => 'Événement passé',
+            'starts_at' => now()->subDays(2),
+            'ends_at' => now()->subDay(),
+        ]);
+
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('pulse', [
+                'members' => 2,
+                'roadmap' => 2,
+                'decisions' => 2,
+                'events' => 2,
+            ])
+            ->assertSeeHtml('data-loop-pulse-target="core.members"')
+            ->assertSeeHtml('data-loop-pulse-target="core.roadmap"')
+            ->assertSeeHtml('data-loop-pulse-target="core.decisions"')
+            ->assertSeeHtml('data-loop-pulse-target="core.events"')
+            ->assertSeeHtml("\$dispatch('bp-open-loop-card', { card: 'core.roadmap' })");
+
+        LoopSummaryAgent::assertNeverPrompted();
+        Http::assertNothingSent();
+        $this->assertSame(0, AiProviderInvocation::count());
+    }
+
+    public function test_in_progress_event_counts_as_living_in_loop_pulse(): void
+    {
+        $this->createEvent([
+            'title' => 'Réunion en cours',
+            'starts_at' => now()->subHour(),
+            'ends_at' => now()->addHour(),
+        ]);
+
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('pulse', fn (array $pulse) => $pulse['events'] === 1);
+    }
+
+    public function test_cancelled_future_event_does_not_count_as_living_in_loop_pulse(): void
+    {
+        $this->createEvent([
+            'title' => 'Réunion annulée',
+            'starts_at' => now()->addDay(),
+            'ends_at' => now()->addDay()->addHour(),
+            'status' => LoopEvent::STATUS_CANCELLED,
+        ]);
+
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('pulse', fn (array $pulse) => $pulse['events'] === 0);
     }
 
     /**
@@ -171,6 +297,7 @@ class LoopAiSummaryCardTest extends TestCase
 
         Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
             ->assertSet('canGenerate', false)
+            ->assertDontSeeHtml('data-loop-pulse')
             ->call('generate')
             ->assertSet('hasSummary', false);
 
@@ -186,6 +313,7 @@ class LoopAiSummaryCardTest extends TestCase
 
         Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
             ->assertSet('canGenerate', false)
+            ->assertDontSeeHtml('data-loop-pulse')
             ->call('generate')
             ->assertSet('hasSummary', false);
 
@@ -203,7 +331,26 @@ class LoopAiSummaryCardTest extends TestCase
 
         Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
             ->assertSet('canGenerate', false)
+            ->assertDontSeeHtml('data-loop-pulse')
             ->call('generate')
             ->assertSet('hasSummary', false);
+    }
+
+    /** @param array<string, mixed> $overrides */
+    private function createEvent(array $overrides = []): LoopEvent
+    {
+        return LoopEvent::create(array_merge([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'created_by' => $this->member->id,
+            'title' => 'Événement',
+            'format' => LoopEvent::FORMAT_ONLINE,
+            'starts_at' => now()->addDay(),
+            'ends_at' => now()->addDay()->addHour(),
+            'timezone' => 'Europe/Paris',
+            'meeting_url' => 'https://example.test/meeting',
+            'visibility' => LoopEvent::VISIBILITY_LOOP,
+            'status' => LoopEvent::STATUS_SCHEDULED,
+        ], $overrides));
     }
 }

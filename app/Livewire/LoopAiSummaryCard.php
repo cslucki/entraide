@@ -3,9 +3,13 @@
 namespace App\Livewire;
 
 use App\Models\Loop;
+use App\Models\LoopDecision;
+use App\Models\LoopEvent;
 use App\Models\LoopMember;
+use App\Models\LoopRoadmapItem;
 use App\Models\User;
 use App\Services\ChatLoop\ChatLoopAiService;
+use App\Services\Loops\LoopEventService;
 use App\Support\Ai\AiRefusedException;
 use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Component;
@@ -147,6 +151,40 @@ class LoopAiSummaryCard extends Component
 
     public function render()
     {
-        return view('livewire.loop-ai-summary-card');
+        return view('livewire.loop-ai-summary-card', [
+            'pulse' => $this->loopPulse(),
+        ]);
+    }
+
+    /**
+     * Etat metier partage par les Cards de la Boucle, sans inference IA.
+     *
+     * @return array{members: int, roadmap: int, decisions: int, events: int}|null
+     */
+    private function loopPulse(): ?array
+    {
+        // La Card Resume IA et son bandeau ont exactement la meme garde :
+        // membre actif de la bonne Organization, ou super-admin plateforme.
+        if (! $this->userCanGenerate()) {
+            return null;
+        }
+
+        // Reprendre la semantique de LoopEventsCard est volontaire : un
+        // Evenement en cours reste vivant, un Evenement annule en sort.
+        $livingEvents = app(LoopEventService::class)
+            ->forLoop($this->loop)
+            ->filter(fn (LoopEvent $event) => ! $event->isPast() && ! $event->isCancelled())
+            ->count();
+
+        return [
+            'members' => LoopMember::where('loop_id', $this->loop->id)
+                ->where('status', 'active')
+                ->count(),
+            'roadmap' => LoopRoadmapItem::where('loop_id', $this->loop->id)
+                ->open()
+                ->count(),
+            'decisions' => LoopDecision::where('loop_id', $this->loop->id)->count(),
+            'events' => $livingEvents,
+        ];
     }
 }
