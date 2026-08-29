@@ -11,6 +11,7 @@ use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
+use App\Services\ChatLoop\AiResponseExplanationService;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopMessageService;
 use App\Services\Loops\LoopAnswerCapitalizationService;
@@ -100,6 +101,17 @@ class LoopChat extends Component
     public ?string $editingMessageId = null;
 
     public string $editingBody = '';
+
+    /**
+     * TASK-1328 : panneau « Pourquoi cette réponse ? ». `null` = fermé. Un
+     * seul panneau à la fois, état côté serveur — il survit donc au
+     * `wire:poll` de la page (même motif que `$capitalizingMessageId`).
+     * `$whyPanel` ne contient QUE ce que le service a jugé montrable à CE
+     * spectateur : il voyage dans le snapshot, qui est lisible côté client.
+     */
+    public ?string $whyMessageId = null;
+
+    public ?array $whyPanel = null;
 
     public function mount(Loop $loop): void
     {
@@ -571,6 +583,73 @@ class LoopChat extends Component
         $this->capitalizeDossierId = (string) $dossier->id;
         $this->capitalizeTitle = $service->suggestedTitle($message);
         $this->capitalizeContent = (string) $message->body;
+    }
+
+    /**
+     * TASK-1328 : ouvre le panneau « Pourquoi cette réponse ? » d'une bulle
+     * IA. Le composant ne décide RIEN : le service refait toutes les gardes
+     * (tenant, adhésion active, bulle vivante de CETTE Boucle) et rend
+     * `null` à qui n'a pas à voir — y compris une requête forgée qui
+     * atteindrait cette méthode directement. Ouvrir n'écrit rien, nulle
+     * part : l'explication est une lecture.
+     */
+    public function showWhy(string $messageId, AiResponseExplanationService $service): void
+    {
+        $user = auth()->user();
+
+        if (! $user || ! $this->isMember) {
+            return;
+        }
+
+        $message = LoopMessage::where('id', $messageId)
+            ->where('loop_id', $this->loop->id)
+            ->first();
+
+        if ($message === null) {
+            return;
+        }
+
+        $panel = $service->explain($this->loop, $message, $user);
+
+        if ($panel === null) {
+            return;
+        }
+
+        $this->whyMessageId = $message->id;
+        $this->whyPanel = $panel;
+    }
+
+    public function closeWhy(): void
+    {
+        $this->whyMessageId = null;
+        $this->whyPanel = null;
+    }
+
+    /**
+     * TASK-1328 : verdict humain explicite (utile / à améliorer) sur la
+     * réponse dont le panneau est ouvert — la primitive TASK-1256, un
+     * jugement par personne, remplacé s'il est redonné. Toutes les gardes
+     * vivent dans le service.
+     */
+    public function submitWhyFeedback(string $verdict, AiResponseExplanationService $service): void
+    {
+        $user = auth()->user();
+
+        if (! $user || ! $this->isMember || $this->whyMessageId === null) {
+            return;
+        }
+
+        $message = LoopMessage::where('id', $this->whyMessageId)
+            ->where('loop_id', $this->loop->id)
+            ->first();
+
+        if ($message === null) {
+            return;
+        }
+
+        if ($service->submitFeedback($this->loop, $message, $user, $verdict)) {
+            $this->whyPanel = $service->explain($this->loop, $message, $user) ?? $this->whyPanel;
+        }
     }
 
     public function cancelCapitalization(): void
