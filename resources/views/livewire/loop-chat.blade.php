@@ -318,6 +318,26 @@
                                     @endif
                                 </div>
                             @endif
+                            {{-- TASK-1328 : « Pourquoi cette réponse ? » — sur TOUTE
+                                 bulle IA, pour tout membre. L'UI n'est pas la
+                                 barrière : le service refait toutes les gardes et
+                                 peut rendre un panneau « trace indisponible »
+                                 honnête sur une bulle antérieure au ledger. --}}
+                            @if($isMember)
+                                <div class="mt-2 border-t border-violet-200/70 pt-2 dark:border-violet-800/70">
+                                    <button
+                                        type="button"
+                                        wire:click="showWhy('{{ $msg->id }}')"
+                                        wire:loading.attr="disabled"
+                                        wire:target="showWhy('{{ $msg->id }}')"
+                                        data-why-open="{{ $msg->id }}"
+                                        class="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50/80 px-2.5 py-1 text-[11px] font-semibold text-violet-800 transition hover:border-violet-300 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-violet-800/60 dark:bg-violet-900/20 dark:text-violet-200 dark:hover:bg-violet-900/40"
+                                    >
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/></svg>
+                                        {{ __('loops.why_action') }}
+                                    </button>
+                                </div>
+                            @endif
                             </x-slot:footer>
                         </x-conversation.message-bubble>
                     @else
@@ -682,6 +702,135 @@
                         </button>
                     </div>
                 </form>
+            </div>
+        </template>
+    @endif
+
+    {{-- TASK-1328 : panneau « Pourquoi cette réponse ? ». Monté UNE fois, hors
+         de la boucle des messages, état côté serveur (`$whyMessageId`) — même
+         motif que le formulaire T1310 : un seul panneau, il survit au
+         `wire:poll`, et un snapshot rejoué ne peut montrer que ce que le
+         service a déjà jugé montrable à CE spectateur. Tout le contenu vient
+         de `$whyPanel` (assemblé par AiResponseExplanationService depuis les
+         traces réelles de génération), rendu ÉCHAPPÉ — jamais un prompt, une
+         réponse brute ou un identifiant technique de source refusée. --}}
+    @if($whyMessageId !== null && $whyPanel !== null)
+        <template x-teleport="body">
+            <div class="fixed inset-0 z-50 flex items-center justify-center px-3" data-why-panel
+                 x-data x-effect="document.body.style.overflow = 'hidden'"
+                 x-on:keydown.escape.window="$wire.closeWhy()">
+                <div class="fixed inset-0 bg-black/50" wire:click="closeWhy"></div>
+                <div class="relative w-full max-w-xl rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-800"
+                     style="max-height: calc(100dvh - 2rem); overflow-y: auto; padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px))">
+                    <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('loops.why_title') }}</h2>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('loops.why_intro') }}</p>
+
+                    <dl class="mt-4 space-y-1.5 text-xs">
+                        <div class="flex gap-2"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_org_label') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $whyPanel['organization_name'] }}</dd></div>
+                        <div class="flex gap-2"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_loop_label') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $whyPanel['loop_name'] }}</dd></div>
+                        @if($whyPanel['ai_mode'])
+                        <div class="flex gap-2"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_mode_label') }}</dt><dd class="text-gray-900 dark:text-gray-100" data-why-mode="{{ $whyPanel['ai_mode'] }}">{{ match($whyPanel['ai_mode']) {
+                            'llm' => __('loops.ia_mode_label'),
+                            'rag' => __('loops.dossiers_mode_label'),
+                            'llm_rag' => __('loops.hybrid_mode_label'),
+                            default => $whyPanel['ai_mode'],
+                        } }}</dd></div>
+                        @endif
+                        @if($whyPanel['requested_by_name'])
+                        <div class="flex gap-2"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_requested_by_label') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $whyPanel['requested_by_name'] }}</dd></div>
+                        @endif
+                        @if($whyPanel['question'])
+                        <div class="flex gap-2"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_question_label') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $whyPanel['question'] }}</dd></div>
+                        @endif
+                        @if($whyPanel['generated_at'])
+                        <div class="flex gap-2"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_generated_label') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $whyPanel['generated_at'] }}</dd></div>
+                        @endif
+                    </dl>
+
+                    @if($whyPanel['ledger'] === null)
+                        {{-- Bulle antérieure au ledger, trace introuvable ou
+                             incohérente : le gap est DIT, jamais comblé par une
+                             reconstruction plausible. --}}
+                        <p class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200" data-why-trace-unavailable>
+                            {{ __('loops.why_trace_unavailable') }}
+                        </p>
+                    @else
+                        <div class="mt-4 space-y-3" data-why-ledger data-why-capability="{{ $whyPanel['ledger']['capability'] }}">
+                            <div class="flex gap-2 text-xs"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_function_label') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $whyPanel['ledger']['capability_label'] }}</dd></div>
+
+                            <div class="rounded-lg border border-gray-200 p-2.5 text-xs dark:border-gray-700" data-why-conversation>
+                                <p class="font-semibold uppercase tracking-wide text-[11px] text-gray-500 dark:text-gray-400">{{ __('loops.why_conversation_title') }}</p>
+                                @if($whyPanel['ledger']['conversation'] === null)
+                                    <p class="mt-1 text-gray-600 dark:text-gray-300">{{ __('loops.why_conversation_unavailable') }}</p>
+                                @else
+                                    <p class="mt-1 text-gray-600 dark:text-gray-300" data-why-conversation-used="{{ $whyPanel['ledger']['conversation']['used_count'] }}">{{ trans_choice('loops.why_conversation_used', $whyPanel['ledger']['conversation']['used_count']) }}</p>
+                                    @if($whyPanel['ledger']['conversation']['hidden_count'] > 0)
+                                    <p class="mt-0.5 text-amber-700 dark:text-amber-300" data-why-conversation-hidden="{{ $whyPanel['ledger']['conversation']['hidden_count'] }}">{{ trans_choice('loops.why_conversation_hidden', $whyPanel['ledger']['conversation']['hidden_count']) }}</p>
+                                    @endif
+                                @endif
+                            </div>
+
+                            <div class="rounded-lg border border-gray-200 p-2.5 text-xs dark:border-gray-700" data-why-documents>
+                                <p class="font-semibold uppercase tracking-wide text-[11px] text-gray-500 dark:text-gray-400">{{ __('loops.why_documents_title') }}</p>
+                                @if($whyPanel['ledger']['documents'] === null)
+                                    <p class="mt-1 text-gray-600 dark:text-gray-300">{{ __('loops.why_documents_unavailable') }}</p>
+                                @elseif($whyPanel['ledger']['documents']['applies'] === false)
+                                    <p class="mt-1 text-gray-600 dark:text-gray-300" data-why-documents-none>{{ __('loops.why_documents_none') }}</p>
+                                @else
+                                    <p class="mt-1 text-gray-600 dark:text-gray-300">
+                                        {{ trans_choice('loops.why_documents_cited', $whyPanel['ledger']['documents']['cited_count']) }}
+                                        · {{ trans_choice('loops.why_documents_consulted', $whyPanel['ledger']['documents']['consulted_count']) }}
+                                    </p>
+                                    @if($whyPanel['ledger']['documents']['entries'] !== [])
+                                    <ul class="mt-1.5 space-y-1">
+                                        @foreach($whyPanel['ledger']['documents']['entries'] as $entry)
+                                        <li class="rounded border border-gray-200 px-2 py-1 dark:border-gray-700" data-why-document-entry>
+                                            @if($entry['ref'])<span class="font-mono text-[10px] text-sky-700 dark:text-sky-300">[{{ $entry['ref'] }}]</span>@endif
+                                            <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $entry['title'] }}</span>
+                                            @if($entry['dossier_name'])<span class="text-gray-500 dark:text-gray-400"> · {{ $entry['dossier_name'] }}</span>@endif
+                                        </li>
+                                        @endforeach
+                                    </ul>
+                                    @endif
+                                    @if($whyPanel['ledger']['documents']['masked_count'] > 0)
+                                    <p class="mt-1 text-amber-700 dark:text-amber-300" data-why-documents-masked="{{ $whyPanel['ledger']['documents']['masked_count'] }}">{{ trans_choice('loops.why_documents_masked', $whyPanel['ledger']['documents']['masked_count']) }}</p>
+                                    @endif
+                                @endif
+                            </div>
+
+                            @if($whyPanel['ledger']['denied_count'] > 0)
+                            <p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200" data-why-denied="{{ $whyPanel['ledger']['denied_count'] }}">
+                                {{ trans_choice('loops.why_denied', $whyPanel['ledger']['denied_count']) }}
+                            </p>
+                            @endif
+                        </div>
+                    @endif
+
+                    @if($whyPanel['can_feedback'])
+                    <div class="mt-4 border-t border-gray-200 pt-3 dark:border-gray-700" data-why-feedback>
+                        <p class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('loops.why_feedback_title') }}</p>
+                        <div class="mt-2 flex items-center gap-2">
+                            <button type="button" wire:click="submitWhyFeedback('helpful')" wire:loading.attr="disabled" wire:target="submitWhyFeedback"
+                                    data-why-feedback-helpful data-why-feedback-active="{{ $whyPanel['my_verdict'] === 'helpful' ? '1' : '0' }}"
+                                    class="rounded-full border px-3 py-1 text-[11px] font-semibold transition disabled:opacity-50 {{ $whyPanel['my_verdict'] === 'helpful' ? 'border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100' : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700' }}">
+                                {{ __('loops.why_feedback_helpful') }}
+                            </button>
+                            <button type="button" wire:click="submitWhyFeedback('improve')" wire:loading.attr="disabled" wire:target="submitWhyFeedback"
+                                    data-why-feedback-improve data-why-feedback-active="{{ $whyPanel['my_verdict'] === 'improve' ? '1' : '0' }}"
+                                    class="rounded-full border px-3 py-1 text-[11px] font-semibold transition disabled:opacity-50 {{ $whyPanel['my_verdict'] === 'improve' ? 'border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100' : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700' }}">
+                                {{ __('loops.why_feedback_improve') }}
+                            </button>
+                        </div>
+                    </div>
+                    @endif
+
+                    <div class="mt-4 flex justify-end">
+                        <button type="button" wire:click="closeWhy" data-why-close
+                                class="text-xs font-medium text-gray-600 transition hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100">
+                            {{ __('loops.why_close') }}
+                        </button>
+                    </div>
+                </div>
             </div>
         </template>
     @endif
