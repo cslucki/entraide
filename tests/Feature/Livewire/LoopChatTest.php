@@ -1386,7 +1386,9 @@ class LoopChatTest extends TestCase
         Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
             ->assertSeeHtml('rows="1"')
-            ->assertSeeHtml('x-on:input="resize()"')
+            // TASK-1329 : `x-on:input` porte aussi `hasText` (cinematique du
+            // bouton envoyer) en plus de l'appel a `resize()` verifie ici.
+            ->assertSeeHtml('x-on:input="resize(); hasText = $el.value.trim().length > 0"')
             ->assertSeeHtml('overflow-y-hidden')
             ->assertSeeHtml('if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }');
     }
