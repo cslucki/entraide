@@ -256,6 +256,10 @@ return [
         'enabled' => (bool) env('AI_SHELL_ENABLED', true),
         'max_thread_messages' => (int) env('AI_SHELL_MAX_THREAD_MESSAGES', 40),
         'max_input_chars' => (int) env('AI_SHELL_MAX_INPUT_CHARS', 2000),
+        // TASK-1326 : borne du contexte epingle. La limite est STRUCTURELLE
+        // (AiShellPinnedContext tronque a la relecture) : la reduire retire
+        // d'office les pins excedentaires.
+        'max_pins' => (int) env('AI_SHELL_MAX_PINS', 3),
         // Meme forme que `ai.chatloop.lock_ttl` : jamais sous le timeout
         // provider + 30 s, sinon le verrou expire pendant la generation.
         'lock_ttl' => (int) env('AI_SHELL_LOCK_TTL', 90),

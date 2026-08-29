@@ -98,6 +98,14 @@ final class AiShellResponder
      *                                       le premier tour ne doit pas changer
      *                                       de conversation sous les yeux de
      *                                       l'utilisateur.
+     * @param  list<array<string, mixed>>  $pinnedContext  contexte epingle (T1326),
+     *                                                     DEJA re-resolu par
+     *                                                     `AiShellPinnedContext::resolved()`
+     *                                                     dans CETTE requete — meme
+     *                                                     statut que le contexte de
+     *                                                     page : un indice
+     *                                                     d'intention trace, jamais
+     *                                                     un droit.
      * @return array{trigger: AiShellMessage, answer: AiShellMessage}
      */
     public function respond(
@@ -106,6 +114,7 @@ final class AiShellResponder
         string $prompt,
         array $pageContext,
         ?string $conversationId = null,
+        array $pinnedContext = [],
     ): array {
         $prompt = trim($prompt);
 
@@ -119,12 +128,12 @@ final class AiShellResponder
             self::lockKey($organization, $user),
             self::lockTtl(),
             __('ai.shell_turn_in_progress'),
-            function () use ($organization, $user, $prompt, $pageContext, $conversationId) {
+            function () use ($organization, $user, $prompt, $pageContext, $conversationId, $pinnedContext) {
                 // Le message humain est ecrit AVANT l'appel : meme si la generation
                 // echoue, l'utilisateur retrouve ce qu'il a demande dans son fil.
                 $trigger = $this->thread->appendUser($organization, $user, $prompt, [
                     'page_context' => $this->traceable($pageContext),
-                ], $conversationId);
+                ] + $this->pinnedTrace($pinnedContext), $conversationId);
 
                 // Idempotence (T1311) : un tour deja repondu ne se rejoue pas. La
                 // contrainte UNIQUE sur `reply_to_id` fait foi en base ; cette
@@ -135,7 +144,7 @@ final class AiShellResponder
                     return ['trigger' => $trigger, 'answer' => $existing];
                 }
 
-                [$content, $metadata] = $this->generate($organization, $user, $prompt, $pageContext);
+                [$content, $metadata] = $this->generate($organization, $user, $prompt, $pageContext, $pinnedContext);
 
                 $answer = $this->thread->appendAssistant($organization, $user, $content, $trigger, $metadata);
 
@@ -146,19 +155,20 @@ final class AiShellResponder
 
     /**
      * @param  array<string, mixed>  $pageContext
+     * @param  list<array<string, mixed>>  $pinnedContext
      * @return array{0: string, 1: array<string, mixed>}
      */
-    private function generate(Organization $organization, User $user, string $prompt, array $pageContext): array
+    private function generate(Organization $organization, User $user, string $prompt, array $pageContext, array $pinnedContext): array
     {
         try {
-            $result = $this->clarifier->clarifyForOrganization($organization, $user, $this->situated($prompt, $pageContext));
+            $result = $this->clarifier->clarifyForOrganization($organization, $user, $this->situated($prompt, $pageContext, $pinnedContext));
         } catch (DomainException $exception) {
             report($exception);
 
             return [__('ai.shell_answer_unavailable'), [
                 'status' => self::STATUS_UNAVAILABLE,
                 'page_context' => $this->traceable($pageContext),
-            ]];
+            ] + $this->pinnedTrace($pinnedContext)];
         }
 
         if ($result->isBlocked()) {
@@ -168,7 +178,7 @@ final class AiShellResponder
                     'status' => self::STATUS_BLOCKED,
                     'producer' => $result->producer,
                     'page_context' => $this->traceable($pageContext),
-                ],
+                ] + $this->pinnedTrace($pinnedContext),
             ];
         }
 
@@ -180,7 +190,7 @@ final class AiShellResponder
                 'status' => self::STATUS_UNAVAILABLE,
                 'producer' => $result->producer,
                 'page_context' => $this->traceable($pageContext),
-            ]];
+            ] + $this->pinnedTrace($pinnedContext)];
         }
 
         $content = trim((string) ($result->need !== '' ? $result->need : $result->title));
@@ -214,33 +224,91 @@ final class AiShellResponder
                 trim($prompt."\n".$result->need),
             ),
             'page_context' => $this->traceable($pageContext),
-        ]];
+        ] + $this->pinnedTrace($pinnedContext)];
     }
 
     /**
-     * La question, situee. Le contexte de page est un INDICE d'intention donne
-     * au modele — jamais un droit : les seules donnees qui entrent dans le
-     * prompt sont celles que `ContextBuilder` accepte de composer pour cet
-     * utilisateur, et le nom d'un objet que l'utilisateur a deja sous les yeux.
+     * La question, situee. Le contexte de page et le contexte epingle sont des
+     * INDICES d'intention donnes au modele — jamais un droit : les seules
+     * donnees qui entrent dans le prompt sont celles que `ContextBuilder`
+     * accepte de composer pour cet utilisateur, et les NOMS d'objets que
+     * l'utilisateur a deja sous les yeux (la page courante, et la liste de
+     * pins affichee dans le Shell — T1326 : ce qui est injecte est EXACTEMENT
+     * ce que l'utilisateur voit epingle, rien de cache).
      *
      * @param  array<string, mixed>  $pageContext
+     * @param  list<array<string, mixed>>  $pinnedContext
      */
-    private function situated(string $prompt, array $pageContext): string
+    private function situated(string $prompt, array $pageContext, array $pinnedContext = []): string
     {
+        $lines = [];
+
         $object = $pageContext['object'] ?? null;
 
-        if (! is_array($object) || ! isset($object['label'])) {
-            return $prompt;
+        if (is_array($object) && isset($object['label'])) {
+            $where = match ($object['type'] ?? '') {
+                'loop' => __('ai.shell_prompt_where_loop', ['name' => $object['label']]),
+                'dossier' => __('ai.shell_prompt_where_dossier', ['name' => $object['label']]),
+                'article' => __('ai.shell_prompt_where_article', ['name' => $object['label']]),
+                default => null,
+            };
+
+            if ($where !== null) {
+                $lines[] = $where;
+            }
         }
 
-        $where = match ($object['type'] ?? '') {
-            'loop' => __('ai.shell_prompt_where_loop', ['name' => $object['label']]),
-            'dossier' => __('ai.shell_prompt_where_dossier', ['name' => $object['label']]),
-            'article' => __('ai.shell_prompt_where_article', ['name' => $object['label']]),
-            default => null,
-        };
+        // Le budget est double : `max_pins` borne la liste, et chaque libelle
+        // est tronque — un nom d'objet n'est jamais un canal de contenu.
+        $items = [];
 
-        return $where === null ? $prompt : $where."\n".$prompt;
+        foreach ($pinnedContext as $pin) {
+            $name = Str::limit(trim((string) ($pin['label'] ?? '')), 120, '…');
+
+            if ($name === '') {
+                continue;
+            }
+
+            $item = match ($pin['kind'] ?? null) {
+                'loop' => __('ai.shell_prompt_pinned_loop', ['name' => $name]),
+                'dossier' => __('ai.shell_prompt_pinned_dossier', ['name' => $name]),
+                'article' => __('ai.shell_prompt_pinned_article', ['name' => $name]),
+                default => null,
+            };
+
+            if ($item !== null) {
+                $items[] = $item;
+            }
+        }
+
+        if ($items !== []) {
+            $lines[] = __('ai.shell_prompt_pinned', ['items' => implode(' ; ', $items)]);
+        }
+
+        return $lines === [] ? $prompt : implode("\n", [...$lines, $prompt]);
+    }
+
+    /**
+     * La trace d'un contexte epingle : des identifiants, de quoi relire quels
+     * pins etaient en vigueur au tour — jamais un libelle, jamais un droit.
+     * Rien a tracer quand rien n'est epingle.
+     *
+     * @param  list<array<string, mixed>>  $pinnedContext
+     * @return array<string, mixed>
+     */
+    private function pinnedTrace(array $pinnedContext): array
+    {
+        if ($pinnedContext === []) {
+            return [];
+        }
+
+        return ['pinned_context' => array_map(
+            fn (array $pin): array => [
+                'kind' => (string) ($pin['kind'] ?? ''),
+                'id' => (string) ($pin['id'] ?? ''),
+            ],
+            $pinnedContext,
+        )];
     }
 
     /**

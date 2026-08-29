@@ -690,4 +690,13 @@ return [
     'shell_card_reason_service_skill' => 'Skill from an active Service: :label',
     'shell_card_reason_generic' => 'Verified signal: :label',
     'shell_card_document_origin_page' => 'Page where the question was asked.',
+    'shell_pins_title' => 'Pinned context',
+    'shell_pin_add' => 'Pin this page',
+    'shell_pin_remove' => 'Remove from pinned context',
+    'shell_pin_limit_reached' => 'You already have :max pinned items. Remove one to add another.',
+    'shell_pins_note' => 'Pinned = kept at hand for your next questions. Grants no access.',
+    'shell_prompt_pinned' => 'The user keeps these items pinned as context for their request: :items.',
+    'shell_prompt_pinned_loop' => 'the Loop ":name"',
+    'shell_prompt_pinned_dossier' => 'the Dossier ":name"',
+    'shell_prompt_pinned_article' => 'the Article ":name"',
 ];

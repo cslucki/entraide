@@ -69,6 +69,51 @@
             </button>
         </div>
 
+        {{-- TASK-1326 — le contexte epingle : visible, retirable, borne. La
+             liste rendue ici est EXACTEMENT celle que le prochain tour recevra
+             (memes pins, re-resolus par AiShellPinnedContext au meme rendu) —
+             aucune source cachee. Noms et URLs sont relus a l'instant, jamais
+             stockes ; un pin dont l'objet ne passe plus sa garde a deja ete
+             retire avant d'arriver ici. --}}
+        @if(count($shell['pins']) > 0 || $shell['pinnable'] !== null)
+            <div class="border-b border-gray-100 px-4 py-2 dark:border-gray-700" data-ai-shell-pins data-ai-shell-pins-count="{{ count($shell['pins']) }}">
+                <div class="flex items-center justify-between gap-2">
+                    <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('ai.shell_pins_title') }}</p>
+                    @if($shell['pinnable'] !== null)
+                        <button type="button"
+                                wire:click="pin('{{ $shell['pinnable']['kind'] }}', '{{ $shell['pinnable']['id'] }}')"
+                                data-ai-shell-pin-add
+                                class="inline-flex max-w-[60%] items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800/60 dark:bg-indigo-900/30 dark:text-indigo-200">
+                            <svg class="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 17v5m-5-5 1.2-6.2a2 2 0 0 0-.6-1.9L6 7.4a1 1 0 0 1 .7-1.7h10.6a1 1 0 0 1 .7 1.7l-1.6 1.5a2 2 0 0 0-.6 1.9L17 17H7Z"/></svg>
+                            <span class="truncate">{{ __('ai.shell_pin_add') }}</span>
+                        </button>
+                    @endif
+                </div>
+                @if(count($shell['pins']) > 0)
+                    <ul class="mt-1.5 flex flex-wrap gap-1.5">
+                        @foreach($shell['pins'] as $pin)
+                            <li wire:key="ai-shell-pin-{{ $pin['kind'] }}-{{ $pin['id'] }}"
+                                data-ai-shell-pin="{{ $pin['kind'] }}:{{ $pin['id'] }}"
+                                class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 py-0.5 pl-1.5 pr-1 dark:border-gray-600 dark:bg-gray-700/60">
+                                <span class="rounded bg-white px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+                                    @if($pin['kind'] === \App\Support\Ai\AiShellPageContext::KIND_LOOP){{ __('ai.shell_card_loop_badge') }}@elseif($pin['kind'] === \App\Support\Ai\AiShellPageContext::KIND_DOSSIER){{ __('ai.shell_card_document_badge_dossier') }}@else{{ __('ai.shell_card_document_badge_article') }}@endif
+                                </span>
+                                <a href="{{ $pin['url'] }}" class="max-w-[11rem] truncate text-xs font-medium text-gray-700 hover:underline dark:text-gray-200">{{ $pin['label'] }}</a>
+                                <button type="button"
+                                        wire:click="unpin('{{ $pin['kind'] }}', '{{ $pin['id'] }}')"
+                                        data-ai-shell-pin-remove
+                                        aria-label="{{ __('ai.shell_pin_remove') }}"
+                                        class="rounded-full p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-600 dark:hover:text-gray-200">
+                                    <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+                                </button>
+                            </li>
+                        @endforeach
+                    </ul>
+                    <p class="mt-1 text-[10px] leading-4 text-gray-400 dark:text-gray-500" data-ai-shell-pins-note>{{ __('ai.shell_pins_note') }}</p>
+                @endif
+            </div>
+        @endif
+
         {{-- Le fil. --}}
         <div class="flex-1 overflow-y-auto px-4 py-3" x-ref="log" data-ai-shell-log>
             @if($shell['messages']->isEmpty())

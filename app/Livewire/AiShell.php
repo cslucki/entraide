@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Ai\AiShellResponder;
 use App\Support\Ai\AiFabContext;
 use App\Support\Ai\AiShellPageContext;
+use App\Support\Ai\AiShellPinnedContext;
 use App\Support\Ai\AiShellThread;
 use App\Support\Ai\AiShellTurnCards;
 use App\Support\Loops\HelpRequestHandoff;
@@ -133,7 +134,17 @@ class AiShell extends Component
         }
 
         try {
-            $turn = $responder->respond($organization, $user, $prompt, $this->pageContext(), $this->conversationId);
+            // TASK-1326 : le contexte epingle est re-resolu ICI, dans la
+            // requete du tour — c'est la revalidation « a chaque usage ». Ce
+            // qui ne passe plus n'est ni injecte ni conserve.
+            $turn = $responder->respond(
+                $organization,
+                $user,
+                $prompt,
+                $this->pageContext(),
+                $this->conversationId,
+                app(AiShellPinnedContext::class)->resolved($organization, $user),
+            );
 
             // La conversation reellement inscrite fait foi — le composant s'y
             // aligne, il ne la decide pas.
@@ -232,6 +243,49 @@ class AiShell extends Component
         return redirect()->to($this->requestsCreateUrl($organization));
     }
 
+    /**
+     * TASK-1326 — epingler un objet au contexte du Shell. Le couple (kind, id)
+     * vient du client — comme le `messageId` de `prepareRequest` — et il est
+     * REVALIDE par la garde de la page de l'objet au moment du geste : un
+     * identifiant forge ne peut epingler qu'un objet que l'utilisateur peut
+     * deja voir dans SA Organization. Epingler n'accorde rien : chaque usage
+     * du pin rejoue la meme garde.
+     */
+    public function pin(AiShellPinnedContext $pins, string $kind, string $objectId): void
+    {
+        $this->notice = null;
+        $this->confirmingClear = false;
+
+        [$user, $organization] = $this->actor();
+
+        if ($user === null || $organization === null) {
+            return;
+        }
+
+        $status = $pins->pin($organization, $user, $kind, $objectId);
+
+        if ($status === AiShellPinnedContext::PIN_LIMIT_REACHED) {
+            $this->notice = __('ai.shell_pin_limit_reached', ['max' => $pins->limit()]);
+        }
+    }
+
+    /**
+     * Retirer un pin — retrancher une entree de sa propre session, rien
+     * d'autre. Une valeur forgee ne retire rien ou retire un pin : inoffensif.
+     */
+    public function unpin(AiShellPinnedContext $pins, string $kind, string $objectId): void
+    {
+        $this->notice = null;
+
+        [$user, $organization] = $this->actor();
+
+        if ($user === null || $organization === null) {
+            return;
+        }
+
+        $pins->unpin($organization, $kind, $objectId);
+    }
+
     public function render(): View
     {
         [$user, $organization] = $this->actor();
@@ -254,6 +308,20 @@ class AiShell extends Component
         $messages = $thread->messages($organization, $user, $conversationId);
         $context = $this->pageContext();
 
+        // TASK-1326 : les pins re-resolus MAINTENANT — la liste affichee est
+        // celle qui serait injectee au prochain tour, et ce qui ne passe plus
+        // sa garde vient d'etre retire de la session. L'utilisateur voit
+        // exactement ce qui est epingle.
+        $pinnedContext = app(AiShellPinnedContext::class);
+        $pins = $pinnedContext->resolved($organization, $user);
+
+        $object = is_array($context['object'] ?? null) ? $context['object'] : null;
+        $pinnable = $object !== null
+            && in_array($object['type'] ?? null, AiShellPinnedContext::KINDS, true)
+            && ! collect($pins)->contains(
+                fn (array $pin): bool => $pin['kind'] === ($object['type'] ?? null) && $pin['id'] === (string) $object['id'],
+            );
+
         // TASK-1325 : les cartes de chaque tour, re-resolues et re-autorisees
         // MAINTENANT — une carte dont l'objet ne passe plus sa garde n'existe
         // plus. Une instance unique par rendu : son memo d'eligibilite tient
@@ -275,6 +343,11 @@ class AiShell extends Component
                 'conversation_id' => $conversationId,
                 'messages' => $messages,
                 'cards' => $cards,
+                'pins' => $pins,
+                'pinnable' => $pinnable
+                    ? ['kind' => (string) $object['type'], 'id' => (string) $object['id'], 'label' => (string) $object['label']]
+                    : null,
+                'pin_limit' => $pinnedContext->limit(),
                 'actions' => $this->actions($context),
                 'refusal' => $this->creditRefusal(),
                 'offers_url' => $this->fab()['offers_url'] ?? null,
