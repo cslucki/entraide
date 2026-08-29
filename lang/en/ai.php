@@ -413,6 +413,7 @@ return [
         'blog_correct' => 'Blog article correction',
         'member_profile_agent_loop_reply' => 'Profile agent reply in a Loop',
         'member_profile_agent_visitor_chat' => 'Profile agent visitor chat',
+        'loop_decision_suggestion' => 'Decision suggestion (Decision Memory)',
     ],
     'inherited_label' => [
         'member_profile_agent_setup' => 'Conversational AI profile setup',

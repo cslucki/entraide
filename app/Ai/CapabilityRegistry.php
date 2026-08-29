@@ -115,6 +115,23 @@ final class CapabilityRegistry
      */
     public const SOURCE_MEMBER_PROFILE = 'member.profile';
 
+    /**
+     * TASK-1327 (Premium-1) : « Decision Memory IA » — reperer, dans les
+     * messages recents d'une Boucle, une discussion qui semble avoir abouti a
+     * une decision, et PROPOSER sa capitalisation. La capability ne cree
+     * JAMAIS la Decision : elle pre-remplit le formulaire existant de
+     * `LoopDecisionsCard`, et seul `promote()` — le geste humain de
+     * TASK-1106 — ecrit dans `loop_decisions`.
+     *
+     * Capability distincte de `loop_summary` alors que la source est la MEME
+     * (les messages de la Boucle), pour la raison posee par TASK-1309 : le
+     * CONTRAT de reponse est incompatible. Le resume produit un texte libre ;
+     * la suggestion produit un JSON borne (`decision_found`, `title`,
+     * `rationale`, `source_message_id`) dont l'identifiant est revalide
+     * serveur contre l'ensemble exact fourni au contexte.
+     */
+    public const LOOP_DECISION_SUGGESTION = 'loop_decision_suggestion';
+
     /** @var array<string, CapabilityDefinition> */
     private array $definitions;
 
@@ -282,6 +299,32 @@ final class CapabilityRegistry
             contextCharBudget: self::memberProfileContextBudget(),
         );
 
+        // TASK-1327 : « Decision Memory IA ». PROCESS VOLONTAIREMENT IDENTIQUE
+        // a `loop_summary` (`chatloop.summarize`) : meme acte economique —
+        // lire les messages autorises de la Boucle et generer, sans rien
+        // publier — donc le meme seau de credit, le meme plafond Organization
+        // et la meme fenetre d'autorite du ledger, exactement le geste
+        // TASK-1309 (`loop_hybrid_answer` sur le process du mode Dossiers).
+        // Ce qui trace le mode reste EXPLICITE : la capability est une colonne
+        // de premier rang du ledger et de `metadata.capability`.
+        //
+        // `requiresHumanConfirmation: true` comme `clarify_help_request` : la
+        // capability PROPOSE, l'humain valide via la surface canonique.
+        // `canWrite: false` : aucune contribution visible sans validation.
+        $loopDecisionSuggestion = new CapabilityDefinition(
+            id: self::LOOP_DECISION_SUGGESTION,
+            process: AiProcess::fromFeature('chatloop_ai_summarize'),
+            requiresHumanConfirmation: true,
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
+            allowedSources: [self::SOURCE_LOOP_MESSAGES],
+            // Un JSON court (titre + rationale + un identifiant) : la borne de
+            // clarify, pas celle d'un texte libre.
+            maxOutput: 2000,
+            promptKey: 'loop_decision_suggestion',
+            contextCharBudget: self::loopSummaryContextBudget(),
+        );
+
         $this->definitions = [
             $loopSummary->id => $loopSummary,
             $clarifyHelpRequest->id => $clarifyHelpRequest,
@@ -293,6 +336,7 @@ final class CapabilityRegistry
             $blogCorrect->id => $blogCorrect,
             $memberProfileLoopReply->id => $memberProfileLoopReply,
             $memberProfileVisitorChat->id => $memberProfileVisitorChat,
+            $loopDecisionSuggestion->id => $loopDecisionSuggestion,
         ];
     }
 

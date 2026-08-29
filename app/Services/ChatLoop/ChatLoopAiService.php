@@ -2,6 +2,7 @@
 
 namespace App\Services\ChatLoop;
 
+use App\Ai\Agents\LoopDecisionSuggestionAgent;
 use App\Ai\Agents\LoopDirectAnswerAgent;
 use App\Ai\Agents\LoopSummaryAgent;
 use App\Ai\CapabilityDefinition;
@@ -21,6 +22,8 @@ use App\Models\LoopMessage;
 use App\Models\User;
 use App\Services\Ai\AiConversationContextBuilder;
 use App\Services\Ai\AiProviderInvocationLedger;
+use App\Services\Ai\JsonResponseParser;
+use App\Services\Loops\LoopDecisionService;
 use App\Support\Ai\AiCorrelation;
 use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
@@ -30,6 +33,7 @@ use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiTurnIdempotency;
 use App\Support\Ai\AiTurnLock;
 use App\Support\Ai\AiUsage;
+use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Facades\DB;
 
 class ChatLoopAiService
@@ -396,6 +400,310 @@ class ChatLoopAiService
     }
 
     /**
+     * Capability `loop_decision_suggestion` — « Decision Memory IA »
+     * (TASK-1327 / Premium-1).
+     *
+     * La capability PROPOSE, elle n'ecrit JAMAIS : `canWrite=false`,
+     * `requiresHumanConfirmation=true`. Aucune ligne de `loop_decisions` n'est
+     * touchee ici — la suggestion pre-remplit le formulaire de
+     * `LoopDecisionsCard`, et seul `promote()` (le geste humain de TASK-1106)
+     * capitalise. La suggestion validee vit dans `metadata.decision_suggestion`
+     * du tour (`ai_interactions`), le motif AiShellResponder.
+     *
+     * Meme chaine canonique que `summarize()` : capability -> Constitution ->
+     * doctrine -> prompt administrable EXIGE -> Context Builder -> provider et
+     * credential de l'Organization -> AiEconomicGuard (process partage
+     * `chatloop.summarize` : meme acte economique, meme seau) -> invocation SDK
+     * tracee.
+     *
+     * Le modele recoit, APRES le contexte du Builder, un index des messages
+     * candidats (id | auteur | date | extrait) derive STRICTEMENT de la
+     * provenance du Builder — le motif `UserLoopsSource` : les identifiants
+     * offerts sont la seule monnaie que le modele peut rendre, et
+     * `validatedSuggestion()` ne retient qu'une correspondance EXACTE
+     * (motif clarify, TASK-1321).
+     */
+    public function suggestDecision(Loop $loop, User $requester): LoopDecisionSuggestion
+    {
+        $this->assertCanRequest($loop, $requester);
+
+        // Le contrat Premium-1 : ne JAMAIS proposer une capitalisation a qui
+        // n'a pas le droit de consigner. La Card filtre deja son bouton et
+        // revalide au geste, mais la garde vit AUSSI dans la primitive — une
+        // garde laissee au seul appelant se perd.
+        if (! app(LoopPermissionResolver::class)->can($requester, $loop, 'decisions.record')) {
+            throw new \RuntimeException(__('loops.cards.decisions.suggest_forbidden'));
+        }
+
+        return AiTurnLock::run($loop, $requester, function () use ($loop, $requester) {
+            $locale = $this->resolveLocale($requester, $loop);
+
+            if (! $this->loopHasEnoughContent($loop)) {
+                throw new \RuntimeException(__('loops.not_enough_content_to_summarize'));
+            }
+
+            $capability = CapabilityRegistry::LOOP_DECISION_SUGGESTION;
+            $definition = $this->capabilities->get($capability);
+
+            // La Boucle est une PORTEE a l'interieur du tenant, jamais le tenant.
+            $this->capabilities->assertScopeAllowed($capability, CapabilityRegistry::SCOPE_LOOP);
+
+            $organization = $loop->organization()->firstOrFail();
+
+            $contexte = new ContexteIa(
+                organizationId: (string) $organization->id,
+                userId: (string) $requester->id,
+                loopId: (string) $loop->id,
+                locale: $locale,
+                capability: $capability,
+                correlationId: AiCorrelation::id(),
+                source: CapabilityRegistry::SOURCE_LOOP_MESSAGES,
+            );
+
+            $scenarioId = (string) config('ai.chatloop.decision_suggestion_scenario', 'loop_decision_suggestion');
+
+            // Constitution d'abord, doctrine de l'Organization, puis le prompt
+            // administrable EXIGE — aucun repli hardcode (regle TASK-1221).
+            $instructions = $this->prompts->compose(
+                $capability,
+                $this->resolvePromptOrFail($scenarioId, $locale, 'loops.decision_suggestion_prompt_missing'),
+                (string) $organization->id,
+            );
+            $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
+
+            $borne = $this->contextBuilder->build($contexte, $definition);
+
+            $candidates = $this->decisionCandidates(
+                $loop,
+                $borne->provenanceFor(CapabilityRegistry::SOURCE_LOOP_MESSAGES),
+            );
+
+            if ($candidates === []) {
+                // Rien a offrir au modele : aucune suggestion, aucun appel.
+                return LoopDecisionSuggestion::none();
+            }
+
+            $prompt = $borne->text."\n\n".$this->candidatesBlock($candidates, $locale);
+
+            try {
+                $resolved = $this->providers->resolve($capability, $contexte);
+            } catch (\DomainException $exception) {
+                throw AiRefusedException::notConfigured($exception);
+            }
+
+            // Process partage avec le resume : memes bornes de garde, meme
+            // seau — un 15e process rouvrirait la convergence economique
+            // fermee par TASK-1286/1291 (regle TASK-1309).
+            $verdict = $this->economicGuard->authorize(
+                $organization,
+                $definition->process,
+                $resolved->provider,
+                $resolved->model,
+                (float) config('ai.chatloop.summary_economic_guard.monthly_budget_usd', 2.00),
+                (int) config('ai.chatloop.summary_economic_guard.monthly_unknown_limit', 10),
+                $requester,
+            );
+
+            if (! $verdict->allowed) {
+                throw AiRefusedException::fromVerdict($verdict, 'loops.ai_summary_temporarily_unavailable');
+            }
+
+            $agent = new LoopDecisionSuggestionAgent(
+                $instructions,
+                (int) config('ai.chatloop.max_tokens', 512),
+                // Une extraction bornee, pas une redaction creative.
+                (float) config('ai.chatloop.decision_suggestion_temperature', 0.2),
+            );
+
+            $interaction = $this->generateViaSdk(
+                agent: $agent,
+                loop: $loop,
+                requester: $requester,
+                contexte: $contexte,
+                definition: $definition,
+                resolved: $resolved,
+                scenarioId: $scenarioId,
+                prompt: $prompt,
+                extraMetadata: [
+                    'provenance' => [
+                        CapabilityRegistry::SOURCE_LOOP_MESSAGES => array_column($candidates, 'id'),
+                    ],
+                    'sources_used' => $borne->sourcesUsed,
+                    'sources_denied' => $borne->sourcesDenied,
+                ],
+                doctrineVersion: $doctrineVersion,
+            );
+
+            return $this->validatedSuggestion($loop, $interaction, array_column($candidates, 'id'));
+        });
+    }
+
+    /**
+     * Les messages que le modele a REELLEMENT recus, hydrates pour l'index des
+     * candidats — l'intersection entre la selection de la source et la
+     * provenance retenue par le Builder (meme geste que `triggerMessageId()` :
+     * meme ensemble, aucune derive possible).
+     *
+     * @param  list<array{source: string, id: string, type: string, extrait: string}>  $provenance
+     * @return list<array{id: string, author: string, date: string, excerpt: string}>
+     */
+    private function decisionCandidates(Loop $loop, array $provenance): array
+    {
+        $ids = array_map(static fn (array $entry): string => (string) $entry['id'], $provenance);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $candidates = [];
+
+        foreach ($this->loopMessages->selectMessages($loop) as $message) {
+            if (! in_array((string) $message->id, $ids, true)) {
+                continue;
+            }
+
+            $body = $this->loopMessages->plainText((string) $message->body);
+
+            if ($body === '') {
+                continue;
+            }
+
+            $candidates[] = [
+                'id' => (string) $message->id,
+                'author' => $this->loopMessages->authorOf($message),
+                'date' => (string) $message->created_at?->toDateString(),
+                'excerpt' => mb_substr($body, 0, 120),
+            ];
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * L'index des candidats offert au modele. Les identifiants sont la seule
+     * monnaie qu'il peut rendre — motif `UserLoopsSource`, ou la liste bornee
+     * des Boucles autorisees joue exactement ce role.
+     *
+     * @param  list<array{id: string, author: string, date: string, excerpt: string}>  $candidates
+     */
+    private function candidatesBlock(array $candidates, string $locale): string
+    {
+        [$header, $footer] = $locale === 'en'
+            ? ['--- CANDIDATE MESSAGES (id | author | date | excerpt) ---', '--- END OF CANDIDATE MESSAGES ---']
+            : ['--- MESSAGES CANDIDATS (id | auteur | date | extrait) ---', '--- FIN DES MESSAGES CANDIDATS ---'];
+
+        $lines = array_map(
+            static fn (array $candidate): string => '- '.$candidate['id'].' | '.$candidate['author'].' | '.$candidate['date'].' | '.$candidate['excerpt'],
+            $candidates,
+        );
+
+        return $header."\n".implode("\n", $lines)."\n".$footer;
+    }
+
+    /**
+     * Revalidation serveur de la suggestion (motif clarify, TASK-1321).
+     *
+     * Le modele peut renvoyer n'importe quelle chaine : un identifiant
+     * plausible mais inexistant, celui d'un message d'une autre Boucle ou
+     * d'une autre Organization, un message supprime, un message deja promu.
+     * Aucune de ces valeurs ne doit survivre. Seule une correspondance EXACTE
+     * avec la liste effectivement fournie au contexte, confirmee en base dans
+     * CETTE Boucle, est retenue ; tout le reste devient « aucune suggestion »,
+     * qui est un resultat parfaitement valide — une suggestion sans provenance
+     * verifiable ne se presente pas.
+     *
+     * `provenance.verified` est reconstruit ICI, independamment du texte du
+     * modele, a partir du seul fait confirme : le message existe dans cette
+     * Boucle, non supprime, non promu. `ai_wording` (titre + rationale) reste
+     * explicitement `verified: false` — jamais fusionne avec le fait verifie.
+     *
+     * @param  list<string>  $candidateIds
+     */
+    private function validatedSuggestion(Loop $loop, AiInteraction $interaction, array $candidateIds): LoopDecisionSuggestion
+    {
+        $decoded = json_decode(
+            JsonResponseParser::extractJsonFromText((string) $interaction->response),
+            true,
+        );
+
+        if (! is_array($decoded) || ! (bool) ($decoded['decision_found'] ?? false)) {
+            return $this->traceSuggestion($interaction, ['decision_found' => false], LoopDecisionSuggestion::none((string) $interaction->id));
+        }
+
+        // Les memes bornes que la surface canonique : `LoopDecisionService`
+        // tronque a 255/5000, autant offrir au formulaire ce qui sera garde.
+        $title = mb_substr(trim((string) ($decoded['title'] ?? '')), 0, 255);
+        $rationale = mb_substr(trim((string) ($decoded['rationale'] ?? '')), 0, 5000);
+        $messageId = trim((string) ($decoded['source_message_id'] ?? ''));
+
+        if ($title === '' || $messageId === '' || ! in_array($messageId, $candidateIds, true)) {
+            return $this->traceSuggestion($interaction, ['decision_found' => false], LoopDecisionSuggestion::none((string) $interaction->id));
+        }
+
+        // La confirmation en base, dans CETTE Boucle — la moderation est
+        // terminale pour la promotion, y compris via une suggestion IA.
+        $message = LoopMessage::where('loop_id', $loop->id)
+            ->whereNull('deleted_at')
+            ->whereKey($messageId)
+            ->first();
+
+        if (! $message) {
+            return $this->traceSuggestion($interaction, ['decision_found' => false], LoopDecisionSuggestion::none((string) $interaction->id));
+        }
+
+        // Un message deja consigne ne se re-propose pas : deux promotions du
+        // meme message feraient deux Decisions pour un seul choix.
+        if (app(LoopDecisionService::class)->isPromoted($loop, $message)) {
+            return $this->traceSuggestion($interaction, ['decision_found' => false], LoopDecisionSuggestion::none((string) $interaction->id));
+        }
+
+        $excerpt = mb_substr($this->loopMessages->plainText((string) $message->body), 0, 160);
+
+        return $this->traceSuggestion(
+            $interaction,
+            [
+                'decision_found' => true,
+                'provenance' => [
+                    'verified' => [
+                        [
+                            'type' => 'loop_message_reference',
+                            'loop_message_id' => (string) $message->id,
+                            'loop_id' => (string) $loop->id,
+                        ],
+                    ],
+                    'ai_wording' => [
+                        'title' => $title,
+                        'rationale' => $rationale,
+                        'verified' => false,
+                    ],
+                ],
+            ],
+            LoopDecisionSuggestion::found(
+                messageId: (string) $message->id,
+                title: $title,
+                rationale: $rationale,
+                excerpt: $excerpt,
+                aiInteractionId: (string) $interaction->id,
+            ),
+        );
+    }
+
+    /**
+     * La suggestion — validee ou refusee — dans la metadata du tour : c'est la
+     * seule persistance de Premium-1, une trace, jamais une Decision.
+     *
+     * @param  array<string, mixed>  $suggestionMeta
+     */
+    private function traceSuggestion(AiInteraction $interaction, array $suggestionMeta, LoopDecisionSuggestion $suggestion): LoopDecisionSuggestion
+    {
+        $metadata = is_array($interaction->metadata) ? $interaction->metadata : [];
+
+        $interaction->update(['metadata' => $metadata + ['decision_suggestion' => $suggestionMeta]]);
+
+        return $suggestion;
+    }
+
+    /**
      * Appel texte du Laravel AI SDK + trace P1 unique.
      *
      * Une operation utilisateur = un `correlation_id` metier, porte par le
@@ -450,7 +758,7 @@ class ChatLoopAiService
      * @param  array<string, mixed>  $extraMetadata
      */
     private function generateViaSdk(
-        LoopSummaryAgent|LoopDirectAnswerAgent $agent,
+        LoopSummaryAgent|LoopDirectAnswerAgent|LoopDecisionSuggestionAgent $agent,
         Loop $loop,
         User $requester,
         ContexteIa $contexte,
@@ -643,6 +951,12 @@ class ChatLoopAiService
             ->where('process', AiProcess::fromFeature(
                 (string) config('ai.chatloop.summarize_scenario', 'chatloop_ai_summarize')
             ))
+            // TASK-1327 : `loop_decision_suggestion` partage VOLONTAIREMENT le
+            // process `chatloop.summarize` (meme acte economique). Le dernier
+            // RESUME se reconnait donc a sa feature — prefixe pour couvrir les
+            // traces historiques suffixees de locale — sinon le JSON brut
+            // d'une suggestion deviendrait « le dernier resume » de la carte.
+            ->where('feature', 'like', (string) config('ai.chatloop.summarize_scenario', 'chatloop_ai_summarize').'%')
             ->where('metadata->loop_id', $loop->id)
             ->whereNotNull('response')
             ->where('response', '!=', '')

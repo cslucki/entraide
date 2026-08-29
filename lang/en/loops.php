@@ -239,6 +239,7 @@ return [
     'knowledge_prompt_missing' => 'The documentary answer is not configured (missing admin prompt).',
     'ai_summary_prompt_missing' => 'The AI summary is not configured (missing admin prompt).',
     'ai_answer_prompt_missing' => 'The AI answer is not configured (managed prompt missing).',
+    'decision_suggestion_prompt_missing' => 'The decision suggestion is not configured (managed prompt missing).',
     'knowledge_error' => 'The documentary answer is unavailable right now. Please try again later.',
     'knowledge_disclaimer' => 'AI-generated answer based only on the cited excerpts: check the sources before any decision.',
     'knowledge_open_source' => 'Open',
@@ -506,6 +507,16 @@ return [
             'action_started' => 'Action added to the roadmap.',
 
             'message_removed' => 'This message was removed from ChatLoop.',
+
+            // TASK-1327 (Premium-1): Decision Memory AI.
+            'suggest' => 'Did this discussion reach a decision? (AI)',
+            'suggest_loading' => 'Reading the discussion…',
+            'suggest_title' => 'This discussion seems to have reached a decision. Capitalize it?',
+            'suggest_ai_note' => 'AI proposal, unverified: review, edit, then capitalize. Nothing is recorded without your validation.',
+            'suggest_none' => 'No clear decision detected in the recent discussion. Nothing was recorded.',
+            'suggest_promote' => 'Capitalize this decision',
+            'suggest_rate_limited' => 'Too many suggestion requests. Try again in a minute.',
+            'suggest_forbidden' => 'Decision suggestions are reserved for members who can record decisions.',
 
             'title_required' => 'Write what was decided.',
             'action_title_required' => 'Write what needs doing.',
