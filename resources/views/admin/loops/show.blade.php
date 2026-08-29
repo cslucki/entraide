@@ -148,9 +148,18 @@
             @endforelse
         </section>
 
-        {{-- Composition locale des Cards --}}
+        {{-- Composition locale des Cards — lecture seule ici, comme le reste
+             de cette page : le geste d'activer/désactiver vit sur Outils. --}}
         <div class="mb-5">
-            <x-loops.card-composition :loop="$boucle" :composition="$composition"
+            @if($canConfigureCards)
+                <div class="mb-2 flex justify-end">
+                    <a href="{{ route('admin.loops.configure', $boucle) }}"
+                       class="text-xs font-semibold text-violet-700 hover:underline dark:text-violet-300">
+                        {{ __('loops.cards_manage_in_tools') }} →
+                    </a>
+                </div>
+            @endif
+            <x-loops.card-composition :loop="$boucle" :composition="$composition" :readonly="true"
                 :action="route('admin.loops.cards.update', $boucle)" />
         </div>
 
