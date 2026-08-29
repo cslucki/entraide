@@ -1010,7 +1010,7 @@ return [
     'preset_grid_hint' => ':slots au maximum. Ce sont elles qui disent ce qu\'on fait dans cette Boucle.',
     'preset_available_title' => 'Catalogue compatible',
     'preset_chat_title' => 'Actions de ChatLoop',
-    'preset_chat_hint' => 'Rejoignent les actions IA de ChatLoop plutôt que la grille d\'outils. Ne comptent pas dans le plafond de Cards distinctives.',
+    'preset_chat_hint' => 'Rejoignent les actions IA de ChatLoop plutôt que la grille d\'outils. Ne comptent pas parmi les outils mis en avant.',
     'cards_state_active' => 'Active',
     'cards_state_inactive' => 'Inactive',
     'cards_manage_in_tools' => 'Gérer dans Outils',

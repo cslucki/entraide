@@ -1008,7 +1008,7 @@ return [
     'preset_grid_hint' => ':slots at most. These are what say what this Loop is for.',
     'preset_available_title' => 'Compatible catalogue',
     'preset_chat_title' => 'ChatLoop actions',
-    'preset_chat_hint' => 'Join ChatLoop\'s AI actions rather than the tool grid. Do not count toward the distinctive-Cards cap.',
+    'preset_chat_hint' => 'Join ChatLoop\'s AI actions rather than the tool grid. Do not count toward the featured tools.',
     'cards_state_active' => 'Active',
     'cards_state_inactive' => 'Inactive',
     'cards_manage_in_tools' => 'Manage in Tools',
