@@ -230,6 +230,7 @@ return [
         'members' => 'Membres actifs',
         'roadmap' => 'Roadmap ouverte',
         'decisions' => 'Décisions',
+        'polls' => 'Sondages ouverts',
         'events' => 'Événements à venir',
         'open_card' => 'Ouvrir la Card :label',
     ],

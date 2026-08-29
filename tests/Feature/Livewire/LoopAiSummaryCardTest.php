@@ -7,9 +7,11 @@ use App\Livewire\LoopAiSummaryCard;
 use App\Models\AiInteraction;
 use App\Models\AiProviderInvocation;
 use App\Models\Loop;
+use App\Models\LoopCard;
 use App\Models\LoopDecision;
 use App\Models\LoopEvent;
 use App\Models\LoopMember;
+use App\Models\LoopPoll;
 use App\Models\LoopRoadmapItem;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
@@ -77,8 +79,7 @@ class LoopAiSummaryCardTest extends TestCase
             ->assertSeeHtml('data-loop-pulse')
             ->assertViewHas('pulse', [
                 'members' => 1,
-                'roadmap' => 0,
-                'decisions' => 0,
+                'polls' => 0,
                 'events' => 0,
             ])
             ->assertSee(__('loops.cards.ai_summary.empty_title'));
@@ -90,6 +91,9 @@ class LoopAiSummaryCardTest extends TestCase
 
     public function test_member_sees_exact_deterministic_loop_pulse_counts_and_canonical_ctas(): void
     {
+        $this->setCardEnabled('core.roadmap');
+        $this->setCardEnabled('core.decisions');
+
         $secondMember = User::factory()->create(['organization_id' => $this->organization->id]);
         LoopMember::factory()->create([
             'organization_id' => $this->organization->id,
@@ -128,6 +132,13 @@ class LoopAiSummaryCardTest extends TestCase
             ]);
         }
 
+        $this->createPoll(['question' => 'Sondage ouvert']);
+        $this->createPoll([
+            'question' => 'Sondage fermé',
+            'status' => LoopPoll::STATUS_CLOSED,
+            'closed_at' => now(),
+        ]);
+
         $this->createEvent([
             'title' => 'Événement futur',
             'starts_at' => now()->addDay(),
@@ -157,13 +168,103 @@ class LoopAiSummaryCardTest extends TestCase
                 'members' => 2,
                 'roadmap' => 2,
                 'decisions' => 2,
+                'polls' => 1,
                 'events' => 2,
             ])
             ->assertSeeHtml('data-loop-pulse-target="core.members"')
             ->assertSeeHtml('data-loop-pulse-target="core.roadmap"')
             ->assertSeeHtml('data-loop-pulse-target="core.decisions"')
+            ->assertSeeHtml('data-loop-pulse-target="core.polls"')
             ->assertSeeHtml('data-loop-pulse-target="core.events"')
             ->assertSeeHtml("\$dispatch('bp-open-loop-card', { card: 'core.roadmap' })");
+
+        LoopSummaryAgent::assertNeverPrompted();
+        Http::assertNothingSent();
+        $this->assertSame(0, AiProviderInvocation::count());
+    }
+
+    public function test_inactive_card_removes_its_metric_count_and_cta(): void
+    {
+        $this->createEvent();
+        $this->setCardEnabled('core.events', false);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('pulse', fn (array $pulse) => ! array_key_exists('events', $pulse))
+            ->assertDontSeeHtml('data-loop-pulse-count="events"')
+            ->assertDontSeeHtml('data-loop-pulse-target="core.events"');
+    }
+
+    public function test_active_card_without_view_permission_removes_its_metric_count_and_cta(): void
+    {
+        $this->createEvent();
+        config(['loop_permissions.role_defaults.owner' => array_values(array_diff(
+            config('loop_permissions.role_defaults.owner'),
+            ['events.view'],
+        ))]);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('pulse', fn (array $pulse) => ! array_key_exists('events', $pulse))
+            ->assertDontSeeHtml('data-loop-pulse-count="events"')
+            ->assertDontSeeHtml('data-loop-pulse-target="core.events"');
+    }
+
+    public function test_members_metric_requires_the_members_card_view_permission(): void
+    {
+        config(['loop_permissions.role_defaults.owner' => array_values(array_diff(
+            config('loop_permissions.role_defaults.owner'),
+            ['loop_members.view'],
+        ))]);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('pulse', fn (array $pulse) => ! array_key_exists('members', $pulse))
+            ->assertDontSeeHtml('data-loop-pulse-count="members"')
+            ->assertDontSeeHtml('data-loop-pulse-target="core.members"');
+    }
+
+    public function test_open_poll_is_counted_exactly_in_loop_pulse(): void
+    {
+        $this->createPoll(['question' => 'Question ouverte']);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('pulse', fn (array $pulse) => $pulse['polls'] === 1)
+            ->assertSeeHtml('data-loop-pulse-target="core.polls"');
+    }
+
+    public function test_closed_poll_is_not_counted_in_loop_pulse(): void
+    {
+        $this->createPoll([
+            'question' => 'Question close',
+            'status' => LoopPoll::STATUS_CLOSED,
+            'closed_at' => now(),
+        ]);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('pulse', fn (array $pulse) => $pulse['polls'] === 0);
+    }
+
+    public function test_general_composition_shows_exactly_members_polls_and_events_metrics(): void
+    {
+        $this->createPoll();
+        $this->createEvent();
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('pulse', [
+                'members' => 1,
+                'polls' => 1,
+                'events' => 1,
+            ])
+            ->assertSeeHtml('data-loop-pulse-target="core.members"')
+            ->assertSeeHtml('data-loop-pulse-target="core.polls"')
+            ->assertSeeHtml('data-loop-pulse-target="core.events"')
+            ->assertDontSeeHtml('data-loop-pulse-target="core.roadmap"')
+            ->assertDontSeeHtml('data-loop-pulse-target="core.decisions"')
+            ->assertDontSeeHtml('data-loop-pulse-target="core.dossiers"');
 
         LoopSummaryAgent::assertNeverPrompted();
         Http::assertNothingSent();
@@ -352,5 +453,32 @@ class LoopAiSummaryCardTest extends TestCase
             'visibility' => LoopEvent::VISIBILITY_LOOP,
             'status' => LoopEvent::STATUS_SCHEDULED,
         ], $overrides));
+    }
+
+    /** @param array<string, mixed> $overrides */
+    private function createPoll(array $overrides = []): LoopPoll
+    {
+        return LoopPoll::create(array_merge([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'created_by' => $this->member->id,
+            'question' => 'Question',
+            'selection_type' => LoopPoll::TYPE_SINGLE,
+            'status' => LoopPoll::STATUS_OPEN,
+        ], $overrides));
+    }
+
+    private function setCardEnabled(string $key, bool $enabled = true): void
+    {
+        LoopCard::updateOrCreate(
+            ['loop_id' => $this->loop->id, 'card_key' => $key],
+            [
+                'organization_id' => $this->organization->id,
+                'enabled' => $enabled,
+                'added_by_preset' => $this->loop->type,
+            ],
+        );
+
+        $this->loop->unsetRelation('cards');
     }
 }

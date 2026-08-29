@@ -14,14 +14,22 @@
         </p>
     </div>
 
-    @if($pulse !== null)
+    @if(! empty($pulse))
         @php
-            $pulseItems = [
+            $pulseItems = collect([
                 ['key' => 'members', 'card' => 'core.members'],
                 ['key' => 'roadmap', 'card' => 'core.roadmap'],
                 ['key' => 'decisions', 'card' => 'core.decisions'],
+                ['key' => 'polls', 'card' => 'core.polls'],
                 ['key' => 'events', 'card' => 'core.events'],
-            ];
+            ])->filter(fn ($item) => array_key_exists($item['key'], $pulse))->values();
+
+            $pulseGrid = match ($pulseItems->count()) {
+                1 => 'grid-cols-1',
+                2 => 'grid-cols-2',
+                3 => 'grid-cols-1 sm:grid-cols-3',
+                default => 'grid-cols-2 sm:grid-cols-4',
+            };
         @endphp
         <section
             class="rounded-2xl border border-violet-100 bg-violet-50/60 p-3 dark:border-violet-900/60 dark:bg-violet-950/20"
@@ -37,7 +45,7 @@
                 </p>
             </div>
 
-            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div class="grid gap-2 {{ $pulseGrid }}">
                 @foreach($pulseItems as $item)
                     <button
                         type="button"

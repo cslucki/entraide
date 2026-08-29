@@ -6,11 +6,13 @@ use App\Models\Loop;
 use App\Models\LoopDecision;
 use App\Models\LoopEvent;
 use App\Models\LoopMember;
+use App\Models\LoopPoll;
 use App\Models\LoopRoadmapItem;
 use App\Models\User;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\Loops\LoopEventService;
 use App\Support\Ai\AiRefusedException;
+use App\Support\Loops\LoopCardRegistry;
 use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Component;
 
@@ -159,7 +161,7 @@ class LoopAiSummaryCard extends Component
     /**
      * Etat metier partage par les Cards de la Boucle, sans inference IA.
      *
-     * @return array{members: int, roadmap: int, decisions: int, events: int}|null
+     * @return array<string, int>|null
      */
     private function loopPulse(): ?array
     {
@@ -169,22 +171,55 @@ class LoopAiSummaryCard extends Component
             return null;
         }
 
-        // Reprendre la semantique de LoopEventsCard est volontaire : un
-        // Evenement en cours reste vivant, un Evenement annule en sort.
-        $livingEvents = app(LoopEventService::class)
-            ->forLoop($this->loop)
-            ->filter(fn (LoopEvent $event) => ! $event->isPast() && ! $event->isCancelled())
-            ->count();
+        $user = auth()->user();
+        if (! $user) {
+            return null;
+        }
 
-        return [
-            'members' => LoopMember::where('loop_id', $this->loop->id)
+        // Le registre rejoue les DEUX autorites avant que le Pulse lise un
+        // chiffre : composition active de cette Boucle, puis view_permission
+        // de cette personne via LoopPermissionResolver. Les Cards supportees
+        // vivent soit dans la grille, soit dans le cadre permanent (Membres).
+        $registry = app(LoopCardRegistry::class);
+        $visibleKeys = $registry->workspaceCardsFor($this->loop, $user)
+            ->concat($registry->frameCardsFor($this->loop, $user))
+            ->pluck('key')
+            ->flip();
+
+        $pulse = [];
+
+        if ($visibleKeys->has('core.members')) {
+            $pulse['members'] = LoopMember::where('loop_id', $this->loop->id)
                 ->where('status', 'active')
-                ->count(),
-            'roadmap' => LoopRoadmapItem::where('loop_id', $this->loop->id)
+                ->count();
+        }
+
+        if ($visibleKeys->has('core.roadmap')) {
+            $pulse['roadmap'] = LoopRoadmapItem::where('loop_id', $this->loop->id)
                 ->open()
-                ->count(),
-            'decisions' => LoopDecision::where('loop_id', $this->loop->id)->count(),
-            'events' => $livingEvents,
-        ];
+                ->count();
+        }
+
+        if ($visibleKeys->has('core.decisions')) {
+            $pulse['decisions'] = LoopDecision::where('loop_id', $this->loop->id)->count();
+        }
+
+        if ($visibleKeys->has('core.polls')) {
+            // Meme regle que LoopPollsCard::present() -> LoopPoll::isOpen().
+            $pulse['polls'] = LoopPoll::where('loop_id', $this->loop->id)
+                ->where('status', LoopPoll::STATUS_OPEN)
+                ->count();
+        }
+
+        if ($visibleKeys->has('core.events')) {
+            // Reprendre la semantique de LoopEventsCard est volontaire : un
+            // Evenement en cours reste vivant, un Evenement annule en sort.
+            $pulse['events'] = app(LoopEventService::class)
+                ->forLoop($this->loop)
+                ->filter(fn (LoopEvent $event) => ! $event->isPast() && ! $event->isCancelled())
+                ->count();
+        }
+
+        return $pulse;
     }
 }
