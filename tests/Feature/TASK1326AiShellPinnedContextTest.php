@@ -364,8 +364,25 @@ class TASK1326AiShellPinnedContextTest extends TestCase
         $trigger = AiShellMessage::query()->where('role', AiShellMessage::ROLE_USER)->firstOrFail();
         $answer = AiShellMessage::query()->where('role', AiShellMessage::ROLE_ASSISTANT)->firstOrFail();
 
-        $this->assertSame($expected, $trigger->metadata['pinned_context']);
-        $this->assertSame($expected, $answer->metadata['pinned_context']);
+        foreach ([$trigger, $answer] as $message) {
+            $trace = $message->metadata['pinned_context'];
+
+            // La garantie « identifiants seuls » : chaque entree porte
+            // EXACTEMENT kind et id, aucune autre cle — c'est elle qui
+            // interdit un libelle dans la trace. L'ordre des cles, lui,
+            // appartient au driver (le jsonb PostgreSQL ne le preserve pas) :
+            // on ne l'asserte jamais.
+            foreach ($trace as $pin) {
+                $keys = array_keys($pin);
+                sort($keys);
+                $this->assertSame(['id', 'kind'], $keys);
+            }
+
+            $this->assertSame($expected, array_map(
+                fn (array $pin): array => ['kind' => (string) $pin['kind'], 'id' => (string) $pin['id']],
+                $trace,
+            ));
+        }
     }
 
     public function test_a_stale_pin_is_neither_injected_nor_traced(): void
