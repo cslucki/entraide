@@ -197,7 +197,10 @@ class TASK1309HybridIaDossiersTest extends TestCase
             ->assertSee(__('loops.hybrid_mode_label'))
             ->assertDontSee('BouclePro')
             ->assertSee(__('loops.hybrid_bubble_subtitle'))
-            ->assertSee(__('loops.knowledge_sources_title'));
+            ->assertSee(__('loops.knowledge_sources_title'))
+            // Badge de mode (TASK-1329) : la bulle HUMAINE porte, elle aussi,
+            // la valeur canonique du mode demande a l'envoi.
+            ->assertSee('data-requested-mode="ia_dossiers"', false);
 
         $question = LoopMessage::query()->where('type', 'user')->sole();
         $this->assertSame('ia_dossiers', $question->metadata['requested_mode'] ?? null);

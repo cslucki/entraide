@@ -50,9 +50,17 @@
         body:has(.loops-show-container) > [class*="md:hidden"]:has(button[class*="bottom-20"]) {
             display: none !important;
         }
+        /* TASK-1329 : dans une conversation, le bas de l'ecran appartient au
+           COMPOSEUR — la barre de navigation mobile disparait sur cette page,
+           comme dans les messageries mobiles : on est DANS un fil, pas en
+           train de naviguer. Seule la safe-area (barre home iOS) reste
+           reservee. */
+        body:has(.loops-show-container) > nav[class*="bottom-0"] {
+            display: none !important;
+        }
         body:has(.loops-show-container) > .min-h-screen {
             padding-top: 0 !important;
-            padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px)) !important;
+            padding-bottom: env(safe-area-inset-bottom, 0px) !important;
         }
         body:has(.loops-show-container) .min-h-screen > .md\:hidden,
         body:has(.loops-show-container) .min-h-screen > footer {
@@ -61,17 +69,30 @@
         body:has(.loops-show-container) .loops-show-wrapper {
             padding: 0 !important;
         }
-        /* TASK-1231 : le FAB « + » est masque ici (au-dessus) et la rangee des
-           actions IA + le composeur occupent le bas de l'ecran : le FAB
-           BouclePro IA remonte au-dessus de cette rangee, sans la couvrir. */
+        /* TASK-1231 : le FAB « + » est masque ici (au-dessus).
+           TASK-1329 (variante A retenue) : FAB + composeur + envoi forment UNE
+           zone — le FAB BouclePro IA est ANCRE juste au-dessus du composeur
+           (plus jamais suspendu au milieu du fil), le fil garde une reserve
+           basse pour que le dernier message ne passe jamais sous lui, et il
+           S'EFFACE pendant la saisie : quand on ecrit, rien ne flotte
+           au-dessus du texte (motif des messageries mobiles). */
         body:has(.loops-show-container) [data-ai-fab-toggle] {
-            bottom: 14rem !important;
+            bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px)) !important;
+            transition: opacity .2s ease-out, transform .2s ease-out;
         }
         body:has(.loops-show-container) [data-ai-fab-panel] {
-            bottom: 17.5rem !important;
+            bottom: calc(8.5rem + env(safe-area-inset-bottom, 0px)) !important;
+        }
+        body:has(.loops-show-container textarea:focus) [data-ai-fab-toggle] {
+            opacity: 0;
+            transform: scale(.5);
+            pointer-events: none;
+        }
+        body:has(.loops-show-container) [data-loop-workspace-chat] .overflow-y-auto {
+            padding-bottom: 5.5rem !important;
         }
         body:has(.loops-show-container) .loops-show-container {
-            height: calc(100dvh - 4rem - env(safe-area-inset-bottom, 0px));
+            height: calc(100dvh - env(safe-area-inset-bottom, 0px));
         }
     }
     @media (min-width: 768px) {

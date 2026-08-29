@@ -21,7 +21,10 @@
     $placeholder ??= __('messages.write_message');
 @endphp
 
-<div class="border-t border-gray-200 dark:border-gray-700 px-5 py-4">
+{{-- Le gabarit compact mobile est SCOPE au ChatLoop (seul appelant qui
+     fournit `$leading`) : Message Thread et le chat agent gardent leur
+     gabarit historique a l'identique. --}}
+<div class="border-t border-gray-200 dark:border-gray-700 {{ isset($leading) ? 'px-3 py-2.5 md:px-5 md:py-4' : 'px-5 py-4' }}">
     @if($replyingTo)
     <div class="flex items-center justify-between mb-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-xs">
         <span class="text-gray-600 dark:text-gray-300 truncate">
@@ -77,39 +80,83 @@
     </div>
     @endif
 
-    {{-- `x-data="{}"` : racine Alpine inerte pour les autres usages (Message
-         Thread, agent chat) — necessaire ICI pour que le menu mobile
-         (`$leading`, TASK-1308) puisse declencher le meme selecteur de
-         fichier via `$refs.uploadInput`, sans dupliquer `wire:model`. --}}
-    <form wire:submit="sendMessage" class="flex items-end gap-3" x-data="{}">
-        @isset($leading)
-            {{ $leading }}
-        @endisset
+    {{-- Racine Alpine du composeur : elle permet au menu mobile (`$leading`,
+         TASK-1308) de declencher le selecteur de fichier via `$refs`, et porte
+         `hasText` (TASK-1329) — la cinematique du bouton envoyer, gris et en
+         retrait tant que le champ est vide, indigo et a pleine taille des le
+         premier caractere (motif des messageries mobiles). Etat VISUEL
+         seulement : le bouton reste cliquable a vide (une photo seule
+         s'envoie), le serveur valide. --}}
+    <form wire:submit="sendMessage" class="flex items-end {{ isset($leading) ? 'gap-2 md:gap-3' : 'gap-3' }}" x-data="{ hasText: false }">
         @if($showUpload)
-        <label class="{{ isset($leading) ? 'hidden md:flex' : 'flex' }} flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 items-center justify-center cursor-pointer transition disabled:opacity-50">
+        <label class="{{ isset($leading) ? 'hidden md:flex' : 'flex' }} mb-1 flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 items-center justify-center cursor-pointer transition disabled:opacity-50">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
             </svg>
             <input type="file" x-ref="uploadInput" wire:model.live="photo" accept="image/*" class="hidden">
         </label>
+        {{-- TASK-1329 : second declencheur du MEME upload (`photo`), avec
+             `capture` — sur mobile, il ouvre directement l'appareil photo au
+             lieu de la galerie. Aucun pipeline nouveau : le fichier suit
+             exactement le meme chemin que la galerie. Inerte tant qu'aucun
+             bouton ne l'invoque (`$refs.cameraInput`, menu mobile T1308). --}}
+        <input type="file" x-ref="cameraInput" wire:model.live="photo" accept="image/*" capture="environment" class="hidden">
         @endif
 
-        <textarea
-            x-data="{ resize() { $el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 176) + 'px'; $el.scrollTop = $el.scrollHeight } }"
-            x-init="resize()"
-            x-on:input="resize()"
-            x-on:message-sent.window="$nextTick(() => resize())"
-            wire:model="{{ $model }}"
-            rows="{{ $rows }}"
-            @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }"
-            class="max-h-44 min-h-11 flex-1 resize-none overflow-y-hidden rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 shadow-sm transition [scrollbar-width:none] focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 [&::-webkit-scrollbar]:hidden"
-            placeholder="{{ $placeholder }}"
-            @if($disabled || $loading) disabled @endif
-        ></textarea>
+        {{-- TASK-1329 : le declencheur du menu mobile (`$leading`, le « + »)
+             vit DANS le cadre du champ, plus a cote de lui — un bouton rond
+             externe consommait ~3rem de largeur sur un ecran qui n'en a pas
+             (motif des messageries mobiles). `items-end` + `pb` : il suit le
+             BAS du champ quand le textarea grandit, comme le bouton envoyer.
+             Le textarea DOIT etre `block` : en inline-block (defaut), le
+             wrapper garde ~4px de descendante sous la ligne de base, le champ
+             remonte d'autant et le bouton envoyer comme le « + » paraissent
+             cales trop bas. --}}
+        <div class="relative min-w-0 flex-1">
+            @isset($leading)
+            <div class="absolute bottom-1.5 left-1.5 z-10 flex md:hidden">
+                {{ $leading }}
+            </div>
+            @endisset
+            {{-- TASK-1329 : `wire:ignore.self` — le morph du `wire:poll`
+                 realignait les attributs sur le HTML serveur et EFFACAIT la
+                 hauteur `style` posee par `resize()` (piege connu du depot,
+                 meme motif que le bloc sources T1312) : un brouillon de trois
+                 lignes retombait visuellement a une seule au poll suivant,
+                 constate en recette mobile. Le serveur n'ecrit JAMAIS de
+                 style sur ce champ, geler ses attributs est sans perte ; la
+                 saisie et le reset apres envoi passent par `wire:model`,
+                 un canal distinct du morph d'attributs. --}}
+            <textarea
+                wire:ignore.self
+                x-data="{ resize() { $el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 176) + 'px'; $el.scrollTop = $el.scrollHeight } }"
+                x-init="resize(); hasText = $el.value.trim().length > 0"
+                x-on:input="resize(); hasText = $el.value.trim().length > 0"
+                x-on:message-sent.window="$nextTick(() => { resize(); hasText = $el.value.trim().length > 0 })"
+                wire:model="{{ $model }}"
+                rows="{{ $rows }}"
+                @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }"
+                class="block max-h-44 min-h-11 w-full resize-none overflow-y-hidden rounded-2xl border border-gray-300 bg-white px-4 py-3 {{ isset($leading) ? 'pl-11 md:pl-4' : '' }} text-sm text-gray-900 placeholder-gray-400 shadow-sm transition [scrollbar-width:none] focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 [&::-webkit-scrollbar]:hidden"
+                placeholder="{{ $placeholder }}"
+                @if($disabled || $loading) disabled @endif
+            ></textarea>
+        </div>
 
+        {{-- TASK-1329 : `mb-1` cale le bouton (36px) sur l'axe du champ
+             (44px min) — il etait pose sur la ligne de base du flex, en
+             dessous du cadre. La couleur et l'echelle suivent CAN_SEND —
+             texte non vide OU piece jointe prete — jamais le texte seul :
+             une photo sans legende est un envoi valide, le bouton ne doit
+             pas paraitre eteint ({{ '$photo' }} est re-rendu par le morph a
+             chaque upload, l'expression suit). `active:scale-90` donne le
+             pop tactile a l'envoi. Etat VISUEL seulement : le bouton reste
+             cliquable, le serveur valide. --}}
         <button
             type="submit"
-            class="flex-shrink-0 w-9 h-9 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition disabled:opacity-50"
+            class="mb-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full transition-all duration-200 ease-out active:scale-90 disabled:opacity-50"
+            x-bind:class="(hasText || {{ ($showUpload && $photo) ? 'true' : 'false' }})
+                ? 'scale-100 bg-indigo-600 text-white shadow-sm shadow-indigo-500/30 hover:bg-indigo-700'
+                : 'scale-95 bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500'"
             @if($disabled || $loading) disabled @endif
         >
             @if($loading)
