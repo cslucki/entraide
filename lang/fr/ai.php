@@ -690,4 +690,13 @@ return [
     'shell_card_reason_service_skill' => 'Compétence d\'un Service actif : :label',
     'shell_card_reason_generic' => 'Signal vérifié : :label',
     'shell_card_document_origin_page' => 'Page où la question a été posée.',
+    'shell_pins_title' => 'Contexte épinglé',
+    'shell_pin_add' => 'Épingler cette page',
+    'shell_pin_remove' => 'Retirer du contexte épinglé',
+    'shell_pin_limit_reached' => 'Vous avez déjà :max éléments épinglés. Retirez-en un pour en ajouter un autre.',
+    'shell_pins_note' => 'Épinglé = gardé sous la main pour vos prochaines questions. N\'ouvre aucun accès.',
+    'shell_prompt_pinned' => 'L\'utilisateur garde ces éléments épinglés comme contexte de sa demande : :items.',
+    'shell_prompt_pinned_loop' => 'la Boucle « :name »',
+    'shell_prompt_pinned_dossier' => 'le Dossier « :name »',
+    'shell_prompt_pinned_article' => 'l\'Article « :name »',
 ];
