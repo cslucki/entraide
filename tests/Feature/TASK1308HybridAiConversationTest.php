@@ -134,11 +134,15 @@ class TASK1308HybridAiConversationTest extends TestCase
             ->assertSet('composerMode', 'normal')
             ->set('body', 'Un message humain tout simple.')
             ->call('sendMessage')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            // Badge de mode (TASK-1329) : aucune cle `requested_mode` => aucun
+            // badge, aucun espace reserve sur la bulle humaine.
+            ->assertDontSee('data-requested-mode', false);
 
         $message = LoopMessage::query()->sole();
         $this->assertSame('user', $message->type);
         $this->assertSame('Un message humain tout simple.', $message->body);
+        $this->assertArrayNotHasKey('requested_mode', $message->metadata ?? []);
         LoopDirectAnswerAgent::assertNotPrompted(fn (AgentPrompt $prompt): bool => true);
         LoopKnowledgeAgent::assertNotPrompted(fn (AgentPrompt $prompt): bool => true);
         $this->assertDatabaseCount('ai_provider_invocations', 0);
@@ -191,7 +195,10 @@ class TASK1308HybridAiConversationTest extends TestCase
             ->assertDontSee('>launchpals</span>', false)
             ->assertSee('data-ai-mode="llm"', false)
             ->assertSee(__('loops.ia_mode_label'))
-            ->assertDontSee('BouclePro');
+            ->assertDontSee('BouclePro')
+            // Badge de mode (TASK-1329) : la bulle HUMAINE porte, elle aussi,
+            // la valeur canonique du mode demande a l'envoi.
+            ->assertSee('data-requested-mode="ia"', false);
 
         $question = LoopMessage::query()->where('type', 'user')->sole();
         $this->assertSame('ia', $question->metadata['requested_mode'] ?? null);
@@ -224,7 +231,12 @@ class TASK1308HybridAiConversationTest extends TestCase
             ->assertSee('LaunchPals')
             ->assertSee('data-ai-mode="rag"', false)
             ->assertSee(__('loops.dossiers_mode_label'))
-            ->assertSee(__('loops.knowledge_sources_title'));
+            ->assertSee(__('loops.knowledge_sources_title'))
+            // Badge de mode (TASK-1329) sur la bulle humaine.
+            ->assertSee('data-requested-mode="dossiers"', false);
+
+        $question = LoopMessage::query()->where('type', 'user')->sole();
+        $this->assertSame('dossiers', $question->metadata['requested_mode'] ?? null);
 
         $answer = LoopMessage::query()->where('type', 'ai')->sole();
         $this->assertSame('rag', $answer->metadata['ai_mode']);

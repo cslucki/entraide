@@ -286,56 +286,65 @@
                                  lit ces marqueurs en clair dans la bulle.
                                  Constate en recette reelle. --}}
                             <x-slot:footer>
-                            @if(in_array($msg->id, $capitalizableMessageIds, true))
-                                {{-- TASK-1313 : l'action est VISIBLE par tout membre,
-                                     et seulement ACTIVE pour qui en a le droit.
-                                     La masquer revenait a ce qu'un membre
-                                     ordinaire ne puisse pas meme savoir qu'elle
-                                     existe : un refus explique informe, une
-                                     absence laisse croire que rien n'est
-                                     possible. `disabled` n'est evidemment pas la
-                                     garantie — le service revalide tout. --}}
+                            {{-- TASK-1329 : « Ajouter au Dossier » et « Pourquoi
+                                 cette réponse ? » vivent sur la MEME ligne — deux
+                                 blocs empiles, chacun avec sa bordure haute,
+                                 doublaient la hauteur du pied de bulle pour deux
+                                 actions de meme rang. `flex-wrap` : sur mobile,
+                                 si les deux ne tiennent pas, le second passe
+                                 dessous sans deborder. --}}
+                            @if(in_array($msg->id, $capitalizableMessageIds, true) || $isMember)
                                 <div class="mt-2 border-t border-violet-200/70 pt-2 dark:border-violet-800/70">
-                                    <button
-                                        type="button"
-                                        @if($canCapitalize)
-                                        wire:click="startCapitalization('{{ $msg->id }}')"
-                                        wire:loading.attr="disabled"
-                                        wire:target="startCapitalization('{{ $msg->id }}')"
-                                        @else
-                                        disabled
-                                        aria-describedby="capitalize-hint-{{ $msg->id }}"
-                                        @endif
-                                        data-capitalize-open="{{ $msg->id }}"
-                                        data-capitalize-allowed="{{ $canCapitalize ? '1' : '0' }}"
-                                        class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50/80 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 transition disabled:cursor-not-allowed disabled:opacity-50 enabled:hover:border-emerald-300 enabled:hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-200 dark:enabled:hover:bg-emerald-900/40"
-                                    >
-                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v4m2-2h-4"/></svg>
-                                        {{ __('loops.capitalize_action') }}
-                                    </button>
-                                    @if(! $canCapitalize)
+                                    <div class="flex flex-wrap items-center gap-1.5">
+                                    @if(in_array($msg->id, $capitalizableMessageIds, true))
+                                        {{-- TASK-1313 : l'action est VISIBLE par tout membre,
+                                             et seulement ACTIVE pour qui en a le droit.
+                                             La masquer revenait a ce qu'un membre
+                                             ordinaire ne puisse pas meme savoir qu'elle
+                                             existe : un refus explique informe, une
+                                             absence laisse croire que rien n'est
+                                             possible. `disabled` n'est evidemment pas la
+                                             garantie — le service revalide tout. --}}
+                                        <button
+                                            type="button"
+                                            @if($canCapitalize)
+                                            wire:click="startCapitalization('{{ $msg->id }}')"
+                                            wire:loading.attr="disabled"
+                                            wire:target="startCapitalization('{{ $msg->id }}')"
+                                            @else
+                                            disabled
+                                            aria-describedby="capitalize-hint-{{ $msg->id }}"
+                                            @endif
+                                            data-capitalize-open="{{ $msg->id }}"
+                                            data-capitalize-allowed="{{ $canCapitalize ? '1' : '0' }}"
+                                            class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50/80 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 transition disabled:cursor-not-allowed disabled:opacity-50 enabled:hover:border-emerald-300 enabled:hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-200 dark:enabled:hover:bg-emerald-900/40"
+                                        >
+                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v4m2-2h-4"/></svg>
+                                            {{ __('loops.capitalize_action') }}
+                                        </button>
+                                    @endif
+                                    {{-- TASK-1328 : « Pourquoi cette réponse ? » — sur TOUTE
+                                         bulle IA, pour tout membre. L'UI n'est pas la
+                                         barrière : le service refait toutes les gardes et
+                                         peut rendre un panneau « trace indisponible »
+                                         honnête sur une bulle antérieure au ledger. --}}
+                                    @if($isMember)
+                                        <button
+                                            type="button"
+                                            wire:click="showWhy('{{ $msg->id }}')"
+                                            wire:loading.attr="disabled"
+                                            wire:target="showWhy('{{ $msg->id }}')"
+                                            data-why-open="{{ $msg->id }}"
+                                            class="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50/80 px-2.5 py-1 text-[11px] font-semibold text-violet-800 transition hover:border-violet-300 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-violet-800/60 dark:bg-violet-900/20 dark:text-violet-200 dark:hover:bg-violet-900/40"
+                                        >
+                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/></svg>
+                                            {{ __('loops.why_action') }}
+                                        </button>
+                                    @endif
+                                    </div>
+                                    @if(in_array($msg->id, $capitalizableMessageIds, true) && ! $canCapitalize)
                                     <p id="capitalize-hint-{{ $msg->id }}" data-capitalize-hint class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{{ __('loops.capitalize_reserved_to_facilitators') }}</p>
                                     @endif
-                                </div>
-                            @endif
-                            {{-- TASK-1328 : « Pourquoi cette réponse ? » — sur TOUTE
-                                 bulle IA, pour tout membre. L'UI n'est pas la
-                                 barrière : le service refait toutes les gardes et
-                                 peut rendre un panneau « trace indisponible »
-                                 honnête sur une bulle antérieure au ledger. --}}
-                            @if($isMember)
-                                <div class="mt-2 border-t border-violet-200/70 pt-2 dark:border-violet-800/70">
-                                    <button
-                                        type="button"
-                                        wire:click="showWhy('{{ $msg->id }}')"
-                                        wire:loading.attr="disabled"
-                                        wire:target="showWhy('{{ $msg->id }}')"
-                                        data-why-open="{{ $msg->id }}"
-                                        class="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50/80 px-2.5 py-1 text-[11px] font-semibold text-violet-800 transition hover:border-violet-300 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-violet-800/60 dark:bg-violet-900/20 dark:text-violet-200 dark:hover:bg-violet-900/40"
-                                    >
-                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/></svg>
-                                        {{ __('loops.why_action') }}
-                                    </button>
                                 </div>
                             @endif
                             </x-slot:footer>
@@ -346,6 +355,7 @@
                             :time="$msg->created_at->diffForHumans()"
                             :name="$isOwn ? __('messages.me') : $senderName"
                             :avatar="$senderDisplayable ? $msg->sender?->avatar_url : null"
+                            :requested-mode="$msg->metadata['requested_mode'] ?? null"
                             :message-id="$msg->id"
                             :show-reply-button="$isMember"
                             :show-pin-button="$isMember"
@@ -564,10 +574,14 @@
                  sans dupliquer sa saisie de fichier (voir composer.blade.php). --}}
             <x-slot:leading>
                 <div class="md:hidden" x-data="{ sheetOpen: false }">
+                    {{-- TASK-1329 : bouton INTEGRE au champ (composer.blade.php
+                         le positionne en absolu dans le cadre du textarea) —
+                         transparent, taille reduite, jamais une pastille pleine
+                         qui doublerait visuellement le bouton envoyer. --}}
                     <button
                         type="button"
                         x-on:click="sheetOpen = true"
-                        class="flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 flex items-center justify-center transition"
+                        class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-indigo-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-indigo-300"
                         aria-label="{{ __('loops.composer_more_actions') }}"
                         aria-haspopup="true"
                     >
@@ -594,49 +608,73 @@
                                 aria-label="{{ __('loops.composer_more_actions') }}"
                             >
                                 <div class="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-600"></div>
-                                <div class="space-y-1">
+                                {{-- TASK-1329 : GRILLE de tuiles, plus une liste — cinq
+                                     lignes pleine largeur consommaient un tiers de
+                                     l'ecran (constate en recette mobile). Motif des
+                                     feuilles d'actions des messageries mobiles : pastille
+                                     d'icone + libelle court, trois par rangee. La
+                                     semantique T1308/T1309 est INCHANGEE : les deux
+                                     interrupteurs IA/Dossiers restent combinables (ils ne
+                                     ferment pas la feuille), le raccourci hybride ferme,
+                                     et les attributs `data-engine-toggle` /
+                                     `data-hybrid-shortcut` / `aria-pressed` sont
+                                     identiques — ce sont eux qu'un test asserte.
+                                     Etat actif = pastille remplie + fond teinte, jamais
+                                     la couleur seule (aria-pressed porte l'etat). --}}
+                                <div class="grid grid-cols-3 gap-1.5">
                                     @if($aiEnginesAvailable)
-                                    {{-- TASK-1309 : sur mobile, le bottom sheet du composeur
-                                         (T1308) propose les MEMES quatre etats. Les deux
-                                         premieres lignes restent des interrupteurs
-                                         combinables (elles ne ferment donc pas la feuille,
-                                         pour qu'on puisse en activer deux) ; la troisieme
-                                         est un raccourci direct vers l'etat combine, parce
-                                         qu'au pouce, deux gestes precis valent moins qu'un
-                                         seul explicite. --}}
                                     <button type="button" wire:click="toggleComposerEngine('ia')"
                                         data-engine-toggle="ia"
                                         aria-pressed="{{ $engineActive['ia'] ? 'true' : 'false' }}"
-                                        class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 {{ $engineActive['ia'] ? 'bg-violet-50 text-violet-800 dark:bg-violet-900/30 dark:text-violet-100' : 'text-gray-800 dark:text-gray-100' }}">
-                                        <svg class="h-5 w-5 shrink-0 text-violet-600 dark:text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/></svg>
-                                        <span class="flex-1">{{ __('loops.ask_ai_button') }}</span>
-                                        @if($engineActive['ia'])<span aria-hidden="true" class="text-violet-600 dark:text-violet-300">✓</span>@endif
+                                        class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition {{ $engineActive['ia'] ? 'bg-violet-50 dark:bg-violet-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                                        <span class="flex h-10 w-10 items-center justify-center rounded-full transition {{ $engineActive['ia'] ? 'bg-violet-600 text-white shadow-sm shadow-violet-500/30' : 'bg-violet-100 text-violet-600 dark:bg-violet-900/40 dark:text-violet-300' }}">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/></svg>
+                                        </span>
+                                        <span class="text-[11px] font-medium leading-tight {{ $engineActive['ia'] ? 'text-violet-800 dark:text-violet-100' : 'text-gray-700 dark:text-gray-200' }}">{{ __('loops.ask_ai_button') }}</span>
                                     </button>
                                     <button type="button" wire:click="toggleComposerEngine('dossiers')"
                                         data-engine-toggle="dossiers"
                                         aria-pressed="{{ $engineActive['dossiers'] ? 'true' : 'false' }}"
-                                        class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 {{ $engineActive['dossiers'] ? 'bg-sky-50 text-sky-800 dark:bg-sky-900/30 dark:text-sky-100' : 'text-gray-800 dark:text-gray-100' }}">
-                                        <svg class="h-5 w-5 shrink-0 text-sky-600 dark:text-sky-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>
-                                        <span class="flex-1">{{ __('loops.knowledge_button') }}</span>
-                                        @if($engineActive['dossiers'])<span aria-hidden="true" class="text-sky-600 dark:text-sky-300">✓</span>@endif
+                                        class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition {{ $engineActive['dossiers'] ? 'bg-sky-50 dark:bg-sky-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                                        <span class="flex h-10 w-10 items-center justify-center rounded-full transition {{ $engineActive['dossiers'] ? 'bg-sky-600 text-white shadow-sm shadow-sky-500/30' : 'bg-sky-100 text-sky-600 dark:bg-sky-900/40 dark:text-sky-300' }}">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>
+                                        </span>
+                                        <span class="text-[11px] font-medium leading-tight {{ $engineActive['dossiers'] ? 'text-sky-800 dark:text-sky-100' : 'text-gray-700 dark:text-gray-200' }}">{{ __('loops.knowledge_button') }}</span>
                                     </button>
                                     <button type="button" wire:click="setComposerMode('ia_dossiers')" x-on:click="sheetOpen = false"
                                         data-hybrid-shortcut
                                         aria-pressed="{{ $composerMode === 'ia_dossiers' ? 'true' : 'false' }}"
-                                        class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 {{ $composerMode === 'ia_dossiers' ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-100' : 'text-gray-800 dark:text-gray-100' }}">
-                                        <svg class="h-5 w-5 shrink-0 text-indigo-600 dark:text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5a4.5 4.5 0 0 0 0-9H15M16.5 3 21 7.5"/></svg>
-                                        <span class="flex-1">{{ __('loops.hybrid_button') }}</span>
+                                        class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition {{ $composerMode === 'ia_dossiers' ? 'bg-indigo-50 dark:bg-indigo-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                                        <span class="flex h-10 w-10 items-center justify-center rounded-full transition {{ $composerMode === 'ia_dossiers' ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30' : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300' }}">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5a4.5 4.5 0 0 0 0-9H15M16.5 3 21 7.5"/></svg>
+                                        </span>
+                                        <span class="text-[11px] font-medium leading-tight {{ $composerMode === 'ia_dossiers' ? 'text-indigo-800 dark:text-indigo-100' : 'text-gray-700 dark:text-gray-200' }}">{{ __('loops.hybrid_button') }}</span>
                                     </button>
                                     @endif
                                     <button type="button" x-on:click="window.dispatchEvent(new CustomEvent('bp-open-help-request')); sheetOpen = false"
-                                        class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700">
-                                        <svg class="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                                        {{ __('loops.who_can_help') }}
+                                        class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                                        </span>
+                                        <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('loops.who_can_help') }}</span>
                                     </button>
                                     <button type="button" x-on:click="$refs.uploadInput?.click(); sheetOpen = false"
-                                        class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700">
-                                        <svg class="h-5 w-5 shrink-0 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                                        {{ __('loops.composer_add_image') }}
+                                        class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                        </span>
+                                        <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('loops.composer_add_image') }}</span>
+                                    </button>
+                                    {{-- TASK-1329 : `capture` ouvre directement l'appareil
+                                         photo — meme upload, meme pipeline que la galerie
+                                         (`$refs.cameraInput`, composer.blade.php). --}}
+                                    <button type="button" x-on:click="$refs.cameraInput?.click(); sheetOpen = false"
+                                        data-composer-take-photo
+                                        class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z"/></svg>
+                                        </span>
+                                        <span class="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">{{ __('loops.composer_take_photo') }}</span>
                                     </button>
                                 </div>
                             </div>
@@ -719,31 +757,45 @@
             <div class="fixed inset-0 z-50 flex items-center justify-center px-3" data-why-panel
                  x-data x-effect="document.body.style.overflow = 'hidden'"
                  x-on:keydown.escape.window="$wire.closeWhy()">
-                <div class="fixed inset-0 bg-black/50" wire:click="closeWhy"></div>
-                <div class="relative w-full max-w-xl rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-800"
-                     style="max-height: calc(100dvh - 2rem); overflow-y: auto; padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px))">
-                    <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('loops.why_title') }}</h2>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('loops.why_intro') }}</p>
+                {{-- Meme voile que les modales de suppression du fil :
+                     gray-950/50 + blur, jamais un noir pur. --}}
+                <div class="fixed inset-0 bg-gray-950/50 backdrop-blur-sm" wire:click="closeWhy"></div>
+                <div class="relative w-full max-w-xl overflow-hidden rounded-2xl border border-white/70 bg-white shadow-2xl shadow-gray-950/20 dark:border-gray-700 dark:bg-gray-900"
+                     style="max-height: calc(100dvh - 2rem); overflow-y: auto; padding-bottom: env(safe-area-inset-bottom, 0px)">
+                    {{-- Bandeau d'identite : la provenance IA porte la teinte
+                         violette du fil — la meme que la bulle qu'elle explique. --}}
+                    <div class="flex items-start gap-3 border-b border-violet-100 bg-gradient-to-br from-violet-50 via-white to-white px-5 py-4 dark:border-violet-900/40 dark:from-violet-950/40 dark:via-gray-900 dark:to-gray-900">
+                        <span class="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-emerald-400 text-white shadow-sm shadow-violet-500/30 ring-1 ring-white/60 dark:ring-violet-300/20" aria-hidden="true">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.091-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.091L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.091 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.091ZM18.25 8.25 18 9.25l-.25-1a2.5 2.5 0 0 0-1.75-1.75L15 6.25l1-.25a2.5 2.5 0 0 0 1.75-1.75l.25-1 .25 1A2.5 2.5 0 0 0 20 6l1 .25-1 .25a2.5 2.5 0 0 0-1.75 1.75Z"/>
+                            </svg>
+                        </span>
+                        <div class="min-w-0">
+                            <h2 class="text-sm font-semibold text-gray-950 dark:text-gray-100">{{ __('loops.why_title') }}</h2>
+                            <p class="mt-0.5 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ __('loops.why_intro') }}</p>
+                        </div>
+                    </div>
 
-                    <dl class="mt-4 space-y-1.5 text-xs">
-                        <div class="flex gap-2"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_org_label') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $whyPanel['organization_name'] }}</dd></div>
-                        <div class="flex gap-2"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_loop_label') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $whyPanel['loop_name'] }}</dd></div>
+                    <div class="px-5 py-4">
+                    <dl class="overflow-hidden rounded-xl border border-gray-200 text-xs dark:border-gray-700">
+                        <div class="flex gap-3 px-3 py-2"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_org_label') }}</dt><dd class="min-w-0 font-medium text-gray-900 dark:text-gray-100">{{ $whyPanel['organization_name'] }}</dd></div>
+                        <div class="flex gap-3 border-t border-gray-100 px-3 py-2 dark:border-gray-800"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_loop_label') }}</dt><dd class="min-w-0 font-medium text-gray-900 dark:text-gray-100">{{ $whyPanel['loop_name'] }}</dd></div>
                         @if($whyPanel['ai_mode'])
-                        <div class="flex gap-2"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_mode_label') }}</dt><dd class="text-gray-900 dark:text-gray-100" data-why-mode="{{ $whyPanel['ai_mode'] }}">{{ match($whyPanel['ai_mode']) {
+                        <div class="flex items-center gap-3 border-t border-gray-100 px-3 py-2 dark:border-gray-800"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_mode_label') }}</dt><dd data-why-mode="{{ $whyPanel['ai_mode'] }}"><span class="inline-flex items-center rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 ring-1 ring-violet-200 dark:bg-violet-800/60 dark:text-violet-100 dark:ring-violet-700">{{ match($whyPanel['ai_mode']) {
                             'llm' => __('loops.ia_mode_label'),
                             'rag' => __('loops.dossiers_mode_label'),
                             'llm_rag' => __('loops.hybrid_mode_label'),
                             default => $whyPanel['ai_mode'],
-                        } }}</dd></div>
+                        } }}</span></dd></div>
                         @endif
                         @if($whyPanel['requested_by_name'])
-                        <div class="flex gap-2"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_requested_by_label') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $whyPanel['requested_by_name'] }}</dd></div>
+                        <div class="flex gap-3 border-t border-gray-100 px-3 py-2 dark:border-gray-800"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_requested_by_label') }}</dt><dd class="min-w-0 font-medium text-violet-700 dark:text-violet-300">{{ $whyPanel['requested_by_name'] }}</dd></div>
                         @endif
                         @if($whyPanel['question'])
-                        <div class="flex gap-2"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_question_label') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $whyPanel['question'] }}</dd></div>
+                        <div class="flex gap-3 border-t border-gray-100 px-3 py-2 dark:border-gray-800"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_question_label') }}</dt><dd class="min-w-0 italic leading-5 text-gray-700 dark:text-gray-300">« {{ $whyPanel['question'] }} »</dd></div>
                         @endif
                         @if($whyPanel['generated_at'])
-                        <div class="flex gap-2"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_generated_label') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $whyPanel['generated_at'] }}</dd></div>
+                        <div class="flex gap-3 border-t border-gray-100 px-3 py-2 dark:border-gray-800"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_generated_label') }}</dt><dd class="min-w-0 text-gray-700 dark:text-gray-300">{{ $whyPanel['generated_at'] }}</dd></div>
                         @endif
                     </dl>
 
@@ -751,40 +803,47 @@
                         {{-- Bulle antérieure au ledger, trace introuvable ou
                              incohérente : le gap est DIT, jamais comblé par une
                              reconstruction plausible. --}}
-                        <p class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200" data-why-trace-unavailable>
-                            {{ __('loops.why_trace_unavailable') }}
+                        <p class="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200" data-why-trace-unavailable>
+                            <svg class="mt-0.5 h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+                            <span>{{ __('loops.why_trace_unavailable') }}</span>
                         </p>
                     @else
                         <div class="mt-4 space-y-3" data-why-ledger data-why-capability="{{ $whyPanel['ledger']['capability'] }}">
-                            <div class="flex gap-2 text-xs"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_function_label') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $whyPanel['ledger']['capability_label'] }}</dd></div>
+                            <div class="flex items-center gap-3 text-xs"><span class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_function_label') }}</span><span class="font-medium text-gray-900 dark:text-gray-100">{{ $whyPanel['ledger']['capability_label'] }}</span></div>
 
-                            <div class="rounded-lg border border-gray-200 p-2.5 text-xs dark:border-gray-700" data-why-conversation>
-                                <p class="font-semibold uppercase tracking-wide text-[11px] text-gray-500 dark:text-gray-400">{{ __('loops.why_conversation_title') }}</p>
+                            <div class="rounded-xl border border-gray-200 bg-gray-50/70 p-3 text-xs dark:border-gray-700 dark:bg-gray-800/50" data-why-conversation>
+                                <p class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                    <svg class="h-3.5 w-3.5 shrink-0 text-violet-500 dark:text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                                    {{ __('loops.why_conversation_title') }}
+                                </p>
                                 @if($whyPanel['ledger']['conversation'] === null)
-                                    <p class="mt-1 text-gray-600 dark:text-gray-300">{{ __('loops.why_conversation_unavailable') }}</p>
+                                    <p class="mt-1.5 leading-5 text-gray-600 dark:text-gray-300">{{ __('loops.why_conversation_unavailable') }}</p>
                                 @else
-                                    <p class="mt-1 text-gray-600 dark:text-gray-300" data-why-conversation-used="{{ $whyPanel['ledger']['conversation']['used_count'] }}">{{ trans_choice('loops.why_conversation_used', $whyPanel['ledger']['conversation']['used_count']) }}</p>
+                                    <p class="mt-1.5 leading-5 text-gray-700 dark:text-gray-200" data-why-conversation-used="{{ $whyPanel['ledger']['conversation']['used_count'] }}">{{ trans_choice('loops.why_conversation_used', $whyPanel['ledger']['conversation']['used_count']) }}</p>
                                     @if($whyPanel['ledger']['conversation']['hidden_count'] > 0)
-                                    <p class="mt-0.5 text-amber-700 dark:text-amber-300" data-why-conversation-hidden="{{ $whyPanel['ledger']['conversation']['hidden_count'] }}">{{ trans_choice('loops.why_conversation_hidden', $whyPanel['ledger']['conversation']['hidden_count']) }}</p>
+                                    <p class="mt-0.5 leading-5 text-amber-700 dark:text-amber-300" data-why-conversation-hidden="{{ $whyPanel['ledger']['conversation']['hidden_count'] }}">{{ trans_choice('loops.why_conversation_hidden', $whyPanel['ledger']['conversation']['hidden_count']) }}</p>
                                     @endif
                                 @endif
                             </div>
 
-                            <div class="rounded-lg border border-gray-200 p-2.5 text-xs dark:border-gray-700" data-why-documents>
-                                <p class="font-semibold uppercase tracking-wide text-[11px] text-gray-500 dark:text-gray-400">{{ __('loops.why_documents_title') }}</p>
+                            <div class="rounded-xl border border-gray-200 bg-gray-50/70 p-3 text-xs dark:border-gray-700 dark:bg-gray-800/50" data-why-documents>
+                                <p class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                    <svg class="h-3.5 w-3.5 shrink-0 text-violet-500 dark:text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+                                    {{ __('loops.why_documents_title') }}
+                                </p>
                                 @if($whyPanel['ledger']['documents'] === null)
-                                    <p class="mt-1 text-gray-600 dark:text-gray-300">{{ __('loops.why_documents_unavailable') }}</p>
+                                    <p class="mt-1.5 leading-5 text-gray-600 dark:text-gray-300">{{ __('loops.why_documents_unavailable') }}</p>
                                 @elseif($whyPanel['ledger']['documents']['applies'] === false)
-                                    <p class="mt-1 text-gray-600 dark:text-gray-300" data-why-documents-none>{{ __('loops.why_documents_none') }}</p>
+                                    <p class="mt-1.5 leading-5 text-gray-600 dark:text-gray-300" data-why-documents-none>{{ __('loops.why_documents_none') }}</p>
                                 @else
-                                    <p class="mt-1 text-gray-600 dark:text-gray-300">
+                                    <p class="mt-1.5 leading-5 text-gray-700 dark:text-gray-200">
                                         {{ trans_choice('loops.why_documents_cited', $whyPanel['ledger']['documents']['cited_count']) }}
                                         · {{ trans_choice('loops.why_documents_consulted', $whyPanel['ledger']['documents']['consulted_count']) }}
                                     </p>
                                     @if($whyPanel['ledger']['documents']['entries'] !== [])
-                                    <ul class="mt-1.5 space-y-1">
+                                    <ul class="mt-2 space-y-1">
                                         @foreach($whyPanel['ledger']['documents']['entries'] as $entry)
-                                        <li class="rounded border border-gray-200 px-2 py-1 dark:border-gray-700" data-why-document-entry>
+                                        <li class="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 dark:border-gray-700 dark:bg-gray-900" data-why-document-entry>
                                             @if($entry['ref'])<span class="font-mono text-[10px] text-sky-700 dark:text-sky-300">[{{ $entry['ref'] }}]</span>@endif
                                             <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $entry['title'] }}</span>
                                             @if($entry['dossier_name'])<span class="text-gray-500 dark:text-gray-400"> · {{ $entry['dossier_name'] }}</span>@endif
@@ -793,31 +852,32 @@
                                     </ul>
                                     @endif
                                     @if($whyPanel['ledger']['documents']['masked_count'] > 0)
-                                    <p class="mt-1 text-amber-700 dark:text-amber-300" data-why-documents-masked="{{ $whyPanel['ledger']['documents']['masked_count'] }}">{{ trans_choice('loops.why_documents_masked', $whyPanel['ledger']['documents']['masked_count']) }}</p>
+                                    <p class="mt-1.5 leading-5 text-amber-700 dark:text-amber-300" data-why-documents-masked="{{ $whyPanel['ledger']['documents']['masked_count'] }}">{{ trans_choice('loops.why_documents_masked', $whyPanel['ledger']['documents']['masked_count']) }}</p>
                                     @endif
                                 @endif
                             </div>
 
                             @if($whyPanel['ledger']['denied_count'] > 0)
-                            <p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200" data-why-denied="{{ $whyPanel['ledger']['denied_count'] }}">
-                                {{ trans_choice('loops.why_denied', $whyPanel['ledger']['denied_count']) }}
+                            <p class="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200" data-why-denied="{{ $whyPanel['ledger']['denied_count'] }}">
+                                <svg class="mt-0.5 h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+                                <span>{{ trans_choice('loops.why_denied', $whyPanel['ledger']['denied_count']) }}</span>
                             </p>
                             @endif
                         </div>
                     @endif
 
                     @if($whyPanel['can_feedback'])
-                    <div class="mt-4 border-t border-gray-200 pt-3 dark:border-gray-700" data-why-feedback>
+                    <div class="mt-4 rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-2.5 dark:border-violet-900/40 dark:bg-violet-950/20" data-why-feedback>
                         <p class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('loops.why_feedback_title') }}</p>
                         <div class="mt-2 flex items-center gap-2">
                             <button type="button" wire:click="submitWhyFeedback('helpful')" wire:loading.attr="disabled" wire:target="submitWhyFeedback"
                                     data-why-feedback-helpful data-why-feedback-active="{{ $whyPanel['my_verdict'] === 'helpful' ? '1' : '0' }}"
-                                    class="rounded-full border px-3 py-1 text-[11px] font-semibold transition disabled:opacity-50 {{ $whyPanel['my_verdict'] === 'helpful' ? 'border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100' : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700' }}">
+                                    class="rounded-full border px-3 py-1 text-[11px] font-semibold transition disabled:opacity-50 {{ $whyPanel['my_verdict'] === 'helpful' ? 'border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700' }}">
                                 {{ __('loops.why_feedback_helpful') }}
                             </button>
                             <button type="button" wire:click="submitWhyFeedback('improve')" wire:loading.attr="disabled" wire:target="submitWhyFeedback"
                                     data-why-feedback-improve data-why-feedback-active="{{ $whyPanel['my_verdict'] === 'improve' ? '1' : '0' }}"
-                                    class="rounded-full border px-3 py-1 text-[11px] font-semibold transition disabled:opacity-50 {{ $whyPanel['my_verdict'] === 'improve' ? 'border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100' : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700' }}">
+                                    class="rounded-full border px-3 py-1 text-[11px] font-semibold transition disabled:opacity-50 {{ $whyPanel['my_verdict'] === 'improve' ? 'border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700' }}">
                                 {{ __('loops.why_feedback_improve') }}
                             </button>
                         </div>
@@ -826,9 +886,10 @@
 
                     <div class="mt-4 flex justify-end">
                         <button type="button" wire:click="closeWhy" data-why-close
-                                class="text-xs font-medium text-gray-600 transition hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100">
+                                class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100">
                             {{ __('loops.why_close') }}
                         </button>
+                    </div>
                     </div>
                 </div>
             </div>

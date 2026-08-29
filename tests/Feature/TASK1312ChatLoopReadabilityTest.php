@@ -99,6 +99,11 @@ class TASK1312ChatLoopReadabilityTest extends TestCase
     /**
      * Un message humain ne porte AUCUN badge. Marquer ce qui est ordinaire
      * n'informe personne, et ferait du badge un bruit plutot qu'un signal.
+     *
+     * TASK-1329 : sans `metadata['requested_mode']` (absent ici), la bulle
+     * humaine ne doit pas non plus porter `data-requested-mode` — critere de
+     * non-regression central de cette TASK, verifie ici independamment du
+     * flux d'envoi (T1308/T1309 le verifient deja via `sendMessage`).
      */
     public function test_a_human_message_never_carries_a_mode_badge(): void
     {
@@ -113,7 +118,8 @@ class TASK1312ChatLoopReadabilityTest extends TestCase
         $this->actingAs($this->owner);
         Livewire::test(LoopChat::class, ['loop' => $this->loop])
             ->assertSee('Un message humain ordinaire.')
-            ->assertDontSee('data-ai-mode', false);
+            ->assertDontSee('data-ai-mode', false)
+            ->assertDontSee('data-requested-mode', false);
     }
 
     /**

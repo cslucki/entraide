@@ -825,6 +825,7 @@ return [
     'composer_mode_clear' => 'Revenir au message normal',
     'composer_more_actions' => 'Plus d\'actions',
     'composer_add_image' => 'Ajouter une image',
+    'composer_take_photo' => 'Prendre une photo',
     'ai_answer_requested' => 'L\'IA rédige sa réponse...',
     // TASK-1311 : le verrou est desormais scope par membre, plus par Boucle
     // entiere — le message doit dire la verite : un autre membre peut tres
