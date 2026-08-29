@@ -651,11 +651,13 @@ class TASK1315AiShellTest extends TestCase
     {
         // Un fil qui porte l'identifiant d'une Boucle d'une AUTRE Organization
         // — le cas exact d'un fil relu apres un changement de droits.
+        // TASK-1325 : la suggestion s'affiche desormais comme LoopCard du
+        // tour ; la regle de revalidation, elle, ne change pas.
         $this->answerWithSuggestedLoop((string) $this->loopB->id);
 
         Livewire::actingAs($this->memberA)
             ->test(AiShell::class)
-            ->assertDontSee('data-ai-shell-action="shell_open_loop"', false)
+            ->assertDontSee('data-ai-shell-card="loop"', false)
             ->assertDontSee('Boucle Shell B');
 
         AiShellMessage::query()->delete();
@@ -663,7 +665,8 @@ class TASK1315AiShellTest extends TestCase
 
         Livewire::actingAs($this->memberA)
             ->test(AiShell::class)
-            ->assertSee('data-ai-shell-action="shell_open_loop"', false)
+            ->assertSee('data-ai-shell-card="loop"', false)
+            ->assertSee('data-ai-shell-card-action="open_loop"', false)
             ->assertSee('Boucle Shell A');
     }
 
@@ -674,7 +677,7 @@ class TASK1315AiShellTest extends TestCase
 
         Livewire::actingAs($this->memberA)
             ->test(AiShell::class)
-            ->assertSee('data-ai-shell-action="shell_prepare_request"', false)
+            ->assertSee('data-ai-shell-card-action="prepare_request"', false)
             ->call('prepareRequest')
             ->assertRedirect(route('organization.requests.create', ['organization' => $this->organizationA->slug]));
 

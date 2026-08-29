@@ -6,6 +6,7 @@ use App\Models\AiShellMessage;
 use App\Models\Organization;
 use App\Models\User;
 use App\Support\Ai\AiShellThread;
+use App\Support\Ai\AiShellTurnCards;
 use App\Support\Ai\AiTurnLock;
 use DomainException;
 use Illuminate\Support\Str;
@@ -85,6 +86,7 @@ final class AiShellResponder
     public function __construct(
         private readonly ClarifyUserHelpRequestService $clarifier,
         private readonly AiShellThread $thread,
+        private readonly AiShellTurnCards $cards,
     ) {}
 
     /**
@@ -201,6 +203,16 @@ final class AiShellResponder
             // demain ne peut donc pas exposer une Boucle qu'on a quittee.
             'suggested_loop_id' => is_array($result->suggestedLoop) ? ($result->suggestedLoop['id'] ?? null) : null,
             'suggested_category' => $result->suggestedCategory,
+            // TASK-1325 (Shell-1) : les cartes du tour — des references
+            // (identifiants + faits verifies a cet instant), re-resolues et
+            // re-autorisees a CHAQUE affichage. Jamais un droit.
+            'cards' => $this->cards->forAnsweredTurn(
+                $organization,
+                $user,
+                $result->suggestedLoop,
+                $pageContext,
+                trim($prompt."\n".$result->need),
+            ),
             'page_context' => $this->traceable($pageContext),
         ]];
     }
