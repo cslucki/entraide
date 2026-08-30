@@ -41,7 +41,19 @@
             title="{{ __('ai.fab_label') }}"
             data-ai-fab-toggle
             class="fixed bottom-36 right-4 md:bottom-24 md:right-6 z-40 inline-flex items-center gap-2 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-indigo-900/20 ring-1 ring-white/20 hover:from-violet-500 hover:to-indigo-500 active:scale-95 transition h-12 w-12 md:h-auto md:w-auto md:px-4 md:py-2.5 justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500">
-        <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/><path stroke-linecap="round" stroke-linejoin="round" d="M18 5h.01M18 9h.01M6 4h.01"/></svg>
+        {{-- Symbole de marque en monochrome blanc translucide : essai visuel,
+             directement sur l'aplat violet/indigo du bouton, sans pastille. --}}
+        <svg class="h-5 w-5 flex-shrink-0" viewBox="0 0 512 512" fill="none" stroke="white" stroke-width="46" stroke-linecap="round" stroke-opacity="0.92" aria-hidden="true">
+            <path d="M 213.1 142 A 56 56 0 1 1 298.9 142"/>
+            <path d="M 306.28 145.05 A 56 56 0 1 1 366.95 205.72"/>
+            <path d="M 370 213.1 A 56 56 0 1 1 370 298.9"/>
+            <path d="M 366.95 306.28 A 56 56 0 1 1 306.28 366.95"/>
+            <path d="M 298.9 370 A 56 56 0 1 1 213.1 370"/>
+            <path d="M 205.72 366.95 A 56 56 0 1 1 145.05 306.28"/>
+            <path d="M 142 298.9 A 56 56 0 1 1 142 213.1"/>
+            <path d="M 145.05 205.72 A 56 56 0 1 1 205.72 145.05"/>
+            <path d="M 213.1 142 A 56 56 0 0 1 213.1 70"/>
+        </svg>
         <span class="hidden md:inline text-sm font-semibold">{{ __('ai.fab_label') }}</span>
         {{-- Pastille d'etat du credit : ambre a l'alerte, rouge au plafond. --}}
         @if($fab['credit_tone'] !== 'ok')
