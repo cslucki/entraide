@@ -38,14 +38,41 @@ class TASK1112CiCoverageTest extends TestCase
         return Yaml::parseFile(base_path(self::WORKFLOW));
     }
 
-    /** Les etapes du seul job bloquant. */
+    /**
+     * Les etapes de TOUS les jobs du workflow, a plat.
+     *
+     * TASK-1334 : jusqu'ici cette methode ne lisait que le job `quality-gate`,
+     * parce qu'un seul job faisait tout. Le workflow en compte desormais
+     * quatre — `classify`, `unit`, `feature`, `quality-gate` — et les etapes
+     * de test vivent dans `unit` et `feature`. Chercher dans l'ensemble des
+     * jobs est **plus strict**, pas moins : une etape ne peut plus echapper a
+     * ces gardes en changeant de job.
+     */
     private function etapes(): array
     {
         $jobs = $this->workflow()['jobs'] ?? [];
 
-        $this->assertArrayHasKey('quality-gate', $jobs, 'le job bloquant a disparu');
+        $this->assertNotSame([], $jobs, 'le workflow ne declare plus aucun job');
 
-        return $jobs['quality-gate']['steps'] ?? [];
+        $etapes = [];
+
+        foreach ($jobs as $job) {
+            foreach ($job['steps'] ?? [] as $etape) {
+                $etapes[] = $etape;
+            }
+        }
+
+        return $etapes;
+    }
+
+    /** Les etapes d'un job nomme. */
+    private function etapesDuJob(string $job): array
+    {
+        $jobs = $this->workflow()['jobs'] ?? [];
+
+        $this->assertArrayHasKey($job, $jobs, "le job {$job} a disparu du workflow");
+
+        return $jobs[$job]['steps'] ?? [];
     }
 
     /** L'etape qui lance une configuration donnee, ou null. */
@@ -79,9 +106,28 @@ class TASK1112CiCoverageTest extends TestCase
     {
         // **Lu dans le YAML analyse**, et non cherche dans le texte : la
         // premiere version de ce test passait sur un commentaire.
+        //
+        // TASK-1334 : la suite Feature n'est plus lancee par une etape unique
+        // mais par quatre shards, via des configurations
+        // `phpunit.ci-feature.shard-K.xml` **derivees** de
+        // `phpunit.ci-feature.xml`. Le test ne cherche donc plus le nom de la
+        // configuration de reference, mais la commande qui lance un shard.
         $this->assertNotNull(
-            $this->etapeQuiLance('phpunit.ci-feature.xml'),
+            $this->etapeQuiLance('phpunit.ci-feature.shard-'),
             'aucune etape ne lance la suite Feature',
+        );
+
+        // Et surtout : le generateur doit tourner avec `--verify`. Sans lui,
+        // un shard pourrait se lancer sur une decoupe incomplete et la CI
+        // serait verte en ayant oublie des tests — exactement la tricherie que
+        // ce fichier existe pour rendre impossible.
+        $generation = $this->etapeQuiLance('shard-tests.php');
+
+        $this->assertNotNull($generation, 'le generateur de shards ne tourne plus');
+        $this->assertStringContainsString(
+            '--verify',
+            $generation['run'],
+            'le generateur tourne sans --verify : une decoupe incomplete passerait inapercue',
         );
     }
 
@@ -104,18 +150,21 @@ class TASK1112CiCoverageTest extends TestCase
         // test_the_ci_mode_resolution_is_fail_safe, qui EXECUTE ce calcul
         // plutot que de le lire). Toute autre condition doit continuer a
         // faire echouer ce test.
-        $conditionAutorisee = "steps.level.outputs.mode == 'full'";
-
-        foreach (['phpunit.ci-minimal.xml', 'phpunit.ci-feature.xml'] as $config) {
+        // TASK-1334 : la charge ne varie plus au sein d'un job mais entre
+        // jobs, si bien que les etapes de test ne portent plus AUCUNE
+        // condition — le `if` a migre au niveau du job `feature`, ou il est
+        // verifie par test_only_the_non_required_jobs_may_be_conditional().
+        // Aucune condition n'est donc toleree ici, ce qui est plus strict
+        // qu'avant.
+        foreach (['phpunit.ci-minimal.xml', 'phpunit.ci-feature.shard-'] as $config) {
             $etape = $this->etapeQuiLance($config);
 
             $this->assertNotNull($etape, $config);
             $this->assertArrayNotHasKey('continue-on-error', $etape, $config.' n’est plus bloquante');
-
-            $condition = $etape['if'] ?? null;
-            $this->assertTrue(
-                $condition === null || $condition === $conditionAutorisee,
-                $config.' porte une condition non autorisee : '.var_export($condition, true),
+            $this->assertArrayNotHasKey(
+                'if',
+                $etape,
+                $config.' porte une condition d’etape : la charge se module par job, pas par etape',
             );
         }
     }
@@ -129,12 +178,41 @@ class TASK1112CiCoverageTest extends TestCase
     // `nombreDeTestsSelectionnes()` plus haut : mesurer ce qui se passe
     // reellement, pas ce que le fichier a l'air de dire.
 
-    /** @return array<string, array{0: string, 1: string}> Les deux gates requis. */
+    /**
+     * Les deux checks EXIGES par le ruleset GitHub `Required CI checks`.
+     *
+     * Les noms sont ceux du ruleset, au mot pres. Renommer un de ces jobs sans
+     * mettre a jour le ruleset dans le meme mouvement rendrait la protection
+     * de branche inoperante : elle attendrait un check qui n'existe plus, et
+     * plus rien ne pourrait merger.
+     *
+     * @return array<string, array{0: string, 1: string}>
+     */
     private static function gatesRequis(): array
     {
         return [
             'SQLite Regression Gate (blocking)' => ['.github/workflows/ci-sqlite.yml', 'sqlite-regression-gate'],
             'Quality Gate (blocking)' => [self::WORKFLOW, 'quality-gate'],
+        ];
+    }
+
+    /**
+     * Les jobs qui RESOLVENT le mode CI.
+     *
+     * TASK-1334 : ce n'est plus le meme ensemble que les gates requis. Cote
+     * PostgreSQL, la resolution a ete extraite dans un job `classify` sans
+     * conteneur ni checkout, precisement pour qu'elle precede la creation des
+     * conteneurs lourds — `services:` etant evalue avant la premiere etape
+     * d'un job, la classification ne pouvait pas rester dans le job qui porte
+     * la base. Cote SQLite, le workflow est inchange.
+     *
+     * @return array<string, array{0: string, 1: string}>
+     */
+    private static function jobsQuiResolventLeMode(): array
+    {
+        return [
+            'SQLite Regression Gate (blocking)' => ['.github/workflows/ci-sqlite.yml', 'sqlite-regression-gate'],
+            'PostgreSQL CI / classify' => [self::WORKFLOW, 'classify'],
         ];
     }
 
@@ -222,7 +300,7 @@ class TASK1112CiCoverageTest extends TestCase
     #[DataProvider('scenariosDeResolution')]
     public function test_the_ci_mode_resolution_is_fail_safe(string $event, array $labels, string $attendu): void
     {
-        foreach (self::gatesRequis() as $nomJob => [$chemin, $job]) {
+        foreach (self::jobsQuiResolventLeMode() as $nomJob => [$chemin, $job]) {
             $this->assertSame(
                 $attendu,
                 $this->resoudreLeMode($chemin, $job, $event, $labels),
@@ -233,34 +311,146 @@ class TASK1112CiCoverageTest extends TestCase
 
     public function test_the_required_jobs_are_never_conditional(): void
     {
-        // Le risque documente par MASTER (TASK-1148, workflow_dispatch) :
-        // un job entierement skippe peut laisser un required check `Pending`
-        // indefiniment. Seule la charge INTERNE d'un job peut varier — jamais
-        // son existence.
+        // Le risque documente par MASTER (TASK-1148, workflow_dispatch) : un
+        // job entierement skippe peut laisser un required check `Pending`
+        // indefiniment. **L'existence d'un job requis ne doit jamais dependre
+        // de quoi que ce soit.**
+        //
+        // TASK-1334 : ce test exigeait auparavant l'absence pure et simple de
+        // `if:`. Cette formulation etait juste tant qu'un job requis n'avait
+        // pas de `needs:`. Elle devient dangereuse des qu'il en a un — et
+        // `quality-gate` en a desormais trois.
+        //
+        // Car un job qui declare `needs:` et **aucun** `if:` est skippe des
+        // qu'un job amont echoue. Le required check ne rapporte alors jamais,
+        // et la PR reste bloquee en `Pending` : precisement le risque que ce
+        // test existe pour interdire. `if: always()` est la seule expression
+        // qui garantisse l'execution en toutes circonstances.
+        //
+        // La regle est donc reformulee, et elle est plus stricte qu'avant :
+        //   - job requis sans `needs:` -> aucun `if:` ;
+        //   - job requis avec `needs:` -> `if: always()`, et rien d'autre.
         foreach (self::gatesRequis() as $nomJob => [$chemin, $job]) {
             $jobs = Yaml::parseFile(base_path($chemin))['jobs'] ?? [];
 
             $this->assertArrayHasKey($job, $jobs, "{$nomJob} a disparu de {$chemin}");
-            $this->assertArrayNotHasKey(
-                'if',
-                $jobs[$job],
-                "{$nomJob} porte une condition au niveau JOB — required check jamais garanti",
+
+            $condition = $jobs[$job]['if'] ?? null;
+            $depend = array_key_exists('needs', $jobs[$job]);
+
+            if (! $depend) {
+                $this->assertNull(
+                    $condition,
+                    "{$nomJob} porte une condition au niveau JOB — required check jamais garanti",
+                );
+
+                continue;
+            }
+
+            $this->assertSame(
+                'always()',
+                $condition,
+                "{$nomJob} declare `needs:` sans `if: always()` : il sera skippe des qu’un job amont "
+                    ."echoue, et le required check restera Pending indefiniment",
+            );
+        }
+    }
+
+    public function test_only_the_non_required_jobs_may_be_conditional(): void
+    {
+        // TASK-1334 : la charge ne se module plus au sein d'un job mais entre
+        // jobs. C'est legitime — a condition que seuls des jobs NON requis
+        // soient conditionnels, et que leur condition depende de la
+        // classification, jamais d'autre chose.
+        //
+        // Sans cette garde, on pourrait rendre `feature` conditionnel a
+        // n'importe quoi (une branche, un acteur, un `false` litteral) et
+        // supprimer la suite Feature du gate sans qu'aucun test ne bronche.
+        $jobs = $this->workflow()['jobs'] ?? [];
+        $requis = ['quality-gate'];
+
+        foreach ($jobs as $nom => $job) {
+            $condition = $job['if'] ?? null;
+
+            if ($condition === null) {
+                continue;
+            }
+
+            if (in_array($nom, $requis, true)) {
+                continue; // couvert par le test precedent
+            }
+
+            $this->assertStringContainsString(
+                'needs.classify.outputs.mode',
+                $condition,
+                "le job {$nom} est conditionne par autre chose que la classification : ".$condition,
+            );
+        }
+
+        // Et la classification elle-meme ne peut pas etre conditionnelle :
+        // tout le reste en depend.
+        $this->assertArrayNotHasKey(
+            'if',
+            $jobs['classify'] ?? [],
+            'le job de classification est conditionnel : plus rien ne peut resoudre le mode',
+        );
+    }
+
+    public function test_the_classification_precedes_every_database_container(): void
+    {
+        // La raison d'etre du job `classify`. `services:` est evalue AVANT la
+        // premiere etape d'un job : tant que la resolution du mode vivait dans
+        // le job qui porte la base, le conteneur pgvector naissait avant meme
+        // qu'on sache si la charge etait `light` ou `full`.
+        //
+        // Tout job qui declare un service doit donc dependre de `classify`.
+        $jobs = $this->workflow()['jobs'] ?? [];
+
+        $this->assertArrayNotHasKey(
+            'services',
+            $jobs['classify'] ?? [],
+            'le job de classification porte un conteneur : il ne peut plus le preceder',
+        );
+
+        foreach ($jobs as $nom => $job) {
+            if (! array_key_exists('services', $job)) {
+                continue;
+            }
+
+            $needs = (array) ($job['needs'] ?? []);
+
+            $this->assertContains(
+                'classify',
+                $needs,
+                "le job {$nom} cree un conteneur sans attendre la classification",
             );
         }
     }
 
     public function test_the_feature_step_runs_after_the_migrations(): void
     {
-        $etapes = array_values($this->etapes());
+        // TASK-1334 : l'ordre se lit desormais DANS le job `feature`. Le
+        // comparer sur la liste a plat de tous les jobs ne voudrait plus rien
+        // dire — les etapes de `unit` s'y intercaleraient.
+        $etapes = array_values($this->etapesDuJob('feature'));
 
         $indice = fn (string $aiguille) => collect($etapes)
             ->search(fn (array $e) => str_contains($e['run'] ?? '', $aiguille));
 
-        $this->assertLessThan(
-            $indice('phpunit.ci-feature.xml'),
-            $indice('artisan migrate'),
-            'la suite Feature tourne avant les migrations',
-        );
+        $migrations = $indice('artisan migrate');
+        $tests = $indice('phpunit.ci-feature.shard-');
+        $generation = $indice('shard-tests.php');
+
+        $this->assertIsInt($migrations, 'le job feature ne lance plus les migrations');
+        $this->assertIsInt($tests, 'le job feature ne lance plus de shard');
+        $this->assertIsInt($generation, 'le job feature ne genere plus les shards');
+
+        $this->assertLessThan($tests, $migrations, 'la suite Feature tourne avant les migrations');
+
+        // La decoupe doit exister avant qu'on tente de la lancer : sinon le
+        // shard echouerait sur un fichier de configuration absent, ce qui est
+        // bruyant mais moins clair qu'une garde explicite.
+        $this->assertLessThan($tests, $generation, 'un shard est lance avant d’avoir ete genere');
     }
 
     // ── Ce que le gate couvre reellement ────────────────────────────────────
@@ -381,12 +571,39 @@ class TASK1112CiCoverageTest extends TestCase
 
     public function test_the_ci_never_targets_the_development_database(): void
     {
-        $env = $this->workflow()['jobs']['quality-gate']['env'] ?? [];
+        // TASK-1334 : la verification portait sur le seul job `quality-gate`.
+        // Elle porte desormais sur **tous** les jobs qui declarent une base ou
+        // un conteneur — il y en a cinq (`unit` plus quatre shards), et il
+        // suffirait qu'un seul vise la mauvaise base pour que la CI ecrase des
+        // donnees de developpement.
+        $jobs = $this->workflow()['jobs'] ?? [];
+        $verifies = 0;
 
-        $this->assertSame('bouclepro_test', $env['DB_DATABASE'] ?? null);
+        foreach ($jobs as $nom => $job) {
+            if (isset($job['env']['DB_DATABASE'])) {
+                $this->assertSame(
+                    'bouclepro_test',
+                    $job['env']['DB_DATABASE'],
+                    "le job {$nom} vise une autre base que bouclepro_test",
+                );
+                $verifies++;
+            }
 
-        $service = $this->workflow()['jobs']['quality-gate']['services']['postgres']['env'] ?? [];
-        $this->assertSame('bouclepro_test', $service['POSTGRES_DB'] ?? null);
+            if (isset($job['services']['postgres'])) {
+                $this->assertSame(
+                    'bouclepro_test',
+                    $job['services']['postgres']['env']['POSTGRES_DB'] ?? null,
+                    "le conteneur du job {$nom} expose une autre base que bouclepro_test",
+                );
+                $verifies++;
+            }
+        }
+
+        $this->assertGreaterThan(
+            0,
+            $verifies,
+            'plus aucun job ne declare de base : la garde ne verifie plus rien',
+        );
 
         foreach (['phpunit.ci-feature.xml', 'phpunit.ci-minimal.xml'] as $config) {
             $this->assertStringContainsString(
@@ -408,9 +625,68 @@ class TASK1112CiCoverageTest extends TestCase
 
     public function test_the_job_cannot_hang_a_runner_for_six_hours(): void
     {
-        // Sans `timeout-minutes`, le defaut de GitHub est 360 minutes. Le job
-        // est passe de ~70 s a ~20 min : un test qui pend retiendrait un runner
-        // six heures.
-        $this->assertArrayHasKey('timeout-minutes', $this->workflow()['jobs']['quality-gate']);
+        // Sans `timeout-minutes`, le defaut de GitHub est 360 minutes : un
+        // test qui pend retiendrait un runner six heures.
+        //
+        // TASK-1334 : la garde couvre desormais **tous** les jobs, pas le seul
+        // gate. Le motif n'est pas theorique — un essai reel du 2026-08-30
+        // etait reste bloque plus de 40 minutes sur « Initialize containers »,
+        // un incident d'infrastructure GitHub que seule la borne du job peut
+        // interrompre. Un job ajoute demain sans borne rouvrirait le trou.
+        foreach ($this->workflow()['jobs'] ?? [] as $nom => $job) {
+            $this->assertArrayHasKey(
+                'timeout-minutes',
+                $job,
+                "le job {$nom} n’a pas de borne : il peut retenir un runner six heures",
+            );
+        }
+    }
+
+    public function test_the_shards_cover_the_whole_feature_suite(): void
+    {
+        // **La garde qui rend le decoupage honnete.**
+        //
+        // Le seul moyen de rendre la CI plus rapide en trichant serait
+        // d'oublier des tests. Ce test mesure ce que les shards selectionnent
+        // REELLEMENT — meme idiome que nombreDeTestsSelectionnes() plus haut —
+        // et le compare a la configuration de reference. Compter les fichiers
+        // ne suffirait pas : une exclusion de groupe mal propagee ferait
+        // disparaitre des methodes sans toucher au nombre de fichiers.
+        $reference = $this->nombreDeTestsSelectionnes('phpunit.ci-feature.xml');
+
+        $this->assertGreaterThan(0, $reference, 'la configuration de reference ne selectionne plus rien');
+
+        exec(
+            'cd '.escapeshellarg(base_path()).' && php .github/scripts/shard-tests.php --total=4 --verify',
+            $sortieGeneration,
+            $codeGeneration,
+        );
+
+        $this->assertSame(
+            0,
+            $codeGeneration,
+            "la generation des shards a echoue :\n".implode("\n", $sortieGeneration),
+        );
+
+        $somme = 0;
+
+        for ($shard = 1; $shard <= 4; $shard++) {
+            $config = "phpunit.ci-feature.shard-{$shard}.xml";
+
+            $this->assertFileExists(base_path($config), "{$config} n’a pas ete genere");
+
+            $compte = $this->nombreDeTestsSelectionnes($config);
+
+            $this->assertGreaterThan(0, $compte, "{$config} ne selectionne aucun test");
+
+            $somme += $compte;
+        }
+
+        $this->assertSame(
+            $reference,
+            $somme,
+            "les quatre shards selectionnent {$somme} tests la ou la suite de reference en selectionne "
+                ."{$reference} : le decoupage a perdu ou duplique des tests",
+        );
     }
 }

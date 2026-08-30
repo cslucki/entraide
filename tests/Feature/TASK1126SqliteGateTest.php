@@ -181,11 +181,23 @@ class TASK1126SqliteGateTest extends TestCase
     {
         // Cette tache ne doit rien retirer au gate PostgreSQL. Les deux
         // moities restent, et restent bloquantes.
-        foreach (['phpunit.ci-minimal.xml', 'phpunit.ci-feature.xml'] as $config) {
-            $etape = $this->etapeQuiLance(self::WORKFLOW_PGSQL, 'quality-gate', $config);
+        //
+        // TASK-1334 : elles ne vivent plus dans un job unique. La suite Unit
+        // est dans le job `unit`, la suite Feature dans le job `feature` sous
+        // forme de quatre shards. Le nom du job ayant cesse d'etre un point
+        // fixe, on cherche l'etape dans l'ensemble des jobs du workflow — ce
+        // qui verifie toujours la meme chose : les deux moities tournent, et
+        // rien ne les neutralise.
+        $moities = [
+            'la suite Unit' => ['unit', 'phpunit.ci-minimal.xml'],
+            'la suite Feature' => ['feature', 'phpunit.ci-feature.shard-'],
+        ];
 
-            $this->assertNotNull($etape, "le gate PostgreSQL ne lance plus {$config}");
-            $this->assertNotTrue($etape['continue-on-error'] ?? false, "{$config} n'est plus bloquant");
+        foreach ($moities as $quoi => [$job, $fragment]) {
+            $etape = $this->etapeQuiLance(self::WORKFLOW_PGSQL, $job, $fragment);
+
+            $this->assertNotNull($etape, "le gate PostgreSQL ne lance plus {$quoi}");
+            $this->assertNotTrue($etape['continue-on-error'] ?? false, "{$quoi} n'est plus bloquante");
         }
     }
 }
