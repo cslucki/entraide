@@ -8,6 +8,7 @@ use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\Reaction;
 use App\Models\User;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\LoopService;
 use App\Support\Ai\AiMarkdownSanitizer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -1179,6 +1180,10 @@ class LoopChatTest extends TestCase
 
     public function test_active_moderator_sees_workspace_cards_shell(): void
     {
+        // TASK-1332 : le Manifeste n'est plus impose par defaut ; active ici
+        // pour que ce test continue d'exercer les trois Cards qu'il nomme.
+        app(LoopCardCompositionService::class)->enable($this->loop, 'core.manifesto');
+
         $moderator = User::factory()->create(['organization_id' => $this->organization->id]);
         $this->service->addMember($this->loop, $moderator, 'moderator');
 

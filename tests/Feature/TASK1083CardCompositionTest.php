@@ -91,8 +91,11 @@ class TASK1083CardCompositionTest extends TestCase
     {
         $byKey = collect($this->service()->compositionFor($this->loop))->keyBy('key');
 
-        $this->assertSame('preset', $byKey['core.manifesto']['origin']);
-        $this->assertTrue($byKey['core.manifesto']['enabled']);
+        // TASK-1332 : le Manifeste n'est plus dans le socle Projet par
+        // defaut (il reste au catalogue, activable) ; le Resume IA y est
+        // desormais.
+        $this->assertSame('preset', $byKey['core.ai_summary']['origin']);
+        $this->assertTrue($byKey['core.ai_summary']['enabled']);
         $this->assertTrue($byKey['core.members']['protected'], 'Members keeps the workspace usable.');
     }
 

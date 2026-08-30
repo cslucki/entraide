@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\LoopController;
 use App\Models\Loop;
 use App\Models\LoopCard;
 use App\Models\LoopMember;
@@ -97,7 +98,7 @@ class TASK1086CardRegistryAndPresetsTest extends TestCase
         // configuration et la constante du controleur ont disparu.
         $this->assertNull(config('loop_cards.rendered'));
         $this->assertFalse(
-            defined(\App\Http\Controllers\LoopController::class.'::RENDERED_CARDS'),
+            defined(LoopController::class.'::RENDERED_CARDS'),
         );
 
         // Et la chaine de conditions sur une cle de Card a quitte le Blade.
@@ -196,7 +197,9 @@ class TASK1086CardRegistryAndPresetsTest extends TestCase
 
         $this->assertSame($before, LoopCard::where('loop_id', $loop->id)->count());
         $this->assertGreaterThan(0, $preview['loops_affected']);
-        $this->assertArrayHasKey('core.manifesto', $preview['cards_to_add']);
+        // TASK-1332 : le Manifeste a quitte le socle Projet, le Resume IA l'a
+        // rejoint — c'est desormais lui que le preset ajouterait.
+        $this->assertArrayHasKey('core.ai_summary', $preview['cards_to_add']);
     }
 
     public function test_the_command_writes_nothing_in_dry_run(): void
@@ -282,8 +285,10 @@ class TASK1086CardRegistryAndPresetsTest extends TestCase
         $this->assertDatabaseHas('loop_cards', [
             'loop_id' => $loop->id, 'card_key' => 'core.roadmap', 'enabled' => true,
         ]);
+        // TASK-1332 : core.ai_summary a rejoint le socle Projet (le Manifeste
+        // l'a quitte) — c'est desormais lui que la Boucle a recu a l'origine.
         $this->assertDatabaseHas('loop_cards', [
-            'loop_id' => $loop->id, 'card_key' => 'core.manifesto', 'enabled' => true,
+            'loop_id' => $loop->id, 'card_key' => 'core.ai_summary', 'enabled' => true,
         ]);
     }
 
