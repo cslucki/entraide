@@ -115,6 +115,11 @@
         @endif
 
         {{-- ── Le cadre permanent ─────────────────────────────────────── --}}
+        {{-- Depuis TASK-1332, une Card de ce placement peut ne pas etre
+             active par defaut (le Manifeste, desormais) : la pastille dit
+             donc son etat, et une Card non requise garde son geste
+             enable/disable — meme route `composeCards()`, meme patron que la
+             grille et les actions de ChatLoop juste au-dessus. --}}
         <section class="mb-6 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/60">
             <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('loops.preset_frame_title') }}</p>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('loops.preset_frame_hint') }}</p>
@@ -124,11 +129,33 @@
                     ChatLoop
                 </span>
                 @foreach($composition['frame'] as $card)
-                    <span class="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                    <span class="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 {{ ! $card['enabled'] ? 'opacity-60' : '' }}"
                           title="{{ $card['description'] }}">
                         {{ $card['label'] }}
                         @if($card['data_count'] !== null)
                             <span class="text-[10px] font-normal text-gray-400">{{ __('loops.preset_data_count', ['count' => $card['data_count']]) }}</span>
+                        @endif
+
+                        @if($card['required'])
+                            <span class="text-[10px] font-normal text-gray-400">{{ __('loops.cards_always_on') }}</span>
+                        @elseif($card['enabled'])
+                            <form method="POST" action="{{ $composeUrl }}">
+                                @csrf
+                                <input type="hidden" name="action" value="disable">
+                                <input type="hidden" name="card_key" value="{{ $card['key'] }}">
+                                <button type="submit" class="font-semibold text-gray-400 underline-offset-2 hover:text-gray-600 hover:underline dark:hover:text-gray-200">
+                                    {{ __('loops.cards_disable') }}
+                                </button>
+                            </form>
+                        @else
+                            <form method="POST" action="{{ $composeUrl }}">
+                                @csrf
+                                <input type="hidden" name="action" value="enable">
+                                <input type="hidden" name="card_key" value="{{ $card['key'] }}">
+                                <button type="submit" class="font-semibold text-violet-600 underline-offset-2 hover:text-violet-800 hover:underline dark:text-violet-300 dark:hover:text-violet-100">
+                                    {{ __('loops.cards_enable') }}
+                                </button>
+                            </form>
                         @endif
                     </span>
                 @endforeach

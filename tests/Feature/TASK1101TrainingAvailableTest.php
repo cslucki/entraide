@@ -6,6 +6,7 @@ use App\Models\LoopCard;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopService;
+use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -76,8 +77,9 @@ class TASK1101TrainingAvailableTest extends TestCase
 
         // La matrice canonique : le cadre permanent, plus les trois Cards
         // pedagogiques. Ouvrir un type dont le preset ne se composerait pas
-        // serait pire que de le laisser ferme.
-        $this->assertContains('core.manifesto', $cles);
+        // serait pire que de le laisser ferme. Depuis TASK-1332, le Resume IA
+        // rejoint ce socle (le Manifeste n'y est plus impose par defaut).
+        $this->assertContains('core.ai_summary', $cles);
         $this->assertContains('core.members', $cles);
         $this->assertContains('training.course_material', $cles);
         $this->assertContains('training.progression', $cles);
@@ -96,7 +98,7 @@ class TASK1101TrainingAvailableTest extends TestCase
         // les Travaux ; le QCM existe depuis TASK-1102 et s'active localement.
         // L'ouverture du type n'impose donc aucun des deux.
         $this->assertNotContains('training.quiz', $this->registry()->cardsFor('training'));
-        $this->assertTrue(app(\App\Support\Loops\LoopCardRegistry::class)->exists('training.quiz'));
+        $this->assertTrue(app(LoopCardRegistry::class)->exists('training.quiz'));
     }
 
     public function test_an_existing_training_loop_gains_the_missing_cards(): void
@@ -122,6 +124,6 @@ class TASK1101TrainingAvailableTest extends TestCase
         );
         $this->assertContains('training.assignments', $this->registry()->activeCardsFor($loop->fresh()));
         // Ce qui etait deja la n'a pas bouge.
-        $this->assertContains('core.manifesto', $this->registry()->activeCardsFor($loop->fresh()));
+        $this->assertContains('core.ai_summary', $this->registry()->activeCardsFor($loop->fresh()));
     }
 }

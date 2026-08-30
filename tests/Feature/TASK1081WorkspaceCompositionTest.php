@@ -7,6 +7,8 @@ use App\Models\LoopCard;
 use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Loops\LoopCardCompositionService;
+use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
@@ -73,14 +75,16 @@ class TASK1081WorkspaceCompositionTest extends TestCase
     public function test_a_community_loop_shows_its_own_cards_and_not_the_others(): void
     {
         // Le socle de `general` — libelle « Communaute » depuis TASK-1090 —
-        // porte Manifeste, Membres, Sondages et Evenements. Manifeste et
-        // Membres sont affiches, mais dans le cadre permanent : ils apparaissent
-        // donc a l'ecran sans occuper d'emplacement de grille.
+        // porte desormais Resume IA, Membres, Sondages et Evenements
+        // (TASK-1332 : le Manifeste a quitte tous les socles par defaut, il
+        // reste au catalogue mais n'est plus impose). Membres est affiche
+        // dans le cadre permanent : il apparait donc a l'ecran sans occuper
+        // d'emplacement de grille.
         $loop = $this->loop('general');
 
         $this->workspace($loop)->assertOk()
             ->assertSee($this->label('core.members'))
-            ->assertSee($this->label('core.manifesto'))
+            ->assertSee($this->label('core.ai_summary'))
             ->assertSee($this->label('core.polls'))
             ->assertSee($this->label('core.events'))
             // Ce que ce preset n'a pas reste absent.
@@ -92,8 +96,12 @@ class TASK1081WorkspaceCompositionTest extends TestCase
         // TASK-1090 separait le cadre permanent des emplacements distinctifs.
         // Depuis TASK-1124, ce qui compte n'est plus un nombre d'emplacements
         // mais la separation elle-meme : le cadre n'est jamais un outil.
+        // TASK-1332 : le Manifeste n'est plus dans le socle par defaut d'aucun
+        // type, donc on l'active localement ici pour verifier qu'une fois
+        // actif, il atterrit bien dans le cadre et jamais dans la grille.
         $loop = $this->loop('general');
-        $registry = app(\App\Support\Loops\LoopCardRegistry::class);
+        app(LoopCardCompositionService::class)->enable($loop, 'core.manifesto');
+        $registry = app(LoopCardRegistry::class);
 
         $grid = $registry->workspaceCardsFor($loop->fresh(), $this->member)->pluck('key');
         $frame = $registry->frameCardsFor($loop->fresh(), $this->member)->pluck('key');
@@ -108,13 +116,13 @@ class TASK1081WorkspaceCompositionTest extends TestCase
     public function test_the_refused_cards_are_not_even_offered(): void
     {
         // The heart of the defect: the buttons existed, and opened on nothing.
-        // `core.manifesto` a rejoint le socle de ce preset en TASK-1090 et n'est
-        // donc plus un exemple valable ici ; la Roadmap et le Resume IA en
-        // restent absents.
+        // TASK-1332 : `core.ai_summary` a rejoint le socle de ce preset et
+        // n'est donc plus un exemple valable ici ; la Roadmap et les
+        // Decisions (reservees a Projet) en restent absentes.
         $html = $this->workspace($this->loop('general'))->assertOk()->getContent();
 
         $this->assertStringNotContainsString('core.roadmap', $html);
-        $this->assertStringNotContainsString('core.ai_summary', $html);
+        $this->assertStringNotContainsString('core.decisions', $html);
     }
 
     public function test_a_project_loop_shows_the_cards_it_actually_has(): void
@@ -133,8 +141,10 @@ class TASK1081WorkspaceCompositionTest extends TestCase
         $loop = $this->loop('project');
         LoopCard::where('loop_id', $loop->id)->where('card_key', 'core.roadmap')->update(['enabled' => false]);
 
+        // TASK-1332 : core.ai_summary est desormais dans le socle Projet (le
+        // Manifeste n'y est plus impose par defaut).
         $this->workspace($loop)->assertOk()
-            ->assertSee($this->label('core.manifesto'))
+            ->assertSee($this->label('core.ai_summary'))
             ->assertDontSee($this->label('core.roadmap'));
     }
 
@@ -168,7 +178,7 @@ class TASK1081WorkspaceCompositionTest extends TestCase
         $this->workspace($loop)->assertOk();
 
         // Rien n'a ete retire de la composition : c'est cela que ce test garde.
-        $active = app(\App\Support\Loops\LoopTypeRegistry::class)->activeCardsFor($loop->fresh());
+        $active = app(LoopTypeRegistry::class)->activeCardsFor($loop->fresh());
 
         foreach (array_keys(config('loop_cards.cards')) as $key) {
             $this->assertContains($key, $active, "La Card {$key} a disparu de la composition.");
@@ -179,13 +189,13 @@ class TASK1081WorkspaceCompositionTest extends TestCase
         // quatre Cards en perdait une, active mais introuvable. Le maximum de
         // trois ne concerne plus que les outils **mis en avant** ; les autres
         // vivent dans « Autres outils ».
-        $registry = app(\App\Support\Loops\LoopCardRegistry::class);
+        $registry = app(LoopCardRegistry::class);
         $shown = $registry->workspaceCardsFor($loop->fresh(), $this->member);
         $principaux = $registry->primaryWorkspaceCardsFor($loop->fresh(), $this->member);
         $secondaires = $registry->secondaryWorkspaceCardsFor($loop->fresh(), $this->member);
 
         $this->assertLessThanOrEqual(
-            \App\Services\Loops\LoopCardCompositionService::MAX_PRIMARY,
+            LoopCardCompositionService::MAX_PRIMARY,
             $principaux->count(),
         );
 

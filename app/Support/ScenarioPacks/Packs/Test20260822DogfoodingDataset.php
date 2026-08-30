@@ -55,6 +55,18 @@ final class Test20260822DogfoodingDataset
      * fichiers du corpus RAG, raison d'etre de `test20260822`, deviendraient
      * inaccessibles.
      *
+     * `core.manifesto` n'est PLUS garde en `kept_cards` depuis TASK-1332
+     * (decision Cyril) : aucune necessite fonctionnelle propre au Manifeste
+     * n'a ete etablie pour aucune des 10 Boucles (seul `core.dossiers`, ci-
+     * dessus, en a une, documentee) — "herite de l'ancien preset" n'est pas
+     * une justification. Le pack recalcule `$wanted` depuis le preset
+     * **courant** a chaque chargement : ces 9 Boucles perdent donc
+     * desormais silencieusement leur Manifeste au prochain rejeu, exactement
+     * l'effet produit voulu — une Card devenue optionnelle doit reellement
+     * pouvoir disparaitre du default. Elle reste au catalogue, activable a
+     * la demande depuis Outils. L'entree `coaching` (05) est inchangee :
+     * son preset ne l'a jamais inclus, avant comme apres TASK-1332.
+     *
      * `primary_cards` : les 3 outils MIS EN AVANT (barre), dans l'ordre —
      * DECLARES pour toute Boucle qui a plus de 3 Cards de grille actives
      * (07, 08, 09 : le preset + `dossiers` garde), pour que la Card qui

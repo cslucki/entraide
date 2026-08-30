@@ -33,7 +33,12 @@ class TASK1331SuperAdminCardManagementTest extends TestCase
 
     private User $orgAdmin;
 
-    /** general: core.ai_summary is NOT in the default preset (TASK-1090). */
+    /**
+     * general: since TASK-1332, core.ai_summary IS in every type's default
+     * preset and core.manifesto is not (doctrine corrected — it used to be
+     * the reverse for `general`, an asymmetry born at TASK-1090). Manifesto
+     * stays in the catalogue, always activable.
+     */
     private Loop $loop;
 
     protected function setUp(): void
@@ -74,13 +79,32 @@ class TASK1331SuperAdminCardManagementTest extends TestCase
             ->assertSee(__('loops.cards.ai_summary.label'));
     }
 
-    public function test_ai_summary_starts_inactive_on_a_general_loop_and_is_offered_as_such(): void
+    public function test_ai_summary_starts_active_on_a_general_loop_and_offers_disable(): void
     {
         $chatActions = collect(app(LoopPresetConfigurator::class)->describe($this->loop)['chat_actions']);
         $aiSummary = $chatActions->firstWhere('key', 'core.ai_summary');
 
         $this->assertNotNull($aiSummary, 'core.ai_summary must be in the chat_action bucket.');
-        $this->assertFalse($aiSummary['enabled']);
+        $this->assertTrue($aiSummary['enabled'], 'TASK-1332: ai_summary is on by default for every type.');
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops.configure', $this->loop))
+            ->assertOk()
+            ->assertSee(__('loops.cards_disable'));
+    }
+
+    public function test_manifesto_starts_inactive_on_a_general_loop_and_is_offered_as_activable(): void
+    {
+        // TASK-1332 : plus aucun type n'impose le Manifeste par defaut ; il
+        // reste au catalogue et s'active depuis la meme section (« cadre
+        // permanent ») que Membres, qui lui reste toujours actif (requis).
+        $frame = collect(app(LoopPresetConfigurator::class)->describe($this->loop)['frame']);
+        $manifesto = $frame->firstWhere('key', 'core.manifesto');
+        $members = $frame->firstWhere('key', 'core.members');
+
+        $this->assertNotNull($manifesto, 'core.manifesto must be in the frame bucket.');
+        $this->assertFalse($manifesto['enabled']);
+        $this->assertTrue($members['enabled'], 'core.members stays required and always on.');
 
         $this->actingAs($this->superAdmin)
             ->get(route('admin.loops.configure', $this->loop))
@@ -90,26 +114,26 @@ class TASK1331SuperAdminCardManagementTest extends TestCase
 
     // ── C: activation writes exactly one row, through the guarded path ─────
 
-    public function test_activating_ai_summary_from_outils_writes_only_that_row(): void
+    public function test_activating_manifesto_from_outils_writes_only_that_row(): void
     {
         $before = LoopCard::where('loop_id', $this->loop->id)->count();
 
         $this->actingAs($this->superAdmin)
             ->post(route('admin.loops.compose', $this->loop), [
-                'action' => 'enable', 'card_key' => 'core.ai_summary',
+                'action' => 'enable', 'card_key' => 'core.manifesto',
             ])
             ->assertRedirect();
 
-        $this->assertTrue($this->isEnabled('core.ai_summary'));
+        $this->assertTrue($this->isEnabled('core.manifesto'));
         $this->assertDatabaseHas('loop_cards', [
             'loop_id' => $this->loop->id,
             'organization_id' => $this->org->id,
-            'card_key' => 'core.ai_summary',
+            'card_key' => 'core.manifesto',
             'enabled' => true,
         ]);
         // Exactly one new row: nothing else was touched.
         $this->assertSame($before + 1, LoopCard::where('loop_id', $this->loop->id)->count());
-        $this->assertTrue($this->isEnabled('core.manifesto'), 'Untouched by the ai_summary toggle.');
+        $this->assertTrue($this->isEnabled('core.ai_summary'), 'Untouched by the manifesto toggle — on by default.');
     }
 
     // ── D: an already-active card reads as active, offers disable ──────────
@@ -162,20 +186,23 @@ class TASK1331SuperAdminCardManagementTest extends TestCase
 
     // ── I/J: same guards as every other card, nothing chat_action-specific ─
 
-    public function test_a_member_without_the_permission_cannot_enable_ai_summary(): void
+    public function test_a_member_without_the_permission_cannot_disable_ai_summary(): void
     {
         $member = User::factory()->create(['organization_id' => $this->org->id]);
         LoopMember::factory()->create([
             'loop_id' => $this->loop->id, 'user_id' => $member->id, 'role' => 'member', 'status' => 'active',
         ]);
 
+        // TASK-1332 : ai_summary est active des la creation — c'est la
+        // desactivation, pas l'activation, que le membre sans droit doit ne
+        // pas pouvoir declencher.
         $this->actingAs($member)
             ->post(route('admin.loops.compose', $this->loop), [
-                'action' => 'enable', 'card_key' => 'core.ai_summary',
+                'action' => 'disable', 'card_key' => 'core.ai_summary',
             ])
             ->assertForbidden();
 
-        $this->assertFalse($this->isEnabled('core.ai_summary'));
+        $this->assertTrue($this->isEnabled('core.ai_summary'));
     }
 
     public function test_a_forged_loop_id_from_another_organization_is_refused(): void

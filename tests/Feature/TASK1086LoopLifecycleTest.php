@@ -6,6 +6,8 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\LoopPermissionSettingsService;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopTypeRegistry;
@@ -53,11 +55,12 @@ class TASK1086LoopLifecycleTest extends TestCase
             'organization_id' => $this->org->id,
             'name' => 'Boucle de test',
             'slug' => 'boucle-de-test',
-            // Type « project » et non « general » : son socle porte les quatre
-            // Cards, dont Manifeste et Roadmap. Le socle « general » n'en
-            // prescrit qu'une, et les permissions qui dependent d'une Card
-            // seraient refusees pour cette raison plutot que pour l'archivage —
-            // ce qui ne prouverait rien.
+            // Type « project » et non « general » : son socle porte Roadmap
+            // (et, depuis TASK-1332, plus le Manifeste par defaut — active
+            // explicitement ci-dessous). Le socle « general » n'en prescrit
+            // aucune, et les permissions qui dependent d'une Card seraient
+            // refusees pour cette raison plutot que pour l'archivage — ce qui
+            // ne prouverait rien.
             'type' => 'project',
             'status' => 'active',
             'visibility' => 'private',
@@ -65,6 +68,7 @@ class TASK1086LoopLifecycleTest extends TestCase
         ]);
 
         app(LoopTypeRegistry::class)->applyPreset($this->loop);
+        app(LoopCardCompositionService::class)->enable($this->loop, 'core.manifesto');
 
         $this->join($this->owner, 'owner');
         $this->join($this->facilitator, 'facilitator');
@@ -192,7 +196,7 @@ class TASK1086LoopLifecycleTest extends TestCase
     public function test_reactivating_replays_no_preset_and_relights_no_card(): void
     {
         // Une Card eteinte a la main avant l'archivage.
-        app(\App\Services\Loops\LoopCardCompositionService::class)
+        app(LoopCardCompositionService::class)
             ->disable($this->loop, 'core.roadmap');
 
         $this->lifecycle()->archive($this->owner, $this->loop);
@@ -287,7 +291,7 @@ class TASK1086LoopLifecycleTest extends TestCase
         // inventee, qui serait refusee pour une autre raison.
         $this->lifecycle()->archive($this->owner, $this->loop);
 
-        $this->assertFalse(app(\App\Services\LoopPermissionSettingsService::class)->isReadOnly('chatloop.post'));
+        $this->assertFalse(app(LoopPermissionSettingsService::class)->isReadOnly('chatloop.post'));
         $this->assertFalse(
             app(LoopPermissionResolver::class)->can($this->owner, $this->loop->fresh(), 'chatloop.post'),
         );

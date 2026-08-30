@@ -62,17 +62,25 @@ class TASK1275LoopTypesMembersRolesCardsTest extends TestCase
     private const PLAN_262 = '07-Plan-262 Définition boucles et IA';
 
     /** @var array<string, list<string>> Boucle -> Cards ACTIVES attendues (tous placements) */
+    /**
+     * TASK-1332 : `core.ai_summary` rejoint le socle des 7 types (plus aucun
+     * type ne le laisse de cote). `core.manifesto` n'est plus impose par
+     * aucun preset ET n'est plus garde en `kept_cards` (aucune necessite
+     * fonctionnelle propre au Manifeste n'a ete etablie, contrairement a
+     * `core.dossiers` — decision Cyril) : aucune des 10 Boucles ne le porte
+     * plus du tout, il reste au catalogue, activable a la demande.
+     */
     private const EXPECTED_ACTIVE = [
-        '01-COMMUNICATION' => ['core.manifesto', 'core.members', 'core.article', 'core.roadmap', 'core.dossiers'],
-        '02-DESIGN' => ['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.decisions', 'core.dossiers', 'core.members'],
-        '03-Post LinkedIN' => ['core.manifesto', 'core.members', 'core.article', 'core.roadmap', 'core.dossiers'],
-        '04-Screens' => ['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.decisions', 'core.dossiers', 'core.members'],
+        '01-COMMUNICATION' => ['core.ai_summary', 'core.members', 'core.article', 'core.roadmap', 'core.dossiers'],
+        '02-DESIGN' => ['core.ai_summary', 'core.roadmap', 'core.decisions', 'core.dossiers', 'core.members'],
+        '03-Post LinkedIN' => ['core.ai_summary', 'core.members', 'core.article', 'core.roadmap', 'core.dossiers'],
+        '04-Screens' => ['core.ai_summary', 'core.roadmap', 'core.decisions', 'core.dossiers', 'core.members'],
         '05-Pour-la-beta1' => ['core.ai_summary', 'core.roadmap', 'core.journal', 'core.members', 'core.dossiers'],
-        '06-Pour_Boucles' => ['core.manifesto', 'core.members', 'core.polls', 'core.events', 'core.dossiers'],
-        '07-Plan-262 Définition boucles et IA' => ['core.manifesto', 'core.members', 'training.course_material', 'training.progression', 'training.assignments', 'core.dossiers'],
-        "08-Protocole d'emergence" => ['core.manifesto', 'core.members', 'core.roadmap', 'core.journal', 'core.polls', 'core.dossiers'],
-        '09-UT Dallas' => ['core.manifesto', 'core.members', 'core.marketplace', 'core.roadmap', 'core.events', 'core.dossiers'],
-        '10-Aria projet européen' => ['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.decisions', 'core.dossiers', 'core.members'],
+        '06-Pour_Boucles' => ['core.ai_summary', 'core.members', 'core.polls', 'core.events', 'core.dossiers'],
+        '07-Plan-262 Définition boucles et IA' => ['core.ai_summary', 'core.members', 'training.course_material', 'training.progression', 'training.assignments', 'core.dossiers'],
+        "08-Protocole d'emergence" => ['core.ai_summary', 'core.members', 'core.roadmap', 'core.journal', 'core.polls', 'core.dossiers'],
+        '09-UT Dallas' => ['core.ai_summary', 'core.members', 'core.marketplace', 'core.roadmap', 'core.events', 'core.dossiers'],
+        '10-Aria projet européen' => ['core.ai_summary', 'core.roadmap', 'core.decisions', 'core.dossiers', 'core.members'],
     ];
 
     /** @var array<string, list<string>> Boucle -> Cards ETEINTES attendues (ligne presente, enabled = false) */
@@ -81,7 +89,10 @@ class TASK1275LoopTypesMembersRolesCardsTest extends TestCase
         '02-DESIGN' => ['core.polls', 'core.events'],
         '03-Post LinkedIN' => ['core.polls', 'core.events'],
         '04-Screens' => ['core.polls', 'core.events'],
-        '05-Pour-la-beta1' => ['core.manifesto', 'core.polls', 'core.events'],
+        // TASK-1332 : le socle `general` initial (avant retypage coaching) ne
+        // materialise plus de ligne `core.manifesto` du tout — il n'y a donc
+        // plus rien a y trouver eteint, contrairement a avant cette tache.
+        '05-Pour-la-beta1' => ['core.polls', 'core.events'],
         '06-Pour_Boucles' => [],
         '07-Plan-262 Définition boucles et IA' => ['core.polls', 'core.events'],
         "08-Protocole d'emergence" => ['core.events'],
@@ -258,8 +269,19 @@ class TASK1275LoopTypesMembersRolesCardsTest extends TestCase
             LoopMember::query()->where('loop_id', $loop->id)->update(['role' => 'owner']);
             LoopCard::query()->where('loop_id', $loop->id)
                 ->whereNotIn('card_key', ['core.manifesto', 'core.members', 'core.polls', 'core.events', 'core.dossiers'])->delete();
-            LoopCard::query()->where('loop_id', $loop->id)
-                ->update(['enabled' => true, 'added_by_preset' => 'general', 'primary_rank' => null]);
+            // TASK-1332 : le socle `general` actuel ne cree plus de ligne
+            // `core.manifesto` a la creation, et plus aucune des 10 entrees
+            // ne le garde en `kept_cards` — aucune n'en a donc plus une seule
+            // a regresser par simple UPDATE. La mesure du 23/08 (v1.1.0)
+            // portait ces 5 Cards sur les 10 Boucles ; on la force ici
+            // (creation comprise) plutot que de deriver de ce que le
+            // chargement courant a materialise.
+            foreach (['core.manifesto', 'core.members', 'core.polls', 'core.events', 'core.dossiers'] as $cardKey) {
+                LoopCard::query()->updateOrCreate(
+                    ['loop_id' => $loop->id, 'card_key' => $cardKey],
+                    ['organization_id' => $loop->organization_id, 'enabled' => true, 'added_by_preset' => 'general', 'primary_rank' => null],
+                );
+            }
         }
 
         ScenarioPackEntity::query()->where('organization_id', $this->organization->id)
@@ -292,6 +314,10 @@ class TASK1275LoopTypesMembersRolesCardsTest extends TestCase
                 $this->assertTrue($registry->isCanonical($role), "{$name} : {$persona} -> {$role} n'est pas canonique.");
                 $this->assertNotSame('moderator', $role);
             }
+            // TASK-1332 : `core.manifesto` a quitte tous les presets par
+            // defaut ET n'est plus garde en `kept_cards` nulle part (aucune
+            // necessite fonctionnelle propre au Manifeste, contrairement a
+            // `core.dossiers` — decision Cyril). Uniforme sur les 10 entrees.
             $this->assertSame(['core.dossiers'], $entry['kept_cards'], "{$name} garde core.dossiers.");
         }
 
