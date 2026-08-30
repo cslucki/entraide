@@ -103,9 +103,11 @@ class TASK1079LoopTypeRegistryTest extends TestCase
         // « Roadmap · Decisions · Dossiers » — les Decisions avec TASK-1106,
         // les Dossiers avec TASK-1110. La liste reste **figee a la main** :
         // c'est ce qui fait qu'un changement de preset ne passe jamais
-        // inaperçu.
+        // inaperçu. Le Manifeste a quitte le socle avec TASK-1332 : il reste
+        // au catalogue, toujours activable, mais aucun preset ne l'impose
+        // plus.
         $this->assertEqualsCanonicalizing(
-            ['core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.decisions', 'core.dossiers', 'core.members'],
+            ['core.ai_summary', 'core.roadmap', 'core.decisions', 'core.dossiers', 'core.members'],
             $this->registry()->cardsFor('project'),
         );
     }

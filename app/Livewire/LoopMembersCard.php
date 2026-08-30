@@ -11,7 +11,9 @@ use App\Services\LoopInvitationService;
 use App\Services\Loops\LoopInvitationMailer;
 use App\Services\LoopService;
 use App\Support\Loops\LoopPermissionResolver;
+use App\Support\Loops\LoopRoleRegistry;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Route;
 use Livewire\Component;
 
 /**
@@ -112,7 +114,7 @@ class LoopMembersCard extends Component
 
         $organization = request()->route('organization');
 
-        $this->shareUrl = ($organization && \Illuminate\Support\Facades\Route::has('organization.loops.show'))
+        $this->shareUrl = ($organization && Route::has('organization.loops.show'))
             ? route('organization.loops.show', ['organization' => $organization, 'loop' => $loop])
             : route('loops.show', $loop);
     }
@@ -124,7 +126,9 @@ class LoopMembersCard extends Component
         // Une Boucle archivee ne recrute plus. La Policy le dit deja pour
         // l'ecriture ; l'ecran ne doit pas proposer un geste qui sera refuse.
         return ! $this->loop->isArchived()
-            && (bool) auth()->user()?->can('manageJoinRequests', $this->loop);
+            // TASK-1313 (review fix) : cette Card AJOUTE des membres — son
+            // autorite est `addMembers`, pas la revue des demandes d'adhesion.
+            && (bool) auth()->user()?->can('addMembers', $this->loop);
     }
 
     public function canInviteByEmail(): bool
@@ -211,7 +215,7 @@ class LoopMembersCard extends Component
 
     public function add(LoopService $loops): void
     {
-        $this->authorize('manageJoinRequests', $this->loop);
+        $this->authorize('addMembers', $this->loop);
         $this->clearMessages();
 
         if ($this->loop->isArchived() || $this->selected === []) {
@@ -364,16 +368,16 @@ class LoopMembersCard extends Component
         $user = auth()->user();
 
         $members = $this->members();
-        $roles = app(\App\Support\Loops\LoopRoleRegistry::class);
+        $roles = app(LoopRoleRegistry::class);
 
         $counts = [
-            self::SEGMENT_MEMBERS => $members->filter(fn ($m) => $roles->canonical($m->role) === \App\Support\Loops\LoopRoleRegistry::MEMBER)->count(),
-            self::SEGMENT_FACILITATORS => $members->filter(fn ($m) => $roles->canonical($m->role) === \App\Support\Loops\LoopRoleRegistry::FACILITATOR)->count(),
+            self::SEGMENT_MEMBERS => $members->filter(fn ($m) => $roles->canonical($m->role) === LoopRoleRegistry::MEMBER)->count(),
+            self::SEGMENT_FACILITATORS => $members->filter(fn ($m) => $roles->canonical($m->role) === LoopRoleRegistry::FACILITATOR)->count(),
         ];
 
         $shown = match ($this->segment) {
-            self::SEGMENT_MEMBERS => $members->filter(fn ($m) => $roles->canonical($m->role) === \App\Support\Loops\LoopRoleRegistry::MEMBER)->values(),
-            self::SEGMENT_FACILITATORS => $members->filter(fn ($m) => $roles->canonical($m->role) === \App\Support\Loops\LoopRoleRegistry::FACILITATOR)->values(),
+            self::SEGMENT_MEMBERS => $members->filter(fn ($m) => $roles->canonical($m->role) === LoopRoleRegistry::MEMBER)->values(),
+            self::SEGMENT_FACILITATORS => $members->filter(fn ($m) => $roles->canonical($m->role) === LoopRoleRegistry::FACILITATOR)->values(),
             default => $members,
         };
 

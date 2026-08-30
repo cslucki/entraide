@@ -14,6 +14,63 @@
         </p>
     </div>
 
+    @if(! empty($pulse))
+        @php
+            $pulseItems = collect([
+                ['key' => 'members', 'card' => 'core.members'],
+                ['key' => 'roadmap', 'card' => 'core.roadmap'],
+                ['key' => 'decisions', 'card' => 'core.decisions'],
+                ['key' => 'polls', 'card' => 'core.polls'],
+                ['key' => 'events', 'card' => 'core.events'],
+            ])->filter(fn ($item) => array_key_exists($item['key'], $pulse))->values();
+
+            $pulseGrid = match ($pulseItems->count()) {
+                1 => 'grid-cols-1',
+                2 => 'grid-cols-2',
+                3 => 'grid-cols-1 sm:grid-cols-3',
+                default => 'grid-cols-2 sm:grid-cols-4',
+            };
+        @endphp
+        <section
+            class="rounded-2xl border border-violet-100 bg-violet-50/60 p-3 dark:border-violet-900/60 dark:bg-violet-950/20"
+            aria-labelledby="loop-pulse-title"
+            data-loop-pulse
+        >
+            <div class="px-1 pb-3">
+                <h3 id="loop-pulse-title" class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    {{ __('loops.pulse.title') }}
+                </h3>
+                <p class="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-400">
+                    {{ __('loops.pulse.description') }}
+                </p>
+            </div>
+
+            <div class="grid gap-2 {{ $pulseGrid }}">
+                @foreach($pulseItems as $item)
+                    <button
+                        type="button"
+                        x-on:click="$dispatch('bp-open-loop-card', { card: @js($item['card']) })"
+                        class="group flex min-h-11 min-w-0 items-center justify-between gap-2 rounded-xl border border-violet-100 bg-white px-3 py-2 text-left transition hover:border-violet-200 hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-violet-800 dark:hover:bg-violet-950/30 dark:focus-visible:ring-offset-gray-900"
+                        aria-label="{{ __('loops.pulse.open_card', ['label' => __('loops.pulse.'.$item['key'])]) }}"
+                        data-loop-pulse-target="{{ $item['card'] }}"
+                    >
+                        <span class="min-w-0">
+                            <span class="block text-lg font-semibold leading-none text-gray-900 dark:text-gray-100" data-loop-pulse-count="{{ $item['key'] }}">
+                                {{ $pulse[$item['key']] }}
+                            </span>
+                            <span class="mt-1 block text-[11px] leading-4 text-gray-600 dark:text-gray-400">
+                                {{ __('loops.pulse.'.$item['key']) }}
+                            </span>
+                        </span>
+                        <svg class="h-4 w-4 shrink-0 text-violet-400 transition group-hover:translate-x-0.5 group-hover:text-violet-600 dark:text-violet-500 dark:group-hover:text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" />
+                        </svg>
+                    </button>
+                @endforeach
+            </div>
+        </section>
+    @endif
+
     {{-- Non-blocking error --}}
     @if($errorMessage)
         <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200" data-ai-summary-error @if($errorCode) data-ai-refusal-code="{{ $errorCode }}" @endif>

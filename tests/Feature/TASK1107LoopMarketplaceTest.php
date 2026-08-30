@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Livewire\LoopMarketplaceCard;
+use App\Models\Category;
 use App\Models\Loop;
 use App\Models\LoopCard;
 use App\Models\LoopMarketplaceLink;
@@ -10,10 +11,12 @@ use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\Loops\LoopMarketplaceService;
 use App\Services\LoopService;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -77,11 +80,11 @@ class TASK1107LoopMarketplaceTest extends TestCase
     }
 
     /** Une categorie est obligatoire sur les deux modeles : elle est creee ici. */
-    private function categorie(?Organization $org = null): \App\Models\Category
+    private function categorie(?Organization $org = null): Category
     {
         $org ??= $this->org;
 
-        return \App\Models\Category::firstOrCreate(
+        return Category::firstOrCreate(
             ['organization_id' => $org->id, 'slug' => 'artisanat'],
             ['name_b2c' => 'Artisanat', 'name_b2b' => 'Artisanat', 'color' => 'gray'],
         );
@@ -159,11 +162,12 @@ class TASK1107LoopMarketplaceTest extends TestCase
 
     public function test_the_networking_preset_exists_with_its_three_distinctive_cards(): void
     {
-        // La matrice : « Reseautage | Manifeste · Membres | Demande-Offre ·
-        // Roadmap · Evenements ».
+        // La matrice : « Reseautage | Resume IA · Membres | Demande-Offre ·
+        // Roadmap · Evenements ». Depuis TASK-1332, le Resume IA rejoint le
+        // socle a la place du Manifeste (qui n'y est plus impose).
         $cles = app(LoopTypeRegistry::class)->cardsFor('networking');
 
-        foreach (['core.marketplace', 'core.roadmap', 'core.events', 'core.manifesto', 'core.members'] as $attendue) {
+        foreach (['core.marketplace', 'core.roadmap', 'core.events', 'core.ai_summary', 'core.members'] as $attendue) {
             $this->assertContains($attendue, $cles, $attendue);
         }
     }
@@ -290,7 +294,7 @@ class TASK1107LoopMarketplaceTest extends TestCase
         $offre = $this->offre();
         $this->service()->highlightOffer($this->loop, $this->membre, $offre);
 
-        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+        $this->expectException(UniqueConstraintViolationException::class);
 
         LoopMarketplaceLink::create([
             'organization_id' => $this->org->id,
@@ -658,7 +662,6 @@ class TASK1107LoopMarketplaceTest extends TestCase
         );
     }
 
-
     // ── Ce que la revue hostile a trouve ────────────────────────────────────
 
     public function test_a_deactivated_persons_offer_is_not_announced_as_live(): void
@@ -821,7 +824,6 @@ class TASK1107LoopMarketplaceTest extends TestCase
         $this->assertFalse($methode->isPublic(), 'canEdit est exposee comme action Livewire');
     }
 
-
     // ── Ce que la recette navigateur a montre ───────────────────────────────
 
     public function test_correcting_a_note_does_not_claim_something_was_highlighted(): void
@@ -874,7 +876,6 @@ class TASK1107LoopMarketplaceTest extends TestCase
         $this->assertNotSame($un, $plusieurs);
     }
 
-
     // ── Ce que la seconde revue a trouve ────────────────────────────────────
 
     public function test_the_creation_link_never_sends_to_another_organization(): void
@@ -900,7 +901,7 @@ class TASK1107LoopMarketplaceTest extends TestCase
         $offre = $this->offre();
         $lien = $this->service()->highlightOffer($this->loop, $this->membre, $offre);
 
-        $composant = new \App\Livewire\LoopMarketplaceCard;
+        $composant = new LoopMarketplaceCard;
         $composant->loop = $this->loop;
 
         $this->assertSame(
@@ -920,7 +921,7 @@ class TASK1107LoopMarketplaceTest extends TestCase
             $ids[] = $this->offre($this->membre, sprintf('QA %02d', $i))->id;
         }
 
-        \App\Models\Service::whereIn('id', $ids)->update(['created_at' => now()]);
+        Service::whereIn('id', $ids)->update(['created_at' => now()]);
 
         $proposees = $this->service()->offerableBy($this->loop, $this->membre)->pluck('id');
 
@@ -1032,7 +1033,7 @@ class TASK1107LoopMarketplaceTest extends TestCase
         $offre->update(['status' => 'deleted']);
         $offre->delete();
 
-        $composition = app(\App\Services\Loops\LoopCardCompositionService::class)->compositionFor($this->loop->fresh());
+        $composition = app(LoopCardCompositionService::class)->compositionFor($this->loop->fresh());
         $ligne = collect($composition)->firstWhere('key', 'core.marketplace');
 
         $this->assertSame($this->service()->countFor($this->loop), $ligne['data_count']);
@@ -1062,7 +1063,7 @@ class TASK1107LoopMarketplaceTest extends TestCase
         ] as $fichier) {
             $source = file_get_contents($fichier);
 
-            foreach (["\$loop->type ===", "\$loop->type =="] as $condition) {
+            foreach (['$loop->type ===', '$loop->type =='] as $condition) {
                 $this->assertStringNotContainsString($condition, $source, basename($fichier));
             }
         }
@@ -1072,7 +1073,7 @@ class TASK1107LoopMarketplaceTest extends TestCase
     {
         $this->service()->highlightOffer($this->loop, $this->membre, $this->offre());
 
-        $composition = app(\App\Services\Loops\LoopCardCompositionService::class)->compositionFor($this->loop->fresh());
+        $composition = app(LoopCardCompositionService::class)->compositionFor($this->loop->fresh());
         $ligne = collect($composition)->firstWhere('key', 'core.marketplace');
 
         $this->assertSame(1, $ligne['data_count'] ?? null);

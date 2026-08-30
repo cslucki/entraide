@@ -12,8 +12,13 @@
     its content waits, and a preset synchronisation will not switch it back on.
     The confirmation says so, because "disable" reads like "delete" to most
     people and it is worth spending a sentence to say it is not.
+
+    `readonly`: used only by the platform admin's Loop overview ("Voir"),
+    which documents itself as never mutating anything. It shows the same
+    composition with a plain state label instead of the toggle — the
+    Organization admin's own edit screen keeps the full form, unaffected.
 --}}
-@props(['loop', 'composition', 'action'])
+@props(['loop', 'composition', 'action', 'readonly' => false])
 
 <section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
     <div class="mb-1 flex flex-wrap items-center justify-between gap-2">
@@ -65,7 +70,11 @@
                     </p>
                 </div>
 
-                @if($card['protected'])
+                @if($readonly)
+                    <span class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold {{ $card['enabled'] ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-400 dark:text-gray-500' }}">
+                        {{ $card['enabled'] ? __('loops.cards_state_active') : __('loops.cards_state_inactive') }}
+                    </span>
+                @elseif($card['protected'])
                     <span class="shrink-0 text-xs text-gray-400">{{ __('loops.cards_always_on') }}</span>
                 @elseif($card['enabled'])
                     {{-- Disabling asks first, because the word frightens more
@@ -89,7 +98,9 @@
         @endforeach
 
         {{-- Confirmation. An Alpine modal, never window.confirm(). Cancelling
-             writes nothing at all. --}}
+             writes nothing at all. Never reachable when readonly: nothing
+             ever sets `pending` in that mode. --}}
+        @unless($readonly)
         <div x-show="pending" x-cloak
              class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4"
              x-on:keydown.escape.window="pending = null">
@@ -118,5 +129,6 @@
                 </div>
             </div>
         </div>
+        @endunless
     </div>
 </section>

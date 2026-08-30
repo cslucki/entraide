@@ -33,10 +33,34 @@ final class CapabilityRegistry
     public const SOURCE_DOSSIER_RETRIEVAL = 'dossier.retrieval';
 
     /**
+     * TASK-1307 : inventaire deterministe (metadonnees, sans recherche ni
+     * embedding) des Articles/DossierFiles des Dossiers de la Boucle du
+     * contexte. Repond aux questions structurelles (« quels fichiers ? »)
+     * qu'une recherche semantique sur des chunks ne peut pas atteindre.
+     */
+    public const SOURCE_DOSSIER_MANIFEST = 'dossier.manifest';
+
+    /**
      * TASK-1213 : reponse documentaire sourcee depuis une Boucle. Read-only :
      * elle n'ecrit ni message ni objet metier.
      */
     public const LOOP_KNOWLEDGE_ANSWER = 'loop_knowledge_answer';
+
+    /**
+     * TASK-1309 : « IA + Dossiers » — reponse CROISEE entre les connaissances
+     * generales du modele et les connaissances documentaires de la Boucle.
+     *
+     * Pourquoi une capability distincte de `loop_knowledge_answer` alors que
+     * les sources autorisees sont les MEMES : ce qui change est le CONTRAT de
+     * reponse, et il est incompatible. Le mode Dossiers est un grounding
+     * STRICT — sans source, il refuse, et c'est sa valeur. Le mode
+     * IA + Dossiers doit pouvoir repondre depuis la connaissance generale du
+     * modele quand les Dossiers n'ont rien a dire, en disant clairement que
+     * les Dossiers n'ont rien apporte. Une seule capability porterait donc
+     * deux instructions contradictoires — exactement la faute que TASK-1309
+     * corrige par ailleurs dans le prompt v2 de `loop_knowledge_answer`.
+     */
+    public const LOOP_HYBRID_ANSWER = 'loop_hybrid_answer';
 
     /**
      * TASK-1233 : « Demander a l'IA » dans une Boucle — intervention spontanee
@@ -91,6 +115,23 @@ final class CapabilityRegistry
      */
     public const SOURCE_MEMBER_PROFILE = 'member.profile';
 
+    /**
+     * TASK-1327 (Premium-1) : « Decision Memory IA » — reperer, dans les
+     * messages recents d'une Boucle, une discussion qui semble avoir abouti a
+     * une decision, et PROPOSER sa capitalisation. La capability ne cree
+     * JAMAIS la Decision : elle pre-remplit le formulaire existant de
+     * `LoopDecisionsCard`, et seul `promote()` — le geste humain de
+     * TASK-1106 — ecrit dans `loop_decisions`.
+     *
+     * Capability distincte de `loop_summary` alors que la source est la MEME
+     * (les messages de la Boucle), pour la raison posee par TASK-1309 : le
+     * CONTRAT de reponse est incompatible. Le resume produit un texte libre ;
+     * la suggestion produit un JSON borne (`decision_found`, `title`,
+     * `rationale`, `source_message_id`) dont l'identifiant est revalide
+     * serveur contre l'ensemble exact fourni au contexte.
+     */
+    public const LOOP_DECISION_SUGGESTION = 'loop_decision_suggestion';
+
     /** @var array<string, CapabilityDefinition> */
     private array $definitions;
 
@@ -136,10 +177,38 @@ final class CapabilityRegistry
             allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
             // Uniquement le corpus documentaire autorise : ni messages de
             // Boucle, ni catalogue, ni profil — la question porte sur ce que
-            // les Dossiers savent.
-            allowedSources: [self::SOURCE_DOSSIER_RETRIEVAL],
+            // les Dossiers savent. TASK-1307 : le manifest structurel est
+            // declare EN PREMIER (petit, deterministe, prioritaire sur le
+            // budget) — le retrieval semantique consomme le reste.
+            allowedSources: [self::SOURCE_DOSSIER_MANIFEST, self::SOURCE_DOSSIER_RETRIEVAL],
             maxOutput: 4000,
             promptKey: 'loop_knowledge_answer',
+            contextCharBudget: self::knowledgeContextBudget(),
+        );
+
+        // TASK-1309 : « IA + Dossiers ». MEMES sources autorisees, MEME
+        // perimetre tenant/Boucle, MEME budget de contexte que le mode
+        // Dossiers — seule l'instruction change (prompt `loop_hybrid_answer`).
+        //
+        // PROCESS VOLONTAIREMENT IDENTIQUE a `loop_knowledge.answer` : c'est
+        // le meme acte economique (recherche documentaire + generation depuis
+        // une Boucle), donc le meme seau de credit, le meme plafond
+        // Organization et la meme fenetre d'autorite du ledger
+        // (`LEDGER_AUTHORITY_SINCE_BY_PROCESS`, cutover 2026-08-18 deja
+        // franchi). Creer un 15e process rouvrirait la convergence economique
+        // fermee par TASK-1286/1291 pour zero gain — ce serait precisement
+        // l'« economie parallele » que le brief interdit. Ce qui trace le
+        // mode reste EXPLICITE : la capability (`loop_hybrid_answer`) est une
+        // colonne de premier rang du ledger et de `metadata.capability`.
+        $loopHybridAnswer = new CapabilityDefinition(
+            id: self::LOOP_HYBRID_ANSWER,
+            process: AiProcess::fromScenarioId('loop_knowledge_answer'),
+            requiresHumanConfirmation: false,
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
+            allowedSources: [self::SOURCE_DOSSIER_MANIFEST, self::SOURCE_DOSSIER_RETRIEVAL],
+            maxOutput: 4000,
+            promptKey: 'loop_hybrid_answer',
             contextCharBudget: self::knowledgeContextBudget(),
         );
 
@@ -230,16 +299,44 @@ final class CapabilityRegistry
             contextCharBudget: self::memberProfileContextBudget(),
         );
 
+        // TASK-1327 : « Decision Memory IA ». PROCESS VOLONTAIREMENT IDENTIQUE
+        // a `loop_summary` (`chatloop.summarize`) : meme acte economique —
+        // lire les messages autorises de la Boucle et generer, sans rien
+        // publier — donc le meme seau de credit, le meme plafond Organization
+        // et la meme fenetre d'autorite du ledger, exactement le geste
+        // TASK-1309 (`loop_hybrid_answer` sur le process du mode Dossiers).
+        // Ce qui trace le mode reste EXPLICITE : la capability est une colonne
+        // de premier rang du ledger et de `metadata.capability`.
+        //
+        // `requiresHumanConfirmation: true` comme `clarify_help_request` : la
+        // capability PROPOSE, l'humain valide via la surface canonique.
+        // `canWrite: false` : aucune contribution visible sans validation.
+        $loopDecisionSuggestion = new CapabilityDefinition(
+            id: self::LOOP_DECISION_SUGGESTION,
+            process: AiProcess::fromFeature('chatloop_ai_summarize'),
+            requiresHumanConfirmation: true,
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
+            allowedSources: [self::SOURCE_LOOP_MESSAGES],
+            // Un JSON court (titre + rationale + un identifiant) : la borne de
+            // clarify, pas celle d'un texte libre.
+            maxOutput: 2000,
+            promptKey: 'loop_decision_suggestion',
+            contextCharBudget: self::loopSummaryContextBudget(),
+        );
+
         $this->definitions = [
             $loopSummary->id => $loopSummary,
             $clarifyHelpRequest->id => $clarifyHelpRequest,
             $loopKnowledgeAnswer->id => $loopKnowledgeAnswer,
+            $loopHybridAnswer->id => $loopHybridAnswer,
             $loopAnswer->id => $loopAnswer,
             $loopAsk->id => $loopAsk,
             $blogGenerate->id => $blogGenerate,
             $blogCorrect->id => $blogCorrect,
             $memberProfileLoopReply->id => $memberProfileLoopReply,
             $memberProfileVisitorChat->id => $memberProfileVisitorChat,
+            $loopDecisionSuggestion->id => $loopDecisionSuggestion,
         ];
     }
 

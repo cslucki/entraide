@@ -55,6 +55,18 @@ final class Test20260822DogfoodingDataset
      * fichiers du corpus RAG, raison d'etre de `test20260822`, deviendraient
      * inaccessibles.
      *
+     * `core.manifesto` n'est PLUS garde en `kept_cards` depuis TASK-1332
+     * (decision Cyril) : aucune necessite fonctionnelle propre au Manifeste
+     * n'a ete etablie pour aucune des 10 Boucles (seul `core.dossiers`, ci-
+     * dessus, en a une, documentee) — "herite de l'ancien preset" n'est pas
+     * une justification. Le pack recalcule `$wanted` depuis le preset
+     * **courant** a chaque chargement : ces 9 Boucles perdent donc
+     * desormais silencieusement leur Manifeste au prochain rejeu, exactement
+     * l'effet produit voulu — une Card devenue optionnelle doit reellement
+     * pouvoir disparaitre du default. Elle reste au catalogue, activable a
+     * la demande depuis Outils. L'entree `coaching` (05) est inchangee :
+     * son preset ne l'a jamais inclus, avant comme apres TASK-1332.
+     *
      * `primary_cards` : les 3 outils MIS EN AVANT (barre), dans l'ordre —
      * DECLARES pour toute Boucle qui a plus de 3 Cards de grille actives
      * (07, 08, 09 : le preset + `dossiers` garde), pour que la Card qui
@@ -126,8 +138,13 @@ final class Test20260822DogfoodingDataset
         ],
         '09-UT Dallas' => [
             'type' => 'networking',
+            // TASK-1335 : `core.decisions` ajoutee a `kept_cards` (hors preset
+            // `networking`) pour porter la Decision "Soumettre l'article a
+            // Leonardo" — cf. `HISTORICAL_ACTIVITY`. Reste hors `primary_cards`
+            // (le trio declare est deja au plafond) : Card secondaire, sous
+            // « Autres outils ».
             'members' => ['test_roger' => 'owner', 'test_cyril' => 'facilitator', 'test_kiran' => 'member', 'test_sana' => 'member'],
-            'kept_cards' => ['core.dossiers'],
+            'kept_cards' => ['core.dossiers', 'core.decisions'],
             'primary_cards' => ['core.roadmap', 'core.marketplace', 'core.events'],
         ],
         '10-Aria projet européen' => [
@@ -378,6 +395,134 @@ final class Test20260822DogfoodingDataset
             'bad_request_examples' => [
                 'Peux-tu développer l\'application mobile de notre laboratoire ?',
                 'Peux-tu relire notre article de cosmologie ?',
+            ],
+        ],
+    ];
+
+    /**
+     * TASK-1335 (version 1.3.0) — activite humaine collective, distillee de la
+     * matiere reelle du corpus (fichiers `08-Protocole d'emergence`,
+     * `09-UT Dallas`, `10-Aria projet europeen`) et des CV des personas
+     * (`HUMAN_PROFILES`, `AI_PROFILES`) : AUCUN fait invente.
+     *
+     * Decision Master : AUCUN message IA, AUCUNE `ai_interaction`, AUCUN
+     * remapping de metadata pour simuler l'IA. Chaque element est ecrit par
+     * la primitive canonique du produit — jamais un INSERT brut :
+     * `LoopMessageService::sendUserMessage()`, `LoopPollService::create()`/
+     * `vote()`, `LoopDecisionService::record()`, `LoopEventService::create()`/
+     * `respond()`, et `LoopRoadmapItem::create()` (aucun service dedie
+     * n'existe pour la Roadmap : `LoopRoadmapCard::createAction()` ecrit
+     * directement le modele, le pack fait de meme).
+     *
+     * Cle : le nom EXACT du repertoire de corpus, comme `LOOP_SETUP`. Seules
+     * 08/09/10 sont couvertes (perimetre du brief T1335) : chaque Boucle
+     * ci-dessous DOIT figurer dans `LOOP_SETUP` (verifie par le pack),
+     * jamais l'inverse — les 7 autres Boucles du pack restent sans activite
+     * simulee.
+     *
+     * @var array<string, array{
+     *     messages: list<array{key: string, persona: string, body: string}>,
+     *     poll?: array{key: string, author: string, question: string, description: ?string, selection_type: string, labels: list<string>, votes: array<string, string>},
+     *     decision?: array{key: string, author: string, title: string, rationale: string},
+     *     event?: array{key: string, creator: string, title: string, description: string, format: string, starts_at: string, ends_at: ?string, timezone: string, location: ?string, meeting_url: ?string, responses: array<string, string>},
+     *     roadmap_item?: array{key: string, creator: string, title: string, status: string, assignees: list<string>},
+     * }>
+     */
+    public const HISTORICAL_ACTIVITY = [
+        "08-Protocole d'emergence" => [
+            'messages' => [
+                [
+                    'key' => '08-msg-1',
+                    'persona' => 'test_cyril',
+                    'body' => 'J\'ai remis à plat le Protocole en v0.2 : trois niveaux de mémoire — individuelle, communauté, historique — et le cycle question → clarification IA → discussion → expérimentation → documentation → publication. Le brouillon FR est dans le Dossier de la Boucle.',
+                ],
+                [
+                    'key' => '08-msg-2',
+                    'persona' => 'test_roger',
+                    'body' => 'Lu. Le cycle en six étapes est clair. Pour le partager avec UT Dallas et l\'ArtSciLab il va nous falloir une version anglaise solide, pas juste une traduction rapide.',
+                ],
+                [
+                    'key' => '08-msg-3',
+                    'persona' => 'test_sana',
+                    'body' => 'D\'accord avec Roger. Le protocole dit que « les erreurs deviennent des ressources » — ce serait cohérent qu\'on vote laquelle des deux versions on pousse en premier plutôt que de trancher seuls.',
+                ],
+            ],
+            'poll' => [
+                'key' => '08-poll-fr-en-v02',
+                'author' => 'test_cyril',
+                'question' => 'Quelle version du Protocole d\'émergence partager en priorité ?',
+                'description' => 'FR v0.2 (brouillon de travail) ou EN v0.2 (traduction pour UT Dallas et l\'ArtSciLab).',
+                'selection_type' => 'single',
+                'labels' => ['FR v0.2', 'EN v0.2'],
+                // Roger non votant (brief T1335) : c'est lui qui portera la
+                // traduction, pas lui qui tranche la priorité.
+                'votes' => ['test_sana' => 'EN v0.2'],
+            ],
+            'roadmap_item' => [
+                'key' => '08-roadmap-traduction-en',
+                'creator' => 'test_cyril',
+                'title' => 'Finaliser la traduction anglaise du Protocole (v0.2)',
+                'status' => 'todo',
+                'assignees' => ['test_roger'],
+            ],
+        ],
+        '09-UT Dallas' => [
+            'messages' => [
+                [
+                    'key' => '09-msg-1',
+                    'persona' => 'test_cyril',
+                    'body' => 'Avec Roger on a terminé une première version de l\'article « BouclePro comme environnement d\'apprentissage pour l\'AI Shepherding » — l\'idée du Shepherd qui clarifie, vérifie et garde la trace. Je le mets dans le Dossier.',
+                ],
+                [
+                    'key' => '09-msg-2',
+                    'persona' => 'test_roger',
+                    'body' => 'Relu. Le parallèle berger/troupeau tient la route sur toute la longueur. On devrait le proposer à Leonardo, ça correspond exactement à notre ligne éditoriale chez MIT Press.',
+                ],
+                [
+                    'key' => '09-msg-3',
+                    'persona' => 'test_kiran',
+                    'body' => 'Pendant qu\'on y est : l\'ArtSciLab prépare une session sur Silver Ingenuity. Je regarde les dates avec eux et je pose un Événement dès que j\'ai un créneau confirmé.',
+                ],
+            ],
+            'decision' => [
+                'key' => '09-decision-leonardo',
+                'author' => 'test_cyril',
+                'title' => 'Soumettre l\'article co-écrit avec Roger à Leonardo (MIT Press)',
+                'rationale' => 'L\'article « BouclePro comme environnement d\'apprentissage pour l\'AI Shepherding » correspond à la ligne éditoriale de Leonardo. Aucune action n\'est lancée automatiquement : la soumission reste un geste humain distinct.',
+            ],
+            'event' => [
+                'key' => '09-event-silver-ingenuity',
+                'creator' => 'test_cyril',
+                'title' => 'ArtSciLab — Silver Ingenuity',
+                'description' => 'Session ArtSciLab sur le projet Silver Ingenuity, à confirmer avec l\'équipe UT Dallas.',
+                'format' => 'online',
+                'starts_at' => '2026-10-15 14:00',
+                'ends_at' => '2026-10-15 15:30',
+                'timezone' => 'America/Chicago',
+                'location' => null,
+                'meeting_url' => 'https://artscilab.utdallas.edu/silver-ingenuity',
+                // Roger sans reponse (brief T1335) : aucun appel `respond()`
+                // pour lui. Kiran = going.
+                'responses' => ['test_kiran' => 'going'],
+            ],
+        ],
+        '10-Aria projet européen' => [
+            'messages' => [
+                [
+                    'key' => '10-msg-1',
+                    'persona' => 'test_cyril',
+                    'body' => 'Proposition ARIA v6 déposée : « Leonardo/OLATS contribution to ARIA — an open-source Smart Hamlet for inter-intelligence ». BouclePro y est positionné comme l\'environnement communautaire, la mémoire et les instruments d\'observation.',
+                ],
+                [
+                    'key' => '10-msg-2',
+                    'persona' => 'test_roger',
+                    'body' => 'Le concept de Smart Hamlet colle bien à ce qu\'on fait déjà avec les Boucles. Horizon Europe classe ça sous « Artistic Intelligence » — un angle qu\'on n\'avait pas encore exploré.',
+                ],
+                [
+                    'key' => '10-msg-3',
+                    'persona' => 'test_sana',
+                    'body' => 'Sur le positionnement : le document nous dit complémentaires à l\'infrastructure numérique cible développée par devCT. Il faudra qu\'on soit très clairs sur cette frontière dans la version finale.',
+                ],
             ],
         ],
     ];

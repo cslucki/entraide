@@ -78,9 +78,18 @@ return [
              * pas de feuille de route par defaut. Elle reste activable
              * localement, et les Boucles qui l'ont la gardent — la
              * synchronisation des presets n'a jamais rien retire.
+             *
+             * TASK-1332 : le Resume IA rejoint le socle de tous les types —
+             * il n'a jamais du dependre du type de Boucle, seulement du
+             * placement `chat_action` qu'il porte depuis TASK-1090. Le
+             * Manifeste quitte le socle : il reste au catalogue, activable a
+             * tout moment par qui configure la Boucle, mais n'est plus
+             * impose par defaut. Correction d'une asymetrie nee a TASK-1090 :
+             * les deux Cards sont devenues hors-grille au meme commit, seul
+             * le Manifeste avait alors ete remis au socle universel.
              */
             'cards' => [
-                'core.manifesto',
+                'core.ai_summary',
                 'core.members',
                 'core.polls',
                 'core.events',
@@ -107,9 +116,11 @@ return [
             'icon' => 'map',
             'order' => 20,
             'available' => true,
+            // TASK-1332 : le Manifeste quitte le socle du Projet — il reste
+            // au catalogue, activable a tout moment, mais n'est plus impose
+            // par defaut (doctrine desormais uniforme sur les 7 types).
             'cards' => [
                 'core.ai_summary',
-                'core.manifesto',
                 'core.roadmap',
                 // La matrice produit donne au Projet « Roadmap · Decisions ·
                 // Dossiers ». Les trois y sont desormais.
@@ -228,9 +239,12 @@ return [
              * Modules et Sequences n'y figurent pas non plus, et ne le feront
              * jamais : ce ne sont pas des Cards, ce sont les contenus du
              * Support de cours.
+             *
+             * TASK-1332 : Resume IA rejoint le socle, Manifeste le quitte
+             * (reste activable) — doctrine uniforme sur les 7 types.
              */
             'cards' => [
-                'core.manifesto',
+                'core.ai_summary',
                 'core.members',
                 'training.course_material',
                 'training.progression',
@@ -276,8 +290,10 @@ return [
             'order' => 60,
             'available' => false,
             'chat_mode' => 'stream',
+            // TASK-1332 : Resume IA rejoint le socle, Manifeste le quitte
+            // (reste activable) — doctrine uniforme sur les 7 types.
             'cards' => [
-                'core.manifesto',
+                'core.ai_summary',
                 'core.members',
                 'core.article',
                 'core.roadmap',
@@ -299,8 +315,10 @@ return [
             'order' => 50,
             'available' => false,
             'chat_mode' => 'stream',
+            // TASK-1332 : Resume IA rejoint le socle, Manifeste le quitte
+            // (reste activable) — doctrine uniforme sur les 7 types.
             'cards' => [
-                'core.manifesto',
+                'core.ai_summary',
                 'core.members',
                 'core.marketplace',
                 'core.roadmap',
@@ -345,9 +363,12 @@ return [
              * Journal, Sondage. Le **Journal** et le **Sondage** arrivent avec
              * TASK-1104 ; il ne manque plus qu'Engagements pour que le preset
              * soit complet — et le type pourra alors s'ouvrir.
+             *
+             * TASK-1332 : Resume IA rejoint le socle, Manifeste le quitte
+             * (reste activable) — doctrine uniforme sur les 7 types.
              */
             'cards' => [
-                'core.manifesto',
+                'core.ai_summary',
                 'core.members',
                 'core.roadmap',
                 'core.journal',

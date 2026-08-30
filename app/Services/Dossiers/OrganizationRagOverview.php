@@ -444,8 +444,11 @@ class OrganizationRagOverview
     /**
      * Articles eligibles : publies ET attaches a un Dossier VIVANT —
      * exactement les criteres de `DossierArticleIndexer` (scope
-     * `published()`), pas ceux du SQL de retrieval, qui ignore
-     * `listed_in_blog`. C'est l'INGESTION que cette console decrit.
+     * `publiclyReadable()`, TASK-1307 : corrige de `published()`, qui exigeait
+     * en plus `listed_in_blog = true` et excluait donc TOUT document racine
+     * de Boucle — jamais indexable ni comptable ici tant que cette console
+     * decrivait un critere different de celui que l'ingestion applique
+     * reellement). C'est l'INGESTION que cette console decrit.
      *
      * Le Dossier non supprime fait partie de l'eligibilite, ici et pas
      * seulement dans `sources()` : sinon les compteurs de tete compteraient
@@ -456,7 +459,7 @@ class OrganizationRagOverview
     {
         return BlogPost::query()
             ->where('blog_posts.organization_id', $organizationId)
-            ->published()
+            ->publiclyReadable()
             ->whereNull('blog_posts.deleted_at')
             ->whereExists(function ($query) use ($organizationId) {
                 $query->select(DB::raw(1))
@@ -492,6 +495,133 @@ class OrganizationRagOverview
                     $query->orWhere('dossier_files.original_name', 'like', '%.'.$extension);
                 }
             });
+    }
+
+    /**
+     * TASK-1307 : ce que BouclePro connait REELLEMENT d'UNE source —
+     * metadonnees + chunks stockes. Jamais le vecteur embedding : le but est
+     * de repondre humainement a « qu'est-ce que l'IA sait de ce document ? »,
+     * pas d'exposer des flottants.
+     *
+     * NULL si la source n'existe pas dans CETTE Organization (tenant borne
+     * avant toute lecture) — jamais une exception.
+     *
+     * @return array{type: string, id: string, title: string, dossier_id: string, dossier_name: string, indexed: bool, chunks: list<array{chunk_index: int, content: string, token_count: int, indexed_at: ?string}>}|null
+     */
+    public function chunksFor(string $organizationId, string $type, string $sourceId): ?array
+    {
+        if ($type === 'article') {
+            return $this->articleChunks($organizationId, $sourceId);
+        }
+
+        if ($type === 'file') {
+            return $this->fileChunks($organizationId, $sourceId);
+        }
+
+        return null;
+    }
+
+    private function articleChunks(string $organizationId, string $sourceId): ?array
+    {
+        $post = BlogPost::query()
+            ->where('organization_id', $organizationId)
+            ->whereKey($sourceId)
+            ->first(['id', 'title']);
+
+        if ($post === null) {
+            return null;
+        }
+
+        $link = DB::table('dossier_blog_posts')
+            ->where('organization_id', $organizationId)
+            ->where('blog_post_id', $sourceId)
+            ->first(['dossier_id']);
+
+        if ($link === null) {
+            return null;
+        }
+
+        $dossier = Dossier::query()
+            ->where('organization_id', $organizationId)
+            ->whereNull('deleted_at')
+            ->find($link->dossier_id, ['id', 'name']);
+
+        if ($dossier === null) {
+            return null;
+        }
+
+        $chunks = DB::table('dossier_chunks')
+            ->where('organization_id', $organizationId)
+            ->where('dossier_id', $dossier->id)
+            ->where('blog_post_id', $sourceId)
+            ->orderBy('chunk_index')
+            ->get(['chunk_index', 'content', 'token_count', 'indexed_at'])
+            ->map(fn (object $row): array => $this->mapChunkRow($row))
+            ->all();
+
+        return [
+            'type' => 'article',
+            'id' => (string) $post->id,
+            'title' => (string) $post->title,
+            'dossier_id' => (string) $dossier->id,
+            'dossier_name' => (string) $dossier->name,
+            'indexed' => $chunks !== [],
+            'chunks' => $chunks,
+        ];
+    }
+
+    private function fileChunks(string $organizationId, string $sourceId): ?array
+    {
+        $file = DossierFile::query()
+            ->where('organization_id', $organizationId)
+            ->whereNull('deleted_at')
+            ->whereKey($sourceId)
+            ->first(['id', 'display_name', 'original_name', 'dossier_id']);
+
+        if ($file === null || $file->dossier_id === null) {
+            return null;
+        }
+
+        $dossier = Dossier::query()
+            ->where('organization_id', $organizationId)
+            ->whereNull('deleted_at')
+            ->find($file->dossier_id, ['id', 'name']);
+
+        if ($dossier === null) {
+            return null;
+        }
+
+        $chunks = DB::table('dossier_chunks')
+            ->where('organization_id', $organizationId)
+            ->where('dossier_id', $dossier->id)
+            ->where('dossier_file_id', $sourceId)
+            ->orderBy('chunk_index')
+            ->get(['chunk_index', 'content', 'token_count', 'indexed_at'])
+            ->map(fn (object $row): array => $this->mapChunkRow($row))
+            ->all();
+
+        return [
+            'type' => 'file',
+            'id' => (string) $file->id,
+            'title' => (string) ($file->display_name ?: $file->original_name),
+            'dossier_id' => (string) $dossier->id,
+            'dossier_name' => (string) $dossier->name,
+            'indexed' => $chunks !== [],
+            'chunks' => $chunks,
+        ];
+    }
+
+    /**
+     * @return array{chunk_index: int, content: string, token_count: int, indexed_at: ?string}
+     */
+    private function mapChunkRow(object $row): array
+    {
+        return [
+            'chunk_index' => (int) $row->chunk_index,
+            'content' => (string) $row->content,
+            'token_count' => (int) $row->token_count,
+            'indexed_at' => $row->indexed_at,
+        ];
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Livewire\LoopArticleCard;
 use App\Models\BlogPost;
 use App\Models\BlogPostInvitation;
 use App\Models\Dossier;
+use App\Models\DossierBlogPost;
 use App\Models\Loop;
 use App\Models\LoopCard;
 use App\Models\Organization;
@@ -17,6 +18,7 @@ use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -96,7 +98,7 @@ class TASK1111LoopArticleTest extends TestCase
             'organization_id' => $this->org->id,
             'user_id' => ($de ?? $this->auteur)->id,
             'title' => $titre,
-            'slug' => \Illuminate\Support\Str::slug($titre).'-'.\Illuminate\Support\Str::random(6),
+            'slug' => Str::slug($titre).'-'.Str::random(6),
             'content' => 'Contenu de test.',
             'status' => $statut,
             'audience' => 'loop',
@@ -106,7 +108,7 @@ class TASK1111LoopArticleTest extends TestCase
         if ($range) {
             // `DossierBlogPost` et non `attach()` : le pivot porte un `id` UUID
             // que la table pivot ne genere pas toute seule.
-            \App\Models\DossierBlogPost::create([
+            DossierBlogPost::create([
                 'organization_id' => $this->org->id,
                 'dossier_id' => $this->dossier->id,
                 'blog_post_id' => $post->id,
@@ -164,11 +166,12 @@ class TASK1111LoopArticleTest extends TestCase
 
     public function test_the_writing_preset_holds_its_three_distinctive_cards(): void
     {
-        // La matrice : « Redaction | Manifeste · Membres | Article · Roadmap ·
-        // Dossiers ».
+        // La matrice : « Redaction | Resume IA · Membres | Article · Roadmap ·
+        // Dossiers ». Depuis TASK-1332, le Resume IA rejoint le socle a la
+        // place du Manifeste (qui n'y est plus impose).
         $cles = app(LoopTypeRegistry::class)->cardsFor('writing');
 
-        foreach (['core.article', 'core.roadmap', 'core.dossiers', 'core.manifesto', 'core.members'] as $attendue) {
+        foreach (['core.article', 'core.roadmap', 'core.dossiers', 'core.ai_summary', 'core.members'] as $attendue) {
             $this->assertContains($attendue, $cles, $attendue);
         }
     }
@@ -313,7 +316,7 @@ class TASK1111LoopArticleTest extends TestCase
             'sender_id' => $this->auteur->id,
             'recipient_email' => 'invite@example.test',
             'recipient_name' => 'Personne invitee',
-            'token' => \Illuminate\Support\Str::random(40),
+            'token' => Str::random(40),
             // Le vocabulaire reel est `existing_member|external` : un CHECK le tient.
             'invitation_type' => 'external',
             'status' => 'pending',
@@ -333,7 +336,7 @@ class TASK1111LoopArticleTest extends TestCase
             'blog_post_id' => $article->id,
             'sender_id' => $this->auteur->id,
             'recipient_email' => 'deja@example.test',
-            'token' => \Illuminate\Support\Str::random(40),
+            'token' => Str::random(40),
             // Le vocabulaire reel est `existing_member|external` : un CHECK le tient.
             'invitation_type' => 'external',
             'status' => 'accepted',
@@ -387,7 +390,7 @@ class TASK1111LoopArticleTest extends TestCase
             'organization_id' => $autreOrg->id,
             'user_id' => $ailleurs->id,
             'title' => 'Le leur',
-            'slug' => 'le-leur-'.\Illuminate\Support\Str::random(6),
+            'slug' => 'le-leur-'.Str::random(6),
             'content' => 'x',
             'status' => 'published',
             'audience' => 'loop',
@@ -397,7 +400,7 @@ class TASK1111LoopArticleTest extends TestCase
 
         // Range **dans notre Dossier**, comme une reprise de donnees fautive
         // pourrait le faire.
-        \App\Models\DossierBlogPost::create([
+        DossierBlogPost::create([
             'organization_id' => $this->org->id,
             'dossier_id' => $this->dossier->id,
             'blog_post_id' => $leur->id,
@@ -423,7 +426,7 @@ class TASK1111LoopArticleTest extends TestCase
             'organization_id' => $this->org->id,
             'user_id' => $this->auteur->id,
             'title' => 'Ligne editoriale de la Boucle',
-            'slug' => 'ligne-'.\Illuminate\Support\Str::random(6),
+            'slug' => 'ligne-'.Str::random(6),
             'content' => 'x',
             'status' => 'published',
             'audience' => 'loop',
@@ -431,7 +434,7 @@ class TASK1111LoopArticleTest extends TestCase
             'published_at' => now(),
         ]);
 
-        \App\Models\DossierBlogPost::create([
+        DossierBlogPost::create([
             'organization_id' => $this->org->id,
             'dossier_id' => $this->dossier->id,
             'blog_post_id' => $racine->id,
@@ -612,7 +615,7 @@ class TASK1111LoopArticleTest extends TestCase
         ] as $fichier) {
             $source = file_get_contents($fichier);
 
-            foreach (["\$loop->type ===", "\$loop->type =="] as $condition) {
+            foreach (['$loop->type ===', '$loop->type =='] as $condition) {
                 $this->assertStringNotContainsString($condition, $source, basename($fichier));
             }
         }

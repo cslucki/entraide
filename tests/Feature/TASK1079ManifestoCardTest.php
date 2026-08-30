@@ -10,6 +10,7 @@ use App\Models\LoopManifestoSource;
 use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -47,14 +48,16 @@ class TASK1079ManifestoCardTest extends TestCase
         $this->orgAdmin->update(['organization_id' => $this->org->id]);
 
         $this->owner = User::factory()->create(['organization_id' => $this->org->id]);
-        // A Projets Loop: since CP5ter-E2 the Manifesto belongs to that type,
-        // and a Dialogue Loop legitimately has no Manifesto card at all. The
-        // preset is applied so the card is genuinely part of this Loop rather
-        // than reached through the no-rows fallback.
+        // A Projets Loop. Since TASK-1332 the Manifesto is no longer imposed
+        // by any type's default preset — it is enabled explicitly here so the
+        // card is genuinely part of this Loop's active composition, exactly
+        // as any administrator would do from Outils, rather than reached
+        // through the no-rows fallback.
         $this->loop = Loop::factory()->create([
             'organization_id' => $this->org->id, 'status' => 'active', 'type' => 'project',
         ]);
         app(LoopTypeRegistry::class)->applyPreset($this->loop);
+        app(LoopCardCompositionService::class)->enable($this->loop, 'core.manifesto');
         LoopMember::factory()->owner()->create(['loop_id' => $this->loop->id, 'user_id' => $this->owner->id]);
 
         app()->instance('current_organization', $this->org);

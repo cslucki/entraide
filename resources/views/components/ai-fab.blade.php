@@ -79,6 +79,35 @@
             </button>
         </div>
 
+        {{-- TASK-1315 : la porte du Shell. Elle est la PREMIERE entree du
+             panneau et reste offerte meme au plafond de credit : ouvrir le Shell
+             ne consomme rien, et le fil deja ecrit doit rester relisible. Les
+             actions historiques, elles, gardent exactement leur regime. --}}
+        @if($fab['shell_enabled'])
+            <div class="px-3 pt-3">
+                <button type="button"
+                        @click="close(); window.dispatchEvent(new CustomEvent('bp-open-ai-shell', { detail: {} }))"
+                        data-ai-fab-shell
+                        class="w-full text-left flex items-start gap-3 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-3 py-2.5 text-white shadow-sm hover:from-violet-500 hover:to-indigo-500 transition">
+                    <span class="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white/15">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8M8 14h5M21 12a8 8 0 0 1-8 8H7l-4 3v-5.5A8 8 0 1 1 21 12Z"/></svg>
+                    </span>
+                    <span class="min-w-0">
+                        <span class="block text-sm font-semibold">{{ __('ai.fab_action_open_shell') }}</span>
+                        <span class="block text-xs text-indigo-100">{{ __('ai.fab_action_open_shell_hint') }}</span>
+                    </span>
+                </button>
+                {{-- OU l'on se trouve — la meme phrase que l'en-tete du Shell,
+                     calculee par la meme autorite. Elle n'accorde aucun droit. --}}
+                @if(filled($fab['page_context']['label'] ?? null))
+                    <p class="mt-2 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400" data-ai-fab-page-context="{{ $fab['page_context']['kind'] }}">
+                        <svg class="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21s7-4.35 7-10a7 7 0 1 0-14 0c0 5.65 7 10 7 10Z"/><circle cx="12" cy="11" r="2.5"/></svg>
+                        <span class="truncate">{{ $fab['page_context']['label'] }}</span>
+                    </p>
+                @endif
+            </div>
+        @endif
+
         @if($fab['credit']['exhausted'])
             {{-- Au plafond : les actions sont REMPLACEES par le refus, sans
                  rien appeler — le refus reel vit dans AiEconomicGuard. --}}

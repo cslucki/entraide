@@ -535,7 +535,9 @@ class TASK1285MemberProfileAgentDoctrineCanonicalTest extends TestCase
         $this->assertNotSame('ai.inherited_label.member_profile_agent_setup', __('ai.inherited_label.member_profile_agent_setup', [], 'fr'));
         $this->assertNotSame('ai.inherited_label.member_profile_agent_setup', __('ai.inherited_label.member_profile_agent_setup', [], 'en'));
 
-        $this->assertSame(9, $coverage->coveredCount());
-        $this->assertSame(13, $coverage->totalCount());
+        // TASK-1309 : + `loop_hybrid_answer` (mode IA + Dossiers) = 10.
+        // TASK-1327 : + `loop_decision_suggestion` (Decision Memory) = 11.
+        $this->assertSame(11, $coverage->coveredCount());
+        $this->assertSame(15, $coverage->totalCount());
     }
 }

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Loop;
 use App\Models\LoopCard;
 use App\Models\LoopMember;
+use App\Models\LoopRoadmapItem;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Loops\LoopCardCompositionService;
@@ -167,6 +168,11 @@ class TASK1090PresetConfiguratorTest extends TestCase
 
     public function test_manifesto_and_members_leave_the_grid_without_leaving_the_registry(): void
     {
+        // TASK-1332 : le Manifeste n'est plus dans le socle Projet par
+        // defaut (il reste au catalogue, activable) ; on l'active localement
+        // ici pour verifier qu'une fois actif, il atterrit dans le cadre et
+        // jamais dans la grille.
+        app(LoopCardCompositionService::class)->enable($this->loop, 'core.manifesto');
         $loop = $this->loop->fresh();
         $registry = $this->registry();
 
@@ -275,8 +281,10 @@ class TASK1090PresetConfiguratorTest extends TestCase
     public function test_a_forged_request_cannot_bypass_a_dependency(): void
     {
         // Une Card absente du socle Communaute, dependante d'une autre qui
-        // l'est aussi : rien ne l'a donc activee a la creation.
-        $this->declareRequirement('core.roadmap', ['core.ai_summary']);
+        // l'est aussi : rien ne l'a donc activee a la creation. TASK-1332 a
+        // fait entrer `core.ai_summary` dans ce socle ; c'est desormais
+        // `core.manifesto` qui en est absent par defaut.
+        $this->declareRequirement('core.roadmap', ['core.manifesto']);
 
         $loop = $this->makeLoop('general');
 
@@ -466,11 +474,11 @@ class TASK1090PresetConfiguratorTest extends TestCase
         $loop = $this->makeLoop('project');
 
         // Une donnee reelle portee par la Card.
-        \App\Models\LoopRoadmapItem::create([
+        LoopRoadmapItem::create([
             'organization_id' => $this->org->id,
             'loop_id' => $loop->id,
             'title' => 'Une action',
-            'status' => \App\Models\LoopRoadmapItem::STATUS_TODO,
+            'status' => LoopRoadmapItem::STATUS_TODO,
             'created_by' => $this->owner->id,
         ]);
 
@@ -478,16 +486,16 @@ class TASK1090PresetConfiguratorTest extends TestCase
         $this->assertDatabaseHas('loop_roadmap_items', ['loop_id' => $loop->id]);
 
         $this->configurator()->enable($this->superAdmin, $loop->fresh(), 'core.roadmap');
-        $this->assertSame(1, \App\Models\LoopRoadmapItem::where('loop_id', $loop->id)->count());
+        $this->assertSame(1, LoopRoadmapItem::where('loop_id', $loop->id)->count());
     }
 
     public function test_the_description_counts_the_data_a_card_already_holds(): void
     {
         $loop = $this->makeLoop('project');
 
-        \App\Models\LoopRoadmapItem::create([
+        LoopRoadmapItem::create([
             'organization_id' => $this->org->id, 'loop_id' => $loop->id,
-            'title' => 'Une action', 'status' => \App\Models\LoopRoadmapItem::STATUS_TODO,
+            'title' => 'Une action', 'status' => LoopRoadmapItem::STATUS_TODO,
             'created_by' => $this->owner->id,
         ]);
 
@@ -590,10 +598,14 @@ class TASK1090PresetConfiguratorTest extends TestCase
     {
         $preset = app(LoopTypeRegistry::class)->cardsFor('general');
 
-        $this->assertContains('core.manifesto', $preset);
         $this->assertContains('core.members', $preset);
         $this->assertContains('core.polls', $preset);
         $this->assertContains('core.events', $preset);
+        // TASK-1332 : le Resume IA rejoint desormais tous les presets.
+        $this->assertContains('core.ai_summary', $preset);
+        // Le Manifeste n'est plus impose par defaut (TASK-1332) : il reste au
+        // catalogue, toujours activable, mais aucun preset ne l'y met plus.
+        $this->assertNotContains('core.manifesto', $preset);
         // La Roadmap a quitte ce socle : elle reste activable localement.
         $this->assertNotContains('core.roadmap', $preset);
     }
@@ -603,9 +615,9 @@ class TASK1090PresetConfiguratorTest extends TestCase
         $loop = $this->makeLoop('general');
         app(LoopCardCompositionService::class)->enable($loop, 'core.roadmap');
 
-        \App\Models\LoopRoadmapItem::create([
+        LoopRoadmapItem::create([
             'organization_id' => $this->org->id, 'loop_id' => $loop->id,
-            'title' => 'Une action', 'status' => \App\Models\LoopRoadmapItem::STATUS_TODO,
+            'title' => 'Une action', 'status' => LoopRoadmapItem::STATUS_TODO,
             'created_by' => $this->owner->id,
         ]);
 
@@ -614,7 +626,7 @@ class TASK1090PresetConfiguratorTest extends TestCase
         $this->assertDatabaseHas('loop_cards', [
             'loop_id' => $loop->id, 'card_key' => 'core.roadmap', 'enabled' => false,
         ]);
-        $this->assertSame(1, \App\Models\LoopRoadmapItem::where('loop_id', $loop->id)->count());
+        $this->assertSame(1, LoopRoadmapItem::where('loop_id', $loop->id)->count());
     }
 
     // ── Doctrine ────────────────────────────────────────────────────────────
@@ -624,8 +636,8 @@ class TASK1090PresetConfiguratorTest extends TestCase
         // La regle de TASK-1080, verifiee sur le service ajoute par cette tache.
         $source = file_get_contents(app_path('Services/Loops/LoopPresetConfigurator.php'));
 
-        $this->assertStringNotContainsString("loop->type ===", $source);
-        $this->assertStringNotContainsString("loop->type ==", $source);
+        $this->assertStringNotContainsString('loop->type ===', $source);
+        $this->assertStringNotContainsString('loop->type ==', $source);
     }
 
     public function test_reading_the_configurator_writes_nothing(): void

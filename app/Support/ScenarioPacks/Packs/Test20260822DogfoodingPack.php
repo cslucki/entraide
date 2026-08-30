@@ -6,7 +6,12 @@ use App\Models\Category;
 use App\Models\Dossier;
 use App\Models\DossierFile;
 use App\Models\Loop;
+use App\Models\LoopDecision;
+use App\Models\LoopEvent;
 use App\Models\LoopMember;
+use App\Models\LoopMessage;
+use App\Models\LoopPoll;
+use App\Models\LoopRoadmapItem;
 use App\Models\MemberAiProfile;
 use App\Models\Organization;
 use App\Models\PointLedger;
@@ -14,7 +19,11 @@ use App\Models\Skill;
 use App\Models\User;
 use App\Services\Dossiers\FileContentExtractor;
 use App\Services\LoopGovernanceService;
+use App\Services\LoopMessageService;
 use App\Services\Loops\LoopCardCompositionService;
+use App\Services\Loops\LoopDecisionService;
+use App\Services\Loops\LoopEventService;
+use App\Services\Loops\LoopPollService;
 use App\Services\Loops\LoopRootDocumentService;
 use App\Services\LoopService;
 use App\Support\Loops\LoopCardRegistry;
@@ -64,16 +73,24 @@ use Symfony\Component\HttpFoundation\File\File;
  *    `admin.users.store`) AVANT le chargement ; le pack les retrouve
  *    (`reused`, jamais modifies, jamais supprimes) et refuse de tourner s'il
  *    en manque un ;
- *  - dispatcher le moindre job : la creation des `DossierFile` est enveloppee
- *    dans `DossierFile::withoutEvents()` — closure qui ne contient QUE
- *    l'ecriture de la ligne, pour que `DossierFileObserver::created()` ne
+ *  - dispatcher le moindre job de FICHIER : la creation des `DossierFile` est
+ *    enveloppee dans `DossierFile::withoutEvents()` — closure qui ne contient
+ *    QUE l'ecriture de la ligne, pour que `DossierFileObserver::created()` ne
  *    pousse pas un `IndexDossierFileChunks` sur la queue `default` (queue
  *    sans worker sur la surface Apache, qui porte deja 138 jobs historiques).
- *    La chaine Loop, elle, ne dispatche rien (`BlogPostObserver::updated()`
- *    ne reagit qu'a `content/status/published_at`, que `designate()` ne
- *    touche pas). L'indexation viendra plus tard, explicitement, par
+ *    L'indexation des fichiers vient plus tard, explicitement, par
  *    `dossiers:index-files test20260822 --queue=dossier-files-indexing`
  *    (TASK-1268), apres validation du credential par Cyril.
+ *    TASK-1307 : la chaine Loop, elle, DISPATCHE desormais un
+ *    `IndexDossierArticleChunks` par document racine cree — `designate()`
+ *    (appele par `createLoopForOrg()` via `LoopRootDocumentService`) l'envoie
+ *    explicitement depuis TASK-1307 (avant, un document racine n'etait jamais
+ *    indexe avant sa premiere edition humaine, un oubli — pas une garantie du
+ *    pack). Ce dispatch part sur la queue `default`, comme tout autre Article
+ *    attache a un Dossier ; sans worker dessus au moment du chargement, ces
+ *    10 jobs restent en attente au meme titre que les 138 historiques, et se
+ *    rattrapent par `dossiers:index-articles test20260822
+ *    --queue=dossier-files-indexing` (meme convention que TASK-1268).
  *
  * Ownership (TASK-1245) : `createLoopForOrg()` cree le Dossier racine, le
  * document racine et le membre `owner` sans rendre ces instances ; le pack les
@@ -216,6 +233,12 @@ class Test20260822DogfoodingPack implements ScenarioPackDefinition
         private readonly LoopCardCompositionService $composition,
         private readonly LoopGovernanceService $governance,
         private readonly LoopRoleRegistry $roles,
+        // TASK-1335 — activite humaine collective : les seules primitives
+        // canoniques d'ecriture pour messages, sondage, decision, evenement.
+        private readonly LoopMessageService $messages,
+        private readonly LoopPollService $polls,
+        private readonly LoopDecisionService $decisions,
+        private readonly LoopEventService $events,
     ) {}
 
     public function packId(): string
@@ -225,7 +248,7 @@ class Test20260822DogfoodingPack implements ScenarioPackDefinition
 
     public function packVersion(): string
     {
-        return '1.2.0';
+        return '1.3.0';
     }
 
     public function packName(): string
@@ -235,7 +258,7 @@ class Test20260822DogfoodingPack implements ScenarioPackDefinition
 
     public function purpose(): string
     {
-        return 'Charger les vrais documents de travail de Cyril (10 Boucles, leurs Dossiers racines, 83 fichiers) dans l\'Organization isolee test20260822 pour le dogfooding IA/RAG, sans declencher aucune indexation ; puis le socle FR (T1274) : profils humains des 4 personas, 6 categories et 37 skills issus des CV, points de bienvenue, 4 profils IA publies ; puis (T1275) les 7 types de Boucles, les membres et leurs roles, les Cards actives et principales, selon le mapping valide.';
+        return 'Charger les vrais documents de travail de Cyril (10 Boucles, leurs Dossiers racines, 83 fichiers) dans l\'Organization isolee test20260822 pour le dogfooding IA/RAG, sans declencher aucune indexation ; puis le socle FR (T1274) : profils humains des 4 personas, 6 categories et 37 skills issus des CV, points de bienvenue, 4 profils IA publies ; puis (T1275) les 7 types de Boucles, les membres et leurs roles, les Cards actives et principales, selon le mapping valide ; puis (T1335) l\'activite humaine collective de 08-Protocole, 09-UT Dallas et 10-Aria : 9 messages, 1 sondage, 1 decision, 1 evenement, 1 element de roadmap, distilles de la matiere reelle du corpus — aucun message IA, aucune ai_interaction simulee.';
     }
 
     public function apply(Organization $organization, ScenarioPackEntityRegistrar $registrar): void
@@ -261,11 +284,17 @@ class Test20260822DogfoodingPack implements ScenarioPackDefinition
 
         $this->assertLoopSetupCoversTheCorpus();
 
+        // TASK-1335 — les instances relues durant la boucle, pour l'activite
+        // humaine collective (`historicalActivity()`) qui suit : jamais une
+        // seconde lecture, jamais une Boucle recreee.
+        $loopsByName = [];
+
         foreach ($this->loopDirectories($sourceDirectory) as $loopName => $directory) {
             $loopKey = Str::slug($loopName);
             $setup = Test20260822DogfoodingDataset::LOOP_SETUP[$loopName];
             $loop = $this->loop($organization, $creator, $loopName);
             $registrar->track('loop', $loopKey, $loop);
+            $loopsByName[$loopName] = $loop;
 
             // Dossier racine + document racine : idempotents, tenus par la
             // Loop (`loop_id`), nommes comme elle. Aucun sous-dossier.
@@ -296,6 +325,8 @@ class Test20260822DogfoodingPack implements ScenarioPackDefinition
                 $this->dossierFile($organization, $creator, $rootDossier, $loopKey, $absolutePath, $registrar);
             }
         }
+
+        $this->historicalActivity($personas, $loopsByName, $registrar);
     }
 
     /**
@@ -762,6 +793,222 @@ class Test20260822DogfoodingPack implements ScenarioPackDefinition
                 "Test20260822DogfoodingPack : outils principaux de '{$loopName}' inattendus — attendu [".implode(', ', $wanted).'], obtenu ['.implode(', ', $final).'].'
             );
         }
+    }
+
+    /**
+     * TASK-1335 — activite humaine collective de `HISTORICAL_ACTIVITY` :
+     * messages, sondage, decision, evenement, element de roadmap. Seules les
+     * Boucles declarees dans `HISTORICAL_ACTIVITY` sont concernees ; chacune
+     * DOIT avoir ete creee ci-dessus (`assertLoopSetupCoversTheCorpus()` ne
+     * garantit que `LOOP_SETUP` — pas `HISTORICAL_ACTIVITY`, sous-ensemble
+     * volontaire), sinon erreur nommee plutot qu'un `null` silencieux.
+     *
+     * Idempotent par cle metier (titre/question/corps + Boucle) : rejouer ne
+     * duplique rien, ne vote pas deux fois, ne repond pas deux fois.
+     *
+     * @param  array<string, User>  $personas
+     * @param  array<string, Loop>  $loopsByName
+     */
+    private function historicalActivity(array $personas, array $loopsByName, ScenarioPackEntityRegistrar $registrar): void
+    {
+        foreach (Test20260822DogfoodingDataset::HISTORICAL_ACTIVITY as $loopName => $activity) {
+            $loop = $loopsByName[$loopName] ?? null;
+
+            if ($loop === null) {
+                throw new RuntimeException(
+                    "Test20260822DogfoodingPack : HISTORICAL_ACTIVITY declare la Boucle '{$loopName}' qui n'a pas ete chargee."
+                );
+            }
+
+            $loopKey = Str::slug($loopName);
+
+            foreach ($activity['messages'] as $message) {
+                $this->historicalMessage($loop, $loopKey, $personas[$message['persona']], $message['key'], $message['body'], $registrar);
+            }
+
+            if (isset($activity['poll'])) {
+                $this->historicalPoll($loop, $loopKey, $personas, $activity['poll'], $registrar);
+            }
+
+            if (isset($activity['decision'])) {
+                $this->historicalDecision($loop, $loopKey, $personas, $activity['decision'], $registrar);
+            }
+
+            if (isset($activity['event'])) {
+                $this->historicalEvent($loop, $loopKey, $personas, $activity['event'], $registrar);
+            }
+
+            if (isset($activity['roadmap_item'])) {
+                $this->historicalRoadmapItem($loop, $loopKey, $personas, $activity['roadmap_item'], $registrar);
+            }
+        }
+    }
+
+    /**
+     * Un message humain, ecrit par la primitive canonique
+     * (`LoopMessageService::sendUserMessage()`). Idempotence par
+     * `metadata->scenario_message_key`, propre a ce pack : aucun autre
+     * ecrivain du produit ne pose cette cle.
+     */
+    private function historicalMessage(Loop $loop, string $loopKey, User $sender, string $key, string $body, ScenarioPackEntityRegistrar $registrar): void
+    {
+        $message = LoopMessage::query()
+            ->where('loop_id', $loop->id)
+            ->where('metadata->scenario_message_key', $key)
+            ->first();
+
+        if ($message === null) {
+            $message = $this->messages->sendUserMessage($loop, $sender, $body, [
+                'scenario' => self::PACK_ID,
+                'scenario_message_key' => $key,
+            ]);
+        }
+
+        $registrar->track('loop_message', "{$loopKey}:{$key}", $message);
+    }
+
+    /**
+     * @param  array<string, User>  $personas
+     * @param  array{key: string, author: string, question: string, description: ?string, selection_type: string, labels: list<string>, votes: array<string, string>}  $spec
+     */
+    private function historicalPoll(Loop $loop, string $loopKey, array $personas, array $spec, ScenarioPackEntityRegistrar $registrar): void
+    {
+        $poll = LoopPoll::query()
+            ->where('loop_id', $loop->id)
+            ->where('question', $spec['question'])
+            ->first();
+
+        if ($poll === null) {
+            $poll = $this->polls->create(
+                $personas[$spec['author']],
+                $loop,
+                $spec['question'],
+                $spec['description'],
+                $spec['selection_type'],
+                $spec['labels'],
+            );
+
+            // `LoopPollService::create()` rend `$poll->fresh(['options'])` :
+            // une instance RE-LUE perd `wasRecentlyCreated`, ce qui ferait
+            // passer cette Card pour `reused` au registre (piege documente
+            // sur `ScenarioPackEntityRegistrar::track()`). On sait, dans
+            // cette branche, que CE passage vient de la creer.
+            $poll->wasRecentlyCreated = true;
+        }
+
+        $poll->loadMissing('options');
+        $registrar->track('loop_poll', "{$loopKey}:{$spec['key']}", $poll);
+
+        foreach ($spec['votes'] as $voterKey => $label) {
+            $voter = $personas[$voterKey];
+            $option = $poll->options->firstWhere('label', $label);
+
+            if ($option === null) {
+                throw new RuntimeException(
+                    "Test20260822DogfoodingPack : option '{$label}' introuvable pour le sondage '{$spec['key']}'."
+                );
+            }
+
+            if ($this->polls->voteOf($voter, $poll) === null) {
+                $this->polls->vote($voter, $poll, $loop, [$option->id]);
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, User>  $personas
+     * @param  array{key: string, author: string, title: string, rationale: string}  $spec
+     */
+    private function historicalDecision(Loop $loop, string $loopKey, array $personas, array $spec, ScenarioPackEntityRegistrar $registrar): void
+    {
+        $decision = LoopDecision::query()
+            ->where('loop_id', $loop->id)
+            ->where('title', $spec['title'])
+            ->first();
+
+        if ($decision === null) {
+            // `record()`, jamais `promote()`/`startAction()` : decision
+            // consignee directement, sans action de suivi automatique (brief
+            // T1335 — "sans action automatique").
+            $decision = $this->decisions->record($loop, $personas[$spec['author']], $spec['title'], $spec['rationale']);
+        }
+
+        $registrar->track('loop_decision', "{$loopKey}:{$spec['key']}", $decision);
+    }
+
+    /**
+     * @param  array<string, User>  $personas
+     * @param  array{key: string, creator: string, title: string, description: string, format: string, starts_at: string, ends_at: ?string, timezone: string, location: ?string, meeting_url: ?string, responses: array<string, string>}  $spec
+     */
+    private function historicalEvent(Loop $loop, string $loopKey, array $personas, array $spec, ScenarioPackEntityRegistrar $registrar): void
+    {
+        $event = LoopEvent::query()
+            ->where('loop_id', $loop->id)
+            ->where('title', $spec['title'])
+            ->first();
+
+        if ($event === null) {
+            $event = $this->events->create($personas[$spec['creator']], $loop, [
+                'title' => $spec['title'],
+                'description' => $spec['description'],
+                'format' => $spec['format'],
+                'starts_at' => $spec['starts_at'],
+                'ends_at' => $spec['ends_at'],
+                'timezone' => $spec['timezone'],
+                'location' => $spec['location'],
+                'meeting_url' => $spec['meeting_url'],
+            ]);
+        }
+
+        $registrar->track('loop_event', "{$loopKey}:{$spec['key']}", $event);
+
+        foreach ($spec['responses'] as $responderKey => $response) {
+            $responder = $personas[$responderKey];
+
+            if ($this->events->responseOf($responder, $event) === null) {
+                $this->events->respond($responder, $event, $loop, $response);
+            }
+        }
+    }
+
+    /**
+     * Aucun service dedie n'existe pour la Roadmap : `LoopRoadmapCard::
+     * createAction()` ecrit directement `LoopRoadmapItem::create()`, meme
+     * calcul de `position` (max de la colonne + 1). Le pack fait de meme —
+     * ni raccourci ni primitive inventee.
+     *
+     * @param  array<string, User>  $personas
+     * @param  array{key: string, creator: string, title: string, status: string, assignees: list<string>}  $spec
+     */
+    private function historicalRoadmapItem(Loop $loop, string $loopKey, array $personas, array $spec, ScenarioPackEntityRegistrar $registrar): void
+    {
+        $item = LoopRoadmapItem::query()
+            ->where('loop_id', $loop->id)
+            ->where('title', $spec['title'])
+            ->first();
+
+        if ($item === null) {
+            $maxPosition = LoopRoadmapItem::query()
+                ->where('organization_id', $loop->organization_id)
+                ->where('loop_id', $loop->id)
+                ->where('status', $spec['status'])
+                ->max('position');
+
+            $item = LoopRoadmapItem::create([
+                'organization_id' => $loop->organization_id,
+                'loop_id' => $loop->id,
+                'title' => $spec['title'],
+                'status' => $spec['status'],
+                'position' => $maxPosition === null ? 0 : $maxPosition + 1,
+                'created_by' => $personas[$spec['creator']]->id,
+                'completed_at' => $spec['status'] === LoopRoadmapItem::STATUS_DONE ? now() : null,
+            ]);
+
+            $assigneeIds = array_map(fn (string $key) => $personas[$key]->id, $spec['assignees']);
+            $item->assignees()->sync($assigneeIds);
+        }
+
+        $registrar->track('loop_roadmap_item', "{$loopKey}:{$spec['key']}", $item);
     }
 
     /**

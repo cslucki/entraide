@@ -2,21 +2,26 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\LoopCourseMaterialCard;
 use App\Models\BlogPost;
 use App\Models\CourseModule;
 use App\Models\CourseSequence;
 use App\Models\Dossier;
 use App\Models\DossierFile;
 use App\Models\Loop;
+use App\Models\LoopCard;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Loops\CourseMaterialService;
 use App\Services\LoopService;
 use App\Support\Loops\LoopCardRegistry;
+use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
@@ -76,7 +81,7 @@ class TASK1097CourseMaterialTest extends TestCase
         // `applyPreset()` ajoute ce qui manque sans retirer ce qui reste, et la
         // Boucle aurait sinon compose les deux presets a la fois — un etat qui
         // aurait fait passer les assertions pour la mauvaise raison.
-        \App\Models\LoopCard::where('loop_id', $loop->id)->delete();
+        LoopCard::where('loop_id', $loop->id)->delete();
         app(LoopTypeRegistry::class)->applyPreset($loop->fresh());
 
         return $loop->fresh();
@@ -114,8 +119,10 @@ class TASK1097CourseMaterialTest extends TestCase
         $cles = app(LoopTypeRegistry::class)->activeCardsFor($this->loop);
 
         $this->assertContains('training.course_material', $cles);
-        // Le cadre permanent est la partout : Manifeste et Membres.
-        $this->assertContains('core.manifesto', $cles);
+        // Le cadre permanent porte toujours Membres. Depuis TASK-1332, le
+        // Resume IA rejoint aussi le socle (le Manifeste, lui, n'y est plus
+        // impose par defaut).
+        $this->assertContains('core.ai_summary', $cles);
         $this->assertContains('core.members', $cles);
     }
 
@@ -168,8 +175,8 @@ class TASK1097CourseMaterialTest extends TestCase
     {
         // Aucune table d'inscription : une seconde verite sur « qui suit la
         // formation » aurait eu a etre gardee d'accord avec l'adhesion.
-        $this->assertFalse(\Illuminate\Support\Facades\Schema::hasTable('training_enrollments'));
-        $this->assertFalse(\Illuminate\Support\Facades\Schema::hasTable('course_enrollments'));
+        $this->assertFalse(Schema::hasTable('training_enrollments'));
+        $this->assertFalse(Schema::hasTable('course_enrollments'));
 
         $this->assertDatabaseHas('loop_members', [
             'loop_id' => $this->loop->id,
@@ -350,7 +357,6 @@ class TASK1097CourseMaterialTest extends TestCase
         $this->assertSame($this->org->id, $sequence->organization_id);
     }
 
-
     // ── Le rendu ────────────────────────────────────────────────────────────
 
     public function test_the_card_renders_and_offers_keyboard_reordering(): void
@@ -359,8 +365,8 @@ class TASK1097CourseMaterialTest extends TestCase
         $this->service()->addSequence($module, $this->owner, 'Sequence A');
         $this->service()->addSequence($module, $this->owner, 'Sequence B');
 
-        \Livewire\Livewire::actingAs($this->owner)
-            ->test(\App\Livewire\LoopCourseMaterialCard::class, ['loop' => $this->loop])
+        Livewire::actingAs($this->owner)
+            ->test(LoopCourseMaterialCard::class, ['loop' => $this->loop])
             ->assertOk()
             ->assertSee('Module rendu')
             ->assertSee('Sequence A')
@@ -379,8 +385,8 @@ class TASK1097CourseMaterialTest extends TestCase
         $a = $this->service()->addSequence($module, $this->owner, 'Premiere');
         $this->service()->addSequence($module, $this->owner, 'Seconde');
 
-        \Livewire\Livewire::actingAs($this->owner)
-            ->test(\App\Livewire\LoopCourseMaterialCard::class, ['loop' => $this->loop])
+        Livewire::actingAs($this->owner)
+            ->test(LoopCourseMaterialCard::class, ['loop' => $this->loop])
             ->call('moveSequence', $a->id, 1);
 
         $this->assertSame(
@@ -394,21 +400,21 @@ class TASK1097CourseMaterialTest extends TestCase
         $module = $this->module('Module confidentiel');
         $etranger = User::factory()->create(['organization_id' => $this->org->id]);
 
-        $resolveur = app(\App\Support\Loops\LoopPermissionResolver::class);
+        $resolveur = app(LoopPermissionResolver::class);
         $this->assertFalse($resolveur->can($etranger, $this->loop, 'course_material.manage'));
         $this->assertFalse($resolveur->can($etranger, $this->loop, 'course_material.view'));
 
         // **Lire** : la Card se rend vide. Le filtre de la grille s'applique au
         // montage ; celui-ci s'applique a chaque rendu, donc un composant deja
         // monte cesse de servir le contenu des que le droit tombe.
-        \Livewire\Livewire::actingAs($etranger)
-            ->test(\App\Livewire\LoopCourseMaterialCard::class, ['loop' => $this->loop])
+        Livewire::actingAs($etranger)
+            ->test(LoopCourseMaterialCard::class, ['loop' => $this->loop])
             ->assertDontSee('Module confidentiel')
             ->assertSee(__('loops.cards.course_material.no_access'));
 
         // **Ecrire** : refuse.
-        \Livewire\Livewire::actingAs($etranger)
-            ->test(\App\Livewire\LoopCourseMaterialCard::class, ['loop' => $this->loop])
+        Livewire::actingAs($etranger)
+            ->test(LoopCourseMaterialCard::class, ['loop' => $this->loop])
             ->call('deleteModule', $module->id)
             ->assertForbidden();
 
@@ -433,8 +439,8 @@ class TASK1097CourseMaterialTest extends TestCase
         ];
 
         foreach ($appels as [$methode, $arguments]) {
-            \Livewire\Livewire::actingAs($etranger)
-                ->test(\App\Livewire\LoopCourseMaterialCard::class, ['loop' => $this->loop])
+            Livewire::actingAs($etranger)
+                ->test(LoopCourseMaterialCard::class, ['loop' => $this->loop])
                 ->call($methode, ...$arguments)
                 ->assertForbidden();
         }
@@ -450,8 +456,8 @@ class TASK1097CourseMaterialTest extends TestCase
 
         // Le corps etait saisi, enregistre, et n'apparaissait nulle part :
         // quelqu'un ecrivait sa Sequence et la voyait disparaitre.
-        \Livewire\Livewire::actingAs($this->owner)
-            ->test(\App\Livewire\LoopCourseMaterialCard::class, ['loop' => $this->loop])
+        Livewire::actingAs($this->owner)
+            ->test(LoopCourseMaterialCard::class, ['loop' => $this->loop])
             ->assertDontSee('Le contenu du cours.')
             ->call('toggleSequence', $sequence->id)
             ->assertSee('Le contenu du cours.');
@@ -461,8 +467,8 @@ class TASK1097CourseMaterialTest extends TestCase
     {
         $module = $this->module('Titre d origine');
 
-        \Livewire\Livewire::actingAs($this->owner)
-            ->test(\App\Livewire\LoopCourseMaterialCard::class, ['loop' => $this->loop])
+        Livewire::actingAs($this->owner)
+            ->test(LoopCourseMaterialCard::class, ['loop' => $this->loop])
             ->call('startEditingModule', $module->id)
             ->set('moduleTitle', 'Titre corrige')
             ->call('saveModule')
@@ -497,8 +503,8 @@ class TASK1097CourseMaterialTest extends TestCase
 
         // L'identifiant est reel et la personne a tous les droits dans sa
         // Boucle : c'est la contrainte sur `loop_id` qui refuse, pas le droit.
-        \Livewire\Livewire::actingAs($this->owner)
-            ->test(\App\Livewire\LoopCourseMaterialCard::class, ['loop' => $this->loop])
+        Livewire::actingAs($this->owner)
+            ->test(LoopCourseMaterialCard::class, ['loop' => $this->loop])
             ->call('deleteModule', $moduleVoisin->id)
             ->assertNotFound();
 

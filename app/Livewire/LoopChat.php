@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
@@ -10,11 +11,15 @@ use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
+use App\Services\ChatLoop\AiResponseExplanationService;
+use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopMessageService;
+use App\Services\Loops\LoopAnswerCapitalizationService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Services\UrlPreviewService;
+use App\Support\Ai\AiTurnLock;
+use App\Support\Ai\LoopAiTurnSignal;
 use App\Support\Loops\LoopPermissionResolver;
-use App\Support\Loops\SlashIa;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -39,6 +44,27 @@ class LoopChat extends Component
 
     public ?array $replyingTo = null;
 
+    /**
+     * TASK-1308 : le moteur du PROCHAIN tour, choisi independamment du fil
+     * de conversation (reply_to_id) — `normal` (message humain, aucun appel
+     * IA), `ia` (LLM direct) ou `dossiers` (RAG Loop-scoped). Un reply
+     * PRESELECTIONNE ce mode depuis le parent (voir `replyTo()`) mais ne le
+     * verrouille jamais : le membre peut toujours le changer avant d'envoyer.
+     *
+     * TASK-1309 : quatrieme etat `ia_dossiers` — les DEUX moteurs sur le meme
+     * message. Ce n'est pas un troisieme bouton : c'est les deux boutons
+     * existants actifs en meme temps (voir `toggleComposerEngine()`).
+     */
+    public string $composerMode = 'normal';
+
+    /**
+     * Les quatre etats du composeur (TASK-1308 / TASK-1309), et le seul
+     * endroit ou cette liste existe.
+     *
+     * @var list<string>
+     */
+    private const COMPOSER_MODES = ['normal', 'ia', 'dossiers', 'ia_dossiers'];
+
     public $photo = null;
 
     public int $messagePageSize = 30;
@@ -47,9 +73,45 @@ class LoopChat extends Component
 
     public bool $hasOlderMessages = false;
 
+    /**
+     * TASK-1310 : etat du formulaire « Ajouter au Dossier ». `null` = ferme.
+     * Rien n'est ecrit tant que l'humain n'a pas valide : ces quatre champs
+     * sont un BROUILLON, editable jusqu'a l'enregistrement.
+     */
+    public ?string $capitalizingMessageId = null;
+
+    public string $capitalizeTitle = '';
+
+    public string $capitalizeContent = '';
+
+    public string $capitalizeDossierId = '';
+
+    /**
+     * La confirmation d'enregistrement, portee par l'ETAT du composant et non
+     * par un flash de session.
+     *
+     * PIEGE DEJA PAYE AILLEURS (T1213) : cette page porte un `wire:poll`. Un
+     * flash de session est lu — donc consomme — par le premier re-render venu,
+     * y compris celui du poll, et l'utilisateur ne voit rien. Constate en
+     * recette reelle sur ce meme geste. Une propriete publique, elle, survit
+     * aux re-renders et ne disparait que lorsque NOUS la vidons.
+     */
+    public string $capitalizeFlash = '';
+
     public ?string $editingMessageId = null;
 
     public string $editingBody = '';
+
+    /**
+     * TASK-1328 : panneau « Pourquoi cette réponse ? ». `null` = fermé. Un
+     * seul panneau à la fois, état côté serveur — il survit donc au
+     * `wire:poll` de la page (même motif que `$capitalizingMessageId`).
+     * `$whyPanel` ne contient QUE ce que le service a jugé montrable à CE
+     * spectateur : il voyage dans le snapshot, qui est lisible côté client.
+     */
+    public ?string $whyMessageId = null;
+
+    public ?array $whyPanel = null;
 
     public function mount(Loop $loop): void
     {
@@ -126,14 +188,150 @@ class LoopChat extends Component
         $this->replyToMessageId = $message->id;
         $this->replyingTo = [
             'body' => $message->isDeleted() ? __('messages.deleted_message_placeholder') : mb_substr($message->body, 0, 120),
-            'sender_name' => $message->sender?->publicDisplayName() ?? 'BouclePro',
+            'sender_name' => $message->type === 'ai'
+                ? $this->aiBubbleLabel($message)
+                : ($message->sender?->publicDisplayName() ?? __('messages.member')),
         ];
+        // TASK-1308 : le mode herite du parent est un DEFAUT visible dans le
+        // composeur, jamais un verrou — voir setComposerMode().
+        $this->composerMode = $this->defaultModeForParent($message);
     }
 
     public function cancelReply(): void
     {
         $this->replyToMessageId = null;
         $this->replyingTo = null;
+        $this->composerMode = 'normal';
+    }
+
+    /**
+     * TASK-1308 : selection EXPLICITE du moteur du prochain tour. Ignore
+     * silencieusement une valeur inconnue plutot que de lever — un evenement
+     * front perime ou un double-clic ne doivent pas casser le composeur.
+     */
+    public function setComposerMode(string $mode): void
+    {
+        if (! in_array($mode, self::COMPOSER_MODES, true)) {
+            return;
+        }
+
+        $this->composerMode = $mode;
+    }
+
+    /**
+     * TASK-1309 : les DEUX actions existantes — « Demander a l'IA » et
+     * « Consulter les Dossiers » — deviennent deux interrupteurs qui se
+     * combinent. Quatre etats accessibles sans troisieme bouton et sans
+     * redesign : aucun -> normal, IA -> ia, Dossiers -> dossiers, les deux ->
+     * ia_dossiers. Le clic sur un moteur DEJA actif l'eteint, ce qui donne
+     * enfin son sens au « × » que ces boutons affichaient deja.
+     *
+     * Ignore une valeur inconnue en silence, comme `setComposerMode()` : un
+     * evenement front perime ne doit pas casser le composeur.
+     */
+    public function toggleComposerEngine(string $engine): void
+    {
+        if (! in_array($engine, ['ia', 'dossiers'], true)) {
+            return;
+        }
+
+        $active = $this->activeEngines();
+        $active[$engine] = ! ($active[$engine] ?? false);
+
+        $this->composerMode = match (true) {
+            $active['ia'] && $active['dossiers'] => 'ia_dossiers',
+            $active['ia'] => 'ia',
+            $active['dossiers'] => 'dossiers',
+            default => 'normal',
+        };
+    }
+
+    /**
+     * Les moteurs actuellement selectionnes, derives du mode — jamais un
+     * second etat a maintenir en parallele de `$composerMode`.
+     *
+     * @return array{ia: bool, dossiers: bool}
+     */
+    public function activeEngines(): array
+    {
+        return [
+            'ia' => in_array($this->composerMode, ['ia', 'ia_dossiers'], true),
+            'dossiers' => in_array($this->composerMode, ['dossiers', 'ia_dossiers'], true),
+        ];
+    }
+
+    /**
+     * TASK-1308 : le mode PRESELECTIONNE quand on repond a `$parent` — un
+     * message humain retombe toujours sur `normal` (section 16 : le mode
+     * Dossiers/IA reste possible, mais volontaire, jamais herite d'un
+     * humain) ; un message IA herite son propre moteur.
+     */
+    private function defaultModeForParent(LoopMessage $parent): string
+    {
+        if ($parent->type !== 'ai') {
+            return 'normal';
+        }
+
+        return match ($this->resolvedAiMode($parent)) {
+            'rag' => 'dossiers',
+            'llm_rag' => 'ia_dossiers',
+            default => 'ia',
+        };
+    }
+
+    /**
+     * TASK-1308 : `ai_mode` est le discriminant canonique ('llm'|'rag'),
+     * ecrit par les deux moteurs unifies. Les messages IA anterieurs a cette
+     * TASK n'ont pas cette cle : leur `action` historique (knowledge /
+     * slash_ia / continuation / ask / answer) permet de deriver le meme
+     * discriminant sans migration de donnees.
+     *
+     * TASK-1309 : troisieme valeur `llm_rag` (mode IA + Dossiers). Aucun
+     * message anterieur ne peut la porter — elle n'a donc pas de derivation
+     * historique, et n'en aura jamais besoin.
+     */
+    private function resolvedAiMode(LoopMessage $message): string
+    {
+        $mode = $message->metadata['ai_mode'] ?? null;
+
+        if (in_array($mode, ['llm', 'rag', 'llm_rag'], true)) {
+            return $mode;
+        }
+
+        $action = $message->metadata['action'] ?? null;
+
+        return in_array($action, ['knowledge', 'slash_ia', 'continuation', 'dossiers'], true) ? 'rag' : 'llm';
+    }
+
+    /**
+     * TASK-1308 : identite tenant-generique d'une bulle IA — jamais
+     * « Facilitateur IA », jamais un nom d'Organization code en dur.
+     */
+    private function aiBubbleLabel(LoopMessage $message): string
+    {
+        return $this->aiIdentity($this->resolvedAiMode($message));
+    }
+
+    /**
+     * TASK-1316 : l'identite affichee d'un moteur — « Organization · Mode ».
+     *
+     * Extraite d'`aiBubbleLabel()` parce qu'elle sert desormais AUSSI a une
+     * ligne qui n'a pas de message a lui : le signal « une reponse est en
+     * cours ». Un tour annonce sous une identite puis publie sous une autre
+     * serait une promesse trahie ; il n'y a donc qu'un seul endroit ou elle
+     * s'ecrit.
+     *
+     * @param  string  $aiMode  le discriminant canonique T1312 ('llm'|'rag'|'llm_rag')
+     */
+    private function aiIdentity(string $aiMode): string
+    {
+        $orgName = $this->loop->organization?->name ?? config('app.name', 'BouclePro');
+
+        return $orgName.' · '.match ($aiMode) {
+            'rag' => __('loops.dossiers_mode_label'),
+            'llm_rag' => __('loops.hybrid_mode_label'),
+            default => __('loops.ia_mode_label'),
+        };
     }
 
     public function updatedPhoto(): void
@@ -180,67 +378,101 @@ class LoopChat extends Component
             return;
         }
 
-        // TASK-1299 : `/ia` en tete du corps invoque l'IA documentaire de
-        // CETTE Boucle. Une Boucle agent est exclue : son agent (T-2) repond
-        // deja a chaque message — une seconde IA serait une seconde depense.
-        $slashIaQuestion = $this->loop->isAiAgent() ? null : SlashIa::question($this->body);
+        // TASK-1308 : le moteur du tour est le mode EXPLICITE du composeur,
+        // jamais un texte special dans le corps (`/ia` retire) ni une
+        // auto-detection du parent (`continuationParent()` retiree). Une
+        // Boucle agent exclut les deux moteurs : son agent (T-2) repond deja
+        // a chaque message — une seconde IA serait une seconde depense.
+        $mode = $this->loop->isAiAgent() ? 'normal' : $this->composerMode;
 
-        if ($slashIaQuestion === '') {
-            // `/ia` vide : aide locale deterministe pour l'auteur seul. Rien
-            // n'est persiste, la saisie reste dans le composeur, aucun
-            // provider n'est appele, aucune ligne de ledger n'est ecrite.
-            $this->addError('body', __('loops.slash_ia_help'));
-
-            return;
-        }
-
-        try {
-            $imagePath = null;
-
-            if ($this->photo) {
-                $imagePath = $this->storeImage($this->photo, 'loop-messages');
-                $this->photo = null;
-            }
-
-            $url = UrlPreviewService::extractFirstUrl($this->body);
-            $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
-
-            $metadata = $preview !== null ? ['url_preview' => $preview] : null;
-
-            if ($slashIaQuestion !== null) {
-                // Le corps est persiste TEL QUE TAPE, prefixe compris — la
-                // provenance de l'invocation vit ici, en metadata.
-                $metadata = ($metadata ?? []) + ['slash_ia' => true];
-            }
-
-            // TASK-1300 : `/ia` explicite d'abord — un corps `/ia ...` en
-            // reponse a un message IA reste une invocation /ia (une seule),
-            // le contexte de fil etant construit par le service depuis le
-            // lien de reponse (arbitrage Cyril 24/08, test dedie).
-            $continuationParent = $slashIaQuestion === null ? $this->continuationParent() : null;
-
-            if ($continuationParent !== null) {
-                $metadata = ($metadata ?? []) + ['ai_continuation' => true];
-            }
-
-            $message = $service->sendUserMessage($this->loop, $user, $this->body, $metadata, $this->replyToMessageId, $imagePath);
-            $this->body = '';
-            $this->cancelReply();
-        } catch (\RuntimeException) {
-            $this->addError('body', 'Impossible d\'envoyer le message.');
+        if ($mode !== 'normal' && trim($this->body) === '') {
+            // Une image seule ne pose pas de question : les modes IA et
+            // Dossiers exigent un texte, la meme regle que l'ancien modal
+            // Dossiers (`loops.knowledge_question_required`).
+            $this->addError('body', __('loops.knowledge_question_required'));
 
             return;
         }
 
-        if ($slashIaQuestion !== null) {
-            $this->answerSlashIa($message, $slashIaQuestion, $user);
-        } elseif ($continuationParent !== null && $message->reply_to_id === $continuationParent->id) {
-            // TASK-1300 : continuation — le membre a REPONDU au message IA,
-            // son corps est la question. Meme chaine knowledge, meme
-            // declencheur deja persiste (le piege de la double persistance
-            // reste ferme par T-3), meme conservation du message humain en
-            // cas de refus ou d'echec.
-            $this->answerSlashIa($message, trim($message->body), $user);
+        // TASK-1311 : publication du message humain PUIS reponse du moteur —
+        // les deux moities d'un meme tour, qui doivent tenir sous un seul
+        // verrou. Rendu ici sous forme de fermeture pour cette seule raison ;
+        // le corps n'a pas change.
+        $tour = function () use ($service, $mode, $user): bool {
+            try {
+                $imagePath = null;
+
+                if ($this->photo) {
+                    $imagePath = $this->storeImage($this->photo, 'loop-messages');
+                    $this->photo = null;
+                }
+
+                $url = UrlPreviewService::extractFirstUrl($this->body);
+                $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
+
+                $metadata = $preview !== null ? ['url_preview' => $preview] : null;
+
+                if ($mode !== 'normal') {
+                    $metadata = ($metadata ?? []) + ['requested_mode' => $mode];
+                }
+
+                $question = trim($this->body);
+
+                $message = $service->sendUserMessage($this->loop, $user, $this->body, $metadata, $this->replyToMessageId, $imagePath);
+                $this->body = '';
+                $this->cancelReply();
+            } catch (\RuntimeException) {
+                $this->addError('body', 'Impossible d\'envoyer le message.');
+
+                return false;
+            }
+
+            if ($question !== '') {
+                match ($mode) {
+                    'ia' => $this->respondWithAi($message, $question, $user),
+                    'dossiers' => $this->respondWithDossiers($message, $question, $user),
+                    // TASK-1309 : un SEUL tour, un seul appel de generation —
+                    // « IA + Dossiers » n'est pas « IA puis Dossiers », ce serait
+                    // deux reponses et deux depenses.
+                    'ia_dossiers' => $this->respondWithHybrid($message, $question, $user),
+                    default => null,
+                };
+            }
+
+            return true;
+        };
+
+        if ($mode === 'normal') {
+            // Aucun moteur, aucune depense : rien a verrouiller. Un tour NORMAL
+            // doit rester exactement ce qu'il etait.
+            if (! $tour()) {
+                return;
+            }
+        } else {
+            // TASK-1311 : le verrou est pris ICI, AVANT que le message humain
+            // n'existe.
+            //
+            // Le poser seulement dans le service bloquerait bien la seconde
+            // generation, mais les DEUX messages humains auraient deja ete
+            // publies : le fil mentirait sur ce que l'utilisateur a fait, et le
+            // contrat produit dit « double clic -> UN message humain ».
+            //
+            // `AiTurnLock` est reentrant dans une meme requete : le service
+            // reprendra ce meme verrou sans echouer sur lui-meme. Et il garde
+            // SA prise — c'est elle, et non celle-ci, qui protege le FAB, le
+            // chemin herite et tout appel forge. L'UI n'est jamais la garantie.
+            try {
+                if (! AiTurnLock::run($this->loop, $user, $tour)) {
+                    return;
+                }
+            } catch (\RuntimeException $exception) {
+                // Un tour est deja en cours pour ce membre dans cette Boucle,
+                // ou ce declencheur a deja sa reponse. Le message humain n'a PAS
+                // ete cree : c'est tout l'interet de verrouiller si tot.
+                $this->addError('body', $exception->getMessage());
+
+                return;
+            }
         }
 
         $this->syncNewerMessages();
@@ -248,33 +480,24 @@ class LoopChat extends Component
     }
 
     /**
-     * TASK-1300 : le parent d'une CONTINUATION — le message IA (type `ai`
-     * strictement : jamais `member_agent`), non supprime, de CETTE Boucle,
-     * que le membre vise avec « Repondre ». Tout autre cas est un reply
-     * ordinaire : Boucle agent (l'agent T-2 repond deja a tout message —
-     * deux IA seraient deux depenses), reply a un humain, parent efface
-     * (conservateur : son contenu a quitte le fil), corps vide (photo
-     * seule : pas de question a poser). Un reply_to_id d'une AUTRE Boucle
-     * ne declenche rien : cette requete est bornee a la Boucle courante,
-     * `sendUserMessage()` annule le lien de son cote, et la branche
-     * appelante re-verifie le lien PERSISTE avant d'invoquer.
+     * Mode IA du composeur unifie (TASK-1308) : reponse LLM directe au
+     * message HUMAIN deja persiste. Le contexte de fil (reply_to_id, s'il
+     * existe) est construit par `ChatLoopAiService::respondInThread()` via
+     * `AiConversationContextBuilder` — jamais reconstruit ici.
      */
-    private function continuationParent(): ?LoopMessage
+    private function respondWithAi(LoopMessage $message, string $question, User $user): void
     {
-        if ($this->loop->isAiAgent() || $this->replyToMessageId === null || trim($this->body) === '') {
-            return null;
+        try {
+            app(ChatLoopAiService::class)->respondInThread($this->loop, $user, $question, $message);
+        } catch (\RuntimeException $exception) {
+            // AiRefusedException comprise : son message est le message
+            // produit (credit epuise, budget atteint, IA non configuree).
+            $this->addError('body', $exception->getMessage());
         }
-
-        return LoopMessage::query()
-            ->where('id', $this->replyToMessageId)
-            ->where('loop_id', $this->loop->id)
-            ->where('type', 'ai')
-            ->whereNull('deleted_at')
-            ->first();
     }
 
     /**
-     * Repondre au message `/ia` DEJA persiste — jamais l'inverse.
+     * Mode Dossiers du composeur unifie (TASK-1308, ex-« /ia » T-1299/T-1300).
      *
      * La chaine est celle de « Consulter les Dossiers » (T-1, TASK-1297) :
      * RAG Loop-scoped (TASK-1294), garde economique existante, sources
@@ -283,7 +506,7 @@ class LoopChat extends Component
      * panne provider, aucune source — le CONSERVE et ne publie aucune
      * fausse reponse : l'auteur seul est prevenu, dans le composeur.
      */
-    private function answerSlashIa(LoopMessage $message, string $question, User $user): void
+    private function respondWithDossiers(LoopMessage $message, string $question, User $user): void
     {
         try {
             $answer = app(LoopKnowledgeAnswerService::class)
@@ -296,10 +519,197 @@ class LoopChat extends Component
                 $this->addError('body', __('loops.knowledge_no_sources'));
             }
         } catch (\RuntimeException $exception) {
-            // AiRefusedException comprise : son message est le message
-            // produit (credit epuise, budget atteint, IA non configuree).
             $this->addError('body', $exception->getMessage());
         }
+    }
+
+    /**
+     * Mode « IA + Dossiers » du composeur unifie (TASK-1309).
+     *
+     * Meme chaine que le mode Dossiers — meme service, meme RAG loop-scoped,
+     * meme garde economique, meme publication — avec la capability
+     * `loop_hybrid_answer` et son prompt dedie. Une seule difference visible
+     * ici : le mode peut repondre sans aucune source documentaire, donc
+     * `interactionId === null` (le refus « zero source ») ne s'y produit
+     * jamais ; seuls les refus economiques et les pannes provider restent, et
+     * ils conservent le message humain exactement comme les deux autres modes.
+     */
+    private function respondWithHybrid(LoopMessage $message, string $question, User $user): void
+    {
+        try {
+            app(LoopKnowledgeAnswerService::class)
+                ->answerHybrid($this->loop, $user, $question, inThreadTrigger: $message);
+        } catch (\RuntimeException $exception) {
+            $this->addError('body', $exception->getMessage());
+        }
+    }
+
+    /**
+     * TASK-1310 : ouvre le brouillon « Ajouter au Dossier » pour une bulle IA.
+     *
+     * Rien n'est ecrit : on prepare un titre et un contenu PRE-REMPLIS, que
+     * l'humain relit et modifie avant d'enregistrer. Le message est relu DANS
+     * cette Boucle — un identifiant venu du front n'ouvre jamais une bulle
+     * d'ailleurs — et l'eligibilite est celle du service, jamais une seconde
+     * regle locale.
+     */
+    public function startCapitalization(string $messageId, LoopAnswerCapitalizationService $service): void
+    {
+        $user = auth()->user();
+
+        if (! $this->canContribute($user)) {
+            return;
+        }
+
+        $message = LoopMessage::where('id', $messageId)
+            ->where('loop_id', $this->loop->id)
+            ->first();
+
+        if ($message === null || ! $service->isCapitalizable($this->loop, $message)) {
+            return;
+        }
+
+        $dossier = $service->defaultDossier($this->loop, $user);
+
+        if ($dossier === null) {
+            $this->addError('capitalizeDossierId', __('loops.capitalize_no_dossier'));
+
+            return;
+        }
+
+        $this->resetErrorBag();
+        $this->capitalizeFlash = '';
+        $this->capitalizingMessageId = $message->id;
+        $this->capitalizeDossierId = (string) $dossier->id;
+        $this->capitalizeTitle = $service->suggestedTitle($message);
+        $this->capitalizeContent = (string) $message->body;
+    }
+
+    /**
+     * TASK-1328 : ouvre le panneau « Pourquoi cette réponse ? » d'une bulle
+     * IA. Le composant ne décide RIEN : le service refait toutes les gardes
+     * (tenant, adhésion active, bulle vivante de CETTE Boucle) et rend
+     * `null` à qui n'a pas à voir — y compris une requête forgée qui
+     * atteindrait cette méthode directement. Ouvrir n'écrit rien, nulle
+     * part : l'explication est une lecture.
+     */
+    public function showWhy(string $messageId, AiResponseExplanationService $service): void
+    {
+        $user = auth()->user();
+
+        if (! $user || ! $this->isMember) {
+            return;
+        }
+
+        $message = LoopMessage::where('id', $messageId)
+            ->where('loop_id', $this->loop->id)
+            ->first();
+
+        if ($message === null) {
+            return;
+        }
+
+        $panel = $service->explain($this->loop, $message, $user);
+
+        if ($panel === null) {
+            return;
+        }
+
+        $this->whyMessageId = $message->id;
+        $this->whyPanel = $panel;
+    }
+
+    public function closeWhy(): void
+    {
+        $this->whyMessageId = null;
+        $this->whyPanel = null;
+    }
+
+    /**
+     * TASK-1328 : verdict humain explicite (utile / à améliorer) sur la
+     * réponse dont le panneau est ouvert — la primitive TASK-1256, un
+     * jugement par personne, remplacé s'il est redonné. Toutes les gardes
+     * vivent dans le service.
+     */
+    public function submitWhyFeedback(string $verdict, AiResponseExplanationService $service): void
+    {
+        $user = auth()->user();
+
+        if (! $user || ! $this->isMember || $this->whyMessageId === null) {
+            return;
+        }
+
+        $message = LoopMessage::where('id', $this->whyMessageId)
+            ->where('loop_id', $this->loop->id)
+            ->first();
+
+        if ($message === null) {
+            return;
+        }
+
+        if ($service->submitFeedback($this->loop, $message, $user, $verdict)) {
+            $this->whyPanel = $service->explain($this->loop, $message, $user) ?? $this->whyPanel;
+        }
+    }
+
+    public function cancelCapitalization(): void
+    {
+        $this->capitalizingMessageId = null;
+        $this->capitalizeTitle = '';
+        $this->capitalizeContent = '';
+        $this->capitalizeDossierId = '';
+        $this->resetErrorBag();
+    }
+
+    /**
+     * Enregistre le brouillon relu comme Article du Dossier.
+     *
+     * Le composant ne decide RIEN : il transmet ce que l'humain a valide et
+     * traduit un refus. Toutes les gardes — tenant, Boucle, eligibilite,
+     * permission d'ecriture, appartenance du Dossier au perimetre ecrivable —
+     * vivent dans le service, qui est aussi ce qu'atteint une requete forgee.
+     */
+    public function saveCapitalization(LoopAnswerCapitalizationService $service): void
+    {
+        $user = auth()->user();
+
+        if (! $this->canContribute($user) || $this->capitalizingMessageId === null) {
+            return;
+        }
+
+        $message = LoopMessage::where('id', $this->capitalizingMessageId)
+            ->where('loop_id', $this->loop->id)
+            ->first();
+
+        if ($message === null) {
+            $this->cancelCapitalization();
+
+            return;
+        }
+
+        try {
+            $post = $service->capitalize(
+                $this->loop,
+                $user,
+                $message,
+                $this->capitalizeDossierId,
+                $this->capitalizeTitle,
+                $this->capitalizeContent,
+            );
+        } catch (\RuntimeException $exception) {
+            $this->addError('capitalizeTitle', $exception->getMessage());
+
+            return;
+        }
+
+        $dossierName = (string) Dossier::query()->whereKey($this->capitalizeDossierId)->value('name');
+
+        // Fermer AVANT d'annoncer : le brouillon disparait, donc une seconde
+        // soumission triviale n'a plus d'etat a renvoyer.
+        $this->cancelCapitalization();
+
+        $this->dispatch('loop-article-created', articleId: $post->id, title: $post->title);
+        $this->capitalizeFlash = __('loops.capitalize_saved', ['dossier' => $dossierName]);
     }
 
     public function removePhoto(): void
@@ -623,6 +1033,10 @@ class LoopChat extends Component
         }
 
         $requestedByNames = $this->requestedByNames($messages);
+        // TASK-1316 : les tours IA en cours, vus par les AUTRES membres. Derive
+        // des messages deja charges ci-dessus — voir `LoopAiTurnSignal` pour
+        // l'audit qui a ecarte `AiTurnLock` comme source d'etat d'interface.
+        $pendingAiTurns = $this->pendingAiTurns($messages);
         $projectedRequests = $this->projectedRequests($messages);
         $projectedRequestUrls = $this->projectedRequestUrls($projectedRequests);
         $aiRoute = $this->aiRoute();
@@ -630,18 +1044,63 @@ class LoopChat extends Component
         // La vue retire le compositeur plutot que d'accepter un message que
         // sendMessage() refusera : un refus silencieux passe pour une panne.
         $canContribute = $this->canContribute(auth()->user());
+        // TASK-1308 : passe explicitement sous un nom DISTINCT de la
+        // propriete publique `loop` — Livewire partage deja ses propres
+        // proprietes publiques avec la vue par son propre mecanisme
+        // (Utils::getPublicPropertiesDefinedOnSubclass + View::with()), qui
+        // s'applique APRES le tableau rendu ici et en ecraserait toute
+        // entree nommee `loop` (array_merge, la derniere valeur gagne).
+        $viewLoop = $this->loop;
+
+        // TASK-1310 : la vue lit une decision deja prise ici par le service —
+        // jamais une regle d'eligibilite reimplantee en Blade, qui pourrait
+        // diverger de celle que le serveur applique.
+        //
+        // TASK-1313 : deux questions DISTINCTES, la ou il n'y en avait qu'une.
+        //
+        //   `$capitalizableMessageIds` — cette BULLE se prete-t-elle au geste ?
+        //   `$canCapitalize`           — cette PERSONNE a-t-elle le droit ?
+        //
+        // Les confondre revenait a cacher la fonctionnalite a qui n'y a pas
+        // droit : un membre ordinaire ne pouvait pas meme SAVOIR qu'elle
+        // existe. Elle doit etre decouvrable par tous, et refusee clairement a
+        // qui ne peut pas — ce qui est une information, pas une frustration.
+        //
+        // L'affichage ne fait bien sur autorite sur rien :
+        // `startCapitalization()` et `saveCapitalization()` reposent sur le
+        // service, qui revalide tout.
+        $capitalization = app(LoopAnswerCapitalizationService::class);
+        $capitalizableMessageIds = [];
+        $writableDossiers = collect();
+        $canCapitalize = false;
+
+        if ($canContribute && auth()->user()) {
+            $writableDossiers = $capitalization->writableDossiers($this->loop, auth()->user());
+            $canCapitalize = $writableDossiers->isNotEmpty();
+
+            foreach ($messages as $msg) {
+                if ($capitalization->isCapitalizable($this->loop, $msg)) {
+                    $capitalizableMessageIds[] = $msg->id;
+                }
+            }
+        }
 
         return view('livewire.loop-chat', compact(
             'messages',
+            'viewLoop',
             'pinnedMessage',
             'reactionData',
             'myReactions',
             'requestedByNames',
+            'pendingAiTurns',
             'projectedRequests',
             'projectedRequestUrls',
             'aiRoute',
             'canDeleteMessages',
+            'canCapitalize',
             'canContribute',
+            'capitalizableMessageIds',
+            'writableDossiers',
         ));
     }
 
@@ -847,6 +1306,25 @@ class LoopChat extends Component
 
         return $user !== null
             && app(LoopPermissionResolver::class)->can($user, $this->loop, 'chatloop.manage');
+    }
+
+    /**
+     * TASK-1316 : les tours IA en cours dans cette Boucle, prets a afficher.
+     *
+     * La REGLE vit dans `LoopAiTurnSignal` — messages persistes pour l'identite
+     * et le mode, verrou T1311 pour la vivacite. Ce qui se decide ici est
+     * uniquement l'habillage : l'identite « Organization · Mode », la meme que
+     * portera la bulle de reponse.
+     *
+     * @param  Collection<int, LoopMessage>  $messages
+     * @return array<int, array{message_id: string, requester_id: string, requester_name: string, ai_mode: string, identity: string}>
+     */
+    private function pendingAiTurns(Collection $messages): array
+    {
+        return array_map(
+            fn (array $turn): array => $turn + ['identity' => $this->aiIdentity($turn['ai_mode'])],
+            LoopAiTurnSignal::pendingTurns($this->loop, $messages),
+        );
     }
 
     private function requestedByNames(Collection $messages): array

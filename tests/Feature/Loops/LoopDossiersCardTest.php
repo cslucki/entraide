@@ -4,6 +4,7 @@ namespace Tests\Feature\Loops;
 
 use App\Livewire\LoopDossiersCard;
 use App\Models\ArticleSeries;
+use App\Models\ArticleSeriesItem;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
@@ -17,6 +18,7 @@ use App\Services\LoopService;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -84,7 +86,7 @@ class LoopDossiersCardTest extends TestCase
             'organization_id' => $this->organization->id,
             'user_id' => ($author ?? $this->owner)->id,
             'title' => $title,
-            'slug' => \Illuminate\Support\Str::slug($title).'-'.\Illuminate\Support\Str::random(6),
+            'slug' => Str::slug($title).'-'.Str::random(6),
             'content' => '<p></p>',
             'status' => 'draft',
         ]);
@@ -416,8 +418,10 @@ class LoopDossiersCardTest extends TestCase
         $this->assertContains('core.events', $preset);
         $this->assertContains('core.dossiers', $preset);
 
-        // Le cadre permanent reste declare, hors grille.
-        $this->assertContains('core.manifesto', $preset);
+        // Le cadre permanent reste declare, hors grille. Depuis TASK-1332, le
+        // Resume IA rejoint ce socle a la place du Manifeste (qui n'y est
+        // plus impose par defaut).
+        $this->assertContains('core.ai_summary', $preset);
         $this->assertContains('core.members', $preset);
     }
 
@@ -466,7 +470,7 @@ class LoopDossiersCardTest extends TestCase
             'created_by' => $this->owner->id,
         ]);
 
-        \App\Models\ArticleSeriesItem::create([
+        ArticleSeriesItem::create([
             'organization_id' => $this->organization->id,
             'article_series_id' => $series->id,
             'blog_post_id' => $annex->id,

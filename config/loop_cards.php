@@ -107,7 +107,12 @@ return [
             'replaceable' => false,
             'permission' => 'loop.active_member',
             'mobile' => 'drawer',
-            'default_enabled' => true,
+            // TASK-1332 : plus aucun type ne l'impose par defaut (voir
+            // config/loop_types.php) — reste au catalogue, activable a tout
+            // moment. Ce champ ne pilote rien lui-meme (aucune lecture
+            // applicative hors un test de forme) ; corrige ici pour ne pas
+            // mentir sur l'intention.
+            'default_enabled' => false,
         ],
         'core.roadmap' => [
             'key' => 'core.roadmap',

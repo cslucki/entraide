@@ -242,7 +242,9 @@ class TASK1079LoopAdminTest extends TestCase
             ->assertOk()
             ->viewData('presetCards');
 
-        $this->assertContains('core.manifesto', $preset);
+        // TASK-1332 : le Resume IA a rejoint le socle Pair-aidance, le
+        // Manifeste l'a quitte (il reste activable, mais n'est plus impose).
+        $this->assertContains('core.ai_summary', $preset);
         $this->assertNotContains('core.events', $preset, 'A human-added card must not read as part of the type baseline');
     }
 
@@ -453,13 +455,16 @@ class TASK1079LoopAdminTest extends TestCase
 
     public function test_the_full_type_rotation_through_the_admin_loses_no_card_or_content(): void
     {
-        // Starting from peer_support, whose preset is the narrowest, so the
-        // manually added card is genuinely outside it.
+        // TASK-1332 : core.ai_summary a rejoint tous les presets, il n'est
+        // donc plus "genuinely outside" d'aucun type traverse ici. Le
+        // Manifeste, lui, ne l'est plus jamais par defaut : il reste le
+        // candidat sur pour verifier qu'un ajout humain survit a chaque
+        // rotation, quel que soit le type.
         $loop = $this->loop(['type' => 'peer_support']);
         $this->registry()->applyPreset($loop);
         LoopCard::create([
             'organization_id' => $this->org->id, 'loop_id' => $loop->id,
-            'card_key' => 'core.ai_summary', 'enabled' => true, 'added_by_preset' => null,
+            'card_key' => 'core.manifesto', 'enabled' => true, 'added_by_preset' => null,
         ]);
         $before = LoopCard::where('loop_id', $loop->id)->pluck('card_key')->sort()->values()->all();
 
@@ -477,7 +482,7 @@ class TASK1079LoopAdminTest extends TestCase
         $this->assertSame(count($after), count(array_unique($after)), 'A card was duplicated');
         // The card a human added is still there, still flagged as theirs.
         $this->assertNull(
-            LoopCard::where('loop_id', $loop->id)->where('card_key', 'core.ai_summary')->value('added_by_preset'),
+            LoopCard::where('loop_id', $loop->id)->where('card_key', 'core.manifesto')->value('added_by_preset'),
         );
     }
 

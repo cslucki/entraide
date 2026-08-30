@@ -6,7 +6,11 @@ declare(strict_types=1);
  * Compare les echecs SQLite observes a la reference, **par identite**.
  *
  * Usage :
- *   php .github/scripts/sqlite-regression-gate.php <rapport.xml> <reference.txt>
+ *   php .github/scripts/sqlite-regression-gate.php <rapport.xml> [<rapport2.xml> ...] <reference.txt>
+ *
+ * La reference est **toujours le dernier argument** ; tout ce qui la precede
+ * est un rapport JUnit. Avec deux arguments, c'est exactement l'appel
+ * historique — la forme d'hier reste valide, mot pour mot.
  *
  * ## Pourquoi ce script existe
  *
@@ -38,18 +42,33 @@ declare(strict_types=1);
 
 // ── Entrees ─────────────────────────────────────────────────────────────────
 
-$rapport = $argv[1] ?? null;
-$fichierReference = $argv[2] ?? null;
+// TASK-1334 : la suite SQLite tourne desormais en quatre shards, sur quatre
+// runners, et produit donc quatre rapports JUnit. Le gate les agrege avant de
+// comparer — la comparaison elle-meme, par identite, est inchangee.
+//
+// **Chaque rapport attendu doit etre present.** Un shard dont le rapport
+// manque a l'appel signifie une suite qui n'a pas demarre : ses echecs
+// seraient silencieusement absents de l'ensemble observe, et le gate
+// annoncerait un « progres » la ou il y a un trou. C'est le seul moyen pour
+// qu'un decoupage rende un gate menteur, et il est ferme ici.
 
-if ($rapport === null || $fichierReference === null) {
-    fwrite(STDERR, "usage: sqlite-regression-gate.php <rapport.xml> <reference.txt>\n");
+$arguments = array_slice($argv, 1);
+
+if (count($arguments) < 2) {
+    fwrite(STDERR, "usage: sqlite-regression-gate.php <rapport.xml> [<rapport2.xml> ...] <reference.txt>\n");
     exit(2);
 }
 
-if (! is_file($rapport)) {
-    fwrite(STDERR, "Rapport JUnit introuvable : {$rapport}\n");
-    fwrite(STDERR, "La suite n'a probablement pas demarre — lire l'etape precedente.\n");
-    exit(2);
+$fichierReference = array_pop($arguments);
+$rapports = $arguments;
+
+foreach ($rapports as $rapport) {
+    if (! is_file($rapport)) {
+        fwrite(STDERR, "Rapport JUnit introuvable : {$rapport}\n");
+        fwrite(STDERR, "Un shard n'a pas rendu son rapport — la suite n'a probablement pas demarre.\n");
+        fwrite(STDERR, "Lire l'etape correspondante avant toute autre hypothese.\n");
+        exit(2);
+    }
 }
 
 // ── Lecture du rapport ──────────────────────────────────────────────────────
@@ -68,28 +87,45 @@ function identite(SimpleXMLElement $cas): string
     return $classe.'::'.$methode;
 }
 
-$xml = @simplexml_load_file($rapport);
-
-if ($xml === false) {
-    fwrite(STDERR, "Rapport JUnit illisible : {$rapport}\n");
-    exit(2);
-}
-
 $observes = [];
 $total = 0;
+$parRapport = [];
 
-foreach ($xml->xpath('//testcase') ?: [] as $cas) {
-    $total++;
+foreach ($rapports as $rapport) {
+    $xml = @simplexml_load_file($rapport);
 
-    // `failure` = assertion fausse ; `error` = exception ou erreur PHP. Les
-    // deux rendent le test rouge et doivent donc entrer dans la comparaison.
-    if (isset($cas->failure) || isset($cas->error)) {
-        $observes[] = identite($cas);
+    if ($xml === false) {
+        fwrite(STDERR, "Rapport JUnit illisible : {$rapport}\n");
+        exit(2);
     }
+
+    $comptes = 0;
+
+    foreach ($xml->xpath('//testcase') ?: [] as $cas) {
+        $comptes++;
+
+        // `failure` = assertion fausse ; `error` = exception ou erreur PHP.
+        // Les deux rendent le test rouge et doivent donc entrer dans la
+        // comparaison.
+        if (isset($cas->failure) || isset($cas->error)) {
+            $observes[] = identite($cas);
+        }
+    }
+
+    // Un rapport vide est aussi grave qu'un rapport absent : le shard s'est
+    // termine sans rien executer. Le signaler par rapport, et pas seulement
+    // sur le total, evite qu'un shard muet se cache derriere trois bavards.
+    if ($comptes === 0) {
+        fwrite(STDERR, "Aucun test dans le rapport {$rapport} : ce shard ne s'est pas execute.\n");
+        exit(2);
+    }
+
+    $parRapport[$rapport] = $comptes;
+    $total += $comptes;
 }
 
 if ($total === 0) {
-    fwrite(STDERR, "Aucun test dans le rapport : la suite ne s'est pas executee.\n");
+    fwrite(STDERR, "Aucun test dans les rapports : la suite ne s'est pas executee.\n");
     exit(2);
 }
 
@@ -128,6 +164,16 @@ $disparus = array_values(array_diff($reference, $observes));
 echo "=====================================\n";
 echo "SQLITE REGRESSION GATE\n";
 echo "=====================================\n\n";
+if (count($parRapport) > 1) {
+    echo "  Rapports agreges :\n";
+
+    foreach ($parRapport as $rapport => $comptes) {
+        printf("    %-28s %5d tests\n", basename($rapport), $comptes);
+    }
+
+    echo "\n";
+}
+
 printf("  Tests executes   : %d\n", $total);
 printf("  Echecs observes  : %d\n", count($observes));
 printf("  Echecs attendus  : %d\n\n", count($reference));

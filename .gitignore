@@ -19,12 +19,20 @@ ai/
 opencode.json
 .mcp.json
 test.txt
+# TASK-1336 — backup des scripts d'orchestration (copies locales privees,
+# hors perimetre gitignore jusqu'ici). Retire du tracking public. Ne pas
+# remplacer par `tooling/` global : un futur tooling public reste possible.
 tooling/ai-scripts-backup/
 
 # Public lockdown: local documentation, configs and QA artifacts
 AGENTS.md
 ROADMAP.md
 docs/
+# TASK-1337 — verrou public complet. `.env.ai-validation.example` decrivait le
+# banc IA local (port 8010, base dediee, comptes QA) : son exception ci-dessus
+# est retiree, `.env.*` le couvre desormais. CHANGELOG.md est obsolete et non
+# maintenu. Les deux configs Playwright exposent le banc QA/local ; les tests
+# eux-memes restent publics.
 CHANGELOG.md
 playwright.ai-validation.config.mjs
 playwright.config.mjs
@@ -33,6 +41,11 @@ install.bat
 .npmrc
 phpunit.xml
 phpunit.pgsql.xml
+# TASK-1334 — configurations de shard generees par
+# .github/scripts/shard-tests.php. Elles sont derivees de
+# phpunit.ci-feature.xml a chaque run : les versionner reviendrait a
+# figer une decoupe qui doit suivre l'ajout de fichiers de test.
+phpunit.ci-*.shard-*.xml
 playwright.config.js
 phpstan.neon
 rector.php

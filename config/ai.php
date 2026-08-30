@@ -239,6 +239,35 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Shell « BouclePro IA » (TASK-1315)
+    |--------------------------------------------------------------------------
+    |
+    | Le Shell est une SURFACE, pas un moteur : son tour de conversation
+    | delegue a `ClarifyUserHelpRequestService::clarifyForOrganization()`, dont
+    | la garde economique, le budget et le ledger restent ceux de la
+    | clarification. Aucune cle de budget ici — il n'y en a pas a inventer.
+    |
+    | `max_thread_messages` borne la FENETRE affichee et relue ; le fil est
+    | elague au-dela du double. Il n'y a ni resume ni rappel d'un fil a
+    | l'autre : « memoire avancee » est hors V1.
+    |
+    */
+    'shell' => [
+        'enabled' => (bool) env('AI_SHELL_ENABLED', true),
+        'max_thread_messages' => (int) env('AI_SHELL_MAX_THREAD_MESSAGES', 40),
+        'max_input_chars' => (int) env('AI_SHELL_MAX_INPUT_CHARS', 2000),
+        // TASK-1326 : borne du contexte epingle. La limite est STRUCTURELLE
+        // (AiShellPinnedContext tronque a la relecture) : la reduire retire
+        // d'office les pins excedentaires.
+        'max_pins' => (int) env('AI_SHELL_MAX_PINS', 3),
+        // Meme forme que `ai.chatloop.lock_ttl` : jamais sous le timeout
+        // provider + 30 s, sinon le verrou expire pendant la generation.
+        'lock_ttl' => (int) env('AI_SHELL_LOCK_TTL', 90),
+        'timeout' => (int) env('AI_SHELL_TIMEOUT', 30),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Credit IA par utilisateur — defauts plateforme (TASK-1229)
     |--------------------------------------------------------------------------
     |
@@ -294,6 +323,22 @@ return [
         // ask()). Reversible en UNE ligne si l'arbitrage produit tranche
         // autrement : false = seule la reponse IA est publiee.
         'publish_question' => (bool) env('AI_KNOWLEDGE_PUBLISH_QUESTION', true),
+        /*
+         * TASK-1309 — vue d'ensemble documentaire.
+         *
+         * Une question panoramique n'a aucun bon voisin vectoriel : la
+         * selection semantique sort vide et le mode Dossiers ne peut plus
+         * parler que de metadonnees. `DossierRetrievalSource` reconstruit
+         * alors la selection en LARGEUR — un extrait court par document, au
+         * plus `max_documents` documents. Ces deux nombres bornent la vue
+         * d'ensemble ; ils ne touchent NI `top_k`, NI `max_distance`, et
+         * n'entrainent aucun appel provider supplementaire (le complement est
+         * une lecture SQL, sans embedding).
+         */
+        'overview' => [
+            'max_documents' => (int) env('AI_KNOWLEDGE_OVERVIEW_MAX_DOCUMENTS', 6),
+            'chars_per_document' => (int) env('AI_KNOWLEDGE_OVERVIEW_CHARS_PER_DOCUMENT', 700),
+        ],
         'economic_guard' => [
             'monthly_budget_usd' => (float) env('AI_KNOWLEDGE_MONTHLY_BUDGET_USD', 2.00),
             'monthly_unknown_limit' => (int) env('AI_KNOWLEDGE_MONTHLY_UNKNOWN_LIMIT', 10),
@@ -396,6 +441,10 @@ return [
         'scenario' => env('CHATLOOP_AI_SCENARIO', 'chatloop_ai_answer'),
         'ask_scenario' => env('CHATLOOP_AI_ASK_SCENARIO', 'chatloop_ai_ask'),
         'summarize_scenario' => env('CHATLOOP_AI_SUMMARIZE_SCENARIO', 'chatloop_ai_summarize'),
+        // TASK-1327 : suggestion de capitalisation d'une Decision (Premium-1).
+        // Temperature basse dediee : une extraction bornee, pas une redaction.
+        'decision_suggestion_scenario' => env('CHATLOOP_AI_DECISION_SUGGESTION_SCENARIO', 'loop_decision_suggestion'),
+        'decision_suggestion_temperature' => (float) env('CHATLOOP_AI_DECISION_SUGGESTION_TEMPERATURE', 0.2),
         'min_summary_words' => (int) env('CHATLOOP_AI_MIN_SUMMARY_WORDS', 30),
         'max_context_messages' => (int) env('CHATLOOP_AI_MAX_CONTEXT_MESSAGES', 30),
         'max_context_chars' => (int) env('CHATLOOP_AI_MAX_CONTEXT_CHARS', 12000),

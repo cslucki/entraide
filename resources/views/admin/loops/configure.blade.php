@@ -50,7 +50,76 @@
             <p class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700 dark:border-red-800/60 dark:bg-red-900/20 dark:text-red-300" role="alert">{{ session('error') }}</p>
         @endif
 
+        {{-- ── Actions / Assistance IA (placement=chat_action) ─────────── --}}
+        {{-- Calculee par LoopPresetConfigurator::describe() depuis TASK-1090,
+             jamais rendue jusqu'ici : les Cards de ce placement (Resume IA)
+             restaient invisibles sur le seul ecran cense les gerer. Meme
+             gabarit de carte, meme route composeCards(), memes regles
+             (blockers, protection) que la grille juste en dessous — aucune
+             deuxieme logique metier, aucun cas particulier "Resume IA". --}}
+        @if($composition['chat_actions'] !== [])
+            <section class="mb-6 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('loops.preset_chat_title') }}</p>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('loops.preset_chat_hint') }}</p>
+
+                <div class="mt-3 grid gap-3 sm:grid-cols-3">
+                    @foreach($composition['chat_actions'] as $card)
+                        @php($blocked = $card['blockers']['missing'] !== [] || $card['blockers']['conflicting'] !== [])
+                        <div class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900 {{ (! $card['enabled'] && $blocked) ? 'opacity-70' : '' }}">
+                            <p class="flex flex-wrap items-center gap-2 text-sm font-bold text-gray-900 dark:text-gray-100">
+                                {{ $card['label'] }}
+                                @if($card['required'])
+                                    <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-500 dark:bg-gray-700 dark:text-gray-300">{{ __('loops.cards_protected') }}</span>
+                                @endif
+                            </p>
+                            <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ $card['description'] }}</p>
+
+                            <p class="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+                                @if($card['data_count'] !== null)
+                                    <span class="text-gray-400">{{ __('loops.preset_data_count', ['count' => $card['data_count']]) }}</span>
+                                @endif
+                            </p>
+
+                            @if($card['required'])
+                                <p class="mt-3 text-xs text-gray-400">{{ __('loops.cards_always_on') }}</p>
+                            @elseif($card['enabled'])
+                                <form method="POST" action="{{ $composeUrl }}" class="mt-3">
+                                    @csrf
+                                    <input type="hidden" name="action" value="disable">
+                                    <input type="hidden" name="card_key" value="{{ $card['key'] }}">
+                                    <button type="submit"
+                                            class="w-full rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800">
+                                        {{ __('loops.cards_disable') }}
+                                    </button>
+                                </form>
+                            @else
+                                @if($card['blockers']['missing'] !== [])
+                                    <p class="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+                                        {{ __('loops.preset_requires_label', ['cards' => collect($card['blockers']['missing'])->implode(', ')]) }}
+                                    </p>
+                                @endif
+                                <form method="POST" action="{{ $composeUrl }}" class="mt-3">
+                                    @csrf
+                                    <input type="hidden" name="action" value="enable">
+                                    <input type="hidden" name="card_key" value="{{ $card['key'] }}">
+                                    <button type="submit" @disabled($blocked)
+                                            class="w-full rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-700">
+                                        {{ __('loops.cards_enable') }}
+                                    </button>
+                                </form>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </section>
+        @endif
+
         {{-- ── Le cadre permanent ─────────────────────────────────────── --}}
+        {{-- Depuis TASK-1332, une Card de ce placement peut ne pas etre
+             active par defaut (le Manifeste, desormais) : la pastille dit
+             donc son etat, et une Card non requise garde son geste
+             enable/disable — meme route `composeCards()`, meme patron que la
+             grille et les actions de ChatLoop juste au-dessus. --}}
         <section class="mb-6 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/60">
             <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('loops.preset_frame_title') }}</p>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('loops.preset_frame_hint') }}</p>
@@ -60,11 +129,33 @@
                     ChatLoop
                 </span>
                 @foreach($composition['frame'] as $card)
-                    <span class="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                    <span class="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 {{ ! $card['enabled'] ? 'opacity-60' : '' }}"
                           title="{{ $card['description'] }}">
                         {{ $card['label'] }}
                         @if($card['data_count'] !== null)
                             <span class="text-[10px] font-normal text-gray-400">{{ __('loops.preset_data_count', ['count' => $card['data_count']]) }}</span>
+                        @endif
+
+                        @if($card['required'])
+                            <span class="text-[10px] font-normal text-gray-400">{{ __('loops.cards_always_on') }}</span>
+                        @elseif($card['enabled'])
+                            <form method="POST" action="{{ $composeUrl }}">
+                                @csrf
+                                <input type="hidden" name="action" value="disable">
+                                <input type="hidden" name="card_key" value="{{ $card['key'] }}">
+                                <button type="submit" class="font-semibold text-gray-400 underline-offset-2 hover:text-gray-600 hover:underline dark:hover:text-gray-200">
+                                    {{ __('loops.cards_disable') }}
+                                </button>
+                            </form>
+                        @else
+                            <form method="POST" action="{{ $composeUrl }}">
+                                @csrf
+                                <input type="hidden" name="action" value="enable">
+                                <input type="hidden" name="card_key" value="{{ $card['key'] }}">
+                                <button type="submit" class="font-semibold text-violet-600 underline-offset-2 hover:text-violet-800 hover:underline dark:text-violet-300 dark:hover:text-violet-100">
+                                    {{ __('loops.cards_enable') }}
+                                </button>
+                            </form>
                         @endif
                     </span>
                 @endforeach
