@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Dossier;
 use App\Models\DossierMember;
 use App\Models\Loop;
+use App\Services\Dossiers\DossierInsightsService;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\PersonalDocumentsRoot;
 use App\Support\Loops\LoopRoleRegistry;
@@ -35,7 +36,7 @@ class DossierController extends Controller
      * L'espace est dans l'URL, pas dans un etat client : un partage de lien, un
      * rechargement et le bouton Retour rendent tous la meme page.
      */
-    public function index(Request $request, DossierSemanticSearchGate $semanticSearchGate, PersonalDocumentsRoot $personalRoot): View
+    public function index(Request $request, DossierSemanticSearchGate $semanticSearchGate, PersonalDocumentsRoot $personalRoot, DossierInsightsService $insights): View
     {
         $organization = $this->currentOrganizationOrFail();
         $this->authorize('viewAny', Dossier::class);
@@ -68,7 +69,7 @@ class DossierController extends Controller
                 ->orderBy('name')
                 ->get();
 
-            $surface = $this->driveSurface($request, $racine, $semanticSearchGate);
+            $surface = $this->driveSurface($request, $racine, $semanticSearchGate, $insights);
 
             // Elles se rangent parmi les dossiers de la surface, a leur place
             // alphabetique : pour l'utilisateur ce sont des dossiers, et le
@@ -191,7 +192,7 @@ class DossierController extends Controller
         return view('dossiers.create');
     }
 
-    public function show(Request $request, DossierSemanticSearchGate $semanticSearchGate): View|Response
+    public function show(Request $request, DossierSemanticSearchGate $semanticSearchGate, DossierInsightsService $insights): View|Response
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
@@ -211,7 +212,7 @@ class DossierController extends Controller
             ], 403);
         }
 
-        return view('dossiers.show', $this->driveSurface($request, $dossier, $semanticSearchGate) + [
+        return view('dossiers.show', $this->driveSurface($request, $dossier, $semanticSearchGate, $insights) + [
             'legacyRoots' => collect(),
         ]);
     }
@@ -227,7 +228,7 @@ class DossierController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function driveSurface(Request $request, Dossier $dossier, DossierSemanticSearchGate $semanticSearchGate): array
+    private function driveSurface(Request $request, Dossier $dossier, DossierSemanticSearchGate $semanticSearchGate, DossierInsightsService $insights): array
     {
         $organization = $this->currentOrganizationOrFail();
 
@@ -492,6 +493,9 @@ class DossierController extends Controller
             'canManageFiles' => $canManageFiles,
             'canDeleteFiles' => $canDeleteFiles,
             'canUseSemanticArticleSearch' => $semanticSearchGate->isEnabledFor($organization->id),
+            // TASK-1341 — Smart Dossier V1 : bouton desactive + raison
+            // honnete sans document indexe, jamais d'appel provider tente.
+            'dossierHasIndexedContent' => $insights->hasIndexedContent($organization, $dossier),
             'organizationRouteParam' => $request->route('organization'),
             'categories' => $categories,
         ];
