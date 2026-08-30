@@ -7,7 +7,6 @@
 !.env.example
 !.env.sqlite.example
 !.env.pgsql.example
-!.env.ai-validation.example
 
 # Local operational notes
 migration/
@@ -20,11 +19,15 @@ ai/
 opencode.json
 .mcp.json
 test.txt
+tooling/ai-scripts-backup/
 
 # Public lockdown: local documentation, configs and QA artifacts
 AGENTS.md
 ROADMAP.md
 docs/
+CHANGELOG.md
+playwright.ai-validation.config.mjs
+playwright.config.mjs
 boost.json
 install.bat
 .npmrc
