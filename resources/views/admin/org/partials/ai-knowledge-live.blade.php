@@ -122,7 +122,10 @@
                     <ul class="mt-2 divide-y divide-gray-100 dark:divide-gray-700/70">
                         @foreach($perimeters['loops'] as $loopPerimeter)
                             <li class="flex flex-col gap-0.5 py-1.5 text-sm sm:flex-row sm:items-baseline sm:justify-between sm:gap-4" data-knowledge-loop="{{ $loopPerimeter['loop_id'] }}">
-                                <span class="min-w-0 flex-1 truncate font-medium text-gray-800 dark:text-gray-200" title="{{ $loopPerimeter['name'] }}">{{ $loopPerimeter['name'] }}</span>
+                                {{-- TASK-1307 : clic = filtre la table sur cette Boucle (etat cote outer Alpine, applyFilter()). --}}
+                                <button type="button" data-filter-loop="{{ $loopPerimeter['loop_id'] }}"
+                                        class="min-w-0 flex-1 truncate text-left font-medium text-gray-800 hover:text-indigo-600 hover:underline dark:text-gray-200 dark:hover:text-indigo-400"
+                                        title="{{ $loopPerimeter['name'] }}">{{ $loopPerimeter['name'] }}</button>
                                 <span class="shrink-0 tabular-nums text-gray-600 dark:text-gray-400 sm:whitespace-nowrap sm:text-right">
                                     {{ $sourceCountLabel($loopPerimeter['sources']) }} · {{ $chunkCountLabel($loopPerimeter['chunks']) }}
                                     @if($loopPerimeter['shared_sources'] > 0)
@@ -186,6 +189,20 @@
         </div>
     </div>
 
+    {{-- Filtres (TASK-1307) : texte + Boucle active, appliques cote client
+         sur les lignes deja rendues — aucune requete supplementaire. --}}
+    <div class="mb-3 flex flex-wrap items-center gap-2" data-knowledge-filters>
+        <div class="relative">
+            <input type="search" data-filter-text placeholder="{{ __('ai.knowledge_console_filter_placeholder') }}"
+                   class="w-56 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+        </div>
+        <span data-filter-loop-chip class="hidden inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-800 dark:bg-violet-900/40 dark:text-violet-200">
+            <span data-filter-loop-name></span>
+            <button type="button" data-filter-loop-clear class="text-violet-600 hover:text-violet-900 dark:text-violet-300 dark:hover:text-white" aria-label="{{ __('ai.knowledge_console_filter_clear') }}">&times;</button>
+        </span>
+        <span class="text-xs text-gray-400 dark:text-gray-500" data-filter-count></span>
+    </div>
+
     {{-- Sources --}}
     <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
         <div class="overflow-x-auto">
@@ -200,6 +217,7 @@
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_col_chunks') }}</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_col_indexed_at') }}</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_col_open') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_col_inspect') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
@@ -211,7 +229,9 @@
                         @endphp
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors duration-700"
                             data-rag-source
-                            data-source-key="{{ $sourceKey }}" data-source-indexed="{{ $source['indexed'] ? 1 : 0 }}" data-source-chunks="{{ $source['chunks'] }}">
+                            data-source-key="{{ $sourceKey }}" data-source-indexed="{{ $source['indexed'] ? 1 : 0 }}" data-source-chunks="{{ $source['chunks'] }}"
+                            data-source-loop-id="{{ $source['scope']['loop_id'] ?? '' }}"
+                            data-source-title="{{ \Illuminate\Support\Str::lower($source['title']) }}" data-source-dossier="{{ \Illuminate\Support\Str::lower($source['dossier_name']) }}">
                             <td class="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
                                 <span>{{ $source['title'] }}</span>
                                 @if($recentlyAppeared)
@@ -258,10 +278,16 @@
                                     <span class="text-xs text-gray-400" title="{{ __('ai.knowledge_console_open_denied_hint') }}">—</span>
                                 @endif
                             </td>
+                            <td class="px-4 py-3">
+                                {{-- TASK-1307 : ouvre les chunks REELLEMENT indexes de
+                                     cette source (metadonnees, jamais le vecteur). --}}
+                                <button type="button" data-inspect-source="{{ $source['type'] }}" data-inspect-id="{{ $source['id'] }}"
+                                        class="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400">{{ __('ai.knowledge_console_inspect') }}</button>
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_empty') }}</td>
+                            <td colspan="9" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">{{ __('ai.knowledge_console_empty') }}</td>
                         </tr>
                     @endforelse
                 </tbody>

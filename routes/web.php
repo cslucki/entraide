@@ -389,7 +389,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
         Route::post('/loops/{loop}/help-request/continue', [LoopController::class, 'prepareHelpRequest'])->name('loops.help-request.continue');
         // TASK-1213 : reponse documentaire sourcee (RAG V1), read-only, JSON.
-        Route::post('/loops/{loop}/knowledge', [LoopController::class, 'knowledge'])->name('loops.knowledge.ask');
+        Route::post('/loops/{loop}/knowledge', [LoopController::class, 'knowledge'])->middleware('throttle:5,1')->name('loops.knowledge.ask');
     });
 });
 
@@ -795,7 +795,7 @@ Route::prefix('/org/{organization}')
                 Route::post('/loops/{loop}/ask-ai', [LoopController::class, 'askAi'])->middleware('throttle:5,1')->name('loops.ai');
                 Route::post('/loops/{loop}/help-request/analyze', [LoopController::class, 'analyzeHelpIntention'])->name('loops.help-request.analyze');
                 Route::post('/loops/{loop}/help-request/continue', [LoopController::class, 'prepareHelpRequest'])->name('loops.help-request.continue');
-                Route::post('/loops/{loop}/knowledge', [LoopController::class, 'knowledge'])->name('loops.knowledge.ask');
+                Route::post('/loops/{loop}/knowledge', [LoopController::class, 'knowledge'])->middleware('throttle:5,1')->name('loops.knowledge.ask');
                 // « Ecrire un article » depuis la Card Dossiers : un brouillon
                 // lie d'un coup au Dossier racine ET a la Boucle, puis
                 // l'editeur Blog existant. Contexte Organization seulement,
@@ -1016,6 +1016,10 @@ Route::prefix('/org/{organization}')
                 // TASK-1229 : override d'Organization du credit IA par utilisateur
                 // (reglage plateforme / valeur propre / illimite), trace.
                 Route::put('/ai/user-credit', [OrgAdminController::class, 'updateAiUserCredit'])->name('ai.user-credit.update');
+                // TASK-1306 : qui gere le credential (plateforme / Organization).
+                // Reserve au SuperAdmin, protection serveur dans le controller —
+                // jamais seulement un masquage cote vue.
+                Route::put('/ai/credential-mode', [OrgAdminController::class, 'updateAiCredentialMode'])->name('ai.credential-mode.update');
 
                 // Design
                 Route::get('/homepage', [OrgAdminController::class, 'homepage'])->name('homepage');
@@ -1050,6 +1054,18 @@ Route::prefix('/org/{organization}')
                 // TASK-1226 : fragment de rafraichissement de l'Observatoire
                 // (polling leger, read-only, meme middleware que la page).
                 Route::get('/ai-knowledge/live', [OrgAdminController::class, 'aiKnowledgeLive'])->middleware('throttle:120,1')->name('ai-knowledge.live');
+                // TASK-1307 : inspecter les extraits REELLEMENT indexes d'une
+                // source (metadonnees + contenu des chunks, jamais le vecteur
+                // embedding) — read-only, 0 appel provider.
+                Route::get('/ai-knowledge/sources/{type}/{source}', [OrgAdminController::class, 'aiKnowledgeSourceChunks'])
+                    ->whereIn('type', ['article', 'file'])
+                    ->name('ai-knowledge.source');
+                // TASK-1307 : recherche documentaire BRUTE (pgvector, sans
+                // generation LLM) depuis la console — diagnostic deterministe
+                // du retrieval reel, borne a un embedding de requete par appel.
+                Route::get('/ai-knowledge/search', [OrgAdminController::class, 'aiKnowledgeSearch'])
+                    ->middleware('throttle:20,1')
+                    ->name('ai-knowledge.search');
                 // TASK-1219 : console de consommation IA read-only — ce que la
                 // garde economique compte deja pour cette Organization.
                 Route::get('/ai-consumption', [OrgAdminController::class, 'aiConsumption'])->name('ai-consumption');

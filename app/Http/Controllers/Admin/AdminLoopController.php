@@ -508,6 +508,11 @@ class AdminLoopController extends Controller
             'activeCards' => $registry->activeCardsFor($loop),
             'composition' => app(LoopCardCompositionService::class)->compositionFor($loop),
             'cardCatalogue' => app(LoopCardRegistry::class)->manageableCatalogue(),
+            // Whether "Outils" would actually accept this admin — same
+            // expression edit() already uses for its own link, kept in step
+            // so the two screens never disagree about who may configure.
+            'canConfigureCards' => ! $loop->isArchived()
+                && app(LoopPresetConfigurator::class)->canConfigure(auth()->user(), $loop),
             // A glance at what each card actually holds, so the overview answers
             // "what is in this Loop" without opening the workspace.
             'cardPreview' => [

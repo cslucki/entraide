@@ -230,6 +230,18 @@ class DossierSemanticSearchService
      * `slug`) de fichier (`dossier_file_id`/`filename`) — jamais les deux a
      * la fois sur une meme ligne.
      *
+     * TASK-1307 : `$candidateLimit`, optionnel, separe « combien de chunks la
+     * requete vectorielle ramene » de `$limit` (« combien de chunks un
+     * appelant cite/facture au modele », toujours valide entre 1 et 5,
+     * comportement INCHANGE). NULL (defaut, tous les appelants existants) ->
+     * la requete SQL ramene exactement `$limit` lignes, comme avant.
+     * Un appelant qui a besoin d'un bassin plus large pour diversifier APRES
+     * coup (`DossierRetrievalSource`) le passe explicitement ; aucun appel
+     * provider supplementaire n'en decoule (un seul embedding de requete,
+     * quelle que soit la taille du bassin) — seule la clause SQL `LIMIT`
+     * change. `$candidateLimit` est lui-meme borne (<=20) pour rester un
+     * bassin de reclassement, jamais un contournement de `top_k`.
+     *
      * @param  list<string>  $dossierIds
      * @return array<int, array{chunk_id: string, dossier_id: string, dossier_name: string, source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, mime_type: ?string, chunk_index: int, content: string, distance: float}>
      */
@@ -240,6 +252,7 @@ class DossierSemanticSearchService
         string $embeddingInstance,
         int $limit = 5,
         array $traceMetadata = [],
+        ?int $candidateLimit = null,
     ): array {
         $query = trim($query);
 
@@ -250,6 +263,12 @@ class DossierSemanticSearchService
         if ($limit < 1 || $limit > 5) {
             throw new InvalidArgumentException('Semantic search limit must be between 1 and 5.');
         }
+
+        if ($candidateLimit !== null && ($candidateLimit < $limit || $candidateLimit > 20)) {
+            throw new InvalidArgumentException('Semantic search candidate limit must be between the limit and 20.');
+        }
+
+        $fetchLimit = $candidateLimit ?? $limit;
 
         $dossierIds = array_values(array_unique(array_filter(array_map('strval', $dossierIds))));
 
@@ -342,7 +361,7 @@ class DossierSemanticSearchService
             ])
             ->selectVectorDistance('dossier_chunks.embedding', $embedding, as: 'distance')
             ->orderByVectorDistance('dossier_chunks.embedding', $embedding)
-            ->limit($limit)
+            ->limit($fetchLimit)
             ->get()
             ->map(fn (object $row): array => array_merge(
                 [
@@ -351,6 +370,128 @@ class DossierSemanticSearchService
                     'dossier_name' => (string) $row->dossier_name,
                 ],
                 self::mapSourceRow($row)
+            ))
+            ->all();
+    }
+
+    /**
+     * TASK-1309 : extrait REPRESENTATIF de chaque document accessible — le
+     * premier chunk (`chunk_index` minimal, l'ouverture du document : titre,
+     * date, objet), un par document, sans AUCUNE recherche.
+     *
+     * Pourquoi ici et pas ailleurs : c'est le meme perimetre SQL que
+     * `searchAcrossDossiers()` — memes jointures tenant-safe, meme eligibilite
+     * (Article publie / fichier non supprime), meme garde staleness sur
+     * `dossier_files`. Le mettre ailleurs creerait une SECONDE regle
+     * d'eligibilite documentaire qui pourrait diverger de la premiere. Ce
+     * n'est pas un second pipeline RAG : aucune requete, aucun embedding,
+     * aucun appel provider, aucune ligne de ledger — une lecture SQL bornee.
+     *
+     * Ce que cette methode NE filtre PAS, volontairement :
+     * `embedding_provider` / `embedding_model`. Aucun calcul vectoriel n'a
+     * lieu ici : le texte d'un document indexe avec un autre modele reste le
+     * texte de ce document, et l'exclure appauvrirait la vue d'ensemble sans
+     * rien proteger.
+     *
+     * `distance` vaut NULL : ces lignes n'ont PAS ete choisies par proximite
+     * semantique, et rien ne doit laisser croire le contraire.
+     *
+     * @param  list<string>  $dossierIds  Dossiers DEJA autorises par l'appelant (DossierAccessScope)
+     * @return array<int, array{chunk_id: string, dossier_id: string, dossier_name: string, source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, mime_type: ?string, chunk_index: int, content: string, distance: null}>
+     */
+    public function representativeChunksAcrossDossiers(string $organizationId, array $dossierIds, int $documentLimit = 6): array
+    {
+        $dossierIds = array_values(array_unique(array_filter(array_map('strval', $dossierIds))));
+
+        if ($dossierIds === [] || $documentLimit < 1) {
+            return [];
+        }
+
+        // Le plafond suit la meme discipline que `searchAcrossDossiers()` :
+        // une borne dure, jamais un parametre libre.
+        $documentLimit = min($documentLimit, 12);
+
+        return DB::table('dossier_chunks')
+            ->leftJoin('blog_posts', 'blog_posts.id', '=', 'dossier_chunks.blog_post_id')
+            ->leftJoin('dossier_blog_posts', function ($join) use ($organizationId) {
+                $join->on('dossier_blog_posts.blog_post_id', '=', 'dossier_chunks.blog_post_id')
+                    ->on('dossier_blog_posts.dossier_id', '=', 'dossier_chunks.dossier_id')
+                    ->where('dossier_blog_posts.organization_id', '=', $organizationId);
+            })
+            ->leftJoin('dossier_files', function ($join) {
+                // Meme garde staleness que search()/searchAcrossDossiers()
+                // (revue MASTER, TASK-1216).
+                $join->on('dossier_files.id', '=', 'dossier_chunks.dossier_file_id')
+                    ->on('dossier_files.dossier_id', '=', 'dossier_chunks.dossier_id');
+            })
+            ->join('dossiers', function ($join) use ($organizationId) {
+                $join->on('dossiers.id', '=', 'dossier_chunks.dossier_id')
+                    ->where('dossiers.organization_id', '=', $organizationId)
+                    ->whereNull('dossiers.deleted_at');
+            })
+            ->where('dossier_chunks.organization_id', $organizationId)
+            ->whereIn('dossier_chunks.dossier_id', $dossierIds)
+            ->where(function ($outer) use ($organizationId) {
+                $outer->where(function ($article) use ($organizationId) {
+                    $article->whereNotNull('dossier_chunks.blog_post_id')
+                        ->whereNotNull('dossier_blog_posts.id')
+                        ->where('blog_posts.organization_id', $organizationId)
+                        ->where('blog_posts.status', 'published')
+                        ->whereNotNull('blog_posts.published_at')
+                        ->where('blog_posts.published_at', '<=', now())
+                        ->whereNull('blog_posts.deleted_at');
+                })->orWhere(function ($file) use ($organizationId) {
+                    $file->whereNotNull('dossier_chunks.dossier_file_id')
+                        ->where('dossier_files.organization_id', $organizationId)
+                        ->whereNull('dossier_files.deleted_at');
+                });
+            })
+            // Un seul chunk par DOCUMENT : celui d'index minimal. Sous-requete
+            // correlee plutot que fonction de fenetrage — PostgreSQL et SQLite
+            // l'executent tous deux, et la CI joue les deux moteurs.
+            ->whereRaw(
+                'dossier_chunks.chunk_index = (select min(inner_chunks.chunk_index) from dossier_chunks as inner_chunks'
+                .' where inner_chunks.organization_id = ?'
+                .' and inner_chunks.dossier_id = dossier_chunks.dossier_id'
+                .' and ((inner_chunks.blog_post_id is not null and inner_chunks.blog_post_id = dossier_chunks.blog_post_id)'
+                .' or (inner_chunks.dossier_file_id is not null and inner_chunks.dossier_file_id = dossier_chunks.dossier_file_id)))',
+                [$organizationId],
+            )
+            // Ordre DETERMINISTE : le meme corpus rend toujours la meme vue
+            // d'ensemble, donc les memes references [Sn], donc un test
+            // reproductible et une reponse stable d'un tour a l'autre.
+            ->orderBy('dossiers.created_at')
+            ->orderBy('dossier_chunks.dossier_id')
+            ->orderByRaw('coalesce(blog_posts.title, dossier_files.display_name, dossier_files.original_name)')
+            ->orderBy('dossier_chunks.id')
+            ->limit($documentLimit)
+            ->select([
+                'dossier_chunks.id as chunk_id',
+                'dossier_chunks.dossier_id',
+                'dossiers.name as dossier_name',
+                'dossier_chunks.blog_post_id',
+                'blog_posts.title',
+                'blog_posts.slug',
+                'dossier_chunks.dossier_file_id',
+                'dossier_files.display_name as file_display_name',
+                'dossier_files.original_name as file_original_name',
+                'dossier_files.mime_type as file_mime_type',
+                'dossier_chunks.chunk_index',
+                'dossier_chunks.content',
+                // `mapSourceRow()` lit toujours `distance` : la colonne doit
+                // exister meme si aucune distance n'a de sens ici. Elle est
+                // remise a NULL juste apres, la ou la valeur est lue.
+                DB::raw('null as distance'),
+            ])
+            ->get()
+            ->map(fn (object $row): array => array_merge(
+                [
+                    'chunk_id' => (string) $row->chunk_id,
+                    'dossier_id' => (string) $row->dossier_id,
+                    'dossier_name' => (string) $row->dossier_name,
+                ],
+                self::mapSourceRow($row),
+                ['distance' => null],
             ))
             ->all();
     }

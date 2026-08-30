@@ -6,6 +6,7 @@ use App\Ai\Agents\HelpRequestClarifierAgent;
 use App\Ai\CapabilityRegistry;
 use App\Ai\Context\OrganizationCategoriesSource;
 use App\Ai\Context\UserLoopsSource;
+use App\Http\Controllers\LoopController;
 use App\Models\AdminAiPrompt;
 use App\Models\AiConfig;
 use App\Models\AiInteraction;
@@ -24,6 +25,7 @@ use Illuminate\Support\Facades\Http;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\StructuredTextResponse;
+use ReflectionMethod;
 use Tests\TestCase;
 
 /**
@@ -139,7 +141,50 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
 
         $this->assertSame($this->ethique->id, $result->suggestedLoop['id']);
         $this->assertSame('IA & Éthique', $result->suggestedLoop['label']);
-        $this->assertNotEmpty($result->suggestedLoop['reason']);
+        $this->assertNotEmpty($result->suggestedLoop['provenance']['ai_wording']['text']);
+        $this->assertFalse($result->suggestedLoop['provenance']['ai_wording']['verified']);
+    }
+
+    /**
+     * TASK-1321 (dette P0 §7.3) : `suggestion_reason` est un texte LIBRE du
+     * modele, jamais une preuve. Le fait verifie cote serveur — appartenance
+     * active — doit etre present independamment de ce que le modele a ecrit,
+     * et jamais fusionne avec la formulation IA.
+     */
+    public function test_the_verified_fact_is_present_and_distinct_from_the_ai_wording(): void
+    {
+        $this->fakeClarifier([
+            'suggested_loop_id' => $this->ethique->id,
+            'suggestion_reason' => 'Cette Boucle traite précisément de l’éthique de l’IA.',
+        ]);
+
+        $result = $this->clarify('aide sur l’éthique de l’IA');
+
+        $verified = $result->suggestedLoop['provenance']['verified'];
+        $this->assertNotEmpty($verified);
+        $this->assertSame('active_membership', $verified[0]['type']);
+        $this->assertSame($this->ethique->id, $verified[0]['loop_id']);
+
+        $aiWording = $result->suggestedLoop['provenance']['ai_wording'];
+        $this->assertSame('Cette Boucle traite précisément de l’éthique de l’IA.', $aiWording['text']);
+        $this->assertFalse($aiWording['verified']);
+    }
+
+    /**
+     * Meme si le modele n'ecrit aucune justification, le fait verifie reste
+     * present : `verified` ne depend jamais du texte du modele.
+     */
+    public function test_the_verified_fact_survives_even_without_ai_wording(): void
+    {
+        $this->fakeClarifier([
+            'suggested_loop_id' => $this->ethique->id,
+            'suggestion_reason' => '',
+        ]);
+
+        $result = $this->clarify('aide sur l’éthique de l’IA');
+
+        $this->assertNotEmpty($result->suggestedLoop['provenance']['verified']);
+        $this->assertNull($result->suggestedLoop['provenance']['ai_wording']);
     }
 
     public function test_an_invented_loop_id_is_rejected(): void
@@ -174,6 +219,41 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
         $this->fakeClarifier(['suggested_loop_id' => '', 'suggestion_reason' => '']);
 
         $this->assertNull($this->clarify('une intention')->suggestedLoop);
+    }
+
+    /**
+     * TASK-1321 : `LoopController::validatedSuggestedLoopFor()` est le
+     * DERNIER verrou avant l'ecran et le handoff. Il ne doit jamais faire
+     * confiance a un `provenance.verified` recu d'une couche precedente — meme
+     * s'il pretend, a tort, verifier une autre Boucle (ici, d'une autre
+     * Organization). Le fait reconstruit doit toujours correspondre a la
+     * Boucle REELLEMENT confirmee par ce point de controle, jamais a ce que
+     * l'entree pretendait.
+     */
+    public function test_a_forged_verified_claim_is_never_trusted_and_is_rebuilt_fresh(): void
+    {
+        $autreProprio = User::factory()->create(['organization_id' => $this->otherOrganization->id]);
+        $ailleurs = (new LoopService)->createLoop($autreProprio, 'Boucle ailleurs');
+
+        $method = new ReflectionMethod(LoopController::class, 'validatedSuggestedLoopFor');
+        $method->setAccessible(true);
+
+        $forged = [
+            'id' => $this->ethique->id,
+            'label' => 'Peu importe, relu en base de toute facon',
+            'provenance' => [
+                'verified' => [
+                    ['type' => 'active_membership', 'loop_id' => $ailleurs->id],
+                ],
+                'ai_wording' => ['text' => 'texte quelconque', 'verified' => false],
+            ],
+        ];
+
+        $result = $method->invoke(app(LoopController::class), $forged, $this->organization, $this->member);
+
+        $this->assertSame($this->ethique->id, $result['id']);
+        $this->assertSame($this->ethique->id, $result['provenance']['verified'][0]['loop_id']);
+        $this->assertNotSame($ailleurs->id, $result['provenance']['verified'][0]['loop_id']);
     }
 
     // =====================================================================
@@ -413,8 +493,11 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
             '/<option value="'.preg_quote($this->ethique->id, '/').'"[^>]*selected/',
             $html,
         );
-        // 4. la justification
+        // 4. la formulation IA (non vérifiée, marquée comme telle)
         $this->assertStringContainsString('éthique de l’IA', $html);
+        $this->assertStringContainsString(__('loops.help_request_suggested_loop_ai_wording'), $html);
+        // 4bis. le fait vérifié côté serveur, distinct de la formulation IA
+        $this->assertStringContainsString(__('loops.help_request_suggested_loop_verified_active_membership'), $html);
         // 5. le bouton de publication
         $this->assertStringContainsString(__('loops.help_request_continue_cta'), $html);
     }

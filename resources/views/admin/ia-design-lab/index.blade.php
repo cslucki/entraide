@@ -159,7 +159,7 @@
                                         <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857A17.983 17.983 0 0112 16c-2.071 0-4.065.332-5.932.943A3 3 0 001 20h5v2a3 3 0 005.356 1.857A17.983 17.983 0 0112 18c2.071 0 4.065.332 5.932.943A3 3 0 0017 20z"/></svg>
                                         {{ $result->suggestedLoop['label'] }}
                                     </span>
-                                    <span class="text-xs text-gray-400">{{ $result->suggestedLoop['reason'] }}</span>
+                                    <span class="text-xs text-gray-400">{{ $result->suggestedLoop['provenance']['ai_wording']['text'] ?? '' }}</span>
                                 </div>
                             @else
                                 <p class="text-sm text-gray-400 mt-0.5">Aucune Boucle conseillée</p>

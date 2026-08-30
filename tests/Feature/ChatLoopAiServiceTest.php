@@ -14,6 +14,7 @@ use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopService;
+use App\Support\Ai\AiTurnLock;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Cache;
@@ -356,9 +357,18 @@ class ChatLoopAiServiceTest extends TestCase
         $this->assertNoAiMessage();
     }
 
+    /**
+     * TASK-1311 : la cle du verrou est desormais `{organization}:{loop}:{user}`,
+     * produite par `AiTurnLock::key()`.
+     *
+     * L'ancienne cle `chatloop_ai_lock:{loop}` bloquait DEUX MEMBRES d'une meme
+     * Boucle l'un l'autre — effet de bord d'une cle trop grossiere, pas une
+     * intention. Le test n'est pas affaibli : il pose toujours le verrou a la
+     * main, exige toujours le meme refus, et vise desormais la cle REELLE.
+     */
     public function test_it_blocks_a_second_concurrent_generation(): void
     {
-        Cache::add('chatloop_ai_lock:'.$this->loop->id, true, 60);
+        Cache::add(AiTurnLock::key($this->loop, $this->member), true, 60);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage(__('loops.ai_generation_in_progress'));
@@ -397,14 +407,14 @@ class ChatLoopAiServiceTest extends TestCase
         config(['ai.chatloop.timeout' => 30]);
 
         Cache::shouldReceive('add')
-            ->with('chatloop_ai_lock:'.$this->loop->id, true, \Mockery::on(
+            ->with(AiTurnLock::key($this->loop, $this->member), true, \Mockery::on(
                 fn (int $ttl): bool => $ttl >= 60
             ))
             ->once()
             ->andReturn(true);
 
         Cache::shouldReceive('forget')
-            ->with('chatloop_ai_lock:'.$this->loop->id)
+            ->with(AiTurnLock::key($this->loop, $this->member))
             ->once();
 
         $message = $this->service()->answer($this->loop, $this->member);
@@ -758,7 +768,7 @@ class ChatLoopAiServiceTest extends TestCase
     {
         $this->seedLoopConversation();
 
-        Cache::add('chatloop_ai_lock:'.$this->loop->id, true, 60);
+        Cache::add(AiTurnLock::key($this->loop, $this->member), true, 60);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage(__('loops.ai_generation_in_progress'));

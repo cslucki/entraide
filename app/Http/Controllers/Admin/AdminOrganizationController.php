@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Country;
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -82,8 +83,16 @@ class AdminOrganizationController extends Controller
             ->pluck('code')
             ->toArray();
 
+        // TASK-1305 : résumé lecture seule de la configuration IA de cette
+        // Organization (jamais la clé — colonne exclue de la sélection),
+        // avec des liens vers la surface canonique /org/{slug}/admin/*.
+        // Même autorité que /admin/ai-organizations (isUsable()).
+        $aiSetting = OrganizationAiSetting::query()
+            ->where('organization_id', $organization->id)
+            ->first(['provider', 'model', 'monthly_budget_usd', 'is_enabled']);
+
         return view('admin.organizations.edit', compact(
-            'organization', 'admins', 'loops', 'countries', 'priorityCountryCodes'
+            'organization', 'admins', 'loops', 'countries', 'priorityCountryCodes', 'aiSetting'
         ));
     }
 

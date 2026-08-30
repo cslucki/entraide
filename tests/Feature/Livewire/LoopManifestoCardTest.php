@@ -8,6 +8,7 @@ use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -53,13 +54,17 @@ class LoopManifestoCardTest extends TestCase
         app()->instance('current_organization', $this->organization);
         $this->service = new LoopService;
 
-        // A Projets Loop: the Manifesto card belongs to that type since
-        // CP5ter-E2, and a Dialogue Loop legitimately has none.
+        // A Projets Loop. Since TASK-1332 the Manifesto is no longer imposed
+        // by any type's default preset — enabled explicitly here so
+        // `manifesto.*` permissions (gated on the card being active,
+        // `LoopPermissionResolver::cardIsAvailable()`) actually apply.
         $this->loop = $this->service->createLoop($this->owner, 'Manifesto Loop', type: 'project');
+        app(LoopCardCompositionService::class)->enable($this->loop, 'core.manifesto');
         $this->service->addMember($this->loop, $this->member, 'member');
         $this->service->addMember($this->loop, $this->moderator, 'moderator');
 
         $this->otherLoop = $this->service->createLoop($this->crossUser, 'Other Loop', type: 'project');
+        app(LoopCardCompositionService::class)->enable($this->otherLoop, 'core.manifesto');
     }
 
     private function linkedPost(string $title = 'Doc'): BlogPost

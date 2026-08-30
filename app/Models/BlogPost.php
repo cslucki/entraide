@@ -39,6 +39,10 @@ class BlogPost extends Model
         'listed_in_blog',
         'toc_max_level',
         'toc_navigation_enabled',
+        // TASK-1310 : provenance d'un Article ne d'une reponse IA du ChatLoop,
+        // relue et validee par un humain. NULL sur tout Article ordinaire —
+        // c'est ce qui distingue une SOURCE PRIMAIRE d'une synthese IA.
+        'ai_origin',
     ];
 
     protected $casts = [
@@ -49,6 +53,7 @@ class BlogPost extends Model
         'show_toc' => 'boolean',
         'toc_max_level' => 'integer',
         'toc_navigation_enabled' => 'boolean',
+        'ai_origin' => 'array',
     ];
 
     protected static function booted(): void

@@ -86,7 +86,20 @@ class DossierSemanticSearchInterfaceTest extends TestCase
         $response->assertSee('La recherche est temporairement indisponible. Réessayez dans quelques instants.');
         $response->assertSee('Lire l’article');
         $response->assertSee('Ouvrir le document');
-        $response->assertDontSee('wire:model', false);
+        // TASK-1315 : l'assertion portait sur la page ENTIERE. Depuis que le
+        // Shell « BouclePro IA » est monte dans le layout membre, son composeur
+        // y apporte legitimement son propre `wire:model` — l'assertion globale
+        // ne dit donc plus rien sur cette surface-ci.
+        //
+        // L'invariant REEL, lui, est intact et se dit mieux : la recherche
+        // semantique du Dossier est une surface Alpine, sans aller-retour
+        // serveur a la frappe. On le prouve sur SON markup : le champ est lie
+        // par `x-model`, et il n'y a aucun `wire:model` dans la section.
+        $section = $this->semanticSearchSection($response->getContent());
+        $this->assertStringContainsString('x-model="query"', $section);
+        $this->assertStringNotContainsString('wire:model', $section,
+            'La recherche semantique du Dossier doit rester une surface Alpine, sans liaison Livewire.');
+
         $response->assertDontSee('Page X');
         $response->assertDontSee('distance');
         $response->assertDontSee('provider');
@@ -321,6 +334,22 @@ class DossierSemanticSearchInterfaceTest extends TestCase
         ]);
 
         $dossier->syncVisibility();
+    }
+
+    /**
+     * Le markup de la SEULE recherche semantique du Dossier — de son `x-data`
+     * jusqu'a la fermeture de sa `<section>`. Aucune `<section>` imbriquee dans
+     * ce bloc, la premiere fermeture est donc la sienne.
+     */
+    private function semanticSearchSection(string $html): string
+    {
+        $start = strpos($html, 'dossierSemanticArticleSearch');
+        $this->assertNotFalse($start, 'La section de recherche semantique est absente de la page.');
+
+        $end = strpos($html, '</section>', $start);
+        $this->assertNotFalse($end, 'La section de recherche semantique n\'est pas refermee.');
+
+        return substr($html, $start, $end - $start);
     }
 
     private function dossierUrl(Organization $organization, Dossier $dossier): string

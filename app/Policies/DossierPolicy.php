@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Models\Dossier;
 use App\Models\DossierMember;
 use App\Models\User;
+use App\Support\Loops\LoopPermissionResolver;
 
 class DossierPolicy
 {
@@ -203,7 +204,24 @@ class DossierPolicy
         $governing = $dossier->governingDossier();
 
         if ($governing->isLoopDossier()) {
-            return $this->update($user, $dossier);
+            // TASK-1313 : sous gouvernance Boucle, ATTACHER UN ARTICLE demande
+            // `dossiers.create_article` au resolveur canonique — la permission
+            // qui porte deja ce geste dans la matrice — et non plus `update()`.
+            //
+            // `update()` delegue a `LoopPolicy::update()`, qui exige strictement
+            // le role `owner`. Or cette ability est le goulot de bien d'autres
+            // ecritures : identite de la Boucle, invitations par e-mail,
+            // document racine. L'elargir pour laisser passer un animateur lui
+            // aurait donne tout le reste avec — l'inverse de la doctrine, ou
+            // l'animateur anime SA Boucle sans devenir Admin Organization.
+            //
+            // Demander la permission PRECISE ne change rien pour l'owner ni pour
+            // l'admin d'Organization (le resolveur les laisse passer plus haut),
+            // ouvre a l'animateur, et refuse toujours le membre ordinaire.
+            $loop = $governing->loop;
+
+            return $loop !== null
+                && app(LoopPermissionResolver::class)->can($user, $loop, 'dossiers.create_article');
         }
 
         if ($this->isOwner($user, $dossier)) {

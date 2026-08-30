@@ -168,12 +168,24 @@ class DossierArticleIndexer
             ->first();
     }
 
+    /**
+     * TASK-1307 : `publiclyReadable()`, jamais `published()`. `published()`
+     * exige en plus `listed_in_blog = true` — un filtre d'AFFICHAGE (Blog,
+     * flux, sitemap), pas d'eligibilite a l'indexation. Un document racine
+     * de Boucle (`audience = loop`, `listed_in_blog = false` par construction
+     * dans `LoopRootDocumentService::designate()`) est publie et lisible par
+     * ses membres au meme titre que tout autre Article de Dossier ; avec
+     * `published()`, il ne matchait JAMAIS ici et restait donc invisible du
+     * RAG quelle que soit la dispatch — l'indexation, comme la page d'un
+     * Article, est un "acces direct" (le meme raisonnement que le
+     * commentaire de `publiclyReadable()`), pas une question de listing.
+     */
     private function findPublishedPost(string $organizationId, string $blogPostId): ?BlogPost
     {
         return BlogPost::query()
             ->whereKey($blogPostId)
             ->where('organization_id', $organizationId)
-            ->published()
+            ->publiclyReadable()
             ->first();
     }
 

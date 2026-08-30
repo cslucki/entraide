@@ -135,6 +135,20 @@
         {{-- TASK-1231 : FAB « BouclePro IA » — layout membre uniquement (jamais
              guest / admin / org-admin). Contexte calcule cote serveur. --}}
         <x-ai-fab />
+        {{-- TASK-1315 : le Shell « BouclePro IA ». Monte ici, donc remonte a
+             chaque page — l'application ne fait aucune navigation SPA. Ce qui
+             survit a la navigation est le FIL, relu en base a chaque montage,
+             pas l'etat de ce composant.
+
+             Le montage est CONDITIONNE : sur une page dont l'objet a ete refuse
+             a l'utilisateur, le Shell ne se monte pas du tout. Monter un
+             composant Livewire y inscrirait son instantane, dont `memo.path` —
+             l'URL courante, qui porte l'identifiant refuse (TASK-1145). --}}
+        @auth
+        @if(app(\App\Support\Ai\AiFabContext::class)->shouldMountShell(request(), auth()->user()))
+        <livewire:ai-shell />
+        @endif
+        @endauth
 
         <x-app-side-nav />
 

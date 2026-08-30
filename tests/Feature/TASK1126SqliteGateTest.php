@@ -92,10 +92,47 @@ class TASK1126SqliteGateTest extends TestCase
 
     public function test_the_sqlite_suite_actually_runs_in_ci(): void
     {
-        $etape = $this->etapeQuiLance(self::WORKFLOW_SQLITE, 'sqlite-regression-gate', self::CONFIG_SQLITE);
+        // TASK-1334 : la suite ne tourne plus dans le job du gate mais dans un
+        // job `suite` matriciel, sur une configuration de shard derivee de
+        // `phpunit.ci-sqlite.xml`.
+        $etape = $this->etapeQuiLance(self::WORKFLOW_SQLITE, 'suite', 'phpunit.ci-sqlite.shard-');
 
         $this->assertNotNull($etape, 'aucune etape ne lance la suite SQLite complete');
         $this->assertStringContainsString('--log-junit', $etape['run'], 'sans JUnit, aucune identite comparable');
+
+        // Le generateur doit tourner avec `--verify`, et conserver la
+        // testsuite Unit dans un seul shard : sans `--solo-suite`, elle
+        // tournerait quatre fois et le rapport agrege compterait quatre fois
+        // les memes tests.
+        $generation = $this->etapeQuiLance(self::WORKFLOW_SQLITE, 'suite', 'shard-tests.php');
+
+        $this->assertNotNull($generation, 'le generateur de shards ne tourne plus');
+        $this->assertStringContainsString('--verify', $generation['run'], 'decoupe non verifiee');
+        $this->assertStringContainsString('--solo-suite=Unit', $generation['run'], 'la suite Unit tournerait 4 fois');
+    }
+
+    public function test_every_shard_report_is_fed_to_the_comparison(): void
+    {
+        // **La garde propre au decoupage.** Le gate compare un ENSEMBLE
+        // d'echecs a une reference. Si un rapport de shard n'etait pas passe
+        // au script, ses echecs manqueraient a l'ensemble observe et le gate
+        // annoncerait un « progres » la ou il y a un trou — c'est le seul
+        // moyen pour qu'un decoupage rende ce gate menteur.
+        $comparaison = $this->etapeQuiLance(self::WORKFLOW_SQLITE, 'sqlite-regression-gate', 'sqlite-regression-gate.php');
+
+        $this->assertNotNull($comparaison, 'l\'etape de comparaison a disparu');
+
+        $matrice = $this->workflow(self::WORKFLOW_SQLITE)['jobs']['suite']['strategy']['matrix']['shard'] ?? [];
+
+        $this->assertNotSame([], $matrice, 'la matrice des shards a disparu');
+
+        foreach ($matrice as $shard) {
+            $this->assertStringContainsString(
+                "sqlite-report-{$shard}.xml",
+                $comparaison['run'],
+                "le rapport du shard {$shard} n'est pas passe a la comparaison",
+            );
+        }
     }
 
     public function test_the_comparison_step_exists_and_is_blocking(): void
@@ -181,11 +218,23 @@ class TASK1126SqliteGateTest extends TestCase
     {
         // Cette tache ne doit rien retirer au gate PostgreSQL. Les deux
         // moities restent, et restent bloquantes.
-        foreach (['phpunit.ci-minimal.xml', 'phpunit.ci-feature.xml'] as $config) {
-            $etape = $this->etapeQuiLance(self::WORKFLOW_PGSQL, 'quality-gate', $config);
+        //
+        // TASK-1334 : elles ne vivent plus dans un job unique. La suite Unit
+        // est dans le job `unit`, la suite Feature dans le job `feature` sous
+        // forme de quatre shards. Le nom du job ayant cesse d'etre un point
+        // fixe, on cherche l'etape dans l'ensemble des jobs du workflow — ce
+        // qui verifie toujours la meme chose : les deux moities tournent, et
+        // rien ne les neutralise.
+        $moities = [
+            'la suite Unit' => ['unit', 'phpunit.ci-minimal.xml'],
+            'la suite Feature' => ['feature', 'phpunit.ci-feature.shard-'],
+        ];
 
-            $this->assertNotNull($etape, "le gate PostgreSQL ne lance plus {$config}");
-            $this->assertNotTrue($etape['continue-on-error'] ?? false, "{$config} n'est plus bloquant");
+        foreach ($moities as $quoi => [$job, $fragment]) {
+            $etape = $this->etapeQuiLance(self::WORKFLOW_PGSQL, $job, $fragment);
+
+            $this->assertNotNull($etape, "le gate PostgreSQL ne lance plus {$quoi}");
+            $this->assertNotTrue($etape['continue-on-error'] ?? false, "{$quoi} n'est plus bloquante");
         }
     }
 }

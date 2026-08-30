@@ -27,6 +27,7 @@ use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Tenancy\CurrentOrganization;
+use DomainException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -131,7 +132,17 @@ class LoopController extends Controller
      * l'utilisateur peut reellement utiliser. Le libelle est relu en base :
      * l'IA propose un identifiant, jamais un nom qui fait autorite.
      *
-     * @return array{id: string, label: string, reason: ?string}|null
+     * TASK-1321 : c'est le DERNIER point de validation avant l'ecran et le
+     * handoff — le point qui compte le plus. `provenance.verified` n'est
+     * JAMAIS repris tel quel de la couche precedente (elle pourrait avoir ete
+     * produite par le repli deterministe `FakeAIProvider`, dont les Boucles
+     * de scenario sont fictives) : il est reconstruit ici a partir du seul
+     * fait que cette methode vient elle-meme de confirmer,
+     * `publishableLoopOrNull()` = appartenance active reelle. Seul
+     * `provenance.ai_wording` (texte du modele, jamais une preuve) traverse
+     * tel quel depuis la couche precedente, toujours marque `verified: false`.
+     *
+     * @return array{id: string, label: string, provenance: array{verified: list<array{type: string, loop_id: string}>, ai_wording: array{text: string, verified: false}|null}}|null
      */
     private function validatedSuggestedLoopFor(mixed $suggested, Organization $organization, User $user): ?array
     {
@@ -145,12 +156,17 @@ class LoopController extends Controller
             return null;
         }
 
-        $reason = trim((string) ($suggested['reason'] ?? ''));
+        $aiWordingText = trim((string) ($suggested['provenance']['ai_wording']['text'] ?? ''));
 
         return [
             'id' => $loop->id,
             'label' => $loop->name,
-            'reason' => $reason !== '' ? $reason : null,
+            'provenance' => [
+                'verified' => [
+                    ['type' => 'active_membership', 'loop_id' => $loop->id],
+                ],
+                'ai_wording' => $aiWordingText !== '' ? ['text' => $aiWordingText, 'verified' => false] : null,
+            ],
         ];
     }
 
@@ -448,7 +464,7 @@ class LoopController extends Controller
             abort(404);
         }
 
-        $this->authorize('manageJoinRequests', $loop);
+        $this->authorize('addMembers', $loop);
 
         return view('loops.invite', [
             'loop' => $loop,
@@ -482,7 +498,7 @@ class LoopController extends Controller
             abort(404);
         }
 
-        $this->authorize('manageJoinRequests', $loop);
+        $this->authorize('addMembers', $loop);
 
         $data = $request->validate([
             'user_ids' => 'required|array|min:1',
@@ -1040,18 +1056,44 @@ class LoopController extends Controller
 
         $clarificationEnabled = AiConfig::get('clarification_enabled', false);
 
+        // TASK-1322 (Core-2) : l'absence d'IA ne bloque jamais le parcours.
+        // Avant, ce gate redirigeait avec une erreur — une impasse. Desormais
+        // il degrade : les mots du membre (jamais un contenu invente) partent
+        // en brouillon vers le formulaire canonique, exactement le meme trajet
+        // que « Continuer ma demande » (prepareHelpRequest). Aucun appel
+        // provider, aucune publication : la creation reste un acte humain
+        // explicite (RequestController::store()).
         if (! $clarificationEnabled) {
-            return redirect($this->loopRoute('loops.show', $loop))
-                ->with('help_request_error', __('loops.clarification_disabled'));
+            $this->helpRequestHandoff->storeDraft($user, $organization, [
+                'title' => '',
+                'description' => $data['intention'],
+                'relay_loop_id' => $loop->id,
+                'category_id' => null,
+            ]);
+
+            return redirect()->route('organization.requests.create', [
+                'organization' => $organization->slug,
+            ])->with('info', __('loops.help_request_ai_unavailable'));
         }
 
         // TASK-1210 : la clarification se fait DANS un contexte — cet
         // utilisateur, cette Organization, ses Boucles — sans quoi l'IA ne peut
         // suggerer aucun cercle. Le service retombe seul sur la clarification
         // deterministe si l'IA est indisponible.
-        $result = $this->aiProvider instanceof ClarifyUserHelpRequestService
-            ? $this->aiProvider->clarifyForLoop($loop, $user, $data['intention'])
-            : $this->aiProvider->analyze($data['intention']);
+        //
+        // TASK-1322 : une seule indisponibilite pre-appel echappait encore au
+        // repli du service — aucun AdminAiPrompt actif (DomainException de
+        // clarifyInstructions()), un 500 pour le membre. Ici elle degrade
+        // comme les autres. Les surfaces qui veulent ce refus EXPLICITE le
+        // gardent : formulate() repond 503, le Shell repond « indisponible » —
+        // toutes deux catchent deja cette exception elles-memes.
+        try {
+            $result = $this->aiProvider instanceof ClarifyUserHelpRequestService
+                ? $this->aiProvider->clarifyForLoop($loop, $user, $data['intention'])
+                : $this->aiProvider->analyze($data['intention']);
+        } catch (DomainException) {
+            $result = $this->aiProvider->analyze($data['intention']);
+        }
 
         if ($result->isBlocked()) {
             return redirect($this->loopRoute('loops.show', $loop))

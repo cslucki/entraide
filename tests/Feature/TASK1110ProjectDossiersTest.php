@@ -6,6 +6,7 @@ use App\Models\Loop;
 use App\Models\LoopCard;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\LoopService;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
@@ -148,9 +149,11 @@ class TASK1110ProjectDossiersTest extends TestCase
 
     public function test_the_permanent_frame_is_still_there(): void
     {
+        // TASK-1332 : le Manifeste a quitte le socle par defaut (il reste
+        // au catalogue en placement `frame`, toujours activable) ; seul
+        // Membres, la Card requise, y est garanti.
         $cles = $this->types()->cardsFor('project');
 
-        $this->assertContains('core.manifesto', $cles);
         $this->assertContains('core.members', $cles);
     }
 
@@ -323,7 +326,6 @@ class TASK1110ProjectDossiersTest extends TestCase
         $this->assertSame($autreOrg->id, $ligne->organization_id);
     }
 
-
     // ── Le rattrapage ne prend la place de personne ─────────────────────────
 
     public function test_a_card_added_by_hand_never_leaves_the_grid(): void
@@ -362,7 +364,7 @@ class TASK1110ProjectDossiersTest extends TestCase
         // Card active devenait introuvable. Ce qui compte desormais, c'est que
         // le backfill n'escamote **aucun** outil actif : au plus trois sont
         // mis en avant, les autres restent accessibles.
-        $composition = app(\App\Services\Loops\LoopCardCompositionService::class);
+        $composition = app(LoopCardCompositionService::class);
 
         foreach ([[], ['core.journal'], ['core.polls', 'core.events']] as $i => $enPlus) {
             $projet = $this->projet("Projet {$i}", $enPlus);
@@ -374,7 +376,7 @@ class TASK1110ProjectDossiersTest extends TestCase
             $secondaires = $composition->secondaryKeysFor($projet->fresh());
 
             $this->assertLessThanOrEqual(
-                \App\Services\Loops\LoopCardCompositionService::MAX_PRIMARY,
+                LoopCardCompositionService::MAX_PRIMARY,
                 count($principaux),
                 "Projet {$i}",
             );
@@ -423,7 +425,7 @@ class TASK1110ProjectDossiersTest extends TestCase
         // Sans lui, on eteint la Card sans etre prevenu de ce qu'elle porte.
         $projet = $this->projet();
 
-        $composition = app(\App\Services\Loops\LoopCardCompositionService::class)->compositionFor($projet->fresh());
+        $composition = app(LoopCardCompositionService::class)->compositionFor($projet->fresh());
         $ligne = collect($composition)->firstWhere('key', 'core.dossiers');
 
         $this->assertNotNull($ligne);

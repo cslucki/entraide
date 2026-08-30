@@ -50,9 +50,17 @@
         body:has(.loops-show-container) > [class*="md:hidden"]:has(button[class*="bottom-20"]) {
             display: none !important;
         }
+        /* TASK-1329 : dans une conversation, le bas de l'ecran appartient au
+           COMPOSEUR — la barre de navigation mobile disparait sur cette page,
+           comme dans les messageries mobiles : on est DANS un fil, pas en
+           train de naviguer. Seule la safe-area (barre home iOS) reste
+           reservee. */
+        body:has(.loops-show-container) > nav[class*="bottom-0"] {
+            display: none !important;
+        }
         body:has(.loops-show-container) > .min-h-screen {
             padding-top: 0 !important;
-            padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px)) !important;
+            padding-bottom: env(safe-area-inset-bottom, 0px) !important;
         }
         body:has(.loops-show-container) .min-h-screen > .md\:hidden,
         body:has(.loops-show-container) .min-h-screen > footer {
@@ -61,17 +69,30 @@
         body:has(.loops-show-container) .loops-show-wrapper {
             padding: 0 !important;
         }
-        /* TASK-1231 : le FAB « + » est masque ici (au-dessus) et la rangee des
-           actions IA + le composeur occupent le bas de l'ecran : le FAB
-           BouclePro IA remonte au-dessus de cette rangee, sans la couvrir. */
+        /* TASK-1231 : le FAB « + » est masque ici (au-dessus).
+           TASK-1329 (variante A retenue) : FAB + composeur + envoi forment UNE
+           zone — le FAB BouclePro IA est ANCRE juste au-dessus du composeur
+           (plus jamais suspendu au milieu du fil), le fil garde une reserve
+           basse pour que le dernier message ne passe jamais sous lui, et il
+           S'EFFACE pendant la saisie : quand on ecrit, rien ne flotte
+           au-dessus du texte (motif des messageries mobiles). */
         body:has(.loops-show-container) [data-ai-fab-toggle] {
-            bottom: 14rem !important;
+            bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px)) !important;
+            transition: opacity .2s ease-out, transform .2s ease-out;
         }
         body:has(.loops-show-container) [data-ai-fab-panel] {
-            bottom: 17.5rem !important;
+            bottom: calc(8.5rem + env(safe-area-inset-bottom, 0px)) !important;
+        }
+        body:has(.loops-show-container textarea:focus) [data-ai-fab-toggle] {
+            opacity: 0;
+            transform: scale(.5);
+            pointer-events: none;
+        }
+        body:has(.loops-show-container) [data-loop-workspace-chat] .overflow-y-auto {
+            padding-bottom: 5.5rem !important;
         }
         body:has(.loops-show-container) .loops-show-container {
-            height: calc(100dvh - 4rem - env(safe-area-inset-bottom, 0px));
+            height: calc(100dvh - env(safe-area-inset-bottom, 0px));
         }
     }
     @media (min-width: 768px) {
@@ -529,10 +550,16 @@
                                             <p class="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-800/50 dark:bg-sky-900/20 dark:text-sky-200" data-ai-credit-alert
                                                x-text="@js(__('ai.credit_alert_remaining')).replace(':remaining', result.credit.remaining).replace(':used', result.credit.used).replace(':quota', result.credit.quota)"></p>
                                         </template>
-                                        <div x-show="result.sources && result.sources.length" data-knowledge-sources>
+                                        {{-- TASK-1309 : « Sources utilisées » ne montre QUE les
+                                             sources reellement citees (result.sources, desormais
+                                             les seules citations validees). Ce qui a ete consulte
+                                             sans etayer aucune affirmation garde sa place ici,
+                                             mais sous son vrai titre — « Sources consultées » —
+                                             jamais presente comme un appui. --}}
+                                        <div x-show="(result.grounded ? result.sources : result.consulted || []).length" data-knowledge-sources>
                                             <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1" x-text="result.grounded ? @js(__('loops.knowledge_sources_title')) : @js(__('loops.knowledge_consulted_title'))"></p>
                                             <ul class="space-y-2">
-                                                <template x-for="source in result.sources" :key="source.ref">
+                                                <template x-for="source in (result.grounded ? result.sources : result.consulted || [])" :key="source.ref">
                                                     <li class="rounded-lg border border-gray-200 dark:border-gray-700 p-2.5 text-xs" data-knowledge-source>
                                                         <div class="flex items-start justify-between gap-2">
                                                             <div class="min-w-0">
@@ -573,9 +600,13 @@
                     </form>
                 </div>
 
-            @elseif($clarificationEnabled || $analysis)
+            @elseif($isMember)
                 {{-- Help-request modal. Trigger lives above the composer (in loop-chat) and
-                     opens this modal via the `bp-open-help-request` window event. --}}
+                     opens this modal via the `bp-open-help-request` window event.
+                     TASK-1322 (Core-2) : rendu pour tout membre, gate ou pas —
+                     quand la clarification IA n'est pas disponible, le modal
+                     degrade proprement (message explicite + chemin manuel
+                     canonique) au lieu de disparaitre. --}}
                 <div x-data="{ open: @js($analysis ? true : false) }" @bp-open-help-request.window="open = true">
                     <template x-teleport="body">
                         <div x-show="open" x-cloak
@@ -612,7 +643,18 @@
                                             $originalPhrase = $analysis['original_phrase'] ?? ($helpRequestIntention ?? '');
                                             $fallbackNeedEmpty = $needsFallback && empty($analysis['need']) && $originalPhrase;
                                             $needValue = $fallbackNeedEmpty ? $originalPhrase : ($analysis['need'] ?? '');
+                                            // TASK-1322 (Core-2) : un repli deterministe n'est pas
+                                            // une reponse IA et ne se presente jamais comme telle —
+                                            // meme discipline que RequestController::formulate().
+                                            $preparedWithoutAi = ($analysis['_producer'] ?? null) === 'deterministic_fallback';
                                         @endphp
+
+                                        @if($preparedWithoutAi)
+                                            <div data-prepared-without-ai
+                                                 class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-lg p-3 text-sm text-amber-700 dark:text-amber-300 mb-3">
+                                                {{ __('loops.help_request_prepared_without_ai') }}
+                                            </div>
+                                        @endif
 
                                         @if($needsFallback)
                                             <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700/50 rounded-lg p-3 text-sm text-orange-700 dark:text-orange-300 mb-3">
@@ -663,11 +705,17 @@
                                             @endif
                                             {{-- TASK-1210 : la destination. L'IA propose, l'humain choisit.
                                                  Le select n'offre que des Boucles dont il est membre actif, et
-                                                 le serveur revalide de toute facon a la publication. --}}
+                                                 le serveur revalide de toute facon a la publication.
+                                                 TASK-1321 : la justification affichee distingue explicitement
+                                                 le fait verifie cote serveur (provenance.verified) de la
+                                                 formulation du modele (provenance.ai_wording, jamais une preuve). --}}
                                             @php
                                                 $suggested = $analysis['suggested_loop'] ?? null;
                                                 $suggestedId = is_array($suggested) ? ($suggested['id'] ?? null) : null;
                                                 $selectedLoopId = old('relay_loop_id', $suggestedId ?? $currentLoop->id);
+                                                $verifiedMembership = $suggestedId && collect($suggested['provenance']['verified'] ?? [])
+                                                    ->contains(fn ($fact) => ($fact['type'] ?? null) === 'active_membership');
+                                                $aiWording = $suggestedId ? trim((string) ($suggested['provenance']['ai_wording']['text'] ?? '')) : '';
                                             @endphp
                                             <div>
                                                 <label for="hr-loop" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('loops.help_request_choose_loop') }}</label>
@@ -678,10 +726,19 @@
                                                         <option value="{{ $candidate->id }}" @selected($selectedLoopId === $candidate->id)>{{ $candidate->name }}</option>
                                                     @endforeach
                                                 </select>
-                                                @if($suggestedId && !empty($suggested['reason']))
-                                                    <p class="mt-1.5 text-xs text-indigo-600 dark:text-indigo-300">
-                                                        <span class="font-semibold">{{ __('loops.help_request_suggested_loop') }}</span> · {{ $suggested['reason'] }}
-                                                    </p>
+                                                @if($suggestedId && ($verifiedMembership || $aiWording !== ''))
+                                                    <div class="mt-1.5 space-y-0.5">
+                                                        @if($verifiedMembership)
+                                                            <p class="text-xs text-indigo-600 dark:text-indigo-300">
+                                                                <span class="font-semibold">{{ __('loops.help_request_suggested_loop') }}</span> · {{ __('loops.help_request_suggested_loop_verified_active_membership') }}
+                                                            </p>
+                                                        @endif
+                                                        @if($aiWording !== '')
+                                                            <p class="text-xs text-gray-500 dark:text-gray-400 italic">
+                                                                {{ __('loops.help_request_suggested_loop_ai_wording') }} : « {{ $aiWording }} »
+                                                            </p>
+                                                        @endif
+                                                    </div>
                                                 @endif
                                                 @error('relay_loop_id')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                                             </div>
@@ -699,7 +756,7 @@
                                                 </button>
                                             </div>
                                         </form>
-                                    @else
+                                    @elseif($clarificationEnabled)
                                         <form method="POST" action="{{ $_loopRoute('help-request.analyze', ['loop' => $currentLoop]) }}" class="space-y-3">
                                             @csrf
                                             <label for="intention" class="block text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -718,6 +775,28 @@
                                             </button>
                                         </form>
                                         <p class="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center">{{ __('loops.help_booster_ai') }}</p>
+                                    @else
+                                        {{-- TASK-1322 (Core-2) : la clarification IA n'est pas
+                                             disponible (gate AiConfig::clarification_enabled OFF).
+                                             Degradation propre : message non trompeur + poursuite
+                                             manuelle vers le formulaire canonique — jamais une
+                                             impasse, jamais une fausse IA. --}}
+                                        @php
+                                            $_prepareManuallyUrl = ($_org && request()->routeIs('organization.*') && Route::has('organization.requests.create'))
+                                                ? route('organization.requests.create', ['organization' => $_org])
+                                                : route('requests.create');
+                                        @endphp
+                                        <div data-ai-unavailable
+                                             class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-lg p-3 text-sm text-amber-700 dark:text-amber-300 mb-3">
+                                            {{ __('loops.help_request_ai_unavailable') }}
+                                        </div>
+                                        <a href="{{ $_prepareManuallyUrl }}" data-prepare-manually
+                                           class="w-full px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition flex items-center justify-center gap-1.5">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                            </svg>
+                                            {{ __('loops.help_request_prepare_manually') }}
+                                        </a>
                                     @endif
                                 </div>
                             </div>
@@ -725,19 +804,11 @@
                     </template>
                 </div>
 
-            @elseif(session('help_request_error'))
-                <div class="px-4 py-3">
-                    <div class="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 mb-3">
-                        <span>{{ session('help_request_error') }}</span>
-                    </div>
-                    <div class="flex gap-2">
-                        <a href="{{ $_loopRoute('show', ['loop' => $currentLoop]) }}"
-                           class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-xl transition">
-                            {{ __('loops.back') }}
-                        </a>
-                    </div>
-                </div>
-
+            {{-- TASK-1322 : l'ancienne impasse « clarification desactivee »
+                 (bandeau d'erreur + bouton Revenir) disparait — un membre a
+                 desormais toujours le modal ci-dessus, qui degrade proprement.
+                 Les erreurs reelles (demande bloquee) restent affichees par le
+                 bandeau help_request_error en haut de page. --}}
             @endif
         </div>
     </div>

@@ -9,9 +9,22 @@ use App\Models\DossierBlogPost;
 
 class DossierArticleIndexingDispatcher
 {
-    public function dispatch(string $organizationId, string $dossierId, string $blogPostId): void
+    /**
+     * TASK-1307 : queue DEDIEE de la reindexation explicite (commande
+     * `dossiers:index-articles`), meme convention que
+     * `DossierFileIndexingDispatcher::DEDICATED_QUEUE` (TASK-1268). Jamais
+     * `default` : c'est la queue que le flux normal d'attache utilise deja
+     * (aucun worker dedie ne l'ecoute forcement sur toutes les surfaces).
+     */
+    public const DEDICATED_QUEUE = 'dossier-files-indexing';
+
+    public function dispatch(string $organizationId, string $dossierId, string $blogPostId, ?string $queue = null): void
     {
-        IndexDossierArticleChunks::dispatch($organizationId, $dossierId, $blogPostId)->afterCommit();
+        $pending = IndexDossierArticleChunks::dispatch($organizationId, $dossierId, $blogPostId)->afterCommit();
+
+        if ($queue !== null && $queue !== '') {
+            $pending->onQueue($queue);
+        }
     }
 
     public function dispatchForBlogPost(BlogPost $post): int
@@ -45,7 +58,7 @@ class DossierArticleIndexingDispatcher
     /**
      * @param  iterable<int, DossierBlogPost|array{organization_id: string, dossier_id: string, blog_post_id: string}>  $entries
      */
-    public function dispatchForEntries(iterable $entries): int
+    public function dispatchForEntries(iterable $entries, ?string $queue = null): int
     {
         $count = 0;
 
@@ -54,6 +67,7 @@ class DossierArticleIndexingDispatcher
                 (string) data_get($entry, 'organization_id'),
                 (string) data_get($entry, 'dossier_id'),
                 (string) data_get($entry, 'blog_post_id'),
+                $queue,
             );
 
             $count++;

@@ -6,6 +6,49 @@
                 Page d'accueil &nearr;
             </a>
         </div>
+
+        {{--
+            TASK-1305 : résumé lecture seule de l'IA de cette Organization,
+            générique pour toute Organization (main incluse), jamais la clé.
+            Pas de champ, pas de <form> : la seule surface d'écriture reste
+            organization.admin.ai (OrgAdminController::ai/updateAi).
+        --}}
+        @php
+            $aiReady = $aiSetting !== null && $aiSetting->isUsable();
+        @endphp
+        <div class="mb-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4" data-admin-org-ai-block>
+            <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">{{ __('admin.organization_ai') }}</h2>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.organization_ai_status') }}</div>
+                    <div class="font-medium {{ $aiReady ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400' }}" data-admin-org-ai-ready="{{ $aiReady ? '1' : '0' }}">
+                        {{ $aiReady ? __('admin.organization_ai_summary_ready') : __('admin.organization_ai_summary_not_ready') }}
+                    </div>
+                </div>
+                <div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.organization_ai_provider') }}</div>
+                    <div class="font-mono text-gray-900 dark:text-gray-100">{{ $aiSetting?->provider ?? '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.organization_ai_model') }}</div>
+                    <div class="font-mono text-gray-900 dark:text-gray-100">{{ $aiSetting?->model ?? '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.organization_ai_monthly_budget') }}</div>
+                    <div class="font-mono text-gray-900 dark:text-gray-100">{{ $aiSetting?->monthly_budget_usd !== null ? '$'.number_format((float) $aiSetting->monthly_budget_usd, 2) : '—' }}</div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs pt-3 border-t border-gray-100 dark:border-gray-700">
+                <a href="{{ route('organization.admin.ai', ['organization' => $organization->slug]) }}" class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium" data-admin-org-ai-link="ai">{{ __('ai.platform_configure') }}</a>
+                <a href="{{ route('organization.admin.ai-cockpit', ['organization' => $organization->slug]) }}" class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300" data-admin-org-ai-link="ai-cockpit">{{ __('navigation.org_admin_ai_cockpit') }}</a>
+                <a href="{{ route('organization.admin.ai-behavior', ['organization' => $organization->slug]) }}" class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300" data-admin-org-ai-link="ai-behavior">{{ __('navigation.org_admin_ai_behavior') }}</a>
+                <a href="{{ route('organization.admin.ai-knowledge', ['organization' => $organization->slug]) }}" class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300" data-admin-org-ai-link="ai-knowledge">{{ __('navigation.org_admin_ai_knowledge') }}</a>
+                <a href="{{ route('organization.admin.ai-consumption', ['organization' => $organization->slug]) }}" class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300" data-admin-org-ai-link="ai-consumption">{{ __('navigation.org_admin_ai_consumption') }}</a>
+            </div>
+        </div>
+
         <form method="POST" action="{{ route('admin.organizations.update', $organization) }}" enctype="multipart/form-data" class="space-y-6">
             @csrf
             @method('PUT')

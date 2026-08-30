@@ -8,6 +8,7 @@ use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\Reaction;
 use App\Models\User;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\LoopService;
 use App\Support\Ai\AiMarkdownSanitizer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,6 +16,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
 class LoopChatTest extends TestCase
@@ -1155,7 +1157,7 @@ class LoopChatTest extends TestCase
     // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
     // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
     // n'est pas un endroit ou ranger un test qui gene.
-    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
+    #[Group('ci-known-red')]
     public function test_loop_owner_sees_workspace_cards_shell_closed_by_default(): void
     {
         $this->actingAs($this->member)
@@ -1178,6 +1180,10 @@ class LoopChatTest extends TestCase
 
     public function test_active_moderator_sees_workspace_cards_shell(): void
     {
+        // TASK-1332 : le Manifeste n'est plus impose par defaut ; active ici
+        // pour que ce test continue d'exercer les trois Cards qu'il nomme.
+        app(LoopCardCompositionService::class)->enable($this->loop, 'core.manifesto');
+
         $moderator = User::factory()->create(['organization_id' => $this->organization->id]);
         $this->service->addMember($this->loop, $moderator, 'moderator');
 
@@ -1309,7 +1315,7 @@ class LoopChatTest extends TestCase
             ->assertDontSee(__('loops.ask_question'));
     }
 
-    public function test_ai_message_renders_with_facilitator_and_requested_by(): void
+    public function test_ai_message_renders_with_organization_identity_and_requested_by(): void
     {
         LoopMessage::create([
             'loop_id' => $this->loop->id,
@@ -1322,9 +1328,13 @@ class LoopChatTest extends TestCase
             ],
         ]);
 
+        // TASK-1308 : identite tenant-generique — jamais « Facilitateur IA ».
         Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertSee(__('loops.ai_facilitator'))
+            ->assertSee($this->organization->name)
+            ->assertSee('data-ai-mode="llm"', false)
+            ->assertSee(__('loops.ia_mode_label'))
+            ->assertDontSee('Facilitateur IA')
             ->assertSee(__('loops.ai_requested_by', ['name' => $this->member->publicDisplayName()]))
             ->assertSee('Réponse de l\'IA.', false);
     }
@@ -1381,7 +1391,9 @@ class LoopChatTest extends TestCase
         Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
             ->assertSeeHtml('rows="1"')
-            ->assertSeeHtml('x-on:input="resize()"')
+            // TASK-1329 : `x-on:input` porte aussi `hasText` (cinematique du
+            // bouton envoyer) en plus de l'appel a `resize()` verifie ici.
+            ->assertSeeHtml('x-on:input="resize(); hasText = $el.value.trim().length > 0"')
             ->assertSeeHtml('overflow-y-hidden')
             ->assertSeeHtml('if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }');
     }
@@ -1402,7 +1414,9 @@ class LoopChatTest extends TestCase
 
         Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertSee(__('loops.ai_facilitator'))
+            ->assertSee($this->organization->name)
+            ->assertSee('data-ai-mode="llm"', false)
+            ->assertSee(__('loops.ia_mode_label'))
             ->assertSee('Réponse IA sans demandeur')
             ->assertDontSee($subtitlePrefix);
     }
@@ -1410,7 +1424,7 @@ class LoopChatTest extends TestCase
     // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
     // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
     // n'est pas un endroit ou ranger un test qui gene.
-    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
+    #[Group('ci-known-red')]
     public function test_ai_message_with_unknown_requester_does_not_crash(): void
     {
         LoopMessage::create([
@@ -1428,7 +1442,9 @@ class LoopChatTest extends TestCase
 
         Livewire::actingAs($this->member)
             ->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertSee(__('loops.ai_facilitator'))
+            ->assertSee($this->organization->name)
+            ->assertSee('data-ai-mode="llm"', false)
+            ->assertSee(__('loops.ia_mode_label'))
             ->assertSee('Réponse IA orpheline')
             ->assertDontSee($subtitlePrefix);
     }

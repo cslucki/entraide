@@ -296,6 +296,15 @@ class TASK1221NervousSystemConvergenceTest extends TestCase
         $loopB = (new LoopService)->createLoop($memberB, 'Boucle B');
         $this->enableSemanticGate($orgB);
 
+        // TASK-1307 (revue) : chaque Boucle porte desormais un document
+        // racine publie par construction (LoopRootDocumentService) — le
+        // manifest (metadonnees seules, aucun appel provider) le listerait
+        // sinon, ce qui est LEGITIME (c'est le document de B, pas une fuite
+        // de A) mais fausserait la preuve "zero generation" que ce test
+        // isole volontairement au seul retrieval cross-tenant.
+        BlogPost::whereKey(Dossier::where('loop_id', $loopB->id)->value('root_blog_post_id'))
+            ->update(['status' => 'draft']);
+
         LoopKnowledgeAgent::fake(function (): never {
             throw new RuntimeException('No generation is expected without an accessible corpus.');
         });
@@ -355,7 +364,11 @@ class TASK1221NervousSystemConvergenceTest extends TestCase
         $knowledge = $registry->get(CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER);
         $this->assertFalse($knowledge->canWrite, 'knowledge: read-only, never publishes');
         $this->assertSame(
-            [CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL],
+            // TASK-1307 : le manifest structurel (metadonnees des Dossiers,
+            // sans recherche ni contenu) rejoint le retrieval semantique —
+            // toujours et seulement le corpus documentaire des Dossiers,
+            // jamais les messages de Boucle ni un autre perimetre.
+            [CapabilityRegistry::SOURCE_DOSSIER_MANIFEST, CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL],
             $knowledge->allowedSources,
             'knowledge reads ONLY the documentary corpus',
         );

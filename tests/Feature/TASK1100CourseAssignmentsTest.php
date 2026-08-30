@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Livewire\LoopAssignmentsCard;
+use App\Livewire\LoopProgressionCard;
 use App\Models\CourseAssignment;
 use App\Models\CourseSubmission as S;
 use App\Models\Loop;
@@ -10,12 +11,15 @@ use App\Models\LoopCard;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Loops\CourseAssignmentService;
+use App\Services\Loops\CourseMaterialService;
 use App\Services\LoopService;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -81,7 +85,7 @@ class TASK1100CourseAssignmentsTest extends TestCase
     {
         return $this->service()->create(
             $this->loop, $this->formateur, $titre, 'Consignes.',
-            $due ? \Illuminate\Support\Carbon::parse($due) : null,
+            $due ? Carbon::parse($due) : null,
         );
     }
 
@@ -102,8 +106,9 @@ class TASK1100CourseAssignmentsTest extends TestCase
         $this->assertContains('training.course_material', $cles);
         $this->assertContains('training.progression', $cles);
         $this->assertContains('training.assignments', $cles);
-        // Le cadre permanent est la partout.
-        $this->assertContains('core.manifesto', $cles);
+        // Le cadre permanent porte toujours Membres ; le Resume IA rejoint le
+        // socle depuis TASK-1332 (le Manifeste n'y est plus impose).
+        $this->assertContains('core.ai_summary', $cles);
         $this->assertContains('core.members', $cles);
     }
 
@@ -130,7 +135,7 @@ class TASK1100CourseAssignmentsTest extends TestCase
     {
         // Une remise qui porte un fichier **pointe** vers un `DossierFile` : le
         // quota, la somme de controle et la deduplication sont deja la.
-        $colonnes = \Illuminate\Support\Facades\Schema::getColumnListing('course_submissions');
+        $colonnes = Schema::getColumnListing('course_submissions');
 
         $this->assertContains('dossier_file_id', $colonnes);
         foreach (['path', 'disk', 'checksum_sha256', 'size_bytes', 'mime_type'] as $interdite) {
@@ -247,7 +252,7 @@ class TASK1100CourseAssignmentsTest extends TestCase
 
     public function test_deleting_a_sequence_never_destroys_submissions(): void
     {
-        $materiel = app(\App\Services\Loops\CourseMaterialService::class);
+        $materiel = app(CourseMaterialService::class);
         $module = $materiel->createModule($this->loop, $this->formateur, 'M1');
         $sequence = $materiel->addSequence($module, $this->formateur, 'S1');
 
@@ -439,7 +444,6 @@ class TASK1100CourseAssignmentsTest extends TestCase
         $this->assertNotNull($remise->reviewed_at);
     }
 
-
     // ── Ce que la revue hostile a trouve ────────────────────────────────────
 
     public function test_an_archived_loop_accepts_no_submission(): void
@@ -463,14 +467,14 @@ class TASK1100CourseAssignmentsTest extends TestCase
     {
         // Le meme defaut existait sur la Progression, deja mergee : declarer une
         // etape terminee est une ecriture.
-        $materiel = app(\App\Services\Loops\CourseMaterialService::class);
+        $materiel = app(CourseMaterialService::class);
         $module = $materiel->createModule($this->loop, $this->formateur, 'M1');
         $sequence = $materiel->addSequence($module, $this->formateur, 'S1');
 
         $this->loop->forceFill(['status' => 'archived', 'archived_at' => now()])->save();
 
         Livewire::actingAs($this->stagiaire)
-            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+            ->test(LoopProgressionCard::class, ['loop' => $this->loop])
             ->call('markDone', $sequence->id)
             ->assertForbidden();
 
@@ -590,7 +594,6 @@ class TASK1100CourseAssignmentsTest extends TestCase
             ->assertSee(e(__('loops.cards.assignments.archived_title')), false)
             ->assertSee('Retire mais rendu');
     }
-
 
     // ── Transitions d'etat : l'acteur ET l'etat courant ─────────────────────
 
@@ -723,8 +726,6 @@ class TASK1100CourseAssignmentsTest extends TestCase
     }
 
     // ── Cloisonnement ───────────────────────────────────────────────────────
-
-
 
     public function test_an_assignment_of_another_loop_is_never_reachable(): void
     {

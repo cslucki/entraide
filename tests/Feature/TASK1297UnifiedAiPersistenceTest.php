@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Models\AiInteraction;
+use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopMessage;
@@ -121,7 +122,7 @@ class TASK1297UnifiedAiPersistenceTest extends TestCase
             ->assertSee('Que contient le dossier de la Boucle ?', false);
     }
 
-    public function test_an_ungrounded_but_billed_answer_is_persisted_with_its_consulted_sources(): void
+    public function test_an_ungrounded_but_billed_answer_is_persisted_without_presenting_consulted_sources_as_used(): void
     {
         $this->search->rows = [$this->row('A')];
         $this->fakeAgent('Réponse sans citation valable [S9].');
@@ -135,12 +136,25 @@ class TASK1297UnifiedAiPersistenceTest extends TestCase
         // sans citation validée : on persiste ce qui a coûté.
         $aiMessage = LoopMessage::query()->where('type', 'ai')->firstOrFail();
         $this->assertFalse($aiMessage->metadata['grounded']);
-        $this->assertSame(['S1'], array_column($aiMessage->metadata['sources'], 'ref'));
-        $this->assertSame(AiInteraction::firstOrFail()->id, $aiMessage->metadata['ai_interaction_id']);
+        // TASK-1309 : rien de cite ne correspond ([S9] n'existe pas) -> la
+        // bulle n'affiche AUCUNE « source utilisee ». Montrer ici les
+        // documents seulement consultes reviendrait a affirmer qu'ils ont
+        // etaye une reponse qui, precisement, n'en cite aucun.
+        $this->assertSame([], $aiMessage->metadata['sources']);
+        // Ce qui a ete consulte n'est pas perdu : il reste dans la trace de
+        // l'interaction, la ou il sert au diagnostic et non a la preuve.
+        $interaction = AiInteraction::firstOrFail();
+        $this->assertCount(2, $interaction->metadata['retrieval']['consulted']);
+        $this->assertSame([], $interaction->metadata['retrieval']['cited']);
+        $this->assertSame($interaction->id, $aiMessage->metadata['ai_interaction_id']);
     }
 
     public function test_the_no_sources_answer_writes_nothing_and_calls_no_model(): void
     {
+        // TASK-1307 (revue) : une Boucle porte TOUJOURS un document racine
+        // publie que le manifest listerait sinon (LoopRootDocumentService) —
+        // ce test isole le cas "aucune provenance du tout" en le depubliant.
+        $this->draftRootDocument($this->loop);
         $this->search->rows = [];
         $this->fakeAgent('ne doit pas être appelé');
 
@@ -259,6 +273,16 @@ class TASK1297UnifiedAiPersistenceTest extends TestCase
             new TextResponse($text, new Usage(20, 10), new Meta('openrouter', 'openai/gpt-4o-mini')),
         ]);
     }
+
+    /**
+     * TASK-1307 (revue) : depublie le document racine auto-cree
+     * (LoopRootDocumentService) pour isoler un scenario "manifest vide".
+     */
+    private function draftRootDocument(Loop $loop): void
+    {
+        BlogPost::whereKey(Dossier::where('loop_id', $loop->id)->value('root_blog_post_id'))
+            ->update(['status' => 'draft']);
+    }
 }
 
 /**
@@ -275,10 +299,10 @@ class FakeKnowledgeSearch extends DossierSemanticSearchService
 
     public function __construct() {}
 
-    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = []): array
+    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null): array
     {
-        $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'embeddingInstance', 'limit', 'traceMetadata');
+        $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'embeddingInstance', 'limit', 'traceMetadata', 'candidateLimit');
 
-        return array_slice($this->rows, 0, $limit);
+        return array_slice($this->rows, 0, $candidateLimit ?? $limit);
     }
 }

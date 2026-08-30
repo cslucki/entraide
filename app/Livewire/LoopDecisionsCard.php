@@ -5,9 +5,12 @@ namespace App\Livewire;
 use App\Models\Loop;
 use App\Models\LoopDecision;
 use App\Models\LoopMessage;
+use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\Loops\LoopDecisionService;
+use App\Support\Ai\AiRefusedException;
 use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
@@ -68,6 +71,17 @@ class LoopDecisionsCard extends Component
     public string $flash = '';
 
     public string $problem = '';
+
+    /**
+     * TASK-1327 : le message source de la suggestion IA en cours, quand il y
+     * en a une. Public donc pose depuis le client — comme `$editingId`, il n'a
+     * AUCUNE autorite : `promoteSuggestion()` delegue a `promote()`, qui
+     * revalide tout au geste (droit, Boucle, moderation, double promotion).
+     */
+    public ?string $suggestionMessageId = null;
+
+    /** L'extrait du message source, pour l'afficher a cote du brouillon. */
+    public string $suggestionExcerpt = '';
 
     public function mount(Loop $loop): void
     {
@@ -181,7 +195,7 @@ class LoopDecisionsCard extends Component
             return;
         }
 
-        $this->reset(['title', 'rationale', 'decidedOn', 'showForm', 'editingId']);
+        $this->reset(['title', 'rationale', 'decidedOn', 'showForm', 'editingId', 'suggestionMessageId', 'suggestionExcerpt']);
         $this->problem = '';
         $this->flash = __('loops.cards.decisions.recorded');
     }
@@ -201,6 +215,9 @@ class LoopDecisionsCard extends Component
         $this->title = (string) $decision->title;
         $this->rationale = (string) $decision->rationale;
         $this->decidedOn = $decision->decided_on?->toDateString() ?? '';
+        // Le formulaire change de role : une suggestion IA encore affichee
+        // n'a plus rien a y faire.
+        $this->reset(['suggestionMessageId', 'suggestionExcerpt']);
         $this->showForm = true;
         $this->flash = '';
         $this->problem = '';
@@ -232,8 +249,88 @@ class LoopDecisionsCard extends Component
         $this->reset([
             'title', 'rationale', 'decidedOn', 'showForm', 'editingId',
             'supersedingId', 'actionForId', 'actionTitle', 'showPicker',
+            // TASK-1327 : renoncer a une suggestion IA la relache aussi —
+            // AUCUNE ecriture durable n'a eu lieu, aucune ne reste possible.
+            'suggestionMessageId', 'suggestionExcerpt',
         ]);
         $this->problem = '';
+    }
+
+    /**
+     * TASK-1327 (Premium-1) : demander a l'IA si la discussion recente semble
+     * avoir abouti a une decision, et PRE-REMPLIR le formulaire existant.
+     *
+     * Rien n'est ecrit ici, ni par le service (`canWrite=false`) : la
+     * suggestion est un brouillon ephemere que l'humain edite puis capitalise
+     * via `promote()` — ou abandonne via `cancel()`, sans aucune trace
+     * durable. Le droit est revalide AU GESTE, comme partout dans cette Card.
+     */
+    public function suggest(): void
+    {
+        $this->authorizeRecord();
+
+        // Suggerer suppose de lire la conversation — la meme garde que le
+        // selecteur de promotion : sans elle, la Card deviendrait une porte
+        // laterale sur le ChatLoop.
+        abort_unless($this->droit('chatloop.view'), 403);
+
+        $this->flash = '';
+        $this->problem = '';
+
+        $rateKey = 'chatloop-decision-suggest:'.$this->loop->id.':'.auth()->id();
+
+        if (RateLimiter::tooManyAttempts($rateKey, 5)) {
+            $this->problem = __('loops.cards.decisions.suggest_rate_limited');
+
+            return;
+        }
+
+        RateLimiter::hit($rateKey, 60);
+
+        try {
+            $suggestion = app(ChatLoopAiService::class)->suggestDecision($this->loop, auth()->user());
+        } catch (AiRefusedException|\RuntimeException $e) {
+            // Non bloquant : IA non configuree, budget, verrou de tour, pas
+            // assez de contenu — le message dit QUEL etat refuse, la Card
+            // continue de fonctionner sans IA.
+            $this->problem = $e->getMessage();
+
+            return;
+        }
+
+        if (! $suggestion->found) {
+            // Discussion sans conclusion claire : aucune suggestion forcee.
+            $this->flash = __('loops.cards.decisions.suggest_none');
+
+            return;
+        }
+
+        // Brouillon -> edition humaine -> publication par la surface
+        // canonique : la suggestion pre-remplit le formulaire DEJA affiche.
+        $this->reset(['editingId', 'supersedingId', 'actionForId', 'actionTitle', 'showPicker']);
+        $this->title = $suggestion->title;
+        $this->rationale = $suggestion->rationale;
+        // La date reste vide : `promote()` applique son repli canonique — la
+        // date du message, « quand ca s'est decide, pas quand on l'a vu ».
+        $this->decidedOn = '';
+        $this->suggestionMessageId = $suggestion->messageId;
+        $this->suggestionExcerpt = (string) $suggestion->excerpt;
+        $this->showForm = true;
+    }
+
+    /**
+     * Capitaliser la suggestion affichee — le geste HUMAIN de Premium-1.
+     *
+     * `$suggestionMessageId` est public, donc falsifiable : ce n'est qu'un
+     * raccourci vers `promote()`, qui revalide TOUT au clic (droit d'ecrire,
+     * message de cette Boucle, moderation terminale, unicite tenue par la
+     * base). Le tour IA affiche n'a aucune autorite.
+     */
+    public function promoteSuggestion(): void
+    {
+        abort_unless((bool) $this->suggestionMessageId, 403);
+
+        $this->promote($this->suggestionMessageId);
     }
 
     public function promote(string $messageId): void
@@ -264,7 +361,7 @@ class LoopDecisionsCard extends Component
             return;
         }
 
-        $this->reset(['title', 'rationale', 'decidedOn', 'showPicker', 'showForm']);
+        $this->reset(['title', 'rationale', 'decidedOn', 'showPicker', 'showForm', 'suggestionMessageId', 'suggestionExcerpt']);
         $this->problem = '';
         $this->flash = __('loops.cards.decisions.recorded');
     }
@@ -510,6 +607,11 @@ class LoopDecisionsCard extends Component
             // Sans `chatloop.view`, `promotable()` rend toujours vide : offrir
             // le bouton menait a un selecteur qui annonce « aucun message ».
             'canPromote' => $canRecord && $this->droit('chatloop.view'),
+            // TASK-1327 : suggerer, c'est lire la conversation puis consigner —
+            // les DEUX droits, AVANT meme de proposer le bouton. La
+            // disponibilite de l'IA, elle, se decouvre au clic (refus
+            // explicite, non bloquant), comme sur la carte de resume.
+            'canSuggest' => $canRecord && $this->droit('chatloop.view'),
             'promotable' => $canRecord && $this->showPicker ? $this->promotable() : collect(),
             // Ce qu'une Decision peut remplacer : les autres, non deja
             // remplacees, **et qu'on a le droit de barrer**.

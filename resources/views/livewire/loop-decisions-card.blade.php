@@ -189,6 +189,28 @@
         <div class="mt-4 space-y-2">
             @if ($showForm)
                 <div class="space-y-2 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+                    {{-- TASK-1327 : le brouillon suggéré par l'IA. Le fait
+                         vérifié (le message source, relu serveur) est cité ;
+                         le titre et le rationale pré-remplis sont un wording
+                         IA non vérifié, éditable ci-dessous. Rien n'est écrit
+                         tant que « Capitaliser » n'est pas cliqué. --}}
+                    @if ($suggestionMessageId)
+                        <div class="rounded-xl bg-sky-50 p-3 dark:bg-sky-500/10" data-decision-suggestion>
+                            <p class="text-xs font-semibold text-sky-900 dark:text-sky-200">
+                                {{ __('loops.cards.decisions.suggest_title') }}
+                            </p>
+                            @if ($suggestionExcerpt !== '')
+                                <blockquote class="mt-2 border-l-2 border-sky-300 pl-3 text-xs italic text-gray-600 dark:border-sky-700 dark:text-gray-400"
+                                            data-decision-suggestion-source>
+                                    {{ $suggestionExcerpt }}
+                                </blockquote>
+                            @endif
+                            <p class="mt-2 text-[11px] text-sky-800 dark:text-sky-300">
+                                {{ __('loops.cards.decisions.suggest_ai_note') }}
+                            </p>
+                        </div>
+                    @endif
+
                     <label class="block">
                         <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('loops.cards.decisions.title_label') }}</span>
                         <input type="text" wire:model="title" class="mt-1 w-full rounded-lg border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-800" />
@@ -207,18 +229,29 @@
                     @error('decidedOn') <p class="text-xs text-rose-600">{{ $message }}</p> @enderror
 
                     <div class="flex flex-wrap gap-2">
-                        <button type="button" wire:click="save" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">
-                            {{ __('loops.cards.decisions.save') }}
-                        </button>
-
-                        {{-- Garder un message du ChatLoop : le North Star le décrit —
-                             « une Interaction peut devenir […] une décision ». Le
-                             titre est saisi d'abord ; le message vient l'appuyer. --}}
-                        @if (! $editingId && $canPromote)
-                            <button type="button" wire:click="$toggle('showPicker')"
-                                    class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300">
-                                {{ __('loops.cards.decisions.promote') }}
+                        @if ($suggestionMessageId)
+                            {{-- Capitaliser la suggestion : c'est `promote()`
+                                 — la surface canonique — qui écrit, après
+                                 avoir tout revalidé au clic. --}}
+                            <button type="button" wire:click="promoteSuggestion"
+                                    data-decision-suggestion-promote
+                                    class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">
+                                {{ __('loops.cards.decisions.suggest_promote') }}
                             </button>
+                        @else
+                            <button type="button" wire:click="save" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">
+                                {{ __('loops.cards.decisions.save') }}
+                            </button>
+
+                            {{-- Garder un message du ChatLoop : le North Star le décrit —
+                                 « une Interaction peut devenir […] une décision ». Le
+                                 titre est saisi d'abord ; le message vient l'appuyer. --}}
+                            @if (! $editingId && $canPromote)
+                                <button type="button" wire:click="$toggle('showPicker')"
+                                        class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300">
+                                    {{ __('loops.cards.decisions.promote') }}
+                                </button>
+                            @endif
                         @endif
 
                         {{-- `cancel()` et non `$set('showForm', false)` : celui-ci
@@ -258,6 +291,23 @@
                         class="w-full rounded-xl border border-dashed border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300">
                     + {{ __('loops.cards.decisions.add') }}
                 </button>
+
+                {{-- TASK-1327 : « Cette discussion semble avoir abouti à une
+                     décision ? » — l'IA propose, l'humain capitalise. Offert
+                     UNIQUEMENT à qui peut lire la conversation ET consigner ;
+                     le droit est revalidé au geste. --}}
+                @if ($canSuggest)
+                    <button type="button" wire:click="suggest" wire:loading.attr="disabled"
+                            data-decision-suggest
+                            class="w-full rounded-xl border border-dashed border-sky-300 px-4 py-2.5 text-sm font-semibold text-sky-700 hover:border-sky-400 hover:bg-sky-50 disabled:cursor-wait disabled:opacity-60 dark:border-sky-800 dark:text-sky-300 dark:hover:bg-sky-500/10">
+                        <span wire:loading.remove wire:target="suggest">
+                            ✦ {{ __('loops.cards.decisions.suggest') }}
+                        </span>
+                        <span wire:loading wire:target="suggest">
+                            {{ __('loops.cards.decisions.suggest_loading') }}
+                        </span>
+                    </button>
+                @endif
             @endif
         </div>
     @endif

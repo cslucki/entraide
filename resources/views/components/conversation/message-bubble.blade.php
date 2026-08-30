@@ -21,6 +21,25 @@
     'reactionCounts' => [],
     'myReaction' => null,
     'sources' => null,
+    // TASK-1309 : documents dont le CONTENU a ete lu sans qu'aucune citation
+    // valide n'en sorte. Rendus sous « Sources consultées », et seulement
+    // quand il n'y a aucune source utilisee — jamais melanges aux deux.
+    'consultedSources' => null,
+    // TASK-1312 : moteur de la reponse — `llm`, `rag` ou `llm_rag`. Vient de
+    // `metadata['ai_mode']`, la provenance canonique du message : JAMAIS deduit
+    // d'une couleur, d'une classe CSS ou du texte de la bulle. `null` sur toute
+    // bulle humaine — il n'y a pas de badge « Humain ».
+    'aiMode' => null,
+    // TASK-1316 : l'humain qui a demande cette reponse IA — ['id' => ..., 'name' => ...],
+    // lu depuis `metadata.requested_by`, JAMAIS reconstruit en analysant un texte.
+    // `null` sur toute bulle qui n'est pas une reponse IA a une demande nommee.
+    'requestedBy' => null,
+    // Badge sur la bulle HUMAINE elle-meme : le mode IA/documentaire choisi au
+    // moment de l'envoi (`metadata['requested_mode']`), pas le toggle courant
+    // du composeur. Vient de `LoopMessage.metadata['requested_mode']`, ecrit
+    // par LoopChat::sendMessage AVANT toute generation. `null` sur tout
+    // message envoye en mode normal — pas de badge « Normal ».
+    'requestedMode' => null,
 ])
 
 @php
@@ -50,6 +69,49 @@ $primaryReactionTypes = ['thumbs_up', 'heart', 'thanks', 'surprised', 'sad'];
 $secondaryReactionTypes = array_values(array_diff($reactionTypes, $primaryReactionTypes));
 $reactionEmojis = App\Models\Reaction::emojiMap();
 $visibleReactionCounts = array_filter($reactionCounts, fn ($count) => $count > 0);
+
+// TASK-1312 : le badge n'existe QUE pour une bulle IA portant un mode connu.
+// Un mode inconnu ne produit rien plutot qu'un badge menteur.
+$aiModeLabels = [
+    'llm' => __('loops.ia_mode_label'),
+    'rag' => __('loops.dossiers_mode_label'),
+    'llm_rag' => __('loops.hybrid_mode_label'),
+];
+$aiModeBadge = ($isAi && is_string($aiMode)) ? ($aiModeLabels[$aiMode] ?? null) : null;
+
+// Badge « mode demande » sur la bulle HUMAINE. Memes libelles que le badge de
+// la bulle IA (ia_mode_label / dossiers_mode_label / hybrid_mode_label) — le
+// mot que lit un membre est le meme des deux cotes de l'echange, seul son
+// vocabulaire de cle differe ('ia_dossiers' cote humain vs 'llm_rag' cote
+// reponse) parce que ce sont deux enumerations distinctes en base.
+$requestedModeLabels = [
+    'ia' => __('loops.ia_mode_label'),
+    'dossiers' => __('loops.dossiers_mode_label'),
+    'ia_dossiers' => __('loops.hybrid_mode_label'),
+];
+$requestedModeBadge = (! $isAi && is_string($requestedMode)) ? ($requestedModeLabels[$requestedMode] ?? null) : null;
+// Arbitrage Cyril 29/08 : le badge vit en BAS A GAUCHE de la bulle, sur la
+// ligne d'actions existante — dans le header, la pastille arrondie a deux
+// lettres (« IA ») se confondait avec l'avatar-initiales d'un membre sans
+// photo (constate en recette mobile). Forme d'ETIQUETTE (coins peu arrondis,
+// icone sparkle + libelle), jamais une pastille : plus aucune ressemblance
+// avec un avatar. Deux teintes selon le fond de bulle. Jamais color-only :
+// le libelle porte l'information.
+$requestedModeBadgeClasses = $isSent
+    ? 'bg-white/10 text-indigo-100 ring-1 ring-white/20'
+    : 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200/70 dark:bg-indigo-900/30 dark:text-indigo-300 dark:ring-indigo-800';
+
+// Arbitrage Cyril 29/08 : le badge de mode vit en bas a gauche pour TOUTES
+// les bulles — humaines (mode demande, indigo) comme IA (moteur, violet).
+// Un seul des deux existe jamais ($isAi les rend exclusifs). L'attribut
+// canonique reste distinct : `data-ai-mode` (moteur constate) n'est PAS
+// `data-requested-mode` (intention a l'envoi) — deux provenances, deux noms.
+$bottomModeBadge = $isAi ? $aiModeBadge : $requestedModeBadge;
+$bottomModeBadgeAttr = $isAi ? 'data-ai-mode' : 'data-requested-mode';
+$bottomModeBadgeAttrValue = $isAi ? $aiMode : $requestedMode;
+$bottomModeBadgeClasses = $isAi
+    ? 'bg-violet-100 text-violet-700 ring-1 ring-violet-200 dark:bg-violet-800/60 dark:text-violet-100 dark:ring-violet-700'
+    : $requestedModeBadgeClasses;
 
 $escapePlainMarkdown = static function (string $text): string {
     $text = str_replace('\\', '\\\\', $text);
@@ -126,9 +188,26 @@ $renderableBody = preg_replace_callback(
     x-on:click.outside="open = false; showMore = false"
     @endif
 >
-    <div class="relative">
+    {{-- TASK-1309 (recette mobile) : `min-w-0` sur l'element flex.
+         Sans lui, sa taille MIN-CONTENT est celle de son plus long descendant
+         non secable — et l'apercu de reply (`truncate`, donc `nowrap`) en est
+         un : une question un peu longue poussait la bulle a 461 px dans un
+         conteneur de 358, et `max-w-[90%]`, calcule sur ce parent deja trop
+         large, n'y pouvait rien. Le texte etait alors coupe a droite, sur
+         mobile, pour TOUTE bulle portant un reply — defaut PREEXISTANT,
+         mesure sur le banc reel a l'identique sur une bulle « Dossiers »
+         anterieure a cette TASK ; la recette T1309 l'a rendu visible. --}}
+    {{-- TASK-1329 : les limites de largeur vivent ICI, sur le conteneur —
+         plus jamais sur la bulle elle-meme. `max-w-[90%]` pose sur la bulle
+         se resolvait contre CE conteneur, qui retrecit deja a la largeur du
+         contenu : le navigateur rabotait donc ~10% de la largeur naturelle
+         du texte, et une phrase courte (« Bonjour tout le monde ! ») passait
+         sur deux lignes (constate en recette mobile). Ici, le pourcentage se
+         resout contre le fil (pleine largeur) : une bulle courte garde sa
+         ligne, une longue plafonne a 90% / md / lg. --}}
+    <div class="relative min-w-0 max-w-[90%] sm:max-w-md md:max-w-lg">
     <div
-        class="max-w-[90%] sm:max-w-md md:max-w-lg {{ $bubbleClasses }} px-3 py-2"
+        class="{{ $bubbleClasses }} px-3 py-2"
         @if($showReactions && $messageId)
         x-on:touchstart.passive="if (!$event.target.closest('button,a,input,textarea,select')) { pressTimer = setTimeout(() => { $dispatch('reaction-menu-opened', { id }); open = true }, 450) }"
         x-on:touchend="clearTimeout(pressTimer)"
@@ -137,7 +216,7 @@ $renderableBody = preg_replace_callback(
         x-on:contextmenu.prevent="$dispatch('reaction-menu-opened', { id }); open = true"
         @endif
     >
-        @if($avatar || $name || $subtitle || $time || $isEdited || $isAi)
+        @if($avatar || $name || $subtitle || $requestedBy || $time || $isEdited || $isAi)
         <div class="mb-1 flex items-start justify-between gap-3">
             <div class="flex min-w-0 items-center gap-2">
                 @if($avatar)
@@ -150,11 +229,63 @@ $renderableBody = preg_replace_callback(
                 </span>
                 @endif
                 <div class="min-w-0">
-                    @if($name)
-                    <span class="{{ $nameClasses }} block truncate">{{ $name }}</span>
+                    @if($name || $aiModeBadge)
+                    {{-- TASK-1312 : l'identite tenant (le nom) et le MOTEUR (le
+                         badge) sont deux informations distinctes, et cessent
+                         d'etre concatenees dans une seule chaine.
+
+                         Le separateur « · » reste rendu comme TEXTE entre les
+                         deux : le contenu textuel de la bulle demeure
+                         « Organization · Mode », exactement ce que le parcours
+                         E2E canonique verifie par `toContainText`. Le scinder
+                         sans lui aurait impose de rejouer l'E2E — donc de
+                         depenser des appels provider — pour un changement
+                         purement visuel. --}}
+                    <span class="flex min-w-0 flex-wrap items-center gap-1.5">
+                        @if($name)
+                        <span class="{{ $nameClasses }} truncate">{{ $name }}</span>
+                        @endif
+                        @if($aiModeBadge)
+                        {{-- TASK-1329 : le badge moteur est desormais VISUEL en
+                             bas a gauche de la bulle (comme le badge de mode des
+                             bulles humaines). Ici, l'identite complete
+                             « Organization · Mode » reste un TEXTE contigu pour
+                             les lecteurs d'ecran — et pour le parcours E2E
+                             canonique, qui la verifie par `toContainText`
+                             (textContent) : la scinder visuellement ne doit pas
+                             imposer de rejouer l'E2E, donc de depenser des
+                             appels provider. --}}
+                        {{-- Deux spans distincts : le separateur garde son
+                             propre element (`>·</span>`), la forme exacte que
+                             T1312 verifie. --}}
+                        <span class="sr-only">·</span>
+                        <span class="sr-only">{{ $aiModeBadge }}</span>
+                        @endif
+                    </span>
                     @endif
                     @if($subtitle)
-                    <span class="block truncate text-[10px] text-gray-400 dark:text-gray-500">{{ $subtitle }}</span>
+                        @if($aiModeBadge)
+                        {{-- Le badge porte deja le mode ; le sous-titre reste
+                             dans le DOM (lecteurs d'ecran, assertions serveur)
+                             sans consommer une ligne. --}}
+                        <span class="sr-only">{{ $subtitle }}</span>
+                        @else
+                        <span class="block truncate text-[10px] text-gray-400 dark:text-gray-500">{{ $subtitle }}</span>
+                        @endif
+                    @endif
+                    {{-- TASK-1316 : l'attribution humaine a sa PROPRE ligne.
+                         Concatenee au sous-titre, elle tombait sous le `truncate`
+                         ci-dessus : sur mobile, « Réponse croisée entre l'IA et les
+                         connaissances de cette Boucle » consomme deja toute la
+                         largeur, et « Demandé par … » — la seule information qui
+                         dise a un groupe QUI a engage la depense — disparaissait
+                         en silence.
+
+                         `data-ai-requested-by` porte l'identifiant de la personne,
+                         jamais son nom traduit : c'est lui qu'un test asserte. --}}
+                    @if($requestedBy)
+                    <span data-ai-requested-by="{{ $requestedBy['id'] }}"
+                          class="mt-0.5 block text-[10px] font-medium leading-tight text-violet-700 dark:text-violet-300">{{ __('loops.ai_requested_by', ['name' => $requestedBy['name']]) }}</span>
                     @endif
                 </div>
             </div>
@@ -198,11 +329,71 @@ $renderableBody = preg_replace_callback(
              jamais re-derivee ici. title/dossier_name/excerpt sont du contenu
              de document uploade : rendu ECHAPPE ({{ }}), jamais {!! !!}.
              Presentation reprise du panneau knowledge de loops/show. --}}
-        @if($sources)
-        <div class="mt-2 border-t border-violet-200/70 dark:border-violet-800/70 pt-2" data-message-sources>
-            <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{{ __('loops.knowledge_sources_title') }}</p>
-            <ul class="space-y-2">
-                @foreach($sources as $source)
+        {{-- TASK-1309 : DEUX etats mutuellement exclusifs, jamais confondus —
+             les sources qui ont REELLEMENT soutenu une affirmation
+             (« Sources utilisées ») ou, a defaut, les documents dont le
+             contenu a ete lu sans qu'aucune citation n'en sorte
+             (« Sources consultées »). Un document consulte n'est jamais
+             presente comme un appui. --}}
+        @php
+            $shownSources = $sources ?: ($consultedSources ?: null);
+            $shownSourcesAreCited = (bool) $sources;
+        @endphp
+        @if($shownSources)
+        {{-- TASK-1312 : replie par defaut. Une reponse documentaire peut citer
+             cinq a dix sources ; deployees, elles reléguaient la REPONSE hors
+             de l'ecran — le contenu se retrouvait enseveli sous sa propre
+             provenance.
+
+             `<details>`/`<summary>` est natif : deployable au clavier, annonce
+             comme tel par les lecteurs d'ecran, et il fonctionne sans une seule
+             ligne de JavaScript. Un accordeon maison aurait demande du JS, un
+             `aria-expanded` a tenir a jour, et un piege de plus dans une bulle
+             qui en a deja coute trois (T1310).
+
+             Les references, les URLs et le distinguo T1309
+             « utilisees / consultees » sont INCHANGES : seul l'etat initial du
+             bloc change. --}}
+        {{-- TASK-1312 (bug de recette) : `wire:ignore.self` est ce qui empeche le
+             bloc de se REFERMER TOUT SEUL.
+
+             Le ChatLoop porte `wire:poll.3s`. A chaque cycle, le morph de
+             Livewire realigne les attributs de chaque element sur le HTML rendu
+             par le SERVEUR — lequel ignore evidemment que l'utilisateur vient
+             de deplier ce bloc. L'attribut `open`, pose cote client par le
+             navigateur, etait donc efface au premier poll : ouvert, puis referme
+             trois secondes plus tard, sans que personne n'ait rien touche.
+             Constate en recette : `open` vrai apres le clic, faux apres 12 s et
+             4 requetes `/update`.
+
+             `.self` ne gele QUE cet element — ses enfants (le resume et la liste
+             des sources) continuent d'etre morphes normalement. Ce n'est donc
+             pas un `wire:ignore` global.
+
+             Et ce qui est gele ici ne bouge jamais : `data-sources-kind` et
+             `data-sources-count` derivent de `metadata['sources']`, ecrit UNE
+             fois a la publication. Une bulle IA n'est pas editable —
+             `LoopMessage::isEditableBy()` n'accepte que `user` et
+             `member_agent`. Verifie, pas suppose. --}}
+        <details wire:ignore.self class="group mt-2 border-t border-violet-200/70 pt-2 dark:border-violet-800/70"
+                 data-message-sources
+                 data-sources-kind="{{ $shownSourcesAreCited ? 'used' : 'consulted' }}"
+                 data-sources-count="{{ count($shownSources) }}">
+            <summary class="flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 marker:content-none dark:text-gray-400 [&::-webkit-details-marker]:hidden">
+                {{-- Le chevron doit DIRE dans quel etat on est : pointe a droite
+                     replie, vers le bas deplie. `group-open:` est la forme que
+                     Tailwind genere reellement — un variant arbitraire imbrique
+                     du type `[details[open]_&]` n'est pas produit, et le chevron
+                     restait alors identique dans les deux etats (constate a
+                     l'ecran). Le `group` correspondant est sur le `<details>`. --}}
+                <svg class="h-3 w-3 shrink-0 text-violet-500 transition-transform duration-200 group-open:rotate-90 dark:text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                </svg>
+                <span>{{ $shownSourcesAreCited ? __('loops.knowledge_sources_title') : __('loops.knowledge_consulted_title') }}</span>
+                <span class="font-normal normal-case tracking-normal text-gray-400 dark:text-gray-500">· {{ count($shownSources) }}</span>
+            </summary>
+            <ul class="mt-1.5 space-y-2">
+                @foreach($shownSources as $source)
                 <li class="rounded-lg border border-gray-200 dark:border-gray-700 p-2.5 text-xs" data-message-source>
                     <div class="flex items-start justify-between gap-2">
                         <div class="min-w-0">
@@ -222,12 +413,46 @@ $renderableBody = preg_replace_callback(
                 </li>
                 @endforeach
             </ul>
-        </div>
+        </details>
         @endif
 
-        @if($messageId && ($showReplyButton || $showPinButton || $showCopyButton || $showEditButton || $showDeleteButton || $showReactions))
+        {{-- TASK-1310 : pied de bulle, rendu tel quel APRES les sources.
+             Le slot par defaut, lui, traverse le pipeline markdown
+             (`$renderableBody`) : y glisser du HTML d'action le ferait avaler
+             — constate en recette, l'action « Ajouter au Dossier » etait
+             invisible alors que le serveur l'autorisait. Un slot nomme est le
+             seul endroit ou du balisage survit intact. --}}
+        @isset($footer)
+        {{ $footer }}
+        @endisset
+
+        @if(($messageId && ($showReplyButton || $showPinButton || $showCopyButton || $showEditButton || $showDeleteButton || $showReactions)) || $bottomModeBadge)
         <div class="mt-1 flex items-center justify-end gap-3">
-            @if($showReplyButton || $showPinButton || $showCopyButton || $showEditButton || $showDeleteButton)
+            {{-- TASK-1329 : badge de mode en bas a GAUCHE de la bulle —
+                 `mr-auto` le cale a gauche, les actions gardent leur `ml-auto`
+                 a droite, sur la ligne qui existe deja. Bulle HUMAINE : le mode
+                 DEMANDE a l'envoi (`data-requested-mode`, indigo). Bulle IA :
+                 le moteur constate (`data-ai-mode`, violet) — deux provenances,
+                 deux attributs canoniques, c'est EUX qu'un test asserte, jamais
+                 le libelle traduit. Etiquette (coins peu arrondis, icone
+                 sparkle + libelle), jamais une pastille : une pastille « IA »
+                 se confondait avec l'avatar-initiales d'un membre sans photo.
+                 Aucun badge => cette ligne garde son rendu d'aujourd'hui. --}}
+            @if($bottomModeBadge)
+            <span {{ $bottomModeBadgeAttr }}="{{ $bottomModeBadgeAttrValue }}"
+                  @if($isAi && $subtitle) title="{{ $subtitle }}" @endif
+                  class="mr-auto inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide {{ $bottomModeBadgeClasses }}">
+                <svg class="h-2.5 w-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.091-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.091L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.091 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.091ZM18.25 8.25 18 9.25l-.25-1a2.5 2.5 0 0 0-1.75-1.75L15 6.25l1-.25a2.5 2.5 0 0 0 1.75-1.75l.25-1 .25 1A2.5 2.5 0 0 0 20 6l1 .25-1 .25a2.5 2.5 0 0 0-1.75 1.75Z"/>
+                </svg>
+                {{-- Bulle IA : le mode est deja annonce dans l'en-tete
+                     (sr-only « · Mode ») — sans aria-hidden, un lecteur
+                     d'ecran l'entendrait deux fois. Bulle humaine : ce badge
+                     est la SEULE occurrence, il reste annonce. --}}
+                <span @if($isAi) aria-hidden="true" @endif>{{ $bottomModeBadge }}</span>
+            </span>
+            @endif
+            @if($messageId && ($showReplyButton || $showPinButton || $showCopyButton || $showEditButton || $showDeleteButton))
             <div class="ml-auto flex items-center gap-1">
                 @if($showReplyButton)
                 <button

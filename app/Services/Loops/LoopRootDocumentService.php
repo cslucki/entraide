@@ -7,6 +7,7 @@ use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Models\Loop;
 use App\Models\User;
+use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -33,7 +34,10 @@ use Illuminate\Support\Str;
  */
 class LoopRootDocumentService
 {
-    public function __construct(private LoopTypeRegistry $types) {}
+    public function __construct(
+        private LoopTypeRegistry $types,
+        private DossierArticleIndexingDispatcher $indexing,
+    ) {}
 
     /**
      * The root Dossier of a Loop, created if it does not exist yet.
@@ -155,6 +159,19 @@ class LoopRootDocumentService
             // Kept in step while the legacy column survives. Its removal is a
             // dedicated task; until then the two must never diverge.
             $loop->forceFill(['manifesto_blog_post_id' => $post->id])->save();
+
+            // TASK-1307 : `designate()` est le SEUL endroit qui cree/deplace
+            // le lien Article <-> Dossier pour un document racine — contrairement
+            // a `DossierArticleController::store()`/`createAndAttach()` (qui
+            // dispatchent deja explicitement), rien n'appelait
+            // `DossierArticleIndexingDispatcher` ici. `BlogPostObserver::updated()`
+            // ne reagit qu'a un changement de `content/status/published_at`
+            // ULTERIEUR : un document racine fraichement cree (ou adopte depuis
+            // le champ legacy) restait donc indexe jamais, tant que personne ne
+            // l'editait. Meme file d'attente et memes garanties d'idempotence
+            // que le flux d'attache manuel (`IndexDossierArticleChunks`,
+            // `content_hash` par chunk, `WithoutOverlapping`).
+            $this->indexing->dispatchForBlogPost($post);
 
             return $post;
         });

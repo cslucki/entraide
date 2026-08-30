@@ -35,6 +35,8 @@ use App\Services\Ai\DTO\AiConsumptionFilters;
 use App\Services\Ai\OrganizationAiConsumption;
 use App\Services\Ai\OrganizationAiEconomicUsage;
 use App\Services\Ai\OrganizationDoctrineSandbox;
+use App\Services\Dossiers\DossierSemanticSearchGate;
+use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Services\Dossiers\OrganizationRagOverview;
 use App\Services\LoopGovernanceService;
 use App\Services\Loops\LoopCardCompositionService;
@@ -1073,6 +1075,13 @@ class OrgAdminController extends Controller
             'providers' => ProviderResolver::ALLOWED_PROVIDERS,
             'monthlyCost' => $monthlyCost,
             'defaultModel' => (string) (config('ai.default_model') ?: config('ai.openrouter.model', 'openai/gpt-4o-mini')),
+            // TASK-1306 : qui gere le credential — le SuperAdmin le voit et le
+            // modifie toujours ; l'admin d'Organization ne voit le formulaire
+            // que si cette Organization est passee en `organization_managed`.
+            'credentialMode' => OrganizationAiSetting::effectiveCredentialMode($setting),
+            'isSuperAdmin' => (bool) request()->user()?->is_admin,
+            'canEditCredential' => (bool) request()->user()?->is_admin
+                || OrganizationAiSetting::effectiveCredentialMode($setting) === OrganizationAiSetting::CREDENTIAL_MODE_ORGANIZATION,
             // TASK-1229 : credit IA par utilisateur — reglage plateforme,
             // override d'Organization, politique effective, membres qui
             // approchent leur limite (des comptes et des noms de MEMBRES de
@@ -1164,8 +1173,21 @@ class OrgAdminController extends Controller
             ->with('success', __('admin.organization_ai_user_credit_saved'));
     }
 
+    /**
+     * TASK-1306 : quand le credential est `platform_managed` (defaut), seul
+     * le SuperAdmin peut ecrire cette surface — protection SERVEUR, pas
+     * seulement l'absence du champ dans la vue. Une requete forgee par
+     * l'admin d'Organization est refusee AVANT toute validation.
+     */
     public function updateAi(Request $request, Organization $organization): RedirectResponse
     {
+        $existing = OrganizationAiSetting::query()->where('organization_id', $organization->id)->first();
+
+        if (! $request->user()->is_admin
+            && OrganizationAiSetting::effectiveCredentialMode($existing) === OrganizationAiSetting::CREDENTIAL_MODE_PLATFORM) {
+            abort(403);
+        }
+
         $data = $request->validate([
             'provider' => ['required', Rule::in(ProviderResolver::ALLOWED_PROVIDERS)],
             'model' => ['required', 'string', 'max:150'],
@@ -1195,6 +1217,42 @@ class OrgAdminController extends Controller
 
         return redirect()->route('organization.admin.ai', ['organization' => $organization->slug])
             ->with('success', __('admin.organization_ai_saved'));
+    }
+
+    /**
+     * TASK-1306 : qui gere le credential de cette Organization — reserve au
+     * SuperAdmin (`is_admin`) ; un admin d'Organization ne peut jamais se
+     * l'auto-attribuer, y compris par requete forgee. Cree la ligne avec des
+     * valeurs provider/modele de repli (colonnes NOT NULL) si aucune
+     * n'existe encore ; `is_enabled` reste false tant qu'aucun credential
+     * reel n'est pose.
+     */
+    public function updateAiCredentialMode(Request $request, Organization $organization): RedirectResponse
+    {
+        if (! $request->user()->is_admin) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'credential_management_mode' => ['required', Rule::in(OrganizationAiSetting::CREDENTIAL_MODES)],
+        ]);
+
+        $setting = OrganizationAiSetting::query()->where('organization_id', $organization->id)->first();
+
+        if ($setting === null) {
+            $setting = new OrganizationAiSetting([
+                'organization_id' => $organization->id,
+                'provider' => 'openrouter',
+                'model' => (string) (config('ai.default_model') ?: config('ai.openrouter.model', 'openai/gpt-4o-mini')),
+                'is_enabled' => false,
+            ]);
+        }
+
+        $setting->credential_management_mode = $data['credential_management_mode'];
+        $setting->save();
+
+        return redirect()->route('organization.admin.ai', ['organization' => $organization->slug])
+            ->with('success', __('admin.organization_ai_credential_mode_saved'));
     }
 
     public function identity(Organization $organization): View
@@ -1475,6 +1533,10 @@ class OrgAdminController extends Controller
     {
         return view('admin.org.ai-knowledge', $this->knowledgeObservatory($organization, $overview) + [
             'liveUrl' => route('organization.admin.ai-knowledge.live', ['organization' => $organization->slug]),
+            // TASK-1307 : gabarit substitue cote client (type/id dynamiques
+            // au clic « Inspecter ») — jamais de generation de route en JS.
+            'sourceUrlTemplate' => route('organization.admin.ai-knowledge.source', ['organization' => $organization->slug, 'type' => '__TYPE__', 'source' => '__ID__']),
+            'searchUrl' => route('organization.admin.ai-knowledge.search', ['organization' => $organization->slug]),
         ]);
     }
 
@@ -1494,6 +1556,153 @@ class OrgAdminController extends Controller
         return response($html)
             ->header('Content-Type', 'text/html; charset=UTF-8')
             ->header('Cache-Control', 'no-cache, no-store, private');
+    }
+
+    /**
+     * TASK-1307 : ce que BouclePro sait REELLEMENT d'une source — ses
+     * chunks stockes (metadonnees + contenu extrait), jamais le vecteur
+     * embedding. Read-only, zero appel provider.
+     */
+    public function aiKnowledgeSourceChunks(Organization $organization, string $type, string $source, OrganizationRagOverview $overview): Response
+    {
+        $data = $overview->chunksFor((string) $organization->id, $type, $source);
+
+        abort_if($data === null, 404);
+
+        $html = view('admin.org.partials.ai-knowledge-source', [
+            'source' => $data,
+        ])->render();
+
+        return response($html)->header('Content-Type', 'text/html; charset=UTF-8');
+    }
+
+    /**
+     * TASK-1307 : recherche documentaire BRUTE — pgvector seul, AUCUNE
+     * generation LLM. Diagnostic deterministe : rang, distance, source,
+     * chunk. Cout : UN embedding de requete par soumission (jamais au
+     * chargement de la page), trace par le meme ledger que le retrieval
+     * servi aux membres — le meme garde economique s'applique (
+     * `DossierSemanticSearchService::searchAcrossDossiers()`), rien n'est
+     * contourne.
+     */
+    public function aiKnowledgeSearch(
+        Request $request,
+        Organization $organization,
+        DossierSemanticSearchService $search,
+        DossierSemanticSearchGate $gate,
+        ProviderResolver $providers,
+    ): View {
+        $query = trim((string) $request->query('q', ''));
+        $loopId = $request->query('loop_id');
+        $loopId = is_string($loopId) && $loopId !== '' ? $loopId : null;
+
+        $loops = Loop::query()
+            ->where('organization_id', $organization->id)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $result = ['ran' => false, 'reason' => null, 'rows' => []];
+
+        if ($query !== '') {
+            $result = $this->runRawKnowledgeSearch($organization, $query, $loopId, $search, $gate, $providers);
+        }
+
+        return view('admin.org.partials.ai-knowledge-search-result', [
+            'organization' => $organization,
+            'loops' => $loops,
+            'query' => $query,
+            'loopId' => $loopId,
+            'result' => $result,
+        ]);
+    }
+
+    /**
+     * @return array{ran: bool, reason: ?string, rows: list<array<string, mixed>>}
+     */
+    private function runRawKnowledgeSearch(
+        Organization $organization,
+        string $query,
+        ?string $loopId,
+        DossierSemanticSearchService $search,
+        DossierSemanticSearchGate $gate,
+        ProviderResolver $providers,
+    ): array {
+        if (! $gate->isEnabledFor((string) $organization->id)) {
+            return ['ran' => false, 'reason' => 'semantic_search_disabled', 'rows' => []];
+        }
+
+        $instance = $providers->resolveEmbeddingInstance((string) $organization->id);
+
+        if ($instance === null) {
+            return ['ran' => false, 'reason' => 'provider_not_configured', 'rows' => []];
+        }
+
+        $dossierIds = $this->searchableDossierIds($organization, $loopId);
+
+        if ($dossierIds === []) {
+            return ['ran' => false, 'reason' => 'no_dossier_in_scope', 'rows' => []];
+        }
+
+        // TASK-1307 : `candidateLimit` (20) montre le classement REEL
+        // au-dela des 5 sources qu'un membre verrait citees — outil de
+        // diagnostic seulement ; ce que le produit sert aux membres reste
+        // borne a 5 (`DossierRetrievalSource`), inchange.
+        $rows = $search->searchAcrossDossiers(
+            (string) $organization->id,
+            $dossierIds,
+            $query,
+            $instance,
+            5,
+            // TASK-1307 : chemin admin, sans capability canonique — meme
+            // convention que le bac a sable de doctrine (TASK-1229) :
+            // `capability` reste NULL (chemin herite), `feature` porte
+            // l'identite du diagnostic.
+            ['capability' => null, 'loop_id' => $loopId, 'feature' => 'admin_ai_knowledge_search'],
+            20,
+        );
+
+        $mapped = [];
+
+        foreach ($rows as $index => $row) {
+            $mapped[] = [
+                'rank' => $index + 1,
+                'distance' => round($row['distance'], 4),
+                'source_type' => $row['source_type'],
+                'title' => $row['source_type'] === 'file' ? $row['filename'] : $row['title'],
+                'dossier_name' => $row['dossier_name'],
+                'chunk_index' => $row['chunk_index'],
+                'extrait' => Str::limit(trim(preg_replace('/\s+/u', ' ', $row['content']) ?? ''), 240),
+            ];
+        }
+
+        return ['ran' => true, 'reason' => null, 'rows' => $mapped];
+    }
+
+    /**
+     * Dossiers de l'Organization sur lesquels le diagnostic admin peut
+     * porter — meme perimetre que la table de l'Observatoire (TOUS les
+     * Dossiers ; l'admin voit l'ETAT de l'index sans que ce soit un droit
+     * de lecture sur le contenu original, doctrine TASK-1217), resserre a
+     * une Boucle si demande (racine + Dossiers qui lui sont partages —
+     * v1 : sans descente dans les enfants, absents du cas reel valide ici).
+     *
+     * @return list<string>
+     */
+    private function searchableDossierIds(Organization $organization, ?string $loopId): array
+    {
+        $query = Dossier::query()
+            ->where('organization_id', $organization->id)
+            ->whereNull('deleted_at');
+
+        if ($loopId !== null) {
+            $query->where(fn ($scope) => $scope
+                ->where('loop_id', $loopId)
+                ->orWhere(fn ($shared) => $shared
+                    ->where('shared_with_loop_id', $loopId)
+                    ->where('visibility', Dossier::VISIBILITY_LOOP)));
+        }
+
+        return $query->pluck('id')->map(fn ($id): string => (string) $id)->all();
     }
 
     /**
@@ -1568,6 +1777,9 @@ class OrgAdminController extends Controller
             'availability' => $overview->indexingAvailability($organization),
             'diagnostics' => $overview->diagnostics($organization->id),
             'generatedAt' => CarbonImmutable::now(),
+            // TASK-1307 : liste des Boucles pour le selecteur de perimetre
+            // de la recherche brute — meme collection deja chargee ici.
+            'loops' => $loops->values(),
         ];
     }
 

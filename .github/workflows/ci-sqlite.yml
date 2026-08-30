@@ -4,9 +4,24 @@ name: SQLite CI
 #
 # Deux workflows separes plutot qu'un seul a deux jobs : chacun se lit, se
 # relance et se diagnostique seul, et GitHub les demarre en meme temps sans
-# qu'on ait rien a orchestrer. Le prix est une installation composer/npm payee
-# deux fois — environ 30 s, en parallele, contre une lecture nettement plus
-# simple quand un gate rougit a 2 h du matin.
+# qu'on ait rien a orchestrer.
+#
+# TASK-1334 (extension SQLite) — le gate PostgreSQL une fois ramene de ~18 min
+# a ~4 min, c'est celui-ci qui dictait la duree d'une PR : 13 min 15 s au run
+# 33313207049, dans une seule etape « Run full SQLite suite ». Le meme
+# decoupage lui est applique, avec une difference qui compte :
+#
+#   Cote PostgreSQL, chaque shard **juge** : il est vert ou rouge.
+#   Ici, aucun shard ne juge. La suite SQLite rend un code non nul par
+#   construction — des echecs sont attendus — et le contrat n'est pas « zero
+#   echec » mais « l'ensemble des echecs est EXACTEMENT celui de la
+#   reference ». Cet ensemble n'existe qu'une fois les quatre shards
+#   reunis : un shard isole ne voit qu'un quart de la reference et ne peut
+#   rien conclure.
+#
+# Les shards produisent donc chacun un rapport JUnit, sans verdict, et le job
+# `sqlite-regression-gate` — le check requis — les agrege et applique la
+# comparaison par identite, inchangee.
 
 on:
   push:
@@ -24,28 +39,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  sqlite-regression-gate:
-    name: SQLite Regression Gate (blocking)
+  # =====================================================================
+  # 1. Classification — avant les jobs lourds.
+  # =====================================================================
+  classify:
+    name: Classify (SQLite)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
-    # La suite complete dure ~10 min en local. Sans borne, le defaut de GitHub
-    # est 360 minutes : un test qui pend retiendrait un runner six heures.
-    timeout-minutes: 45
-
-    env:
-      APP_ENV: testing
-      APP_KEY: base64:b+IwxNpzaahGTvmk+0WLnzODWBnKA99oQDutpRQ7xfI=
-
-    # Aucun service : SQLite est `:memory:`, propre au processus de test. Rien
-    # n'est partage avec le job PostgreSQL, qui tourne sur un autre runner avec
-    # son propre conteneur.
+    outputs:
+      mode: ${{ steps.level.outputs.mode }}
 
     steps:
-      # TASK-1150 : le job tourne TOUJOURS (jamais de `if:` au niveau job) —
-      # seule la charge interne varie, via un label `validation:<level>` pose
-      # sur la PR. Hors `pull_request` (push develop/main, workflow_dispatch),
-      # ou si aucun label reconnu n'est present, la charge reste `full` :
-      # le doute se resout vers plus de tests, jamais moins.
+      # TASK-1150 : la charge varie, le gate tourne TOUJOURS. Hors
+      # `pull_request` (push main, workflow_dispatch), ou si aucun label
+      # reconnu n'est present, la charge reste `full` : le doute se resout vers
+      # plus de tests, jamais moins.
       - name: Determine validation level
         id: level
         run: |
@@ -59,6 +68,32 @@ jobs:
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
           echo "Resolved CI mode: $MODE (event=${{ github.event_name }})"
 
+  # =====================================================================
+  # 2. La suite complete, en 4 shards. Aucun shard ne juge.
+  # =====================================================================
+  suite:
+    name: SQLite shard ${{ matrix.shard }}/4
+    needs: classify
+    if: needs.classify.outputs.mode == 'full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      # Un shard ne peut pas conclure seul : il faut les quatre rapports pour
+      # que le gate ait un ensemble a comparer. Annuler les survivants au
+      # premier ecart rendrait la comparaison impossible et le gate rougirait
+      # sur un rapport manquant plutot que sur la vraie cause.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:b+IwxNpzaahGTvmk+0WLnzODWBnKA99oQDutpRQ7xfI=
+
+    # Aucun service : SQLite est `:memory:`, propre au processus de test.
+
+    steps:
       - uses: actions/checkout@v4
 
       - name: Setup PHP
@@ -83,51 +118,176 @@ jobs:
       - name: Install dependencies
         run: composer install --no-progress --no-interaction --prefer-dist
 
-      # Frontend build seulement en mode full : la suite Unit (mode light)
-      # ne rend pas de vue @vite.
       - name: Setup Node.js
-        if: steps.level.outputs.mode == 'full'
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
       - name: Install npm dependencies
-        if: steps.level.outputs.mode == 'full'
         run: npm ci --prefer-offline
 
       # Les vues passent par `@vite` : sans manifeste, toute la suite Feature
       # rendrait une exception au lieu d'une page.
       - name: Build frontend assets
-        if: steps.level.outputs.mode == 'full'
         run: npm run build
 
-      # Cette etape **ne decide pas** : la suite SQLite rend un code non nul
-      # par construction, puisque des echecs sont attendus. C'est le gate
-      # ci-dessous qui juge, en comparant les identites. Si la suite ne demarre
-      # pas du tout, le rapport sera vide ou absent et le gate rougira — le
-      # `|| true` ne masque donc pas une panne.
-      - name: Run full SQLite suite
-        if: steps.level.outputs.mode == 'full'
-        run: php vendor/bin/phpunit --configuration phpunit.ci-sqlite.xml --log-junit sqlite-report.xml || true
+      # `--solo-suite=Unit` : `phpunit.ci-sqlite.xml` declare DEUX testsuites.
+      # Seule Feature est decoupee ; la testsuite Unit ne survit que dans le
+      # shard 1. Sans cela elle tournerait quatre fois, et le rapport agrege
+      # compterait quatre fois les memes tests.
+      - name: Generate SQLite shards
+        run: |
+          php .github/scripts/shard-tests.php \
+            --total=4 \
+            --source=phpunit.ci-sqlite.xml \
+            --solo-suite=Unit \
+            --verify
 
-      - name: SQLite regression gate (blocking)
-        if: steps.level.outputs.mode == 'full'
-        run: php .github/scripts/sqlite-regression-gate.php sqlite-report.xml .github/sqlite-known-failures.txt
+      # Cette etape **ne decide pas**, et c'est voulu : la suite SQLite rend un
+      # code non nul par construction, puisque des echecs sont attendus. Le
+      # `|| true` ne masque donc aucune panne — si la suite ne demarrait pas,
+      # le rapport serait vide ou absent, et le gate rougirait sur ce motif
+      # precis.
+      - name: Run SQLite suite — shard ${{ matrix.shard }}
+        run: |
+          php vendor/bin/phpunit \
+            --configuration phpunit.ci-sqlite.shard-${{ matrix.shard }}.xml \
+            --log-junit sqlite-report-${{ matrix.shard }}.xml || true
+
+      - name: Upload shard report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-junit-report-${{ matrix.shard }}
+          path: sqlite-report-${{ matrix.shard }}.xml
+          retention-days: 14
+          # Un rapport absent doit faire echouer le televersement ici, et non
+          # se decouvrir plus tard sous la forme d'un gate qui croit a un
+          # progres.
+          if-no-files-found: error
+
+  # =====================================================================
+  # 3. Mode light — la suite Unit seule, zero echec exige.
+  # =====================================================================
+  unit-light:
+    name: SQLite Unit (light mode)
+    needs: classify
+    if: needs.classify.outputs.mode == 'light'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:b+IwxNpzaahGTvmk+0WLnzODWBnKA99oQDutpRQ7xfI=
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.4
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+          coverage: none
+
+      - name: Get composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --no-progress --no-interaction --prefer-dist
 
       # Mode light (MICRO_UX / NO_APP_CI) : seule la suite Unit, sans
       # comparaison a la reference de connus-rouges (calibree pour la suite
       # complete). Zero echec exige — c'est un vrai resultat, pas un simulacre.
       - name: Run SQLite Unit suite (light mode)
-        if: steps.level.outputs.mode == 'light'
         run: php vendor/bin/phpunit --configuration phpunit.ci-sqlite.xml --testsuite=Unit
 
-      # Garde le rapport meme quand le gate rougit : c'est la pour diagnostiquer
-      # sans relancer 4 000 tests. N'existe qu'en mode full.
-      - name: Upload JUnit report
-        if: always() && steps.level.outputs.mode == 'full'
-        uses: actions/upload-artifact@v4
+  # =====================================================================
+  # 4. Le check requis. Agrege les quatre rapports et juge.
+  # =====================================================================
+  sqlite-regression-gate:
+    name: SQLite Regression Gate (blocking)
+    needs: [classify, suite, unit-light]
+    # `always()` est indispensable : sans lui, ce job serait « skipped » des
+    # qu'un job amont echoue ou est saute, et un check « skipped » ne bloque
+    # pas une PR. Le gate serait vert en apparence sur une CI rouge.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
         with:
-          name: sqlite-junit-report
-          path: sqlite-report.xml
-          retention-days: 14
+          php-version: 8.4
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+          coverage: none
+
+      - name: Check upstream jobs
+        env:
+          MODE: ${{ needs.classify.outputs.mode }}
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          SUITE_RESULT: ${{ needs.suite.result }}
+          UNIT_LIGHT_RESULT: ${{ needs.unit-light.result }}
+        run: |
+          echo "mode       = ${MODE:-<unresolved>}"
+          echo "classify   = $CLASSIFY_RESULT"
+          echo "suite      = $SUITE_RESULT"
+          echo "unit-light = $UNIT_LIGHT_RESULT"
+          echo ""
+
+          if [ "$CLASSIFY_RESULT" != "success" ]; then
+            echo "FAIL: classification did not succeed — the CI level is unknown."
+            exit 1
+          fi
+
+          if [ "$MODE" = "full" ]; then
+            # Les shards ne jugent pas, mais ils doivent avoir tourne jusqu'au
+            # bout : un shard annule ou en timeout ne rend pas de rapport, et
+            # ses echecs manqueraient a l'ensemble observe.
+            if [ "$SUITE_RESULT" != "success" ]; then
+              echo "FAIL: at least one SQLite shard did not complete ($SUITE_RESULT)."
+              exit 1
+            fi
+          else
+            if [ "$UNIT_LIGHT_RESULT" != "success" ]; then
+              echo "FAIL: light mode, Unit suite did not succeed ($UNIT_LIGHT_RESULT)."
+              exit 1
+            fi
+            echo "Light mode: full suite intentionally skipped."
+          fi
+
+      - name: Download shard reports
+        if: needs.classify.outputs.mode == 'full'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sqlite-junit-report-*
+          path: sqlite-reports
+          merge-multiple: true
+
+      # La comparaison par identite, inchangee — seule la source a change :
+      # quatre rapports au lieu d'un. Le script exige que les QUATRE soient
+      # presents et non vides : un shard muet ferait rougir le gate sur ce
+      # motif, jamais passer pour un progres.
+      - name: SQLite regression gate (blocking)
+        if: needs.classify.outputs.mode == 'full'
+        run: |
+          php .github/scripts/sqlite-regression-gate.php \
+            sqlite-reports/sqlite-report-1.xml \
+            sqlite-reports/sqlite-report-2.xml \
+            sqlite-reports/sqlite-report-3.xml \
+            sqlite-reports/sqlite-report-4.xml \
+            .github/sqlite-known-failures.txt

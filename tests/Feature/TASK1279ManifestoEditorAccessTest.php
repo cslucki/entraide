@@ -7,6 +7,7 @@ use App\Models\BlogPost;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\Loops\LoopRootDocumentService;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -62,6 +63,11 @@ class TASK1279ManifestoEditorAccessTest extends TestCase
 
         $service = new LoopService;
         $this->loop = $service->createLoop($this->owner, 'Dallas', type: 'project');
+        // TASK-1332 : le Manifeste n'est plus impose par defaut ; il est
+        // active ici explicitement, sinon `manifesto.update` (gate sur la
+        // Card, `LoopPermissionResolver::cardIsAvailable()`) refuserait tout
+        // le monde et viderait le contraste que ce test verifie.
+        app(LoopCardCompositionService::class)->enable($this->loop, 'core.manifesto');
         $service->addMember($this->loop, $this->facilitator, 'facilitator');
         $service->addMember($this->loop, $this->member, 'member');
 

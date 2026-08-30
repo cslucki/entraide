@@ -7,7 +7,9 @@ use App\Models\LoopCard;
 use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\Loops\LoopPresetConfigurator;
+use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -188,7 +190,7 @@ class TASK1128ChatLoopHeaderTest extends TestCase
         // Les trois mis en avant apparaissent avant le quatrieme outil de la
         // barre : cinq visibles ne veut pas dire cinq mis en avant.
         $positions = array_map(
-            fn (string $cle) => strpos($html, app(\App\Support\Loops\LoopCardRegistry::class)->label($cle)),
+            fn (string $cle) => strpos($html, app(LoopCardRegistry::class)->label($cle)),
             $misEnAvant,
         );
 
@@ -225,7 +227,7 @@ class TASK1128ChatLoopHeaderTest extends TestCase
         // **Cinq visibles n'est pas cinq mis en avant.** `primary_rank` ne
         // bouge pas, la regle de TASK-1124 non plus.
         $this->assertSame($avant, $apres);
-        $this->assertSame(3, \App\Services\Loops\LoopCardCompositionService::MAX_PRIMARY);
+        $this->assertSame(3, LoopCardCompositionService::MAX_PRIMARY);
     }
 
     public function test_the_url_no_longer_controls_the_toolbar(): void
@@ -249,15 +251,9 @@ class TASK1128ChatLoopHeaderTest extends TestCase
     {
         // Verification exigee a l'arbitrage : le Resume IA n'a pas disparu
         // avec le regroupement. Il reste une action de conversation, hors du
-        // menu, avec son bouton propre — il n'etait absent de la recette que
-        // parce que la Boucle QA ne l'avait pas actif.
-        LoopCard::create([
-            'loop_id' => $this->loop->id,
-            'organization_id' => $this->org->id,
-            'card_key' => 'core.ai_summary',
-            'enabled' => true,
-        ]);
-
+        // menu, avec son bouton propre. Depuis TASK-1332 il est actif par
+        // defaut sur tous les types (dont `general`, ici) — plus besoin de
+        // l'activer a la main comme quand la Boucle QA ne le portait pas.
         $this->assertStringContainsString(__('loops.cards.ai_summary.label'), $this->workspace());
     }
 

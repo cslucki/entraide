@@ -227,7 +227,12 @@ class TASK1227OrganizationDoctrineTest extends TestCase
     public function test_the_doctrine_reaches_loop_summary(): void
     {
         OrganizationAiDoctrine::activate($this->organization, 'SENTINELLE-SUMMARY-1227', $this->admin);
+        // TASK-1307 : gate desactivee le temps de creer la Boucle — son
+        // document racine est desormais indexe des sa creation, un
+        // embedding reel sans rapport avec ce que ce test prouve.
+        config(['ai.dossiers.semantic_search.enabled' => false]);
         $loop = (new LoopService)->createLoop($this->member, 'Boucle doctrine');
+        config(['ai.dossiers.semantic_search.enabled' => true]);
         LoopSummaryAgent::fake([new TextResponse('Synthese.', new Usage(12, 6), new Meta('openai', 'gpt-4o-mini'))]);
 
         app()->setLocale('fr');
@@ -245,7 +250,10 @@ class TASK1227OrganizationDoctrineTest extends TestCase
     public function test_the_doctrine_reaches_loop_knowledge_answer(): void
     {
         OrganizationAiDoctrine::activate($this->organization, 'SENTINELLE-KNOWLEDGE-1227', $this->admin);
+        // TASK-1307 : meme raison que ci-dessus — decor, pas le sujet du test.
+        config(['ai.dossiers.semantic_search.enabled' => false]);
         $loop = (new LoopService)->createLoop($this->member, 'Boucle RAG');
+        config(['ai.dossiers.semantic_search.enabled' => true]);
         $dossier = $this->dossier($this->organization, $this->member);
         $this->search->rows = [$this->row('A', $dossier)];
         LoopKnowledgeAgent::fake([new TextResponse('Reponse [S1].', new Usage(20, 10), new Meta('openai', 'gpt-4o-mini'))]);
@@ -269,8 +277,11 @@ class TASK1227OrganizationDoctrineTest extends TestCase
     {
         $registry = app(CapabilityRegistry::class);
         $definition = $registry->get(CapabilityRegistry::CLARIFY_HELP_REQUEST);
+        // TASK-1307 : meme raison que ci-dessus — decor, pas le sujet du test.
+        config(['ai.dossiers.semantic_search.enabled' => false]);
         (new LoopService)->createLoop($this->member, 'Ma Boucle');
         (new LoopService)->createLoop($this->otherAdmin, 'Boucle etrangere');
+        config(['ai.dossiers.semantic_search.enabled' => true]);
 
         // Contexte REEL sans doctrine…
         $before = app(ContextBuilder::class)->build($this->contexte(CapabilityRegistry::CLARIFY_HELP_REQUEST), $definition);
@@ -920,14 +931,14 @@ class Task1227FakeSearch extends DossierSemanticSearchService
 
     public function __construct() {}
 
-    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = []): array
+    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null): array
     {
-        $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'embeddingInstance', 'limit', 'traceMetadata');
+        $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'embeddingInstance', 'limit', 'traceMetadata', 'candidateLimit');
 
         if ($this->onSearch !== null) {
             ($this->onSearch)();
         }
 
-        return array_slice($this->rows, 0, $limit);
+        return array_slice($this->rows, 0, $candidateLimit ?? $limit);
     }
 }
