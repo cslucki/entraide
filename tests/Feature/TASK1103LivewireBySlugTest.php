@@ -3,8 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Loop;
+use App\Models\LoopMember;
+use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
@@ -107,6 +110,12 @@ class TASK1103LivewireBySlugTest extends TestCase
     {
         // Un seul composant ne prouverait rien : le defaut etait dans la
         // resolution de la Boucle, donc commun a toutes les Cards.
+        //
+        // TASK-1332 : Manifeste n'est plus impose par defaut au preset
+        // `general` de cette Boucle ; active ici pour que ce test continue
+        // d'exercer un second composant distinct de `loop-chat`.
+        app(LoopCardCompositionService::class)->enable($this->loop, 'core.manifesto');
+
         $this->interagir($this->loop->slug, 'loop-manifesto-card')->assertOk();
         $this->interagir($this->loop->id, 'loop-manifesto-card')->assertOk();
     }
@@ -275,11 +284,11 @@ class TASK1103LivewireBySlugTest extends TestCase
         $snapshot = $this->snapshot($html, 'loop-chat');
 
         // Il part, puis quelqu'un ecrit.
-        \App\Models\LoopMember::where('loop_id', $this->loop->id)
+        LoopMember::where('loop_id', $this->loop->id)
             ->where('user_id', $partant->id)
             ->delete();
 
-        \App\Models\LoopMessage::create([
+        LoopMessage::create([
             'organization_id' => $this->org->id,
             'loop_id' => $this->loop->id,
             'sender_id' => $this->membre->id,
