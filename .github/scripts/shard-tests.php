@@ -56,13 +56,20 @@
  *   php .github/scripts/shard-tests.php --total=4 --dry-run
  */
 
-$options = getopt('', ['total::', 'verify', 'dry-run', 'source::', 'dir::']);
+$options = getopt('', ['total::', 'verify', 'dry-run', 'source::', 'dir::', 'solo-suite::']);
 
 $total = isset($options['total']) ? (int) $options['total'] : 4;
 $verify = array_key_exists('verify', $options);
 $dryRun = array_key_exists('dry-run', $options);
 $sourceConfig = $options['source'] ?? 'phpunit.ci-feature.xml';
 $testDir = $options['dir'] ?? 'tests/Feature';
+
+// TASK-1334 (extension SQLite) : `phpunit.ci-sqlite.xml` declare DEUX
+// testsuites, Unit et Feature. Seule Feature est decoupee ; laisser la
+// testsuite Unit dans les quatre shards la ferait tourner quatre fois — des
+// doublons purs, et un rapport JUnit ou le meme test apparait plusieurs fois.
+// `--solo-suite=Unit` la conserve dans le shard 1 et la retire des autres.
+$soloSuite = $options['solo-suite'] ?? null;
 
 $root = dirname(__DIR__, 2);
 chdir($root);
@@ -208,6 +215,17 @@ if (substr_count($source, $needle) !== 1) {
     exit(1);
 }
 
+// Le nom des cibles suit celui de la source : `phpunit.ci-feature.xml` donne
+// `phpunit.ci-feature.shard-K.xml`, `phpunit.ci-sqlite.xml` donne
+// `phpunit.ci-sqlite.shard-K.xml`. Les deux jeux ne peuvent donc pas se
+// telescoper, et le nom d'un shard dit toujours de quelle suite il vient.
+$prefixeCible = preg_replace('/\.xml$/', '', $sourceConfig);
+
+if ($soloSuite !== null && ! str_contains($source, '<testsuite name="'.$soloSuite.'">')) {
+    fwrite(STDERR, "ERROR: --solo-suite={$soloSuite} but {$sourceConfig} declares no such testsuite.\n");
+    exit(1);
+}
+
 $written = [];
 
 foreach ($shards as $index => $paths) {
@@ -229,7 +247,21 @@ XML;
     $replacement = $banner . "\n" . implode("\n", $entries);
     $xml = str_replace($needle, $replacement, $source);
 
-    $target = "phpunit.ci-feature.shard-{$index}.xml";
+    // La testsuite « solo » ne survit que dans le shard 1. Sans cela elle
+    // tournerait dans les quatre, et le rapport JUnit agrege compterait quatre
+    // fois les memes tests.
+    if ($soloSuite !== null && $index !== 1) {
+        $motif = '#[ \t]*<testsuite name="'.preg_quote($soloSuite, '#').'">.*?</testsuite>\r?\n#s';
+        $avant = $xml;
+        $xml = preg_replace($motif, '', $xml, 1);
+
+        if ($xml === null || $xml === $avant) {
+            fwrite(STDERR, "ERROR: could not remove testsuite [{$soloSuite}] from shard {$index}.\n");
+            exit(1);
+        }
+    }
+
+    $target = $prefixeCible.".shard-{$index}.xml";
     $written[$target] = [
         'files' => count($paths),
         'bytes' => $weights[$index],

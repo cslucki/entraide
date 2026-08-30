@@ -211,7 +211,7 @@ class TASK1112CiCoverageTest extends TestCase
     private static function jobsQuiResolventLeMode(): array
     {
         return [
-            'SQLite Regression Gate (blocking)' => ['.github/workflows/ci-sqlite.yml', 'sqlite-regression-gate'],
+            'SQLite CI / classify' => ['.github/workflows/ci-sqlite.yml', 'classify'],
             'PostgreSQL CI / classify' => [self::WORKFLOW, 'classify'],
         ];
     }

@@ -34,7 +34,7 @@ phpunit.pgsql.xml
 # .github/scripts/shard-tests.php. Elles sont derivees de
 # phpunit.ci-feature.xml a chaque run : les versionner reviendrait a
 # figer une decoupe qui doit suivre l'ajout de fichiers de test.
-phpunit.ci-feature.shard-*.xml
+phpunit.ci-*.shard-*.xml
 playwright.config.js
 phpstan.neon
 rector.php
