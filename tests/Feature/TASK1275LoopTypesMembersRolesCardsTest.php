@@ -36,10 +36,13 @@ use Tests\TestCase;
 /**
  * TASK-1275 — les 10 Boucles de `test20260822` deviennent reellement
  * differentes et multi-personas : 7 types, membres et roles selon le mapping
- * valide par Cyril, Cards du preset (plus `core.dossiers`, garde partout)
- * et rien d'autre, outils principaux coherents. Le tout idempotent (load,
- * load bis, reset, reset bis, delete), tracke au registre, sans aucun usage
- * simule des Cards (T1277), sans job, sans IA.
+ * valide par Cyril, Cards du preset (plus `core.dossiers` partout, et
+ * `core.decisions` pour 09 depuis TASK-1335) et rien d'autre, outils
+ * principaux coherents. Le tout idempotent (load, load bis, reset, reset
+ * bis, delete), tracke au registre, sans job, sans IA. TASK-1335 ajoute
+ * l'activite humaine collective DECLARATIVE sur 08/09/10 seulement
+ * (`HISTORICAL_ACTIVITY`) ; les 7 autres Boucles restent sans aucun usage
+ * simule des Cards.
  *
  * Fixture source minimale (les 10 repertoires declares, 1 fichier) : la
  * partie corpus est le contrat de TASK-1269, deja couvert.
@@ -79,7 +82,9 @@ class TASK1275LoopTypesMembersRolesCardsTest extends TestCase
         '06-Pour_Boucles' => ['core.ai_summary', 'core.members', 'core.polls', 'core.events', 'core.dossiers'],
         '07-Plan-262 Définition boucles et IA' => ['core.ai_summary', 'core.members', 'training.course_material', 'training.progression', 'training.assignments', 'core.dossiers'],
         "08-Protocole d'emergence" => ['core.ai_summary', 'core.members', 'core.roadmap', 'core.journal', 'core.polls', 'core.dossiers'],
-        '09-UT Dallas' => ['core.ai_summary', 'core.members', 'core.marketplace', 'core.roadmap', 'core.events', 'core.dossiers'],
+        // TASK-1335 : `core.decisions` ajoutee (kept_cards) pour porter la
+        // Decision "Leonardo (MIT Press)".
+        '09-UT Dallas' => ['core.ai_summary', 'core.members', 'core.marketplace', 'core.roadmap', 'core.events', 'core.dossiers', 'core.decisions'],
         '10-Aria projet européen' => ['core.ai_summary', 'core.roadmap', 'core.decisions', 'core.dossiers', 'core.members'],
     ];
 
@@ -317,8 +322,15 @@ class TASK1275LoopTypesMembersRolesCardsTest extends TestCase
             // TASK-1332 : `core.manifesto` a quitte tous les presets par
             // defaut ET n'est plus garde en `kept_cards` nulle part (aucune
             // necessite fonctionnelle propre au Manifeste, contrairement a
-            // `core.dossiers` — decision Cyril). Uniforme sur les 10 entrees.
-            $this->assertSame(['core.dossiers'], $entry['kept_cards'], "{$name} garde core.dossiers.");
+            // `core.dossiers` — decision Cyril). Uniforme sur les 9 autres
+            // entrees ; 09-UT Dallas garde en plus `core.decisions` depuis
+            // TASK-1335 (porte la Decision "Leonardo (MIT Press)").
+            $this->assertContains('core.dossiers', $entry['kept_cards'], "{$name} garde core.dossiers.");
+            $this->assertSame(
+                $name === self::UT_DALLAS ? ['core.dossiers', 'core.decisions'] : ['core.dossiers'],
+                $entry['kept_cards'],
+                "{$name} : kept_cards exact.",
+            );
         }
 
         $this->assertSame(['test_roger' => 'owner', 'test_cyril' => 'facilitator', 'test_kiran' => 'member', 'test_sana' => 'member'], $setup[self::UT_DALLAS]['members']);
@@ -576,11 +588,11 @@ class TASK1275LoopTypesMembersRolesCardsTest extends TestCase
             $this->assertEqualsCanonicalizing($grid, $rendered, "{$name} : aucune Card de grille n'est perdue au rendu");
         }
 
-        // 07, 08, 09 : 4 Cards de grille, `dossiers` secondaire. La barre
+        // 07, 08 : 4 Cards de grille, `dossiers` secondaire. La barre
         // (TASK-1128 : 5 outils visibles, principaux d'abord) rend les 4
         // directement, sans depliant : rien n'est masque, et l'ordre est
         // celui des principaux puis du reste.
-        foreach ([self::PLAN_262, self::PROTOCOLE, self::UT_DALLAS] as $name) {
+        foreach ([self::PLAN_262, self::PROTOCOLE] as $name) {
             $loop = $this->loop($name);
             $this->assertCount(4, $this->activeGrid($loop), $name);
             $this->assertSame(['core.dossiers'], $composition->secondaryKeysFor($loop), $name);
@@ -600,18 +612,49 @@ class TASK1275LoopTypesMembersRolesCardsTest extends TestCase
             }
         }
 
+        // 09 (TASK-1335) : 5 Cards de grille depuis l'ajout de `core.decisions`
+        // (kept_cards) — exactement le plafond de la barre (TASK-1128), donc
+        // toujours aucun debordement. Secondaires dans l'ordre du catalogue
+        // (`decisions` order=31 avant `dossiers` order=38).
+        $utDallas = $this->loop(self::UT_DALLAS);
+        $this->assertCount(5, $this->activeGrid($utDallas), self::UT_DALLAS);
+        $this->assertSame(['core.decisions', 'core.dossiers'], $composition->secondaryKeysFor($utDallas), self::UT_DALLAS);
+
+        $response = $this->actingAs($cyril)->get('/org/'.self::ORG.'/loops/'.$utDallas->slug)->assertOk();
+
+        $this->assertSame(
+            [...self::EXPECTED_PRIMARY[self::UT_DALLAS], 'core.decisions', 'core.dossiers'],
+            collect($response->viewData('toolbarCards'))->pluck('key')->all(),
+            self::UT_DALLAS.' : la barre rend les 5 Cards, principales d\'abord',
+        );
+        $this->assertCount(0, $response->viewData('toolbarOverflow'), self::UT_DALLAS.' : aucun debordement');
+        $response->assertDontSee(trans_choice('loops.tools_overflow_count', 1, ['count' => 1]));
+
+        foreach ($this->activeGrid($utDallas) as $key) {
+            $response->assertSee($registry->labelFor($utDallas, $key), false);
+        }
+
         // 08 : rangs EXPLICITES (roadmap, polls, journal) — l'ordre du
         // catalogue aurait mis `dossiers` (38) devant `journal` (41).
         $ranks = LoopCard::query()->where('loop_id', $this->loop(self::PROTOCOLE)->id)
             ->whereNotNull('primary_rank')->orderBy('primary_rank')->pluck('card_key')->all();
         $this->assertSame(['core.roadmap', 'core.polls', 'core.journal'], $ranks);
 
-        // 07 et 09 : trio DECLARE (la Card du type — assignments, marketplace —
-        // y est) mais obtenu par le mode derive du produit : aucun rang ecrit,
-        // le pack verifie sans materialiser. Idem pour les Boucles a 3 Cards.
+        // 09 (TASK-1335) : rangs EXPLICITES depuis l'ajout de `core.decisions`
+        // (order=31) — l'ordre du catalogue placerait desormais `decisions`
+        // en 2e position (30, 31, 33) devant `marketplace`, alors que le trio
+        // declare est [roadmap, marketplace, events]. Bascule du mode derive
+        // (T1275) au mode explicite, exactement comme 08.
+        $utDallasRanks = LoopCard::query()->where('loop_id', $this->loop(self::UT_DALLAS)->id)
+            ->whereNotNull('primary_rank')->orderBy('primary_rank')->pluck('card_key')->all();
+        $this->assertSame(['core.roadmap', 'core.marketplace', 'core.events'], $utDallasRanks);
+
+        // 07 : trio DECLARE (la Card du type — assignments — y est) mais
+        // obtenu par le mode derive du produit : aucun rang ecrit, le pack
+        // verifie sans materialiser. Idem pour les Boucles a 3 Cards.
         $this->assertSame(['training.course_material', 'training.progression', 'training.assignments'], Test20260822DogfoodingDataset::LOOP_SETUP[self::PLAN_262]['primary_cards']);
         $this->assertSame(['core.roadmap', 'core.marketplace', 'core.events'], Test20260822DogfoodingDataset::LOOP_SETUP[self::UT_DALLAS]['primary_cards']);
-        foreach ([self::PLAN_262, self::UT_DALLAS, '01-COMMUNICATION', '05-Pour-la-beta1'] as $name) {
+        foreach ([self::PLAN_262, '01-COMMUNICATION', '05-Pour-la-beta1'] as $name) {
             $this->assertSame(0, LoopCard::query()->where('loop_id', $this->loop($name)->id)->whereNotNull('primary_rank')->count(), "{$name} : mode derive, aucun rang");
         }
         $this->assertContains('training.assignments', $composition->primaryKeysFor($this->loop(self::PLAN_262)));
@@ -680,7 +723,7 @@ class TASK1275LoopTypesMembersRolesCardsTest extends TestCase
         $this->reset();
         $this->assertSame($first, $this->snapshot(), 'reset bis');
 
-        $this->assertSame('1.2.0', DB::table('scenario_pack_loads')->where('organization_id', $this->organization->id)->value('pack_version'));
+        $this->assertSame('1.3.0', DB::table('scenario_pack_loads')->where('organization_id', $this->organization->id)->value('pack_version'));
 
         $loopIds = Loop::query()->where('organization_id', $this->organization->id)->pluck('id');
         $this->remove();
@@ -709,7 +752,7 @@ class TASK1275LoopTypesMembersRolesCardsTest extends TestCase
      * appel IA n'en decoule ici : le job reste en attente, aucun worker ne
      * le traite pendant ce test.
      */
-    public function test_load_pushes_no_job_calls_no_ai_and_simulates_no_usage_of_any_card(): void
+    public function test_load_pushes_no_ai_job_and_carries_only_the_task_1335_declared_human_activity(): void
     {
         Queue::fake();
 
@@ -718,9 +761,31 @@ class TASK1275LoopTypesMembersRolesCardsTest extends TestCase
         Queue::assertPushed(IndexDossierArticleChunks::class, count(Test20260822DogfoodingPack::LOOP_DIRECTORIES));
         $this->assertSame(0, AiProviderInvocation::query()->count());
 
-        // T1277, pas T1275 : aucune donnee dans aucune Card.
-        foreach (['loop_polls', 'loop_events', 'loop_decisions', 'loop_journal_entries', 'loop_roadmap_items', 'loop_messages'] as $table) {
-            $this->assertSame(0, DB::table($table)->count(), $table);
-        }
+        // TASK-1335 : activite humaine collective DECLARATIVE sur 08/09/10
+        // uniquement (`HISTORICAL_ACTIVITY`) — les 7 autres Boucles restent a
+        // 0, comme avant T1335. Aucun Journal simule (hors perimetre).
+        $this->assertSame(9, DB::table('loop_messages')->count());
+        $this->assertSame(1, DB::table('loop_polls')->count());
+        $this->assertSame(1, DB::table('loop_decisions')->count());
+        $this->assertSame(1, DB::table('loop_events')->count());
+        $this->assertSame(1, DB::table('loop_roadmap_items')->count());
+        $this->assertSame(0, DB::table('loop_journal_entries')->count());
+
+        // Aucun message IA : tous humains ('user'), et tous sur les 3
+        // Boucles declarees par `HISTORICAL_ACTIVITY` — jamais ailleurs.
+        $this->assertSame(0, DB::table('loop_messages')->where('type', '!=', 'user')->count());
+        $declaredLoopIds = Loop::query()->where('organization_id', $this->organization->id)
+            ->whereIn('name', array_keys(Test20260822DogfoodingDataset::HISTORICAL_ACTIVITY))
+            ->pluck('id');
+        $this->assertSame(9, DB::table('loop_messages')->whereIn('loop_id', $declaredLoopIds)->count());
+        $this->assertSame(0, AiProviderInvocation::query()->count(), 'aucun appel IA declenche par les messages humains');
+
+        // Reste deterministe au rejeu : aucune duplication.
+        $this->load();
+        $this->assertSame(9, DB::table('loop_messages')->count());
+        $this->assertSame(1, DB::table('loop_polls')->count());
+        $this->assertSame(1, DB::table('loop_decisions')->count());
+        $this->assertSame(1, DB::table('loop_events')->count());
+        $this->assertSame(1, DB::table('loop_roadmap_items')->count());
     }
 }
