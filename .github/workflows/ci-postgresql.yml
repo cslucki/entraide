@@ -7,21 +7,108 @@ on:
     branches: [main, develop]
   workflow_dispatch:
 
-# Une nouvelle poussee sur la meme branche annule la precedente : le job dure
-# desormais une vingtaine de minutes, et les empiler ne renseigne personne.
+# Une nouvelle poussee sur la meme branche annule la precedente : empiler des
+# runs de plusieurs minutes ne renseigne personne.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# TASK-1334 — CI Turbo V1.
+#
+# ## Ce que ce workflow etait, et pourquoi il a change
+#
+# Jusqu'ici : UN seul job, portant le nom du check requis `Quality Gate
+# (blocking)`, qui declarait son conteneur PostgreSQL au niveau job et lançait
+# `tests/Feature` en un seul processus PHPUnit.
+#
+# Mesure du 2026-08-30 sur un run reel (run 33308845576), etape par etape :
+#
+#   Initialize containers .......................  20 s
+#   checkout -> Run migrations ..................  41 s
+#   Run Unit tests ..............................   9 s
+#   Run Feature tests ........................... ~17 min
+#
+# Autrement dit : 95 % du job etait une seule commande, sur un seul coeur d'un
+# runner qui en a quatre. Aucun reglage de cache, aucune image plus legere,
+# aucune option de PHP ne pouvait entamer ces 17 minutes — seul un decoupage
+# le pouvait.
+#
+# Deux defauts secondaires, tous deux consequences de la structure mono-job :
+#
+# 1. `services:` est evalue **avant la premiere etape**. Le conteneur
+#    pgvector etait donc cree avant meme que l'etape « Determine validation
+#    level » ait pu dire si la charge etait `light` ou `full` — y compris pour
+#    les PR `MICRO_UX`, qui ne lancent que la suite Unit.
+# 2. Le meme run avait vu un premier essai rester bloque plus de 40 minutes
+#    sur « Initialize containers » — un incident d'infrastructure GitHub, pas
+#    du depot. La seule borne etait le `timeout-minutes: 45` du job : elle
+#    arrivait bien trop tard.
+#
+# ## Ce que ce workflow est devenu
+#
+#   classify        (aucun conteneur, ~5 s)  -> resout light/full
+#     |- unit       (1 conteneur)            -> tests/Unit, les deux modes
+#     |- feature    (4 conteneurs, full)     -> tests/Feature en 4 shards
+#          `- quality-gate                   -> LE check requis, agrege le tout
+#
+# La classification precede donc desormais toute creation de conteneur lourde :
+# une PR `light` ne fait plus naitre les quatre conteneurs des shards.
+#
+# ## Le contrat de branche protegee est inchange
+#
+# Le ruleset GitHub exige un check nomme **exactement** `Quality Gate
+# (blocking)`. Ce nom n'a pas bouge : il designe simplement, maintenant, un job
+# d'agregation au lieu du job qui faisait tout. Les jobs `unit` et `feature`
+# apparaissent comme des checks supplementaires, non requis — ils informent,
+# c'est `quality-gate` qui juge. **Ne pas renommer ce job** sans mettre a jour
+# le ruleset dans le meme mouvement, sinon la protection de branche exige un
+# check qui n'existe plus et plus rien ne peut merger.
+
 jobs:
-  quality-gate:
-    name: Quality Gate (blocking)
+  # =====================================================================
+  # 1. Classification — avant tout conteneur.
+  # =====================================================================
+  classify:
+    name: Classify
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    outputs:
+      mode: ${{ steps.level.outputs.mode }}
+
+    steps:
+      # TASK-1150 : la charge varie, le gate tourne TOUJOURS. Hors
+      # `pull_request` (push main, workflow_dispatch), ou si aucun label
+      # reconnu n'est present, la charge reste `full` : le doute se resout vers
+      # plus de tests, jamais moins.
+      #
+      # Ce job ne fait volontairement **aucun checkout** : il lit uniquement la
+      # charge utile de l'evenement. C'est ce qui lui permet de repondre en
+      # quelques secondes, et donc de valoir la peine d'etre un job separe.
+      - name: Determine validation level
+        id: level
+        run: |
+          MODE="full"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
+            if echo "$LABELS" | grep -qE '"validation:(micro-ux|no-app-ci)"'; then
+              MODE="light"
+            fi
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "Resolved CI mode: $MODE (event=${{ github.event_name }})"
+
+  # =====================================================================
+  # 2. Suite Unit — les deux modes. C'est la validation du mode light.
+  # =====================================================================
+  unit:
+    name: Unit (PostgreSQL)
+    needs: classify
     runs-on: ubuntu-latest
 
-    # Le job est passe de ~70 s a ~20 min en gagnant la suite Feature. Sans
-    # cette borne, le defaut de GitHub est 360 minutes : un test qui pend
-    # retiendrait un runner six heures.
-    timeout-minutes: 45
+    # ~1 minute en regime normal. La borne existe pour l'anormal : un conteneur
+    # qui ne demarre pas, ou un test qui pend. 45 minutes ne bornaient rien.
+    timeout-minutes: 12
 
     env:
       DB_CONNECTION: pgsql
@@ -36,6 +123,9 @@ jobs:
       QUEUE_CONNECTION: sync
       SESSION_DRIVER: array
 
+    # La suite Unit a besoin de PostgreSQL : `tests/TestCase` applique
+    # `RefreshDatabase` a **tous** les tests, Unit compris. Le conteneur n'est
+    # donc pas supprimable ici — il est seulement cree apres la classification.
     services:
       postgres:
         image: pgvector/pgvector:pg18-trixie
@@ -44,32 +134,15 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: bouclepro_test
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgres -d bouclepro_test"
+          --health-interval 5s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
+          --health-start-period 10s
         ports:
           - 5432:5432
 
     steps:
-      # TASK-1150 : le job tourne TOUJOURS (jamais de `if:` au niveau job) —
-      # seule la charge interne varie, via un label `validation:<level>` pose
-      # sur la PR. Hors `pull_request` (push develop/main, workflow_dispatch),
-      # ou si aucun label reconnu n'est present, la charge reste `full` :
-      # le doute se resout vers plus de tests, jamais moins.
-      - name: Determine validation level
-        id: level
-        run: |
-          MODE="full"
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
-            if echo "$LABELS" | grep -qE '"validation:(micro-ux|no-app-ci)"'; then
-              MODE="light"
-            fi
-          fi
-          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
-          echo "Resolved CI mode: $MODE (event=${{ github.event_name }})"
-
       - uses: actions/checkout@v4
 
       - name: Setup PHP
@@ -97,21 +170,107 @@ jobs:
       - name: Install dependencies
         run: composer install --no-progress --no-interaction --prefer-dist
 
-      # Frontend build seulement en mode full : la suite Unit (mode light)
-      # ne rend pas de vue @vite.
+      # Pas de Node ici : `tests/Unit` ne rend aucune vue `@vite`. Le build
+      # frontend reste dans les shards Feature, qui en ont besoin.
+
+      - name: Clear Laravel caches
+        run: php artisan config:clear && php artisan view:clear
+
+      - name: Run migrations
+        run: php artisan migrate --force
+
+      - name: Run Unit tests (blocking)
+        run: php vendor/bin/phpunit --configuration phpunit.ci-minimal.xml
+
+  # =====================================================================
+  # 3. Suite Feature, decoupee en 4 shards — mode full uniquement.
+  # =====================================================================
+  feature:
+    name: Feature shard ${{ matrix.shard }}/4
+    needs: classify
+    if: needs.classify.outputs.mode == 'full'
+    runs-on: ubuntu-latest
+
+    # Un shard vise ~5 minutes. 20 minutes laisse de la marge a un shard
+    # malchanceux tout en tuant vite un conteneur qui ne repond pas.
+    timeout-minutes: 20
+
+    strategy:
+      # Un shard rouge ne doit PAS annuler les trois autres : on veut la liste
+      # complete des regressions en une seule lecture, pas la premiere.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: bouclepro_test
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      APP_ENV: testing
+      APP_KEY: base64:b+IwxNpzaahGTvmk+0WLnzODWBnKA99oQDutpRQ7xfI=
+      CACHE_STORE: array
+      QUEUE_CONNECTION: sync
+      SESSION_DRIVER: array
+
+    # Chaque shard a **son** conteneur, sur **son** runner : aucune base n'est
+    # partagee entre shards, donc `RefreshDatabase` reste exactement aussi
+    # isolant qu'avant. C'est ce qui rend le decoupage sans effet de bord.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18-trixie
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bouclepro_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bouclepro_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 10s
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.4
+          extensions: pdo_pgsql, pgsql
+          tools: composer:v2
+          coverage: none
+
+      - name: Get composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --no-progress --no-interaction --prefer-dist
+
       - name: Setup Node.js
-        if: steps.level.outputs.mode == 'full'
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
       - name: Install npm dependencies
-        if: steps.level.outputs.mode == 'full'
         run: npm ci --prefer-offline
 
+      # Les vues passent par `@vite` : sans manifeste, toute la suite Feature
+      # rendrait une exception au lieu d'une page.
       - name: Build frontend assets
-        if: steps.level.outputs.mode == 'full'
         run: npm run build
 
       - name: Clear Laravel caches
@@ -120,21 +279,79 @@ jobs:
       - name: Run migrations
         run: php artisan migrate --force
 
-      # Les deux moities du gate, dans **un seul job** : l'installation de
-      # composer, npm et la construction des assets coutent environ une minute,
-      # et les dedoubler en deux jobs paierait cette minute deux fois pour rien.
-      # Les etapes restent separees pour que leurs durees se lisent
-      # independamment. Unit tourne dans les DEUX modes : c'est la validation
-      # du mode light (MICRO_UX / NO_APP_CI).
-      - name: Run Unit tests (blocking)
-        run: php vendor/bin/phpunit --configuration phpunit.ci-minimal.xml
+      # Genere les quatre `phpunit.ci-feature.shard-K.xml` a partir de
+      # `phpunit.ci-feature.xml`, et **echoue** si l'union des shards n'est pas
+      # exactement l'ensemble des fichiers de `tests/Feature`. Chaque shard
+      # regenere le plan complet : la decoupe etant deterministe, les quatre
+      # runners aboutissent au meme partitionnement sans rien se transmettre.
+      - name: Generate Feature shards
+        run: php .github/scripts/shard-tests.php --total=4 --verify
 
-      # Avant TASK-1112, la CI ne lançait **que** les tests Unit : aucune
-      # regression Feature ne pouvait rendre ce gate rouge. La liste des classes
-      # exclues est dans `phpunit.ci-feature.xml`, avec la raison de chacune —
-      # elle doit retrecir, jamais grandir. Mode full uniquement : STANDARD et
-      # SENSITIVE gardent la couverture complete ; MICRO_UX/NO_APP_CI se
-      # contentent d'Unit.
-      - name: Run Feature tests (blocking)
-        if: steps.level.outputs.mode == 'full'
-        run: php vendor/bin/phpunit --configuration phpunit.ci-feature.xml
+      - name: Run Feature tests — shard ${{ matrix.shard }} (blocking)
+        run: php vendor/bin/phpunit --configuration phpunit.ci-feature.shard-${{ matrix.shard }}.xml
+
+  # =====================================================================
+  # 4. Le check requis. Ne lance rien : il constate.
+  # =====================================================================
+  quality-gate:
+    name: Quality Gate (blocking)
+    needs: [classify, unit, feature]
+    # `always()` est indispensable : sans lui, ce job serait « skipped » des
+    # qu'un job amont echoue, et un check « skipped » ne bloque pas une PR.
+    # Le gate serait alors vert en apparence sur une CI rouge.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Verdict
+        env:
+          MODE: ${{ needs.classify.outputs.mode }}
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          UNIT_RESULT: ${{ needs.unit.result }}
+          FEATURE_RESULT: ${{ needs.feature.result }}
+        run: |
+          echo "mode     = ${MODE:-<unresolved>}"
+          echo "classify = $CLASSIFY_RESULT"
+          echo "unit     = $UNIT_RESULT"
+          echo "feature  = $FEATURE_RESULT"
+          echo ""
+
+          FAILED=0
+
+          if [ "$CLASSIFY_RESULT" != "success" ]; then
+            echo "FAIL: classification did not succeed — the CI level is unknown."
+            FAILED=1
+          fi
+
+          if [ "$UNIT_RESULT" != "success" ]; then
+            echo "FAIL: Unit suite did not succeed ($UNIT_RESULT)."
+            FAILED=1
+          fi
+
+          if [ "$MODE" = "full" ]; then
+            # `needs.<job>.result` d'un job matriciel est deja l'agregat des
+            # quatre shards : « success » seulement si les quatre sont verts.
+            if [ "$FEATURE_RESULT" != "success" ]; then
+              echo "FAIL: at least one Feature shard did not succeed ($FEATURE_RESULT)."
+              FAILED=1
+            fi
+          else
+            # Mode light (MICRO_UX / NO_APP_CI) : les shards Feature sont
+            # volontairement absents. Toute autre valeur que « skipped »
+            # signifierait qu'ils ont tourne et mal fini.
+            if [ "$FEATURE_RESULT" != "skipped" ]; then
+              echo "FAIL: light mode, yet the Feature shards reported '$FEATURE_RESULT'."
+              FAILED=1
+            fi
+            echo "Light mode: Feature shards intentionally skipped."
+          fi
+
+          if [ "$FAILED" -ne 0 ]; then
+            echo ""
+            echo "QUALITY GATE: RED"
+            exit 1
+          fi
+
+          echo ""
+          echo "QUALITY GATE: GREEN (mode=$MODE)"

@@ -30,6 +30,11 @@ install.bat
 .npmrc
 phpunit.xml
 phpunit.pgsql.xml
+# TASK-1334 — configurations de shard generees par
+# .github/scripts/shard-tests.php. Elles sont derivees de
+# phpunit.ci-feature.xml a chaque run : les versionner reviendrait a
+# figer une decoupe qui doit suivre l'ajout de fichiers de test.
+phpunit.ci-feature.shard-*.xml
 playwright.config.js
 phpstan.neon
 rector.php
