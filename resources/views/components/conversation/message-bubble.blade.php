@@ -222,9 +222,20 @@ $renderableBody = preg_replace_callback(
                 @if($avatar)
                 <img src="{{ $avatar }}" alt="" class="h-5 w-5 rounded-full">
                 @elseif($isAi)
-                <span class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-emerald-400 text-white shadow-sm shadow-violet-500/20 ring-1 ring-white/60 dark:ring-violet-300/20" aria-hidden="true">
-                    <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.091-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.091L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.091 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.091ZM18.25 8.25 18 9.25l-.25-1a2.5 2.5 0 0 0-1.75-1.75L15 6.25l1-.25a2.5 2.5 0 0 0 1.75-1.75l.25-1 .25 1A2.5 2.5 0 0 0 20 6l1 .25-1 .25a2.5 2.5 0 0 0-1.75 1.75Z"/>
+                {{-- TASK-1340 : symbole de marque (design/brand/bouclepro-symbol.svg)
+                     en monochrome blanc, meme traitement que le bouton FAB
+                     BouclePro IA — plus l'etincelle generique. --}}
+                <span class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white shadow-sm shadow-violet-500/20 ring-1 ring-white/60 dark:ring-violet-300/20" aria-hidden="true">
+                    <svg class="h-3 w-3" viewBox="0 0 512 512" fill="none" stroke="white" stroke-width="46" stroke-linecap="round" stroke-opacity="0.92">
+                        <path d="M 213.1 142 A 56 56 0 1 1 298.9 142"/>
+                        <path d="M 306.28 145.05 A 56 56 0 1 1 366.95 205.72"/>
+                        <path d="M 370 213.1 A 56 56 0 1 1 370 298.9"/>
+                        <path d="M 366.95 306.28 A 56 56 0 1 1 306.28 366.95"/>
+                        <path d="M 298.9 370 A 56 56 0 1 1 213.1 370"/>
+                        <path d="M 205.72 366.95 A 56 56 0 1 1 145.05 306.28"/>
+                        <path d="M 142 298.9 A 56 56 0 1 1 142 213.1"/>
+                        <path d="M 145.05 205.72 A 56 56 0 1 1 205.72 145.05"/>
+                        <path d="M 213.1 142 A 56 56 0 0 1 213.1 70"/>
                     </svg>
                 </span>
                 @endif
