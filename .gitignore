@@ -20,6 +20,10 @@ ai/
 opencode.json
 .mcp.json
 test.txt
+# TASK-1336 — backup des scripts d'orchestration (copies locales privees,
+# hors perimetre gitignore jusqu'ici). Retire du tracking public. Ne pas
+# remplacer par `tooling/` global : un futur tooling public reste possible.
+tooling/ai-scripts-backup/
 
 # Public lockdown: local documentation, configs and QA artifacts
 AGENTS.md
