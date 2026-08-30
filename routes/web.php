@@ -56,6 +56,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DossierArticleController;
 use App\Http\Controllers\DossierController;
 use App\Http\Controllers\DossierFileController;
+use App\Http\Controllers\DossierInsightsController;
 use App\Http\Controllers\DossierMemberController;
 use App\Http\Controllers\DossierSemanticSearchController;
 use App\Http\Controllers\DossierSeriesController;
@@ -818,6 +819,7 @@ Route::prefix('/org/{organization}')
                 Route::post('/dossiers', [DossierController::class, 'store'])->name('dossiers.store');
                 Route::get('/dossiers/{dossier}', [DossierController::class, 'show'])->name('dossiers.show');
                 Route::get('/dossiers/{dossier}/semantic-search', DossierSemanticSearchController::class)->name('dossiers.semantic-search');
+                Route::post('/dossiers/{dossier}/insights', DossierInsightsController::class)->middleware('throttle:5,1')->name('dossiers.insights');
                 Route::post('/dossiers/{dossier}/articles', [DossierArticleController::class, 'store'])->name('dossiers.articles.store');
                 Route::post('/dossiers/{dossier}/articles/create-and-attach', [DossierArticleController::class, 'createAndAttach'])->name('dossiers.articles.create-and-attach');
                 Route::patch('/dossiers/{dossier}/articles/{post}/move', [DossierArticleController::class, 'move'])->name('dossiers.articles.move');
