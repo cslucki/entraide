@@ -19,7 +19,7 @@ class AiValidationDatabaseGuardTest extends TestCase
 
         AiValidationDatabaseGuard::assertSafe(
             'bouclepro_ai_validation',
-            '/home/cyril/claude-code/sites/worktrees/ia-p1-observabilite',
+            '/home/dev/projects/sites/worktrees/example-worktree',
         );
 
         $this->assertTrue(AiValidationDatabaseGuard::isSafe('bouclepro_ai_validation'));
@@ -103,7 +103,7 @@ class AiValidationDatabaseGuardTest extends TestCase
 
         AiValidationDatabaseGuard::assertSafe(
             'bouclepro_ai_validation',
-            '/home/cyril/claude-code/sites/test.laravel',
+            '/home/dev/projects/sites/test.laravel',
         );
     }
 

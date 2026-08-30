@@ -50,9 +50,16 @@ playwright.config.js
 phpstan.neon
 rector.php
 
-# GitHub workflows (disabled during public lockdown)
-.github/workflows/
+# GitHub workflows : seuls les fichiers explicitement negues ci-dessous sont
+# publics. TASK-1344 : `.github/workflows/*` (glob de fichiers), et non
+# `.github/workflows/` (exclusion de REPERTOIRE), est necessaire pour que les
+# negations fonctionnent — exclure le repertoire lui-meme empeche git de
+# re-inclure un fichier qu'il contient (regle documentee, gitignore(5)).
+# ci-sqlite.yml et ci-postgresql.yml portent les gates bloquants de la CI :
+# ils doivent rester suivis, d'ou leur negation explicite.
+.github/workflows/*
 !.github/workflows/ci-postgresql.yml
+!.github/workflows/ci-sqlite.yml
 
 .phpactor.json
 .phpunit.result.cache

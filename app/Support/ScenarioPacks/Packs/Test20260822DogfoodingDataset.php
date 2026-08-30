@@ -9,12 +9,20 @@ namespace App\Support\ScenarioPacks\Packs;
  * CV), profils IA membre publies. Langue source canonique : FRANCAIS.
  *
  * Pure donnee, aucune logique : `Test20260822DogfoodingPack` consomme ces
- * tableaux. Tout ce qui figure ici est TRACABLE aux CV des 4 personnes ;
- * aucun skill, aucune competence, aucun fait invente.
+ * tableaux. `test_cyril` reste tracable au CV de son auteur (donnee propre,
+ * consentie, publiee sur son propre site). TASK-1344 (2026-08-30, GO Cyril +
+ * MASTER, VALIDATION_LEVEL SENSITIVE) : `test_roger`, `test_kiran` et
+ * `test_sana` sont des PERSONAS FICTIFS — noms, LinkedIn et faits de
+ * carriere externes reels neutralises (identity closure : aucune occurrence
+ * ne doit permettre de re-identifier les trois personnes reelles tierces
+ * initialement utilisees). Skills/competences/gabarit de service inchanges
+ * (aucun fait invente sur CE plan, seule l'identite change).
  *
  * Coordonnees : AUCUNE coordonnee personnelle reelle. Les telephones sont des
  * valeurs explicitement DEMO (`(DEMO)` dans la valeur, `show_phone = false` :
- * jamais affichees). Les liens sont des pages professionnelles publiques.
+ * jamais affichees). `linkedin_url`/`website`, quand renseignes, sont des
+ * pages professionnelles publiques (uniquement pour `test_cyril` depuis
+ * TASK-1344) ou `null`.
  * `address_line1/2`, `postal_code`, `membership_value` (Organization sans
  * adhesion) et `location` (champ mort, remplace par `city` + `country_code`)
  * ne sont PAS renseignes.
@@ -42,7 +50,8 @@ final class Test20260822DogfoodingDataset
      * lecture seule (`LoopRoleRegistry::LEGACY_ALIASES`), jamais ecrit. Le
      * pack applique les `owner` AVANT les autres roles — invariant
      * `last_owner` (`LoopGovernanceService::changeRole`) : sur 09-UT Dallas,
-     * Roger est nomme proprietaire avant que Cyril ne soit retrograde.
+     * Antoine (persona `test_roger`, TASK-1344) est nomme proprietaire avant
+     * que Cyril ne soit retrograde.
      *
      * `kept_cards` : Cards ACTIVES en plus du preset du type. Les presets sont
      * additifs (`LoopTypeRegistry::applyPreset()` n'enleve rien) : retyper une
@@ -177,8 +186,8 @@ final class Test20260822DogfoodingDataset
             'bio' => 'Fondateur de CyberWorkers (1996) et de BouclePro. Trente ans d\'expérimentation sur le travail numérique : télétravail, pédagogie digitale, inclusion par l\'emploi, communautés professionnelles. Je conçois des dispositifs où l\'IA clarifie et structure, pendant que l\'humain garde la responsabilité du sens. Directeur d\'un organisme de formation certifié Qualiopi. Auteur de « Télétravail, les clés de la réussite ».',
         ],
         'test_roger' => [
-            'first_name' => 'Roger',
-            'name' => 'Malina',
+            'first_name' => 'Antoine',
+            'name' => 'Dubreuil',
             'city' => 'Richardson',
             'country_code' => 'US',
             'phone' => '+1 972 000 0002 (DEMO)',
@@ -186,13 +195,13 @@ final class Test20260822DogfoodingDataset
             'is_available' => true,
             'show_email' => false,
             'show_phone' => false,
-            'linkedin_url' => 'https://www.linkedin.com/in/rmalina',
-            'website' => 'https://www.leonardo.info',
-            'bio' => 'Astrophysicien et chercheur en art-science. Professeur d\'art et technologie et professeur de physique à UT Dallas, où je dirige l\'ArtSciLab. Président de Leonardo/OLATS à Paris et éditeur exécutif des publications Leonardo chez MIT Press. Ancien directeur de recherche au CNRS, au Laboratoire d\'Astrophysique de Marseille. Cofondateur du programme de résidences art-science de l\'IMERA.',
+            'linkedin_url' => null,
+            'website' => null,
+            'bio' => 'Astrophysicien et chercheur en art-science. Je dirige l\'ArtSciLab et anime les collaborations entre artistes et scientifiques. Ancien chercheur dans un laboratoire d\'astrophysique européen, engagé depuis dix ans dans des programmes de résidences art-science et dans l\'édition de revues interdisciplinaires.',
         ],
         'test_kiran' => [
-            'first_name' => 'Kiran',
-            'name' => 'Sundhararaajan',
+            'first_name' => 'Maya',
+            'name' => 'Marchetti',
             'city' => 'Dallas',
             'country_code' => 'US',
             'phone' => '+1 972 000 0003 (DEMO)',
@@ -200,13 +209,13 @@ final class Test20260822DogfoodingDataset
             'is_available' => true,
             'show_email' => false,
             'show_phone' => false,
-            'linkedin_url' => 'https://www.linkedin.com/in/kiran-akshay',
+            'linkedin_url' => null,
             'website' => null,
-            'bio' => 'Ingénieur logiciel, quatre ans d\'expérience, en master d\'informatique à UT Dallas avec une spécialisation en intelligence artificielle et apprentissage automatique. Analyste et développeur web à l\'ArtSciLab. Auparavant chez Ernst & Young, doodleblue et Smartbell. Je travaille surtout sur le back-end Python, l\'automatisation de tâches répétitives, la collecte de données web et la vision par ordinateur.',
+            'bio' => 'Ingénieure logicielle, quatre ans d\'expérience, en master d\'informatique avec une spécialisation en intelligence artificielle et apprentissage automatique. Analyste et développeuse web à l\'ArtSciLab. Auparavant dans deux cabinets de conseil technique et une start-up. Je travaille surtout sur le back-end Python, l\'automatisation de tâches répétitives, la collecte de données web et la vision par ordinateur.',
         ],
         'test_sana' => [
-            'first_name' => 'Sana',
-            'name' => 'Qureshi',
+            'first_name' => 'Camille',
+            'name' => 'Berthet',
             'city' => 'Dallas',
             'country_code' => 'US',
             'phone' => '+1 972 000 0004 (DEMO)',
@@ -214,9 +223,9 @@ final class Test20260822DogfoodingDataset
             'is_available' => true,
             'show_email' => false,
             'show_phone' => false,
-            'linkedin_url' => 'https://www.linkedin.com/in/sanaqureshii',
+            'linkedin_url' => null,
             'website' => null,
-            'bio' => 'Spécialiste des opérations de revenus et de l\'optimisation de processus, cinq ans d\'expérience à transformer des flux financiers complexes en décisions lisibles. Analyste de recherche et responsable des opérations financières à l\'ArtSciLab, où je pilote un budget de 61 000 dollars. En master Business Analytics et intelligence artificielle à UT Dallas. Python, SQL, tableaux de bord.',
+            'bio' => 'Spécialiste des opérations de revenus et de l\'optimisation de processus, cinq ans d\'expérience à transformer des flux financiers complexes en décisions lisibles. Analyste de recherche et responsable des opérations financières à l\'ArtSciLab, où je pilote le budget de fonctionnement d\'une petite équipe. En master Business Analytics et intelligence artificielle. Python, SQL, tableaux de bord.',
         ],
     ];
 
@@ -311,13 +320,13 @@ final class Test20260822DogfoodingDataset
             ],
         ],
         'test_roger' => [
-            'member_profile_summary' => 'Roger est astrophysicien et chercheur en art-science : il dirige l\'ArtSciLab à UT Dallas, préside Leonardo/OLATS et dirige les publications Leonardo chez MIT Press.',
+            'member_profile_summary' => 'Antoine est astrophysicien et chercheur en art-science : il dirige l\'ArtSciLab et anime les collaborations entre artistes et scientifiques.',
             'service_scope' => 'Relire un article scientifique avant soumission, cadrer une collaboration entre artistes et scientifiques, ouvrir des portes dans les réseaux art-science, structurer un programme de résidence, situer un travail dans la littérature.',
-            'experience_context' => 'Professeur d\'art et technologie et professeur de physique à UT Dallas (direction de l\'ArtSciLab) ; président de Leonardo/OLATS ; éditeur exécutif des publications Leonardo (MIT Press) ; ancien directeur de recherche au CNRS (Laboratoire d\'Astrophysique de Marseille) ; cofondateur du programme de résidences art-science de l\'IMERA.',
+            'experience_context' => 'Direction de l\'ArtSciLab ; anime des collaborations entre artistes et scientifiques ; ancien chercheur dans un laboratoire d\'astrophysique européen ; dix ans d\'engagement dans des programmes de résidences art-science et l\'édition de revues interdisciplinaires.',
             'tone' => 'sobre',
             'tone_label' => 'Académique, exigeant, bienveillant.',
             'preferred_contact_action' => 'envoyer_demande_echange',
-            'generated_summary' => 'Roger aide les doctorants, les artistes-chercheurs et les responsables de laboratoire à relire un article avant soumission, cadrer une collaboration art-science, ouvrir des portes dans les réseaux Leonardo, structurer un programme de résidence ou situer un travail dans la littérature. Il ne code pas, n\'administre pas de site et ne donne pas de conseil financier.',
+            'generated_summary' => 'Antoine aide les doctorants, les artistes-chercheurs et les responsables de laboratoire à relire un article avant soumission, cadrer une collaboration art-science, ouvrir des portes dans les réseaux art-science, structurer un programme de résidence ou situer un travail dans la littérature. Il ne code pas, n\'administre pas de site et ne donne pas de conseil financier.',
             'skills' => ['Astrophysique', 'Cosmologie observationnelle', 'Recherche scientifique', 'Édition scientifique', 'Relecture d\'article', 'Art-science', 'Relations médias', 'Rédaction éditoriale'],
             'problems_helped' => [
                 'Relire un article scientifique avant soumission',
@@ -340,13 +349,13 @@ final class Test20260822DogfoodingDataset
             ],
         ],
         'test_kiran' => [
-            'member_profile_summary' => 'Kiran est ingénieur logiciel (quatre ans d\'expérience), analyste et développeur web à l\'ArtSciLab, en master d\'informatique à UT Dallas spécialisé en intelligence artificielle et apprentissage automatique.',
+            'member_profile_summary' => 'Maya est ingénieure logicielle (quatre ans d\'expérience), analyste et développeuse web à l\'ArtSciLab, en master d\'informatique spécialisé en intelligence artificielle et apprentissage automatique.',
             'service_scope' => 'Automatiser une tâche répétitive en Python, dépanner ou fiabiliser un site WordPress, mettre en place une collecte de données web, concevoir une API back-end, expliquer un modèle de vision par ordinateur.',
-            'experience_context' => 'Back-end Python et Django, automatisation, collecte de données web et vision par ordinateur ; auparavant chez Ernst & Young, doodleblue et Smartbell ; analyste et développeur web à l\'ArtSciLab.',
+            'experience_context' => 'Back-end Python et Django, automatisation, collecte de données web et vision par ordinateur ; auparavant dans deux cabinets de conseil technique et une start-up ; analyste et développeuse web à l\'ArtSciLab.',
             'tone' => 'pedagogique',
             'tone_label' => 'Pédagogue, pragmatique.',
             'preferred_contact_action' => 'envoyer_demande_echange',
-            'generated_summary' => 'Kiran aide les chercheurs non-développeurs, les petites structures et les étudiants à automatiser une tâche répétitive en Python, dépanner un site WordPress, mettre en place une collecte de données web, concevoir une API back-end ou comprendre un modèle de vision par ordinateur. Il ne fait ni médiation art-science, ni conseil juridique, ni gestion budgétaire.',
+            'generated_summary' => 'Maya aide les chercheurs non-développeurs, les petites structures et les étudiants à automatiser une tâche répétitive en Python, dépanner un site WordPress, mettre en place une collecte de données web, concevoir une API back-end ou comprendre un modèle de vision par ordinateur. Elle ne fait ni médiation art-science, ni conseil juridique, ni gestion budgétaire.',
             'skills' => ['Python', 'Django', 'WordPress', 'Automatisation', 'Développement back-end', 'API', 'Collecte de données web', 'Vision par ordinateur', 'Apprentissage automatique', 'Jira'],
             'problems_helped' => [
                 'Automatiser une tâche répétitive en Python',
@@ -369,13 +378,13 @@ final class Test20260822DogfoodingDataset
             ],
         ],
         'test_sana' => [
-            'member_profile_summary' => 'Sana est spécialiste des opérations de revenus et de l\'optimisation de processus : elle transforme des flux financiers complexes en décisions lisibles, et pilote les opérations financières de l\'ArtSciLab.',
+            'member_profile_summary' => 'Camille est spécialiste des opérations de revenus et de l\'optimisation de processus : elle transforme des flux financiers complexes en décisions lisibles, et pilote les opérations financières de l\'ArtSciLab.',
             'service_scope' => 'Construire un tableau de bord lisible en SQL, nettoyer un processus administratif ou financier, organiser et suivre un budget de projet, poser des indicateurs, préparer une décision à partir de données.',
-            'experience_context' => 'Cinq ans d\'expérience en opérations de revenus et optimisation de processus ; analyste de recherche et responsable des opérations financières à l\'ArtSciLab (budget de 61 000 dollars) ; master Business Analytics et intelligence artificielle à UT Dallas ; Python, SQL, tableaux de bord.',
+            'experience_context' => 'Cinq ans d\'expérience en opérations de revenus et optimisation de processus ; analyste de recherche et responsable des opérations financières à l\'ArtSciLab (budget de fonctionnement d\'une petite équipe) ; master Business Analytics et intelligence artificielle ; Python, SQL, tableaux de bord.',
             'tone' => 'sobre',
             'tone_label' => 'Clair, structuré, orienté décision.',
             'preferred_contact_action' => 'envoyer_demande_echange',
-            'generated_summary' => 'Sana aide les responsables de laboratoire, les porteurs de projet et les équipes sans fonction data à construire un tableau de bord lisible en SQL, nettoyer un processus administratif ou financier, organiser et suivre un budget, poser des indicateurs ou préparer une décision à partir de données. Elle ne fait ni astrophysique, ni développement d\'application, ni conseil juridique.',
+            'generated_summary' => 'Camille aide les responsables de laboratoire, les porteurs de projet et les équipes sans fonction data à construire un tableau de bord lisible en SQL, nettoyer un processus administratif ou financier, organiser et suivre un budget, poser des indicateurs ou préparer une décision à partir de données. Elle ne fait ni astrophysique, ni développement d\'application, ni conseil juridique.',
             'skills' => ['SQL', 'Tableaux de bord', 'Analyse de données', 'Optimisation de processus', 'Suivi budgétaire', 'Python'],
             'problems_helped' => [
                 'Construire un tableau de bord lisible en SQL',
@@ -403,7 +412,12 @@ final class Test20260822DogfoodingDataset
      * TASK-1335 (version 1.3.0) — activite humaine collective, distillee de la
      * matiere reelle du corpus (fichiers `08-Protocole d'emergence`,
      * `09-UT Dallas`, `10-Aria projet europeen`) et des CV des personas
-     * (`HUMAN_PROFILES`, `AI_PROFILES`) : AUCUN fait invente.
+     * (`HUMAN_PROFILES`, `AI_PROFILES`) tels qu'ils existaient a la creation
+     * de cette TASK. TASK-1344 (2026-08-30) : les mentions nominatives et les
+     * affiliations externes reelles de `test_roger`/`test_kiran` ont ete
+     * neutralisees en coherence avec `HUMAN_PROFILES`/`AI_PROFILES`
+     * (identity closure) ; ArtSciLab, ARIA, Horizon Europe, devCT et Silver
+     * Ingenuity sont conserves tels quels (KEEP, decision MASTER).
      *
      * Decision Master : AUCUN message IA, AUCUNE `ai_interaction`, AUCUN
      * remapping de metadata pour simuler l'IA. Chaque element est ecrit par
@@ -444,7 +458,7 @@ final class Test20260822DogfoodingDataset
                 [
                     'key' => '08-msg-3',
                     'persona' => 'test_sana',
-                    'body' => 'D\'accord avec Roger. Le protocole dit que « les erreurs deviennent des ressources » — ce serait cohérent qu\'on vote laquelle des deux versions on pousse en premier plutôt que de trancher seuls.',
+                    'body' => 'D\'accord avec Antoine. Le protocole dit que « les erreurs deviennent des ressources » — ce serait cohérent qu\'on vote laquelle des deux versions on pousse en premier plutôt que de trancher seuls.',
                 ],
             ],
             'poll' => [
@@ -454,8 +468,9 @@ final class Test20260822DogfoodingDataset
                 'description' => 'FR v0.2 (brouillon de travail) ou EN v0.2 (traduction pour UT Dallas et l\'ArtSciLab).',
                 'selection_type' => 'single',
                 'labels' => ['FR v0.2', 'EN v0.2'],
-                // Roger non votant (brief T1335) : c'est lui qui portera la
-                // traduction, pas lui qui tranche la priorité.
+                // Antoine (persona test_roger, TASK-1344) non votant (brief
+                // T1335) : c'est lui qui portera la traduction, pas lui qui
+                // tranche la priorité.
                 'votes' => ['test_sana' => 'EN v0.2'],
             ],
             'roadmap_item' => [
@@ -471,12 +486,12 @@ final class Test20260822DogfoodingDataset
                 [
                     'key' => '09-msg-1',
                     'persona' => 'test_cyril',
-                    'body' => 'Avec Roger on a terminé une première version de l\'article « BouclePro comme environnement d\'apprentissage pour l\'AI Shepherding » — l\'idée du Shepherd qui clarifie, vérifie et garde la trace. Je le mets dans le Dossier.',
+                    'body' => 'Avec Antoine on a terminé une première version de l\'article « BouclePro comme environnement d\'apprentissage pour l\'AI Shepherding » — l\'idée du Shepherd qui clarifie, vérifie et garde la trace. Je le mets dans le Dossier.',
                 ],
                 [
                     'key' => '09-msg-2',
                     'persona' => 'test_roger',
-                    'body' => 'Relu. Le parallèle berger/troupeau tient la route sur toute la longueur. On devrait le proposer à Leonardo, ça correspond exactement à notre ligne éditoriale chez MIT Press.',
+                    'body' => 'Relu. Le parallèle berger/troupeau tient la route sur toute la longueur. On devrait le proposer à une revue interdisciplinaire art-science, ça correspond exactement à notre ligne éditoriale.',
                 ],
                 [
                     'key' => '09-msg-3',
@@ -487,8 +502,8 @@ final class Test20260822DogfoodingDataset
             'decision' => [
                 'key' => '09-decision-leonardo',
                 'author' => 'test_cyril',
-                'title' => 'Soumettre l\'article co-écrit avec Roger à Leonardo (MIT Press)',
-                'rationale' => 'L\'article « BouclePro comme environnement d\'apprentissage pour l\'AI Shepherding » correspond à la ligne éditoriale de Leonardo. Aucune action n\'est lancée automatiquement : la soumission reste un geste humain distinct.',
+                'title' => 'Soumettre l\'article co-écrit avec Antoine à une revue interdisciplinaire art-science',
+                'rationale' => 'L\'article « BouclePro comme environnement d\'apprentissage pour l\'AI Shepherding » correspond à la ligne éditoriale visée. Aucune action n\'est lancée automatiquement : la soumission reste un geste humain distinct.',
             ],
             'event' => [
                 'key' => '09-event-silver-ingenuity',
@@ -501,8 +516,9 @@ final class Test20260822DogfoodingDataset
                 'timezone' => 'America/Chicago',
                 'location' => null,
                 'meeting_url' => 'https://artscilab.utdallas.edu/silver-ingenuity',
-                // Roger sans reponse (brief T1335) : aucun appel `respond()`
-                // pour lui. Kiran = going.
+                // Antoine (persona test_roger, TASK-1344) sans reponse (brief
+                // T1335) : aucun appel `respond()` pour lui. Maya (persona
+                // test_kiran) = going.
                 'responses' => ['test_kiran' => 'going'],
             ],
         ],
@@ -511,7 +527,7 @@ final class Test20260822DogfoodingDataset
                 [
                     'key' => '10-msg-1',
                     'persona' => 'test_cyril',
-                    'body' => 'Proposition ARIA v6 déposée : « Leonardo/OLATS contribution to ARIA — an open-source Smart Hamlet for inter-intelligence ». BouclePro y est positionné comme l\'environnement communautaire, la mémoire et les instruments d\'observation.',
+                    'body' => 'Proposition ARIA v6 déposée : « Contribution au consortium ARIA — an open-source Smart Hamlet for inter-intelligence ». BouclePro y est positionné comme l\'environnement communautaire, la mémoire et les instruments d\'observation.',
                 ],
                 [
                     'key' => '10-msg-2',
