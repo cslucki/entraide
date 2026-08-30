@@ -10,8 +10,10 @@ use App\Models\Loop;
 use App\Models\LoopCard;
 use App\Models\LoopDecision;
 use App\Models\LoopEvent;
+use App\Models\LoopEventResponse;
 use App\Models\LoopMember;
 use App\Models\LoopPoll;
+use App\Models\LoopPollVote;
 use App\Models\LoopRoadmapItem;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
@@ -399,6 +401,8 @@ class LoopAiSummaryCardTest extends TestCase
         Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
             ->assertSet('canGenerate', false)
             ->assertDontSeeHtml('data-loop-pulse')
+            ->assertDontSeeHtml('data-loop-nba')
+            ->assertViewHas('nba', [])
             ->call('generate')
             ->assertSet('hasSummary', false);
 
@@ -415,6 +419,8 @@ class LoopAiSummaryCardTest extends TestCase
         Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
             ->assertSet('canGenerate', false)
             ->assertDontSeeHtml('data-loop-pulse')
+            ->assertDontSeeHtml('data-loop-nba')
+            ->assertViewHas('nba', [])
             ->call('generate')
             ->assertSet('hasSummary', false);
 
@@ -433,8 +439,362 @@ class LoopAiSummaryCardTest extends TestCase
         Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
             ->assertSet('canGenerate', false)
             ->assertDontSeeHtml('data-loop-pulse')
+            ->assertDontSeeHtml('data-loop-nba')
+            ->assertViewHas('nba', [])
             ->call('generate')
             ->assertSet('hasSummary', false);
+    }
+
+    // ── TASK-1339 : Next Best Action V1 ───────────────────────────────────
+
+    public function test_no_candidate_yields_no_next_best_action_block(): void
+    {
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', [])
+            ->assertDontSeeHtml('data-loop-nba');
+    }
+
+    public function test_open_poll_without_vote_is_a_next_best_action(): void
+    {
+        $this->createPoll(['question' => 'Sondage ouvert NBA']);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', fn (array $nba) => count($nba) === 1 && $nba[0]['key'] === 'poll')
+            ->assertSeeHtml('data-loop-nba-item="poll"')
+            ->assertSeeHtml('data-loop-nba-target="core.polls"')
+            ->assertSeeHtml("\$dispatch('bp-open-loop-card', { card: 'core.polls' })")
+            ->assertSee('Sondage ouvert NBA');
+    }
+
+    public function test_poll_already_voted_is_excluded_from_next_best_actions(): void
+    {
+        $poll = $this->createPoll(['question' => 'Sondage déjà voté']);
+        LoopPollVote::create([
+            'organization_id' => $this->organization->id,
+            'poll_id' => $poll->id,
+            'user_id' => $this->member->id,
+        ]);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', fn (array $nba) => collect($nba)->doesntContain(fn ($i) => $i['key'] === 'poll'));
+    }
+
+    public function test_poll_requires_vote_permission_to_appear_as_next_best_action(): void
+    {
+        $this->createPoll(['question' => 'Sondage sans droit de vote']);
+        config(['loop_permissions.role_defaults.owner' => array_values(array_diff(
+            config('loop_permissions.role_defaults.owner'),
+            ['polls.vote'],
+        ))]);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', fn (array $nba) => collect($nba)->doesntContain(fn ($i) => $i['key'] === 'poll'));
+    }
+
+    public function test_future_event_without_response_is_a_next_best_action(): void
+    {
+        $this->createEvent([
+            'title' => 'Point ArtSciLab',
+            'starts_at' => now()->addDay(),
+            'ends_at' => now()->addDay()->addHour(),
+        ]);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', fn (array $nba) => count($nba) === 1 && $nba[0]['key'] === 'event')
+            ->assertSeeHtml('data-loop-nba-target="core.events"')
+            ->assertSeeHtml("\$dispatch('bp-open-loop-card', { card: 'core.events' })")
+            ->assertSee('Point ArtSciLab');
+    }
+
+    public function test_event_already_answered_is_excluded_from_next_best_actions(): void
+    {
+        $event = $this->createEvent();
+        LoopEventResponse::create([
+            'organization_id' => $this->organization->id,
+            'event_id' => $event->id,
+            'user_id' => $this->member->id,
+            'response' => LoopEventResponse::GOING,
+        ]);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', fn (array $nba) => collect($nba)->doesntContain(fn ($i) => $i['key'] === 'event'));
+    }
+
+    public function test_open_roadmap_item_assigned_to_user_is_a_next_best_action(): void
+    {
+        $this->setCardEnabled('core.roadmap');
+        $item = LoopRoadmapItem::factory()->todo()->create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'created_by' => $this->member->id,
+            'title' => 'Finaliser la traduction',
+        ]);
+        $item->assignees()->attach($this->member->id);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', fn (array $nba) => count($nba) === 1 && $nba[0]['key'] === 'roadmap')
+            ->assertSeeHtml('data-loop-nba-target="core.roadmap"')
+            ->assertSeeHtml("\$dispatch('bp-open-loop-card', { card: 'core.roadmap' })")
+            ->assertSee('Finaliser la traduction');
+    }
+
+    public function test_roadmap_item_assigned_to_another_member_is_excluded_from_next_best_actions(): void
+    {
+        $this->setCardEnabled('core.roadmap');
+        $otherMember = User::factory()->create(['organization_id' => $this->organization->id]);
+        LoopMember::factory()->create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'user_id' => $otherMember->id,
+        ]);
+        $item = LoopRoadmapItem::factory()->todo()->create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'created_by' => $this->member->id,
+        ]);
+        $item->assignees()->attach($otherMember->id);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', fn (array $nba) => collect($nba)->doesntContain(fn ($i) => $i['key'] === 'roadmap'));
+    }
+
+    public function test_done_roadmap_item_assigned_to_user_is_excluded_from_next_best_actions(): void
+    {
+        $this->setCardEnabled('core.roadmap');
+        $item = LoopRoadmapItem::factory()->done()->create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'created_by' => $this->member->id,
+        ]);
+        $item->assignees()->attach($this->member->id);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', fn (array $nba) => collect($nba)->doesntContain(fn ($i) => $i['key'] === 'roadmap'));
+    }
+
+    public function test_decision_without_action_is_a_next_best_action(): void
+    {
+        $this->setCardEnabled('core.decisions');
+        $this->setCardEnabled('core.roadmap');
+        LoopDecision::create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'author_id' => $this->member->id,
+            'title' => 'Soumettre l’article',
+            'decided_on' => today(),
+        ]);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', fn (array $nba) => count($nba) === 1 && $nba[0]['key'] === 'decision')
+            ->assertSeeHtml('data-loop-nba-target="core.decisions"')
+            ->assertSeeHtml("\$dispatch('bp-open-loop-card', { card: 'core.decisions' })")
+            ->assertSee('Soumettre l’article');
+    }
+
+    public function test_decision_with_action_already_linked_is_excluded_from_next_best_actions(): void
+    {
+        $this->setCardEnabled('core.decisions');
+        $this->setCardEnabled('core.roadmap');
+        $decision = LoopDecision::create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'author_id' => $this->member->id,
+            'title' => 'Décision avec action',
+            'decided_on' => today(),
+        ]);
+        LoopRoadmapItem::factory()->todo()->create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'created_by' => $this->member->id,
+            'loop_decision_id' => $decision->id,
+        ]);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', fn (array $nba) => collect($nba)->doesntContain(fn ($i) => $i['key'] === 'decision'));
+    }
+
+    public function test_superseded_decision_is_excluded_from_next_best_actions(): void
+    {
+        $this->setCardEnabled('core.decisions');
+        $this->setCardEnabled('core.roadmap');
+        // Le remplacement porte deja une action : neutralise pour isoler la
+        // seule regle testee ici (superseded_by_id != null -> exclue).
+        $replacement = LoopDecision::create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'author_id' => $this->member->id,
+            'title' => 'Décision de remplacement',
+            'decided_on' => today(),
+        ]);
+        LoopRoadmapItem::factory()->todo()->create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'created_by' => $this->member->id,
+            'loop_decision_id' => $replacement->id,
+        ]);
+
+        LoopDecision::create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'author_id' => $this->member->id,
+            'title' => 'Décision remplacée',
+            'decided_on' => today()->subDay(),
+            'superseded_by_id' => $replacement->id,
+        ]);
+
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', fn (array $nba) => collect($nba)->doesntContain(fn ($i) => $i['key'] === 'decision'));
+    }
+
+    public function test_decision_requires_roadmap_manage_to_appear_as_next_best_action(): void
+    {
+        $this->setCardEnabled('core.decisions');
+        $this->setCardEnabled('core.roadmap');
+        LoopDecision::create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'author_id' => $this->member->id,
+            'title' => 'Décision sans droit',
+            'decided_on' => today(),
+        ]);
+        config(['loop_permissions.role_defaults.owner' => array_values(array_diff(
+            config('loop_permissions.role_defaults.owner'),
+            ['roadmap.manage'],
+        ))]);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', fn (array $nba) => collect($nba)->doesntContain(fn ($i) => $i['key'] === 'decision'));
+    }
+
+    public function test_inactive_decisions_card_removes_the_decision_next_best_action(): void
+    {
+        LoopDecision::create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'author_id' => $this->member->id,
+            'title' => 'Décision Card désactivée',
+            'decided_on' => today(),
+        ]);
+        $this->setCardEnabled('core.decisions', false);
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', fn (array $nba) => collect($nba)->doesntContain(fn ($i) => $i['key'] === 'decision'));
+    }
+
+    public function test_next_best_action_order_is_fixed_decision_poll_event_roadmap(): void
+    {
+        $this->setCardEnabled('core.roadmap');
+        $this->setCardEnabled('core.decisions');
+
+        // Cree volontairement dans l'ordre inverse : la sortie ne doit
+        // jamais dependre de l'ordre de creation des faits en base.
+        $item = LoopRoadmapItem::factory()->todo()->create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'created_by' => $this->member->id,
+        ]);
+        $item->assignees()->attach($this->member->id);
+
+        $this->createEvent([
+            'starts_at' => now()->addDay(),
+            'ends_at' => now()->addDay()->addHour(),
+        ]);
+
+        $this->createPoll();
+
+        LoopDecision::create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'author_id' => $this->member->id,
+            'title' => 'Décision créée en dernier',
+            'decided_on' => today(),
+        ]);
+
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', fn (array $nba) => array_column($nba, 'key') === ['decision', 'poll', 'event', 'roadmap']);
+    }
+
+    public function test_next_best_action_never_leaks_facts_from_another_loop(): void
+    {
+        $this->setCardEnabled('core.decisions');
+        $this->setCardEnabled('core.roadmap');
+        $otherLoop = $this->service->createLoop($this->member, 'Autre Boucle');
+
+        LoopDecision::create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $otherLoop->id,
+            'author_id' => $this->member->id,
+            'title' => 'Décision autre Boucle',
+            'decided_on' => today(),
+        ]);
+        $this->createPoll();
+        $otherPoll = LoopPoll::create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $otherLoop->id,
+            'created_by' => $this->member->id,
+            'question' => 'Sondage autre Boucle',
+            'selection_type' => LoopPoll::TYPE_SINGLE,
+            'status' => LoopPoll::STATUS_OPEN,
+        ]);
+
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', fn (array $nba) => count($nba) === 1
+                && $nba[0]['key'] === 'poll'
+                && ! str_contains($nba[0]['label'], 'autre Boucle'));
+
+        $this->assertTrue($otherPoll->exists);
+    }
+
+    public function test_rendering_next_best_action_triggers_no_write(): void
+    {
+        $this->setCardEnabled('core.roadmap');
+        $this->setCardEnabled('core.decisions');
+        $this->createPoll();
+        $this->createEvent();
+        $item = LoopRoadmapItem::factory()->todo()->create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'created_by' => $this->member->id,
+        ]);
+        $item->assignees()->attach($this->member->id);
+        LoopDecision::create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'author_id' => $this->member->id,
+            'title' => 'Décision zéro écriture',
+            'decided_on' => today(),
+        ]);
+
+        $this->actingAs($this->member);
+
+        Livewire::test(LoopAiSummaryCard::class, ['loop' => $this->loop])
+            ->assertViewHas('nba', fn (array $nba) => count($nba) === 4);
+
+        $this->assertSame(0, LoopPollVote::count());
+        $this->assertSame(0, LoopEventResponse::count());
+        $this->assertSame(0, AiInteraction::count());
+        LoopSummaryAgent::assertNeverPrompted();
+        Http::assertNothingSent();
     }
 
     /** @param array<string, mixed> $overrides */
