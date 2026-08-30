@@ -10,10 +10,11 @@ import '../setup.js';
  *   org: launchpals (019ef988-3ee7-7137-a1b3-77730ea8ff36)
  *   owner: launchpals.member1@bouclepro.test
  *
- * Users in LaunchPals org:
- *   - Cyril SLUCKI <cyril@teletravailleurs.com>
- *   - Roger MALINA <rxm116130@utdallas.edu>
- *   - Kiran Akshay Sundhararaajan <kiranakshay2598@gmail.com>
+ * Users in LaunchPals org (TASK-1344 : identites neutralisees, plus de
+ * donnee personnelle reelle) :
+ *   - Demo LaunchPals Admin <launchpals.admin@bouclepro.test>
+ *   - Antoine DUBREUIL <launchpals.demo.dubreuil@bouclepro.test>
+ *   - Maya Aurelie MARCHETTI <launchpals.demo.marchetti@bouclepro.test>
  *   - Demo LaunchPals Member 2 <launchpals.member2@bouclepro.test>
  *   - Cyril Demo LaunchPals Member 1 <launchpals.member1@bouclepro.test> (owner)
  *
@@ -128,9 +129,9 @@ test.describe('Lot D — member search in Dossier (LaunchPals)', () => {
     });
 
     test('RED→GREEN: case insensitive search returns same IDs', async ({ page }) => {
-        const lower = await searchMembers(page, LAUNCHPALS_ORG_SLUG, FIXTURE_DOSSIER_ID, 'kiran');
-        const upper = await searchMembers(page, LAUNCHPALS_ORG_SLUG, FIXTURE_DOSSIER_ID, 'KIRAN');
-        const mixed = await searchMembers(page, LAUNCHPALS_ORG_SLUG, FIXTURE_DOSSIER_ID, 'KiRaN');
+        const lower = await searchMembers(page, LAUNCHPALS_ORG_SLUG, FIXTURE_DOSSIER_ID, 'maya');
+        const upper = await searchMembers(page, LAUNCHPALS_ORG_SLUG, FIXTURE_DOSSIER_ID, 'MAYA');
+        const mixed = await searchMembers(page, LAUNCHPALS_ORG_SLUG, FIXTURE_DOSSIER_ID, 'MaYa');
 
         expect(lower.data.users.length).toBeGreaterThan(0);
         expect(lower.data.users.length).toBe(upper.data.users.length);
@@ -144,20 +145,20 @@ test.describe('Lot D — member search in Dossier (LaunchPals)', () => {
     });
 
     test('RED→GREEN: full name search (first_name + last_name)', async ({ page }) => {
-        const { data } = await searchMembers(page, LAUNCHPALS_ORG_SLUG, FIXTURE_DOSSIER_ID, 'Kiran Akshay');
+        const { data } = await searchMembers(page, LAUNCHPALS_ORG_SLUG, FIXTURE_DOSSIER_ID, 'Maya Aurelie');
         expect(data.users.length).toBe(1);
-        expect(data.users[0].email).toBe('kiranakshay2598@gmail.com');
+        expect(data.users[0].email).toBe('launchpals.demo.marchetti@bouclepro.test');
     });
 
     test('RED→GREEN: full name search reversed (last_name + first_name)', async ({ page }) => {
-        const { data } = await searchMembers(page, LAUNCHPALS_ORG_SLUG, FIXTURE_DOSSIER_ID, 'MALINA Roger');
+        const { data } = await searchMembers(page, LAUNCHPALS_ORG_SLUG, FIXTURE_DOSSIER_ID, 'DUBREUIL Antoine');
         expect(data.users.length).toBe(1);
-        expect(data.users[0].email).toBe('rxm116130@utdallas.edu');
+        expect(data.users[0].email).toBe('launchpals.demo.dubreuil@bouclepro.test');
     });
 
     test('RED→GREEN: multi-space and trim are normalized', async ({ page }) => {
-        const spaces = await searchMembers(page, LAUNCHPALS_ORG_SLUG, FIXTURE_DOSSIER_ID, '  kiran  akshay  ');
-        const normal = await searchMembers(page, LAUNCHPALS_ORG_SLUG, FIXTURE_DOSSIER_ID, 'kiran akshay');
+        const spaces = await searchMembers(page, LAUNCHPALS_ORG_SLUG, FIXTURE_DOSSIER_ID, '  maya  aurelie  ');
+        const normal = await searchMembers(page, LAUNCHPALS_ORG_SLUG, FIXTURE_DOSSIER_ID, 'maya aurelie');
 
         expect(spaces.data.users.length).toBeGreaterThan(0);
         expect(spaces.data.users.length).toBe(normal.data.users.length);
