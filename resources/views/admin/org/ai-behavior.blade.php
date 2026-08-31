@@ -40,6 +40,10 @@
         <ol class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400" data-behavior-cascade aria-label="{{ __('ai.behavior_cascade_title') }}">
             <li class="font-medium text-gray-900 dark:text-gray-100">{{ __('ai.behavior_cascade_constitution') }}</li>
             <li aria-hidden="true">→</li>
+            {{-- TASK-1348 : la Constitution de l'Organization s'intercale ici —
+                 sous celle de la plateforme, au-dessus de la doctrine. --}}
+            <li class="font-medium text-gray-900 dark:text-gray-100">{{ __('ai.behavior_cascade_org_constitution') }}</li>
+            <li aria-hidden="true">→</li>
             <li class="font-medium text-gray-900 dark:text-gray-100">{{ __('ai.behavior_cascade_doctrine') }}</li>
             <li aria-hidden="true">→</li>
             <li>{{ __('ai.behavior_cascade_capability') }}</li>
@@ -53,13 +57,83 @@
         <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6" data-behavior-constitution>
             <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.behavior_constitution_title') }} <span class="text-gray-400 font-normal text-sm">{{ $constitutionVersion }}</span></h2>
-                <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200" data-behavior-constitution-badge>{{ __('ai.behavior_constitution_badge') }}</span>
+                <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200" data-behavior-constitution-badge @if($constitutionIsSeed ?? false) data-behavior-constitution-source="seed" @else data-behavior-constitution-source="published" @endif>{{ ($constitutionIsSeed ?? false) ? __('ai.behavior_constitution_seed_badge') : __('ai.behavior_constitution_badge') }}</span>
             </div>
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ __('ai.behavior_constitution_help') }}</p>
             <pre class="whitespace-pre-wrap font-sans text-sm text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-900/40 rounded-lg p-4 border border-gray-100 dark:border-gray-700" data-behavior-constitution-text>{{ $constitutionText }}</pre>
         </section>
 
-        {{-- 2. DOCTRINE DE L'ORGANIZATION (editable) --}}
+        {{-- 2. CONSTITUTION DE VOTRE ORGANIZATION (editable, optionnelle) --}}
+        {{-- TASK-1348. Volontairement distincte de la Doctrine juste en dessous :
+             teinte differente, question differente en tete de bloc. La
+             Constitution repond a « qui sommes-nous et quels principes
+             fondamentaux gouvernent notre IA ? » ; la Doctrine a « comment
+             voulons-nous que l'IA se comporte dans notre metier ? ». Trois
+             textarea identiques auraient rendu la hierarchie illisible. --}}
+        <section class="bg-white dark:bg-gray-800 rounded-xl border-2 border-indigo-200 dark:border-indigo-800/60 p-6" data-behavior-org-constitution>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.behavior_org_constitution_title') }}</h2>
+                @if($orgConstitution)
+                    <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300" data-behavior-org-constitution-status="active" data-behavior-org-constitution-version="{{ $orgConstitution->version }}">{{ __('ai.behavior_org_constitution_active', ['version' => $orgConstitution->version]) }}</span>
+                @else
+                    <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300" data-behavior-org-constitution-status="none">{{ __('ai.behavior_org_constitution_badge') }}</span>
+                @endif
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ __('ai.behavior_org_constitution_help') }}</p>
+
+            @unless($orgConstitution)
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4" data-behavior-org-constitution-empty>{{ __('ai.behavior_org_constitution_none') }}</p>
+            @endunless
+
+            <form method="POST" action="{{ route('organization.admin.ai-behavior.constitution.update', ['organization' => $organization->slug]) }}">
+                @csrf
+                @method('PUT')
+                {{-- Le champ s'appelle `constitution_body`, PAS `body`.
+                     La doctrine juste en dessous utilise `body` : deux champs
+                     de meme nom sur la meme page partagent `old()`. Apres le
+                     PRG du bac a sable, le texte de DOCTRINE serait revenu
+                     dans CE textarea, et un clic sur « Publier » aurait publie
+                     la doctrine comme Constitution. Les deux noms sont donc
+                     disjoints, du formulaire jusqu'a la validation. --}}
+                <textarea name="constitution_body" rows="7" maxlength="{{ $orgConstitutionMaxChars }}"
+                          class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 text-sm"
+                          data-behavior-org-constitution-input>{{ old('constitution_body', $orgConstitution->body ?? '') }}</textarea>
+                @error('constitution_body')
+                    <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
+                @enderror
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700" data-behavior-org-constitution-save>{{ __('ai.behavior_org_constitution_save') }}</button>
+                    <span class="text-xs text-gray-400">{{ $orgConstitutionMaxChars }}</span>
+                </div>
+            </form>
+
+            @if($orgConstitution)
+                <form method="POST" action="{{ route('organization.admin.ai-behavior.constitution.withdraw', ['organization' => $organization->slug]) }}" class="mt-3">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="text-xs text-gray-500 hover:text-red-600 dark:text-gray-400 underline" data-behavior-org-constitution-withdraw>{{ __('ai.behavior_org_constitution_withdraw') }}</button>
+                </form>
+            @endif
+
+            @if($orgConstitutionHistoryTotal > 0)
+                <div class="mt-5 border-t border-gray-100 dark:border-gray-700 pt-4">
+                    <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">{{ __('ai.behavior_org_constitution_history') }}</h3>
+                    <ul class="space-y-1 text-xs text-gray-500 dark:text-gray-400" data-behavior-org-constitution-history data-behavior-org-constitution-history-total="{{ $orgConstitutionHistoryTotal }}">
+                        @foreach($orgConstitutionHistory as $version)
+                            <li data-behavior-org-constitution-history-version="{{ $version->version }}">
+                                {{ __('ai.constitution_admin_version_by', [
+                                    'version' => $version->version,
+                                    'author' => $version->author?->publicDisplayName() ?? '—',
+                                    'date' => optional($version->activated_at ?? $version->created_at)->isoFormat('LLL'),
+                                ]) }}
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+        </section>
+
+        {{-- 3. DOCTRINE DE L'ORGANIZATION (editable) --}}
         <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6" data-behavior-doctrine>
             <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.behavior_doctrine_title') }}</h2>
@@ -173,6 +247,9 @@
                 @csrf
                 {{-- Le brouillon teste = le texte du champ doctrine ci-dessus, recopie a l'envoi. --}}
                 <input type="hidden" name="body" value="" data-behavior-sandbox-body>
+                {{-- TASK-1348 : le texte de Constitution en cours de saisie part
+                     avec l'essai, exactement comme celui de la doctrine. --}}
+                <input type="hidden" name="constitution_body" value="" data-behavior-sandbox-constitution-body>
                 <div>
                     <label for="sandbox-capability" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('ai.behavior_sandbox_capability') }}</label>
                     <select id="sandbox-capability" name="capability" class="w-full md:w-72 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
@@ -260,15 +337,26 @@
     </div>
 
     <script>
-        // Le bac a sable teste le brouillon tel qu'il est dans le champ
-        // doctrine au moment de l'envoi (non enregistre).
+        // Le bac a sable teste les brouillons tels qu'ils sont dans les champs
+        // au moment de l'envoi (non enregistres).
+        //
+        // TASK-1348 : la Constitution de l'Organization part avec la doctrine.
+        // Chaque champ est traite independamment — un formulaire sans l'un des
+        // deux (Card retiree, futur remaniement) continue d'envoyer l'autre.
         document.addEventListener('DOMContentLoaded', function () {
             var form = document.querySelector('[data-behavior-sandbox-form]');
-            var body = document.getElementById('doctrine-body');
-            var hidden = document.querySelector('[data-behavior-sandbox-body]');
-            if (form && body && hidden) {
-                form.addEventListener('submit', function () { hidden.value = body.value; });
-            }
+            if (!form) { return; }
+
+            var pairs = [
+                [document.getElementById('doctrine-body'), document.querySelector('[data-behavior-sandbox-body]')],
+                [document.querySelector('[data-behavior-org-constitution-input]'), document.querySelector('[data-behavior-sandbox-constitution-body]')],
+            ];
+
+            form.addEventListener('submit', function () {
+                pairs.forEach(function (pair) {
+                    if (pair[0] && pair[1]) { pair[1].value = pair[0].value; }
+                });
+            });
         });
     </script>
 </x-org-admin-layout>

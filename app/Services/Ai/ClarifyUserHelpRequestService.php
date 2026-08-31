@@ -173,6 +173,14 @@ class ClarifyUserHelpRequestService implements AiProvider
         // TASK-1236 : version de doctrine reellement composee ci-dessus, tracee
         // sur l'interaction enregistree plutot que reconstituee a posteriori.
         $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
+        // TASK-1348 : les deux Constitutions REELLEMENT composees ci-dessus,
+        // relevees a cote de la doctrine et par la meme autorite. `null` sur la
+        // plateforme signifie « graine de code servie », pas « rien » — la
+        // distinction compte pour relire une interaction ancienne.
+        $constitutionVersions = [
+            'platform_constitution_version' => $this->prompts->activePlatformConstitutionVersion(),
+            'org_constitution_version' => $this->prompts->activeOrganizationConstitutionVersion((string) $organization->id),
+        ];
 
         $agent = new HelpRequestClarifierAgent(
             $instructions,
@@ -192,7 +200,7 @@ class ClarifyUserHelpRequestService implements AiProvider
             $this->recordInteraction(
                 $loop, $requester, $contexte, $definition, $resolved, $phrase,
                 null, AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null,
-                'failed', $startedAt, null, $exception::class, $doctrineVersion,
+                'failed', $startedAt, null, $exception::class, $doctrineVersion, $constitutionVersions,
             );
 
             // Un echec ne bloque pas le membre : il retombe sur la clarification
@@ -212,7 +220,7 @@ class ClarifyUserHelpRequestService implements AiProvider
         $interaction = $this->recordInteraction(
             $loop, $requester, $contexte, $definition, $resolved, $phrase,
             json_encode($structured, JSON_UNESCAPED_UNICODE), $usage, $cost->traceAttributes(), $cost,
-            'success', $startedAt, $response->invocationId, null, $doctrineVersion,
+            'success', $startedAt, $response->invocationId, null, $doctrineVersion, $constitutionVersions,
         );
 
         return $this->mapStructuredToDto(
@@ -446,6 +454,7 @@ class ClarifyUserHelpRequestService implements AiProvider
         ?string $sdkInvocationId,
         ?string $failure,
         ?int $doctrineVersion,
+        array $constitutionVersions = [],
     ): AiInteraction {
         $this->ledger->recordGeneration(
             organizationId: $contexte->organizationId,
@@ -487,7 +496,11 @@ class ClarifyUserHelpRequestService implements AiProvider
                 // TASK-1236 : cle toujours presente, meme a null (aucune doctrine
                 // active) — sa PRESENCE distingue une interaction tracee d'une
                 // ligne anterieure au mecanisme, ce qu'un array_filter effacerait.
-                + ['doctrine_version' => $doctrineVersion],
+                + ['doctrine_version' => $doctrineVersion]
+                // TASK-1348 : memes regles que la doctrine — cles TOUJOURS presentes,
+                // meme a null, pour distinguer « aucune version active » de
+                // « interaction anterieure au mecanisme ».
+                + $constitutionVersions,
         ]);
     }
 }

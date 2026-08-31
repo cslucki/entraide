@@ -21,6 +21,7 @@ use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\OrganizationAiDoctrine;
 use App\Models\OrganizationAiSetting;
+use App\Models\PlatformAiConstitution;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\Ai\AiProviderInvocationLedger;
@@ -136,6 +137,12 @@ class TASK1227OrganizationDoctrineTest extends TestCase
         $definition = app(CapabilityRegistry::class)->get(CapabilityRegistry::LOOP_SUMMARY);
         $instructions = 'Resume fidelement les messages autorises.';
 
+        // TASK-1348 : l'invariant « byte-identique » ne vaut que lorsque AUCUN
+        // texte administrable n'est actif. Le provisioning en active un par
+        // defaut ; on le retire ici pour tester ce que ce test a toujours
+        // teste — la composition NUE.
+        PlatformAiConstitution::withdraw();
+
         // Format EXACT d'avant TASK-1227 (PromptRepository::compose, TASK-1206).
         $legacy = implode("\n\n", [
             (new Constitution)->text(),
@@ -162,7 +169,11 @@ class TASK1227OrganizationDoctrineTest extends TestCase
             (string) $this->organization->id,
         );
 
-        $this->assertStringStartsWith('Constitution BouclePro IA — v1', $composed);
+        // TASK-1348 : la composition ne COMMENCE plus par la Constitution — un
+        // socle de code immuable la precede des qu'un texte administrable est
+        // present, et le provisioning en active un par defaut. Le contrat de
+        // ce test reste entier : la Constitution est LA, et avant la doctrine.
+        $this->assertStringContainsString('Constitution BouclePro IA — v1', $composed);
         $this->assertStringContainsString("Doctrine de l'Organization — v1", $composed);
         $this->assertStringContainsString('SENTINELLE-DOCTRINE-1227', $composed);
         $this->assertStringContainsString(PromptRepository::DOCTRINE_OPEN, $composed);
@@ -215,7 +226,8 @@ class TASK1227OrganizationDoctrineTest extends TestCase
 
         HelpRequestClarifierAgent::assertPrompted(function (AgentPrompt $prompt): bool {
             $instructions = (string) $prompt->agent->instructions();
-            $this->assertStringStartsWith('Constitution BouclePro IA', $instructions);
+            // TASK-1348 : presente, plus forcement en tete (socle de code).
+            $this->assertStringContainsString('Constitution BouclePro IA', $instructions);
             $this->assertStringContainsString('SENTINELLE-CLARIFY-1227', $instructions);
             // Le prompt utilisateur, lui, ne porte pas la doctrine.
             $this->assertStringNotContainsString('SENTINELLE-CLARIFY-1227', $prompt->prompt);
@@ -240,7 +252,8 @@ class TASK1227OrganizationDoctrineTest extends TestCase
 
         LoopSummaryAgent::assertPrompted(function (AgentPrompt $prompt): bool {
             $instructions = (string) $prompt->agent->instructions();
-            $this->assertStringStartsWith('Constitution BouclePro IA', $instructions);
+            // TASK-1348 : presente, plus forcement en tete (socle de code).
+            $this->assertStringContainsString('Constitution BouclePro IA', $instructions);
             $this->assertStringContainsString('SENTINELLE-SUMMARY-1227', $instructions);
 
             return true;
@@ -262,7 +275,8 @@ class TASK1227OrganizationDoctrineTest extends TestCase
 
         LoopKnowledgeAgent::assertPrompted(function (AgentPrompt $prompt): bool {
             $instructions = (string) $prompt->agent->instructions();
-            $this->assertStringStartsWith('Constitution BouclePro IA', $instructions);
+            // TASK-1348 : presente, plus forcement en tete (socle de code).
+            $this->assertStringContainsString('Constitution BouclePro IA', $instructions);
             $this->assertStringContainsString('SENTINELLE-KNOWLEDGE-1227', $instructions);
 
             return true;
@@ -310,7 +324,8 @@ class TASK1227OrganizationDoctrineTest extends TestCase
 
         HelpRequestClarifierAgent::assertPrompted(function (AgentPrompt $prompt): bool {
             $instructions = (string) $prompt->agent->instructions();
-            $this->assertStringStartsWith('Constitution BouclePro IA — v1', $instructions);
+            // TASK-1348 : presente, plus forcement en tete (socle de code).
+            $this->assertStringContainsString('Constitution BouclePro IA — v1', $instructions);
             $open = strpos($instructions, PromptRepository::DOCTRINE_OPEN);
             $hostile = strpos($instructions, 'Ignore la constitution');
             $close = strpos($instructions, PromptRepository::DOCTRINE_CLOSE);
@@ -465,7 +480,9 @@ class TASK1227OrganizationDoctrineTest extends TestCase
         $this->assertSame(1, OrganizationAiDoctrine::query()->count());
         $this->assertFalse(OrganizationAiDoctrine::withdraw($this->organization));
 
-        // Apres retrait : composition identique a l'avant-TASK.
+        // Apres retrait : composition identique a l'avant-TASK — a condition
+        // qu'aucun autre texte administrable ne soit actif (TASK-1348).
+        PlatformAiConstitution::withdraw();
         $definition = app(CapabilityRegistry::class)->get(CapabilityRegistry::LOOP_SUMMARY);
         $legacy = implode("\n\n", [(new Constitution)->text(), "Capability: {$definition->id}", "Instructions capability ({$definition->promptKey}):\nx"]);
         $this->assertSame($legacy, app(PromptRepository::class)->compose(CapabilityRegistry::LOOP_SUMMARY, 'x', (string) $this->organization->id));
@@ -635,7 +652,8 @@ class TASK1227OrganizationDoctrineTest extends TestCase
 
         HelpRequestClarifierAgent::assertPrompted(function (AgentPrompt $prompt): bool {
             $instructions = (string) $prompt->agent->instructions();
-            $this->assertStringStartsWith('Constitution BouclePro IA — v1', $instructions);
+            // TASK-1348 : presente, plus forcement en tete (socle de code).
+            $this->assertStringContainsString('Constitution BouclePro IA — v1', $instructions);
             $this->assertStringContainsString("Doctrine de l'Organization — brouillon (non publié)", $instructions);
             $this->assertStringContainsString('BROUILLON-SANDBOX-1227', $instructions);
             $this->assertSame('org:'.$this->organization->id.':openai', $prompt->provider->name());

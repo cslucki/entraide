@@ -359,7 +359,9 @@ class TASK1285MemberProfileAgentDoctrineCanonicalTest extends TestCase
 
         // La Constitution est la TETE du prompt : le prompt admin n'est pas
         // devenu le prompt entier, il est l'INSTRUCTION composee dessous.
-        $this->assertStringStartsWith(app(Constitution::class)->text(), $messages['system']);
+        // TASK-1348 : presente, plus forcement en tete — un socle de code
+        // immuable precede desormais tout texte administrable.
+        $this->assertStringContainsString(app(Constitution::class)->text(), $messages['system']);
         $this->assertOrderedInString([
             'Capability: member_profile_agent_loop_reply',
             'Instructions capability (profile_agent_master):',

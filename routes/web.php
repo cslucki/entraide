@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AdminAiBenchmarkController;
 use App\Http\Controllers\Admin\AdminAiConfigController;
+use App\Http\Controllers\Admin\AdminAiConstitutionController;
 use App\Http\Controllers\Admin\AdminAiInteractionController;
 use App\Http\Controllers\Admin\AdminAiMonetizationController;
 use App\Http\Controllers\Admin\AdminAiOrganizationsController;
@@ -408,6 +409,13 @@ Route::get('/abonnements', [SubscriptionController::class, 'index'])->name('subs
 // Admin routes
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+
+    // TASK-1348 — Constitution IA de la PLATEFORME. Zone admin GLOBALE : la
+    // garde est `is_admin` (attribut), pas l'appartenance a une Organization.
+    // Aucun administrateur d'Organization n'atteint ces trois routes.
+    Route::get('/ai-constitution', [AdminAiConstitutionController::class, 'index'])->name('ai-constitution');
+    Route::put('/ai-constitution', [AdminAiConstitutionController::class, 'update'])->name('ai-constitution.update');
+    Route::delete('/ai-constitution', [AdminAiConstitutionController::class, 'withdraw'])->name('ai-constitution.withdraw');
     Route::get('/themes', [AdminThemeController::class, 'index'])->name('themes');
     Route::get('/themes/create', [AdminThemeController::class, 'create'])->name('themes.create');
     Route::post('/themes', [AdminThemeController::class, 'store'])->name('themes.store');
@@ -1046,6 +1054,12 @@ Route::prefix('/org/{organization}')
                 Route::get('/ai-behavior', [OrgAdminController::class, 'aiBehavior'])->name('ai-behavior');
                 Route::put('/ai-behavior/doctrine', [OrgAdminController::class, 'updateAiDoctrine'])->name('ai-behavior.doctrine.update');
                 Route::delete('/ai-behavior/doctrine', [OrgAdminController::class, 'withdrawAiDoctrine'])->name('ai-behavior.doctrine.withdraw');
+                // TASK-1348 — Constitution de CETTE Organization. L'Organization
+                // vient du route model binding : la cible reste explicite meme
+                // pour un Super Admin, qui ne peut ecrire que sur celle qu'il a
+                // ouverte.
+                Route::put('/ai-behavior/constitution', [OrgAdminController::class, 'updateAiConstitution'])->name('ai-behavior.constitution.update');
+                Route::delete('/ai-behavior/constitution', [OrgAdminController::class, 'withdrawAiConstitution'])->name('ai-behavior.constitution.withdraw');
                 Route::post('/ai-behavior/sandbox', [OrgAdminController::class, 'sandboxAiDoctrine'])->middleware('throttle:ai-doctrine-sandbox')->name('ai-behavior.sandbox');
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
                 Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');
