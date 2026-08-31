@@ -136,9 +136,24 @@ class LoopEventsCard extends Component
         $this->view = in_array($view, ['list', 'calendar'], true) ? $view : 'list';
     }
 
+    /**
+     * TASK-1347 : le `!` n'est pas decoratif.
+     *
+     * Sans lui, `createFromFormat('Y-m', ...)` complete le JOUR manquant avec
+     * celui d'AUJOURD'HUI. Un 31, viser un mois de 30 jours fabrique une date
+     * inexistante (« 2026-09-31 ») que PHP fait deborder sur le mois suivant —
+     * AVANT que `startOfMonth()` n'ait son mot a dire. La navigation partait
+     * alors d'octobre en croyant partir de septembre, et se trompait d'un mois.
+     * Le `!` remet a zero tout ce que le format ne nomme pas : le jour vaut 1,
+     * il n'y a plus rien a faire deborder. C'est l'idiome deja retenu ailleurs
+     * dans le depot (`!Y-m-d`).
+     *
+     * `startOfMonth()` devient redondant et reste : il dit l'intention sans
+     * exiger de connaitre la semantique du `!`.
+     */
     public function shiftMonth(int $delta): void
     {
-        $this->month = CarbonImmutable::createFromFormat('Y-m', $this->month)
+        $this->month = CarbonImmutable::createFromFormat('!Y-m', $this->month)
             ->startOfMonth()
             ->addMonths($delta)
             ->format('Y-m');
