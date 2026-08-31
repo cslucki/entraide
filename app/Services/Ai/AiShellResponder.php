@@ -36,10 +36,25 @@ use Illuminate\Support\Str;
  *
  * ## Ce qu'il ajoute, et rien d'autre
  *
- * La persistance du tour dans le fil du Shell, le verrou de course, et
- * l'idempotence par declencheur. Il ne publie RIEN : aucune Demande, aucun
- * message de Boucle, aucun Article. La validation humaine reste devant toute
- * publication durable.
+ * La persistance du tour dans le fil du Shell, le verrou de course,
+ * l'idempotence par declencheur, et — depuis TASK-1346 — la MEMOIRE du tour.
+ * Il ne publie RIEN : aucune Demande, aucun message de Boucle, aucun Article.
+ * La validation humaine reste devant toute publication durable.
+ *
+ * ## La memoire : le fil affiche, et rien de plus (TASK-1346)
+ *
+ * T1315 avait livre la persistance ET l'affichage du fil sans livrer son
+ * INJECTION : la personne lisait son historique a l'ecran et parlait a un
+ * interlocuteur qui n'avait rien recu. `conversationMemory()` ferme cet ecart,
+ * et strictement lui : elle relit la conversation COURANTE — celle que la
+ * surface affiche deja — par la porte unique `AiShellThread::messages()`, la
+ * borne, et la donne a `situated()` comme un bloc de plus.
+ *
+ * Ce n'est donc ni un resume, ni une memoire longue, ni une memoire d'une
+ * conversation a l'autre : effacer le fil ouvre une nouvelle conversation, qui
+ * n'a aucune memoire. Et ce n'est pas une source : la question de savoir ce
+ * que le modele a le DROIT de lire reste entierement chez `ContextBuilder`,
+ * sous les `allowedSources` de la capability.
  *
  * ## Le verrou : la doctrine T1311, pas une copie
  *
@@ -129,6 +144,21 @@ final class AiShellResponder
             self::lockTtl(),
             __('ai.shell_turn_in_progress'),
             function () use ($organization, $user, $prompt, $pageContext, $conversationId, $pinnedContext) {
+                // TASK-1346 : la memoire du tour est prise ICI, et nulle part
+                // ailleurs. Trois raisons cumulatives, toutes structurelles :
+                //
+                //  - AVANT `appendUser()` : sinon le message qu'on est en train
+                //    d'envoyer entrerait dans son propre contexte, en doublon du
+                //    `$prompt` que `situated()` place deja en fin de prompt ;
+                //  - AVANT `appendUser()` : `AiShellThread::append()` elague le
+                //    fil (`prune()`) une fois l'ecriture faite — lire apres, ce
+                //    serait subir une troncature de STOCKAGE au lieu de la
+                //    troncature de BUDGET decidee ci-dessous ;
+                //  - DANS le verrou : `AiTurnLock` serialise les tours de ce
+                //    couple (organization, user). Capturer avant lui, ce serait
+                //    lire un fil qu'un tour concurrent peut encore ecrire.
+                $memory = $this->conversationMemory($organization, $user);
+
                 // Le message humain est ecrit AVANT l'appel : meme si la generation
                 // echoue, l'utilisateur retrouve ce qu'il a demande dans son fil.
                 $trigger = $this->thread->appendUser($organization, $user, $prompt, [
@@ -144,7 +174,7 @@ final class AiShellResponder
                     return ['trigger' => $trigger, 'answer' => $existing];
                 }
 
-                [$content, $metadata] = $this->generate($organization, $user, $prompt, $pageContext, $pinnedContext);
+                [$content, $metadata] = $this->generate($organization, $user, $prompt, $pageContext, $pinnedContext, $memory);
 
                 $answer = $this->thread->appendAssistant($organization, $user, $content, $trigger, $metadata);
 
@@ -156,12 +186,14 @@ final class AiShellResponder
     /**
      * @param  array<string, mixed>  $pageContext
      * @param  list<array<string, mixed>>  $pinnedContext
+     * @param  string  $memory  transcript deja borne, capture AVANT l'ecriture
+     *                          du declencheur (TASK-1346)
      * @return array{0: string, 1: array<string, mixed>}
      */
-    private function generate(Organization $organization, User $user, string $prompt, array $pageContext, array $pinnedContext): array
+    private function generate(Organization $organization, User $user, string $prompt, array $pageContext, array $pinnedContext, string $memory = ''): array
     {
         try {
-            $result = $this->clarifier->clarifyForOrganization($organization, $user, $this->situated($prompt, $pageContext, $pinnedContext));
+            $result = $this->clarifier->clarifyForOrganization($organization, $user, $this->situated($prompt, $pageContext, $pinnedContext, $memory));
         } catch (DomainException $exception) {
             report($exception);
 
@@ -236,10 +268,17 @@ final class AiShellResponder
      * pins affichee dans le Shell — T1326 : ce qui est injecte est EXACTEMENT
      * ce que l'utilisateur voit epingle, rien de cache).
      *
+     * TASK-1346 : le transcript de la conversation COURANTE s'ajoute ici, en
+     * UN SEUL bloc delimite, entre le contexte et la question. Il n'est pas
+     * davantage un droit que les deux autres : il ne contient QUE ce que cet
+     * utilisateur a deja sous les yeux dans son propre fil, borne et
+     * chronologique.
+     *
      * @param  array<string, mixed>  $pageContext
      * @param  list<array<string, mixed>>  $pinnedContext
+     * @param  string  $memory  transcript deja borne par `conversationMemory()`
      */
-    private function situated(string $prompt, array $pageContext, array $pinnedContext = []): string
+    private function situated(string $prompt, array $pageContext, array $pinnedContext = [], string $memory = ''): string
     {
         $lines = [];
 
@@ -285,7 +324,122 @@ final class AiShellResponder
             $lines[] = __('ai.shell_prompt_pinned', ['items' => implode(' ; ', $items)]);
         }
 
+        // Le transcript vient APRES le lieu et les pins, et AVANT la question :
+        // le modele lit d'abord ou l'on est, puis ce qui s'est dit, puis ce
+        // qu'on lui demande.
+        if ($memory !== '') {
+            $lines[] = $memory;
+        }
+
         return $lines === [] ? $prompt : implode("\n", [...$lines, $prompt]);
+    }
+
+    /**
+     * Le fil de la conversation COURANTE, borne, pret a etre injecte.
+     *
+     * ## Ce que cette methode n'est pas
+     *
+     * Ni un resume, ni une memoire longue, ni une memoire d'une conversation a
+     * l'autre. Elle relit un fil que l'utilisateur a DEJA sous les yeux, dans
+     * la conversation qu'il a DEJA ouverte, et le tronque. Un fil efface
+     * (`AiShellThread::clear()`) ouvre une nouvelle conversation : il n'a donc
+     * plus aucune memoire, et c'est le comportement attendu.
+     *
+     * ## Isolation
+     *
+     * Aucune requete `AiShellMessage` n'est ecrite ici : la lecture passe par
+     * `AiShellThread::messages()`, porte unique, qui scope d'abord par
+     * `(organization_id, user_id)` PUIS par conversation. Organization =
+     * Tenant ; le Shell n'a pas de dimension Boucle et cette methode n'en
+     * invente aucune.
+     *
+     * ## Bornes
+     *
+     * Deux, cumulatives : le nombre de messages relus (`AiShellThread::limit()`,
+     * la fenetre que la surface affiche deja) et `ai.shell.max_context_chars`.
+     * La coupe se fait du PLUS ANCIEN vers le plus recent — on remonte le fil a
+     * rebours et on s'arrete des que le budget est atteint — parce que le tour
+     * le plus recent est celui que la question prolonge. Idiome repris tel quel
+     * de {@see AiConversationContextBuilder}, prefixes compris : les deux blocs
+     * de memoire du produit se lisent de la meme facon pour le modele.
+     */
+    private function conversationMemory(Organization $organization, User $user): string
+    {
+        $conversationId = $this->thread->persistedConversationId($organization, $user);
+
+        if ($conversationId === null) {
+            return '';
+        }
+
+        $budget = max(0, (int) config('ai.shell.max_context_chars', 4000));
+
+        if ($budget === 0) {
+            return '';
+        }
+
+        $messages = $this->thread->messages($organization, $user, $conversationId);
+
+        $lines = [];
+        $total = 0;
+
+        // A rebours : le plus recent d'abord, pour que ce soit le plus ANCIEN
+        // qui tombe quand le budget est atteint.
+        foreach ($messages->reverse() as $message) {
+            if (! $this->remembered($message)) {
+                continue;
+            }
+
+            $body = trim((string) $message->content);
+
+            if ($body === '') {
+                continue;
+            }
+
+            $line = ($message->role === AiShellMessage::ROLE_ASSISTANT ? 'Assistant : ' : 'Membre : ').$body;
+
+            if ($lines === []) {
+                // Le tour le plus recent est conserve meme s'il excede a lui
+                // seul le budget : il est tronque, jamais supprime.
+                $line = mb_substr($line, 0, $budget);
+                $lines[] = $line;
+                $total = mb_strlen($line);
+
+                continue;
+            }
+
+            if ($total + mb_strlen($line) + 1 > $budget) {
+                break;
+            }
+
+            $lines[] = $line;
+            $total += mb_strlen($line) + 1;
+        }
+
+        if ($lines === []) {
+            return '';
+        }
+
+        return "Echange precedent dans cette conversation :\n".implode("\n", array_reverse($lines));
+    }
+
+    /**
+     * Ce qui merite d'entrer dans la memoire du tour.
+     *
+     * Tout ce que la personne a ecrit ; et, de l'assistant, uniquement ce qui
+     * est une VRAIE reponse. Une indisponibilite (`STATUS_UNAVAILABLE`) ou un
+     * refus (`STATUS_BLOCKED`) est une reponse TECHNIQUE : la reinjecter
+     * apprendrait au modele a se citer en echec, alors qu'elle ne dit rien de
+     * ce dont on parle.
+     */
+    private function remembered(AiShellMessage $message): bool
+    {
+        if ($message->role !== AiShellMessage::ROLE_ASSISTANT) {
+            return true;
+        }
+
+        $metadata = is_array($message->metadata) ? $message->metadata : [];
+
+        return ($metadata['status'] ?? null) === self::STATUS_ANSWERED;
     }
 
     /**
