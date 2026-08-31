@@ -617,6 +617,107 @@ class TASK1348AdministrableConstitutionTest extends TestCase
         $this->assertNotSame(0, $status, "La vue [{$view}] est ignoree par .gitignore : elle manquerait au commit.");
     }
 
+    /**
+     * Un champ vide doit ENSEIGNER, pas seulement attendre.
+     *
+     * Sans Constitution propre, l'administrateur voyait un textarea nu : rien
+     * ne lui disait ce qu'il herite deja, ce qu'il peut ajouter, ni en quoi
+     * cela differe de la Doctrine juste en dessous. Le placeholder donne un
+     * exemple concret, et la note d'heritage evite le reflexe de recopier la
+     * Constitution plateforme — qui serait alors composee deux fois dans
+     * chaque prompt.
+     */
+    public function test_an_empty_organization_constitution_field_carries_its_guidance(): void
+    {
+        $this->assertNull(OrganizationAiConstitution::activeFor((string) $this->organizationA->id));
+
+        $page = $this->actingAs($this->adminA)
+            ->get(route('organization.admin.ai-behavior', ['organization' => $this->organizationA->slug]));
+
+        $page->assertOk()
+            ->assertSee(__('ai.behavior_org_constitution_placeholder'))
+            ->assertSee(__('ai.behavior_org_constitution_inherit_note'))
+            ->assertSee('data-behavior-org-constitution-inherit-note', false)
+            ->assertSee('data-behavior-org-constitution-empty', false);
+    }
+
+    /**
+     * Le placeholder est une GUIDANCE, jamais une valeur.
+     *
+     * Un attribut `placeholder` n'est pas soumis : le champ reste vide, donc
+     * requis. Publier sans rien saisir est refuse, et AUCUNE Constitution
+     * portant le texte d'exemple n'est creee.
+     */
+    public function test_the_placeholder_is_never_persisted(): void
+    {
+        $exemple = __('ai.behavior_org_constitution_placeholder');
+
+        // Le formulaire soumis a vide : le placeholder n'accompagne rien.
+        $this->actingAs($this->adminA)
+            ->from(route('organization.admin.ai-behavior', ['organization' => $this->organizationA->slug]))
+            ->put(route('organization.admin.ai-behavior.constitution.update', ['organization' => $this->organizationA->slug]), [
+                'constitution_body' => '',
+            ])
+            ->assertSessionHasErrors('constitution_body');
+
+        $this->assertNull(OrganizationAiConstitution::activeFor((string) $this->organizationA->id));
+        $this->assertSame(0, OrganizationAiConstitution::query()->where('body', $exemple)->count());
+        $this->assertSame(0, OrganizationAiConstitution::query()->count());
+
+        // …et le rendu place bien l'exemple en ATTRIBUT, pas en contenu du
+        // textarea : c'est ce qui garantit qu'il ne part jamais au serveur.
+        $html = $this->actingAs($this->adminA)
+            ->get(route('organization.admin.ai-behavior', ['organization' => $this->organizationA->slug]))
+            ->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '/placeholder="[^"]*'.preg_quote(e('ArtSciLab'), '/').'/',
+            $html,
+            "L'exemple doit etre un attribut placeholder, jamais le contenu du champ."
+        );
+        $this->assertMatchesRegularExpression(
+            '/data-behavior-org-constitution-input[^>]*>\s*<\/textarea>/',
+            $html,
+            'Le textarea doit rester VIDE : un placeholder n\'est pas une valeur.'
+        );
+    }
+
+    /** Une Constitution existante reste affichee — le placeholder s'efface. */
+    public function test_an_existing_constitution_is_still_prefilled(): void
+    {
+        OrganizationAiConstitution::activate($this->organizationA, 'TEXTE-REELLEMENT-PUBLIE', $this->adminA);
+
+        $html = $this->actingAs($this->adminA)
+            ->get(route('organization.admin.ai-behavior', ['organization' => $this->organizationA->slug]))
+            ->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '/data-behavior-org-constitution-input[^>]*>TEXTE-REELLEMENT-PUBLIE<\/textarea>/',
+            $html,
+            'Le contenu publie doit rester preremplí.'
+        );
+        // L'attribut reste dans le DOM (il ne s'affiche simplement plus), mais
+        // il n'est jamais devenu la valeur du champ.
+        $this->assertStringNotContainsString('>'.e(__('ai.behavior_org_constitution_placeholder')).'<', $html);
+    }
+
+    /** Constitution et Doctrine gardent des guidances DISTINCTES. */
+    public function test_the_constitution_and_doctrine_guidances_stay_distinct(): void
+    {
+        $page = $this->actingAs($this->adminA)
+            ->get(route('organization.admin.ai-behavior', ['organization' => $this->organizationA->slug]));
+
+        $page->assertOk()
+            ->assertSee(__('ai.behavior_org_constitution_placeholder'))
+            ->assertSee(__('ai.behavior_doctrine_placeholder'));
+
+        $this->assertNotSame(
+            __('ai.behavior_org_constitution_placeholder'),
+            __('ai.behavior_doctrine_placeholder'),
+            'Les deux champs doivent enseigner deux choses differentes.'
+        );
+    }
+
     // =====================================================================
     // F. Provisioning
     // =====================================================================

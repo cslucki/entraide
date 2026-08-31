@@ -448,6 +448,8 @@ return [
     'behavior_org_constitution_title' => 'Your Organization\'s constitution',
     'behavior_org_constitution_badge' => 'Your founding principles',
     'behavior_org_constitution_help' => 'Who are you, and which founding principles govern your AI? This text applies within the limits of the BouclePro constitution, which prevails. It is optional.',
+    'behavior_org_constitution_placeholder' => 'E.g.: ArtSciLab fosters cross-disciplinary collaboration between artists, scientists and researchers. The AI should encourage knowledge sharing, meaningful introductions and peer learning.',
+    'behavior_org_constitution_inherit_note' => 'No need to repeat the BouclePro constitution above: it already applies to your Organization. Describe only its own identity, purpose and principles.',
     'behavior_org_constitution_none' => 'No constitution of your own. Your Organization follows the BouclePro constitution alone.',
     'behavior_org_constitution_active' => 'Constitution v:version active.',
     'behavior_org_constitution_saved' => 'Organization constitution v:version active.',

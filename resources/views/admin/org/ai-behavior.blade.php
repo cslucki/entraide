@@ -79,7 +79,11 @@
                     <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300" data-behavior-org-constitution-status="none">{{ __('ai.behavior_org_constitution_badge') }}</span>
                 @endif
             </div>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ __('ai.behavior_org_constitution_help') }}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ __('ai.behavior_org_constitution_help') }}</p>
+            {{-- TASK-1348 : dire ce qui est DEJA herite evite le reflexe de
+                 recopier la Constitution plateforme dans le champ ci-dessous —
+                 ce serait du bruit compose deux fois dans chaque prompt. --}}
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4" data-behavior-org-constitution-inherit-note>{{ __('ai.behavior_org_constitution_inherit_note') }}</p>
 
             @unless($orgConstitution)
                 <p class="text-sm text-gray-500 dark:text-gray-400 mb-4" data-behavior-org-constitution-empty>{{ __('ai.behavior_org_constitution_none') }}</p>
@@ -95,7 +99,11 @@
                      dans CE textarea, et un clic sur « Publier » aurait publie
                      la doctrine comme Constitution. Les deux noms sont donc
                      disjoints, du formulaire jusqu'a la validation. --}}
+                {{-- Le placeholder est une GUIDANCE, jamais une valeur : un
+                     attribut `placeholder` n'est pas soumis, donc rien ne peut
+                     l'enregistrer par inadvertance. Le champ reste requis. --}}
                 <textarea name="constitution_body" rows="7" maxlength="{{ $orgConstitutionMaxChars }}"
+                          placeholder="{{ __('ai.behavior_org_constitution_placeholder') }}"
                           class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 text-sm"
                           data-behavior-org-constitution-input>{{ old('constitution_body', $orgConstitution->body ?? '') }}</textarea>
                 @error('constitution_body')

@@ -448,6 +448,8 @@ return [
     'behavior_org_constitution_title' => 'Constitution de votre Organization',
     'behavior_org_constitution_badge' => 'Vos principes fondamentaux',
     'behavior_org_constitution_help' => 'Qui êtes-vous, et quels principes fondamentaux gouvernent votre IA ? Ce texte s\'applique dans les limites de la Constitution BouclePro, qui prévaut. Il est facultatif.',
+    'behavior_org_constitution_placeholder' => 'Ex. : ArtSciLab favorise les collaborations transdisciplinaires entre artistes, scientifiques et chercheurs. L\'IA doit encourager la circulation des savoirs, les mises en relation pertinentes et l\'apprentissage entre pairs.',
+    'behavior_org_constitution_inherit_note' => 'Inutile de répéter la Constitution BouclePro ci-dessus : elle s\'applique déjà à votre Organization. Décrivez uniquement son identité, ses finalités et ses principes propres.',
     'behavior_org_constitution_none' => 'Aucune Constitution propre. Votre Organization suit la Constitution BouclePro seule.',
     'behavior_org_constitution_active' => 'Constitution v:version active.',
     'behavior_org_constitution_saved' => 'Constitution de l\'Organization v:version active.',
