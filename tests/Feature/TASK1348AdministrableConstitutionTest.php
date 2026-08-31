@@ -416,29 +416,29 @@ class TASK1348AdministrableConstitutionTest extends TestCase
     public function test_super_admin_can_edit_the_platform_constitution(): void
     {
         $this->actingAs($this->superAdmin)
-            ->get(route('admin.ai-constitution'))
+            ->get(route('admin.mycelium'))
             ->assertOk()
             ->assertSee('data-constitution-editor', false);
 
         $this->actingAs($this->superAdmin)
-            ->put(route('admin.ai-constitution.update'), ['body' => 'Publiee par le super admin.'])
-            ->assertRedirect(route('admin.ai-constitution'));
+            ->put(route('admin.mycelium.update'), ['body' => 'Publiee par le super admin.'])
+            ->assertRedirect(route('admin.mycelium'));
 
         $this->assertSame('Publiee par le super admin.', PlatformAiConstitution::active()?->body);
     }
 
     public function test_an_organization_admin_can_never_edit_the_platform_constitution(): void
     {
-        $this->actingAs($this->adminA)->get(route('admin.ai-constitution'))->assertForbidden();
-        $this->actingAs($this->adminA)->put(route('admin.ai-constitution.update'), ['body' => 'Tentative.'])->assertForbidden();
-        $this->actingAs($this->adminA)->delete(route('admin.ai-constitution.withdraw'))->assertForbidden();
+        $this->actingAs($this->adminA)->get(route('admin.mycelium'))->assertForbidden();
+        $this->actingAs($this->adminA)->put(route('admin.mycelium.update'), ['body' => 'Tentative.'])->assertForbidden();
+        $this->actingAs($this->adminA)->delete(route('admin.mycelium.withdraw'))->assertForbidden();
 
         $this->assertNull(PlatformAiConstitution::query()->where('body', 'Tentative.')->first());
     }
 
     public function test_a_standard_member_can_never_write_anything(): void
     {
-        $this->actingAs($this->memberA)->put(route('admin.ai-constitution.update'), ['body' => 'Tentative.'])->assertForbidden();
+        $this->actingAs($this->memberA)->put(route('admin.mycelium.update'), ['body' => 'Tentative.'])->assertForbidden();
 
         $this->actingAs($this->memberA)
             ->put(route('organization.admin.ai-behavior.constitution.update', ['organization' => $this->organizationA->slug]), ['constitution_body' => 'Tentative.'])

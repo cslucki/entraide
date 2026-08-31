@@ -37,6 +37,11 @@ class AdminAiConstitutionController extends Controller
         // d'union la met naturellement hors du motif, sans `git add -f` et sans
         // toucher au perimetre privacy de T1336/T1337.
         return view('admin.ai-constitution.index', [
+            // TASK-1349 : « Mycelium BouclePro » est le nom PUBLIC de cette
+            // meme Constitution plateforme. Un seul modele, un seul ecran,
+            // deux vocabulaires — celui du code et celui des humains.
+            'myceliumTitle' => __('mycelium.title'),
+            'myceliumSubtitle' => __('mycelium.subtitle'),
             'active' => $active,
             // Ce qui est REELLEMENT compose : la version active, ou la graine
             // de code quand aucune version ne l'est. L'ecran ne montre jamais
@@ -66,7 +71,7 @@ class AdminAiConstitutionController extends Controller
         $constitution = PlatformAiConstitution::activate($data['body'], $request->user());
 
         return redirect()
-            ->route('admin.ai-constitution')
+            ->route('admin.mycelium')
             ->with('success', $before !== null && $before->is($constitution)
                 ? __('ai.constitution_admin_unchanged', ['version' => $constitution->version])
                 : __('ai.constitution_admin_saved', ['version' => $constitution->version]));
@@ -81,7 +86,7 @@ class AdminAiConstitutionController extends Controller
         $withdrawn = PlatformAiConstitution::withdraw();
 
         return redirect()
-            ->route('admin.ai-constitution')
+            ->route('admin.mycelium')
             ->with($withdrawn ? 'success' : 'info', $withdrawn
                 ? __('ai.constitution_admin_withdrawn')
                 : __('ai.constitution_admin_nothing_to_withdraw'));

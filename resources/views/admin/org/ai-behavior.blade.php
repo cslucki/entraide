@@ -83,7 +83,15 @@
             {{-- TASK-1348 : dire ce qui est DEJA herite evite le reflexe de
                  recopier la Constitution plateforme dans le champ ci-dessous —
                  ce serait du bruit compose deux fois dans chaque prompt. --}}
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4" data-behavior-org-constitution-inherit-note>{{ __('ai.behavior_org_constitution_inherit_note') }}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-2" data-behavior-org-constitution-inherit-note>{{ __('ai.behavior_org_constitution_inherit_note') }}</p>
+            {{-- TASK-1349 : la page dediee montre l'heritage, l'historique et
+                 la publication. Ce cockpit reste le tableau de bord du systeme
+                 nerveux ; il n'y a pas deux logiques, seulement deux vues. --}}
+            <p class="mb-4">
+                <a href="{{ route('organization.admin.constitution', ['organization' => $organization->slug]) }}"
+                   class="text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+                   data-behavior-org-constitution-page-link>{{ __('mycelium.admin_org_link_from_cockpit') }}</a>
+            </p>
 
             @unless($orgConstitution)
                 <p class="text-sm text-gray-500 dark:text-gray-400 mb-4" data-behavior-org-constitution-empty>{{ __('ai.behavior_org_constitution_none') }}</p>
@@ -122,6 +130,42 @@
                     <button type="submit" class="text-xs text-gray-500 hover:text-red-600 dark:text-gray-400 underline" data-behavior-org-constitution-withdraw>{{ __('ai.behavior_org_constitution_withdraw') }}</button>
                 </form>
             @endif
+
+            {{-- TASK-1349 : publier ou non, decide ICI aussi. Le meme geste que
+                 sur la page dediee, la meme route, la meme autorite — deux
+                 endroits pour agir, jamais deux logiques. --}}
+            @php $constitutionEstPublique = (bool) $organization->ai_constitution_public; @endphp
+            <div class="mt-5 border-t border-gray-100 dark:border-gray-700 pt-4" data-behavior-org-constitution-publication>
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ __('mycelium.publication_title') }}</p>
+                    <span class="rounded-full px-2.5 py-1 text-xs font-medium {{ $constitutionEstPublique ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' }}"
+                          data-behavior-org-constitution-publication-state="{{ $constitutionEstPublique ? 'public' : 'private' }}">
+                        {{ $constitutionEstPublique ? __('mycelium.publication_state_public') : __('mycelium.publication_state_private') }}
+                    </span>
+                </div>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('mycelium.publication_help') }}</p>
+
+                @if(! $orgConstitution && ! $constitutionEstPublique)
+                    <p class="mt-2 text-xs text-amber-700 dark:text-amber-300" data-behavior-org-constitution-publication-blocked>{{ __('mycelium.publication_needs_text') }}</p>
+                @endif
+
+                <form method="POST" action="{{ route('organization.admin.constitution.publication', ['organization' => $organization->slug]) }}" class="mt-3">
+                    @csrf
+                    @method('PUT')
+                    <input type="hidden" name="ai_constitution_public" value="{{ $constitutionEstPublique ? 0 : 1 }}">
+                    <button type="submit"
+                            class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:border-indigo-400 dark:border-gray-600 dark:text-gray-200"
+                            data-behavior-org-constitution-publication-toggle>
+                        {{ $constitutionEstPublique ? __('mycelium.publication_private') : __('mycelium.publication_public') }}
+                    </button>
+                </form>
+
+                @if($constitutionEstPublique && $orgConstitution)
+                    <a href="{{ route('organization.constitution', ['organization' => $organization->slug]) }}"
+                       class="mt-3 inline-flex text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+                       data-behavior-org-constitution-public-link>{{ route('organization.constitution', ['organization' => $organization->slug]) }}</a>
+                @endif
+            </div>
 
             @if($orgConstitutionHistoryTotal > 0)
                 <div class="mt-5 border-t border-gray-100 dark:border-gray-700 pt-4">

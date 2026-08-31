@@ -6,12 +6,13 @@
       2. le texte SERVI aujourd'hui (version publiee, ou graine du code) ;
       3. l'historique des versions.
 --}}
-<x-app-layout :title="__('ai.constitution_admin_title')">
+<x-app-layout :title="$myceliumTitle">
     <x-page-container>
         <div class="max-w-4xl space-y-6">
 
             <div>
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('ai.constitution_admin_title') }}</h1>
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100" data-mycelium-admin-title>{{ $myceliumTitle }}</h1>
+                <p class="text-sm font-medium text-[var(--bp-primary)]" data-mycelium-admin-subtitle>{{ $myceliumSubtitle }}</p>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('ai.constitution_admin_help') }}</p>
             </div>
 
@@ -44,7 +45,7 @@
                     <p class="mb-3 text-sm text-amber-700 dark:text-amber-300" data-constitution-seed-notice>{{ __('ai.constitution_admin_seed_notice') }}</p>
                 @endunless
 
-                <form method="POST" action="{{ route('admin.ai-constitution.update') }}">
+                <form method="POST" action="{{ route('admin.mycelium.update') }}">
                     @csrf
                     @method('PUT')
                     <textarea name="body" rows="14" maxlength="{{ $maxChars }}"
@@ -60,7 +61,7 @@
                 </form>
 
                 @if($active)
-                    <form method="POST" action="{{ route('admin.ai-constitution.withdraw') }}" class="mt-3">
+                    <form method="POST" action="{{ route('admin.mycelium.withdraw') }}" class="mt-3">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="text-xs text-gray-500 hover:text-red-600 dark:text-gray-400 underline" data-constitution-withdraw>{{ __('ai.constitution_admin_withdraw') }}</button>
