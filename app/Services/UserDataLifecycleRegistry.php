@@ -52,6 +52,15 @@ class UserDataLifecycleRegistry
             ['key' => 'custom_loop_types_created_by', 'type' => 'sql', 'table' => 'custom_loop_types', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'A created Loop type is organization configuration, not personal data: it must outlive whoever created it, with the author simply detached.'],
             // TASK-1227 : la doctrine IA est une configuration editoriale de l'Organization ; l'auteur d'une version est un audit detachable (FK nullOnDelete).
             ['key' => 'organization_ai_doctrines_created_by', 'type' => 'sql', 'table' => 'organization_ai_doctrines', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'An AI doctrine version is organization configuration, not personal data: it must outlive its author, who is simply detached.'],
+            // TASK-1348 : memes natures, meme politique que la doctrine juste
+            // au-dessus. Une version de Constitution est de la CONFIGURATION —
+            // editoriale pour l'Organization, de plateforme pour l'autre — et
+            // non une donnee personnelle : elle doit survivre a son auteur, qui
+            // est simplement detache (FK nullOnDelete). La table plateforme n'a
+            // pas de colonne `organization_id` : son scope est `none`, comme
+            // les autres tables de portee plateforme du registre.
+            ['key' => 'organization_ai_constitutions_created_by', 'type' => 'sql', 'table' => 'organization_ai_constitutions', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'An Organization AI constitution version is organization configuration, not personal data: it must outlive its author, who is simply detached.'],
+            ['key' => 'platform_ai_constitutions_created_by', 'type' => 'sql', 'table' => 'platform_ai_constitutions', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'none', 'justification' => 'A platform AI constitution version is platform configuration, not personal data: it must outlive its author, who is simply detached. The table is global and carries no organization_id.'],
             ['key' => 'article_series_created_by', 'type' => 'sql', 'table' => 'article_series', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Series can survive with creator detached.'],
             ['key' => 'article_series_items_added_by', 'type' => 'sql', 'table' => 'article_series_items', 'column' => 'added_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_article_series', 'justification' => 'Series item audit can be detached.'],
             ['key' => 'badge_user', 'type' => 'sql', 'table' => 'badge_user', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'justification' => 'Badge assignment is user-specific derived data.'],

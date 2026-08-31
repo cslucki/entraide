@@ -438,8 +438,10 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
 
         $this->clarify('une intention');
 
+        // TASK-1348 : presente, plus forcement en tete — un socle de code
+        // immuable precede desormais tout texte administrable.
         HelpRequestClarifierAgent::assertPrompted(
-            fn ($prompt): bool => str_starts_with(
+            fn ($prompt): bool => str_contains(
                 (string) $prompt->agent->instructions(),
                 'Constitution BouclePro IA — v1',
             )

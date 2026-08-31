@@ -125,7 +125,9 @@ class TASK1233LoopDirectAnswerCanonicalTest extends TestCase
         // Chaine : Constitution -> doctrine -> prompt administrable ; contexte canonique ; provider Organization.
         LoopDirectAnswerAgent::assertPrompted(function (AgentPrompt $prompt): bool {
             $instructions = (string) $prompt->agent->instructions();
-            $this->assertStringStartsWith('Constitution BouclePro IA — v1', $instructions);
+            // TASK-1348 : presente, plus forcement en tete — un socle de code
+            // immuable precede desormais tout texte administrable.
+            $this->assertStringContainsString('Constitution BouclePro IA — v1', $instructions);
             $this->assertStringContainsString((new Constitution)->text(), $instructions);
             $this->assertStringContainsString('SENTINELLE-DOCTRINE-1233', $instructions);
             $this->assertStringContainsString('Capability: loop_ask', $instructions);

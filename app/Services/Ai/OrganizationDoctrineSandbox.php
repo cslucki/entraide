@@ -18,6 +18,7 @@ use App\Models\AiInteraction;
 use App\Models\AiProviderInvocation;
 use App\Models\Organization;
 use App\Models\OrganizationAiDoctrine;
+use App\Models\PlatformAiConstitution;
 use App\Models\User;
 use App\Services\Ai\DTO\DoctrineSandboxResult;
 use App\Support\Ai\AiCorrelation;
@@ -90,6 +91,7 @@ final class OrganizationDoctrineSandbox
         string $capability,
         string $draftBody,
         string $question,
+        ?string $draftConstitutionBody = null,
     ): DoctrineSandboxResult {
         $question = trim($question);
 
@@ -159,8 +161,25 @@ final class OrganizationDoctrineSandbox
             return $this->refused($organization, $capability, $scope, $doctrineLabel, self::REASON_PROMPT_MISSING);
         }
 
-        // La doctrine CANDIDATE, sous la Constitution, jamais lue en base.
-        $instructions = $this->prompts->composeWithDoctrine($capability, $baseInstructions, $draft, null);
+        // La doctrine CANDIDATE, sous les Constitutions.
+        //
+        // TASK-1348, deux corrections d'un meme defaut : l'`organizationId`
+        // etait ABSENT, donc l'apercu composait sans la Constitution reellement
+        // active de ce tenant — il montrait un prompt que personne n'aurait
+        // jamais recu. Il est desormais passe, et une Constitution CANDIDATE
+        // peut s'y substituer pour repondre a « que ferait ce texte, avant de
+        // le publier ? ». Rien n'est lu ni ecrit en base pour les candidats.
+        $instructions = $this->prompts->composeWithDoctrine(
+            $capability,
+            $baseInstructions,
+            $draft,
+            null,
+            (string) $organization->id,
+            null,
+            null,
+            $draftConstitutionBody === null || trim($draftConstitutionBody) === '' ? null : $draftConstitutionBody,
+            null,
+        );
 
         // Le contexte reel : memes sources autorisees, meme tenant, memes
         // permissions que pour un membre. La doctrine n'y change rien.
@@ -179,7 +198,7 @@ final class OrganizationDoctrineSandbox
                 organizationId: (string) $organization->id,
                 capability: $capability,
                 scope: $scope,
-                constitutionVersion: Constitution::VERSION,
+                constitutionVersion: $this->composedConstitutionLabel(),
                 doctrineLabel: $doctrineLabel,
                 sourcesUsed: $borne->sourcesUsed,
                 sourcesDenied: $borne->sourcesDenied,
@@ -211,7 +230,7 @@ final class OrganizationDoctrineSandbox
                 organizationId: (string) $organization->id,
                 capability: $capability,
                 scope: $scope,
-                constitutionVersion: Constitution::VERSION,
+                constitutionVersion: $this->composedConstitutionLabel(),
                 doctrineLabel: $doctrineLabel,
                 sourcesUsed: $borne->sourcesUsed,
                 sourcesDenied: $borne->sourcesDenied,
@@ -234,7 +253,7 @@ final class OrganizationDoctrineSandbox
             organizationId: (string) $organization->id,
             capability: $capability,
             scope: $scope,
-            constitutionVersion: Constitution::VERSION,
+            constitutionVersion: $this->composedConstitutionLabel(),
             doctrineLabel: $doctrineLabel,
             sourcesUsed: $borne->sourcesUsed,
             sourcesDenied: $borne->sourcesDenied,
@@ -321,6 +340,26 @@ final class OrganizationDoctrineSandbox
     }
 
     /**
+     * TASK-1348 — la version de Constitution REELLEMENT composee.
+     *
+     * Ce libelle valait `Constitution::VERSION` en dur, ce qui etait exact tant
+     * que la Constitution vivait dans le code. Depuis que la plateforme peut en
+     * publier des versions, annoncer « v1 » pendant qu'une v5 est composee
+     * serait un mensonge d'ecran — et le bac a sable existe precisement pour
+     * dire la verite sur ce qui part au modele.
+     *
+     * Aucune architecture de tracabilite nouvelle : on relit la meme autorite
+     * que la composition, et on retombe sur l'etiquette de la graine quand
+     * c'est la graine qui est servie.
+     */
+    private function composedConstitutionLabel(): string
+    {
+        $active = PlatformAiConstitution::active();
+
+        return $active === null ? Constitution::VERSION : 'v'.$active->version;
+    }
+
+    /**
      * Instruction administrable de la capability : meme regle que les services
      * canoniques (prompt actif, derniere version), son absence est un refus.
      */
@@ -362,7 +401,7 @@ final class OrganizationDoctrineSandbox
             organizationId: (string) $organization->id,
             capability: $capability,
             scope: $scope,
-            constitutionVersion: Constitution::VERSION,
+            constitutionVersion: $this->composedConstitutionLabel(),
             doctrineLabel: $doctrineLabel,
             sourcesUsed: [],
             sourcesDenied: [],

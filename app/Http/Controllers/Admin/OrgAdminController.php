@@ -19,8 +19,10 @@ use App\Models\LoopInvitation;
 use App\Models\LoopMember;
 use App\Models\Message;
 use App\Models\Organization;
+use App\Models\OrganizationAiConstitution;
 use App\Models\OrganizationAiDoctrine;
 use App\Models\OrganizationAiSetting;
+use App\Models\PlatformAiConstitution;
 use App\Models\Referral;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -1426,8 +1428,26 @@ class OrgAdminController extends Controller
 
         return [
             'organization' => $organization,
-            'constitutionVersion' => Constitution::VERSION,
-            'constitutionText' => app(Constitution::class)->text(),
+            // TASK-1348 : ce que la composition sert REELLEMENT — la version
+            // active en base, ou la graine de code quand il n'y en a aucune.
+            // L'ecran ne doit pas montrer un texte que le prompt n'utilise pas.
+            'platformConstitution' => $platformConstitution = PlatformAiConstitution::active(),
+            'constitutionVersion' => $platformConstitution !== null
+                ? 'v'.$platformConstitution->version
+                : Constitution::VERSION,
+            'constitutionText' => PlatformAiConstitution::activeTextOrSeed(),
+            'constitutionIsSeed' => $platformConstitution === null,
+            'orgConstitution' => $orgConstitution = OrganizationAiConstitution::activeFor((string) $organization->id),
+            'orgConstitutionHistory' => OrganizationAiConstitution::query()
+                ->where('organization_id', $organization->id)
+                ->orderByDesc('version')
+                ->with('author')
+                ->limit(5)
+                ->get(),
+            'orgConstitutionHistoryTotal' => OrganizationAiConstitution::query()
+                ->where('organization_id', $organization->id)
+                ->count(),
+            'orgConstitutionMaxChars' => OrganizationAiConstitution::maxChars(),
             'doctrine' => $active,
             'doctrineHistory' => $history,
             'doctrineHistoryTotal' => OrganizationAiDoctrine::query()->where('organization_id', $organization->id)->count(),
@@ -1481,6 +1501,52 @@ class OrgAdminController extends Controller
     }
 
     /**
+     * TASK-1348 — Constitution de CETTE Organization : nouvelle version, activee.
+     *
+     * Miroir exact de `updateAiDoctrine()`. L'Organization vient du route model
+     * binding et `OrgAdminMiddleware` a deja verifie que l'acteur en est
+     * l'administrateur (ou un Super Admin) : la cible est donc TOUJOURS
+     * explicite, y compris pour un Super Admin, qui ne peut pas ecrire « en
+     * general » mais seulement sur l'Organization qu'il a ouverte.
+     */
+    public function updateAiConstitution(Request $request, Organization $organization): RedirectResponse
+    {
+        // `constitution_body` et non `body` : la doctrine occupe deja `body`
+        // sur la meme page, et `old()` est partage. Un nom commun laissait le
+        // PRG du bac a sable recopier la doctrine dans le champ Constitution.
+        $data = $request->validate([
+            'constitution_body' => ['required', 'string', 'max:'.OrganizationAiConstitution::maxChars()],
+        ]);
+
+        $before = OrganizationAiConstitution::activeFor((string) $organization->id);
+        $constitution = OrganizationAiConstitution::activate($organization, $data['constitution_body'], $request->user());
+
+        $message = $before !== null && $before->is($constitution)
+            ? __('ai.behavior_org_constitution_unchanged', ['version' => $constitution->version])
+            : __('ai.behavior_org_constitution_saved', ['version' => $constitution->version]);
+
+        return redirect()
+            ->route('organization.admin.ai-behavior', ['organization' => $organization->slug])
+            ->with('success', $message);
+    }
+
+    /**
+     * Retire la Constitution active de cette Organization : la composition
+     * revient a « socle + Constitution plateforme + doctrine eventuelle ».
+     * L'historique reste.
+     */
+    public function withdrawAiConstitution(Organization $organization): RedirectResponse
+    {
+        $withdrawn = OrganizationAiConstitution::withdraw($organization);
+
+        return redirect()
+            ->route('organization.admin.ai-behavior', ['organization' => $organization->slug])
+            ->with($withdrawn ? 'success' : 'info', $withdrawn
+                ? __('ai.behavior_org_constitution_withdrawn')
+                : __('ai.behavior_org_constitution_nothing_to_withdraw'));
+    }
+
+    /**
      * Retire la doctrine active : l'Organization revient a la composition
      * sans doctrine (identique a l'avant-TASK). L'historique reste.
      */
@@ -1507,6 +1573,9 @@ class OrgAdminController extends Controller
     ): RedirectResponse {
         $data = $request->validate([
             'body' => ['nullable', 'string', 'max:'.OrganizationAiDoctrine::maxChars()],
+            // TASK-1348 : Constitution CANDIDATE, facultative — « tester sans
+            // publier » vaut pour les deux textes, par le meme mecanisme.
+            'constitution_body' => ['nullable', 'string', 'max:'.OrganizationAiConstitution::maxChars()],
             'capability' => ['required', 'string', Rule::in(OrganizationDoctrineSandbox::SUPPORTED)],
             'question' => ['required', 'string', 'min:3', 'max:1000'],
         ]);
@@ -1517,11 +1586,12 @@ class OrgAdminController extends Controller
             $data['capability'],
             (string) ($data['body'] ?? ''),
             $data['question'],
+            $data['constitution_body'] ?? null,
         );
 
         return redirect()
             ->route('organization.admin.ai-behavior', ['organization' => $organization->slug])
-            ->withInput($request->only(['body', 'capability', 'question']))
+            ->withInput($request->only(['body', 'constitution_body', 'capability', 'question']))
             ->with('doctrine_sandbox', $result->toArray());
     }
 
