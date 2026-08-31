@@ -75,6 +75,7 @@ use App\Http\Controllers\LoopToolsController;
 use App\Http\Controllers\MemberAiProfileConversationsController;
 use App\Http\Controllers\MemberAiProfileInteractionController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\MyceliumController;
 use App\Http\Controllers\OrganizationLandingController;
 use App\Http\Controllers\OrganizationRequestController;
 use App\Http\Controllers\PointController;
@@ -103,6 +104,10 @@ require __DIR__.'/auth.php';
 
 // Public routes
 Route::get('/', [HomeController::class, 'index'])->name('home');
+
+// TASK-1349 — la gouvernance IA, publique par conception. Aucune
+// authentification : ce sont des principes, pas des donnees d'exploitation.
+Route::get('/mycelium', [MyceliumController::class, 'index'])->name('mycelium');
 Route::get('/launchpals', fn () => redirect()->to(route('organization.home', ['organization' => 'launchpals'], false), 301))
     ->name('public.launchpals');
 Route::get('/demo', function () {
@@ -410,12 +415,19 @@ Route::get('/abonnements', [SubscriptionController::class, 'index'])->name('subs
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
 
-    // TASK-1348 — Constitution IA de la PLATEFORME. Zone admin GLOBALE : la
-    // garde est `is_admin` (attribut), pas l'appartenance a une Organization.
-    // Aucun administrateur d'Organization n'atteint ces trois routes.
-    Route::get('/ai-constitution', [AdminAiConstitutionController::class, 'index'])->name('ai-constitution');
-    Route::put('/ai-constitution', [AdminAiConstitutionController::class, 'update'])->name('ai-constitution.update');
-    Route::delete('/ai-constitution', [AdminAiConstitutionController::class, 'withdraw'])->name('ai-constitution.withdraw');
+    // TASK-1348/1349 — le MYCELIUM : nom public de la Constitution IA de la
+    // PLATEFORME. Zone admin GLOBALE : la garde est `is_admin` (attribut), pas
+    // l'appartenance a une Organization. Aucun administrateur d'organisation
+    // n'atteint ces routes.
+    Route::get('/mycelium', [AdminAiConstitutionController::class, 'index'])->name('mycelium');
+    Route::put('/mycelium', [AdminAiConstitutionController::class, 'update'])->name('mycelium.update');
+    Route::delete('/mycelium', [AdminAiConstitutionController::class, 'withdraw'])->name('mycelium.withdraw');
+
+    // L'ancienne URL de TASK-1348 ne devient PAS une seconde autorite : elle
+    // redirige. Un alias qui rendrait la meme vue creerait deux chemins
+    // vivants pour un seul ecran, et c'est ainsi que deux logiques finissent
+    // par diverger.
+    Route::get('/ai-constitution', fn () => redirect()->route('admin.mycelium'))->name('ai-constitution');
     Route::get('/themes', [AdminThemeController::class, 'index'])->name('themes');
     Route::get('/themes/create', [AdminThemeController::class, 'create'])->name('themes.create');
     Route::post('/themes', [AdminThemeController::class, 'store'])->name('themes.store');
@@ -685,6 +697,10 @@ Route::prefix('/org/{organization}')
     ->group(function () {
         Route::get('/', [OrganizationLandingController::class, '__invoke'])->name('home');
         Route::get('/about', [OrganizationLandingController::class, 'about'])->name('about');
+        // TASK-1349 — publique UNIQUEMENT sur opt-in explicite. Sans opt-in,
+        // ou sans version active, la route rend 404 : publiquement, la
+        // ressource n'existe pas.
+        Route::get('/constitution', [MyceliumController::class, 'organization'])->name('constitution');
         Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
 
         Route::middleware('guest')->group(function () {
@@ -1060,6 +1076,11 @@ Route::prefix('/org/{organization}')
                 // ouverte.
                 Route::put('/ai-behavior/constitution', [OrgAdminController::class, 'updateAiConstitution'])->name('ai-behavior.constitution.update');
                 Route::delete('/ai-behavior/constitution', [OrgAdminController::class, 'withdrawAiConstitution'])->name('ai-behavior.constitution.withdraw');
+                // TASK-1349 — page DEDIEE a la Constitution de l'organisation.
+                // Elle partage l'autorite d'ecriture ci-dessus : seul l'ecran
+                // change, jamais la logique de versionnement.
+                Route::get('/constitution', [OrgAdminController::class, 'aiConstitution'])->name('constitution');
+                Route::put('/constitution/publication', [OrgAdminController::class, 'updateAiConstitutionPublication'])->name('constitution.publication');
                 Route::post('/ai-behavior/sandbox', [OrgAdminController::class, 'sandboxAiDoctrine'])->middleware('throttle:ai-doctrine-sandbox')->name('ai-behavior.sandbox');
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
                 Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');

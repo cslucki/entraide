@@ -167,6 +167,11 @@
                             ['route' => 'organization.admin.ai', 'label' => __('navigation.org_admin_ai'), 'icon' => 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z'],
                             // TASK-1227 : Constitution, doctrine de l'Organization, couverture
                             ['route' => 'organization.admin.ai-behavior', 'label' => __('navigation.org_admin_ai_behavior'), 'icon' => 'M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z'],
+                            // TASK-1349 : page DEDIEE a la Constitution — juste apres le
+                            // cockpit qu'elle specialise. Meme autorite d'ecriture, un
+                            // ecran a elle : principes propres, heritage du Mycelium,
+                            // et le choix de publier ou non.
+                            ['route' => 'organization.admin.constitution', 'label' => __('navigation.org_admin_ai_constitution'), 'icon' => 'M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z'],
                             // TASK-1217 : console RAG read-only
                             ['route' => 'organization.admin.ai-knowledge', 'label' => __('navigation.org_admin_ai_knowledge'), 'icon' => 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25'],
                             // TASK-1219 : console de consommation IA read-only

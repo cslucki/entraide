@@ -1501,6 +1501,83 @@ class OrgAdminController extends Controller
     }
 
     /**
+     * Ou revenir apres une ecriture de Constitution.
+     *
+     * Deux ecrans partagent cette autorite : le cockpit « Comportement IA » et
+     * la page dediee. `url()->previous()` serait fragile ; on lit le referer
+     * UNIQUEMENT pour distinguer deux routes CONNUES de cette application, et
+     * on retombe sur le cockpit dans tous les autres cas. Aucune redirection
+     * ne peut donc etre dirigee vers l'exterieur.
+     */
+    private function constitutionRedirectTarget(Request $request, Organization $organization): string
+    {
+        $dedicated = route('organization.admin.constitution', ['organization' => $organization->slug]);
+        $cockpit = route('organization.admin.ai-behavior', ['organization' => $organization->slug]);
+
+        return str_starts_with((string) $request->headers->get('referer'), $dedicated) ? $dedicated : $cockpit;
+    }
+
+    /**
+     * TASK-1349 — page DEDIEE a la Constitution de cette organisation.
+     *
+     * Elle ne duplique AUCUNE logique : l'ecriture passe toujours par
+     * `updateAiConstitution()` / `withdrawAiConstitution()` ci-dessous, donc
+     * par `OrganizationAiConstitution::activate()`. Seule la surface change —
+     * l'ecran « Comportement IA » reste le cockpit du systeme nerveux, celui-ci
+     * ne montre que l'heritage et le texte propre.
+     */
+    public function aiConstitution(Organization $organization): View
+    {
+        $platform = PlatformAiConstitution::active();
+        $constitution = OrganizationAiConstitution::activeFor((string) $organization->id);
+
+        return view('admin.org.constitution', [
+            'organization' => $organization,
+            // Ce qui est REELLEMENT compose au-dessus de cette organisation.
+            'platformText' => PlatformAiConstitution::activeTextOrSeed(),
+            'platformVersion' => $platform !== null ? 'v'.$platform->version : Constitution::VERSION,
+            'platformIsSeed' => $platform === null,
+            'constitution' => $constitution,
+            'constitutionMaxChars' => OrganizationAiConstitution::maxChars(),
+            'history' => OrganizationAiConstitution::query()
+                ->where('organization_id', $organization->id)
+                ->orderByDesc('version')
+                ->with('author')
+                ->limit(5)
+                ->get(),
+            'historyTotal' => OrganizationAiConstitution::query()
+                ->where('organization_id', $organization->id)
+                ->count(),
+            'isPublic' => (bool) $organization->ai_constitution_public,
+        ]);
+    }
+
+    /**
+     * TASK-1349 — l'opt-in de publication, et lui seul.
+     *
+     * Separe de l'ecriture du TEXTE : publier n'est pas ecrire, et confondre
+     * les deux gestes ferait qu'enregistrer une version pourrait changer sa
+     * visibilite sans qu'on l'ait demande. Le defaut reste PRIVE.
+     */
+    public function updateAiConstitutionPublication(Request $request, Organization $organization): RedirectResponse
+    {
+        $data = $request->validate([
+            'ai_constitution_public' => ['required', 'boolean'],
+        ]);
+
+        $organization->update(['ai_constitution_public' => (bool) $data['ai_constitution_public']]);
+
+        // On revient LA d'ou l'on vient : le cockpit et la page dediee portent
+        // tous deux ce bouton, et ejecter l'administrateur de son ecran serait
+        // une surprise a chaque bascule.
+        return redirect()
+            ->to($this->constitutionRedirectTarget($request, $organization))
+            ->with('success', $data['ai_constitution_public']
+                ? __('mycelium.publication_enabled')
+                : __('mycelium.publication_disabled'));
+    }
+
+    /**
      * TASK-1348 — Constitution de CETTE Organization : nouvelle version, activee.
      *
      * Miroir exact de `updateAiDoctrine()`. L'Organization vient du route model
@@ -1525,8 +1602,11 @@ class OrgAdminController extends Controller
             ? __('ai.behavior_org_constitution_unchanged', ['version' => $constitution->version])
             : __('ai.behavior_org_constitution_saved', ['version' => $constitution->version]);
 
+        // TASK-1349 : on revient LA d'ou l'on vient. Les deux ecrans partagent
+        // cette autorite d'ecriture ; renvoyer toujours vers le cockpit
+        // ejecterait l'administrateur de la page dediee a chaque publication.
         return redirect()
-            ->route('organization.admin.ai-behavior', ['organization' => $organization->slug])
+            ->to($this->constitutionRedirectTarget($request, $organization))
             ->with('success', $message);
     }
 
@@ -1540,7 +1620,7 @@ class OrgAdminController extends Controller
         $withdrawn = OrganizationAiConstitution::withdraw($organization);
 
         return redirect()
-            ->route('organization.admin.ai-behavior', ['organization' => $organization->slug])
+            ->to($this->constitutionRedirectTarget(request(), $organization))
             ->with($withdrawn ? 'success' : 'info', $withdrawn
                 ? __('ai.behavior_org_constitution_withdrawn')
                 : __('ai.behavior_org_constitution_nothing_to_withdraw'));

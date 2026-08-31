@@ -132,7 +132,7 @@ body.bp-hero-v2{
   padding:14px 2px 2px;margin-top:8px;
   font-size:13.5px;color:#9AA0AE;
 }
-.bp-hero-v2 .foot-credit{font-weight:600;justify-self:start;color:#7D8294;transition:color .15s}
+.bp-hero-v2 .foot-credit{font-weight:500;justify-self:start;color:#7D8294;transition:color .15s}
 .bp-hero-v2 .foot-credit:hover{color:var(--ink-soft)}
 .bp-hero-v2 .foot-beta{
   justify-self:center;display:inline-flex;align-items:center;gap:7px;

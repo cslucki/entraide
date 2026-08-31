@@ -110,6 +110,7 @@ return [
     'org_admin_ai_interactions' => 'Interactions IA',
     // TASK-1217 : console RAG read-only de l'Organization
     'org_admin_ai_knowledge' => 'Mes connaissances IA',
+    'org_admin_ai_constitution' => 'Constitution',
     'org_admin_ai_consumption' => 'Consommation IA',
     'org_admin_section_exchanges' => 'Échanges',
     'org_admin_section_content' => 'Contenu',
