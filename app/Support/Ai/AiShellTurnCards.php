@@ -68,6 +68,25 @@ final class AiShellTurnCards
     public const TYPE_DOCUMENT = 'document';
 
     /**
+     * TASK-1350 — l'appel a l'action d'une LoopCard.
+     *
+     * `prepare_request` est l'historique : le membre DEMANDE, on lui prepare un
+     * brouillon de demande. `offer_help` est son symetrique : le membre PROPOSE
+     * son aide, et « Preparer ma demande » serait alors un contresens — on
+     * l'envoie au parcours canonique « Proposer de l'aide », tenant-aware et
+     * SANS preremplissage (V1 : aucune reprise du texte du tour).
+     *
+     * L'absence de la cle sur une reference deja ecrite vaut `prepare_request` :
+     * les tours anterieurs a TASK-1350 se relisent donc a l'identique.
+     */
+    public const CTA_PREPARE_REQUEST = 'prepare_request';
+
+    public const CTA_OFFER_HELP = 'offer_help';
+
+    /** Intention de tour telle que la clarification la qualifie pour une offre. */
+    public const INTENT_OFFER = 'offer';
+
+    /**
      * Ensemble eligible par Boucle, calcule AU PLUS une fois par rendu —
      * People-1 est a nombre de requetes constant, ce memo le garde ainsi
      * quel que soit le nombre de cartes affichees.
@@ -91,6 +110,14 @@ final class AiShellTurnCards
      *                                                    validee par la clarification
      * @param  array<string, mixed>  $pageContext  contexte resolu par CETTE requete
      * @param  string  $need  matiere d'appariement People-2 (question + besoin clarifie)
+     * @param  string|null  $intent  TASK-1350 — intention qualifiee par la
+     *                               clarification (`offer` / `help_request`).
+     *                               Une OFFRE renverse la question : le membre
+     *                               apporte quelque chose, il ne cherche pas
+     *                               « qui peut m'aider ». Elle change donc deux
+     *                               choses, et rien d'autre : l'appel a
+     *                               l'action de la LoopCard, et l'absence de
+     *                               toute PersonCard.
      * @return list<array<string, mixed>>
      */
     public function forAnsweredTurn(
@@ -99,8 +126,10 @@ final class AiShellTurnCards
         ?array $suggestedLoop,
         array $pageContext,
         string $need,
+        ?string $intent = null,
     ): array {
         $cards = [];
+        $isOffer = $intent === self::INTENT_OFFER;
 
         $suggestedLoopId = is_array($suggestedLoop) ? trim((string) ($suggestedLoop['id'] ?? '')) : '';
 
@@ -113,6 +142,7 @@ final class AiShellTurnCards
                 'type' => self::TYPE_LOOP,
                 'id' => $suggestedLoopId,
                 'ai_wording' => is_string($wording) && trim($wording) !== '' ? trim($wording) : null,
+                'cta' => $isOffer ? self::CTA_OFFER_HELP : self::CTA_PREPARE_REQUEST,
             ];
         }
 
@@ -123,6 +153,15 @@ final class AiShellTurnCards
         $peopleLoopId = $suggestedLoopId !== ''
             ? $suggestedLoopId
             : ((($object['type'] ?? null) === AiShellPageContext::KIND_LOOP) ? (string) $object['id'] : '');
+
+        // TASK-1350 : sur une OFFRE, aucune PersonCard. « Qui peut m'aider ? »
+        // n'a pas de sens quand c'est le membre qui propose son aide — et
+        // afficher des personnes la transformerait en demande deguisee. La
+        // coupe est faite AU TOUR : rien n'est ecrit, donc rien ne peut etre
+        // re-resolu au rendu, meme apres un changement de code.
+        if ($isOffer) {
+            $peopleLoopId = '';
+        }
 
         if ($peopleLoopId !== '') {
             $loop = Loop::query()->find($peopleLoopId);
@@ -230,11 +269,23 @@ final class AiShellTurnCards
 
         $wording = $reference['ai_wording'] ?? null;
 
+        // TASK-1350 : whitelist stricte, et defaut historique. Une valeur
+        // inconnue — ou absente, cas de tous les tours anterieurs — retombe
+        // sur `prepare_request`.
+        $cta = ($reference['cta'] ?? null) === self::CTA_OFFER_HELP
+            ? self::CTA_OFFER_HELP
+            : self::CTA_PREPARE_REQUEST;
+
         return [
             'type' => self::TYPE_LOOP,
             'title' => (string) $object['label'],
             'url' => (string) $object['url'],
             'ai_wording' => is_string($wording) && $wording !== '' ? $wording : null,
+            'cta' => $cta,
+            // Construite ICI, comme toutes les URL de cartes : le LLM ne
+            // fournit jamais une destination. Le controleur cible rejoue sa
+            // garde au clic.
+            'cta_url' => $cta === self::CTA_OFFER_HELP ? $this->offerHelpUrl($organization) : null,
         ];
     }
 
@@ -343,6 +394,22 @@ final class AiShellTurnCards
         }
 
         return $this->eligibleByLoop[$loopId] = $eligible;
+    }
+
+    /**
+     * TASK-1350 — le parcours canonique « Proposer de l'aide », tenant-aware.
+     *
+     * Meme cascade que `AiShell::requestsCreateUrl()` : la route org-scopee
+     * quand elle existe, sinon la route globale. Aucun preremplissage en V1 —
+     * on ouvre le formulaire, la personne ecrit et valide.
+     */
+    private function offerHelpUrl(Organization $organization): string
+    {
+        if (Route::has('organization.services.create')) {
+            return route('organization.services.create', ['organization' => $organization->slug]);
+        }
+
+        return Route::has('services.create') ? route('services.create') : '';
     }
 
     /**

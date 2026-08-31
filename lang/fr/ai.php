@@ -657,7 +657,10 @@ return [
     'fab_title' => 'BouclePro IA',
     'fab_subtitle_loop' => 'Sur cette Boucle',
     'fab_subtitle_dossier' => 'Dans ce Dossier',
-    'fab_subtitle_other' => 'Ici, aucune action IA — vos usages restent consultables.',
+    // TASK-1350 : le sous-titre situe, il ne devalue plus la page. Voir
+    // `fab_no_page_action` pour la phrase qui dit l'absence d'action de page.
+    'fab_subtitle_other' => 'Disponible partout sur BouclePro',
+    'fab_no_page_action' => "Cette page n'a pas d'action IA qui lui soit propre. Vous pouvez quand même discuter avec BouclePro IA : posez votre question, elle vous suit de page en page.",
     'fab_credit_title' => 'Crédit IA du mois',
     'fab_credit_included' => 'Inclus',
     'fab_credit_alert' => 'Vous approchez de votre crédit du mois.',
@@ -693,14 +696,102 @@ return [
     'shell_you' => 'Vous',
     'shell_assistant' => 'BouclePro IA',
     'shell_empty_title' => 'Commencez la conversation',
-    'shell_empty_hint' => 'Décrivez votre besoin en quelques mots. Le fil reste ouvert pendant que vous naviguez.',
+    // TASK-1350 : une conversation, pas un formulaire de demande deguise.
+    'shell_empty_hint' => 'Posez votre question ou décrivez votre besoin, simplement. Le fil reste ouvert pendant que vous naviguez.',
+
+    // ==========================================================================
+    // TASK-1350 — Shell honnête : non-Interaction, self-knowledge, offre
+    // ==========================================================================
+
+    // Le message canonique d'un tour hors Interaction. Simple, humain, et
+    // surtout HONNETE : il ne prétend pas avoir compris une demande, et il ne
+    // referme pas la conversation. Aucun vocabulaire technique — ni capability,
+    // ni provider, ni « interaction_fit ».
+    'shell_answer_non_interaction' => "Je n'en fais pas une demande d'aide : rien ici n'attend la contribution d'un autre membre. Si vous voulez que quelqu'un vous aide, ou proposer votre aide, dites-le-moi et je vous accompagne.",
+
+    // Appel à l'action d'une OFFRE : le membre apporte quelque chose.
+    'shell_card_offer_help' => 'Proposer de l\'aide',
+
+    // ==========================================================================
+    // TASK-1350 — presentation d'une INTENTION DE DEMANDE (P0 31/08 23h34)
+    // ==========================================================================
+    //
+    // Le clarificateur produit legitimement un brouillon a la PREMIERE PERSONNE :
+    // c'est la future demande DE L'UTILISATEUR. Rendu tel quel dans la bulle de
+    // l'assistant, il faisait dire a BouclePro IA « Je cherche un relecteur… ».
+    // Le contrat partage n'a pas bouge ; c'est la PRESENTATION qui attribue
+    // desormais le brouillon a la bonne personne.
+    'shell_request_framing' => 'J\'ai compris votre besoin. Voici une reformulation si vous souhaitez en faire une demande d\'aide.',
+    'shell_request_draft_heading' => 'Votre demande reformulée',
+
+    // TASK-1350 : une OFFRE est ecrite a la premiere personne exactement comme
+    // une demande. Elle recoit donc la meme attribution, avec son cadrage et son
+    // parcours propres.
+    'shell_offer_framing' => 'J\'ai compris ce que vous proposez. Voici une reformulation si vous souhaitez en faire une offre d\'aide.',
+    'shell_offer_draft_heading' => 'Votre proposition reformulée',
+
+    // Le choix humain. « Preparer », jamais « Publier » : rien n'est definitif,
+    // et le formulaire canonique reste devant toute publication.
+    'shell_request_continue' => 'Continuer à discuter',
+    'shell_request_prepare' => 'Préparer une demande d\'aide',
+    'shell_request_tenant' => 'dans :organization',
+
+    // TASK-1350 (P0) — l'etiquette du tour courant, injectee dans le prompt
+    // UNIQUEMENT quand un transcript precede. Elle dit au modele quel texte est
+    // l'objet et quel texte n'est que de l'arriere-plan.
+    'shell_prompt_current_turn' => 'Message actuel du membre — analyse et réponds à CE message, pas à un tour précédent du transcript :',
+
+    // --- Self-knowledge (réponses composées depuis les sources canoniques) ---
+    // TASK-1350 : la reponse a « C'est quoi BouclePro ? ». Elle part de la
+    // doctrine canonique — la phrase fondatrice de la Constitution plateforme —
+    // et n'ajoute qu'UNE phrase. Plus de prose de page d'accueil recollee.
+    'self_knowledge_platform' => 'BouclePro est une plateforme de pédagogie par l\'entraide. Vous y formulez un besoin en langage naturel, et vous êtes relié à quelques personnes de votre organisation qui peuvent vraiment aider — une boucle, pas un fil d\'actualité.',
+    'self_knowledge_loop_memory' => 'Ce qui se décide dans une boucle se dépose dans sa mémoire : rien à relire, l\'essentiel reste daté et retrouvable.',
+    'self_knowledge_ask_help_path' => 'Concrètement : ouvrez « Demander de l\'aide », décrivez votre besoin en langage naturel, et je le mets au net avant que vous validiez. Vous restez la personne qui publie — je ne publie jamais à votre place.',
+    'self_knowledge_capabilities_intro' => 'Dans cette organisation, vous pouvez :',
+    // TASK-1350 : ne promet plus une navigation assistee qui n'existe pas.
+    // Ce que le Shell sait faire, c'est EXPLIQUER ou aller.
+    'self_knowledge_capabilities_outro' => 'Dites-moi ce que vous cherchez et je peux vous expliquer où aller.',
+    'self_knowledge_capabilities_empty' => 'Cette organisation n\'a encore ouvert aucun parcours. Un administrateur peut les activer.',
+
+    // --- Catalogue tenant-aware des capacités ---
+    'self_knowledge_capability_ask_help' => 'demander de l\'aide à d\'autres membres',
+    'self_knowledge_capability_offer_help' => 'proposer votre aide ou vos compétences',
+    'self_knowledge_capability_loops' => 'rejoindre les boucles auxquelles vous appartenez',
+    'self_knowledge_capability_create_loop' => 'ouvrir une boucle autour d\'un sujet précis',
+    'self_knowledge_capability_ai_profile' => 'construire votre profil pour être trouvable par les autres',
+    // TASK-1350 : formule VRAIE quel que soit l'etat de la configuration IA de
+    // l'organisation. Le catalogue ne doit jamais promettre un usage generatif
+    // qui peut ne pas etre disponible ; ce qu'il annonce ici — repondre sur
+    // BouclePro — ne depend d'aucun provider.
+    'self_knowledge_capability_assistant' => 'me poser vos questions sur BouclePro, ici, de page en page',
     'shell_clear' => 'Effacer la conversation',
     'shell_clear_confirm' => 'Effacer tout le fil ?',
     'shell_clear_yes' => 'Effacer',
     'shell_clear_no' => 'Annuler',
     'shell_no_publication_note' => 'BouclePro IA ne publie rien : vous validez avant toute publication.',
     'shell_turn_in_progress' => 'Une réponse est déjà en cours. Laissez-la se terminer.',
-    'shell_answer_unavailable' => 'Je ne peux pas répondre pour l\'instant. L\'IA n\'est pas disponible dans cette Organization.',
+    // TASK-1350 : « Organization » etait visible en francais. Le comportement
+    // ne change pas — cette phrase reste l'indisponibilite EXPLICITE du cas ou
+    // aucun prompt actif n'existe — seul le vocabulaire est corrige.
+    'shell_answer_unavailable' => 'Je ne peux pas répondre pour l\'instant. L\'IA n\'est pas disponible dans cette organisation.',
+
+    // TASK-1350 — la phrase que voit une personne quand la preparation
+    // automatique de sa demande n'aboutit pas.
+    //
+    // Elle dit DEUX choses et pas une de plus : ce qui reste offert, et ce qui
+    // ne l'est pas maintenant. Elle ne nomme AUCUNE cause — le repli
+    // deterministe couvre plusieurs situations et ne porte pas laquelle s'est
+    // produite — et elle ne parle ni de provider, ni de credential, ni de
+    // configuration, ni de budget, ni d'organisation. Elle n'affirme pas non
+    // plus que « l'IA n'est pas disponible » : le fil vient peut-etre de le
+    // dementir deux fois.
+    //
+    // Elle ne promet pas non plus la creation manuelle : ce parcours existe
+    // (`organization.requests.create`) mais passe par `EnsureProfileComplete`,
+    // et le Shell ignore ici si ce membre le franchira. On ne promet que ce
+    // qu'on peut tenir.
+    'shell_answer_request_preparation_unavailable' => 'Je peux continuer à vous guider dans BouclePro, mais je ne peux pas préparer cette demande automatiquement pour le moment.',
     'shell_answer_blocked' => 'Je préfère ne pas traiter cette demande telle quelle.',
     'shell_prompt_where_loop' => 'L\'utilisateur consulte la Boucle « :name ».',
     'shell_prompt_where_dossier' => 'L\'utilisateur consulte le Dossier « :name ».',

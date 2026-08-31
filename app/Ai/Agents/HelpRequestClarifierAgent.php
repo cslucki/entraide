@@ -61,8 +61,46 @@ class HelpRequestClarifierAgent implements Agent, HasStructuredOutput
     public function schema(JsonSchema $schema): array
     {
         return [
+            // TASK-1350 : le premier verdict, AVANT toute redaction. Le modele
+            // decide d'abord si un autre membre a quelque chose a apporter ;
+            // il ne redige un brouillon que si c'est le cas. Ce booleen n'a
+            // d'AUTORITE que sous un prompt `clarify_help_request` en version
+            // 3 ou plus : sous v1/v2, le service l'ignore integralement
+            // (fail-open vers le comportement historique).
+            'interaction_fit' => $schema->boolean()
+                ->description(
+                    'true si un autre membre pourrait utilement contribuer a cet enonce : '
+                    ."demande d'aide, offre de service ou de competence, information, soutien, "
+                    .'collaboration. En cas de doute, repondre true et poser des questions dans '
+                    .'questions_for_user. false UNIQUEMENT quand l\'enonce est clairement hors '
+                    .'Interaction : remerciement, salutation, bavardage, question sur la plateforme '
+                    .'elle-meme, ou propos sans destinataire humain possible.'
+                )
+                ->required(),
+
+            // TASK-1350 (direct_reply V1) — la parole de BouclePro IA quand
+            // l'enonce n'appelle PAS d'Interaction collective.
+            //
+            // C'est le champ qui manquait : sans lui, le Shell n'avait que deux
+            // sorties, un brouillon de demande ou un message canonique fige. Il
+            // ne repondait donc jamais. Ce champ ne sert QUE lorsque
+            // `interaction_fit` est false ; ailleurs il reste vide, et le
+            // pipeline demande/offre est inchange.
+            'direct_reply' => $schema->string()
+                ->description(
+                    'Reponse conversationnelle courte au MESSAGE ACTUEL du membre, 1 a 4 phrases. '
+                    .'A remplir UNIQUEMENT quand interaction_fit vaut false ; chaine vide sinon. '
+                    .'Tu peux repondre simplement, guider, demander de reformuler, dire que tu ne sais pas, '
+                    ."expliquer une limite, ou rappeler que l'humain valide avant toute publication. "
+                    ."N'invente JAMAIS une donnee temps reel (meteo, actualite, cours), un outil dont tu ne "
+                    ."disposes pas, une information sur BouclePro qui ne t'a pas ete fournie, une permission, "
+                    ."un droit, ou une source documentaire. Tu ne publies rien et n'agis jamais. "
+                    .'Reponds au message actuel, jamais a un tour precedent du transcript.'
+                )
+                ->required(),
+
             'title' => $schema->string()
-                ->description('Titre court et descriptif de la demande, 80 caracteres maximum.')
+                ->description('Titre court et descriptif de la demande, 80 caracteres maximum. Chaine vide quand interaction_fit vaut false.')
                 ->required(),
 
             'clarified_request' => $schema->string()

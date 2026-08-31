@@ -657,7 +657,9 @@ return [
     'fab_title' => 'BouclePro AI',
     'fab_subtitle_loop' => 'On this Loop',
     'fab_subtitle_dossier' => 'In this Folder',
-    'fab_subtitle_other' => 'No AI action here — your usage stays available.',
+    // TASK-1350: the subtitle locates you, it no longer devalues the page.
+    'fab_subtitle_other' => 'Available everywhere on BouclePro',
+    'fab_no_page_action' => 'This page has no AI action of its own. You can still talk with BouclePro AI: ask your question, the conversation follows you from page to page.',
     'fab_credit_title' => 'AI credit this month',
     'fab_credit_included' => 'Included',
     'fab_credit_alert' => 'You are getting close to your monthly credit.',
@@ -693,14 +695,74 @@ return [
     'shell_you' => 'You',
     'shell_assistant' => 'BouclePro AI',
     'shell_empty_title' => 'Start the conversation',
-    'shell_empty_hint' => 'Describe your need in a few words. The thread stays open while you navigate.',
+    // TASK-1350: a conversation, not a disguised request form.
+    'shell_empty_hint' => 'Ask your question or describe your need, simply. The thread stays open while you navigate.',
+
+    // ==========================================================================
+    // TASK-1350 — Honest Shell: non-Interaction, self-knowledge, offer
+    // ==========================================================================
+
+    'shell_answer_non_interaction' => "I'm not turning this into a help request: nothing here is waiting for another member's contribution. If you'd like someone to help you, or want to offer your help, just say so and I'll walk you through it.",
+
+    'shell_card_offer_help' => 'Offer help',
+
+    // ==========================================================================
+    // TASK-1350 — presenting a valid REQUEST INTENT (P0 2026-08-31)
+    // ==========================================================================
+    //
+    // The clarifier legitimately drafts in the FIRST PERSON: it is the user's
+    // future request. Rendered as-is in the assistant bubble, it made BouclePro
+    // AI say « I am looking for a proofreader… ». The shared contract is
+    // untouched; presentation now attributes the draft to the right person.
+    'shell_request_framing' => 'I\'ve understood your need. Here\'s a reformulation if you\'d like to turn it into a help request.',
+    'shell_request_draft_heading' => 'Your reformulated request',
+
+    // TASK-1350: an offer is written in the first person just like a request.
+    'shell_offer_framing' => 'I\'ve understood what you are offering. Here\'s a reformulation if you\'d like to turn it into an offer of help.',
+    'shell_offer_draft_heading' => 'Your reformulated offer',
+
+    'shell_request_continue' => 'Continue chatting',
+    'shell_request_prepare' => 'Prepare a help request',
+    'shell_request_tenant' => 'in :organization',
+
+    // TASK-1350 (P0) — the current-turn label, injected only when a transcript
+    // precedes it.
+    'shell_prompt_current_turn' => 'The member\'s current message — analyse and answer THIS message, not an earlier turn of the transcript:',
+
+    // --- Self-knowledge (composed from the canonical sources) ---
+    // TASK-1350: starts from the canonical doctrine sentence, adds ONE sentence.
+    'self_knowledge_platform' => 'BouclePro is a platform for learning through mutual aid. You express a need in plain language, and you get connected to a few people in your organization who can genuinely help — a loop, not a feed.',
+    'self_knowledge_loop_memory' => 'What a loop decides is laid down in its memory: nothing to re-read, the essentials stay dated and findable.',
+    'self_knowledge_ask_help_path' => 'Concretely: open "Ask for help", describe your need in plain language, and I\'ll clarify it before you confirm. You remain the one who publishes — I never publish for you.',
+    'self_knowledge_capabilities_intro' => 'In this organization, you can:',
+    // TASK-1350: no longer promises assisted navigation that does not exist.
+    'self_knowledge_capabilities_outro' => 'Tell me what you are looking for and I can explain where to go.',
+    'self_knowledge_capabilities_empty' => 'This organization has not opened any journey yet. An administrator can enable them.',
+
+    // --- Tenant-aware capability catalogue ---
+    'self_knowledge_capability_ask_help' => 'ask other members for help',
+    'self_knowledge_capability_offer_help' => 'offer your help or your skills',
+    'self_knowledge_capability_loops' => 'join the loops you belong to',
+    'self_knowledge_capability_create_loop' => 'open a loop around a precise topic',
+    'self_knowledge_capability_ai_profile' => 'build your profile so others can find you',
+    // TASK-1350: true whatever the organization's AI configuration is.
+    'self_knowledge_capability_assistant' => 'ask me your questions about BouclePro, right here, from page to page',
     'shell_clear' => 'Clear the conversation',
     'shell_clear_confirm' => 'Clear the whole thread?',
     'shell_clear_yes' => 'Clear',
     'shell_clear_no' => 'Cancel',
     'shell_no_publication_note' => 'BouclePro AI publishes nothing: you validate before anything is published.',
     'shell_turn_in_progress' => 'An answer is already being generated. Let it finish.',
-    'shell_answer_unavailable' => 'I cannot answer right now. AI is not available in this Organization.',
+    // TASK-1350: behaviour unchanged — this stays the EXPLICIT unavailability
+    // of the « no active prompt » case. Only the wording is normalised.
+    'shell_answer_unavailable' => 'I cannot answer right now. AI is not available in this organization.',
+
+    // TASK-1350: names no cause, mentions no provider, credential,
+    // configuration, budget or organization, and never claims AI as a whole is
+    // down. It also does not promise manual creation: that journey exists but
+    // sits behind EnsureProfileComplete, and the Shell cannot know here whether
+    // this member would get through.
+    'shell_answer_request_preparation_unavailable' => 'I can still guide you around BouclePro, but I can\'t prepare this request automatically right now.',
     'shell_answer_blocked' => 'I would rather not handle this request as it stands.',
     'shell_prompt_where_loop' => 'The user is viewing the Loop ":name".',
     'shell_prompt_where_dossier' => 'The user is viewing the Folder ":name".',

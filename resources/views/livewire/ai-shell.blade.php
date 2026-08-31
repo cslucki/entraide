@@ -124,7 +124,41 @@
             @else
                 <ul class="space-y-3">
                     @foreach($shell['messages'] as $message)
-                        @php $turnCards = $shell['cards'][(string) $message->id] ?? []; @endphp
+                        @php
+                            $turnCards = $shell['cards'][(string) $message->id] ?? [];
+
+                            $meta = is_array($message->metadata) ? $message->metadata : [];
+                            $isAnswered = ($meta['status'] ?? null) === \App\Services\Ai\AiShellResponder::STATUS_ANSWERED;
+
+                            // TASK-1350 (P0) — un tour qui porte une INTENTION valide.
+                            // Le brouillon du clarificateur est ecrit a la premiere
+                            // personne : c'est le futur texte DE L'UTILISATEUR, pas la
+                            // parole de BouclePro IA. On le sort donc de la bulle de
+                            // l'assistant pour l'attribuer.
+                            //
+                            // La recette a montre que la coupe ne pouvait pas s'arreter
+                            // aux demandes : le modele peut qualifier « Je cherche un
+                            // relecteur » en `service_offer`, et la branche OFFRE
+                            // reaffichait alors le brouillon comme parole de l'IA —
+                            // exactement le defaut qu'on ferme. Une offre est ecrite a la
+                            // premiere personne tout autant qu'une demande. Seuls le
+                            // cadrage, l'intitule et l'appel a l'action changent.
+                            //
+                            // La condition exige la PRESENCE de `intent` : les tours
+                            // ecrits avant TASK-1350 n'en portent pas et gardent leur
+                            // rendu, conformement au scope fige (« messages historiques
+                            // ANSWERED : inchanges »).
+                            $isUserDraft = $message->role === \App\Models\AiShellMessage::ROLE_ASSISTANT
+                                && $isAnswered
+                                && array_key_exists('intent', $meta);
+
+                            $isOfferDraft = $isUserDraft
+                                && $meta['intent'] === \App\Support\Ai\AiShellTurnCards::INTENT_OFFER;
+
+                            $requestDraftBody = $isUserDraft
+                                ? trim((string) ($meta['message_draft'] ?: $message->content))
+                                : '';
+                        @endphp
                         <li wire:key="ai-shell-msg-{{ $message->id }}"
                             data-ai-shell-message="{{ $message->role }}"
                             class="flex flex-col {{ $message->role === \App\Models\AiShellMessage::ROLE_USER ? 'items-end' : 'items-start' }}">
@@ -132,11 +166,90 @@
                                     ? 'bg-indigo-600 text-white'
                                     : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100' }}">
                                 <span class="sr-only">{{ $message->role === \App\Models\AiShellMessage::ROLE_USER ? __('ai.shell_you') : __('ai.shell_assistant') }} :</span>
-                                @if($message->role === \App\Models\AiShellMessage::ROLE_ASSISTANT && filled($message->metadata['title'] ?? null))
-                                    <span class="mb-1 block font-semibold" data-ai-shell-answer-title>{{ $message->metadata['title'] }}</span>
+                                {{-- TASK-1350 — gate supplementaire : un titre ne s'affiche
+                                     que sur un tour ANSWERED. La metadata d'un tour
+                                     NON_INTERACTION n'en porte deja aucun ; ce test rend la
+                                     regle VISIBLE a l'endroit du rendu, et protege le fil
+                                     deja ecrit comme celui qu'on ecrira demain.
+
+                                     TASK-1350 (P0) — et jamais sur un tour d'intention de
+                                     demande : son titre appartient au brouillon de
+                                     l'utilisateur, rendu plus bas dans sa propre carte. --}}
+                                @if(! $isUserDraft
+                                    && $message->role === \App\Models\AiShellMessage::ROLE_ASSISTANT
+                                    && $isAnswered
+                                    && filled($meta['title'] ?? null))
+                                    <span class="mb-1 block font-semibold" data-ai-shell-answer-title>{{ $meta['title'] }}</span>
                                 @endif
-                                <span class="block whitespace-pre-line">{{ $message->content }}</span>
+
+                                {{-- TASK-1350 (P0) — la bulle de l'assistant ne dit que ce
+                                     que l'assistant dit vraiment : il a compris, et il
+                                     propose. Le texte a la premiere personne, lui, quitte
+                                     cette bulle. --}}
+                                <span class="block whitespace-pre-line">{{ $isUserDraft ? ($isOfferDraft ? __('ai.shell_offer_framing') : __('ai.shell_request_framing')) : $message->content }}</span>
                             </div>
+
+                            {{-- TASK-1350 (P0) — la carte du brouillon, visuellement
+                                 distincte de la bulle et EXPLICITEMENT attribuee a
+                                 l'utilisateur. Le texte a la premiere personne y est
+                                 alors juste : c'est sa demande, pas la voix de l'IA.
+
+                                 Sous la carte, le choix est HUMAIN et binaire. Aucun des
+                                 deux boutons ne publie : « Continuer a discuter » ne fait
+                                 que rendre le focus au composeur — aucun aller-retour
+                                 serveur, aucun provider, aucune ecriture, et le brouillon
+                                 saisi n'est pas efface ; « Preparer une demande d'aide »
+                                 emprunte le pipeline EXISTANT `prepareRequest($messageId)`,
+                                 qui depose un brouillon hors session et ouvre le
+                                 formulaire canonique. L'humain relit et valide ensuite. --}}
+                            @if($isUserDraft && $requestDraftBody !== '')
+                                <div class="mt-2 w-full max-w-[92%] rounded-xl border border-dashed border-indigo-300 bg-indigo-50/60 p-3 dark:border-indigo-700/60 dark:bg-indigo-900/20"
+                                     data-ai-shell-request-draft="{{ $message->id }}">
+                                    <p class="flex items-center gap-1.5">
+                                        <span class="rounded bg-white px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700 dark:bg-gray-800 dark:text-indigo-200" data-ai-shell-request-draft-heading>{{ $isOfferDraft ? __('ai.shell_offer_draft_heading') : __('ai.shell_request_draft_heading') }}</span>
+                                    </p>
+                                    @if(filled($meta['title'] ?? null))
+                                        <p class="mt-1.5 text-sm font-semibold text-gray-900 dark:text-gray-100" data-ai-shell-request-draft-title>{{ $meta['title'] }}</p>
+                                    @endif
+                                    <p class="mt-1 whitespace-pre-line text-sm leading-5 text-gray-700 dark:text-gray-200" data-ai-shell-request-draft-body>{{ $requestDraftBody }}</p>
+
+                                    <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                                        <button type="button"
+                                                @click="$refs.composer?.focus()"
+                                                data-ai-shell-request-continue
+                                                class="inline-flex items-center justify-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600">
+                                            {{ __('ai.shell_request_continue') }}
+                                        </button>
+                                        {{-- Une OFFRE ne se prepare jamais en demande : elle
+                                             mene au parcours canonique « Proposer de
+                                             l'aide », deja construit cote serveur. --}}
+                                        @if($isOfferDraft)
+                                            @if(filled($shell['offer_help_url'] ?? null))
+                                                <a href="{{ $shell['offer_help_url'] }}"
+                                                   data-ai-shell-offer-prepare
+                                                   class="inline-flex items-center justify-center rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">
+                                                    {{ __('ai.shell_card_offer_help') }}
+                                                </a>
+                                            @endif
+                                        @else
+                                            <button type="button"
+                                                    wire:click="prepareRequest('{{ $message->id }}')"
+                                                    data-ai-shell-request-prepare
+                                                    class="inline-flex items-center justify-center rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">
+                                                {{ __('ai.shell_request_prepare') }}
+                                            </button>
+                                        @endif
+                                    </div>
+
+                                    {{-- Le tenant, dit discretement et SOUS les boutons :
+                                         le nom vient de l'Organization deja resolue par le
+                                         composant, sans nouveau resolver, et n'allonge
+                                         aucun libelle sur mobile. --}}
+                                    @if(filled($shell['organization_name'] ?? null))
+                                        <p class="mt-1.5 text-[11px] leading-4 text-gray-500 dark:text-gray-400" data-ai-shell-request-tenant>{{ __('ai.shell_request_tenant', ['organization' => $shell['organization_name']]) }}</p>
+                                    @endif
+                                </div>
+                            @endif
 
                             {{-- TASK-1325 — les cartes structurees de CE tour. Chaque
                                  carte a ete re-resolue et re-autorisee au rendu
@@ -167,10 +280,24 @@
                                                        class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800/60 dark:bg-indigo-900/30 dark:text-indigo-200">
                                                         {{ __('ai.shell_card_open') }}
                                                     </a>
-                                                    <button type="button" wire:click="prepareRequest('{{ $card['turn_id'] }}')" data-ai-shell-card-action="prepare_request"
-                                                            class="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600">
-                                                        {{ __('ai.shell_card_prepare_here') }}
-                                                    </button>
+                                                    {{-- TASK-1350 — sur une OFFRE, l'appel a l'action
+                                                         est « Proposer de l'aide », jamais
+                                                         « Preparer ma demande ». L'URL est construite
+                                                         cote serveur (AiShellTurnCards), tenant-aware,
+                                                         sans preremplissage. --}}
+                                                    @if(($card['cta'] ?? null) === \App\Support\Ai\AiShellTurnCards::CTA_OFFER_HELP)
+                                                        @if(filled($card['cta_url'] ?? null))
+                                                            <a href="{{ $card['cta_url'] }}" data-ai-shell-card-action="offer_help"
+                                                               class="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600">
+                                                                {{ __('ai.shell_card_offer_help') }}
+                                                            </a>
+                                                        @endif
+                                                    @else
+                                                        <button type="button" wire:click="prepareRequest('{{ $card['turn_id'] }}')" data-ai-shell-card-action="prepare_request"
+                                                                class="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600">
+                                                            {{ __('ai.shell_card_prepare_here') }}
+                                                        </button>
+                                                    @endif
                                                 </div>
                                             @elseif($card['type'] === \App\Support\Ai\AiShellTurnCards::TYPE_PERSON)
                                                 <p class="flex items-center gap-2">

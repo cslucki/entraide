@@ -63,19 +63,37 @@ class AdminAiPromptTest extends TestCase
         $this->assertStringContainsString('transmise au membre', $prompt->prompt_text);
     }
 
-    public function test_ai_prompt_seeder_creates_the_bounded_clarification_prompt_v2(): void
+    /**
+     * TASK-1350 : la v2 reste provisionnee et conserve ses bornes, mais elle
+     * n'est plus la version ACTIVE — la v3 l'est, et elle porte les memes
+     * bornes PLUS le verdict `interaction_fit`. Le test verifie donc les deux :
+     * la version historique n'a pas ete reecrite, et la version active n'a rien
+     * perdu.
+     */
+    public function test_ai_prompt_seeder_creates_the_bounded_clarification_prompts(): void
     {
         $this->seed(AiPromptSeeder::class);
 
-        $prompt = AdminAiPrompt::query()
+        $v2 = AdminAiPrompt::query()
             ->where('scenario_id', 'clarify_help_request')
             ->where('version', 2)
-            ->where('is_active', true)
             ->firstOrFail();
 
-        $this->assertStringContainsString('suggested_category_id', $prompt->prompt_text);
-        $this->assertStringContainsString('suggested_loop_id', $prompt->prompt_text);
-        $this->assertStringContainsString("N'invente jamais d'identifiant", $prompt->prompt_text);
+        foreach (['suggested_category_id', 'suggested_loop_id', "N'invente jamais d'identifiant"] as $bound) {
+            $this->assertStringContainsString($bound, $v2->prompt_text);
+        }
+
+        $active = AdminAiPrompt::query()
+            ->where('scenario_id', 'clarify_help_request')
+            ->where('is_active', true)
+            ->orderByDesc('version')
+            ->firstOrFail();
+
+        $this->assertSame(3, (int) $active->version);
+
+        foreach (['suggested_category_id', 'suggested_loop_id', "N'invente jamais d'identifiant", 'interaction_fit'] as $bound) {
+            $this->assertStringContainsString($bound, $active->prompt_text);
+        }
     }
 
     public function test_admin_can_create_prompt(): void
