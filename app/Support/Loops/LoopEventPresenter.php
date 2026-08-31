@@ -84,7 +84,11 @@ class LoopEventPresenter
     public function monthGrid(string $month, array $events): array
     {
         try {
-            $first = CarbonImmutable::createFromFormat('Y-m', $month)->startOfMonth();
+            // TASK-1347 : meme piege que `LoopEventsCard::shiftMonth()`. Sans le
+            // `!`, le jour manquant vient d'aujourd'hui ; un 31, viser un mois
+            // de 30 jours deborde sur le suivant et la grille AFFICHEE etait
+            // celle du mauvais mois (octobre pour septembre, un 31 aout).
+            $first = CarbonImmutable::createFromFormat('!Y-m', $month)->startOfMonth();
         } catch (\Throwable) {
             $first = CarbonImmutable::now()->startOfMonth();
         }
