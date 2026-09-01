@@ -7,6 +7,7 @@ use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\AiShellResponder;
+use App\Services\People\DTO\EligiblePeopleResult;
 use App\Services\People\DTO\EligiblePerson;
 use App\Services\People\EligiblePeopleService;
 use App\Services\People\RelevantPeopleService;
@@ -66,6 +67,27 @@ final class AiShellTurnCards
     public const TYPE_PERSON = 'person';
 
     public const TYPE_DOCUMENT = 'document';
+
+    /**
+     * TASK-1360 — l'ETAT VIDE des personnes.
+     *
+     * Jusqu'ici, un tour situe dans une Boucle qui ne rendait AUCUNE personne
+     * n'affichait rien du tout : ni resultat, ni explication. Or la doctrine
+     * maison dit qu'un refus n'est jamais un vide silencieux
+     * ({@see EligiblePeopleResult}) — et People-1 /
+     * People-2 sont livres et cables depuis T1323/T1324, mais restent invisibles
+     * faute de profils publies (7 % des membres a l'audit du 2026-09-01).
+     *
+     * Cette carte dit donc simplement qu'il n'y a personne a proposer ICI, et
+     * ouvre le seul chemin qui change cela : publier son propre profil.
+     *
+     * Ce qu'elle ne dit JAMAIS, et c'est deliberé : combien de membres compte
+     * la Boucle, et pourquoi telle personne n'est pas proposee. Une raison
+     * individuelle d'ineligibilite serait un fait sur QUELQU'UN D'AUTRE ; un
+     * decompte serait un fait sur la population de la Boucle. Ni l'un ni
+     * l'autre n'appartient a celui qui pose la question.
+     */
+    public const TYPE_PEOPLE_EMPTY = 'people_empty';
 
     /**
      * TASK-1350 — l'appel a l'action d'une LoopCard.
@@ -168,6 +190,7 @@ final class AiShellTurnCards
 
             if ($loop instanceof Loop) {
                 $relevant = $this->relevantPeople->relevantFor($organization, $loop, $user, $need);
+                $suggested = 0;
 
                 // Un refus de contexte ou zero pertinent = zero carte,
                 // proprement. Le refus n'est pas reinterprete ici.
@@ -182,7 +205,22 @@ final class AiShellTurnCards
                             // tour, relisible comme son historique.
                             'reasons' => $person->reasons,
                         ];
+                        $suggested++;
                     }
+                }
+
+                // TASK-1360 : personne a proposer ici. On l'ECRIT, au lieu de
+                // ne rien rendre. La carte ne porte que l'identifiant de la
+                // Boucle : aucune raison, aucun decompte, rien sur les autres.
+                //
+                // Un seul bon resultat vaut mieux qu'un resultat cache : cet
+                // etat vide ne s'ecrit donc QUE lorsque le tour n'a suggere
+                // personne.
+                if ($suggested === 0) {
+                    $cards[] = [
+                        'type' => self::TYPE_PEOPLE_EMPTY,
+                        'loop_id' => (string) $loop->id,
+                    ];
                 }
             }
         }
@@ -235,6 +273,7 @@ final class AiShellTurnCards
             $card = match ($reference['type'] ?? null) {
                 self::TYPE_LOOP => $this->loopCard($organization, $user, $reference),
                 self::TYPE_PERSON => $this->personCard($organization, $user, $reference),
+                self::TYPE_PEOPLE_EMPTY => $this->peopleEmptyCard($organization, $user, $reference),
                 self::TYPE_DOCUMENT => $this->documentCard($organization, $user, $reference),
                 // La whitelist : tout le reste n'existe pas a l'ecran.
                 default => null,
@@ -394,6 +433,64 @@ final class AiShellTurnCards
         }
 
         return $this->eligibleByLoop[$loopId] = $eligible;
+    }
+
+    /**
+     * TASK-1360 — l'etat vide, RE-EVALUE au rendu comme toute autre carte.
+     *
+     * Deux raisons de ne rien rendre, et elles sont de nature differente :
+     *
+     *  - la Boucle n'est plus visible par cette personne : la carte disparait,
+     *    exactement comme une PersonCard dont l'objet n'est plus autorise ;
+     *  - quelqu'un est devenu eligible depuis le tour : l'etat vide serait
+     *    alors un MENSONGE. Il ne se contente donc pas d'etre autorise, il doit
+     *    rester VRAI. C'est la meme discipline anti-TOCTOU que les autres
+     *    cartes, appliquee a une affirmation plutot qu'a un droit.
+     *
+     * `eligibleNow()` porte People-1 entier : l'etat vide s'efface des qu'un
+     * membre publie son profil, sans qu'aucun tour ancien ait a etre reecrit.
+     *
+     * @param  array<string, mixed>  $reference
+     * @return array<string, mixed>|null
+     */
+    private function peopleEmptyCard(Organization $organization, User $user, array $reference): ?array
+    {
+        $loopId = (string) ($reference['loop_id'] ?? '');
+
+        if ($loopId === '') {
+            return null;
+        }
+
+        $resolved = $this->pageContext->resolve($user, $organization, AiShellPageContext::KIND_LOOP, $loopId);
+
+        if (! is_array($resolved['object'] ?? null)) {
+            return null;
+        }
+
+        if ($this->eligibleNow($organization, $user, $loopId) !== []) {
+            return null;
+        }
+
+        return [
+            'type' => self::TYPE_PEOPLE_EMPTY,
+            'loop_id' => $loopId,
+            'label' => __('ai.shell_people_empty'),
+            'cta_label' => __('ai.shell_people_empty_cta'),
+            'cta_url' => $this->aiProfileUrl($organization),
+        ];
+    }
+
+    /**
+     * Le parcours canonique du profil IA — celui que l'onboarding utilise deja.
+     * Le controleur cible rejoue sa propre garde au clic, comme toute page.
+     */
+    private function aiProfileUrl(Organization $organization): string
+    {
+        if (Route::has('organization.agent-ia.wizard')) {
+            return route('organization.agent-ia.wizard', ['organization' => $organization->slug]);
+        }
+
+        return Route::has('agent-ia.wizard') ? route('agent-ia.wizard') : '';
     }
 
     /**

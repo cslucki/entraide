@@ -784,6 +784,11 @@ return [
     'shell_action_loop_knowledge' => 'Search this Loop\'s Folders',
     'shell_card_loop_badge' => 'Loop',
     'shell_card_person_badge' => 'Member',
+    // TASK-1360 : ne dit ni combien de membres, ni pourquoi telle personne
+    // n'est pas proposee — seulement qu'il n'y a personne a proposer ici, et
+    // le seul geste qui change cela.
+    'shell_people_empty' => 'No one to suggest here yet.',
+    'shell_people_empty_cta' => 'Publish my AI profile',
     'shell_card_document_badge_dossier' => 'Folder',
     'shell_card_document_badge_article' => 'Article',
     'shell_card_open' => 'Open',

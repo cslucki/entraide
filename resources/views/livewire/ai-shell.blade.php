@@ -320,6 +320,17 @@
                                                         {{ __('ai.shell_card_view_profile') }}
                                                     </a>
                                                 </div>
+                                            @elseif($card['type'] === \App\Support\Ai\AiShellTurnCards::TYPE_PEOPLE_EMPTY)
+                                                {{-- TASK-1360 : un refus n'est jamais un vide silencieux. --}}
+                                                <p class="text-sm text-gray-600 dark:text-gray-300" data-ai-shell-card-people-empty>{{ $card['label'] }}</p>
+                                                @if($card['cta_url'] !== '')
+                                                    <div class="mt-2">
+                                                        <a href="{{ $card['cta_url'] }}" data-ai-shell-card-action="publish_ai_profile"
+                                                           class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800/60 dark:bg-indigo-900/30 dark:text-indigo-200">
+                                                            {{ $card['cta_label'] }}
+                                                        </a>
+                                                    </div>
+                                                @endif
                                             @elseif($card['type'] === \App\Support\Ai\AiShellTurnCards::TYPE_DOCUMENT)
                                                 <p class="flex items-center gap-1.5">
                                                     <span class="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">{{ $card['kind'] === \App\Support\Ai\AiShellPageContext::KIND_DOSSIER ? __('ai.shell_card_document_badge_dossier') : __('ai.shell_card_document_badge_article') }}</span>
