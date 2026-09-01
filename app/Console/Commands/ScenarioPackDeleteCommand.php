@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Organization;
+use App\Models\ScenarioPackLoad;
 use App\Support\ScenarioPacks\ScenarioPackRemover;
 use Illuminate\Console\Command;
 use RuntimeException;
@@ -35,6 +36,16 @@ class ScenarioPackDeleteCommand extends Command
             return self::SUCCESS;
         }
 
+        // TASK-1351 — lu AVANT le retrait : `remove()` supprime la ligne de
+        // chargement, donc la provenance de l'Organization n'existera plus
+        // apres. Absente ou false (les deux packs anterieurs, et tout
+        // chargement d'avant cette colonne) : l'Organization survit, comme
+        // toujours.
+        $organizationCreatedByPack = (bool) ScenarioPackLoad::query()
+            ->where('organization_id', $organization->id)
+            ->where('pack_id', $packId)
+            ->value('organization_created_by_pack');
+
         try {
             $remover->remove($packId, $organization);
         } catch (RuntimeException $e) {
@@ -44,6 +55,15 @@ class ScenarioPackDeleteCommand extends Command
         }
 
         $this->info("Pack '{$packId}' retire de '{$organization->slug}' (ou n'etait deja pas charge).");
+
+        if ($organizationCreatedByPack) {
+            // L'Organization n'a jamais ete une entite du registre : elle ne
+            // peut pas etre purgee par le moteur. C'est ce drapeau, ecrit au
+            // chargement, qui autorise — seul — le retour a l'etat ABSENT.
+            $slug = $organization->slug;
+            $organization->forceDelete();
+            $this->info("Organization '{$slug}' supprimee : elle avait ete creee par ce chargement.");
+        }
 
         return self::SUCCESS;
     }

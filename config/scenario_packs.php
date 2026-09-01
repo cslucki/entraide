@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\ScenarioPacks\Packs\ArtSciLabEnglishPack;
 use App\Support\ScenarioPacks\Packs\ArtSciLabRogerPack;
 use App\Support\ScenarioPacks\Packs\Test20260822DogfoodingPack;
 
@@ -27,6 +28,11 @@ return [
         // TASK-1269 : Organization ISOLEE de dogfooding de Cyril (decision
         // 2026-08-22 20:38), creee par le SuperAdmin, jamais `main`.
         Test20260822DogfoodingPack::ORGANIZATION_SLUG,
+        // TASK-1351 : Organization de demonstration ANGLAISE (Roger /
+        // ArtSciLab / UT Dallas). Seul slug de cette liste que son pack
+        // provisionne lui-meme quand il est absent — voir
+        // App\Support\ScenarioPacks\Contracts\ProvisionsItsOrganization.
+        ArtSciLabEnglishPack::ORGANIZATION_SLUG,
     ],
 
     /*
@@ -40,6 +46,7 @@ return [
     'definitions' => [
         'artscilab-roger-demo' => ArtSciLabRogerPack::class,
         Test20260822DogfoodingPack::PACK_ID => Test20260822DogfoodingPack::class,
+        ArtSciLabEnglishPack::PACK_ID => ArtSciLabEnglishPack::class,
     ],
 
     /*

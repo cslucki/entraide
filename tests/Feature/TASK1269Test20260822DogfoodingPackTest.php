@@ -126,10 +126,15 @@ class TASK1269Test20260822DogfoodingPackTest extends TestCase
     {
         $config = require base_path('config/scenario_packs.php');
 
+        // TASK-1351 : troisieme slug de demonstration ajoute a l'allowlist par
+        // commit revu (Organization ANGLAISE du dogfooding Roger). La garde
+        // reste la meme — une liste EXHAUSTIVE, verifiee ligne a ligne, ou
+        // `main` ne peut pas se glisser : c'est la liste qui change, pas la
+        // regle.
         $this->assertSame(
-            ['artscilab-demo', 'test20260822'],
+            ['artscilab-demo', 'test20260822', 'artscilab-en'],
             $config['allowed_organizations'],
-            'Seules artscilab-demo et test20260822 sont allowlistees — jamais main.'
+            'Seules les Organizations de demonstration sont allowlistees — jamais main.'
         );
         $this->assertSame(Test20260822DogfoodingPack::class, $config['definitions']['test20260822-dogfooding']);
         $this->assertArrayHasKey('test20260822-dogfooding', $config['sources']);
