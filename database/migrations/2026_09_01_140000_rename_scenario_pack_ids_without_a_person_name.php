@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
  * de demonstration se nomment par leur langue, pas par quelqu'un.
  *
  *   artscilab-roger-demo    -> artscilab-demo-test
- *   artscilab-en-dogfooding -> artscilab-en-test
+ *   artscilab-en-dogfooding -> artscilab-en-tests
  *
  * `test20260822-dogfooding`, la demonstration historique, ne change pas.
  *
@@ -39,7 +39,7 @@ return new class extends Migration
         // identifiant durable ne doit pas embarquer une information fausse, et
         // `artscilab-demo-test` est reserve a un futur VRAI scenario francais.
         'artscilab-roger-demo' => 'artscilab-demo-test',
-        'artscilab-en-dogfooding' => 'artscilab-en-test',
+        'artscilab-en-dogfooding' => 'artscilab-en-tests',
         // « dogfooding » decrit une intention d'usage, pas ce qu'est le jeu de
         // donnees — et il devient faux des qu'un pack sert a preparer du reel.
         // Decision de Cyril : ces packs sont des packs de TEST.

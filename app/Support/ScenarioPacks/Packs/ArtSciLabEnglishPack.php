@@ -80,7 +80,7 @@ use RuntimeException;
  */
 class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDefinition
 {
-    public const PACK_ID = 'artscilab-en-test';
+    public const PACK_ID = 'artscilab-en-tests';
 
     public const ORGANIZATION_SLUG = 'artscilab-en';
 
