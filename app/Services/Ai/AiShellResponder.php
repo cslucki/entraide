@@ -5,6 +5,7 @@ namespace App\Services\Ai;
 use App\Models\AiShellMessage;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\Ai\AiSelfKnowledge;
 use App\Support\Ai\AiShellThread;
 use App\Support\Ai\AiShellTurnCards;
 use App\Support\Ai\AiTurnLock;
@@ -56,6 +57,36 @@ use Illuminate\Support\Str;
  * que le modele a le DROIT de lire reste entierement chez `ContextBuilder`,
  * sous les `allowedSources` de la capability.
  *
+ * ## L'honnetete du tour (TASK-1350)
+ *
+ * Le Shell transformait TOUT en demande d'aide : un remerciement, une question
+ * sur le produit, une offre de competence en ressortaient avec un titre et un
+ * brouillon. Deux ajouts ferment cet ecart, et strictement lui.
+ *
+ * D'abord `interaction_fit` : le clarificateur dit desormais si un autre membre
+ * pourrait utilement contribuer. Ce verdict n'a d'autorite que sous un prompt
+ * qui l'a instruit (v3+), et il arrive DEJA arbitre — `null` vaut « aucune
+ * autorite », et se comporte comme avant. Quand il vaut `false`, le tour
+ * devient {@see self::STATUS_NON_INTERACTION} : un message canonique, une
+ * metadata minimale, rien a preparer.
+ *
+ * Quand ce verdict est `false`, le Shell ne se tait plus : le clarificateur
+ * rend AUSSI un `direct_reply`, une reponse courte au message courant, que la
+ * bulle affiche comme la parole de BouclePro IA. Le message canonique reste le
+ * repli quand ce champ manque. Repondre n'est pas preparer une demande : ni
+ * titre, ni brouillon, ni carte, ni `prepareRequest()`.
+ *
+ * Ensuite la self-knowledge : quatre questions sur BouclePro lui-meme sont
+ * reconnues par FULL MATCH normalise ({@see AiSelfKnowledge}) et repondues
+ * depuis les sources canoniques du produit, AVANT `situated()` et avant tout
+ * provider. Une erreur de ce chemin n'est jamais une erreur pour la personne :
+ * le tour repart chez le provider legacy.
+ *
+ * Ce que TASK-1350 n'ajoute pas : aucune nouvelle table, aucune migration de
+ * donnees, et aucun changement chez les appelants partages du clarificateur —
+ * NON_INTERACTION comme `direct_reply` sont des comportements de SHELL. Le
+ * service partage expose les deux champs ; il ne les applique jamais.
+ *
  * ## Le verrou : la doctrine T1311, pas une copie
  *
  * La course est arbitree par `AiTurnLock::runOnKey()` — la primitive de T1311
@@ -74,6 +105,26 @@ final class AiShellResponder
 
     /** Aucune IA n'a repondu (desactivee, tenant non configure, refus economique). */
     public const STATUS_UNAVAILABLE = 'unavailable';
+
+    /**
+     * TASK-1350 — le tour n'est pas une Interaction.
+     *
+     * Deux chemins y menent, et un seul comportement en sort :
+     *  - le clarificateur a rendu `interaction_fit = false` sous un prompt
+     *    autoritaire (v3+) : l'enonce est clairement hors Interaction ;
+     *  - la question portait sur BouclePro lui-meme et a ete repondue sans
+     *    provider ({@see AiSelfKnowledge}) — une plateforme qui s'explique
+     *    n'attend rien d'un autre membre.
+     *
+     * Ce statut est un statut de SHELL, pas de clarification : le service
+     * partage l'ignore, `RequestController::formulate()` et `LoopController`
+     * ne le voient jamais. Sa metadata est MINIMALE par construction
+     * (`status`, `producer`, `page_context`, pins) — donc pas de titre, pas de
+     * brouillon, pas de Boucle suggeree, pas de cartes, pas d'intention. Rien
+     * a preparer, donc `prepareRequest()` refuse, et `forDisplay()` rend `[]`
+     * puisqu'il n'accepte que `STATUS_ANSWERED`.
+     */
+    public const STATUS_NON_INTERACTION = 'non_interaction';
 
     /**
      * La cle de verrou d'un tour du Shell.
@@ -102,6 +153,7 @@ final class AiShellResponder
         private readonly ClarifyUserHelpRequestService $clarifier,
         private readonly AiShellThread $thread,
         private readonly AiShellTurnCards $cards,
+        private readonly AiSelfKnowledge $selfKnowledge,
     ) {}
 
     /**
@@ -174,7 +226,14 @@ final class AiShellResponder
                     return ['trigger' => $trigger, 'answer' => $existing];
                 }
 
-                [$content, $metadata] = $this->generate($organization, $user, $prompt, $pageContext, $pinnedContext, $memory);
+                // TASK-1350 : la self-knowledge s'intercale ICI — apres
+                // l'ecriture du message humain et apres l'idempotence, mais
+                // AVANT `generate()`, donc avant `situated()` et avant tout
+                // provider. Consequence mesurable : un tour de self-knowledge
+                // n'ecrit ni `AiInteraction`, ni ligne de ledger, et ne
+                // consomme aucun credit.
+                [$content, $metadata] = $this->selfKnowledgeTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
+                    ?? $this->generate($organization, $user, $prompt, $pageContext, $pinnedContext, $memory);
 
                 $answer = $this->thread->appendAssistant($organization, $user, $content, $trigger, $metadata);
 
@@ -217,9 +276,65 @@ final class AiShellResponder
         // Meme position que `RequestController::formulate()` : un repli
         // deterministe n'est pas une reponse de l'IA et ne se presente jamais
         // comme telle.
+        //
+        // TASK-1350 — mais il ne se presente plus non plus comme une panne
+        // GENERALE de l'IA. Ce repli signifie exactement une chose : la
+        // clarification generative n'etait pas utilisable pour cette
+        // organisation a cet instant (desactivee, aucun credential tenant, ou
+        // budget atteint). Il ne dit RIEN de ce que le Shell sait encore
+        // faire — et le fil vient peut-etre de le prouver deux fois, avec des
+        // reponses de self-knowledge. Annoncer « l'IA n'est pas disponible »
+        // serait donc faux devant l'utilisateur.
+        //
+        // La phrase distingue ce qui reste offert de ce qui manque, et ne
+        // nomme AUCUNE cause : le repli ne porte pas laquelle des trois s'est
+        // produite, et inventer « non configuree » quand c'est le budget
+        // serait remplacer un mensonge par un autre. Elle ne promet rien non
+        // plus — pas meme la creation manuelle, dont ce point du code ne peut
+        // pas garantir l'acces. Le statut, lui, ne bouge pas : aucune IA n'a
+        // repondu.
         if ($result->producer === 'deterministic_fallback') {
-            return [__('ai.shell_answer_unavailable'), [
+            return [__('ai.shell_answer_request_preparation_unavailable'), [
                 'status' => self::STATUS_UNAVAILABLE,
+                'producer' => $result->producer,
+                'page_context' => $this->traceable($pageContext),
+            ] + $this->pinnedTrace($pinnedContext)];
+        }
+
+        // TASK-1350 — le verdict d'Interaction, lu ICI et nulle part ailleurs.
+        //
+        // `interactionFit` arrive DEJA arbitre par la version du prompt actif
+        // (voir `ClarifyUserHelpRequestService::authoritativeInteractionFit()`) :
+        // `null` signifie « aucune autorite » — prompt en v1/v2, version
+        // inexploitable, champ absent ou non booleen — et se comporte donc
+        // exactement comme avant TASK-1350. Seul `false` change quelque chose.
+        //
+        // Le test `=== false` est deliberement strict : il ne se declenche ni
+        // sur `null`, ni sur une chaine vide, ni sur `0`. Le fail-open est
+        // porte par l'operateur, pas par une convention de lecture.
+        if ($result->interactionFit === false) {
+            // TASK-1350 (direct_reply V1) — et ici, le Shell REPOND.
+            //
+            // Sans ce champ, une non-Interaction ne recevait qu'un message
+            // canonique fige : « Quel temps fait-il a Marseille ? » se voyait
+            // repondre un rappel sur l'entraide. Le Shell ne transformait plus
+            // tout en demande, mais il ne repondait toujours a rien.
+            //
+            // La bulle porte donc desormais la parole du modele quand elle
+            // existe, et le message canonique quand elle n'existe pas — champ
+            // absent, vide, ou prompt sans autorite pour le produire. Le repli
+            // n'est pas une precaution de style : un provider degrade ou un
+            // schema mal honore ne doit jamais laisser une bulle vide.
+            //
+            // Ce que ce champ NE change pas : le statut, la metadata (toujours
+            // bornee a status / producer / page_context / pins), l'absence de
+            // titre, de brouillon, de carte, et l'impossibilite de
+            // `prepareRequest()`. Une reponse conversationnelle n'est pas une
+            // demande, et n'en devient pas une.
+            $reply = trim((string) $result->directReply);
+
+            return [$reply !== '' ? $reply : __('ai.shell_answer_non_interaction'), [
+                'status' => self::STATUS_NON_INTERACTION,
                 'producer' => $result->producer,
                 'page_context' => $this->traceable($pageContext),
             ] + $this->pinnedTrace($pinnedContext)];
@@ -233,6 +348,13 @@ final class AiShellResponder
 
         return [$content, [
             'status' => self::STATUS_ANSWERED,
+            // TASK-1350 : l'intention telle que la clarification l'a qualifiee
+            // — `offer` quand le membre PROPOSE son aide, `help_request`
+            // sinon. Une offre ne se prepare pas en demande : la cle est lue
+            // par `AiShell::prepareRequest()` et par les cartes du tour. Son
+            // ABSENCE (tours anterieurs a TASK-1350) vaut « demande », donc le
+            // fil deja ecrit se relit inchange.
+            'intent' => $result->intent,
             'producer' => $result->producer,
             'scenario' => $result->scenario,
             'confidence' => $result->confidence,
@@ -254,6 +376,7 @@ final class AiShellResponder
                 $result->suggestedLoop,
                 $pageContext,
                 trim($prompt."\n".$result->need),
+                $result->intent,
             ),
             'page_context' => $this->traceable($pageContext),
         ] + $this->pinnedTrace($pinnedContext)];
@@ -273,6 +396,11 @@ final class AiShellResponder
      * davantage un droit que les deux autres : il ne contient QUE ce que cet
      * utilisateur a deja sous les yeux dans son propre fil, borne et
      * chronologique.
+     *
+     * TASK-1350 (P0) : et quand ce transcript existe, la question courante est
+     * ETIQUETEE. Le transcript est un arriere-plan ; le tour courant est
+     * l'objet. Dit autrement, et c'est la seule hierarchie que ce prompt
+     * etablit : CURRENT TURN > TRANSCRIPT MEMORY.
      *
      * @param  array<string, mixed>  $pageContext
      * @param  list<array<string, mixed>>  $pinnedContext
@@ -329,6 +457,23 @@ final class AiShellResponder
         // qu'on lui demande.
         if ($memory !== '') {
             $lines[] = $memory;
+
+            // TASK-1350 (P0) — l'ETIQUETTE DU TOUR COURANT.
+            //
+            // Sans elle, le prompt presentait au modele une suite de textes de
+            // meme nature — transcript, anciens brouillons a la premiere
+            // personne, puis la question — sans dire lequel il devait traiter.
+            // Constate en runtime : « Quel temps fait-il a Marseille ? » a
+            // rendu, mot pour mot, le brouillon du tour precedent. Deux
+            // lignes DISTINCTES en base, quelques secondes d'ecart, contenu
+            // identique : le modele n'avait pas rejoue, il avait choisi le
+            // mauvais objet.
+            //
+            // L'etiquette ne s'ajoute QUE lorsqu'un transcript precede. Sur un
+            // fil vide il n'y a rien a departager, et le prompt reste alors
+            // exactement celui d'avant TASK-1346 — invariant que la suite de
+            // T1346 verifie a l'octet pres.
+            $lines[] = __('ai.shell_prompt_current_turn');
         }
 
         return $lines === [] ? $prompt : implode("\n", [...$lines, $prompt]);
@@ -439,7 +584,79 @@ final class AiShellResponder
 
         $metadata = is_array($message->metadata) ? $message->metadata : [];
 
-        return ($metadata['status'] ?? null) === self::STATUS_ANSWERED;
+        // TASK-1350 : `STATUS_NON_INTERACTION` entre dans la memoire, au
+        // contraire de `STATUS_UNAVAILABLE` et de `STATUS_BLOCKED`. La
+        // difference n'est pas de statut, elle est de NATURE : une
+        // indisponibilite ou un refus est une reponse technique, qui ne dit
+        // rien du sujet ; une non-Interaction est une VRAIE reponse — le
+        // message canonique, ou une reponse de self-knowledge. L'exclure
+        // laisserait le modele lire « Membre : c'est quoi une Boucle ? » sans
+        // jamais voir ce qui a ete repondu, et la conversation perdrait son
+        // fil au tour suivant.
+        return in_array(
+            $metadata['status'] ?? null,
+            [self::STATUS_ANSWERED, self::STATUS_NON_INTERACTION],
+            true,
+        );
+    }
+
+    /**
+     * TASK-1350 — le tour de self-knowledge, ou `null` quand l'enonce n'en est
+     * pas un (le cas de l'immense majorite des tours).
+     *
+     * ## Pourquoi c'est un tour NON_INTERACTION
+     *
+     * Parce que c'en est un, litteralement : « C'est quoi une Boucle ? » n'est
+     * pas une demande qu'un autre membre pourrait honorer. Le statut apporte
+     * gratuitement toutes les gardes voulues — pas de titre, pas de brouillon,
+     * pas de carte, `prepareRequest()` impossible — sans qu'on ait a les
+     * reecrire. Seul le `producer` distingue les deux chemins dans la trace.
+     *
+     * ## Pourquoi tout est capture
+     *
+     * Le catalogue lit des drapeaux de tenant et resout des routes ; la
+     * Constitution lit une table. Une source qui manque, une route absente, une
+     * base momentanement indisponible ne doivent pas transformer une question
+     * en erreur 500 : on retombe alors sur le provider legacy, qui est
+     * exactement ce qui se passait avant TASK-1350. Le fail-open est ici un
+     * `catch (\Throwable)` assume, pas une negligence — et l'exception est
+     * rapportee pour rester diagnosticable.
+     *
+     * @param  array<string, mixed>  $pageContext
+     * @param  list<array<string, mixed>>  $pinnedContext
+     * @return array{0: string, 1: array<string, mixed>}|null
+     */
+    private function selfKnowledgeTurn(
+        Organization $organization,
+        User $user,
+        string $prompt,
+        array $pageContext,
+        array $pinnedContext,
+    ): ?array {
+        try {
+            $topic = $this->selfKnowledge->topicFor($prompt);
+
+            if ($topic === null) {
+                return null;
+            }
+
+            $content = trim($this->selfKnowledge->answer($topic, $organization, $user));
+
+            // Une reponse vide n'est pas une reponse : mieux vaut le provider.
+            if ($content === '') {
+                return null;
+            }
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return null;
+        }
+
+        return [$content, [
+            'status' => self::STATUS_NON_INTERACTION,
+            'producer' => AiSelfKnowledge::PRODUCER,
+            'page_context' => $this->traceable($pageContext),
+        ] + $this->pinnedTrace($pinnedContext)];
     }
 
     /**

@@ -226,6 +226,16 @@ class AiShell extends Component
             return null;
         }
 
+        // TASK-1350 : une OFFRE ne se prepare jamais en demande. Le bouton
+        // n'est pas rendu pour un tour d'offre (la LoopCard porte alors
+        // « Proposer de l'aide »), mais un `messageId` vient du client : la
+        // garde est donc rejouee ici, comme celle du statut juste au-dessus.
+        // L'absence de la cle vaut « demande » — les tours anterieurs a
+        // TASK-1350 gardent exactement leur comportement.
+        if (($metadata['intent'] ?? null) === AiShellTurnCards::INTENT_OFFER) {
+            return null;
+        }
+
         $categoryId = $metadata['suggested_category']['id'] ?? null;
         $category = $categoryId !== null
             ? Category::query()->whereKey($categoryId)->where('organization_id', $organization->id)->first(['id'])
@@ -351,6 +361,16 @@ class AiShell extends Component
                 'actions' => $this->actions($context),
                 'refusal' => $this->creditRefusal(),
                 'offers_url' => $this->fab()['offers_url'] ?? null,
+                // TASK-1350 (P0) : le nom de l'Organization DEJA resolue par
+                // `actor()` pour ce rendu — aucun resolver de plus, aucune
+                // requete de plus. Il n'est qu'affiche, sous le choix humain :
+                // il n'accorde rien et ne franchit aucune frontiere de tenant.
+                'organization_name' => (string) $organization->name,
+                // TASK-1350 : le parcours canonique « Proposer de l'aide »,
+                // tenant-aware, construit par la meme cascade que
+                // `requestsCreateUrl()`. Un lien n'accorde rien : le controleur
+                // cible rejoue sa garde au clic.
+                'offer_help_url' => $this->servicesCreateUrl($organization),
                 'max_input_chars' => (int) config('ai.shell.max_input_chars', 2000),
             ],
         ]);
@@ -514,5 +534,15 @@ class AiShell extends Component
         }
 
         return route('requests.create');
+    }
+
+    /** TASK-1350 — meme cascade, pour « Proposer de l'aide ». */
+    private function servicesCreateUrl(Organization $organization): ?string
+    {
+        if (RouteFacade::has('organization.services.create')) {
+            return route('organization.services.create', ['organization' => $organization->slug]);
+        }
+
+        return RouteFacade::has('services.create') ? route('services.create') : null;
     }
 }

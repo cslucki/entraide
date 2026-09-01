@@ -503,6 +503,14 @@ class TASK1346AiShellConversationMemoryTest extends TestCase
         $lignes = explode("\n", $bloc);
         array_pop($lignes);
 
+        // TASK-1350 : quand un transcript precede, la question courante est
+        // ETIQUETEE. Cette etiquette n'est pas du contenu memorise — elle ne
+        // compte donc pas dans le budget, exactement comme l'entete. Le budget
+        // lui-meme n'a pas bouge : `conversationMemory()` est inchangee.
+        if (end($lignes) === __('ai.shell_prompt_current_turn')) {
+            array_pop($lignes);
+        }
+
         // L'entete n'est pas du contenu memorise : elle ne compte pas dans le
         // budget, exactement comme dans `AiConversationContextBuilder`.
         array_shift($lignes);

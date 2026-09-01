@@ -80,6 +80,10 @@
             <div class="min-w-0">
                 <p id="ai-fab-title" class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.fab_title') }}</p>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    {{-- TASK-1350 : le sous-titre dit OU l'on est, jamais que l'IA
+                         serait inutile ici. « Aucune action propre a cette page »
+                         ne signifie pas « BouclePro IA indisponible » : la
+                         distinction est faite plus bas, a l'endroit des actions. --}}
                     @if($fab['page'] === 'loop') {{ __('ai.fab_subtitle_loop') }}
                     @elseif($fab['page'] === 'dossier') {{ __('ai.fab_subtitle_dossier') }}
                     @else {{ __('ai.fab_subtitle_other') }}
@@ -163,6 +167,15 @@
                     </li>
                 @endforeach
             </ul>
+        @elseif($fab['shell_enabled'])
+            {{-- TASK-1350 — l'honnetete du panneau, en une phrase.
+                 Cette page n'expose aucune action IA propre : on le DIT, et on
+                 dit dans la meme phrase que la conversation, elle, reste
+                 ouverte. C'est exactement la distinction que le produit doit
+                 tenir — « pas d'action ici » n'est pas « pas d'IA ici ». --}}
+            <p class="px-4 py-3 text-xs leading-5 text-gray-500 dark:text-gray-400" data-ai-fab-no-page-action>
+                {{ __('ai.fab_no_page_action') }}
+            </p>
         @endif
 
         {{-- Credit utilisateur : la seule chose chiffree que le FAB montre.

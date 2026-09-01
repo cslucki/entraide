@@ -33,11 +33,15 @@ class AdminAiPromptIntegrationTest extends TestCase
 
     public function test_clarify_help_request_scenario_uses_db_prompt_when_available(): void
     {
+        // TASK-1350 : la v3 de `clarify_help_request` est desormais
+        // provisionnee par migration (interaction_fit). Ce test veut prouver
+        // qu'un prompt de BASE l'emporte sur le texte code, pas occuper un
+        // numero de version particulier — il prend donc le suivant.
         AdminAiPrompt::create([
             'scenario_id' => 'clarify_help_request',
             'name' => 'Test clarify prompt',
             'prompt_text' => 'DB PROMPT: clarify help request',
-            'version' => 3,
+            'version' => 4,
             'is_active' => true,
         ]);
 
