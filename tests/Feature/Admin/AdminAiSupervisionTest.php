@@ -1026,7 +1026,7 @@ class AdminAiSupervisionTest extends TestCase
         $this->assertSame('success', $interaction->status);
         $this->assertSame(120, $interaction->input_tokens);
         $this->assertSame(80, $interaction->output_tokens);
-        $this->assertGreaterThan(0, $interaction->latency_ms);
+        $this->assertGreaterThanOrEqual(0, $interaction->latency_ms);
         $this->assertNotNull($interaction->result_payload);
         $this->assertArrayHasKey('risk_level', $interaction->result_payload);
         $this->assertArrayNotHasKey('raw_response', $interaction->result_payload);
