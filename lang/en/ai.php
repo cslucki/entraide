@@ -736,7 +736,10 @@ return [
     'self_knowledge_ask_help_path' => 'Concretely: open "Ask for help", describe your need in plain language, and I\'ll clarify it before you confirm. You remain the one who publishes — I never publish for you.',
     // TASK-1359 : le lieu, nomme seulement s'il a passe sa propre garde, puis
     // les actions que le FAB calcule deja sous les gardes de la page.
-    'self_knowledge_here' => 'You are on: :place.',
+    'self_knowledge_here_loop' => 'You are on the Loop ":name".',
+    'self_knowledge_here_dossier' => 'You are on the Folder ":name".',
+    'self_knowledge_here_article' => 'You are on the Article ":name".',
+    'self_knowledge_here_dashboard' => 'You are on your dashboard.',
     'self_knowledge_here_actions' => 'From this page, you can:',
     'self_knowledge_capabilities_intro' => 'In this organization, you can:',
     // TASK-1350: no longer promises assisted navigation that does not exist.

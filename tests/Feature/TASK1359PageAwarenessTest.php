@@ -17,6 +17,7 @@ use App\Support\Ai\AiShellPageContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Laravel\Ai\Prompts\AgentPrompt;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\StructuredTextResponse;
@@ -191,7 +192,10 @@ class TASK1359PageAwarenessTest extends TestCase
 
         $answer = $this->lastAnswer();
 
-        $this->assertStringContainsString('Boucle Page Aware', $answer);
+        $this->assertStringContainsString(
+            __('ai.self_knowledge_here_loop', ['name' => 'Boucle Page Aware']),
+            $answer
+        );
         $this->assertStringContainsString(__('ai.self_knowledge_here_actions'), $answer);
         $this->assertStringContainsString(__('ai.fab_action_loop_ask'), $answer);
     }
@@ -208,22 +212,68 @@ class TASK1359PageAwarenessTest extends TestCase
     }
 
     /**
-     * 7. Un NON-MEMBRE de la Boucle ne se voit promettre AUCUNE action.
+     * 7. Un NON-MEMBRE, sur une page REELLEMENT visible, ne se voit promettre
+     *    AUCUNE action.
      *
-     * `loopActions()` rend `[]` sans adhesion active. Le lieu peut etre nomme —
-     * la page est visible — mais rien n'est promis. C'est la frontiere exacte :
-     * visibilite de page != adhesion != droit d'agir.
+     * ## Pourquoi la Boucle doit etre la Boucle PRIMAIRE
+     *
+     * La premiere ecriture de ce test utilisait une Boucle ordinaire. Un
+     * non-membre n'y passe pas la garde de page : le contexte revenait
+     * `refused`, `hereLines()` s'arretait a sa PREMIERE condition, et
+     * `loopActions()` n'etait jamais atteint. Le test passait donc pour la
+     * mauvaise raison — il serait reste vert si tout l'appel aux actions avait
+     * ete supprime.
+     *
+     * La Boucle primaire d'une Organization est visible par tous ses membres
+     * SANS adhesion : c'est le seul cas ou la page passe sa garde alors que la
+     * personne n'est pas membre. C'est donc le seul cas qui exerce reellement
+     * la frontiere : visibilite de page != adhesion != droit d'agir.
      */
-    public function test_a_non_member_is_promised_no_action(): void
+    public function test_a_non_member_on_a_viewable_loop_is_promised_no_action(): void
     {
         $this->fakeClarifier();
+
+        $this->organization->forceFill(['primary_loop_id' => $this->loop->id])->saveQuietly();
 
         $this->sendFrom(AiShellPageContext::KIND_LOOP, (string) $this->loop->id, 'Que puis-je faire ici ?', $this->outsider);
 
         $answer = $this->lastAnswer();
 
+        // Le lieu EST nomme : la page est legitimement visible.
+        $this->assertStringContainsString('Boucle Page Aware', $answer);
+
+        // Et pourtant AUCUNE action n'est promise : `loopActions()` a bien ete
+        // atteint, et a rendu `[]` faute d'adhesion active.
         $this->assertStringNotContainsString(__('ai.self_knowledge_here_actions'), $answer);
         $this->assertStringNotContainsString(__('ai.fab_action_loop_ask'), $answer);
+    }
+
+    /**
+     * 7 bis. Et une page qui n'est PAS un lieu ne s'annonce pas comme un lieu.
+     *
+     * Le defaut trouve en review : la garde portait sur « le libelle de page
+     * n'est pas vide », or `AiShellPageContext::label()` ne rend jamais vide —
+     * son `default` rend le NOM DE L'ORGANIZATION. Le Shell repondait donc
+     * « Vous etes sur : Org X. » sur la majorite des pages de l'application.
+     */
+    public function test_a_page_that_is_not_a_place_never_announces_one(): void
+    {
+        $this->fakeClarifier();
+
+        app(AiShellResponder::class)->respond(
+            $this->organization,
+            $this->member,
+            'Que puis-je faire ici ?',
+            ['route' => 'profile.edit', 'kind' => AiShellPageContext::KIND_OTHER, 'object' => null, 'refused' => false, 'label' => $this->organization->name],
+        );
+
+        $answer = $this->lastAnswer();
+
+        $this->assertStringNotContainsString('Org Page Aware', $answer);
+        $this->assertStringNotContainsString(__('ai.self_knowledge_here_actions'), $answer);
+
+        // La reponse reste utile : le catalogue de l'Organization est rendu.
+        $this->assertStringContainsString(__('ai.self_knowledge_capabilities_intro'), $answer);
     }
 
     // =====================================================================
@@ -299,10 +349,17 @@ class TASK1359PageAwarenessTest extends TestCase
     /**
      * 11. Consulter une page n'elargit JAMAIS ce que l'IA a le droit de lire.
      *
-     * Le Shell appelle toujours `clarifyForOrganization()`, donc une portee
-     * d'Organization et des sources fixes. Le CONTENU de la Boucle — ici un
-     * secret ecrit dans sa description — ne doit pas entrer dans le prompt du
-     * seul fait qu'on est sur sa page.
+     * ## Pourquoi ce test observe l'AGENT et pas la trace
+     *
+     * La premiere ecriture de ce test lisait `ai_interactions.prompt`. Cette
+     * colonne ne contient QUE la sortie de `situated()` : le contexte compose
+     * par `ContextBuilder` n'y figure pas. L'assertion passait donc meme si le
+     * contexte deversait la Boucle entiere — un test vert qui ne pouvait pas
+     * echouer, sur l'invariant le plus important du fichier.
+     *
+     * On observe donc le prompt REELLEMENT remis a l'agent, contexte borne
+     * compris. C'est la seule autorite qui peut demontrer l'absence
+     * d'elargissement.
      */
     public function test_being_on_a_page_never_widens_what_the_model_may_read(): void
     {
@@ -312,7 +369,16 @@ class TASK1359PageAwarenessTest extends TestCase
 
         $this->sendFrom(AiShellPageContext::KIND_LOOP, (string) $this->loop->id);
 
-        $this->assertStringNotContainsString('SECRET-DESCRIPTION-DE-BOUCLE', $this->lastPrompt());
+        HelpRequestClarifierAgent::assertPrompted(
+            // « Intention du membre : » n'existe QUE dans `userPrompt()`, donc
+            // uniquement dans le prompt compose remis a l'agent — jamais dans
+            // `situated()` ni dans la colonne de trace. Sa presence prouve que
+            // cette assertion observe bien la composition COMPLETE, contexte
+            // borne inclus, et non le sous-ensemble trace.
+            fn (AgentPrompt $prompt): bool => $prompt->contains('Intention du membre :')
+                && $prompt->contains('Ma question.')
+                && ! $prompt->contains('SECRET-DESCRIPTION-DE-BOUCLE'),
+        );
     }
 
     // =====================================================================

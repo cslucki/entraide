@@ -750,7 +750,10 @@ return [
     'self_knowledge_ask_help_path' => 'Concrètement : ouvrez « Demander de l\'aide », décrivez votre besoin en langage naturel, et je le mets au net avant que vous validiez. Vous restez la personne qui publie — je ne publie jamais à votre place.',
     // TASK-1359 : le lieu, nomme seulement s'il a passe sa propre garde, puis
     // les actions que le FAB calcule deja sous les gardes de la page.
-    'self_knowledge_here' => 'Vous êtes sur : :place.',
+    'self_knowledge_here_loop' => 'Vous êtes sur la Boucle « :name ».',
+    'self_knowledge_here_dossier' => 'Vous êtes sur le Dossier « :name ».',
+    'self_knowledge_here_article' => 'Vous êtes sur l\'Article « :name ».',
+    'self_knowledge_here_dashboard' => 'Vous êtes sur votre tableau de bord.',
     'self_knowledge_here_actions' => 'Depuis cette page, vous pouvez :',
     'self_knowledge_capabilities_intro' => 'Dans cette organisation, vous pouvez :',
     // TASK-1350 : ne promet plus une navigation assistee qui n'existe pas.

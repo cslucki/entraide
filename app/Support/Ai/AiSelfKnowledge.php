@@ -254,15 +254,39 @@ final class AiSelfKnowledge
      */
     private function hereLines(User $user, array $pageContext): array
     {
-        $label = trim((string) ($pageContext['label'] ?? ''));
-
-        if ($label === '' || ($pageContext['refused'] ?? false) === true) {
+        if (($pageContext['refused'] ?? false) === true) {
             return [];
         }
 
-        $lines = [__('ai.self_knowledge_here', ['place' => Str::limit($label, self::MAX_PLACE_CHARS, '…')])];
-
         $object = $pageContext['object'] ?? null;
+        $name = is_array($object)
+            ? Str::limit(trim((string) ($object['label'] ?? '')), self::MAX_PLACE_CHARS, '…')
+            : '';
+
+        // FAIL-CLOSED, exactement comme `situated()`.
+        //
+        // La premiere ecriture de cette methode gardait sur « le libelle de
+        // page n'est pas vide ». C'etait faux : `AiShellPageContext::label()`
+        // ne rend JAMAIS vide — son `default` rend le NOM DE L'ORGANIZATION.
+        // Consequence mesuree en review : sur `/profile/edit`, le Shell
+        // repondait « Vous etes sur : Org X. », presentant une organisation
+        // comme un lieu, sur la majorite des pages de l'application.
+        //
+        // Le nom d'une Organization n'est donc JAMAIS un repli de lieu, et un
+        // `kind` non retenu ne produit rien du tout.
+        $here = match ($pageContext['kind'] ?? null) {
+            'loop' => $name === '' ? null : __('ai.self_knowledge_here_loop', ['name' => $name]),
+            'dossier' => $name === '' ? null : __('ai.self_knowledge_here_dossier', ['name' => $name]),
+            'article' => $name === '' ? null : __('ai.self_knowledge_here_article', ['name' => $name]),
+            'dashboard' => __('ai.self_knowledge_here_dashboard'),
+            default => null,
+        };
+
+        if ($here === null) {
+            return [];
+        }
+
+        $lines = [$here];
 
         if (! is_array($object) || ($object['type'] ?? null) !== 'loop') {
             return $lines;
