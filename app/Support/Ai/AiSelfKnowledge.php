@@ -3,9 +3,11 @@
 namespace App\Support\Ai;
 
 use App\Models\Loop;
+use App\Models\MemberAiProfile;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\AiShellResponder;
+use App\Support\Onboarding\MemberOnboardingSteps;
 use Illuminate\Support\Str;
 
 /**
@@ -67,6 +69,23 @@ final class AiSelfKnowledge
 
     public const TOPIC_CAPABILITIES = 'capabilities';
 
+    /**
+     * TASK-1361 — « je commence par quoi ? »
+     *
+     * La question d'un nouvel arrivant, et le produit savait DEJA y repondre :
+     * `DashboardController` calcule quatre etapes d'installation, avec leurs
+     * textes en FR et en EN. Elles vivaient sur une page que beaucoup de
+     * membres n'ouvrent jamais — la redirection de connexion mene aux Boucles,
+     * pas au tableau de bord — et dans un accordeon replie par defaut.
+     *
+     * Le Shell, lui, est sur CHAQUE page. Repondre ici ne cree donc aucune
+     * connaissance : cela rend accessible celle qui existait deja.
+     */
+    public const TOPIC_GET_STARTED = 'get_started';
+
+    /** TASK-1361 — « comment rejoindre une Boucle ? », le parcours existe deja. */
+    public const TOPIC_JOIN_LOOP = 'join_loop';
+
     /** Producteur trace dans la metadata du tour — jamais montre a l'utilisateur. */
     public const PRODUCER = 'self_knowledge';
 
@@ -120,11 +139,35 @@ final class AiSelfKnowledge
             'what can i do here',
             'what can i do',
         ],
+        self::TOPIC_GET_STARTED => [
+            'je commence par quoi',
+            'par quoi je commence',
+            'par ou commencer',
+            'par ou je commence',
+            'je suis nouveau ici',
+            'je suis nouvelle ici',
+            'je viens d arriver',
+            'where do i start',
+            'where should i start',
+            'how do i get started',
+            'i am new here',
+            "i'm new here",
+        ],
+        self::TOPIC_JOIN_LOOP => [
+            'comment rejoindre une boucle',
+            'comment je rejoins une boucle',
+            'comment puis je rejoindre une boucle',
+            'comment rejoindre des boucles',
+            'how do i join a loop',
+            'how to join a loop',
+            'how can i join a loop',
+        ],
     ];
 
     public function __construct(
         private readonly AiCapabilityCatalogue $catalogue,
         private readonly AiFabContext $fab,
+        private readonly MemberOnboardingSteps $onboarding,
     ) {}
 
     /**
@@ -161,8 +204,62 @@ final class AiSelfKnowledge
             self::TOPIC_LOOP => $this->loopAnswer(),
             self::TOPIC_ASK_HELP => $this->askHelpAnswer(),
             self::TOPIC_CAPABILITIES => $this->capabilitiesAnswer($organization, $user, $pageContext),
+            self::TOPIC_GET_STARTED => $this->getStartedAnswer($organization, $user),
+            self::TOPIC_JOIN_LOOP => $this->joinLoopAnswer(),
             default => '',
         };
+    }
+
+    /**
+     * TASK-1361 — « je commence par quoi ? »
+     *
+     * Les etapes viennent de {@see MemberOnboardingSteps}, la MEME source que
+     * le tableau de bord, et leurs libelles des MEMES cles de langue. Aucune
+     * prose produit n'est ecrite ici : une seconde formulation aurait diverge
+     * de la premiere des la premiere retouche editoriale.
+     *
+     * Le Shell ne dit JAMAIS que quelqu'un est « nouveau » : il ne le sait
+     * pas, et le produit n'a aucun signal honnete pour l'affirmer. Il repond
+     * a la question POSEE, et enumere ce qui reste.
+     *
+     * Un membre qui a tout complete recoit une reponse honnete — il ne reste
+     * rien — plutot qu'une etape inventee pour avoir quelque chose a dire.
+     */
+    private function getStartedAnswer(Organization $organization, User $user): string
+    {
+        $remaining = $this->onboarding->remainingFor(
+            $user,
+            $organization,
+            MemberAiProfile::forUser($user)->forOrganization($organization)->first(),
+        );
+
+        if ($remaining === []) {
+            return __('ai.self_knowledge_get_started_complete');
+        }
+
+        $lines = [__('ai.self_knowledge_get_started_intro')];
+
+        foreach ($remaining as $key) {
+            $lines[] = '— '.__("dashboard.steps.{$key}.title");
+        }
+
+        $lines[] = __('ai.self_knowledge_get_started_outro');
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * TASK-1361 — « comment rejoindre une Boucle ? »
+     *
+     * En prose seule, et sans lien : le catalogue de capacites n'a jamais
+     * porte d'URL, et cette reponse suit la meme regle. Le parcours decrit
+     * existe (`loops.index`, demande d'adhesion), et chaque page rejoue sa
+     * propre garde au clic — ce n'est donc pas au Shell de fabriquer une
+     * destination.
+     */
+    private function joinLoopAnswer(): string
+    {
+        return __('ai.self_knowledge_join_loop');
     }
 
     /**

@@ -764,7 +764,15 @@ return [
     // --- Catalogue tenant-aware des capacités ---
     'self_knowledge_capability_ask_help' => 'demander de l\'aide à d\'autres membres',
     'self_knowledge_capability_offer_help' => 'proposer votre aide ou vos compétences',
-    'self_knowledge_capability_loops' => 'rejoindre les boucles auxquelles vous appartenez',
+    // TASK-1361 : l'ancien libelle promettait « rejoindre les boucles
+    // auxquelles vous appartenez » — c'est de la NAVIGATION vers ses propres
+    // Boucles, pas une adhesion. Il trompait precisement sur la question la
+    // plus frequente d'un nouvel arrivant.
+    'self_knowledge_capability_loops' => 'retrouver les boucles dont vous etes membre, et decouvrir celles que vous pouvez rejoindre',
+    'self_knowledge_get_started_intro' => 'Pour vous installer sur BouclePro, il vous reste :',
+    'self_knowledge_get_started_outro' => 'Dites-moi par laquelle vous voulez commencer, je vous explique ou aller.',
+    'self_knowledge_get_started_complete' => 'Vous avez deja complete toutes les etapes d\'installation. Dites-moi ce que vous cherchez, et je vous explique ou aller.',
+    'self_knowledge_join_loop' => 'Ouvrez la liste des Boucles de votre organisation : vous y voyez toutes les Boucles actives, y compris celles dont vous n\'etes pas encore membre. Selon la Boucle, vous la rejoignez directement, ou vous envoyez une demande d\'adhesion qu\'un animateur valide.',
     'self_knowledge_capability_create_loop' => 'ouvrir une boucle autour d\'un sujet précis',
     'self_knowledge_capability_ai_profile' => 'construire votre profil pour être trouvable par les autres',
     // TASK-1350 : formule VRAIE quel que soit l'etat de la configuration IA de

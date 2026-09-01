@@ -749,7 +749,13 @@ return [
     // --- Tenant-aware capability catalogue ---
     'self_knowledge_capability_ask_help' => 'ask other members for help',
     'self_knowledge_capability_offer_help' => 'offer your help or your skills',
-    'self_knowledge_capability_loops' => 'join the loops you belong to',
+    // TASK-1361 : voir la note du fichier francais — l'ancien libelle
+    // promettait une adhesion la ou il ne s'agissait que de navigation.
+    'self_knowledge_capability_loops' => 'find the loops you belong to, and discover the ones you can join',
+    'self_knowledge_get_started_intro' => 'To get set up on BouclePro, you still have:',
+    'self_knowledge_get_started_outro' => 'Tell me which one you want to start with and I will explain where to go.',
+    'self_knowledge_get_started_complete' => 'You have already completed every setup step. Tell me what you are looking for and I will explain where to go.',
+    'self_knowledge_join_loop' => 'Open your organization\'s list of Loops: it shows every active Loop, including those you are not a member of yet. Depending on the Loop, you either join it directly, or you send a join request that a facilitator approves.',
     'self_knowledge_capability_create_loop' => 'open a loop around a precise topic',
     'self_knowledge_capability_ai_profile' => 'build your profile so others can find you',
     // TASK-1350: true whatever the organization's AI configuration is.
