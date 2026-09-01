@@ -404,6 +404,12 @@ class TASK1346AiShellConversationMemoryTest extends TestCase
      * Sans contexte de page ni pin, `situated()` rendait exactement le prompt
      * de la personne. Cette egalite stricte est la garantie que la memoire
      * n'ajoute RIEN au chemin nominal.
+     *
+     * TASK-1359 : l'invariant porte sur l'ABSENCE DE CONTEXTE, pas sur le
+     * tableau de bord. Il etait exprime sur `kind = dashboard` parce que cette
+     * page n'etait alors pas un lieu ; depuis T1359 elle en est un, et la page
+     * reellement sans lieu est `kind = other`. L'assertion stricte est
+     * conservee telle quelle : seule la page qui la porte change.
      */
     public function test_an_empty_thread_produces_the_exact_previous_prompt(): void
     {
@@ -415,7 +421,7 @@ class TASK1346AiShellConversationMemoryTest extends TestCase
             $this->organizationA,
             $this->memberA,
             $question,
-            ['route' => 'dashboard', 'kind' => 'dashboard', 'object' => null],
+            ['route' => 'profile.edit', 'kind' => 'other', 'object' => null],
         );
 
         $this->assertSame($question, $this->lastPrompt());

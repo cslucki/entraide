@@ -2,6 +2,7 @@
 
 namespace App\Support\Ai;
 
+use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\AiShellResponder;
@@ -70,6 +71,12 @@ final class AiSelfKnowledge
     public const PRODUCER = 'self_knowledge';
 
     /**
+     * TASK-1359 — meme borne que les libelles d'epingles du prompt. Un nom
+     * d'objet est ecrit par un membre : il est cite, jamais laisse libre.
+     */
+    private const MAX_PLACE_CHARS = 120;
+
+    /**
      * Formulations reconnues, deja normalisees. Une entree = une facon de poser
      * EXACTEMENT la meme question. FR et EN dans la meme table : la locale de
      * l'interface ne conditionne pas la reconnaissance, seulement la reponse.
@@ -115,7 +122,10 @@ final class AiSelfKnowledge
         ],
     ];
 
-    public function __construct(private readonly AiCapabilityCatalogue $catalogue) {}
+    public function __construct(
+        private readonly AiCapabilityCatalogue $catalogue,
+        private readonly AiFabContext $fab,
+    ) {}
 
     /**
      * Le sujet de self-knowledge de cet enonce, ou `null` — et `null` est le
@@ -144,13 +154,13 @@ final class AiSelfKnowledge
      * Un sujet inconnu rend une chaine vide : l'appelant repart alors vers le
      * provider, il ne fabrique rien.
      */
-    public function answer(string $topic, Organization $organization, User $user): string
+    public function answer(string $topic, Organization $organization, User $user, array $pageContext = []): string
     {
         return match ($topic) {
             self::TOPIC_PLATFORM => $this->platformAnswer(),
             self::TOPIC_LOOP => $this->loopAnswer(),
             self::TOPIC_ASK_HELP => $this->askHelpAnswer(),
-            self::TOPIC_CAPABILITIES => $this->capabilitiesAnswer($organization, $user),
+            self::TOPIC_CAPABILITIES => $this->capabilitiesAnswer($organization, $user, $pageContext),
             default => '',
         };
     }
@@ -190,23 +200,120 @@ final class AiSelfKnowledge
         ]);
     }
 
-    private function capabilitiesAnswer(Organization $organization, User $user): string
+    /**
+     * TASK-1359 — « Que puis-je faire ICI ? » repond enfin sur ICI.
+     *
+     * La question portait deja le mot « ici » dans la table de formulations,
+     * et la reponse ignorait l'endroit : elle enumerait les capacites de
+     * l'ORGANIZATION. Le contexte de page etait pourtant deja resolu, et deja
+     * sous la main de l'appelant — il n'etait simplement pas transmis.
+     *
+     * Trois regles, et elles sont toutes des refus :
+     *
+     *  - le LIEU est nomme seulement s'il a passe sa propre garde. Un objet
+     *    refuse rend un `pageContext` sans objet : il n'y a donc rien a nommer,
+     *    et rien n'est nomme ;
+     *  - les ACTIONS proposees sont celles que `AiFabContext::loopActions()`
+     *    calcule DEJA, sous les gardes de la page. Aucune seconde verite
+     *    editoriale : une liste ecrite a la main aurait fini par promettre ce
+     *    que la page ne permet pas ;
+     *  - le CONTENU de la Boucle n'entre jamais. On nomme un endroit, on
+     *    n'ouvre pas ses portes.
+     *
+     * @param  array<string, mixed>  $pageContext
+     */
+    private function capabilitiesAnswer(Organization $organization, User $user, array $pageContext = []): string
     {
         $entries = $this->catalogue->forMember($organization, $user);
+        $here = $this->hereLines($user, $pageContext);
 
-        if ($entries === []) {
+        if ($entries === [] && $here === []) {
             return __('ai.self_knowledge_capabilities_empty');
         }
 
-        $lines = [__('ai.self_knowledge_capabilities_intro')];
+        $lines = $here;
 
-        foreach ($entries as $entry) {
-            $lines[] = '— '.$entry['label'];
+        if ($entries !== []) {
+            $lines[] = __('ai.self_knowledge_capabilities_intro');
+
+            foreach ($entries as $entry) {
+                $lines[] = '— '.$entry['label'];
+            }
+
+            $lines[] = __('ai.self_knowledge_capabilities_outro');
         }
 
-        $lines[] = __('ai.self_knowledge_capabilities_outro');
-
         return implode("\n", $lines);
+    }
+
+    /**
+     * Le lieu, puis ce que CE lieu permet — ou rien du tout.
+     *
+     * @param  array<string, mixed>  $pageContext
+     * @return list<string>
+     */
+    private function hereLines(User $user, array $pageContext): array
+    {
+        if (($pageContext['refused'] ?? false) === true) {
+            return [];
+        }
+
+        $object = $pageContext['object'] ?? null;
+        $name = is_array($object)
+            ? Str::limit(trim((string) ($object['label'] ?? '')), self::MAX_PLACE_CHARS, '…')
+            : '';
+
+        // FAIL-CLOSED, exactement comme `situated()`.
+        //
+        // La premiere ecriture de cette methode gardait sur « le libelle de
+        // page n'est pas vide ». C'etait faux : `AiShellPageContext::label()`
+        // ne rend JAMAIS vide — son `default` rend le NOM DE L'ORGANIZATION.
+        // Consequence mesuree en review : sur `/profile/edit`, le Shell
+        // repondait « Vous etes sur : Org X. », presentant une organisation
+        // comme un lieu, sur la majorite des pages de l'application.
+        //
+        // Le nom d'une Organization n'est donc JAMAIS un repli de lieu, et un
+        // `kind` non retenu ne produit rien du tout.
+        $here = match ($pageContext['kind'] ?? null) {
+            'loop' => $name === '' ? null : __('ai.self_knowledge_here_loop', ['name' => $name]),
+            'dossier' => $name === '' ? null : __('ai.self_knowledge_here_dossier', ['name' => $name]),
+            'article' => $name === '' ? null : __('ai.self_knowledge_here_article', ['name' => $name]),
+            'dashboard' => __('ai.self_knowledge_here_dashboard'),
+            default => null,
+        };
+
+        if ($here === null) {
+            return [];
+        }
+
+        $lines = [$here];
+
+        if (! is_array($object) || ($object['type'] ?? null) !== 'loop') {
+            return $lines;
+        }
+
+        $loop = Loop::query()->find($object['id'] ?? null);
+
+        if (! $loop instanceof Loop) {
+            return $lines;
+        }
+
+        // Les gardes vivent DANS `loopActions()` : membre actif, Boucle
+        // ecrivable, ChatLoop actif. Un non-membre recoit `[]`, donc le lieu
+        // est nomme et aucune action n'est promise.
+        $actions = $this->fab->loopActions($loop, $user);
+
+        if ($actions === []) {
+            return $lines;
+        }
+
+        $lines[] = __('ai.self_knowledge_here_actions');
+
+        foreach ($actions as $action) {
+            $lines[] = '— '.$action['label'];
+        }
+
+        return $lines;
     }
 
     /**

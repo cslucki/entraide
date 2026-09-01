@@ -734,6 +734,13 @@ return [
     'self_knowledge_platform' => 'BouclePro is a platform for learning through mutual aid. You express a need in plain language, and you get connected to a few people in your organization who can genuinely help — a loop, not a feed.',
     'self_knowledge_loop_memory' => 'What a loop decides is laid down in its memory: nothing to re-read, the essentials stay dated and findable.',
     'self_knowledge_ask_help_path' => 'Concretely: open "Ask for help", describe your need in plain language, and I\'ll clarify it before you confirm. You remain the one who publishes — I never publish for you.',
+    // TASK-1359 : le lieu, nomme seulement s'il a passe sa propre garde, puis
+    // les actions que le FAB calcule deja sous les gardes de la page.
+    'self_knowledge_here_loop' => 'You are on the Loop ":name".',
+    'self_knowledge_here_dossier' => 'You are on the Folder ":name".',
+    'self_knowledge_here_article' => 'You are on the Article ":name".',
+    'self_knowledge_here_dashboard' => 'You are on your dashboard.',
+    'self_knowledge_here_actions' => 'From this page, you can:',
     'self_knowledge_capabilities_intro' => 'In this organization, you can:',
     // TASK-1350: no longer promises assisted navigation that does not exist.
     'self_knowledge_capabilities_outro' => 'Tell me what you are looking for and I can explain where to go.',
@@ -768,6 +775,7 @@ return [
     // texte suit le precedent deja en production sur le chemin ChatLoop
     // (`LoopMessagesSource::wrap()`).
     'shell_prompt_language_guard' => 'IMPORTANT: Answer in English. Whatever the language of the instructions and of the context below, you must reply to the member in English.',
+    'shell_prompt_where_dashboard' => 'The user is on their dashboard.',
     'shell_prompt_where_loop' => 'The user is viewing the Loop ":name".',
     'shell_prompt_where_dossier' => 'The user is viewing the Folder ":name".',
     'shell_prompt_where_article' => 'The user is viewing the Article ":name".',

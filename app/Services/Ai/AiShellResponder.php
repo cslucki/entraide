@@ -453,16 +453,38 @@ final class AiShellResponder
         $object = $pageContext['object'] ?? null;
 
         if (is_array($object) && isset($object['label'])) {
+            // TASK-1359 : le nom d'un objet est ecrit par un MEMBRE, et la
+            // colonne qui le porte accepte 255 caracteres. Il etait injecte ici
+            // sans borne, alors que les libelles d'epingles quinze lignes plus
+            // bas etaient tronques a 120 depuis T1326. Meme nature, meme borne :
+            // un nom est cite, il n'est pas un canal d'instructions.
+            $name = Str::limit(trim((string) $object['label']), 120, '…');
+
             $where = match ($object['type'] ?? '') {
-                'loop' => __('ai.shell_prompt_where_loop', ['name' => $object['label']]),
-                'dossier' => __('ai.shell_prompt_where_dossier', ['name' => $object['label']]),
-                'article' => __('ai.shell_prompt_where_article', ['name' => $object['label']]),
+                'loop' => __('ai.shell_prompt_where_loop', ['name' => $name]),
+                'dossier' => __('ai.shell_prompt_where_dossier', ['name' => $name]),
+                'article' => __('ai.shell_prompt_where_article', ['name' => $name]),
                 default => null,
             };
 
             if ($where !== null) {
                 $lines[] = $where;
             }
+        } elseif (($pageContext['kind'] ?? null) === 'dashboard') {
+            // TASK-1359 — la ligne de lieu des pages SANS objet gouverne.
+            //
+            // Le prompt administrable actif dit deja au modele : « Tu peux
+            // t'appuyer sur la page ou se trouve le membre si elle t'est
+            // indiquee. » Elle ne l'etait jamais hors Boucle/Dossier/Article :
+            // le modele etait instruit d'utiliser une indication que le code ne
+            // fournissait pas.
+            //
+            // Ce qui entre est une CLE DE LANGUE STATIQUE, choisie par un
+            // `kind` deja resolu et deja garde. Jamais une URL, un chemin, une
+            // query string, un slug ni un parametre de route : un identifiant
+            // non garde n'a rien a faire dans un prompt, et c'est exactement ce
+            // que toute cette architecture existe pour tenir dehors.
+            $lines[] = __('ai.shell_prompt_where_dashboard');
         }
 
         // Le budget est double : `max_pins` borne la liste, et chaque libelle
@@ -680,7 +702,10 @@ final class AiShellResponder
                 return null;
             }
 
-            $content = trim($this->selfKnowledge->answer($topic, $organization, $user));
+            // TASK-1359 : le contexte de page etait DEJA resolu ici, et n'etait
+            // pas transmis. « Que puis-je faire ici ? » etait donc repondu
+            // comme « que puis-je faire dans cette organisation ».
+            $content = trim($this->selfKnowledge->answer($topic, $organization, $user, $pageContext));
 
             // Une reponse vide n'est pas une reponse : mieux vaut le provider.
             if ($content === '') {
