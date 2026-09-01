@@ -764,6 +764,10 @@ return [
     // this member would get through.
     'shell_answer_request_preparation_unavailable' => 'I can still guide you around BouclePro, but I can\'t prepare this request automatically right now.',
     'shell_answer_blocked' => 'I would rather not handle this request as it stands.',
+    // TASK-1358 : instruction de langue du Shell, posee en TETE du prompt. Le
+    // texte suit le precedent deja en production sur le chemin ChatLoop
+    // (`LoopMessagesSource::wrap()`).
+    'shell_prompt_language_guard' => 'IMPORTANT: Answer in English. Whatever the language of the instructions and of the context below, you must reply to the member in English.',
     'shell_prompt_where_loop' => 'The user is viewing the Loop ":name".',
     'shell_prompt_where_dossier' => 'The user is viewing the Folder ":name".',
     'shell_prompt_where_article' => 'The user is viewing the Article ":name".',
