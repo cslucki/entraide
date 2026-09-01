@@ -1630,10 +1630,22 @@ class TASK1350AiShellHonestConversationTest extends TestCase
             ->get();
     }
 
-    /** Le prompt REELLEMENT parti au modele, relu sur l'interaction tracee. */
+    /**
+     * Le prompt REELLEMENT parti au modele, relu sur l'interaction tracee.
+     *
+     * `ai_interactions.created_at` est declaree `timestamp(0)` : precision a la
+     * SECONDE. Deux tours envoyes dans le meme test tombent donc sur la MEME
+     * valeur, et `ORDER BY created_at DESC` seul ne definit aucun ordre — sur
+     * PostgreSQL le premier tour peut remonter a la place du dernier. Le
+     * departage se fait sur l'identifiant, un UUID v7 monotone meme a
+     * l'interieur d'une milliseconde, donc fidele a l'ordre d'insertion.
+     */
     private function lastPrompt(): string
     {
-        $interaction = AiInteraction::query()->orderByDesc('created_at')->first();
+        $interaction = AiInteraction::query()
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->first();
 
         $this->assertInstanceOf(AiInteraction::class, $interaction, 'Aucun appel provider trace.');
 
