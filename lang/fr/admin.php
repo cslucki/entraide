@@ -563,4 +563,39 @@ return [
     'organization_ai_user_credit_save' => 'Enregistrer le crédit',
     'consumption_col_credit' => 'Crédit',
     'consumption_credit_unlimited' => 'illimité',
+
+    // TASK-1354 — Scenario Pack Manager. Sur cette surface francaise on dit
+    // « organisation », jamais « Organization » : le mot anglais est le nom du
+    // modele, pas celui que lit un administrateur.
+    'scenario_packs_title' => 'Packs de scénario',
+    'scenario_packs_intro' => 'Charger, réinitialiser ou retirer un jeu de données de démonstration dans son organisation cible. Chaque pack est lié à une seule organisation : elle est déterminée par le pack, jamais choisie ici.',
+    'scenario_packs_none' => 'Aucun pack de scénario enregistré.',
+    'scenario_packs_pack_label' => 'PACK DE SCÉNARIO',
+    'scenario_packs_show' => 'Afficher',
+    'scenario_packs_target_label' => 'ORGANISATION CIBLE',
+    'scenario_packs_target_unknown' => 'Ce pack ne déclare aucune organisation cible.',
+    'scenario_packs_state_label' => 'État',
+    'scenario_packs_state_missing' => 'organisation absente',
+    'scenario_packs_state_ready' => 'prêt à charger',
+    'scenario_packs_state_loaded' => 'scénario chargé',
+    'scenario_packs_missing_legacy' => 'L\'organisation cible doit exister avant de charger ce scénario.',
+    // TASK-1354 : la phrase precedente — « peut etre creee automatiquement lors
+    // du chargement » — laissait croire que CET ecran declenchait le
+    // provisionnement. Il ne le fait pas : quand la cible manque, aucune action
+    // n'est offerte ici. Dire ou aller vaut mieux que laisser esperer.
+    'scenario_packs_missing_provisionable' => 'Ce scénario sait provisionner son organisation cible, mais cette action n\'est pas disponible depuis cet écran. Utilisez la commande de chargement du scénario.',
+    'scenario_packs_pack_id' => 'Identifiant du pack',
+    'scenario_packs_declared_version' => 'Version déclarée',
+    'scenario_packs_loaded_version' => 'Version chargée',
+    'scenario_packs_entities' => 'Entités',
+    'scenario_packs_loaded_at' => 'Dernier chargement',
+    'scenario_packs_reset_at' => 'Dernier reset',
+    'scenario_packs_never' => 'jamais',
+    'scenario_packs_open_organization' => 'Ouvrir l\'organisation',
+    'scenario_packs_load' => 'Charger le scénario',
+    'scenario_packs_reset' => 'Réinitialiser',
+    'scenario_packs_delete' => 'Retirer le scénario',
+    'scenario_packs_confirm_reset' => 'Réinitialiser « :pack » dans « :organization » ? Les entités d\'une version antérieure non reproduites seront retirées.',
+    'scenario_packs_confirm_delete_org_kept' => 'Retirer « :pack » de « :organization » ? Le scénario sera retiré mais l\'organisation sera conservée.',
+    'scenario_packs_confirm_delete_org_removed' => 'Retirer ce scénario supprimera également l\'organisation « :organization », car elle a été créée par ce pack. Les données ajoutées ensuite dans cette organisation seront également supprimées. Confirmer ?',
 ];

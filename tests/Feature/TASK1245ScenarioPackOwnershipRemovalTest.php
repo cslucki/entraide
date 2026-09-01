@@ -29,7 +29,7 @@ use App\Models\User;
 use App\Support\ScenarioPacks\Exceptions\ScenarioPackOwnershipUnknownException;
 use App\Support\ScenarioPacks\Exceptions\ScenarioPackReusedEntityMutatedException;
 use App\Support\ScenarioPacks\Exceptions\ScenarioPackStoragePathCollisionException;
-use App\Support\ScenarioPacks\Packs\ArtSciLabRogerPack;
+use App\Support\ScenarioPacks\Packs\ArtSciLabDemoPack;
 use App\Support\ScenarioPacks\ScenarioPackLoader;
 use App\Support\ScenarioPacks\ScenarioPackRemover;
 use App\Support\ScenarioPacks\ScenarioPackResetter;
@@ -467,7 +467,7 @@ class TASK1245ScenarioPackOwnershipRemovalTest extends TestCase
     // D. Pack reel ArtSciLab (invariants G, H, I sur les 20 types + Category)
     // =====================================================================
 
-    /** @var list<class-string> les modeles trackes par ArtSciLabRogerPack qui portent organization_id */
+    /** @var list<class-string> les modeles trackes par ArtSciLabDemoPack qui portent organization_id */
     private const ARTSCI_MODELS = [
         User::class, Loop::class, LoopMember::class, LoopMessage::class,
         ServiceRequest::class, Service::class, Transaction::class, PointLedger::class,
@@ -486,12 +486,12 @@ class TASK1245ScenarioPackOwnershipRemovalTest extends TestCase
 
     public function test_artscilab_delete_leaves_no_physical_row_in_any_table_and_no_storage_file(): void
     {
-        app(ScenarioPackLoader::class)->load(new ArtSciLabRogerPack, $this->artsci);
+        app(ScenarioPackLoader::class)->load(new ArtSciLabDemoPack, $this->artsci);
         $this->assertSame(18, $this->artsciPhysicalRowCount(DossierFile::class));
         $this->assertSame(4, $this->artsciPhysicalRowCount(Category::class));
         $this->assertCount(18, Storage::disk('dossier_files')->allFiles('artscilab-demo'));
 
-        app(ScenarioPackRemover::class)->remove('artscilab-roger-demo', $this->artsci);
+        app(ScenarioPackRemover::class)->remove('artscilab-demo-test', $this->artsci);
 
         foreach (self::ARTSCI_MODELS as $modelClass) {
             $this->assertSame(0, $this->artsciPhysicalRowCount($modelClass), "{$modelClass} : ligne physique residuelle apres remove().");
@@ -508,9 +508,9 @@ class TASK1245ScenarioPackOwnershipRemovalTest extends TestCase
 
     public function test_artscilab_categories_are_tracked_created_and_purged_fk_safe(): void
     {
-        app(ScenarioPackLoader::class)->load(new ArtSciLabRogerPack, $this->artsci);
+        app(ScenarioPackLoader::class)->load(new ArtSciLabDemoPack, $this->artsci);
 
-        $ownership = $this->ownershipByKey('artscilab-roger-demo', $this->artsci);
+        $ownership = $this->ownershipByKey('artscilab-demo-test', $this->artsci);
         $categoryKeys = array_filter(array_keys($ownership), fn (string $key) => str_starts_with($key, 'category|'));
         $this->assertCount(4, $categoryKeys);
         foreach ($categoryKeys as $key) {
@@ -523,7 +523,7 @@ class TASK1245ScenarioPackOwnershipRemovalTest extends TestCase
         $minServiceSeq = ScenarioPackEntity::query()->where('scenario_pack_load_id', $load->id)->whereIn('entity_type', ['marketplace_service', 'marketplace_request'])->min('sequence');
         $this->assertLessThan($minServiceSeq, $maxCategorySeq);
 
-        app(ScenarioPackRemover::class)->remove('artscilab-roger-demo', $this->artsci);
+        app(ScenarioPackRemover::class)->remove('artscilab-demo-test', $this->artsci);
 
         $this->assertSame(0, Category::query()->where('slug', 'like', 'artscilab-%')->count());
         $this->assertSame(0, $this->artsciPhysicalRowCount(Service::class));
@@ -543,16 +543,16 @@ class TASK1245ScenarioPackOwnershipRemovalTest extends TestCase
         ]);
         $before = $preexisting->fresh()->getAttributes();
 
-        app(ScenarioPackLoader::class)->load(new ArtSciLabRogerPack, $this->artsci);
+        app(ScenarioPackLoader::class)->load(new ArtSciLabDemoPack, $this->artsci);
 
-        $ownership = $this->ownershipByKey('artscilab-roger-demo', $this->artsci);
+        $ownership = $this->ownershipByKey('artscilab-demo-test', $this->artsci);
         $this->assertSame(ScenarioPackEntity::OWNERSHIP_REUSED, $ownership['category|creative-technology']);
         $this->assertSame(ScenarioPackEntity::OWNERSHIP_CREATED, $ownership['category|editorial-facilitation']);
         $this->assertSame(ScenarioPackEntity::OWNERSHIP_CREATED, $ownership['category|european-projects']);
         $this->assertSame(ScenarioPackEntity::OWNERSHIP_CREATED, $ownership['category|production-events']);
         $this->assertSame($before, $preexisting->fresh()->getAttributes());
 
-        app(ScenarioPackRemover::class)->remove('artscilab-roger-demo', $this->artsci);
+        app(ScenarioPackRemover::class)->remove('artscilab-demo-test', $this->artsci);
 
         $this->assertSame($before, $preexisting->fresh()->getAttributes());
         $this->assertSame(1, Category::query()->where('slug', 'like', 'artscilab-%')->count());
@@ -561,15 +561,15 @@ class TASK1245ScenarioPackOwnershipRemovalTest extends TestCase
 
     public function test_artscilab_ownership_stays_created_across_t1243_resets_then_delete_purges_everything(): void
     {
-        app(ScenarioPackLoader::class)->load(new ArtSciLabRogerPack, $this->artsci);
-        $before = $this->ownershipByKey('artscilab-roger-demo', $this->artsci);
+        app(ScenarioPackLoader::class)->load(new ArtSciLabDemoPack, $this->artsci);
+        $before = $this->ownershipByKey('artscilab-demo-test', $this->artsci);
         $this->assertSame([ScenarioPackEntity::OWNERSHIP_CREATED], array_values(array_unique($before)));
 
-        app(ScenarioPackResetter::class)->reset(new ArtSciLabRogerPack, $this->artsci);
-        app(ScenarioPackResetter::class)->reset(new ArtSciLabRogerPack, $this->artsci);
-        $this->assertSame($before, $this->ownershipByKey('artscilab-roger-demo', $this->artsci));
+        app(ScenarioPackResetter::class)->reset(new ArtSciLabDemoPack, $this->artsci);
+        app(ScenarioPackResetter::class)->reset(new ArtSciLabDemoPack, $this->artsci);
+        $this->assertSame($before, $this->ownershipByKey('artscilab-demo-test', $this->artsci));
 
-        app(ScenarioPackRemover::class)->remove('artscilab-roger-demo', $this->artsci);
+        app(ScenarioPackRemover::class)->remove('artscilab-demo-test', $this->artsci);
 
         foreach (self::ARTSCI_MODELS as $modelClass) {
             $this->assertSame(0, $this->artsciPhysicalRowCount($modelClass), $modelClass);
@@ -579,15 +579,15 @@ class TASK1245ScenarioPackOwnershipRemovalTest extends TestCase
 
     public function test_artscilab_reload_after_delete_produces_the_same_registry(): void
     {
-        $first = app(ScenarioPackLoader::class)->load(new ArtSciLabRogerPack, $this->artsci);
-        $firstOwnership = $this->ownershipByKey('artscilab-roger-demo', $this->artsci);
-        app(ScenarioPackRemover::class)->remove('artscilab-roger-demo', $this->artsci);
+        $first = app(ScenarioPackLoader::class)->load(new ArtSciLabDemoPack, $this->artsci);
+        $firstOwnership = $this->ownershipByKey('artscilab-demo-test', $this->artsci);
+        app(ScenarioPackRemover::class)->remove('artscilab-demo-test', $this->artsci);
 
-        $second = app(ScenarioPackLoader::class)->load(new ArtSciLabRogerPack, $this->artsci);
+        $second = app(ScenarioPackLoader::class)->load(new ArtSciLabDemoPack, $this->artsci);
 
         $this->assertTrue($second->wasFirstLoad);
         $this->assertSame($first->entityCountsByType, $second->entityCountsByType);
-        $this->assertSame($firstOwnership, $this->ownershipByKey('artscilab-roger-demo', $this->artsci));
+        $this->assertSame($firstOwnership, $this->ownershipByKey('artscilab-demo-test', $this->artsci));
         $this->assertCount(18, Storage::disk('dossier_files')->allFiles('artscilab-demo'));
     }
 }

@@ -26,7 +26,7 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Models\User;
-use App\Support\ScenarioPacks\Packs\ArtSciLabRogerPack;
+use App\Support\ScenarioPacks\Packs\ArtSciLabDemoPack;
 use App\Support\ScenarioPacks\ScenarioPackCatalog;
 use App\Support\ScenarioPacks\ScenarioPackLoader;
 use App\Support\ScenarioPacks\ScenarioPackRemover;
@@ -39,7 +39,7 @@ use LogicException;
 use Tests\TestCase;
 
 /**
- * TASK-1242 — ArtSciLabRogerPack, premier pack reel du moteur T1240.
+ * TASK-1242 — ArtSciLabDemoPack, premier pack reel du moteur T1240.
  *
  * Le contenu ligne-a-ligne d'ArtSciLabScenarioSeeder::compose() (11 personas,
  * 5 Loops, marketplace, blog, evenements, sondages, decisions...) est deja
@@ -59,7 +59,7 @@ use Tests\TestCase;
  *     depuis un parent reellement supprime ;
  *  E. le reset rejoue sans erreur.
  */
-class TASK1242ArtSciLabRogerPackTest extends TestCase
+class TASK1242ArtSciLabDemoPackTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -74,7 +74,7 @@ class TASK1242ArtSciLabRogerPackTest extends TestCase
         $this->organization = Organization::factory()->create(['slug' => ArtSciLabScenarioSeeder::SLUG]);
 
         config(['scenario_packs.allowed_organizations' => [ArtSciLabScenarioSeeder::SLUG]]);
-        config(['scenario_packs.definitions' => ['artscilab-roger-demo' => ArtSciLabRogerPack::class]]);
+        config(['scenario_packs.definitions' => ['artscilab-demo-test' => ArtSciLabDemoPack::class]]);
     }
 
     // =====================================================================
@@ -83,15 +83,15 @@ class TASK1242ArtSciLabRogerPackTest extends TestCase
 
     public function test_the_catalog_resolves_the_registered_pack_id(): void
     {
-        $pack = app(ScenarioPackCatalog::class)->get('artscilab-roger-demo');
+        $pack = app(ScenarioPackCatalog::class)->get('artscilab-demo-test');
 
-        $this->assertInstanceOf(ArtSciLabRogerPack::class, $pack);
-        $this->assertSame('artscilab-roger-demo', $pack->packId());
+        $this->assertInstanceOf(ArtSciLabDemoPack::class, $pack);
+        $this->assertSame('artscilab-demo-test', $pack->packId());
     }
 
     public function test_loading_creates_the_full_scenario_scoped_to_artscilab_demo(): void
     {
-        $result = app(ScenarioPackLoader::class)->load(new ArtSciLabRogerPack, $this->organization);
+        $result = app(ScenarioPackLoader::class)->load(new ArtSciLabDemoPack, $this->organization);
 
         $this->assertTrue($result->wasFirstLoad);
         $this->assertSame(
@@ -120,8 +120,8 @@ class TASK1242ArtSciLabRogerPackTest extends TestCase
     {
         $loader = app(ScenarioPackLoader::class);
 
-        $first = $loader->load(new ArtSciLabRogerPack, $this->organization);
-        $second = $loader->load(new ArtSciLabRogerPack, $this->organization);
+        $first = $loader->load(new ArtSciLabDemoPack, $this->organization);
+        $second = $loader->load(new ArtSciLabDemoPack, $this->organization);
 
         $this->assertTrue($first->wasFirstLoad);
         $this->assertFalse($second->wasFirstLoad);
@@ -142,7 +142,7 @@ class TASK1242ArtSciLabRogerPackTest extends TestCase
         $this->expectException(LogicException::class);
 
         try {
-            app(ScenarioPackLoader::class)->load(new ArtSciLabRogerPack, $otherOrganization);
+            app(ScenarioPackLoader::class)->load(new ArtSciLabDemoPack, $otherOrganization);
         } finally {
             $this->assertSame(0, ScenarioPackLoad::query()->count());
             $this->assertSame(0, User::query()->where('organization_id', $otherOrganization->id)->count());
@@ -156,10 +156,10 @@ class TASK1242ArtSciLabRogerPackTest extends TestCase
 
     public function test_removal_leaves_no_active_row_in_any_table_the_pack_touched(): void
     {
-        app(ScenarioPackLoader::class)->load(new ArtSciLabRogerPack, $this->organization);
+        app(ScenarioPackLoader::class)->load(new ArtSciLabDemoPack, $this->organization);
         $organizationId = $this->organization->id;
 
-        app(ScenarioPackRemover::class)->remove('artscilab-roger-demo', $this->organization);
+        app(ScenarioPackRemover::class)->remove('artscilab-demo-test', $this->organization);
 
         $this->assertSame(0, ScenarioPackLoad::query()->count());
         $this->assertSame(0, ScenarioPackEntity::query()->count());
@@ -205,13 +205,13 @@ class TASK1242ArtSciLabRogerPackTest extends TestCase
 
     public function test_removal_never_touches_a_pre_existing_entity_of_the_same_organization(): void
     {
-        app(ScenarioPackLoader::class)->load(new ArtSciLabRogerPack, $this->organization);
+        app(ScenarioPackLoader::class)->load(new ArtSciLabDemoPack, $this->organization);
         $outsider = User::factory()->create([
             'organization_id' => $this->organization->id,
             'email' => 'preexisting@artscilab-demo.test',
         ]);
 
-        app(ScenarioPackRemover::class)->remove('artscilab-roger-demo', $this->organization);
+        app(ScenarioPackRemover::class)->remove('artscilab-demo-test', $this->organization);
 
         $this->assertTrue(User::query()->whereKey($outsider->id)->exists());
     }
@@ -222,9 +222,9 @@ class TASK1242ArtSciLabRogerPackTest extends TestCase
 
     public function test_reset_reapplies_the_pack_without_error(): void
     {
-        app(ScenarioPackLoader::class)->load(new ArtSciLabRogerPack, $this->organization);
+        app(ScenarioPackLoader::class)->load(new ArtSciLabDemoPack, $this->organization);
 
-        $result = app(ScenarioPackResetter::class)->reset(new ArtSciLabRogerPack, $this->organization);
+        $result = app(ScenarioPackResetter::class)->reset(new ArtSciLabDemoPack, $this->organization);
 
         $result->load->refresh();
         $this->assertNotNull($result->load->reset_at);

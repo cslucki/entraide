@@ -24,6 +24,14 @@ use Illuminate\Support\Facades\Hash;
  */
 class FixtureScenarioPack implements ScenarioPackDefinition
 {
+    /**
+     * TASK-1354 — l'Organization cible, DECLAREE comme le font les trois packs
+     * reels. L'administration ne propose plus de choisir librement une cible :
+     * elle la lit sur le pack. Une fixture qui n'en declare aucune ne pourrait
+     * donc plus exercer cet ecran.
+     */
+    public const ORGANIZATION_SLUG = 'task1241-allowed-a';
+
     public function __construct(
         private readonly string $version = '1.0.0',
         private readonly bool $includeInteraction = true,

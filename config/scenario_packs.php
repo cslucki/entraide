@@ -1,7 +1,7 @@
 <?php
 
 use App\Support\ScenarioPacks\Packs\ArtSciLabEnglishPack;
-use App\Support\ScenarioPacks\Packs\ArtSciLabRogerPack;
+use App\Support\ScenarioPacks\Packs\ArtSciLabDemoPack;
 use App\Support\ScenarioPacks\Packs\Test20260822DogfoodingPack;
 
 return [
@@ -44,7 +44,7 @@ return [
     |
     */
     'definitions' => [
-        'artscilab-roger-demo' => ArtSciLabRogerPack::class,
+        'artscilab-demo-test' => ArtSciLabDemoPack::class,
         Test20260822DogfoodingPack::PACK_ID => Test20260822DogfoodingPack::class,
         ArtSciLabEnglishPack::PACK_ID => ArtSciLabEnglishPack::class,
     ],

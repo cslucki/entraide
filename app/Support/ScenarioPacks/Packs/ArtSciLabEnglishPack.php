@@ -41,9 +41,9 @@ use RuntimeException;
  *
  * ## Ce que ce pack n'est pas
  *
- * Ce n'est PAS une traduction de `test20260822-dogfooding` (dataset FR de
+ * Ce n'est PAS une traduction de `test20260822` (dataset FR de
  * Cyril, dont le corpus vit hors git dans `_temp/`), ni une evolution de
- * `artscilab-roger-demo` (laboratoire europeen, monde narratif different).
+ * `artscilab-demo-test` (laboratoire europeen, monde narratif different).
  * Les deux restent strictement intacts : ce pack est une TROISIEME definition
  * sur le meme moteur T1240/T1245, additive.
  *
@@ -80,7 +80,7 @@ use RuntimeException;
  */
 class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDefinition
 {
-    public const PACK_ID = 'artscilab-en-dogfooding';
+    public const PACK_ID = 'artscilab-en-tests';
 
     public const ORGANIZATION_SLUG = 'artscilab-en';
 
@@ -226,7 +226,7 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
 
     public function packName(): string
     {
-        return 'ArtSciLab — English dogfooding';
+        return 'ArtSciLab — Test anglais';
     }
 
     public function purpose(): string
@@ -242,7 +242,7 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
     public function provisionOrganization(): Organization
     {
         return Organization::create([
-            'name' => 'ArtSciLab — English dogfooding',
+            'name' => 'ArtSciLab — Test anglais',
             'slug' => self::ORGANIZATION_SLUG,
             'description' => 'A fictional art-science lab used to demonstrate BouclePro in English.',
             'is_active' => true,

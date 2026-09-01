@@ -11,7 +11,7 @@ use App\Models\Organization;
  * ## Pourquoi une interface separee, et pas une methode de plus sur
  * {@see ScenarioPackDefinition}
  *
- * Les deux packs existants (`artscilab-roger-demo`, `test20260822-dogfooding`)
+ * Les deux packs existants (`artscilab-demo-test`, `test20260822`)
  * ciblent une Organization creee en dehors d'eux. Leur ajouter une methode
  * qu'ils n'implementent pas obligerait a les modifier — ce que l'arbitrage du
  * 2026-09-01 interdit explicitement. Une interface separee les laisse

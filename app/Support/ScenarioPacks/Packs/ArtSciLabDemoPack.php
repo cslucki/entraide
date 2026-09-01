@@ -20,11 +20,21 @@ use LogicException;
  * Organization de demonstration/dogfooding fictive, jamais une Organization
  * cliente reelle. Aucune donnee reelle, personnelle ou secrete.
  */
-class ArtSciLabRogerPack implements ScenarioPackDefinition
+class ArtSciLabDemoPack implements ScenarioPackDefinition
 {
+    /**
+     * TASK-1354 — l'Organization a laquelle ce pack est lie, NOMMEE.
+     *
+     * `apply()` refusait deja toute autre cible, mais le fait restait
+     * implicite : il fallait lire le corps de la methode pour le savoir, et
+     * l'administration ne pouvait donc pas l'afficher. La valeur n'est pas
+     * dupliquee — c'est la MEME constante que celle qu'`apply()` verifie.
+     */
+    public const ORGANIZATION_SLUG = ArtSciLabScenarioSeeder::SLUG;
+
     public function packId(): string
     {
-        return 'artscilab-roger-demo';
+        return 'artscilab-demo-test';
     }
 
     public function packVersion(): string
@@ -34,19 +44,19 @@ class ArtSciLabRogerPack implements ScenarioPackDefinition
 
     public function packName(): string
     {
-        return 'ArtSciLab — démonstration Roger';
+        return 'ArtSciLab — Test historique';
     }
 
     public function purpose(): string
     {
-        return 'Démontrer le parcours IA/RAG canonique (clarification, validation humaine, Ask the Folders) sur l\'Organization de démonstration ArtSciLab, pour le dogfooding Roger.';
+        return 'Démontrer le parcours IA/RAG canonique — clarification, validation humaine, interrogation des Dossiers — sur l\'organisation de démonstration ArtSciLab.';
     }
 
     public function apply(Organization $organization, ScenarioPackEntityRegistrar $registrar): void
     {
         if ($organization->slug !== ArtSciLabScenarioSeeder::SLUG) {
             throw new LogicException(
-                "ArtSciLabRogerPack ne peut cibler que l'Organization '".ArtSciLabScenarioSeeder::SLUG."', reçu '{$organization->slug}'."
+                "ArtSciLabDemoPack ne peut cibler que l'Organization '".ArtSciLabScenarioSeeder::SLUG."', reçu '{$organization->slug}'."
             );
         }
 
