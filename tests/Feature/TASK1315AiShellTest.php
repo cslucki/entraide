@@ -31,6 +31,7 @@ use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\StructuredTextResponse;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
+use Tests\Support\Ai\RecordsAiConsumption;
 use Tests\TestCase;
 
 /**
@@ -56,6 +57,8 @@ use Tests\TestCase;
  */
 class TASK1315AiShellTest extends TestCase
 {
+    use RecordsAiConsumption;
+
     use RefreshDatabase;
 
     private Organization $organizationA;
@@ -834,21 +837,12 @@ class TASK1315AiShellTest extends TestCase
     private function uses(User $user, int $count): void
     {
         for ($i = 0; $i < $count; $i++) {
-            AiInteraction::create([
-                'user_id' => $user->id,
-                'organization_id' => $this->organizationA->id,
-                'correlation_id' => (string) Str::uuid(),
-                'process' => 'loop_knowledge.answer',
-                'feature' => 'loop_knowledge_answer',
-                'model' => 'openai/gpt-4o-mini',
-                'prompt' => 'p',
-                'response' => 'r',
-                'input_tokens' => 10,
-                'output_tokens' => 5,
-                'cost_usd' => 0.001,
-                'cost_unknown' => false,
-                'metadata' => ['provider' => 'openai', 'status' => 'success'],
-            ]);
+            $this->recordAiGeneration(
+                (string) $this->organizationA->id,
+                (string) $user->id,
+                'loop_knowledge.answer',
+                'loop_knowledge_answer',
+            );
         }
     }
 }

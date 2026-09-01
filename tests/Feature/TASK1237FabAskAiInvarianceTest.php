@@ -16,6 +16,7 @@ use App\Support\Ai\AiRefusedException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Tests\Support\Ai\RecordsAiConsumption;
 use Tests\TestCase;
 
 /**
@@ -29,6 +30,8 @@ use Tests\TestCase;
  */
 class TASK1237FabAskAiInvarianceTest extends TestCase
 {
+    use RecordsAiConsumption;
+
     use RefreshDatabase;
 
     private Organization $organization;
@@ -182,21 +185,12 @@ class TASK1237FabAskAiInvarianceTest extends TestCase
     private function uses(User $user, int $count): void
     {
         for ($i = 0; $i < $count; $i++) {
-            AiInteraction::create([
-                'user_id' => $user->id,
-                'organization_id' => $this->organization->id,
-                'correlation_id' => (string) Str::uuid(),
-                'process' => 'chatloop.ask',
-                'feature' => 'chatloop_ai_ask',
-                'model' => 'openai/gpt-4o-mini',
-                'prompt' => 'p',
-                'response' => 'r',
-                'input_tokens' => 10,
-                'output_tokens' => 5,
-                'cost_usd' => 0.001,
-                'cost_unknown' => false,
-                'metadata' => ['provider' => 'openai', 'status' => 'success'],
-            ]);
+            $this->recordAiGeneration(
+                (string) $this->organization->id,
+                (string) $user->id,
+                'chatloop.ask',
+                'chatloop_ai_ask',
+            );
         }
     }
 
