@@ -579,7 +579,11 @@ return [
     'scenario_packs_state_ready' => 'prêt à charger',
     'scenario_packs_state_loaded' => 'scénario chargé',
     'scenario_packs_missing_legacy' => 'L\'organisation cible doit exister avant de charger ce scénario.',
-    'scenario_packs_missing_provisionable' => 'Cette organisation peut être créée automatiquement lors du chargement.',
+    // TASK-1354 : la phrase precedente — « peut etre creee automatiquement lors
+    // du chargement » — laissait croire que CET ecran declenchait le
+    // provisionnement. Il ne le fait pas : quand la cible manque, aucune action
+    // n'est offerte ici. Dire ou aller vaut mieux que laisser esperer.
+    'scenario_packs_missing_provisionable' => 'Ce scénario sait provisionner son organisation cible, mais cette action n\'est pas disponible depuis cet écran. Utilisez la commande de chargement du scénario.',
     'scenario_packs_pack_id' => 'Identifiant du pack',
     'scenario_packs_declared_version' => 'Version déclarée',
     'scenario_packs_loaded_version' => 'Version chargée',

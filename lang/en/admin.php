@@ -577,7 +577,9 @@ return [
     'scenario_packs_state_ready' => 'ready to load',
     'scenario_packs_state_loaded' => 'scenario loaded',
     'scenario_packs_missing_legacy' => 'The target organisation must exist before this scenario can be loaded.',
-    'scenario_packs_missing_provisionable' => 'This organisation can be created automatically when the scenario is loaded.',
+    // TASK-1354: the previous wording implied this screen could provision the
+    // target. It cannot — when the target is missing, no action is offered here.
+    'scenario_packs_missing_provisionable' => 'This scenario knows how to provision its target organization, but that action is not available from this screen. Use the scenario loading command.',
     'scenario_packs_pack_id' => 'Pack identifier',
     'scenario_packs_declared_version' => 'Declared version',
     'scenario_packs_loaded_version' => 'Loaded version',

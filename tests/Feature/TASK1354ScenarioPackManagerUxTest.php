@@ -5,11 +5,12 @@ namespace Tests\Feature;
 use App\Models\Organization;
 use App\Models\ScenarioPackLoad;
 use App\Models\User;
-use App\Support\ScenarioPacks\Packs\ArtSciLabEnglishPack;
 use App\Support\ScenarioPacks\Packs\ArtSciLabDemoPack;
+use App\Support\ScenarioPacks\Packs\ArtSciLabEnglishPack;
 use App\Support\ScenarioPacks\Packs\Test20260822DogfoodingPack;
 use App\Support\ScenarioPacks\ScenarioPackCatalog;
 use App\Support\ScenarioPacks\ScenarioPackTarget;
+use Database\Seeders\ArtSciLabScenarioSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -114,7 +115,16 @@ class TASK1354ScenarioPackManagerUxTest extends TestCase
         $response->assertDontSee('data-scenario-pack-action="load"', false);
     }
 
-    public function test_a_missing_target_on_a_provisioning_pack_says_it_can_be_created(): void
+    /**
+     * TASK-1354 (revue Sonnet) — le texte dit que le pack SAIT provisionner sa
+     * cible, et que cet ecran ne le fait PAS.
+     *
+     * L'ancienne formulation — « peut etre creee automatiquement lors du
+     * chargement » — laissait esperer une action que la surface n'offre pas :
+     * quand la cible manque, il n'y a aucun bouton ici. Promettre puis ne rien
+     * proposer est pire que de dire ou aller.
+     */
+    public function test_a_missing_target_on_a_provisioning_pack_says_this_screen_cannot_create_it(): void
     {
         $response = $this->screen(ArtSciLabEnglishPack::PACK_ID);
 
@@ -122,6 +132,22 @@ class TASK1354ScenarioPackManagerUxTest extends TestCase
         $response->assertSee('data-scenario-pack-state="missing"', false);
         $response->assertSee('data-scenario-pack-missing-hint="provisionable"', false);
         $response->assertSee(__('admin.scenario_packs_missing_provisionable'));
+
+        // Aucune action n'est offerte : le texte ne doit donc rien promettre.
+        $response->assertDontSee('data-scenario-pack-action="load"', false);
+
+        foreach (['fr', 'en'] as $locale) {
+            $this->app->setLocale($locale);
+            $copy = __('admin.scenario_packs_missing_provisionable');
+
+            // Elle nomme la capacite du PACK, et la limite de l'ECRAN.
+            $this->assertMatchesRegularExpression('/provision/i', $copy);
+            $this->assertMatchesRegularExpression('/(pas disponible|not available)/i', $copy);
+            // Et elle ne dit plus « lors du chargement » / « when the scenario is loaded ».
+            $this->assertDoesNotMatchRegularExpression('/(lors du chargement|when the scenario is loaded)/i', $copy);
+        }
+
+        $this->app->setLocale('fr');
     }
 
     public function test_an_existing_but_unloaded_target_reads_ready(): void
@@ -264,7 +290,7 @@ class TASK1354ScenarioPackManagerUxTest extends TestCase
     public function test_the_legacy_pack_target_is_the_seeder_slug_not_a_duplicated_string(): void
     {
         $this->assertSame(
-            \Database\Seeders\ArtSciLabScenarioSeeder::SLUG,
+            ArtSciLabScenarioSeeder::SLUG,
             ArtSciLabDemoPack::ORGANIZATION_SLUG,
             'La cible du pack legacy doit rester la MEME constante que celle que sa garde verifie.'
         );
