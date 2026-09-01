@@ -793,6 +793,11 @@ return [
     // qu'on peut tenir.
     'shell_answer_request_preparation_unavailable' => 'Je peux continuer à vous guider dans BouclePro, mais je ne peux pas préparer cette demande automatiquement pour le moment.',
     'shell_answer_blocked' => 'Je préfère ne pas traiter cette demande telle quelle.',
+    // TASK-1358 : la contrepartie francaise existe pour la PARITE des deux
+    // fichiers de langue, mais elle n'est jamais rendue tant que le prompt
+    // administrable actif est redige en francais : la garde ne se declenche
+    // que si la locale DIFFERE de `AiShellResponder::PROMPT_LANGUAGE`.
+    'shell_prompt_language_guard' => 'IMPORTANT : Réponds en français. Quelle que soit la langue des instructions et du contexte ci-dessous, tu dois répondre au membre en français.',
     'shell_prompt_where_loop' => 'L\'utilisateur consulte la Boucle « :name ».',
     'shell_prompt_where_dossier' => 'L\'utilisateur consulte le Dossier « :name ».',
     'shell_prompt_where_article' => 'L\'utilisateur consulte l\'Article « :name ».',

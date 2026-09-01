@@ -127,6 +127,23 @@ final class AiShellResponder
     public const STATUS_NON_INTERACTION = 'non_interaction';
 
     /**
+     * TASK-1358 — la langue dans laquelle le prompt administrable actif est
+     * REDIGE, et donc celle que le modele adopte spontanement.
+     *
+     * ## Pourquoi une constante, et pas une lecture en base
+     *
+     * `admin_ai_prompts` ne DECLARE nulle part la langue de redaction de ses
+     * versions : la colonne n'existe pas. Cette constante est donc une dette
+     * ASSUMEE et NOMMEE, pas un oubli — le jour ou un prompt actif sera redige
+     * dans une autre langue, ou ou la colonne existera, c'est ici que cela se
+     * corrige, en un seul endroit.
+     *
+     * Elle sert a une seule chose : savoir quand la garde de langue est
+     * NECESSAIRE. Locale identique, aucune ligne ajoutee, prompt octet-exact.
+     */
+    private const PROMPT_LANGUAGE = 'fr';
+
+    /**
      * La cle de verrou d'un tour du Shell.
      *
      * `{organization}:{user}` : le Shell est personnel, il n'y a pas de
@@ -402,6 +419,9 @@ final class AiShellResponder
      * l'objet. Dit autrement, et c'est la seule hierarchie que ce prompt
      * etablit : CURRENT TURN > TRANSCRIPT MEMORY.
      *
+     * TASK-1358 : et la reponse sort dans la langue de l'INTERFACE, pas dans
+     * celle du prompt administrable. Voir `PROMPT_LANGUAGE` ci-dessus.
+     *
      * @param  array<string, mixed>  $pageContext
      * @param  list<array<string, mixed>>  $pinnedContext
      * @param  string  $memory  transcript deja borne par `conversationMemory()`
@@ -409,6 +429,26 @@ final class AiShellResponder
     private function situated(string $prompt, array $pageContext, array $pinnedContext = [], string $memory = ''): string
     {
         $lines = [];
+
+        // TASK-1358 — LA LANGUE, EN TETE.
+        //
+        // Un champ structure herite de la langue de sa MATIERE : un brouillon
+        // de demande recopie les mots de l'utilisateur, donc il sortait deja
+        // en anglais. Une reponse conversationnelle libre, elle, herite de la
+        // langue de ses INSTRUCTIONS — et le prompt administrable actif est
+        // redige en francais. D'ou le defaut mesure sur `artscilab-en` : « I am
+        // new here. What can I do? » recevait une reponse en francais.
+        //
+        // La ligne est posee AVANT le lieu et les pins, pour qu'un transcript
+        // long ne puisse jamais la repousser hors du budget du modele.
+        //
+        // Elle n'est posee QUE si la locale differe de la langue de redaction
+        // du prompt (arbitrage MASTER : ONLY_IF_DIFFERENT). En francais, le
+        // prompt reste donc OCTET-EXACT, et l'invariant de fil vide de
+        // TASK-1346 continue de passer sans etre modifie.
+        if (app()->getLocale() !== self::PROMPT_LANGUAGE) {
+            $lines[] = __('ai.shell_prompt_language_guard');
+        }
 
         $object = $pageContext['object'] ?? null;
 
