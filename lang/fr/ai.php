@@ -748,6 +748,10 @@ return [
     'self_knowledge_platform' => 'BouclePro est une plateforme de pédagogie par l\'entraide. Vous y formulez un besoin en langage naturel, et vous êtes relié à quelques personnes de votre organisation qui peuvent vraiment aider — une boucle, pas un fil d\'actualité.',
     'self_knowledge_loop_memory' => 'Ce qui se décide dans une boucle se dépose dans sa mémoire : rien à relire, l\'essentiel reste daté et retrouvable.',
     'self_knowledge_ask_help_path' => 'Concrètement : ouvrez « Demander de l\'aide », décrivez votre besoin en langage naturel, et je le mets au net avant que vous validiez. Vous restez la personne qui publie — je ne publie jamais à votre place.',
+    // TASK-1359 : le lieu, nomme seulement s'il a passe sa propre garde, puis
+    // les actions que le FAB calcule deja sous les gardes de la page.
+    'self_knowledge_here' => 'Vous êtes sur : :place.',
+    'self_knowledge_here_actions' => 'Depuis cette page, vous pouvez :',
     'self_knowledge_capabilities_intro' => 'Dans cette organisation, vous pouvez :',
     // TASK-1350 : ne promet plus une navigation assistee qui n'existe pas.
     // Ce que le Shell sait faire, c'est EXPLIQUER ou aller.
@@ -798,6 +802,7 @@ return [
     // administrable actif est redige en francais : la garde ne se declenche
     // que si la locale DIFFERE de `AiShellResponder::PROMPT_LANGUAGE`.
     'shell_prompt_language_guard' => 'IMPORTANT : Réponds en français. Quelle que soit la langue des instructions et du contexte ci-dessous, tu dois répondre au membre en français.',
+    'shell_prompt_where_dashboard' => 'L\'utilisateur est sur son tableau de bord.',
     'shell_prompt_where_loop' => 'L\'utilisateur consulte la Boucle « :name ».',
     'shell_prompt_where_dossier' => 'L\'utilisateur consulte le Dossier « :name ».',
     'shell_prompt_where_article' => 'L\'utilisateur consulte l\'Article « :name ».',
