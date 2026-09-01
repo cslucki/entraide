@@ -10,7 +10,7 @@ use App\Models\ScenarioPackEntity;
 use App\Models\ScenarioPackLoad;
 use App\Models\Transaction;
 use App\Models\User;
-use App\Support\ScenarioPacks\Packs\ArtSciLabRogerPack;
+use App\Support\ScenarioPacks\Packs\ArtSciLabDemoPack;
 use App\Support\ScenarioPacks\ScenarioPackLoader;
 use App\Support\ScenarioPacks\ScenarioPackResetter;
 use Database\Seeders\ArtSciLabScenarioSeeder;
@@ -45,19 +45,19 @@ class TASK1243ScenarioPackReplayTest extends TestCase
         $this->organization = Organization::factory()->create(['slug' => ArtSciLabScenarioSeeder::SLUG]);
 
         config(['scenario_packs.allowed_organizations' => [ArtSciLabScenarioSeeder::SLUG]]);
-        config(['scenario_packs.definitions' => ['artscilab-roger-demo' => ArtSciLabRogerPack::class]]);
+        config(['scenario_packs.definitions' => ['artscilab-demo-test' => ArtSciLabDemoPack::class]]);
     }
 
     public function test_repeated_resets_never_drift_the_entity_registry_or_row_counts(): void
     {
-        $first = app(ScenarioPackLoader::class)->load(new ArtSciLabRogerPack, $this->organization);
+        $first = app(ScenarioPackLoader::class)->load(new ArtSciLabDemoPack, $this->organization);
 
         $baselineCounts = $first->entityCountsByType;
         $baselineRegistry = $this->registryMap($first->load->id);
         $baselineTableCounts = $this->tableCounts();
 
         for ($cycle = 1; $cycle <= 4; $cycle++) {
-            $result = app(ScenarioPackResetter::class)->reset(new ArtSciLabRogerPack, $this->organization);
+            $result = app(ScenarioPackResetter::class)->reset(new ArtSciLabDemoPack, $this->organization);
 
             $this->assertFalse($result->wasFirstLoad, "cycle {$cycle}: reset reported as a first load");
             $this->assertSame($baselineCounts, $result->entityCountsByType, "cycle {$cycle}: entity counts by type drifted");
@@ -70,7 +70,7 @@ class TASK1243ScenarioPackReplayTest extends TestCase
 
     public function test_repeated_resets_never_drift_points_balances_or_the_point_ledger(): void
     {
-        app(ScenarioPackLoader::class)->load(new ArtSciLabRogerPack, $this->organization);
+        app(ScenarioPackLoader::class)->load(new ArtSciLabDemoPack, $this->organization);
 
         $baselineBalances = User::query()
             ->where('organization_id', $this->organization->id)
@@ -87,7 +87,7 @@ class TASK1243ScenarioPackReplayTest extends TestCase
             ->count();
 
         for ($cycle = 1; $cycle <= 3; $cycle++) {
-            app(ScenarioPackResetter::class)->reset(new ArtSciLabRogerPack, $this->organization);
+            app(ScenarioPackResetter::class)->reset(new ArtSciLabDemoPack, $this->organization);
 
             $this->assertSame(
                 $baselineBalances,
@@ -112,7 +112,7 @@ class TASK1243ScenarioPackReplayTest extends TestCase
         $loader = app(ScenarioPackLoader::class);
         $resetter = app(ScenarioPackResetter::class);
 
-        $first = $loader->load(new ArtSciLabRogerPack, $this->organization);
+        $first = $loader->load(new ArtSciLabDemoPack, $this->organization);
         $baselineRegistry = $this->registryMap($first->load->id);
 
         // Un admin qui rejoue la demo hesite entre "recharger" et
@@ -120,11 +120,11 @@ class TASK1243ScenarioPackReplayTest extends TestCase
         // sans effet au-dela du premier chargement, dans n'importe quel
         // ordre et enchaines plusieurs fois.
         $sequence = [
-            fn () => $loader->load(new ArtSciLabRogerPack, $this->organization),
-            fn () => $resetter->reset(new ArtSciLabRogerPack, $this->organization),
-            fn () => $loader->load(new ArtSciLabRogerPack, $this->organization),
-            fn () => $resetter->reset(new ArtSciLabRogerPack, $this->organization),
-            fn () => $resetter->reset(new ArtSciLabRogerPack, $this->organization),
+            fn () => $loader->load(new ArtSciLabDemoPack, $this->organization),
+            fn () => $resetter->reset(new ArtSciLabDemoPack, $this->organization),
+            fn () => $loader->load(new ArtSciLabDemoPack, $this->organization),
+            fn () => $resetter->reset(new ArtSciLabDemoPack, $this->organization),
+            fn () => $resetter->reset(new ArtSciLabDemoPack, $this->organization),
         ];
 
         foreach ($sequence as $step => $call) {

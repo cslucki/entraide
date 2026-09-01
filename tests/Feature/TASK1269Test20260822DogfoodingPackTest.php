@@ -136,13 +136,13 @@ class TASK1269Test20260822DogfoodingPackTest extends TestCase
             $config['allowed_organizations'],
             'Seules les Organizations de demonstration sont allowlistees — jamais main.'
         );
-        $this->assertSame(Test20260822DogfoodingPack::class, $config['definitions']['test20260822-dogfooding']);
-        $this->assertArrayHasKey('test20260822-dogfooding', $config['sources']);
+        $this->assertSame(Test20260822DogfoodingPack::class, $config['definitions']['test20260822']);
+        $this->assertArrayHasKey('test20260822', $config['sources']);
     }
 
     public function test_the_catalog_resolves_the_pack(): void
     {
-        $pack = app(ScenarioPackCatalog::class)->get('test20260822-dogfooding');
+        $pack = app(ScenarioPackCatalog::class)->get('test20260822');
 
         $this->assertInstanceOf(Test20260822DogfoodingPack::class, $pack);
         $this->assertSame('test20260822', Test20260822DogfoodingPack::ORGANIZATION_SLUG);
