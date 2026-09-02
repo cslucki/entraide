@@ -58,6 +58,60 @@ use Tests\TestCase;
  */
 class TASK1367ArtisanDatabaseGuardTest extends TestCase
 {
+    /**
+     * La configuration de connexion telle qu'elle etait AVANT ce test.
+     *
+     * `connectionPretendingToBe()` mute la connexion PARTAGEE du processus.
+     * Sans restauration, tout test suivant du meme shard heriterait d'une
+     * connexion qui se pretend `pgsql` — et le garde, arme sur ce mensonge,
+     * refuserait leurs ecritures. C'est exactement ce qui a fait echouer le
+     * shard Feature 4/4 en CI : mes tests passaient, et ils empoisonnaient les
+     * autres.
+     *
+     * @var array<string, mixed>|null
+     */
+    private ?array $originalConnectionConfig = null;
+
+    /**
+     * Le marqueur d'approbation tel qu'il etait AVANT ce test, dans les TROIS
+     * sources que lit `env()` : `getenv()`, `$_ENV`, `$_SERVER`.
+     *
+     * Ce fichier efface deliberement le marqueur pour eprouver le refus. En
+     * local c'est sans consequence : la suite tourne sur sqlite, l'environnement
+     * est coherent, le garde ne s'arme jamais. **En CI PostgreSQL, non.**
+     * `ci-postgresql.yml` pose `APP_ENV: testing`, `DB_CONNECTION: pgsql` et le
+     * marqueur ; effacer le marqueur sans le rendre laissait le shard avec une
+     * contradiction non approuvee, et le garde refusait alors les ecritures de
+     * TOUS les tests suivants du meme processus.
+     *
+     * C'est la cause du shard Feature 4/4 rouge : mes 19 tests passaient, et ils
+     * empoisonnaient leurs voisins. D'ou la restauration systematique — un test
+     * qui salit l'etat global du processus doit le rendre tel qu'il l'a trouve,
+     * meme quand il echoue en cours de route.
+     *
+     * @var array{env: string|false, superglobal_env: mixed, superglobal_server: mixed}|null
+     */
+    private ?array $originalMarker = null;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->originalMarker = [
+            'env' => getenv(ArtisanDatabaseGuard::APPROVAL_MARKER),
+            'superglobal_env' => $_ENV[ArtisanDatabaseGuard::APPROVAL_MARKER] ?? null,
+            'superglobal_server' => $_SERVER[ArtisanDatabaseGuard::APPROVAL_MARKER] ?? null,
+        ];
+    }
+
+    protected function tearDown(): void
+    {
+        $this->restoreConnectionConfig();
+        $this->restoreMarker();
+
+        parent::tearDown();
+    }
+
     // =====================================================================
     // A. Le garde s'arme sur CONTRADICTION, et sur elle seule
     // =====================================================================
@@ -153,8 +207,7 @@ class TASK1367ArtisanDatabaseGuardTest extends TestCase
     public function test_the_same_target_is_allowed_once_the_intent_is_declared(): void
     {
         $this->app['env'] = 'testing';
-        putenv(ArtisanDatabaseGuard::APPROVAL_MARKER.'=1');
-        $_ENV[ArtisanDatabaseGuard::APPROVAL_MARKER] = '1';
+        $this->declareMarker('1');
 
         ArtisanDatabaseGuard::arm($this->app);
 
@@ -163,7 +216,6 @@ class TASK1367ArtisanDatabaseGuardTest extends TestCase
 
         $this->assertSame(0, $this->armedCallbacks($connection));
 
-        $this->forgetMarker();
     }
 
     /** 3 quater. Un marqueur qui ne declare RIEN ne leve pas le garde. */
@@ -172,8 +224,7 @@ class TASK1367ArtisanDatabaseGuardTest extends TestCase
         foreach (['0', 'false', ''] as $value) {
             $this->refreshApplication();
             $this->app['env'] = 'testing';
-            putenv(ArtisanDatabaseGuard::APPROVAL_MARKER.'='.$value);
-            $_ENV[ArtisanDatabaseGuard::APPROVAL_MARKER] = $value;
+            $this->declareMarker($value);
 
             ArtisanDatabaseGuard::arm($this->app);
 
@@ -183,7 +234,6 @@ class TASK1367ArtisanDatabaseGuardTest extends TestCase
             $this->assertWriteRefused($connection, 'marqueur = '.var_export($value, true));
         }
 
-        $this->forgetMarker();
     }
 
     /**
@@ -196,8 +246,7 @@ class TASK1367ArtisanDatabaseGuardTest extends TestCase
     public function test_the_marker_does_not_unlock_ai_validation(): void
     {
         $this->app['env'] = 'ai-validation';
-        putenv(ArtisanDatabaseGuard::APPROVAL_MARKER.'=1');
-        $_ENV[ArtisanDatabaseGuard::APPROVAL_MARKER] = '1';
+        $this->declareMarker('1');
 
         ArtisanDatabaseGuard::arm($this->app);
 
@@ -206,7 +255,6 @@ class TASK1367ArtisanDatabaseGuardTest extends TestCase
 
         $this->assertWriteRefused($connection);
 
-        $this->forgetMarker();
     }
 
     // =====================================================================
@@ -498,11 +546,30 @@ class TASK1367ArtisanDatabaseGuardTest extends TestCase
 
         $property = new ReflectionProperty(Connection::class, 'config');
         $property->setAccessible(true);
+
         $config = $property->getValue($connection);
+
+        // Memorise UNE SEULE FOIS : un test peut appeler cette methode
+        // plusieurs fois, et c'est l'etat d'origine qu'il faut rendre.
+        $this->originalConnectionConfig ??= $config;
+
         $config['driver'] = $driver;
         $property->setValue($connection, $config);
 
         return $connection;
+    }
+
+    private function restoreConnectionConfig(): void
+    {
+        if ($this->originalConnectionConfig === null) {
+            return;
+        }
+
+        $property = new ReflectionProperty(Connection::class, 'config');
+        $property->setAccessible(true);
+        $property->setValue(DB::connection(), $this->originalConnectionConfig);
+
+        $this->originalConnectionConfig = null;
     }
 
     /**
@@ -524,10 +591,57 @@ class TASK1367ArtisanDatabaseGuardTest extends TestCase
         }
     }
 
+    /**
+     * Declare le marqueur dans les TROIS sources que consulte `env()`.
+     *
+     * Ecrire seulement `putenv()` et `$_ENV` laissait `$_SERVER` porter la
+     * valeur ambiante — celle que `ci-postgresql.yml` pose a `1`. Les tests qui
+     * declarent un marqueur FAUX etaient alors silencieusement contredits par
+     * l'environnement, et ne pouvaient passer que sur un poste ou le marqueur
+     * n'existe pas. C'est le meme angle mort que la premiere version de cette
+     * TASK : une propriete vraie dans mon seul environnement.
+     */
+    private function declareMarker(string $value): void
+    {
+        putenv(ArtisanDatabaseGuard::APPROVAL_MARKER.'='.$value);
+        $_ENV[ArtisanDatabaseGuard::APPROVAL_MARKER] = $value;
+        $_SERVER[ArtisanDatabaseGuard::APPROVAL_MARKER] = $value;
+    }
+
     private function forgetMarker(): void
     {
         putenv(ArtisanDatabaseGuard::APPROVAL_MARKER);
         unset($_ENV[ArtisanDatabaseGuard::APPROVAL_MARKER], $_SERVER[ArtisanDatabaseGuard::APPROVAL_MARKER]);
+    }
+
+    /**
+     * Rend le marqueur exactement tel que le processus le portait a l'entree —
+     * y compris « absent », qui est un etat a part entiere et non un `null`.
+     */
+    private function restoreMarker(): void
+    {
+        if ($this->originalMarker === null) {
+            return;
+        }
+
+        $marker = ArtisanDatabaseGuard::APPROVAL_MARKER;
+        $value = $this->originalMarker['env'];
+
+        $value === false ? putenv($marker) : putenv($marker.'='.$value);
+
+        if ($this->originalMarker['superglobal_env'] === null) {
+            unset($_ENV[$marker]);
+        } else {
+            $_ENV[$marker] = $this->originalMarker['superglobal_env'];
+        }
+
+        if ($this->originalMarker['superglobal_server'] === null) {
+            unset($_SERVER[$marker]);
+        } else {
+            $_SERVER[$marker] = $this->originalMarker['superglobal_server'];
+        }
+
+        $this->originalMarker = null;
     }
 
     private function armedCallbacks(Connection $connection): int
