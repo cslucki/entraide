@@ -7,6 +7,7 @@ use App\Models\MemberAiProfile;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\AiShellResponder;
+use App\Support\Loops\VisibleLoops;
 use App\Support\Onboarding\MemberOnboardingSteps;
 use Illuminate\Support\Str;
 
@@ -86,6 +87,22 @@ final class AiSelfKnowledge
     /** TASK-1361 — « comment rejoindre une Boucle ? », le parcours existe deja. */
     public const TOPIC_JOIN_LOOP = 'join_loop';
 
+    /**
+     * TASK-1364 — « quelles Boucles sont dispo ? »
+     *
+     * Le Shell repondait qu'il ne pouvait pas renseigner, et invitait a
+     * consulter la plateforme — pour une donnee que la plateforme affiche a
+     * deux clics. Il envoyait quelqu'un chercher ailleurs ce qu'il avait sous
+     * la main.
+     *
+     * La reponse ne cree AUCUNE connaissance : elle nomme exactement les
+     * Boucles que `/loops` montre deja, via l'autorite partagee
+     * {@see VisibleLoops}. Ecrire ici une seconde regle de
+     * visibilite les ferait diverger, et rendrait le Shell moins fiable que
+     * l'interface — le defaut meme qu'on corrige.
+     */
+    public const TOPIC_VISIBLE_LOOPS = 'visible_loops';
+
     /** Producteur trace dans la metadata du tour — jamais montre a l'utilisateur. */
     public const PRODUCER = 'self_knowledge';
 
@@ -146,7 +163,10 @@ final class AiSelfKnowledge
             'par ou je commence',
             'je suis nouveau ici',
             'je suis nouvelle ici',
-            'je viens d arriver',
+            // TASK-1364 — l'entree livree en 1.361 s'ecrivait « d arriver »,
+            // avec une espace. `normalize()` CONSERVE l'apostrophe : elle ne
+            // pouvait donc jamais etre atteinte. Mesure a l'appui, pas lecture.
+            "je viens d'arriver",
             'where do i start',
             'where should i start',
             'how do i get started',
@@ -162,12 +182,38 @@ final class AiSelfKnowledge
             'how to join a loop',
             'how can i join a loop',
         ],
+        // TASK-1364. « quels boucles sont dispo » est la formulation EXACTE
+        // que Cyril a tapee : l'accord fautif et l'abreviation sont dans la
+        // table parce que les gens ecrivent ainsi, pas comme une grammaire.
+        // `TOPIC_LOOP` porte deja « c'est quoi les boucles » — une DEFINITION.
+        // Aucune formulation d'ici ne doit lui ressembler : on demande la
+        // LISTE, pas le concept.
+        self::TOPIC_VISIBLE_LOOPS => [
+            'quelles boucles sont disponibles',
+            'quelles boucles sont dispo',
+            'quels boucles sont dispo',
+            'quels boucles sont disponibles',
+            'quelles sont les boucles disponibles',
+            'quelles boucles je peux voir',
+            'quelles boucles puis je voir',
+            'quelles sont mes boucles',
+            "quelles boucles j'ai",
+            'mes boucles',
+            'what loops are available',
+            'which loops are available',
+            'what are the available loops',
+            'what loops can i see',
+            'which loops can i see',
+            'what are my loops',
+            'my loops',
+        ],
     ];
 
     public function __construct(
         private readonly AiCapabilityCatalogue $catalogue,
         private readonly AiFabContext $fab,
         private readonly MemberOnboardingSteps $onboarding,
+        private readonly VisibleLoops $visibleLoops,
     ) {}
 
     /**
@@ -206,6 +252,7 @@ final class AiSelfKnowledge
             self::TOPIC_CAPABILITIES => $this->capabilitiesAnswer($organization, $user, $pageContext),
             self::TOPIC_GET_STARTED => $this->getStartedAnswer($organization, $user),
             self::TOPIC_JOIN_LOOP => $this->joinLoopAnswer(),
+            self::TOPIC_VISIBLE_LOOPS => $this->visibleLoopsAnswer($organization, $user),
             default => '',
         };
     }
@@ -260,6 +307,68 @@ final class AiSelfKnowledge
     private function joinLoopAnswer(): string
     {
         return __('ai.self_knowledge_join_loop');
+    }
+
+    /**
+     * TASK-1364 — « quelles Boucles sont dispo ? »
+     *
+     * Deux listes, parce que le produit distingue reellement deux choses :
+     * celles dont on est membre, et celles que le catalogue rend decouvrables.
+     * L'etat d'acces des secondes vient des Policies, jamais d'un champ lu au
+     * passage — une Policy sait des choses qu'`access_mode` ignore.
+     *
+     * Aucune URL, aucun identifiant : le catalogue de capacites n'en a jamais
+     * porte, et chaque page rejoue sa garde au clic. Nommer une Boucle
+     * n'accorde aucun droit d'entree.
+     *
+     * L'etat vide est HONNETE : il ne dit pas combien de Boucles existent
+     * ailleurs, ni qu'il en existe.
+     */
+    private function visibleLoopsAnswer(Organization $organization, User $user): string
+    {
+        $grouped = $this->visibleLoops->groupedFor($organization, $user);
+
+        if ($grouped['member']->isEmpty() && $grouped['other']->isEmpty()) {
+            return __('ai.self_knowledge_visible_loops_empty');
+        }
+
+        $lines = [];
+
+        if ($grouped['member']->isNotEmpty()) {
+            $lines[] = __('ai.self_knowledge_visible_loops_mine');
+
+            foreach ($grouped['member'] as $loop) {
+                $lines[] = '— '.$this->loopName($loop);
+            }
+        }
+
+        if ($grouped['other']->isNotEmpty()) {
+            if ($lines !== []) {
+                $lines[] = '';
+            }
+
+            $lines[] = __('ai.self_knowledge_visible_loops_others');
+
+            foreach ($grouped['other'] as $loop) {
+                $lines[] = '— '.$this->loopName($loop).' ('.__(match ($this->visibleLoops->accessStateFor($loop, $user)) {
+                    VisibleLoops::ACCESS_OPEN => 'ai.self_knowledge_visible_loops_access_open',
+                    VisibleLoops::ACCESS_REQUEST => 'ai.self_knowledge_visible_loops_access_request',
+                    VisibleLoops::ACCESS_PENDING => 'ai.self_knowledge_visible_loops_access_pending',
+                    default => 'ai.self_knowledge_visible_loops_access_invitation',
+                }).')';
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Le nom d'une Boucle est ecrit par un membre : borne comme tout libelle
+     * cite dans une reponse, exactement comme les noms de lieu de T1359.
+     */
+    private function loopName(Loop $loop): string
+    {
+        return Str::limit(trim((string) $loop->name), self::MAX_PLACE_CHARS, '…');
     }
 
     /**

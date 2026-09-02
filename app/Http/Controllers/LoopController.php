@@ -26,6 +26,7 @@ use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
+use App\Support\Loops\VisibleLoops;
 use App\Support\Tenancy\CurrentOrganization;
 use DomainException;
 use Illuminate\Database\Eloquent\Collection;
@@ -306,28 +307,14 @@ class LoopController extends Controller
      * means "hidden", it means "content locked to members"). Membership and
      * pending-request state are annotated via correlated EXISTS subqueries
      * so the view can render the right CTA without N+1 queries.
+     *
+     * TASK-1364 — la requete vit desormais dans `VisibleLoops`, pour que le
+     * Shell nomme EXACTEMENT les Boucles que cette page montre. Le catalogue
+     * n'a pas change : la primitive porte la meme requete, mot pour mot.
      */
     private function getAccessibleLoopsQuery(string $organizationId, $user)
     {
-        return Loop::query()
-            ->where('organization_id', $organizationId)
-            ->where('status', 'active')
-            // `organization` : le libelle d'un type peut etre surcharge par
-            // locataire, et la carte de catalogue le lit. Charge ici, une fois,
-            // plutot qu'une requete par Boucle dans la vue.
-            ->with(['owner.user', 'owners.user', 'categories', 'organization'])
-            ->withCount('activeMembers')
-            ->withMax('messages as last_message_at', 'created_at')
-            ->withExists(['members as is_member' => function ($q) use ($user) {
-                $q->where('user_id', $user->id)->where('status', 'active');
-            }])
-            ->withExists(['members as is_owner' => function ($q) use ($user) {
-                $q->where('user_id', $user->id)->where('status', 'active')->where('role', 'owner');
-            }])
-            ->withExists(['joinRequests as has_pending_request' => function ($q) use ($user) {
-                $q->where('user_id', $user->id)->where('status', LoopJoinRequest::STATUS_PENDING);
-            }])
-            ->latest('updated_at');
+        return app(VisibleLoops::class)->query($organizationId, $user);
     }
 
     public function create(): View

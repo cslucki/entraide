@@ -773,6 +773,17 @@ return [
     'self_knowledge_get_started_outro' => 'Dites-moi par laquelle vous voulez commencer, je vous explique ou aller.',
     'self_knowledge_get_started_complete' => 'Vous avez deja complete toutes les etapes d\'installation. Dites-moi ce que vous cherchez, et je vous explique ou aller.',
     'self_knowledge_join_loop' => 'Ouvrez la liste des Boucles de votre organisation : vous y voyez toutes les Boucles actives, y compris celles dont vous n\'etes pas encore membre. Selon la Boucle, vous la rejoignez directement, ou vous envoyez une demande d\'adhesion qu\'un animateur valide.',
+    // TASK-1364 — « quelles Boucles sont dispo ? ». Le Shell nomme exactement
+    // ce que le catalogue montre deja. L'etat vide ne dit RIEN du nombre de
+    // Boucles qui existent ailleurs : ce serait reveler l'existence de ce
+    // qu'on refuse de nommer.
+    'self_knowledge_visible_loops_mine' => 'Vos Boucles :',
+    'self_knowledge_visible_loops_others' => 'Autres Boucles de votre organisation :',
+    'self_knowledge_visible_loops_access_open' => 'entree libre',
+    'self_knowledge_visible_loops_access_request' => 'sur demande',
+    'self_knowledge_visible_loops_access_pending' => 'demande en attente',
+    'self_knowledge_visible_loops_access_invitation' => 'sur invitation',
+    'self_knowledge_visible_loops_empty' => 'Je ne trouve aucune Boucle que vous puissiez consulter actuellement.',
     'self_knowledge_capability_create_loop' => 'ouvrir une boucle autour d\'un sujet précis',
     'self_knowledge_capability_ai_profile' => 'construire votre profil pour être trouvable par les autres',
     // TASK-1350 : formule VRAIE quel que soit l'etat de la configuration IA de
