@@ -23,11 +23,32 @@ use Tests\TestCase;
  * retombe sur `.env`. Le `force sqlite` de `phpunit.xml` ne vaut que pour le
  * runner PHPUnit.
  *
+ * ## La regle V1 etait FAUSSE, et c'est la CI qui l'a dit
+ *
+ * V1 posait « APP_ENV=testing implique sqlite ». La CI PostgreSQL tourne sous
+ * `APP_ENV=testing` contre `bouclepro_test` : le garde a bloque ses migrations.
+ * Quinze tests verts et huit sabotages n'avaient pas pu le voir, parce qu'ils
+ * ENCODAIENT la premisse au lieu de la questionner. Seul un environnement
+ * different pouvait la dementir.
+ *
+ * ## Le contrat V2 : on ne devine plus, on demande
+ *
+ * `testing` n'a pas de cible unique dans ce depot. On cesse donc de deduire ce
+ * qu'est une base de test a partir du pilote ou du nom, et on demande une
+ * DECLARATION D'INTENTION :
+ *
+ *   testing + sqlite                        -> autorise
+ *   testing + base serveur, sans marqueur   -> REFUSE
+ *   testing + base serveur, avec marqueur   -> autorise
+ *
+ * La CI PostgreSQL porte le marqueur : elle sait qu'elle ecrit dans une base
+ * de test. L'incident qui a cree cette TASK ne le savait pas.
+ *
  * ## Ce que ce fichier garde
  *
- * Que le garde s'arme SUR CONTRADICTION et sur elle seule. Un garde qui se
- * declencherait sur le nom d'une base bloquerait un developpeur qui migre son
- * propre poste — et un garde-fou qui gene l'usage legitime finit desarme.
+ * Qu'un garde ne se declenche jamais sur le nom d'une base — cela bloquerait un
+ * developpeur qui migre son poste, et un garde-fou qui gene l'usage legitime
+ * finit desarme.
  *
  * ## Aucun test ne vise `bouclepro`
  *
@@ -95,6 +116,97 @@ class TASK1367ArtisanDatabaseGuardTest extends TestCase
 
             $this->assertSame(0, $this->armedCallbacks($connection), $environment);
         }
+    }
+
+    // =====================================================================
+    // A bis. L'INTENTION DECLAREE, le coeur du contrat V2
+    // =====================================================================
+
+    /**
+     * 3 bis. `testing` + base serveur SANS marqueur : le garde s'arme.
+     *
+     * C'est l'incident d'origine : `APP_ENV=testing php artisan migrate`
+     * contre `bouclepro`. Rien ne declarait que cette base serveur etait une
+     * cible de test — parce qu'elle ne l'etait pas.
+     */
+    public function test_a_server_database_under_testing_is_guarded_without_the_marker(): void
+    {
+        $this->app['env'] = 'testing';
+        $this->forgetMarker();
+
+        ArtisanDatabaseGuard::arm($this->app);
+
+        // On simule une cible serveur : le pilote ne satisfait pas `sqlite`.
+        $connection = $this->connectionPretendingToBe('pgsql');
+        Event::dispatch(new ConnectionEstablished($connection));
+
+        $this->assertWriteRefused($connection);
+    }
+
+    /**
+     * 3 ter. Le MEME couple, avec l'intention declaree : autorise.
+     *
+     * C'est la CI PostgreSQL. Elle ecrit deliberement dans `bouclepro_test`,
+     * et elle le dit. Sans ce cas, le garde casserait la CI de tout le monde —
+     * ce qu'il a effectivement fait en V1.
+     */
+    public function test_the_same_target_is_allowed_once_the_intent_is_declared(): void
+    {
+        $this->app['env'] = 'testing';
+        putenv(ArtisanDatabaseGuard::APPROVAL_MARKER.'=1');
+        $_ENV[ArtisanDatabaseGuard::APPROVAL_MARKER] = '1';
+
+        ArtisanDatabaseGuard::arm($this->app);
+
+        $connection = $this->connectionPretendingToBe('pgsql');
+        Event::dispatch(new ConnectionEstablished($connection));
+
+        $this->assertSame(0, $this->armedCallbacks($connection));
+
+        $this->forgetMarker();
+    }
+
+    /** 3 quater. Un marqueur qui ne declare RIEN ne leve pas le garde. */
+    public function test_a_falsy_marker_declares_nothing(): void
+    {
+        foreach (['0', 'false', ''] as $value) {
+            $this->refreshApplication();
+            $this->app['env'] = 'testing';
+            putenv(ArtisanDatabaseGuard::APPROVAL_MARKER.'='.$value);
+            $_ENV[ArtisanDatabaseGuard::APPROVAL_MARKER] = $value;
+
+            ArtisanDatabaseGuard::arm($this->app);
+
+            $connection = $this->connectionPretendingToBe('pgsql');
+            Event::dispatch(new ConnectionEstablished($connection));
+
+            $this->assertWriteRefused($connection, 'marqueur = '.var_export($value, true));
+        }
+
+        $this->forgetMarker();
+    }
+
+    /**
+     * 3 quinquies. `ai-validation` n'a PAS de porte de sortie.
+     *
+     * Le marqueur ne concerne que `testing`, qui n'a pas de cible unique.
+     * `ai-validation` en a une, canonique : rien ne justifie de pouvoir la
+     * contourner par une variable d'environnement.
+     */
+    public function test_the_marker_does_not_unlock_ai_validation(): void
+    {
+        $this->app['env'] = 'ai-validation';
+        putenv(ArtisanDatabaseGuard::APPROVAL_MARKER.'=1');
+        $_ENV[ArtisanDatabaseGuard::APPROVAL_MARKER] = '1';
+
+        ArtisanDatabaseGuard::arm($this->app);
+
+        $connection = DB::connection();
+        Event::dispatch(new ConnectionEstablished($connection));
+
+        $this->assertWriteRefused($connection);
+
+        $this->forgetMarker();
     }
 
     // =====================================================================
@@ -371,6 +483,51 @@ class TASK1367ArtisanDatabaseGuardTest extends TestCase
         ArtisanDatabaseGuard::arm($this->app);
 
         return DB::connection();
+    }
+
+    /**
+     * Une connexion qui se PRESENTE comme un autre pilote.
+     *
+     * Aucun test ne vise `bouclepro` — contrainte explicite. On teste donc la
+     * DECISION du garde sur une connexion sqlite dont on ne change que ce que
+     * le garde regarde : le nom du pilote.
+     */
+    private function connectionPretendingToBe(string $driver): Connection
+    {
+        $connection = DB::connection();
+
+        $property = new ReflectionProperty(Connection::class, 'config');
+        $property->setAccessible(true);
+        $config = $property->getValue($connection);
+        $config['driver'] = $driver;
+        $property->setValue($connection, $config);
+
+        return $connection;
+    }
+
+    /**
+     * Le garde refuse-t-il REELLEMENT une ecriture sur cette connexion ?
+     *
+     * On asserte le COMPORTEMENT, pas le nombre de callbacks armes : ce nombre
+     * est un artefact de test. `AppServiceProvider::boot()` appelle deja
+     * `arm()`, donc un appel explicite dans un test en enregistre un SECOND.
+     * En production `boot()` ne tourne qu'une fois — mais compter aurait fait
+     * dependre le test d'un detail qui n'est pas le contrat.
+     */
+    private function assertWriteRefused(Connection $connection, string $context = ''): void
+    {
+        try {
+            $connection->statement('create table task1367_should_not_exist (id integer)');
+            $this->fail('Le garde aurait du refuser cette ecriture. '.$context);
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('ECRITURE REFUSEE', $exception->getMessage(), $context);
+        }
+    }
+
+    private function forgetMarker(): void
+    {
+        putenv(ArtisanDatabaseGuard::APPROVAL_MARKER);
+        unset($_ENV[ArtisanDatabaseGuard::APPROVAL_MARKER], $_SERVER[ArtisanDatabaseGuard::APPROVAL_MARKER]);
     }
 
     private function armedCallbacks(Connection $connection): int

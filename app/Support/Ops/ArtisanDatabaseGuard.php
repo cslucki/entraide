@@ -62,6 +62,22 @@ use RuntimeException;
 final class ArtisanDatabaseGuard
 {
     /**
+     * Le marqueur d'INTENTION pour une base de test qui n'est pas sqlite.
+     *
+     * Ce n'est PAS une configuration : c'est un accuse d'execution. Il vit dans
+     * l'environnement du processus qui sait ce qu'il fait — le workflow
+     * PostgreSQL de la CI, un futur runner local sur serveur — et nulle part
+     * ailleurs. Surtout pas dans `.env`, `.env.example` ou `config/` : un
+     * marqueur permanent recreerait exactement le desarmement silencieux que ce
+     * garde existe pour empecher.
+     *
+     * C'est aussi la raison pour laquelle il est lu par `env()` et non par
+     * `config()`. Le passer par la configuration en ferait une valeur qu'on
+     * pose une fois et qu'on oublie.
+     */
+    public const APPROVAL_MARKER = 'BOUCLEPRO_TEST_DB_APPROVED';
+
+    /**
      * Ce que chaque environnement ANNONCE viser.
      *
      * Un environnement absent de cette table ne promet rien : il ne peut donc
@@ -88,10 +104,14 @@ final class ArtisanDatabaseGuard
      * automatique et protege l'operateur. Mais ils parlent de la meme
      * infrastructure, et elle n'a qu'un seul nom.
      *
-     * @var array<string, array{driver?: string, connection?: string}>
+     * `approval` designe les environnements ou une cible non conforme peut
+     * etre RENDUE LEGITIME par une declaration d'intention explicite. Seul
+     * `testing` en a une : il n'a pas de cible unique dans ce depot.
+     *
+     * @var array<string, array{driver?: string, connection?: string, approval?: string}>
      */
     private const EXPECTATIONS = [
-        'testing' => ['driver' => 'sqlite'],
+        'testing' => ['driver' => 'sqlite', 'approval' => self::APPROVAL_MARKER],
         'ai-validation' => ['connection' => AiValidationDatabaseGuard::ALLOWED_CONNECTION],
     ];
 
@@ -149,6 +169,22 @@ final class ArtisanDatabaseGuard
                 return;
             }
 
+            // L'INTENTION DECLAREE rend la cible legitime.
+            //
+            // `APP_ENV=testing` ne designe PAS une base unique dans ce depot :
+            // la suite locale tourne sur sqlite en memoire, et la CI PostgreSQL
+            // sur `bouclepro_test`. La CI ne se contredit donc pas — elle sait
+            // parfaitement qu'elle cree et utilise une base serveur de test.
+            //
+            // On cesse donc de DEVINER ce qu'est une base de test a partir du
+            // pilote ou du nom. On demande seulement : si tu declares un
+            // environnement de test et que tu vas ecrire dans une vraie base
+            // serveur, dis-le. La CI le dit ; l'incident qui a cree cette TASK
+            // ne le disait pas.
+            if (isset($expectation['approval']) && self::approved($expectation['approval'])) {
+                return;
+            }
+
             $event->connection->beforeExecuting(static function (string $query) use ($event, $expected, $expectation, $environment): void {
                 if (self::isReadOnly($query)) {
                     return;
@@ -190,6 +226,17 @@ final class ArtisanDatabaseGuard
         }
 
         return ['driver' => $driver, 'database' => $database];
+    }
+
+    /**
+     * L'intention a-t-elle ete declaree pour CETTE execution ?
+     *
+     * Tout ce qui n'est pas explicitement vrai vaut non : un marqueur absent,
+     * vide, `0` ou `false` ne declare rien.
+     */
+    private static function approved(string $marker): bool
+    {
+        return filter_var(env($marker), FILTER_VALIDATE_BOOL);
     }
 
     /** @param  array{driver: string, database?: string}  $expected */
@@ -253,6 +300,11 @@ final class ArtisanDatabaseGuard
             ."la configuration retombe sur .env.\n"
             ."\n"
             ."Si la cible est VOULUE, lancez la commande sans APP_ENV, ou avec l'APP_ENV qui\n"
-            .'correspond reellement a cette base.';
+            ."correspond reellement a cette base.\n"
+            .(isset($expectation['approval'])
+                ? "\nSi vous testez DELIBEREMENT contre une base serveur (c'est le cas de la CI\n"
+                    .'PostgreSQL), declarez-le : '.$expectation['approval']."=1\n"
+                    .'Ne posez JAMAIS ce marqueur dans .env : il doit rester un accuse d execution.'
+                : '');
     }
 }
