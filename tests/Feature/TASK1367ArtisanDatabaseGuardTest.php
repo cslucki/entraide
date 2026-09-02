@@ -136,17 +136,28 @@ class TASK1367ArtisanDatabaseGuardTest extends TestCase
         $this->assertSame(1, $this->armedCallbacks($connection));
     }
 
-    /** 2. Environnement coherent : aucun garde. */
+    /**
+     * 2. Environnement coherent : aucun garde.
+     *
+     * La coherence est CONSTRUITE, pas empruntee a l'environnement : ce test
+     * asserait « le pre-requis : la suite tourne bien sur sqlite », ce qui est
+     * vrai sur mon poste et FAUX en CI PostgreSQL. Il rejouait donc, dans son
+     * pre-requis, la premisse exacte qui avait rendu la V1 du garde fausse.
+     *
+     * On fabrique donc la situation coherente au lieu de la supposer, et on
+     * retire le marqueur : ainsi zero garde arme ne peut s'expliquer QUE par la
+     * coherence, jamais par une approbation ambiante.
+     */
     public function test_no_guard_when_the_environment_matches_its_target(): void
     {
         $this->app['env'] = 'testing';
+        $this->forgetMarker();
 
         ArtisanDatabaseGuard::arm($this->app);
 
-        $connection = DB::connection();
+        $connection = $this->connectionPretendingToBe('sqlite');
         Event::dispatch(new ConnectionEstablished($connection));
 
-        $this->assertSame('sqlite', $connection->getDriverName(), 'Le pre-requis : la suite tourne bien sur sqlite.');
         $this->assertSame(0, $this->armedCallbacks($connection));
     }
 
@@ -373,10 +384,16 @@ class TASK1367ArtisanDatabaseGuardTest extends TestCase
 
         $connection = DB::connection();
 
-        $this->assertTrue($satisfies->invoke(null, $connection, ['driver' => 'sqlite']));
-        $this->assertFalse($satisfies->invoke(null, $connection, ['driver' => 'pgsql']));
-        $this->assertFalse($satisfies->invoke(null, $connection, ['driver' => 'sqlite', 'database' => 'une-autre-base']));
-        $this->assertTrue($satisfies->invoke(null, $connection, ['driver' => 'sqlite', 'database' => $connection->getDatabaseName()]));
+        // Le pilote attendu est DERIVE de la connexion, jamais ecrit en dur :
+        // ce test tournait sur sqlite chez moi et sur pgsql en CI, et un
+        // litteral y aurait ete faux dans l'un des deux environnements.
+        $driver = $connection->getDriverName();
+        $autreDriver = $driver === 'sqlite' ? 'pgsql' : 'sqlite';
+
+        $this->assertTrue($satisfies->invoke(null, $connection, ['driver' => $driver]));
+        $this->assertFalse($satisfies->invoke(null, $connection, ['driver' => $autreDriver]));
+        $this->assertFalse($satisfies->invoke(null, $connection, ['driver' => $driver, 'database' => 'une-autre-base']));
+        $this->assertTrue($satisfies->invoke(null, $connection, ['driver' => $driver, 'database' => $connection->getDatabaseName()]));
     }
 
     /**
