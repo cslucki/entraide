@@ -823,6 +823,21 @@ return [
     // fichiers de langue, mais elle n'est jamais rendue tant que le prompt
     // administrable actif est redige en francais : la garde ne se declenche
     // que si la locale DIFFERE de `AiShellResponder::PROMPT_LANGUAGE`.
+    // TASK-1370 — les surfaces produit du ProductSurfaceManifest.
+    //
+    // Ce sont des NOMS DE LIEUX, pas des modes d'emploi : le manifest dit ce
+    // qui existe pour ce membre, jamais comment s'en servir ni ou cliquer.
+    'surfaces_context_none' => "Aucune surface n'est ouverte a ce membre dans cette organisation.",
+    'surface_loops' => 'les boucles de votre organisation',
+    'surface_create_loop' => 'ouvrir une nouvelle boucle',
+    'surface_members_directory' => 'l\'annuaire des membres',
+    'surface_exchanges' => 'vos échanges avec d\'autres membres',
+    'surface_messages' => 'votre messagerie',
+    'surface_dossiers' => 'vos dossiers et documents',
+    'surface_agenda' => 'l\'agenda de l\'organisation',
+    'surface_ai_profile' => 'votre profil IA',
+    'surface_subscriptions' => 'les abonnements',
+    'surface_organization_admin' => 'l\'administration de l\'organisation',
     'shell_prompt_language_guard' => 'IMPORTANT : Réponds en français. Quelle que soit la langue des instructions et du contexte ci-dessous, tu dois répondre au membre en français.',
     'shell_prompt_where_dashboard' => 'L\'utilisateur est sur son tableau de bord.',
     'shell_prompt_where_loop' => 'L\'utilisateur consulte la Boucle « :name ».',

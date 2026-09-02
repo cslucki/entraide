@@ -788,6 +788,21 @@ return [
     // TASK-1358 : instruction de langue du Shell, posee en TETE du prompt. Le
     // texte suit le precedent deja en production sur le chemin ChatLoop
     // (`LoopMessagesSource::wrap()`).
+    // TASK-1370 — product surfaces from the ProductSurfaceManifest.
+    //
+    // These are PLACE NAMES, not instructions: the manifest states what exists
+    // for this member, never how to use it or where to click.
+    'surfaces_context_none' => 'No surface is open to this member in this organization.',
+    'surface_loops' => 'the loops in your organization',
+    'surface_create_loop' => 'opening a new loop',
+    'surface_members_directory' => 'the member directory',
+    'surface_exchanges' => 'your exchanges with other members',
+    'surface_messages' => 'your messages',
+    'surface_dossiers' => 'your folders and documents',
+    'surface_agenda' => 'the organization agenda',
+    'surface_ai_profile' => 'your AI profile',
+    'surface_subscriptions' => 'subscriptions',
+    'surface_organization_admin' => 'the organization administration',
     'shell_prompt_language_guard' => 'IMPORTANT: Answer in English. Whatever the language of the instructions and of the context below, you must reply to the member in English.',
     'shell_prompt_where_dashboard' => 'The user is on their dashboard.',
     'shell_prompt_where_loop' => 'The user is viewing the Loop ":name".',

@@ -27,6 +27,13 @@ final class CapabilityRegistry
     public const SOURCE_ORGANIZATION_CATEGORIES = 'organization.categories';
 
     /**
+     * TASK-1370 — les surfaces produit reellement disponibles pour ce lecteur.
+     * Contrairement aux categories et aux Boucles, elle ne fournit AUCUN
+     * identifiant : le modele n'a rien a recopier, il ecrit de la prose.
+     */
+    public const SOURCE_PRODUCT_SURFACES = 'product.surfaces';
+
+    /**
      * TASK-1213 : recherche documentaire (chunks pgvector des Dossiers
      * accessibles). Reservee aux capabilities qui repondent a une question.
      */
@@ -162,7 +169,10 @@ final class CapabilityRegistry
             // Les categories du tenant et les Boucles actives dont
             // l'utilisateur est membre. Les deux suggestions restent bornees
             // aux identifiants exactement fournis par ces sources.
-            allowedSources: [self::SOURCE_ORGANIZATION_CATEGORIES, self::SOURCE_USER_LOOPS],
+            // TASK-1370 : `product.surfaces` s'ajoute aux deux precedentes. Elle
+            // ne borne pas une suggestion, elle borne une AFFIRMATION — ce que
+            // le modele a le droit de dire exister dans BouclePro.
+            allowedSources: [self::SOURCE_ORGANIZATION_CATEGORIES, self::SOURCE_USER_LOOPS, self::SOURCE_PRODUCT_SURFACES],
             maxOutput: 2000,
             promptKey: 'clarify_help_request',
             contextCharBudget: self::clarifyContextBudget(),
