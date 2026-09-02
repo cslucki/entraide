@@ -4,10 +4,13 @@ namespace Tests\Feature\Admin;
 
 use App\Models\AdminAiInteraction;
 use App\Models\User;
+use Tests\Concerns\RequiresSqlJsonArrowOperator;
 use Tests\TestCase;
 
 class AdminAiInteractionTest extends TestCase
 {
+    use RequiresSqlJsonArrowOperator;
+
     private function makeAdmin(): User
     {
         return User::factory()->create(['is_admin' => true]);
@@ -117,6 +120,8 @@ class AdminAiInteractionTest extends TestCase
 
     public function test_filter_by_search(): void
     {
+        $this->skipWithoutJsonArrowOperator();
+
         $admin = $this->makeAdmin();
         $this->makeInteraction(['input_excerpt' => 'Je cherche un logo']);
         $this->makeInteraction(['input_excerpt' => 'Autre chose']);
