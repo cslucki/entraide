@@ -278,7 +278,15 @@ final class AiFabContext
      *
      * @return list<array<string, mixed>>
      */
-    private function dossierActions(Dossier $dossier, User $user): array
+    /**
+     * TASK-1363 : rendue publique pour la MEME raison que `loopActions()` en
+     * T1315 — le Shell doit proposer l'action du Dossier calculee par le MEME
+     * code que le FAB, sous les MEMES gardes. Sa logique n'a pas bouge : gate
+     * de recherche semantique activee pour l'Organization du Dossier, ET
+     * `$user->cannot('view', $dossier)`. Un second calcul, meme fidele au
+     * depart, aurait fini par diverger.
+     */
+    public function dossierActions(Dossier $dossier, User $user): array
     {
         if (! $this->dossierSearchGate->isEnabledFor((string) $dossier->organization_id) || $user->cannot('view', $dossier)) {
             return [];

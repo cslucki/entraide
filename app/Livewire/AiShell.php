@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\AiShellMessage;
 use App\Models\Category;
+use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
@@ -394,26 +395,52 @@ class AiShell extends Component
             return [];
         }
 
+        $objectId = (string) ($context['object']['id'] ?? '');
+        $fab = app(AiFabContext::class);
+
+        // TASK-1363 — le Shell tend les actions que la page autorise DEJA.
+        //
+        // Il n'en offrait qu'UNE : `loopActions()` etait appele, puis trois
+        // actions sur quatre etaient jetees par un `firstWhere()`. Le Shell
+        // nommait donc des possibilites — depuis T1359, il les enonce meme en
+        // toutes lettres — sans jamais les tendre.
+        //
+        // AUCUNE garde n'est ecrite ici, et c'est le point central :
+        // `AiFabContext` reste l'UNIQUE autorite des actions. Il rend `[]`
+        // pour un non-membre, pour une Boucle non ecrivable, pour un Dossier
+        // que la personne ne peut pas voir. Recopier ou assouplir ces regles
+        // creerait une seconde politique — exactement ce que la maison
+        // interdit depuis T1315.
+        $available = match ($context['kind'] ?? null) {
+            AiShellPageContext::KIND_LOOP => ($loop = Loop::query()->find($objectId)) instanceof Loop
+                ? $fab->loopActions($loop, $user)
+                : [],
+            AiShellPageContext::KIND_DOSSIER => ($dossier = Dossier::query()->find($objectId)) instanceof Dossier
+                ? $fab->dossierActions($dossier, $user)
+                : [],
+            default => [],
+        };
+
         $actions = [];
 
-        // Interroger les Dossiers de la Boucle courante — MEME garde que le
-        // bouton de la page, calculee par la seule autorite qui la connait.
-        if (($context['kind'] ?? null) === AiShellPageContext::KIND_LOOP) {
-            $loop = Loop::query()->find($context['object']['id'] ?? null);
-
-            if ($loop instanceof Loop) {
-                $knowledge = collect(app(AiFabContext::class)->loopActions($loop, $user))
-                    ->firstWhere('key', AiFabContext::ACTION_LOOP_KNOWLEDGE);
-
-                if (is_array($knowledge)) {
-                    $actions[] = [
-                        'key' => 'shell_loop_knowledge',
-                        'kind' => 'event',
-                        'label' => __('ai.shell_action_loop_knowledge'),
-                        'event' => $knowledge['event'],
-                    ];
-                }
+        foreach ($available as $action) {
+            // Une action sans evenement n'est pas rendue : le Shell ne
+            // fabrique jamais une destination, il relaie celle que l'autorite
+            // a produite.
+            if (($action['kind'] ?? null) !== 'event' || ! is_string($action['event'] ?? null)) {
+                continue;
             }
+
+            $actions[] = [
+                'key' => 'shell_'.$action['key'],
+                'kind' => 'event',
+                'label' => $action['label'],
+                'event' => $action['event'],
+                // `detail` porte le parametre de l'action — le Resume nomme la
+                // Card a ouvrir. La vue l'ecrasait par `{}` : le bouton
+                // partait, et n'ouvrait rien.
+                'detail' => is_array($action['detail'] ?? null) ? $action['detail'] : null,
+            ];
         }
 
         return $actions;
