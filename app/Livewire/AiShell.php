@@ -351,6 +351,7 @@ class AiShell extends Component
         return view('livewire.ai-shell', [
             'shell' => [
                 'context' => $context,
+                'here' => $this->hereLabel($context),
                 'conversation_id' => $conversationId,
                 'messages' => $messages,
                 'cards' => $cards,
@@ -491,6 +492,36 @@ class AiShell extends Component
     }
 
     /** @return array<string, mixed> */
+    /**
+     * TASK-1365 — le LIEU tel qu'on l'affiche sous le composer, ou une chaine
+     * vide.
+     *
+     * Le libelle vient tel quel de `AiShellPageContext`, l'autorite de T1359 :
+     * cette methode ne resout rien, elle n'ecrit aucune regle de route, et ne
+     * lit ni URL, ni chemin, ni identifiant.
+     *
+     * Elle ne fait qu'une chose, et c'est la seule qui manquait : **fermer la
+     * liste**. Hors des quatre lieux gouvernes, `label()` retombe sur le nom de
+     * l'Organization — ce qui presenterait un TENANT comme un LIEU. C'est
+     * exactement le defaut fail-open corrige dans `hereLines()` en T1359, et il
+     * ne doit pas reapparaitre trois lignes plus bas dans un pied de page.
+     *
+     * Rien afficher vaut mieux que fabriquer un contexte.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private function hereLabel(array $context): string
+    {
+        $allowed = in_array($context['kind'] ?? null, [
+            AiShellPageContext::KIND_LOOP,
+            AiShellPageContext::KIND_DOSSIER,
+            AiShellPageContext::KIND_ARTICLE,
+            AiShellPageContext::KIND_DASHBOARD,
+        ], true);
+
+        return $allowed ? trim((string) ($context['label'] ?? '')) : '';
+    }
+
     private function pageContext(): array
     {
         [$user, $organization] = $this->actor();

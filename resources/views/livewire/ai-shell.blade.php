@@ -53,14 +53,16 @@
          class="fixed inset-x-0 bottom-0 top-14 z-50 flex flex-col overflow-hidden rounded-t-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800
                 md:inset-x-auto md:top-auto md:right-6 md:bottom-40 md:h-[34rem] md:w-[26rem] md:rounded-2xl">
 
-        {{-- En-tete : qui parle, et OU l'on se trouve. --}}
+        {{-- En-tete : qui parle.
+
+             TASK-1365 : le LIEU vivait ici depuis T1359, sous une epingle. Il
+             descend sous le composer, la ou Cyril l'a demande. Le laisser aux
+             DEUX endroits afficherait « Boucle : X » deux fois dans un panneau
+             de 26rem — meme chaine, meme rendu, a quinze centimetres d'ecart.
+             Le lieu est donc affiche UNE fois, en bas. --}}
         <div class="flex items-start justify-between gap-3 border-b border-gray-100 px-4 pt-4 pb-3 dark:border-gray-700">
             <div class="min-w-0">
                 <p id="ai-shell-title" class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.shell_title') }}</p>
-                <p class="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400" data-ai-shell-context-label>
-                    <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21s7-4.35 7-10a7 7 0 1 0-14 0c0 5.65 7 10 7 10Z"/><circle cx="12" cy="11" r="2.5"/></svg>
-                    <span class="truncate">{{ $shell['context']['label'] ?? '' }}</span>
-                </p>
             </div>
             <button type="button" @click="close()" data-ai-shell-close
                     class="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
@@ -415,19 +417,44 @@
                               maxlength="{{ $shell['max_input_chars'] }}"
                               data-ai-shell-composer
                               placeholder="{{ __('ai.shell_placeholder') }}"
+                              {{-- TASK-1365 : le contrat clavier du ChatLoop, repris MOT POUR MOT
+                                   depuis components/conversation/composer.blade.php. Entree envoie,
+                                   Shift+Entree passe a la ligne. Aucune garde desktop : le ChatLoop
+                                   n'en a pas, et en inventer une ici creerait une TROISIEME regle
+                                   alors que cette TASK existe pour en supprimer une.
+                                   La composition IME n'est geree NULLE PART dans le produit — dette
+                                   consignee (COMPOSER_IME_HANDLING_MISSING), pas inventee ici. --}}
+                              @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); $wire.send() }"
                               class="min-h-[2.75rem] flex-1 resize-none rounded-xl border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"></textarea>
+                    {{-- TASK-1365 : couleur d'action principale prise au THEME (--bp-primary,
+                         emise par layouts/app.blade.php en clair et en sombre), plus jamais un
+                         indigo en dur — le bouton suit donc le theme du locataire.
+                         `hover:opacity-90` et pas `hover:brightness-95` : la seconde n'est PAS
+                         dans le CSS compile, elle aurait ete un no-op silencieux. Verifie. --}}
                     <button type="submit"
                             wire:loading.attr="disabled"
                             wire:target="send"
                             data-ai-shell-send
-                            class="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+                            style="background-color: var(--bp-primary)"
+                            class="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-white transition hover:opacity-90 disabled:opacity-50">
                         <span class="sr-only">{{ __('ai.shell_send') }}</span>
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 14-7-4 7 4 7-14-7Z"/></svg>
+                        {{-- Icone du ChatLoop, a l'identique. --}}
+                        <svg class="h-4 w-4 rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19V5m0 0l-7 7m7-7l7 7"/></svg>
                     </button>
                 </form>
 
+                {{-- TASK-1365 : les deux notes permanentes ont ete retirees d'ici.
+                     « BouclePro IA ne publie rien… » repetait une garantie que le produit
+                     tient deja dans le code, et « Le contexte indique ou vous etes… » etait
+                     une phrase technique qui ne disait justement PAS ou l'on est.
+                     A leur place, le LIEU. La garantie, elle, n'a pas bouge d'une ligne :
+                     seule sa repetition a l'ecran disparait. --}}
                 <div class="mt-2 flex items-center justify-between gap-3">
-                    <p class="text-[11px] leading-4 text-gray-500 dark:text-gray-400" data-ai-shell-no-publication>{{ __('ai.shell_no_publication_note') }}</p>
+                    @if($shell['here'] !== '')
+                        <p class="min-w-0 truncate text-[11px] leading-4 text-gray-500 dark:text-gray-400" data-ai-shell-here>{{ $shell['here'] }}</p>
+                    @else
+                        <span></span>
+                    @endif
 
                     @if(! $shell['messages']->isEmpty())
                         @if($confirmingClear)
@@ -441,8 +468,6 @@
                         @endif
                     @endif
                 </div>
-
-                <p class="mt-1 text-[11px] leading-4 text-gray-400 dark:text-gray-500" data-ai-shell-context-note>{{ __('ai.shell_context_note') }}</p>
             @endif
         </div>
     </div>
