@@ -4,10 +4,13 @@ namespace Tests\Feature\Admin;
 
 use App\Models\AdminAiInteraction;
 use App\Models\User;
+use Tests\Concerns\RequiresSqlJsonArrowOperator;
 use Tests\TestCase;
 
 class AdminAiReviewQueueTest extends TestCase
 {
+    use RequiresSqlJsonArrowOperator;
+
     private function makeAdmin(): User
     {
         return User::factory()->create(['is_admin' => true]);
@@ -38,6 +41,8 @@ class AdminAiReviewQueueTest extends TestCase
 
     public function test_admin_can_access_review_queue(): void
     {
+        $this->skipWithoutJsonArrowOperator();
+
         $admin = $this->makeAdmin();
         $this->createFlaggedInteraction();
 
@@ -50,6 +55,8 @@ class AdminAiReviewQueueTest extends TestCase
 
     public function test_empty_state_when_no_flagged_items(): void
     {
+        $this->skipWithoutJsonArrowOperator();
+
         $admin = $this->makeAdmin();
 
         AdminAiInteraction::create([
@@ -136,6 +143,8 @@ class AdminAiReviewQueueTest extends TestCase
 
     public function test_sidebar_link_is_present(): void
     {
+        $this->skipWithoutJsonArrowOperator();
+
         $admin = $this->makeAdmin();
 
         $response = $this->actingAs($admin)->get(route('admin.ai-review-queue'));

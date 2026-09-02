@@ -24,6 +24,24 @@ use Tests\TestCase;
 
 class DossierArticleIndexerTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // TASK-1369 — la FAMILLE d'embedding est CONSTRUITE, pas heritee.
+        //
+        // `config/ai.php` lit `env('AI_EMBEDDING_PROVIDER', 'openai')`. Un poste
+        // qui renseigne cette variable (ici : `openrouter`) changeait donc la
+        // famille sous les pieds du test, alors que celui-ci configure des
+        // credentials tenant en `openai`. Resultat : aucune cle ne
+        // correspondait, et le test rougissait pour une raison qui n'a rien a
+        // voir avec ce qu'il pretend eprouver.
+        //
+        // La CI ne pose pas cette variable, donc ces tests y passaient : le
+        // rouge etait purement local, et il ne disait rien du produit.
+        config(['ai.default_for_embeddings' => 'openai']);
+    }
+
     public function test_published_attached_article_is_indexed(): void
     {
         [$organization, $owner, $dossier, $post] = $this->eligibleFixture(content: $this->words(620));
