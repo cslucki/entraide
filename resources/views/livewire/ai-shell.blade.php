@@ -369,8 +369,12 @@
                                 {{ $action['label'] }}
                             </button>
                         @else
+                            {{-- TASK-1363 : le `detail` de l'action est TRANSMIS.
+                                 Il etait ecrase par `{}` — le Resume de Boucle
+                                 partait sans le nom de la Card a ouvrir, donc
+                                 le bouton ne faisait rien. --}}
                             <button type="button"
-                                    @click="close(); window.dispatchEvent(new CustomEvent('{{ $action['event'] }}', { detail: {} }))"
+                                    @click="close(); window.dispatchEvent(new CustomEvent('{{ $action['event'] }}', { detail: @js($action['detail'] ?? []) }))"
                                     data-ai-shell-action="{{ $action['key'] }}"
                                     class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600">
                                 {{ $action['label'] }}
