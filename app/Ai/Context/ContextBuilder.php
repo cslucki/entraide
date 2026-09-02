@@ -42,6 +42,7 @@ final class ContextBuilder
         DossierManifestSource $dossierManifest,
         BlogPostSource $blogPost,
         MemberProfileSource $memberProfile,
+        ProductSurfacesSource $productSurfaces,
     ) {
         $this->sources = [
             $loopMessages->name() => $loopMessages,
@@ -51,6 +52,7 @@ final class ContextBuilder
             $dossierManifest->name() => $dossierManifest,
             $blogPost->name() => $blogPost,
             $memberProfile->name() => $memberProfile,
+            $productSurfaces->name() => $productSurfaces,
         ];
     }
 
