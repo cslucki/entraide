@@ -397,15 +397,53 @@ class TASK1219AiConsumptionTest extends TestCase
         $this->actingAs($adminB)->get($this->consoleUrl($orgA))->assertForbidden();
     }
 
+    /**
+     * TASK-1362 — le nom de l'utilisateur B est FIGE, et il ne doit pas
+     * redevenir un tirage Faker.
+     *
+     * `UserFactory` rend `fake()->lastName()` (« Rodriguez ») et
+     * `OrganizationFactory` rend `fake()->company()`, que Faker construit A
+     * PARTIR DU MEME VIVIER de noms de famille (« Rodriguez Inc »). Le nom
+     * d'un utilisateur pouvait donc etre une SOUS-CHAINE du nom de
+     * l'Organization A — que cette page affiche legitimement dans son titre.
+     *
+     * `assertDontSee($userB->name)` tombait alors sur le nom de la PROPRE
+     * organisation du lecteur, et rendait un faux rouge :
+     *
+     *   « ... <title>Consommation IA — Rodriguez Inc</title> ... »
+     *   does not contain "Rodriguez"
+     *
+     * Ce n'etait donc PAS une fuite entre tenants — c'etait une collision de
+     * generateur. Observe en CI le 2026-09-01 sur une PR sans aucun rapport
+     * (T1361), et reproductible sur n'importe quelle PR : c'est le tirage du
+     * run qui decide.
+     *
+     * Le depot avait deja rencontre et resolu cette classe de defaut :
+     * `SystemEmailTemplateTest` fige son nom d'Organization depuis TASK-1230,
+     * avec le meme raisonnement. Meme idiome ici.
+     *
+     * La chaine choisie est volontairement absente du vocabulaire Faker et de
+     * toute prose de la page.
+     */
     public function test_the_page_never_shows_another_organization_consumption(): void
     {
         [$orgA, $adminA] = $this->organizationWithAdmin();
         [$orgB, $userB] = $this->organizationWithAdmin();
 
+        $userB->forceFill(['name' => 'Zzyzx-Tenant-B'])->saveQuietly();
+        $userB->refresh();
+
         $this->trace($orgA, $adminA, cost: 1.0, model: 'model-of-a', provider: 'openai');
         $this->trace($orgB, $userB, cost: 500.0, model: 'model-of-b', provider: 'ollama');
 
         $response = $this->actingAs($adminA)->get($this->consoleUrl($orgA))->assertOk();
+
+        // Le nom fige n'est une sous-chaine d'AUCUN element legitime de la
+        // page : ni du nom de l'Organization A, ni de celui de son admin.
+        // Sans cette garantie, l'assertion suivante ne prouverait rien sur
+        // l'isolation — elle mesurerait le tirage.
+        $this->assertStringNotContainsString('Zzyzx-Tenant-B', $orgA->name);
+        $this->assertStringNotContainsString('Zzyzx-Tenant-B', (string) $adminA->name);
 
         $response->assertSee('model-of-a');
         $response->assertDontSee('model-of-b');
