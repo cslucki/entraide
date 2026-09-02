@@ -65,6 +65,7 @@ use App\Services\RewardDispatcher;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiFabContext;
 use App\Support\Loops\LoopTypeRegistry;
+use App\Support\Ops\ArtisanDatabaseGuard;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -187,6 +188,11 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // TASK-1367 — refuser une ecriture quand l'environnement annonce
+        // contredit la base reellement visee. Ne s'arme QUE sur contradiction :
+        // sans elle, ce garde n'existe pas.
+        ArtisanDatabaseGuard::arm($this->app);
+
         Paginator::useTailwind();
 
         Livewire::addPersistentMiddleware(ResolveOrganization::class);
