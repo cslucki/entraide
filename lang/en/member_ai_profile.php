@@ -46,6 +46,12 @@ return [
     'field_skills' => 'Skills',
     'field_experience' => 'Experience',
     'field_help_types' => 'Types of help offered',
+    // TASK-1366 — see the French file for why only these strings are translated.
+    'withdraw_button' => 'Withdraw my profile',
+    'withdraw_confirm' => 'Withdraw your profile? It will no longer be suggested to other members. You can publish it again whenever you want, without re-entering anything.',
+    'withdraw_done' => 'Profile withdrawn. It is no longer suggested to other members.',
+    'republish_button' => 'Publish my profile again',
+    'publish_refused_admin_disabled' => 'An administrator disabled this profile: only an administrator can publish it again.',
     'field_service_scope' => 'Scope of intervention',
     'field_boundaries' => 'Boundaries',
     'field_preferred_contact' => 'Preferred contact',

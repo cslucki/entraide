@@ -346,20 +346,94 @@ class MemberAiProfileWizard extends Component
         $this->dispatch('profile-ready-for-review');
     }
 
+    /**
+     * TASK-1366 — publier, et REPUBLIER apres un retrait volontaire.
+     *
+     * Deux choses ont change ici, et aucune n'est cosmetique.
+     *
+     * 1. `disabled_at` et `withdrawn_at` reviennent a `null`. Le chemin admin
+     *    le faisait deja via `applyStatusDates()` ; celui-ci ne le faisait pas.
+     *    Le defaut etait LATENT tant qu'aucun membre ne pouvait se retirer — il
+     *    devient ATTEIGNABLE avec `unpublish()`. Sans cette remise a zero, un
+     *    profil publie porterait une date de desactivation, et l'ecran
+     *    d'administration afficherait « Desactive : <date> » sur un profil
+     *    actif. Le matching n'en serait pas affecte (le scope filtre sur le
+     *    statut) : c'est la piste d'audit qui se corromprait.
+     *
+     * 2. Un profil desactive par un ADMINISTRATEUR ne peut plus etre republie
+     *    ici. C'etait possible AVANT cette TASK — la vue reaffichait le bouton
+     *    des que le statut n'etait plus `published`, et cette methode ne
+     *    verifiait rien : un membre pouvait donc annuler une sanction. On ne
+     *    laisse pas ce comportement au moment precis ou l'on donne a la
+     *    personne la main sur son propre consentement.
+     */
     public function publish(): void
     {
-        $this->validate($this->minimumValidationRules());
-
         $profile = $this->getProfile();
+
+        if ($profile->wasDisabledByAdmin()) {
+            $this->addError('publish', __('member_ai_profile.publish_refused_admin_disabled'));
+
+            return;
+        }
+
+        $this->validate($this->minimumValidationRules());
 
         $profile->update([
             'status' => MemberAiProfile::STATUS_PUBLISHED,
             'published_at' => now(),
             'validated_at' => now(),
+            'disabled_at' => null,
+            'withdrawn_at' => null,
             'last_saved_at' => now(),
         ]);
 
         $this->dispatch('profile-published');
+    }
+
+    /**
+     * TASK-1366 — retirer SON profil, sans passer par un administrateur.
+     *
+     * Le formulaire exposait `publish()` et rien pour en sortir : on entrait
+     * seul, on ne sortait pas seul. Sur une fonction qui porte du consentement,
+     * « j'ai publie, je veux sortir » ne doit pas dependre d'un message a un
+     * administrateur.
+     *
+     * ## Qui peut retirer quoi
+     *
+     * Ce composant est proprietaire PAR CONSTRUCTION : `mount()` resout le
+     * profil par `forUser(auth()->user())->forOrganization(...)`, et **aucune
+     * methode publique n'accepte d'identifiant**. Il n'existe donc aucun
+     * parametre par lequel viser le profil d'autrui — ce n'est pas une garde
+     * qu'on ajoute, c'est une forme qu'on preserve, et un test l'asserte.
+     *
+     * ## Rien n'est supprime
+     *
+     * Le profil garde son contenu : c'est un changement d'ETAT. La personne
+     * peut republier ensuite, sans ressaisir quoi que ce soit.
+     *
+     * `STATUS_DISABLED` le sort immediatement de `scopePublished()`, donc de
+     * l'ensemble eligible de People-1 et de toute carte deja affichee — les
+     * cartes sont re-evaluees au rendu depuis T1360.
+     */
+    public function unpublish(): void
+    {
+        $profile = $this->profile;
+
+        // Pas de profil, ou pas publie : il n'y a rien a retirer. On ne cree
+        // surtout pas un brouillon pour le desactiver aussitot.
+        if (! $profile instanceof MemberAiProfile || $profile->status !== MemberAiProfile::STATUS_PUBLISHED) {
+            return;
+        }
+
+        $profile->update([
+            'status' => MemberAiProfile::STATUS_DISABLED,
+            'withdrawn_at' => now(),
+            'disabled_at' => now(),
+            'last_saved_at' => now(),
+        ]);
+
+        $this->dispatch('profile-withdrawn');
     }
 
     public function hasStepContent(int $stepNumber): bool

@@ -422,6 +422,32 @@
             <div class="text-center p-4 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-200 dark:border-green-800">
                 <p class="text-sm text-green-700 dark:text-green-300 font-medium">Profil publié ✓</p>
                 <p class="text-xs text-green-600 dark:text-green-400 mt-1">Votre profil IA est visible sur la plateforme.</p>
+                {{-- TASK-1366 : on entrait seul, on ne sortait pas seul. La seule
+                     route de retrait etait reservee aux administrateurs. Sur une
+                     fonction qui porte du consentement, « j'ai publie, je veux
+                     sortir » ne doit pas dependre d'un message a quelqu'un.
+                     Rien n'est supprime : le contenu reste, et la republication
+                     ne demande aucune ressaisie. --}}
+                <button type="button"
+                        wire:click="unpublish"
+                        wire:confirm="{{ __('member_ai_profile.withdraw_confirm') }}"
+                        data-profile-withdraw
+                        class="mt-3 text-xs font-medium text-green-700 underline underline-offset-2 transition hover:text-green-900 dark:text-green-300 dark:hover:text-green-100">
+                    {{ __('member_ai_profile.withdraw_button') }}
+                </button>
+            </div>
+            @elseif($profile && $profile->wasWithdrawnByOwner())
+            {{-- TASK-1366 : retire par SON proprietaire. Il peut republier, et le
+                 bouton d'envoi du pied de page le lui propose deja. --}}
+            <div class="text-center p-4 bg-gray-50 dark:bg-gray-900/40 rounded-xl border border-gray-200 dark:border-gray-700" data-profile-withdrawn>
+                <p class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ __('member_ai_profile.withdraw_done') }}</p>
+            </div>
+            @elseif($profile && $profile->wasDisabledByAdmin())
+            {{-- TASK-1366 : desactive par un ADMINISTRATEUR. Avant cette TASK, le
+                 bouton « Publier » reapparaissait ici et `publish()` ne verifiait
+                 rien : un membre pouvait annuler une sanction. --}}
+            <div class="text-center p-4 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-200 dark:border-amber-800" data-profile-admin-disabled>
+                <p class="text-sm font-medium text-amber-700 dark:text-amber-300">{{ __('member_ai_profile.publish_refused_admin_disabled') }}</p>
             </div>
             @endif
         </div>
@@ -451,10 +477,16 @@
                 class="px-6 py-3 sm:py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition active:scale-95 shadow-sm text-center">
                 Continuer
             </button>
-            @elseif($step === 5 && $profile && $profile->status !== 'published' && $profile->status !== 'pending_validation')
+            {{-- TASK-1366 : `wasDisabledByAdmin()` ferme la porte. Le bouton
+                 apparaissait auparavant des que le statut n'etait plus
+                 « publie » — y compris apres une desactivation administrative,
+                 que le membre pouvait donc annuler. La garde vit AUSSI dans
+                 `publish()` : la vue ne fait pas autorite. --}}
+            @elseif($step === 5 && $profile && $profile->status !== 'published' && $profile->status !== 'pending_validation' && ! $profile->wasDisabledByAdmin())
             <button type="button" wire:click="publish"
+                data-profile-publish
                 class="px-6 py-3 sm:py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition active:scale-95 shadow-sm text-center">
-                Publier
+                @if($profile->wasWithdrawnByOwner()){{ __('member_ai_profile.republish_button') }}@else{{ 'Publier' }}@endif
             </button>
             @endif
         </div>

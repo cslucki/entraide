@@ -61,6 +61,7 @@ class MemberAiProfile extends Model
         'published_at',
         'generated_at',
         'disabled_at',
+        'withdrawn_at',
         'last_saved_at',
     ];
 
@@ -81,6 +82,7 @@ class MemberAiProfile extends Model
             'published_at' => 'datetime',
             'generated_at' => 'datetime',
             'disabled_at' => 'datetime',
+            'withdrawn_at' => 'datetime',
             'last_saved_at' => 'datetime',
         ];
     }
@@ -103,6 +105,32 @@ class MemberAiProfile extends Model
     public function isDraft(): bool
     {
         return $this->status === self::STATUS_DRAFT;
+    }
+
+    /**
+     * TASK-1366 — un profil RETIRE VOLONTAIREMENT par son proprietaire.
+     *
+     * `disabled_at` seul ne dit pas QUI a decide. Cette distinction gouverne la
+     * republication : ce qu'un administrateur a desactive, seul un
+     * administrateur le republie.
+     */
+    public function wasWithdrawnByOwner(): bool
+    {
+        return $this->status === self::STATUS_DISABLED && $this->withdrawn_at !== null;
+    }
+
+    /**
+     * TASK-1366 — desactive par un ADMINISTRATEUR, pas par la personne.
+     *
+     * Fail-closed : un profil desactive dont on ne sait pas d'ou vient la
+     * decision est traite comme une decision d'administration. Les profils
+     * anterieurs a cette TASK sont exactement dans ce cas, et c'est la lecture
+     * prudente — leur rendre la republication serait leur accorder un droit que
+     * personne n'a arbitre.
+     */
+    public function wasDisabledByAdmin(): bool
+    {
+        return $this->status === self::STATUS_DISABLED && $this->withdrawn_at === null;
     }
 
     public function scopePublished($query): void
