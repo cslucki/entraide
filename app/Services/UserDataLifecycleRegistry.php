@@ -115,6 +115,11 @@ class UserDataLifecycleRegistry
             //
             // La ligne ne porte aucun contenu (references seules), donc aucune
             // question d'anonymisation ne se pose : il n'y a rien a anonymiser.
+            // TASK-1375 — un reglage de notification est un ECART exprime par une
+            // personne sur ses propres envois. Il n'a aucun sens sans elle, ne
+            // sert a personne d'autre, et ne constitue aucune trace d'audit :
+            // il suit son auteur. FK NOT NULL ON DELETE CASCADE.
+            ['key' => 'member_notification_preferences_user_id', 'type' => 'sql', 'table' => 'member_notification_preferences', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'justification' => 'A notification preference is a personal choice about what a person receives: it has no meaning without them and serves no one else. The FK is NOT NULL ON DELETE CASCADE and the registry says so.'],
             ['key' => 'member_notifications_recipient_id', 'type' => 'sql', 'table' => 'member_notifications', 'column' => 'recipient_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'An in-app notification is addressed TO a person: it is an address, not a trace, and it carries no content of its own (references only). The FK is NOT NULL ON DELETE CASCADE and the registry says so.'],
             ['key' => 'member_notifications_actor_id', 'type' => 'sql', 'table' => 'member_notifications', 'column' => 'actor_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'The actor is an attribution, not the reason the row exists: the recipient notification must outlive whoever triggered it, so the author is simply detached (FK nullOnDelete).'],
             ['key' => 'messages_pinned_by_id', 'type' => 'sql', 'table' => 'messages', 'column' => 'pinned_by_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_transaction', 'justification' => 'Pin attribution can be detached.'],

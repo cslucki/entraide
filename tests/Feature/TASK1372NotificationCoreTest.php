@@ -106,7 +106,7 @@ class TASK1372NotificationCoreTest extends TestCase
         foreach (NotificationCatalogue::keys() as $cle) {
             $this->assertSame(
                 [NotificationCatalogue::CHANNEL_IN_APP],
-                NotificationCatalogue::definition($cle)['channels'],
+                NotificationCatalogue::channelsFor($cle),
                 "La cle [{$cle}] annonce un canal sans adaptateur : V1-A n'emet que IN_APP."
             );
         }

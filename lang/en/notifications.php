@@ -29,6 +29,16 @@ return [
 
     // Labels per catalogue key. Dots in the key become underscores:
     // `loop.invitation` -> `keys.loop_invitation`.
+    'preferences_title' => 'Notification settings',
+    'preferences_subtitle' => 'Choose what BouclePro sends you.',
+    'preferences_save' => 'Save',
+    'preferences_saved' => 'Your settings have been saved.',
+    'preferences_mandatory' => 'Always on',
+    'preferences_mandatory_hint' => 'This notification is addressed to you personally and calls for a reply: it cannot be turned off.',
+    'preferences_link' => 'Settings',
+    'preferences_back' => 'My notifications',
+    'channel_in_app' => 'In the app',
+
     'keys' => [
         'loop_invitation' => 'Invitation to join a Loop',
     ],
