@@ -6,9 +6,14 @@ use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopJoinRequest;
 use App\Models\LoopMember;
+use App\Models\MemberNotification;
 use App\Models\User;
+use App\Support\Notifications\NotificationCatalogue;
+use App\Support\Notifications\NotificationEmissionConflict;
+use App\Support\Notifications\NotificationEmitter;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
+use Ramsey\Uuid\Uuid;
 
 /**
  * Targeted e-mail invitations to a single Loop.
@@ -52,7 +57,7 @@ class LoopInvitationService
     {
         $email = LoopInvitation::normalizeEmail($email);
 
-        return DB::transaction(function () use ($loop, $sender, $email, $name, $message) {
+        $invitation = DB::transaction(function () use ($loop, $sender, $email, $name, $message) {
             $existing = LoopInvitation::where('loop_id', $loop->id)
                 ->where('recipient_email', $email)
                 ->lockForUpdate()
@@ -87,6 +92,138 @@ class LoopInvitationService
                 'status' => LoopInvitation::STATUS_PENDING,
             ]);
         });
+
+        // TASK-1374 — la notification IN_APP, une fois la ligne acquise.
+        //
+        // Ici et pas chez les appelants : `invite()` est le point d'entree
+        // unique des deux chemins de production (le controleur et la Card des
+        // membres), et aucun observer n'existe sur ce modele. L'email, lui,
+        // reste entierement chez les appelants — il n'est ni double ni touche.
+        $this->notifyRecipient($invitation, $sender);
+
+        return $invitation;
+    }
+
+    /**
+     * Prevenir le destinataire DANS l'application, quand c'en est un.
+     *
+     * Une invitation s'adresse a une ADRESSE EMAIL. Connaitre une adresse n'a
+     * jamais donne le droit de franchir une frontiere d'Organization : la
+     * notification n'existe que si cette adresse appartient a un membre **de
+     * cette meme Organization**.
+     *
+     * Inviter quelqu'un qui n'a pas de compte, ou qui appartient a un autre
+     * tenant, est un cas metier parfaitement NORMAL — l'email part, et rien
+     * d'autre ne se passe. C'est pourquoi ce chemin ne leve jamais : c'est le
+     * resolver qui filtre, et l'emetteur qui reste strict.
+     */
+    private function notifyRecipient(LoopInvitation $invitation, User $sender): void
+    {
+        $recipient = $this->resolveNotifiableRecipient($invitation);
+
+        if ($recipient === null) {
+            return;
+        }
+
+        $eventId = $this->notificationEventId($invitation);
+
+        try {
+            app(NotificationEmitter::class)->emit(
+                notificationKey: NotificationCatalogue::LOOP_INVITATION,
+                organization: (string) $invitation->organization_id,
+                recipient: $recipient,
+                eventId: $eventId,
+                objectType: NotificationCatalogue::objectTypeFor(NotificationCatalogue::LOOP_INVITATION),
+                objectId: (string) $invitation->id,
+                actor: $sender->organization_id === $invitation->organization_id ? $sender : null,
+            );
+        } catch (NotificationEmissionConflict $conflit) {
+            // Deux animateurs peuvent relancer la meme personne. `invite()`
+            // reutilise alors l'invitation en attente — donc le meme evenement —
+            // mais l'expediteur a change, et l'emetteur signale a juste titre que
+            // la ligne existante differe.
+            //
+            // C'est un flux metier ordinaire, pas une anomalie : la personne a
+            // deja ete prevenue, et le second appel ne doit surtout pas empecher
+            // l'appelant d'envoyer son email.
+            //
+            // La tolerance est DELIBEREMENT ici, et non dans l'emetteur. Decider
+            // quels conflits sont acceptables appartient au producteur qui
+            // connait son metier ; l'emetteur, lui, reste strict pour tout le
+            // monde. L'affaiblir globalement ferait payer a chaque futur
+            // producteur une exception qui n'appartient qu'a celui-ci.
+            if (! $this->alreadySignalled($invitation, $recipient, $eventId)) {
+                throw $conflit;
+            }
+        }
+    }
+
+    /**
+     * La personne a-t-elle DEJA ete prevenue du meme fait ?
+     *
+     * « Le meme fait » se verifie champ a champ, et **la seule difference
+     * toleree est l'acteur**. Tenant, destinataire, evenement, cle, type et
+     * identifiant d'objet, cle de regroupement : tout le reste doit coincider.
+     *
+     * Sans cette verification, le `catch` ci-dessus avalerait n'importe quel
+     * conflit — y compris celui qui signale une vraie confusion d'`event_id`,
+     * exactement ce que l'emetteur existe pour rendre bruyant.
+     */
+    private function alreadySignalled(LoopInvitation $invitation, User $recipient, string $eventId): bool
+    {
+        $existante = MemberNotification::query()
+            ->forRecipient((string) $invitation->organization_id, (string) $recipient->id)
+            ->where('event_id', $eventId)
+            ->first();
+
+        if ($existante === null) {
+            return false;
+        }
+
+        return $existante->notification_key === NotificationCatalogue::LOOP_INVITATION
+            && $existante->object_type === NotificationCatalogue::objectTypeFor(NotificationCatalogue::LOOP_INVITATION)
+            && $existante->object_id === (string) $invitation->id
+            && $existante->collapse_key === null;
+    }
+
+    /**
+     * L'adresse invitee correspond-elle a un membre de CETTE Organization ?
+     *
+     * Meme clause que `resolveType()` juste en dessous — c'est deliberе : les
+     * deux repondent a la meme question, et deux formulations qui divergeraient
+     * finiraient par ne plus dire la meme chose. Celle-ci rend le membre plutot
+     * qu'un booleen.
+     */
+    private function resolveNotifiableRecipient(LoopInvitation $invitation): ?User
+    {
+        return User::assignable()
+            ->where('organization_id', $invitation->organization_id)
+            ->whereRaw('LOWER(email) = ?', [LoopInvitation::normalizeEmail((string) $invitation->recipient_email)])
+            ->first();
+    }
+
+    /**
+     * L'identite de l'EVENEMENT de notification, derivee de l'invitation.
+     *
+     * Deterministe a dessein. Le drapeau `wasRecentlyCreated` aurait ete plus
+     * direct, mais la branche de reutilisation rend `$pending->fresh()` — et
+     * `fresh()` perd ce drapeau. Il serait donc faux exactement la ou on en
+     * aurait besoin.
+     *
+     * Un UUIDv5 n'a pas ce defaut : la meme invitation rend toujours le meme
+     * `event_id`, donc un rafraichissement se dedupe par la contrainte
+     * `UNIQUE(event_id, recipient_id)`. Une invitation NOUVELLE porte un autre
+     * identifiant, donc un autre evenement.
+     *
+     * Et il reste **distinct de `object_id`** : `event_id` designe le fait
+     * « on a prevenu », pas l'objet dont on parle.
+     */
+    private function notificationEventId(LoopInvitation $invitation): string
+    {
+        return (string) Uuid::uuid5(
+            Uuid::NAMESPACE_URL,
+            'bouclepro:notification:'.NotificationCatalogue::LOOP_INVITATION.':'.$invitation->id,
+        );
     }
 
     /**

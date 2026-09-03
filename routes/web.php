@@ -315,6 +315,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/notifications', [NotificationCenterController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/read-all', [NotificationCenterController::class, 'readAll'])->middleware('throttle:30,1')->name('notifications.read-all');
     Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
+    Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
 
     // Reports
     Route::post('/reports/service/{service}', [ReportController::class, 'storeService'])->middleware('throttle:5,1')->name('reports.service');
@@ -780,6 +781,7 @@ Route::prefix('/org/{organization}')
             Route::get('/notifications', [NotificationCenterController::class, 'index'])->name('notifications.index');
             Route::post('/notifications/read-all', [NotificationCenterController::class, 'readAll'])->middleware('throttle:30,1')->name('notifications.read-all');
             Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
+            Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
 
             Route::post('/reports/service/{service}', [ReportController::class, 'orgStoreService'])->middleware('throttle:5,1')->name('reports.service');
             Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'orgStoreRequest'])->middleware('throttle:5,1')->name('reports.request');

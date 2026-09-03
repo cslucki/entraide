@@ -582,6 +582,33 @@ class TASK1373NotificationCenterTest extends TestCase
             ->assertSee(__('notifications.keys.loop_invitation'));
     }
 
+    /**
+     * **Le Centre est atteignable sur MOBILE.**
+     *
+     * Le rail est `hidden md:flex` : il n'existe pas sous 768px. Sans une entree
+     * dans une surface mobile, un membre qui recoit une notification sur
+     * telephone ne voit rien et ne peut rien ouvrir — la fonctionnalite serait
+     * livree inatteignable pour une part des membres.
+     *
+     * La recette navigateur l'a mesure a 390px : zero lien visible avant cette
+     * correction. Ce test verrouille la surface, le rendu responsive restant du
+     * ressort de la recette.
+     */
+    public function test_the_center_is_reachable_from_the_mobile_surface(): void
+    {
+        $this->emettre(destinataire: $this->alice);
+
+        $html = $this->actingAs($this->alice)->get(route('notifications.index'))->assertOk()->getContent();
+
+        // Le topbar mobile est monte sur toutes les pages membres.
+        $this->assertStringContainsString('data-mobile-notifications-unread="1"', $html);
+        $this->assertGreaterThanOrEqual(
+            2,
+            substr_count($html, 'href="'.route('notifications.index').'"'),
+            'Le Centre doit etre atteignable depuis le rail ET depuis la surface mobile.'
+        );
+    }
+
     /** L'entree de navigation pointe vers le Centre. */
     public function test_the_navigation_entry_points_to_the_center(): void
     {

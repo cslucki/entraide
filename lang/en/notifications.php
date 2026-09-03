@@ -23,6 +23,8 @@ return [
     'filter_empty_body' => 'No unread notifications right now.',
 
     // Read state
+    'target_unreachable' => 'This item is no longer available.',
+    'open' => 'Open',
     'unread_badge' => 'Unread',
 
     // Labels per catalogue key. Dots in the key become underscores:

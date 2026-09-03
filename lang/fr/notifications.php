@@ -18,17 +18,19 @@ return [
     // la seconde « rien ICI, mais ailleurs oui ». Les confondre laisserait
     // croire a une boite vide alors qu'elle ne l'est pas.
     'empty_title' => 'Aucune notification',
-    'empty_body' => 'Vous serez prevenu ici quand quelque chose vous concernera.',
+    'empty_body' => 'Vous serez prévenu ici quand quelque chose vous concernera.',
     'filter_empty_title' => 'Tout est lu',
     'filter_empty_body' => 'Aucune notification non lue pour le moment.',
 
     // L'etat de lecture
+    'target_unreachable' => "Cet élément n'est plus accessible.",
+    'open' => 'Ouvrir',
     'unread_badge' => 'Non lue',
 
     // Les libelles par cle du catalogue. Les points de la cle deviennent des
     // tirets bas : `loop.invitation` -> `keys.loop_invitation`.
     'keys' => [
-        'loop_invitation' => 'Invitation a rejoindre une Boucle',
+        'loop_invitation' => 'Invitation à rejoindre une Boucle',
     ],
 
     // Repli quand une cle du catalogue n'a pas encore de libelle. Il ne doit

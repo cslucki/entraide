@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\MemberNotification;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\Notifications\NotificationTargetResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -80,18 +81,57 @@ class NotificationCenterController extends Controller
             'nonLues' => $user->unreadNotificationsCount((string) $organization->id),
             'routeParams' => $slug ? ['organization' => $slug] : [],
             'routeRead' => $slug ? 'organization.notifications.read' : 'notifications.read',
+            'routeOpen' => $slug ? 'organization.notifications.open' : 'notifications.open',
             'routeReadAll' => $slug ? 'organization.notifications.read-all' : 'notifications.read-all',
         ]);
     }
 
-    public function read(Request $request, string $notification): RedirectResponse
+    public function read(Request $request): RedirectResponse
     {
         [$user, $organization] = $this->acteur($request);
 
-        $this->resoudre($notification, (string) $organization->id, (string) $user->id)
+        $this->resoudre($this->identifiant($request), (string) $organization->id, (string) $user->id)
             ->markAsReadFor((string) $organization->id, (string) $user->id);
 
         return back();
+    }
+
+    /**
+     * Ouvrir une notification : la marquer lue, PUIS resoudre sa cible.
+     *
+     * ## Un POST, pas un lien
+     *
+     * Ouvrir mute l'etat de lecture. Un GET qui mute est un GET qui se rejoue —
+     * par un prefetch, un scanner de liens, un bouton « precedent ». Le clic est
+     * donc un formulaire, comme les deux autres actions de cet ecran.
+     *
+     * ## L'ordre n'est pas negociable
+     *
+     * 1. verifier que la notification appartient a ce membre, dans ce tenant ;
+     * 2. la marquer lue ;
+     * 3. resoudre la reference sous les permissions ACTUELLES ;
+     * 4. rediriger, ou dire honnetement que la cible n'est plus accessible.
+     *
+     * **Le marquage vient AVANT la resolution, et il tient meme quand la cible a
+     * disparu.** C'est contre-intuitif une seconde, puis evident : le membre a
+     * pris connaissance du signal, et l'application lui a repondu. Laisser la
+     * notification non lue condamnerait le badge a signaler indefiniment quelque
+     * chose de deja traite — et un badge qui ment est pire qu'un badge absent,
+     * parce qu'on cesse de le regarder.
+     */
+    public function open(Request $request, NotificationTargetResolver $resolver): RedirectResponse
+    {
+        [$user, $organization] = $this->acteur($request);
+
+        $ligne = $this->resoudre($this->identifiant($request), (string) $organization->id, (string) $user->id);
+
+        $ligne->markAsReadFor((string) $organization->id, (string) $user->id);
+
+        $cible = $resolver->resolve($ligne);
+
+        return $cible === null
+            ? back()->with('notification_unreachable', __('notifications.target_unreachable'))
+            : redirect()->to($cible);
     }
 
     /**
@@ -115,6 +155,22 @@ class NotificationCenterController extends Controller
             ));
 
         return back();
+    }
+
+    /**
+     * L'identifiant de la notification, lu EXPLICITEMENT sur la route.
+     *
+     * Le prendre en argument de methode revenait a dependre de la facon dont le
+     * framework apparie les parametres — et la variante org-scopee porte un
+     * segment `{organization}` avant lui. Le lire par son nom ne laisse aucune
+     * place a cette question.
+     *
+     * Defaut a chaine vide plutot qu'a `null` : la garde de forme qui suit s'en
+     * charge, et rend 404 comme pour n'importe quelle valeur invalide.
+     */
+    private function identifiant(Request $request): string
+    {
+        return (string) $request->route('notification');
     }
 
     /**

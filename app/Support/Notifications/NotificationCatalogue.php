@@ -47,12 +47,20 @@ final class NotificationCatalogue
     public const LOOP_INVITATION = 'loop.invitation';
 
     /**
+     * Le type d'objet de cette cle, expose comme constante.
+     *
+     * Le resolver de cible en a besoin pour brancher. Le lire ici plutot que de
+     * reecrire la chaine ailleurs evite qu'une seconde verite s'installe.
+     */
+    public const OBJECT_LOOP_INVITATION = 'loop_invitation';
+
+    /**
      * @var array<string, array{category: string, object_type: string, channels: list<string>}>
      */
     private const ENTRIES = [
         self::LOOP_INVITATION => [
             'category' => 'loop',
-            'object_type' => 'loop_invitation',
+            'object_type' => self::OBJECT_LOOP_INVITATION,
             'channels' => [self::CHANNEL_IN_APP],
         ],
     ];

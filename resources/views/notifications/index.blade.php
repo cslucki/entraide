@@ -33,6 +33,16 @@
     <x-slot name="title">{{ __('notifications.title') }}</x-slot>
 
     <x-page-container>
+        @if(session('notification_unreachable'))
+            {{-- L'etat honnete : generique, sans un fragment de ce que la cible
+                 contenait. Il n'y a rien d'ancien a reafficher — le stockage ne
+                 retient aucun contenu. --}}
+            <div data-notification-unreachable
+                 class="mb-5 rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-3 text-sm text-[var(--bp-muted)]">
+                {{ session('notification_unreachable') }}
+            </div>
+        @endif
+
         <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-[var(--bp-text)]">{{ __('notifications.title') }}</h1>
@@ -98,6 +108,18 @@
                         </div>
 
                         <div class="flex shrink-0 items-center gap-3">
+                            {{-- Ouvrir est un POST : le geste marque lu, et un GET
+                                 qui mute se rejoue — prefetch, scanner de liens,
+                                 bouton precedent. --}}
+                            <form method="POST" action="{{ route($routeOpen, $routeParams + ['notification' => $notification->id]) }}">
+                                @csrf
+                                <button type="submit"
+                                        data-notification-open="{{ $notification->id }}"
+                                        class="min-h-11 text-sm font-semibold text-[var(--bp-primary)] transition hover:underline">
+                                    {{ __('notifications.open') }}
+                                </button>
+                            </form>
+
                             @unless($notification->isRead())
                                 <span class="rounded-full bg-red-500/10 px-2 py-0.5 text-[11px] font-bold text-red-600 dark:text-red-400">
                                     {{ __('notifications.unread_badge') }}
