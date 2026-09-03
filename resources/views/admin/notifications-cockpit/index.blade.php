@@ -235,7 +235,7 @@
             <h2 class="text-base font-semibold text-gray-800 dark:text-gray-200 mb-3">Preuve historique</h2>
             <dl class="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
                 <div class="flex justify-between gap-3">
-                    <dt class="text-gray-500 dark:text-gray-400">Emails tracés</dt>
+                    <dt class="text-gray-500 dark:text-gray-400">Emails du pipeline</dt>
                     <dd data-preuves-total class="font-semibold text-gray-900 dark:text-gray-100">{{ $preuves['total'] }}</dd>
                 </div>
                 <div class="flex justify-between gap-3">
@@ -254,7 +254,18 @@
             <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
                 <span data-preuves-corps>{{ $preuves['corps_archive'] }}</span> de ces envois ont un corps archivé.
                 Seule sa <strong>présence</strong> est comptée : le corps lui-même n'est jamais affiché.
-                <a href="{{ route('admin.email-logs') }}" class="underline">Consulter l'historique détaillé</a>.
+            </p>
+
+            {{-- TASK-1383 — ce que ce compte ne couvre PAS, dit ici plutôt que
+                 laissé à découvrir en comparant deux totaux qui divergent. --}}
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                <span data-preuves-hors-pipeline class="font-semibold text-gray-900 dark:text-gray-100">{{ $preuves['hors_pipeline'] }}</span>
+                autres emails tracés ne passent pas par cette verticale : ce sont des notifications
+                applicatives historiques (bienvenue, message reçu, changement de statut d'un échange,
+                budget IA dépassé). Elles n'obéissent pas aux mêmes règles d'expurgation et ne sont donc
+                <strong>pas</strong> comptées avec les précédentes — elles apparaissent en revanche dans
+                <a href="{{ route('admin.email-logs') }}" class="underline">l'historique détaillé</a>,
+                qui les montre toutes.
             </p>
         </div>
 
@@ -266,6 +277,11 @@
                 <li>Aucun corps de message, aucun sujet, aucun objet métier — seuls des compteurs.</li>
                 <li>Aucun contenu de file d'attente : la charge d'un job n'est jamais affichée.</li>
                 <li>Aucun identifiant, aucun jeton, aucune donnée de transport — même masqués.</li>
+                <li>
+                    Pas l'ensemble du trafic email de la plateforme : cet écran supervise la
+                    <strong>verticale Notifications</strong>. Les notifications applicatives historiques
+                    sont comptées à part, jamais détaillées.
+                </li>
             </ul>
             <p class="mt-3 text-xs text-gray-400 dark:text-gray-500">
                 Les préférences des membres ne sont pas ventilées par organisation : elles
