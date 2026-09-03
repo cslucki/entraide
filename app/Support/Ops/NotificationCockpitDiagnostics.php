@@ -276,6 +276,31 @@ final class NotificationCockpitDiagnostics
      * Restreinte aux lignes du pipeline — `notification_id` renseigne. Les
      * autres lignes d'`email_logs` viennent d'appelants dont le contenu n'obeit
      * pas aux memes regles, et n'ont rien a faire dans un cockpit Notifications.
+     *
+     * ## TASK-1383 — le filtre reste, le silence s'arrete
+     *
+     * `email_logs` a DEUX producteurs, et ils n'ecrivent pas la meme chose :
+     *
+     * - le livreur du pipeline (`NotificationEmailDeliverer`), qui renseigne
+     *   `notification_id`, expurge le corps archive et distingue trois issues ;
+     * - un ecouteur de `NotificationSent` (`AppServiceProvider`), qui trace les
+     *   `Notification` Laravel — bienvenue, message recu, changement de statut
+     *   d'echange, budget IA depasse. Il n'ecrit jamais `notification_id` et
+     *   force `status` a `sent`.
+     *
+     * Les fondre donnerait un total qui ne voudrait rien dire : deux disciplines
+     * d'expurgation differentes, et un `sent` qui n'a pas ete constate de la
+     * meme facon. Le filtre est donc GARDE.
+     *
+     * Ce qui change, c'est le silence autour. L'ecran affichait « Emails
+     * traces » et renvoyait vers un historique detaille qui, lui, montre TOUT :
+     * un exploitant comparant les deux totaux voyait un ecart inexplicable, et
+     * pouvait en conclure que la supervision perd des envois. On compte donc
+     * l'autre moitie A PART, et on la nomme.
+     *
+     * Un compte, rien d'autre. Aucune ligne hors pipeline n'est lue ni
+     * affichee : leur contenu n'obeit pas aux regles de cet ecran, et le
+     * compter ne donne pas le droit de le montrer.
      */
     private function preuves(): array
     {
@@ -288,6 +313,7 @@ final class NotificationCockpitDiagnostics
             'ambigues' => $base()->where('status', EmailLog::STATUS_AMBIGUOUS)->count(),
             // On ne lit que la PRESENCE du corps archive, jamais son contenu.
             'corps_archive' => $base()->whereNotNull('body_html')->count(),
+            'hors_pipeline' => EmailLog::query()->whereNull('notification_id')->count(),
         ];
     }
 
