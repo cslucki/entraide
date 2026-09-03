@@ -44,6 +44,21 @@ final class NotificationCatalogue
 {
     public const CHANNEL_IN_APP = 'in_app';
 
+    /**
+     * TASK-1377 — le canal EMAIL EXISTE, et AUCUNE cle ne l'autorise encore.
+     *
+     * Ce n'est pas une incoherence, c'est la tranche : P5 livre la mecanique de
+     * livraison asynchrone — table d'etat, prise de travail atomique, worker,
+     * preuve dans `email_logs` — sans l'activer sur quoi que ce soit.
+     *
+     * Activer EMAIL sur `loop.invitation` appartient a P6, et cette ligne le dit
+     * plutot que de laisser croire a un oubli. Le catalogue continue de ne
+     * declarer que ce qui EXISTE : la constante nomme un canal dont l'adaptateur
+     * est desormais reel ; `ENTRIES` reste seul juge de qui a le droit de s'en
+     * servir.
+     */
+    public const CHANNEL_EMAIL = 'email';
+
     public const LOOP_INVITATION = 'loop.invitation';
 
     /**
