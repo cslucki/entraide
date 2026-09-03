@@ -36,13 +36,17 @@ use Illuminate\View\View;
  * rail utilise la MEME expression — sinon le badge et la page se
  * contrediraient.
  *
- * ## Cette tranche ne resout pas encore les objets
+ * ## Les objets SONT resolus, au clic
  *
  * Une notification ne porte que des references (`object_type` + `object_id`).
- * Les resoudre en lien profond, re-verifier la permission au clic et afficher
- * un etat honnete quand la cible a disparu appartient a la tranche qui branchera
- * le premier producteur reel. Ici le Centre montre ce qui existe, sans pretendre
- * y donner acces.
+ * `open()` les resout via `NotificationTargetResolver`, sous les permissions du
+ * moment, et affiche un etat honnete quand la cible a disparu.
+ *
+ * TASK-1382 — ce paragraphe disait l'inverse (« cette tranche ne resout pas
+ * encore les objets »), ce qui a cesse d'etre vrai des TASK-1374. Il decrivait
+ * l'etat du jour ou il a ete ecrit, pas celui du code qu'il documente. Un
+ * commentaire perime ne vieillit pas : il devient faux, et il oriente la
+ * relecture suivante contre le code.
  */
 class NotificationCenterController extends Controller
 {
@@ -52,7 +56,7 @@ class NotificationCenterController extends Controller
 
     private const PAR_PAGE = 25;
 
-    public function index(Request $request): View
+    public function index(Request $request): View|RedirectResponse
     {
         [$user, $organization] = $this->acteur($request);
 
@@ -70,13 +74,35 @@ class NotificationCenterController extends Controller
             $query->unread();
         }
 
+        $notifications = $query->paginate(self::PAR_PAGE)->withQueryString();
+
+        // TASK-1382 — une page hors borne ne doit pas se faire passer pour un
+        // etat vide.
+        //
+        // Le scenario est ordinaire : un membre a 30 non-lues, va page 2, en
+        // ouvre six. Il en reste 24, donc UNE page — et la page 2 devient hors
+        // borne. `paginate()` rend alors une collection vide sans rien
+        // signaler, et la vue conclut « Tout est lu » pendant que le badge du
+        // rail affiche 24.
+        //
+        // Les deux lisent pourtant la meme base : ce n'est pas un desaccord de
+        // donnees, c'est la page vide qui est interpretee comme un vide reel.
+        // Et un badge contredit par l'ecran qu'il pointe est un badge qu'on
+        // cesse de regarder.
+        //
+        // La redirection preserve la chaine de requete — donc le filtre —
+        // sinon corriger la page changerait aussi ce que le membre regardait.
+        if ($notifications->isEmpty() && $notifications->total() > 0) {
+            return redirect()->to($notifications->url($notifications->lastPage()));
+        }
+
         // Les noms de route sont resolus ICI. Les laisser a la vue l'obligerait
         // a re-deviner le contexte org-scope a chaque bouton, et une vue qui
         // devine est une vue qui se trompera.
         $slug = $request->route('organization');
 
         return view('notifications.index', [
-            'notifications' => $query->paginate(self::PAR_PAGE)->withQueryString(),
+            'notifications' => $notifications,
             'filtre' => $filtre,
             'nonLues' => $user->unreadNotificationsCount((string) $organization->id),
             'routeParams' => $slug ? ['organization' => $slug] : [],
