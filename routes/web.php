@@ -76,6 +76,7 @@ use App\Http\Controllers\MemberAiProfileConversationsController;
 use App\Http\Controllers\MemberAiProfileInteractionController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MyceliumController;
+use App\Http\Controllers\NotificationCenterController;
 use App\Http\Controllers\OrganizationLandingController;
 use App\Http\Controllers\OrganizationRequestController;
 use App\Http\Controllers\PointController;
@@ -305,6 +306,15 @@ Route::middleware('auth')->group(function () {
     // Favorites
     Route::get('/favorites', [FavoriteController::class, 'index'])->name('favorites.index');
     Route::post('/favorites/{service}/toggle', [FavoriteController::class, 'toggle'])->middleware('throttle:30,1')->name('favorites.toggle');
+
+    // TASK-1373 — Centre de notifications. La route RACINE doit exister meme
+    // quand une version org-scopee est disponible : le helper d'URL du rail
+    // retombe sur `route('notifications.index')` des qu'il n'y a pas de slug, et
+    // une route absente y leverait une RouteNotFoundException sur TOUTE page.
+    // Regime `auth` seul, comme Favoris, Points et Invitations.
+    Route::get('/notifications', [NotificationCenterController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/read-all', [NotificationCenterController::class, 'readAll'])->middleware('throttle:30,1')->name('notifications.read-all');
+    Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
 
     // Reports
     Route::post('/reports/service/{service}', [ReportController::class, 'storeService'])->middleware('throttle:5,1')->name('reports.service');
@@ -766,6 +776,10 @@ Route::prefix('/org/{organization}')
 
             Route::get('/favorites', [FavoriteController::class, 'index'])->name('favorites.index');
             Route::post('/favorites/{service}/toggle', [FavoriteController::class, 'toggle'])->middleware('throttle:30,1')->middleware('consume.org')->name('favorites.toggle');
+
+            Route::get('/notifications', [NotificationCenterController::class, 'index'])->name('notifications.index');
+            Route::post('/notifications/read-all', [NotificationCenterController::class, 'readAll'])->middleware('throttle:30,1')->name('notifications.read-all');
+            Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
 
             Route::post('/reports/service/{service}', [ReportController::class, 'orgStoreService'])->middleware('throttle:5,1')->name('reports.service');
             Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'orgStoreRequest'])->middleware('throttle:5,1')->name('reports.request');

@@ -8,6 +8,21 @@
     $organizationRouteParam = request()->route('organization') ?: (auth()->check() ? $menuOrganization?->slug : null);
     $usesDefaultOrganizationRoute = (bool) $menuOrganization?->is_default;
     $unreadMessagesCount = auth()->check() ? auth()->user()->unreadMessagesCount() : 0;
+
+    // TASK-1373 — le compteur de notifications non lues.
+    //
+    // L'Organization du MEMBRE d'abord, et dans cet ordre : sur la route non
+    // prefixee, l'« Organization courante » est celle par defaut de la
+    // plateforme, et le badge compterait alors les notifications d'un tenant
+    // qui n'est pas le sien. C'est la MEME expression que
+    // NotificationCenterController::acteur() — si les deux divergeaient, le
+    // badge et la page se contrediraient.
+    $notificationsOrganization = auth()->check()
+        ? (auth()->user()->organization ?? $currentOrganization)
+        : null;
+    $unreadNotificationsCount = $notificationsOrganization
+        ? auth()->user()->unreadNotificationsCount((string) $notificationsOrganization->id)
+        : 0;
     $canSeeFlux = auth()->check() && auth()->user()->can('create', \App\Models\FeedPost::class);
     $loopsEnabled = $currentOrganization?->loops_enabled ?? $menuOrganization?->loops_enabled ?? true;
     $bugReportUrl = $organizationRouteParam && Route::has('organization.bug-reports.index')
@@ -109,6 +124,20 @@
             'hint' => __('navigation.messages'),
             'icon' => 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z',
             'badge' => $unreadMessagesCount,
+        ],
+        [
+            // `active` porte les DEUX noms : la comparaison est une egalite
+            // stricte ou un prefixe suivi d'un point, donc 'notifications' ne
+            // matche pas 'organization.notifications.index'. Et cette cle est
+            // lue SANS `??` plus bas : l'omettre casserait le rail sur toutes
+            // les pages, pas seulement sur celle-ci.
+            'key' => 'notifications',
+            'url' => $routeUrl('notifications.index', 'organization.notifications.index'),
+            'active' => ['notifications', 'organization.notifications'],
+            'label' => __('navigation.notifications'),
+            'hint' => __('navigation.notifications_hint'),
+            'icon' => 'M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
+            'badge' => $unreadNotificationsCount,
         ],
         [
             'url' => $routeUrl('members.index', 'organization.members.index'),
@@ -287,7 +316,13 @@
                             <path d="{{ $item['icon'] }}" />
                         </svg>
                         @if(($item['badge'] ?? 0) > 0)
-                            <span class="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold leading-none text-white ring-2 ring-[var(--bp-surface)]">
+                            {{-- TASK-1373 — `data-nav-badge-{cle}` porte la valeur BRUTE.
+                                 Le texte visible, lui, est plafonne a « 9+ » : l'asserter
+                                 reviendrait a tester le plafond, pas le compte. Et un
+                                 `assertSee('3')` nu passerait pour n'importe quel « 3 » de
+                                 la page. L'attribut est la seule mesure honnete des deux. --}}
+                            <span @if(isset($item['key'])) data-nav-badge-{{ $item['key'] }}="{{ $item['badge'] }}" @endif
+                                  class="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold leading-none text-white ring-2 ring-[var(--bp-surface)]">
                                 {{ $item['badge'] > 9 ? '9+' : $item['badge'] }}
                             </span>
                         @endif
