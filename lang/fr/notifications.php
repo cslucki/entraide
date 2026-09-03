@@ -46,4 +46,30 @@ return [
     // Repli quand une cle du catalogue n'a pas encore de libelle. Il ne doit
     // jamais afficher la cle technique : elle ne veut rien dire pour un membre.
     'key_fallback' => 'Notification',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Emails de notification (TASK-1378)
+    |--------------------------------------------------------------------------
+    |
+    | Le sous-tableau est nomme d'apres la cle du catalogue, POINTS REMPLACES :
+    | `loop.invitation` devient `loop_invitation`. Un point y serait lu comme
+    | une hierarchie de groupes par le resolveur de traductions, et la cle
+    | deviendrait introuvable pour une raison sans rapport avec son contenu.
+    |
+    | `:url` est rendu DEUX FOIS par le livreur : avec la vraie adresse pour
+    | l'envoi, avec un marqueur expurge pour l'archivage. Ne pas construire de
+    | lien en dur ici : ce sont ces deux rendus qui protegent le jeton.
+    |
+    */
+    'email' => [
+        'loop_invitation' => [
+            'subject' => 'Vous êtes invité à rejoindre une boucle',
+            'body' => '<p>Bonjour,</p>'
+                .'<p>Vous êtes invité à rejoindre une boucle sur BouclePro.</p>'
+                .'<p><a href=":url">Voir l\'invitation</a></p>'
+                .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
+                .'<p>À bientôt,<br>L\'équipe BouclePro</p>',
+        ],
+    ],
 ];

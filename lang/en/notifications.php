@@ -46,4 +46,30 @@ return [
     // Fallback when a catalogue key has no label yet. It must never show the
     // technical key: that means nothing to a member.
     'key_fallback' => 'Notification',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Notification emails (TASK-1378)
+    |--------------------------------------------------------------------------
+    |
+    | The sub-array is named after the catalogue key with DOTS REPLACED:
+    | `loop.invitation` becomes `loop_invitation`. A dot would be read as a
+    | group hierarchy by the translation resolver, making the key unreachable
+    | for a reason unrelated to its content.
+    |
+    | `:url` is rendered TWICE by the deliverer: with the real address for the
+    | send, with a redacted marker for archiving. Do not hard-code a link here:
+    | those two renders are what protect the token.
+    |
+    */
+    'email' => [
+        'loop_invitation' => [
+            'subject' => 'You have been invited to join a loop',
+            'body' => '<p>Hello,</p>'
+                .'<p>You have been invited to join a loop on BouclePro.</p>'
+                .'<p><a href=":url">View the invitation</a></p>'
+                .'<p>If the link does not work, copy this address into your browser:<br>:url</p>'
+                .'<p>See you soon,<br>The BouclePro team</p>',
+        ],
+    ],
 ];

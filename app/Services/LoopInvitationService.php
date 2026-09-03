@@ -227,6 +227,50 @@ class LoopInvitationService
     }
 
     /**
+     * TASK-1378 — le pipeline Notifications prend-il en charge CET email ?
+     *
+     * ## Une seule autorite decide qui envoie
+     *
+     * Sans elle, deux chemins pourraient envoyer le meme message : le nouveau
+     * pipeline pour les membres, et le mailer legacy pour tout le monde. Cette
+     * methode est la reponse unique, et `LoopInvitationMailer` s'y remet.
+     *
+     * ## Deux conditions, et les DEUX comptent
+     *
+     * 1. Le catalogue autorise EMAIL sur cette cle. C'est ce qui rend le cutover
+     *    REVERSIBLE : retirer `email` du catalogue rend aussitot la main au
+     *    legacy, sans toucher une ligne de code ici.
+     * 2. L'adresse invitee appartient a un membre de CETTE Organization. Un
+     *    inconnu, ou quelqu'un d'un autre tenant, n'a pas de notification —
+     *    donc pas de livraison EMAIL, donc le legacy reste seul a pouvoir le
+     *    joindre.
+     *
+     * ## Recalcule EN VIF, jamais lu dans `invitation_type`
+     *
+     * La colonne est figee a la CREATION, et une invitation en attente peut etre
+     * reutilisee des jours plus tard. Si la personne a rejoint l'Organization
+     * entre-temps, la colonne dirait encore `external` alors que la notification
+     * serait bien creee — et les DEUX chemins enverraient. Si elle en est
+     * partie, la colonne dirait `existing_member` alors qu'aucune notification
+     * n'existe — et PERSONNE n'enverrait.
+     *
+     * La clause est donc la MEME que celle qui decide de creer la notification,
+     * evaluee au meme instant. C'est ce qui garantit « exactement un email » par
+     * construction plutot que par coincidence.
+     */
+    public function emailHandledByNotifications(LoopInvitation $invitation): bool
+    {
+        if (! NotificationCatalogue::allowsChannel(
+            NotificationCatalogue::LOOP_INVITATION,
+            NotificationCatalogue::CHANNEL_EMAIL
+        )) {
+            return false;
+        }
+
+        return $this->resolveNotifiableRecipient($invitation) !== null;
+    }
+
+    /**
      * `existing_member` when the address already belongs to an assignable user
      * of this Loop's Organization — the mail then links straight to the landing
      * page instead of offering to create an account.
