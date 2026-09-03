@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\EmailLog;
 use App\Models\Organization;
+use App\Support\Ops\MailDiagnostics;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -12,12 +13,19 @@ use Illuminate\View\View;
 
 class AdminEmailController extends Controller
 {
-    public function index(): View
+    public function index(MailDiagnostics $diagnostics): View
     {
-        $mailer = config('mail.default');
-        $fromAddress = config('mail.from.address');
+        $transport = $diagnostics->transport();
 
-        return view('admin.email-test.index', compact('mailer', 'fromAddress'));
+        return view('admin.email-test.index', [
+            'transport' => $transport,
+            // Conserves pour ne rien casser de l'existant : la vue s'en sert
+            // encore, et les remplacer n'apporterait rien a cette tranche.
+            'mailer' => $transport['mailer'],
+            'fromAddress' => $transport['from_address'],
+            'mailhogCount' => $diagnostics->mailhogMessageCount(),
+            'mailhogUrl' => $diagnostics->mailhogUrl(),
+        ]);
     }
 
     public function send(Request $request): RedirectResponse
