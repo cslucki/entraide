@@ -10,10 +10,15 @@ use App\Models\User;
 use App\Services\Loops\LoopRootDocumentService;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
+use App\Support\Notifications\NotificationCatalogue;
+use App\Support\Notifications\NotificationEmissionConflict;
+use App\Support\Notifications\NotificationEmitter;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Ramsey\Uuid\Uuid;
 
 class LoopService
 {
@@ -199,14 +204,33 @@ class LoopService
                 continue;
             }
 
-            LoopJoinRequest::where('loop_id', $loop->id)
+            // TASK-1381 — les demandes sont RELUES avant d'etre decidees, au
+            // lieu d'etre mises a jour en masse a l'aveugle.
+            //
+            // Un `update()` de query builder n'emet aucun evenement Eloquent et
+            // ne rend que le nombre de lignes touchees : il ne dirait pas QUELLE
+            // demande vient d'etre acceptee, donc rien ne pourrait etre notifie.
+            // Ce chemin d'ajout en masse resout pourtant de vraies demandes en
+            // attente — pour le demandeur, c'est exactement le meme fait que
+            // depuis l'ecran de decision, et il merite la meme notification.
+            $demandesEnAttente = LoopJoinRequest::where('loop_id', $loop->id)
                 ->where('user_id', $userId)
                 ->where('status', LoopJoinRequest::STATUS_PENDING)
-                ->update([
+                ->get();
+
+            foreach ($demandesEnAttente as $demande) {
+                $demande->update([
                     'status' => LoopJoinRequest::STATUS_ACCEPTED,
                     'decided_by' => $actor->id,
                     'decided_at' => now(),
                 ]);
+
+                $this->notifierDecisionDAdhesion(
+                    $demande,
+                    NotificationCatalogue::LOOP_JOIN_REQUEST_ACCEPTED,
+                    $actor,
+                );
+            }
         }
 
         return ['added' => $added, 'skipped' => $skipped];
@@ -357,7 +381,7 @@ class LoopService
 
     public function acceptJoinRequest(LoopJoinRequest $joinRequest, User $decidedBy): LoopMember
     {
-        return DB::transaction(function () use ($joinRequest, $decidedBy) {
+        $member = DB::transaction(function () use ($joinRequest, $decidedBy) {
             $joinRequest = LoopJoinRequest::where('id', $joinRequest->id)->lockForUpdate()->firstOrFail();
 
             if (! $joinRequest->isPending()) {
@@ -392,6 +416,15 @@ class LoopService
 
             return $member;
         });
+
+        // APRES le commit, jamais dedans. Voir `notifierDecisionDAdhesion()`.
+        $this->notifierDecisionDAdhesion(
+            $joinRequest->fresh() ?? $joinRequest,
+            NotificationCatalogue::LOOP_JOIN_REQUEST_ACCEPTED,
+            $decidedBy,
+        );
+
+        return $member;
     }
 
     public function rejectJoinRequest(LoopJoinRequest $joinRequest, User $decidedBy): void
@@ -409,6 +442,107 @@ class LoopService
                 'decided_at' => now(),
             ]);
         });
+
+        $this->notifierDecisionDAdhesion(
+            $joinRequest->fresh() ?? $joinRequest,
+            NotificationCatalogue::LOOP_JOIN_REQUEST_REJECTED,
+            $decidedBy,
+        );
+    }
+
+    /**
+     * TASK-1381 — prevenir le demandeur qu'une decision a ete prise.
+     *
+     * ## Appelee APRES le commit, et c'est structurel
+     *
+     * `MemberNotification` applique ses invariants dans `creating` : un
+     * destinataire qui a quitte l'Organization entre sa demande et la decision
+     * fait lever une `InvalidArgumentException`. A l'interieur du
+     * `DB::transaction()` metier, cette exception annulerait l'adhesion
+     * elle-meme — l'effet de bord ferait echouer le fait. Et le bouton
+     * echouerait a l'identique indefiniment.
+     *
+     * Le module protege deja la transaction de l'appelant par des points de
+     * sauvegarde, donc PostgreSQL ne resterait pas abandonne ; ce qu'il ne peut
+     * pas empecher, c'est la propagation. Le producteur doit donc se placer
+     * dehors. C'est exactement ce que fait le producteur d'invitations.
+     *
+     * ## Et elle ne remonte AUCUNE exception
+     *
+     * Le contrôleur enveloppe l'appel dans `catch (\RuntimeException)` pour
+     * afficher « cette demande a deja ete tranchee ».
+     * `NotificationEmissionConflict` descend de `RuntimeException` : sans le
+     * `catch` ci-dessous, un conflit d'emission s'afficherait a l'animateur
+     * comme un message d'ERREUR technique en anglais — alors que l'adhesion
+     * vient de reussir. Les deux causes deviendraient indistinguables.
+     *
+     * Plus generalement : la decision est COMMITEE. Rien de ce qui se passe
+     * ensuite n'a le droit de la faire passer pour un echec. L'echec est trace
+     * dans les journaux, ou il est diagnosticable, plutot que rendu a un
+     * utilisateur qui n'y peut rien.
+     *
+     * ## L'acteur est verifie, pas suppose
+     *
+     * `decided_by` peut designer quelqu'un qui a quitte l'Organization depuis —
+     * l'acceptation d'invitation ecrit `sender_id`. Les invariants refusent un
+     * acteur hors tenant ; on rend donc la notification anonyme plutot que de
+     * la faire echouer. Meme forme que pour les invitations.
+     */
+    private function notifierDecisionDAdhesion(
+        LoopJoinRequest $joinRequest,
+        string $notificationKey,
+        User $decidedBy,
+    ): void {
+        $destinataire = User::find($joinRequest->user_id);
+
+        if ($destinataire === null) {
+            return;
+        }
+
+        try {
+            app(NotificationEmitter::class)->emit(
+                notificationKey: $notificationKey,
+                organization: (string) $joinRequest->organization_id,
+                recipient: $destinataire,
+                eventId: $this->identifiantEvenementDecision($joinRequest, $notificationKey),
+                objectType: NotificationCatalogue::objectTypeFor($notificationKey),
+                objectId: (string) $joinRequest->id,
+                actor: $decidedBy->organization_id === $joinRequest->organization_id ? $decidedBy : null,
+            );
+        } catch (NotificationEmissionConflict) {
+            // La personne a deja ete prevenue de ce fait. Un rejeu n'est pas une
+            // anomalie, et surtout pas une raison de signaler une erreur sur une
+            // decision qui, elle, a bien eu lieu.
+        } catch (\Throwable $echec) {
+            // Le destinataire a pu quitter l'Organization, ou la base tousser.
+            // La decision est prise et enregistree : elle ne se defait pas parce
+            // que l'avis n'a pas pu partir. On le trace, et le cockpit de
+            // supervision (TASK-1380) montrera l'absence d'activite.
+            Log::warning('TASK-1381 notification de decision d\'adhesion non emise', [
+                'join_request_id' => $joinRequest->id,
+                'notification_key' => $notificationKey,
+                'raison' => $echec->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * L'identite de l'EVENEMENT, derivee de LA CLE ET de la demande.
+     *
+     * Les deux ne suffisent pas separement. La demande seule donnerait le meme
+     * identifiant a « accepte » et a « refuse » — deux faits differents sur le
+     * meme objet — et la contrainte `UNIQUE(event_id, recipient_id)` ferait
+     * echouer le second. La cle seule serait partagee par toutes les demandes.
+     *
+     * Deterministe a dessein : rejouer le meme producteur sur le meme fait ne
+     * cree pas une seconde notification, il constate la premiere.
+     */
+    private function identifiantEvenementDecision(LoopJoinRequest $joinRequest, string $notificationKey): string
+    {
+        return (string) Uuid::uuid5(
+            Uuid::NAMESPACE_URL,
+            'bouclepro:notification:'.$notificationKey.':'.$joinRequest->id,
+        );
     }
 
     public function archiveLoop(Loop $loop): Loop
