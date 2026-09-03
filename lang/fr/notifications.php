@@ -29,6 +29,16 @@ return [
 
     // Les libelles par cle du catalogue. Les points de la cle deviennent des
     // tirets bas : `loop.invitation` -> `keys.loop_invitation`.
+    'preferences_title' => 'Réglages des notifications',
+    'preferences_subtitle' => 'Choisissez ce que BouclePro vous envoie.',
+    'preferences_save' => 'Enregistrer',
+    'preferences_saved' => 'Vos réglages ont été enregistrés.',
+    'preferences_mandatory' => 'Toujours active',
+    'preferences_mandatory_hint' => 'Cette notification vous est adressée personnellement et appelle une réponse : elle ne peut pas être désactivée.',
+    'preferences_link' => 'Réglages',
+    'preferences_back' => 'Mes notifications',
+    'channel_in_app' => "Dans l'application",
+
     'keys' => [
         'loop_invitation' => 'Invitation à rejoindre une Boucle',
     ],
