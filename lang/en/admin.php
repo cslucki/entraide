@@ -458,6 +458,7 @@ return [
     'emailer_title' => 'Emailer',
     'emailer_templates' => 'Templates',
     'emailer_history' => 'History',
+    'notifications_cockpit' => 'Notifications health',
     'emailer_test' => 'Test',
     'emailer_system' => 'System emails',
     'emailer_send' => 'Send',
