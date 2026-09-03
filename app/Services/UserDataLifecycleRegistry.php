@@ -100,6 +100,23 @@ class UserDataLifecycleRegistry
             ['key' => 'member_ai_profile_interactions_owner', 'type' => 'sql', 'table' => 'member_ai_profile_interactions', 'column' => 'profile_owner_user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'AI profile interaction content may include personal data.'],
             ['key' => 'member_ai_profile_interactions_visitor', 'type' => 'sql', 'table' => 'member_ai_profile_interactions', 'column' => 'visitor_user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'Visitor AI profile interaction content may include personal data.'],
             ['key' => 'member_ai_profile', 'type' => 'sql', 'table' => 'member_ai_profiles', 'column' => 'user_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'direct', 'justification' => 'Structured personal profile needs explicit product decision.'],
+            // TASK-1372 — les deux FK de `member_notifications`. Le registre dit
+            // ce que le schema FAIT, et les deux colonnes ne font pas la meme
+            // chose :
+            //
+            // `recipient_id` designe la personne PREVENUE. La notification n'a
+            // aucun sens sans elle — c'est une adresse, pas une trace. La FK est
+            // NOT NULL ON DELETE CASCADE, et le registre dit DELETE.
+            //
+            // `actor_id` designe qui a declenche. C'est une attribution, pas la
+            // raison d'etre de la ligne : la notification du destinataire ne doit
+            // pas disparaitre parce que l'auteur du geste s'en va. FK nullOnDelete,
+            // donc DETACH — meme regime que les autres attributions du registre.
+            //
+            // La ligne ne porte aucun contenu (references seules), donc aucune
+            // question d'anonymisation ne se pose : il n'y a rien a anonymiser.
+            ['key' => 'member_notifications_recipient_id', 'type' => 'sql', 'table' => 'member_notifications', 'column' => 'recipient_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'An in-app notification is addressed TO a person: it is an address, not a trace, and it carries no content of its own (references only). The FK is NOT NULL ON DELETE CASCADE and the registry says so.'],
+            ['key' => 'member_notifications_actor_id', 'type' => 'sql', 'table' => 'member_notifications', 'column' => 'actor_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'The actor is an attribution, not the reason the row exists: the recipient notification must outlive whoever triggered it, so the author is simply detached (FK nullOnDelete).'],
             ['key' => 'messages_pinned_by_id', 'type' => 'sql', 'table' => 'messages', 'column' => 'pinned_by_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_transaction', 'justification' => 'Pin attribution can be detached.'],
             ['key' => 'messages_sent', 'type' => 'sql', 'table' => 'messages', 'column' => 'sender_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_transaction', 'justification' => 'Conversation sender can be anonymized.'],
             ['key' => 'organization_requests', 'type' => 'sql', 'table' => 'organization_requests', 'column' => 'user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Organization request history is retained.'],
