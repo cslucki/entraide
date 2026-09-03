@@ -6,6 +6,7 @@ use App\Models\EmailLog;
 use App\Models\LoopInvitation;
 use App\Models\SystemEmailTemplate;
 use App\Services\EmailerService;
+use App\Services\LoopInvitationService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -20,11 +21,32 @@ use Illuminate\Support\Facades\Mail;
  *
  * Le corps est repris tel quel, y compris son repli sur le gabarit Blade et sa
  * trace en cas de non-remise.
+ *
+ * ## TASK-1378 — ce mailer ne sert plus les membres de l'Organization
+ *
+ * Depuis le cutover, une invitation adressee a un membre de l'Organization part
+ * par le pipeline Notifications : notification IN_APP, livraison EMAIL, file
+ * dediee, preuve dans `email_logs`. Ce mailer reste la voie des INCONNUS — pas
+ * de compte, ou un compte dans un autre tenant — pour qui aucune notification
+ * ne peut exister.
+ *
+ * Le garde est ICI, et pas chez les appelants. Deux chemins de production
+ * appellent `send()` — le controleur et la Card Membres — et un troisieme
+ * arrivera. Poser la condition chez chacun serait une convention : elle tiendrait
+ * jusqu'a ce que quelqu'un l'oublie, et l'oubli enverrait un email en double
+ * sans rien casser de visible. Ici, le double envoi est structurellement
+ * impossible, et tout futur appelant herite de la protection.
  */
 class LoopInvitationMailer
 {
     public function send(LoopInvitation $invitation): void
     {
+        // Une seule autorite decide qui envoie — et elle recalcule en vif, sans
+        // faire confiance a `invitation_type`, qui est fige a la creation.
+        if (app(LoopInvitationService::class)->emailHandledByNotifications($invitation)) {
+            return;
+        }
+
         $loop = $invitation->loop;
         $organization = $invitation->organization;
         $sender = $invitation->sender;
@@ -136,5 +158,5 @@ class LoopInvitationMailer
                 'data' => $logData,
             ]);
         }
-        }
+    }
 }

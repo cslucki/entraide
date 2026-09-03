@@ -18,11 +18,11 @@ namespace App\Support\Notifications;
  * EMAIL sans adaptateur EMAIL, ou une preference configurable sans ecran de
  * preferences, mentirait — et c'est precisement lui qui est cense faire
  * autorite. Chaque tranche ajoute donc ses champs quand elle livre la capacite
- * correspondante :
+ * correspondante — et les deux qui manquaient sont desormais arrivees :
  *
- * - `channels` gagnera `email` quand l'adaptateur EMAIL existera ;
- * - les champs de preference (defaut, configurable, obligatoire) arriveront
- *   avec l'ecran de preferences, pas avant.
+ * - `channels` a gagne `email` en T1378, l'adaptateur EMAIL existant depuis
+ *   T1377 ;
+ * - les champs de preference sont arrives avec l'ecran de preferences (T1375).
  *
  * Etat exact de ce que chaque champ vaut aujourd'hui — parce qu'un registre qui
  * se surestime est precisement le defaut que T1370 a corrige ailleurs :
@@ -37,25 +37,27 @@ namespace App\Support\Notifications;
  * ## Une seule cle, et c'est voulu
  *
  * `loop.invitation` est l'exemple canonique du CDC et le premier producteur
- * reel a brancher. Le catalogue grandit evenement par evenement ; il ne se
- * peuple pas d'avance.
+ * reel a brancher — desormais sur ses DEUX canaux. Le catalogue grandit
+ * evenement par evenement ; il ne se peuple pas d'avance.
+ *
+ * ## Cette entree est le POINT DE BASCULE du cutover
+ *
+ * C'est la presence de `email` dans `channels` — et elle seule — qui fait que
+ * le planificateur cree une livraison EMAIL et que le mailer legacy s'efface
+ * pour les membres de l'Organization. La retirer suffit a revenir en arriere,
+ * sans toucher a une ligne de code ailleurs.
  */
 final class NotificationCatalogue
 {
     public const CHANNEL_IN_APP = 'in_app';
 
     /**
-     * TASK-1377 — le canal EMAIL EXISTE, et AUCUNE cle ne l'autorise encore.
+     * Le canal EMAIL. Adaptateur livre en T1377, ACTIVE en T1378.
      *
-     * Ce n'est pas une incoherence, c'est la tranche : P5 livre la mecanique de
-     * livraison asynchrone — table d'etat, prise de travail atomique, worker,
-     * preuve dans `email_logs` — sans l'activer sur quoi que ce soit.
-     *
-     * Activer EMAIL sur `loop.invitation` appartient a P6, et cette ligne le dit
-     * plutot que de laisser croire a un oubli. Le catalogue continue de ne
-     * declarer que ce qui EXISTE : la constante nomme un canal dont l'adaptateur
-     * est desormais reel ; `ENTRIES` reste seul juge de qui a le droit de s'en
-     * servir.
+     * T1377 avait livre toute la mecanique de livraison asynchrone — table
+     * d'etat, prise de travail atomique, worker, preuve dans `email_logs` — sans
+     * l'activer sur quoi que ce soit. T1378 l'active sur `loop.invitation`, et
+     * `ENTRIES` reste seul juge de qui a le droit de s'en servir.
      */
     public const CHANNEL_EMAIL = 'email';
 
@@ -93,6 +95,20 @@ final class NotificationCatalogue
                 // Une invitation s'adresse a quelqu'un personnellement et
                 // appelle une reponse — on ne s'en desabonne pas.
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+
+                // TASK-1378 — EMAIL active, et CONFIGURABLE.
+                //
+                // Actif par defaut parce qu'une invitation appelle une reponse
+                // et qu'on ne peut pas supposer que la personne reviendra dans
+                // l'application d'elle-meme. Configurable parce que, cette
+                // fois, se desabonner a un sens : le fait reste visible dans le
+                // Centre, et couper l'email ne fait donc rien perdre.
+                //
+                // C'est cette ligne — et elle seule — qui realise le cutover :
+                // le planificateur cree desormais une livraison EMAIL, et le
+                // mailer legacy s'efface pour les membres de l'Organization.
+                // La retirer suffit a revenir en arriere.
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
             ],
         ],
     ];

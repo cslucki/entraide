@@ -7,6 +7,7 @@ use App\Models\EmailLog;
 use App\Models\Loop;
 use App\Models\MemberNotification;
 use App\Models\MemberNotificationDelivery;
+use App\Models\MemberNotificationPreference;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopInvitationService;
@@ -14,7 +15,6 @@ use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationDeliveryPlanner;
 use App\Support\Notifications\NotificationDeliveryStatus;
 use App\Support\Notifications\NotificationEmailDeliverer;
-use App\Support\Notifications\NotificationPreferenceResolver;
 use App\Support\Notifications\NotificationTargetResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -29,20 +29,21 @@ use Tests\TestCase;
 /**
  * TASK-1377 — la livraison EMAIL asynchrone.
  *
- * ## Ce que cette tranche livre, et ce qu'elle N'ACTIVE PAS
+ * ## Ce que cette tranche livre
  *
  * P5 livre la mecanique : table d'etat, prise de travail atomique, worker,
- * preuve dans `email_logs`. Elle n'active EMAIL sur AUCUNE cle — c'est P6. Les
- * deux premiers tests fixent cette frontiere pour qu'elle ne bouge pas par
- * accident.
+ * preuve dans `email_logs`.
  *
- * ## Pourquoi la preference est substituee dans les tests d'envoi
+ * ## TASK-1378 a change la PREMISSE de cette suite
  *
- * Le catalogue n'autorise EMAIL nulle part, donc `allows()` rend `false` et le
- * chemin d'envoi serait INATTEIGNABLE. Un test qui ne peut pas atteindre son
- * sujet ne mesure rien. On substitue donc le resolveur de preferences — un
- * collaborateur injecte, pas une garde contournee — et la frontiere du catalogue
- * est mesuree separement, la ou elle vit.
+ * P5 n'activait EMAIL sur aucune cle, et plusieurs tests ci-dessous fixaient
+ * cette frontiere. Le cutover l'a franchie : `loop.invitation` autorise
+ * desormais EMAIL. Ces tests ont donc ete PORTES au nouveau contrat plutot que
+ * supprimes — leur valeur protectrice change de sens, elle ne disparait pas.
+ *
+ * Consequence utile : la substitution du resolveur de preferences n'a plus lieu
+ * d'etre, et ces tests exercent desormais le VRAI resolveur et le VRAI contenu
+ * de production. Ils mesurent donc plus qu'avant.
  */
 class TASK1377NotificationEmailAsyncTest extends TestCase
 {
@@ -83,38 +84,50 @@ class TASK1377NotificationEmailAsyncTest extends TestCase
     // =====================================================================
 
     /**
-     * **Le catalogue n'autorise EMAIL sur aucune cle — c'est le contrat de P5.**
+     * **Un canal declare doit avoir un adaptateur — et EMAIL en a un.**
      *
-     * Fil-piege deliberé. Le jour ou quelqu'un ajoutera `email` a
-     * `loop.invitation`, ce test rougira et rappellera que l'activation
-     * appartient a P6, avec ses propres gardes et son propre contenu.
+     * Ce test etait le fil-piege de la frontiere P5/P6 : il exigeait qu'AUCUNE
+     * cle n'active EMAIL. Le cutover T1378 a franchi cette frontiere
+     * volontairement, et le fil a fait son travail en rougissant.
+     *
+     * Il garde toujours, dans l'autre sens : EMAIL doit rester autorise — le
+     * desactiver par accident couperait silencieusement les invitations — et
+     * IN_APP doit rester OBLIGATOIRE.
      */
-    public function test_the_catalogue_activates_email_on_nothing(): void
+    public function test_the_catalogue_activates_email_with_an_adapter(): void
     {
+        $cle = NotificationCatalogue::LOOP_INVITATION;
+
         $this->assertTrue(
-            NotificationCatalogue::allowsChannel(NotificationCatalogue::LOOP_INVITATION, NotificationCatalogue::CHANNEL_IN_APP),
+            NotificationCatalogue::allowsChannel($cle, NotificationCatalogue::CHANNEL_IN_APP),
             'in_app reste obligatoire sur l\'invitation.'
         );
+        $this->assertFalse(
+            NotificationCatalogue::channelIsConfigurable($cle, NotificationCatalogue::CHANNEL_IN_APP),
+            'in_app ne se coupe pas.'
+        );
 
-        foreach (NotificationCatalogue::keys() as $cle) {
-            $this->assertFalse(
-                NotificationCatalogue::allowsChannel($cle, NotificationCatalogue::CHANNEL_EMAIL),
-                "[{$cle}] ne doit pas activer EMAIL en P5 — cela appartient a P6."
-            );
-        }
+        $this->assertTrue(
+            NotificationCatalogue::allowsChannel($cle, NotificationCatalogue::CHANNEL_EMAIL),
+            'EMAIL est active depuis T1378 — le desactiver couperait les invitations en silence.'
+        );
     }
 
-    /** Une invitation reelle ne planifie donc AUCUNE livraison email. */
-    public function test_a_real_invitation_plans_no_email_delivery(): void
+    /** Une invitation reelle planifie UNE livraison email, sur la file dediee. */
+    public function test_a_real_invitation_plans_one_email_delivery(): void
     {
         Queue::fake();
 
         app(LoopInvitationService::class)->invite($this->loop, $this->expediteur, $this->membre->email);
 
         $this->assertSame(1, MemberNotification::query()->count(), 'La notification in_app est bien emise.');
-        $this->assertSame(0, MemberNotificationDelivery::query()->count(), 'Aucune livraison email en P5.');
+        $this->assertSame(1, MemberNotificationDelivery::query()->count(), 'Et UNE livraison email.');
 
-        Queue::assertNotPushed(SendNotificationEmail::class);
+        $livraison = MemberNotificationDelivery::query()->firstOrFail();
+        $this->assertSame(NotificationCatalogue::CHANNEL_EMAIL, $livraison->channel);
+        $this->assertSame(NotificationDeliveryStatus::PENDING, $livraison->status);
+
+        Queue::assertPushed(SendNotificationEmail::class, 1);
     }
 
     // =====================================================================
@@ -138,7 +151,8 @@ class TASK1377NotificationEmailAsyncTest extends TestCase
         $service->invite($this->loop, $this->expediteur, $this->membre->email);
 
         $this->assertSame(1, MemberNotification::query()->count(), 'Le rejeu ne cree pas de seconde notification.');
-        $this->assertSame(0, MemberNotificationDelivery::query()->count());
+        $this->assertSame(1, MemberNotificationDelivery::query()->count(), 'Ni de seconde livraison.');
+        Queue::assertPushed(SendNotificationEmail::class, 1);
     }
 
     /**
@@ -298,9 +312,14 @@ class TASK1377NotificationEmailAsyncTest extends TestCase
     {
         $notification = $this->notificationAvecInvitation();
 
+        // TASK-1378 — le canal EMAIL a DESORMAIS sa livraison, creee par le
+        // planificateur : en fabriquer une seconde violerait l'unicite et le
+        // test echouerait pour une raison sans rapport avec son sujet. On vise
+        // donc IN_APP, canal valide sans livraison. La garde mesuree est la
+        // meme : `status` et `sent_at` sont hors `fillable`.
         $livraison = MemberNotificationDelivery::create([
             'notification_id' => $notification->id,
-            'channel' => NotificationCatalogue::CHANNEL_EMAIL,
+            'channel' => NotificationCatalogue::CHANNEL_IN_APP,
             'status' => NotificationDeliveryStatus::SENT,
             'sent_at' => now(),
         ]);
@@ -380,25 +399,41 @@ class TASK1377NotificationEmailAsyncTest extends TestCase
     }
 
     /**
-     * **Une traduction manquante ECHOUE plutot que d'envoyer une cle brute.**
+     * **Une locale non traduite retombe sur la langue de repli — et l'email PART.**
      *
-     * `__()` rend la cle quand elle manque. Sans cette garde, le destinataire
-     * recevrait un message contenant `notifications.email.…` — pire que pas de
-     * message du tout.
+     * Ce test mesurait « une traduction manquante fait echouer plutot que
+     * d'envoyer une cle brute ». Le contenu FR/EN etant desormais livre (T1378),
+     * ce sujet n'est plus atteignable par une locale : `Lang::has()` HONORE la
+     * locale de repli, donc une locale inconnue resout via `fr`.
+     *
+     * Ce n'est pas un defaut, c'est le bon comportement : envoyer dans la langue
+     * de repli vaut mieux que ne pas envoyer. Le test mesure donc ce qui est
+     * VRAI et utile — un membre dont la langue n'est pas supportee recoit quand
+     * meme son invitation.
+     *
+     * La garde `missing_email_translation` reste dans le code et garde son sens :
+     * elle protege d'une cle de catalogue livree SANS aucun contenu, dans aucune
+     * langue. Elle n'est pas atteignable aujourd'hui — une seule cle existe, et
+     * elle a son contenu — et c'est dit ici plutot que revendique comme couvert.
      */
-    public function test_a_missing_translation_fails_rather_than_sending_a_raw_key(): void
+    public function test_an_untranslated_locale_falls_back_and_still_sends(): void
     {
         $this->transportMesurable();
         $this->autoriserEmail();
-        // Aucune traduction posee : c'est le sujet du test.
+
+        $this->membre->forceFill(['preferred_locale' => 'de'])->saveQuietly();
 
         $livraison = $this->livraisonEmail();
 
         app(NotificationEmailDeliverer::class)->deliver((string) $livraison->notification_id);
 
-        $this->assertSame([], $this->messagesEnvoyes(), 'Aucun message ne doit atteindre le transport.');
-        $this->assertSame(NotificationDeliveryStatus::FAILED, $livraison->fresh()->status);
-        $this->assertSame('missing_email_translation', $livraison->fresh()->diagnostic);
+        $this->assertCount(1, $this->messagesEnvoyes(), 'Une locale non supportee ne prive pas d\'invitation.');
+        $this->assertSame(NotificationDeliveryStatus::SENT, $livraison->fresh()->status);
+
+        // Le contenu part dans la langue de REPLI, et la trace le dit.
+        $envoye = $this->messagesEnvoyes()[0]->getOriginalMessage();
+        $this->assertSame((string) __('notifications.email.loop_invitation.subject', [], 'fr'), $envoye->getSubject());
+        $this->assertSame('de', EmailLog::query()->firstOrFail()->locale, 'La locale DEMANDEE est consignee telle quelle.');
     }
 
     // =====================================================================
@@ -424,7 +459,11 @@ class TASK1377NotificationEmailAsyncTest extends TestCase
         $this->assertCount(1, $messages);
 
         $envoye = $messages[0]->getOriginalMessage();
-        $this->assertSame('Invitation a rejoindre une boucle', $envoye->getSubject());
+        $this->assertSame(
+            (string) __('notifications.email.loop_invitation.subject', [], 'fr'),
+            $envoye->getSubject(),
+            'Le sujet vient du contenu de production, plus d\'un contenu pose par le test.'
+        );
         $this->assertSame((string) $this->membre->email, $envoye->getTo()[0]->getAddress());
 
         $fraiche = $livraison->fresh();
@@ -438,7 +477,18 @@ class TASK1377NotificationEmailAsyncTest extends TestCase
         $this->assertSame((string) $this->membre->email, $journal->to_email);
         $this->assertSame('fr', $journal->locale, 'La langue de l\'ENVOI est figee.');
         $this->assertNotNull($journal->body_html);
-        $this->assertSame(hash('sha256', $journal->body_html), $journal->body_hash);
+
+        // TASK-1378 — `body_hash` hache le corps REELLEMENT REMIS, pas le corps
+        // archive. Les deux diffèrent desormais : `body_html` porte la cible
+        // expurgee, pour ne pas conserver de jeton d'action dans une table
+        // consultable. L'assertion porte donc sur ce que le TRANSPORT a recu —
+        // c'est la seule question utile : « le message parti est-il bien celui
+        // qu'on croit ? ».
+        $this->assertSame(
+            hash('sha256', $envoye->getHtmlBody() ?? $envoye->getBody()->bodyToString()),
+            $journal->body_hash,
+            'Le hachage doit correspondre au corps remis au transport.'
+        );
         $this->assertSame((string) $this->orgA->id, (string) $journal->organization_id);
     }
 
@@ -687,14 +737,22 @@ class TASK1377NotificationEmailAsyncTest extends TestCase
     }
 
     /** La livraison email d'une notification reelle. */
+    /**
+     * La livraison email d'une notification reelle.
+     *
+     * TASK-1378 — elle etait creee A LA MAIN ici, parce que le catalogue
+     * n'activait EMAIL sur aucune cle et que le planificateur n'en produisait
+     * donc aucune. Depuis le cutover, le planificateur la cree : la fabriquer
+     * une seconde fois violerait `UNIQUE(notification_id, channel)`. On la LIT.
+     */
     private function livraisonEmail(): MemberNotificationDelivery
     {
         $notification = $this->notificationAvecInvitation();
 
-        return MemberNotificationDelivery::create([
-            'notification_id' => $notification->id,
-            'channel' => NotificationCatalogue::CHANNEL_EMAIL,
-        ]);
+        return MemberNotificationDelivery::query()
+            ->where('notification_id', $notification->id)
+            ->forChannel(NotificationCatalogue::CHANNEL_EMAIL)
+            ->firstOrFail();
     }
 
     /**
@@ -706,30 +764,30 @@ class TASK1377NotificationEmailAsyncTest extends TestCase
      */
     private function autoriserEmail(bool $autorise = true): void
     {
-        $this->app->bind(NotificationPreferenceResolver::class, fn () => new class($autorise) extends NotificationPreferenceResolver
-        {
-            public function __construct(private bool $autorise) {}
+        // TASK-1378 — EMAIL est desormais REELLEMENT autorise par le catalogue :
+        // le cas passant n'a plus besoin d'aucune substitution, et ces tests
+        // exercent donc le vrai resolveur de preferences. Seul le cas COUPE
+        // reste a construire, et il se construit avec le mecanisme de
+        // production — un ecart de preference, comme un membre en poserait un.
+        if ($autorise) {
+            return;
+        }
 
-            public function allows(User $user, string $notificationKey, string $channel): bool
-            {
-                return $channel === NotificationCatalogue::CHANNEL_EMAIL
-                    ? $this->autorise
-                    : parent::allows($user, $notificationKey, $channel);
-            }
-        });
+        $preference = new MemberNotificationPreference([
+            'notification_key' => NotificationCatalogue::LOOP_INVITATION,
+            'channel' => NotificationCatalogue::CHANNEL_EMAIL,
+            'enabled' => false,
+        ]);
+        $preference->user_id = (string) $this->membre->id;
+        $preference->save();
     }
 
     /** Pose un contenu d'email pour la cle testee, sans le livrer dans le depot. */
     private function traductionsPresentes(): void
     {
-        foreach (['fr', 'en'] as $locale) {
-            $racine = 'notifications.email.'.str_replace('.', '_', NotificationCatalogue::LOOP_INVITATION);
-
-            Lang::addLines([
-                $racine.'.subject' => 'Invitation a rejoindre une boucle',
-                $racine.'.body' => 'Bonjour, voici votre invitation : :url',
-            ], $locale);
-        }
+        // TASK-1378 — le contenu FR/EN est desormais LIVRE dans `lang/`. Il
+        // etait pose a la volee ici tant qu'il n'existait pas. Ne rien poser
+        // fait donc porter ces tests sur le vrai contenu de production.
     }
 
     /**

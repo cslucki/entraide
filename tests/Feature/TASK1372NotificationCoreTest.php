@@ -96,25 +96,41 @@ class TASK1372NotificationCoreTest extends TestCase
      * **Ce test mesure le CONTENU du catalogue, pas une garde** — il n'y a pas
      * de sabotage qui le fasse rougir, et il faut le dire plutot que de le faire
      * passer pour une preuve de comportement. Son role est de rougir le jour ou
-     * quelqu'un ajoutera `email` a une cle avant que l'adaptateur EMAIL
-     * n'existe. La garde correspondante, elle, vit dans
-     * `NotificationInvariants::assert()` et refuse d'ecrire une ligne IN_APP
-     * pour une cle qui n'autorise pas ce canal.
+     * quelqu'un declarera un canal AVANT que son adaptateur n'existe. La garde
+     * correspondante, elle, vit dans `NotificationInvariants::assert()` et
+     * refuse d'ecrire une ligne IN_APP pour une cle qui n'autorise pas ce canal.
+     *
+     * TASK-1378 — la liste s'est ouverte a `email`, dont l'adaptateur est livre
+     * depuis T1377 (`NotificationEmailDeliverer`) et active depuis T1378. Elle
+     * reste FERMEE a tout le reste : ajouter `sms` ou `push` sans adaptateur
+     * fera rougir ce test, ce qui est precisement son role.
      */
     public function test_the_catalogue_only_declares_channels_that_exist(): void
     {
+        // Les canaux qui ont REELLEMENT un adaptateur aujourd'hui.
+        $avecAdaptateur = [
+            NotificationCatalogue::CHANNEL_IN_APP,  // rendu par le Centre (T1373)
+            NotificationCatalogue::CHANNEL_EMAIL,   // NotificationEmailDeliverer (T1377)
+        ];
+
         foreach (NotificationCatalogue::keys() as $cle) {
-            $this->assertSame(
-                [NotificationCatalogue::CHANNEL_IN_APP],
+            foreach (NotificationCatalogue::channelsFor($cle) as $canal) {
+                $this->assertContains(
+                    $canal,
+                    $avecAdaptateur,
+                    "La cle [{$cle}] annonce le canal [{$canal}], qui n'a AUCUN adaptateur."
+                );
+            }
+
+            // IN_APP reste le socle : une cle qui ne l'autoriserait pas ne
+            // pourrait produire aucune ligne, et n'existerait donc que sur le
+            // papier.
+            $this->assertContains(
+                NotificationCatalogue::CHANNEL_IN_APP,
                 NotificationCatalogue::channelsFor($cle),
-                "La cle [{$cle}] annonce un canal sans adaptateur : V1-A n'emet que IN_APP."
+                "La cle [{$cle}] doit autoriser IN_APP."
             );
         }
-
-        $this->assertFalse(
-            NotificationCatalogue::allowsChannel(NotificationCatalogue::LOOP_INVITATION, 'email'),
-            'Aucun adaptateur EMAIL n\'existe encore ; le catalogue ne doit pas le pretendre.'
-        );
     }
 
     // =====================================================================

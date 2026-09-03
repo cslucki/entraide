@@ -67,11 +67,26 @@ class TASK1375NotificationPreferencesTest extends TestCase
         );
     }
 
-    /** Un canal que la cle n'autorise pas est refuse, fail-closed. */
+    /**
+     * Un canal que la cle n'autorise pas est refuse, fail-closed.
+     *
+     * TASK-1378 — ce test utilisait `email` comme exemple de canal non
+     * autorise. Il l'est desormais : le cutover l'a active sur cette cle. Le
+     * test viserait donc a cote, et passerait pour la mauvaise raison. On
+     * emploie un canal REELLEMENT inexistant, et on verifie au passage que
+     * `email`, lui, est bien autorise — sinon on ne saurait pas que le nouveau
+     * canal est reellement en place.
+     */
     public function test_a_channel_the_key_does_not_allow_is_refused(): void
     {
         $this->assertFalse(
-            $this->resolver->allows($this->alice, NotificationCatalogue::LOOP_INVITATION, 'email')
+            $this->resolver->allows($this->alice, NotificationCatalogue::LOOP_INVITATION, 'signal_de_fumee'),
+            'Un canal inexistant doit etre refuse.'
+        );
+
+        $this->assertTrue(
+            $this->resolver->allows($this->alice, NotificationCatalogue::LOOP_INVITATION, NotificationCatalogue::CHANNEL_EMAIL),
+            'EMAIL est desormais autorise sur cette cle (T1378).'
         );
     }
 
@@ -167,7 +182,7 @@ class TASK1375NotificationPreferencesTest extends TestCase
         // `notification_key` et `channel` sont fillable ; `user_id` ne l'est pas
         // et serait silencieusement ignore par `update()`. On le mute donc
         // directement, sinon le test ne mesurerait rien pour cette colonne.
-        foreach (['notification_key' => 'autre.cle', 'channel' => 'email'] as $colonne => $valeur) {
+        foreach (['notification_key' => 'autre.cle', 'channel' => 'signal_de_fumee'] as $colonne => $valeur) {
             $refus = $this->refusDeMutation(fn () => $p->fresh()->update([$colonne => $valeur]));
 
             $this->assertStringContainsString('identity is frozen', $refus);
@@ -188,16 +203,27 @@ class TASK1375NotificationPreferencesTest extends TestCase
     // 4. L'ecran
     // =====================================================================
 
-    /** L'ecran montre le canal obligatoire, SANS bouton. */
+    /**
+     * L'ecran montre le canal obligatoire, SANS bouton.
+     *
+     * TASK-1378 — l'assertion visait TOUTE la cle, ce qui etait suffisant tant
+     * qu'`in_app` etait le seul canal. Depuis le cutover, `email` est reglable
+     * et rend legitimement un champ : l'ancienne formulation rougirait pour une
+     * raison qui n'est pas son sujet. Elle vise donc desormais le canal
+     * OBLIGATOIRE precisement — et verifie que le canal REGLABLE, lui, a bien
+     * son champ. Plus precis qu'avant, pas plus permissif.
+     */
     public function test_the_screen_shows_a_mandatory_channel_without_a_toggle(): void
     {
-        $cible = NotificationCatalogue::LOOP_INVITATION.':'.NotificationCatalogue::CHANNEL_IN_APP;
+        $cle = NotificationCatalogue::LOOP_INVITATION;
+        $cible = $cle.':'.NotificationCatalogue::CHANNEL_IN_APP;
 
         $this->actingAs($this->alice)->get(route('notifications.preferences.edit'))
             ->assertOk()
             ->assertSee('data-preference-mandatory', false)
             ->assertSee('data-preference-locked="'.$cible.'"', false)
-            ->assertDontSee('name="canaux['.NotificationCatalogue::LOOP_INVITATION.']', false);
+            ->assertDontSee('name="canaux['.$cle.']['.NotificationCatalogue::CHANNEL_IN_APP.']', false)
+            ->assertSee('name="canaux['.$cle.']['.NotificationCatalogue::CHANNEL_EMAIL.']', false);
     }
 
     /** Un invite n'a pas de reglages. */
@@ -223,6 +249,11 @@ class TASK1375NotificationPreferencesTest extends TestCase
                 'canaux' => [
                     NotificationCatalogue::LOOP_INVITATION => [
                         NotificationCatalogue::CHANNEL_IN_APP => '0',
+                        // Le canal REGLABLE est envoye a sa valeur par defaut.
+                        // Sans lui, son absence vaudrait « decoche » — semantique
+                        // normale d'une case a cocher — et un ecart serait ecrit
+                        // pour un canal qui n'est pas le sujet de ce test.
+                        NotificationCatalogue::CHANNEL_EMAIL => '1',
                     ],
                 ],
             ])
@@ -240,14 +271,30 @@ class TASK1375NotificationPreferencesTest extends TestCase
         $this->actingAs($this->alice)
             ->from(route('notifications.preferences.edit'))
             ->post(route('notifications.preferences.update'), [
-                'canaux' => ['loop.something_invented' => ['email' => '1']],
+                'canaux' => [
+                    'loop.something_invented' => ['signal_de_fumee' => '1'],
+                    // Voir le test precedent : le canal reglable est renvoye a
+                    // son defaut pour que la mesure porte sur la cle inventee.
+                    NotificationCatalogue::LOOP_INVITATION => [
+                        NotificationCatalogue::CHANNEL_EMAIL => '1',
+                    ],
+                ],
             ])
             ->assertRedirect();
 
         $this->assertSame(0, MemberNotificationPreference::query()->count());
     }
 
-    /** Et une charge malformee ne fait pas tomber l'ecran. */
+    /**
+     * Et une charge malformee ne fait pas tomber l'ecran.
+     *
+     * TASK-1378 — le sujet est la ROBUSTESSE, pas le compte de lignes. Une
+     * charge malformee ne peut pas porter de canal valide, et l'absence d'un
+     * canal reglable vaut « decoche » : un ecart est donc legitimement ecrit
+     * pour `email`, exactement comme si le membre avait valide un formulaire
+     * vide. Ce qui doit rester vrai, c'est qu'aucun canal OBLIGATOIRE n'est
+     * touche et que rien ne tombe.
+     */
     public function test_a_malformed_payload_does_not_break_the_screen(): void
     {
         foreach (['pas-un-tableau', ['loop.invitation' => 'pas-un-tableau']] as $bidon) {
@@ -257,7 +304,15 @@ class TASK1375NotificationPreferencesTest extends TestCase
                 ->assertRedirect();
         }
 
-        $this->assertSame(0, MemberNotificationPreference::query()->count());
+        // Le canal OBLIGATOIRE reste inviolable, quoi qu'on poste.
+        $this->assertTrue(
+            $this->resolver->allows($this->alice, NotificationCatalogue::LOOP_INVITATION, NotificationCatalogue::CHANNEL_IN_APP)
+        );
+        $this->assertSame(
+            0,
+            MemberNotificationPreference::query()->where('channel', NotificationCatalogue::CHANNEL_IN_APP)->count(),
+            'Aucun ecart ne peut exister sur un canal obligatoire.'
+        );
     }
 
     // =====================================================================

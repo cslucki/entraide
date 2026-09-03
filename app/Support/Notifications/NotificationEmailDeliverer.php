@@ -65,6 +65,24 @@ use Throwable;
  * en T1376. Ce pipeline ecrit donc sa propre preuve — en cas de succes ET en cas
  * d'echec, sinon l'historique ne garderait trace que de ce qui a marche.
  *
+ * ## TASK-1378 — le vrai lien part, le jeton n'est JAMAIS archive
+ *
+ * La cible d'une notification peut etre une URL porteuse d'un jeton d'acces
+ * vivant. Elle doit atteindre le destinataire — un email sans son lien ne sert a
+ * rien — et ne doit jamais entrer dans `email_logs`, qui est consultable et sans
+ * expiration propre : un jeton d'action qui y dort reste utilisable.
+ *
+ * Le gabarit est donc rendu DEUX FOIS : une fois avec la vraie URL, qui part et
+ * qui est hachee, une fois avec un marqueur expurge, qui est archive. Pas une
+ * expression reguliere passee apres coup sur le rendu reel : une regex doit
+ * deviner ce qui est un jeton, se trompe des que le gabarit change, et echoue en
+ * SILENCE. Ici la valeur sensible n'entre simplement jamais dans le rendu
+ * archive.
+ *
+ * Et cette classe ne connait AUCUNE cle metier : elle substitue un parametre
+ * `:url` que tout gabarit de ce module recoit. Rien n'est specifique a
+ * `loop.invitation`.
+ *
  * ## M1 (review Fable) — `error_message` ne contient jamais de texte brut
  *
  * Un message d'exception SMTP peut porter un host, un port, un fragment de DSN
@@ -97,6 +115,15 @@ final class NotificationEmailDeliverer
      * moins de 40 caracteres ; la marge est large a dessein.
      */
     private const ERROR_MESSAGE_MAX = 200;
+
+    /**
+     * Le marqueur qui remplace la cible dans le corps ARCHIVE.
+     *
+     * TASK-1378 — la cible peut porter un jeton d'action vivant. Il doit
+     * atteindre le destinataire et ne jamais entrer dans `email_logs`, table
+     * consultable et sans expiration propre. Voir `rendre()`.
+     */
+    private const LIEN_EXPURGE = '[action-link-redacted]';
 
     /**
      * Le transport a ete sollicite, et son issue est INCONNUE — qu'il ait leve
@@ -342,9 +369,37 @@ final class NotificationEmailDeliverer
     }
 
     /**
-     * Le sujet et le corps, dans la langue du destinataire.
+     * Le sujet et LES DEUX CORPS, dans la langue du destinataire.
      *
-     * @return array{subject: string, body: string}|null
+     * ## Deux rendus du MEME gabarit, pas une expurgation apres coup
+     *
+     * TASK-1378 — la cible d'une notification peut etre une URL porteuse d'un
+     * jeton d'acces vivant. Elle doit atteindre le destinataire, et ne doit
+     * JAMAIS etre archivee : `email_logs` est une table consultable, sans
+     * expiration propre, et un jeton d'action qui y dort reste utilisable.
+     *
+     * Le gabarit est donc rendu DEUX FOIS, avec deux valeurs de `:url` :
+     *
+     * - `body` — la vraie URL. C'est ce qui part, et ce qui est hache.
+     * - `body_for_log` — le meme gabarit avec un marqueur expurge. C'est ce qui
+     *   est archive.
+     *
+     * Deux rendus plutot qu'une expression reguliere passee sur le rendu reel :
+     * une regex doit deviner ce qui est un jeton, se trompe des que le gabarit
+     * change, et echoue en SILENCE — elle laisserait alors passer exactement ce
+     * qu'elle existe pour retirer. Ici, la valeur sensible n'entre simplement
+     * jamais dans le second rendu. La donnee ne doit pas ENTRER, pas etre
+     * interdite de sortie.
+     *
+     * ## Cette methode ne connait AUCUNE cle metier
+     *
+     * Elle ne sait pas ce qu'est une invitation. Elle substitue un parametre
+     * `:url` que tout gabarit d'email de ce module recoit, et le marqueur est
+     * une constante. Rien ici n'est specifique a `loop.invitation` : le jour ou
+     * une autre cle arrive, elle herite de la meme protection sans code
+     * supplementaire.
+     *
+     * @return array{subject: string, body: string, body_for_log: string}|null
      */
     private function rendre(string $notificationKey, string $locale, string $cible): ?array
     {
@@ -363,6 +418,7 @@ final class NotificationEmailDeliverer
         return [
             'subject' => (string) __($racine.'.subject', [], $locale),
             'body' => (string) __($racine.'.body', ['url' => e($cible)], $locale),
+            'body_for_log' => (string) __($racine.'.body', ['url' => self::LIEN_EXPURGE], $locale),
         ];
     }
 
@@ -379,7 +435,23 @@ final class NotificationEmailDeliverer
      * technique, et rien d'autre n'empecherait un futur appelant d'y glisser un
      * texte long.
      *
-     * @param  array{subject: string, body: string}  $contenu
+     * ## `body_html` archive le corps EXPURGE, `body_hash` hache le corps REEL
+     *
+     * TASK-1378 — et la dissymetrie est DELIBEREE, c'est tout l'interet :
+     *
+     * - `body_html` recoit `body_for_log`, ou la cible est remplacee par un
+     *   marqueur. Aucun jeton d'action vivant n'entre donc dans une table
+     *   consultable et sans expiration propre.
+     * - `body_hash` hache `body` — le corps REELLEMENT remis au transport. Un
+     *   hachage du corps expurge ne repondrait a rien : la seule question utile
+     *   est « le message parti est-il bien celui qu'on croit ? », et elle porte
+     *   sur ce qui est parti.
+     *
+     * Consequence assumee : le hachage ne se verifie pas en recalculant depuis
+     * `body_html`. C'est le prix de ne pas archiver le jeton, et c'est le bon
+     * cote du compromis.
+     *
+     * @param  array{subject: string, body: string, body_for_log: string}  $contenu
      */
     private function tracer(
         MemberNotification $notification,
@@ -402,7 +474,7 @@ final class NotificationEmailDeliverer
         // requete, seulement d'ici.
         $journal->notification_id = (string) $notification->id;
         $journal->locale = $locale;
-        $journal->body_html = $contenu['body'];
+        $journal->body_html = $contenu['body_for_log'];
         $journal->body_hash = hash('sha256', $contenu['body']);
         $journal->save();
     }
