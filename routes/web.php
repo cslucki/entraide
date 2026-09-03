@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\AdminLoopPermissionController;
 use App\Http\Controllers\Admin\AdminLoopTypeController;
 use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
+use App\Http\Controllers\Admin\AdminNotificationCockpitController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
@@ -556,6 +557,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/email-templates/{emailTemplate}/send', [AdminEmailTemplatesController::class, 'sendExecute'])->name('email-templates.send.execute');
 
     // Email logs
+    // TASK-1380 — supervision des notifications. Il COMPTE, il ne lit pas :
+    // aucun destinataire, aucun corps de message, aucune adresse. La garde est
+    // le groupe ['auth','admin'] ci-dessus — `is_admin` est un attribut de
+    // plateforme, pas une appartenance a une Organization.
+    Route::get('/notifications-cockpit', [AdminNotificationCockpitController::class, 'index'])->name('notifications-cockpit');
+
     Route::get('/email-logs', [AdminEmailLogsController::class, 'index'])->name('email-logs');
     Route::get('/email-logs/{emailLog}', [AdminEmailLogsController::class, 'show'])->name('email-logs.show');
 
