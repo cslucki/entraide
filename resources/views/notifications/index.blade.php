@@ -1,12 +1,20 @@
 {{--
     TASK-1373 — le Centre de notifications.
 
-    Ce que cet ecran ne fait PAS, et c'est deliberе : il n'ouvre aucun objet.
-    Une notification ne porte que des references (`object_type` + `object_id`) ;
-    les resoudre en lien profond, re-verifier la permission au clic et dire
-    honnetement que la cible a disparu appartient a la tranche qui branchera le
-    premier producteur reel. Montrer un lien qui pourrait mentir serait pire que
-    de n'en montrer aucun.
+    Une notification ne porte que des references (`object_type` + `object_id`) :
+    aucun texte, aucune URL. Le libelle vient du catalogue et la destination est
+    resolue AU CLIC, sous les permissions du moment — jamais lue dans la ligne.
+
+    C'est ce qui fait qu'une notification vieille d'un mois n'ouvre aucune porte
+    fermee depuis. Quand la cible n'est plus accessible, l'ecran le dit
+    (`data-notification-unreachable`) plutot que de rediriger vers une page qui
+    refuserait.
+
+    TASK-1382 — ce bloc affirmait « cet ecran n'ouvre aucun objet », ce qui a
+    cesse d'etre vrai des TASK-1374 : le bouton « Ouvrir » est juste en dessous
+    depuis, et le resolveur de cible existe. Un commentaire qui contredit le
+    code sous lui est pire qu'aucun commentaire — il oriente la relecture
+    suivante dans la mauvaise direction.
 --}}
 @php
     $filtreActif = fn (string $f) => $filtre === $f;
@@ -20,10 +28,21 @@
 
     // Le libelle vient du catalogue, jamais de la ligne : le stockage ne
     // contient aucun texte. Les points de la cle deviennent des tirets bas.
+    //
+    // TASK-1382 — le troisieme argument `false` DESACTIVE le repli de locale, et
+    // il est load-bearing. `Lang::has()` honore la locale de repli par defaut :
+    // une cle presente en francais seulement repondrait `true` sous une
+    // interface anglaise, et le membre lirait du francais au lieu du repli
+    // generique — que ce code existe precisement pour afficher.
+    //
+    // Le cas est aujourd'hui inatteignable : la garde de TASK-1379 exige un
+    // libelle dans les DEUX locales pour toute cle du catalogue. C'est bien
+    // pour cela que le repli doit etre juste — il ne sert que le jour ou cette
+    // garde aura ete contournee ou une locale ajoutee.
     $libelle = function (string $cle) {
         $traduction = 'notifications.keys.'.str_replace('.', '_', $cle);
 
-        return \Illuminate\Support\Facades\Lang::has($traduction)
+        return \Illuminate\Support\Facades\Lang::has($traduction, null, false)
             ? __($traduction)
             : __('notifications.key_fallback');
     };
