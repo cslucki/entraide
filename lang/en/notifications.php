@@ -42,6 +42,11 @@ return [
 
     'keys' => [
         'loop_invitation' => 'Invitation to join a Loop',
+
+        // TASK-1381 — two labels, because these are two facts. The member must
+        // know what happened without having to open anything.
+        'loop_join_request_accepted' => 'Your request to join was accepted',
+        'loop_join_request_rejected' => 'Your request to join was not accepted',
     ],
 
     // Fallback when a catalogue key has no label yet. It must never show the

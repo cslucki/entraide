@@ -42,6 +42,11 @@ return [
 
     'keys' => [
         'loop_invitation' => 'Invitation à rejoindre une Boucle',
+
+        // TASK-1381 — deux libellés, parce que ce sont deux faits. Le membre
+        // doit savoir ce qui lui est arrivé sans avoir à ouvrir quoi que ce soit.
+        'loop_join_request_accepted' => 'Votre demande d’adhésion a été acceptée',
+        'loop_join_request_rejected' => 'Votre demande d’adhésion n’a pas été retenue',
     ],
 
     // Repli quand une cle du catalogue n'a pas encore de libelle. Il ne doit

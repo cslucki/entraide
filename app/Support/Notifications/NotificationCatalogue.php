@@ -34,11 +34,19 @@ namespace App\Support\Notifications;
  * - `category` : **declare, pas encore consomme**. Il servira au regroupement du
  *   Centre. Tant qu'aucun code ne le lit, cette ligne le dit.
  *
- * ## Une seule cle, et c'est voulu
+ * ## Le catalogue grandit evenement par evenement
  *
  * `loop.invitation` est l'exemple canonique du CDC et le premier producteur
- * reel a brancher — desormais sur ses DEUX canaux. Le catalogue grandit
- * evenement par evenement ; il ne se peuple pas d'avance.
+ * reel a avoir ete branche — sur ses DEUX canaux. T1381 y ajoute les deux
+ * reponses a une demande d'adhesion, sur IN_APP seulement. Rien ne se peuple
+ * d'avance : une cle n'entre ici que le jour ou un producteur reel l'emet.
+ *
+ * ## `in_app` obligatoire n'est pas une regle du canal
+ *
+ * Trois cles le declarent aujourd'hui non reglable, mais chacune pour SA raison
+ * — l'invitation par le CDC section 8, les deux decisions parce qu'aucun autre
+ * canal ne pourrait porter la reponse. Ne pas lire cette repetition comme une
+ * propriete du canal : une future cle IN_APP pourra tres bien etre reglable.
  *
  * ## Cette entree est le POINT DE BASCULE du cutover
  *
@@ -64,12 +72,36 @@ final class NotificationCatalogue
     public const LOOP_INVITATION = 'loop.invitation';
 
     /**
+     * TASK-1381 — la reponse a une demande d'adhesion.
+     *
+     * DEUX cles, pas une avec un statut. Une notification designe un FAIT, et
+     * « accepte » et « refuse » sont deux faits distincts : ils n'ont ni le meme
+     * libelle, ni la meme suite, et un membre doit pouvoir les distinguer dans
+     * son Centre sans ouvrir quoi que ce soit.
+     *
+     * Les fondre en `loop.join_request.decided` obligerait le rendu a relire
+     * l'objet metier pour savoir quoi ecrire — donc a dependre d'un etat qui a
+     * pu changer depuis. Le fait, lui, ne change pas.
+     */
+    public const LOOP_JOIN_REQUEST_ACCEPTED = 'loop.join_request.accepted';
+
+    public const LOOP_JOIN_REQUEST_REJECTED = 'loop.join_request.rejected';
+
+    /**
      * Le type d'objet de cette cle, expose comme constante.
      *
      * Le resolver de cible en a besoin pour brancher. Le lire ici plutot que de
      * reecrire la chaine ailleurs evite qu'une seconde verite s'installe.
      */
     public const OBJECT_LOOP_INVITATION = 'loop_invitation';
+
+    /**
+     * Les deux cles de decision partagent CE type d'objet.
+     *
+     * C'est voulu : elles parlent de la meme demande. Ce qui les separe est le
+     * FAIT, porte par `notification_key`, pas l'objet dont elles parlent.
+     */
+    public const OBJECT_LOOP_JOIN_REQUEST = 'loop_join_request';
 
     /**
      * Le registre.
@@ -109,6 +141,55 @@ final class NotificationCatalogue
                 // mailer legacy s'efface pour les membres de l'Organization.
                 // La retirer suffit a revenir en arriere.
                 self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1381 — la reponse a une demande faite PAR le destinataire.
+        //
+        // ## IN_APP est OBLIGATOIRE, et pas par symetrie avec l'invitation
+        //
+        // Le premier reflexe etait de le rendre reglable : la personne connait
+        // deja sa demarche, elle pourrait choisir d'aller voir plutot que d'etre
+        // prevenue. La mesure a montre ce que cela coute reellement.
+        //
+        // Aucun canal EMAIL n'existe sur ces cles (voir plus bas). Le Centre est
+        // donc l'UNIQUE endroit ou la reponse peut arriver, et couper le canal
+        // n'empeche pas la notification d'etre lue : il l'empeche d'EXISTER.
+        // Le membre ne perdrait pas un rappel, il perdrait la reponse a une
+        // question qu'il a posee lui-meme, sans aucun moyen de la retrouver.
+        //
+        // C'est la difference avec EMAIL sur l'invitation, ou se desabonner ne
+        // fait rien perdre parce que le fait reste visible dans le Centre.
+        //
+        // Effet de bord mesure, et c'est ce qui a tranche : rendre `in_app`
+        // reglable ici faisait rougir trois tests de TASK-1375. Ils affirment
+        // qu'aucun ecart n'est jamais stocke sur `in_app` — vrai tant que ce
+        // canal n'etait obligatoire que sur l'unique cle existante. Le proxy
+        // « in_app = obligatoire » aurait cesse d'etre vrai, et il aurait fallu
+        // reecrire des tests existants pour accommoder un choix qui n'etait de
+        // toute facon pas le bon.
+        //
+        // ## Aucun canal EMAIL dans cette tranche
+        //
+        // L'autorite du contenu des emails est `SystemEmailTemplate`, filtre par
+        // Organization et locale. Aucun modele n'existe pour ces deux faits, et
+        // en fabriquer un en fichier de langue installerait une seconde autorite
+        // metier — exactement ce qui est interdit. EMAIL reste donc hors
+        // catalogue ici : l'absence de la ligne suffit a ce que rien ne parte,
+        // et l'ajouter plus tard n'exigera aucune autre modification.
+        self::LOOP_JOIN_REQUEST_ACCEPTED => [
+            'category' => 'loop',
+            'object_type' => self::OBJECT_LOOP_JOIN_REQUEST,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+            ],
+        ],
+
+        self::LOOP_JOIN_REQUEST_REJECTED => [
+            'category' => 'loop',
+            'object_type' => self::OBJECT_LOOP_JOIN_REQUEST,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
             ],
         ],
     ];
