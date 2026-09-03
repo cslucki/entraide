@@ -38,6 +38,7 @@ return [
     'preferences_link' => 'Settings',
     'preferences_back' => 'My notifications',
     'channel_in_app' => 'In the app',
+    'channel_email' => 'By email',
 
     'keys' => [
         'loop_invitation' => 'Invitation to join a Loop',
