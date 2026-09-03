@@ -8,6 +8,8 @@ return [
     'blog' => 'Blog',
     'loops' => 'Loops',
     'messages' => 'Messages',
+    'notifications' => 'Notifications',
+    'notifications_hint' => 'What concerns you',
     'search_placeholder' => 'Search...',
     'publish' => 'Publish',
     'dashboard' => 'Dashboard',
