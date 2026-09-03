@@ -64,6 +64,20 @@ use InvalidArgumentException;
 final class NotificationEmitter
 {
     /**
+     * Le planificateur est OPTIONNEL a la construction, et resolu au besoin.
+     *
+     * Deux suites existantes font `new NotificationEmitter` : un parametre
+     * obligatoire les casserait sans rien apporter. Le rendre injectable garde
+     * la porte ouverte aux tests qui veulent l'observer.
+     */
+    public function __construct(private ?NotificationDeliveryPlanner $planner = null) {}
+
+    private function planner(): NotificationDeliveryPlanner
+    {
+        return $this->planner ??= app(NotificationDeliveryPlanner::class);
+    }
+
+    /**
      * @param  string  $eventId  UUID de l'EVENEMENT DE NOTIFICATION — partage
      *                           par tous ses destinataires, jamais l'identifiant
      *                           de l'objet metier.
@@ -96,7 +110,24 @@ final class NotificationEmitter
         try {
             // Les invariants s'appliquent dans `creating` — donc aussi pour
             // quiconque ne passerait pas par cette methode.
-            return DB::transaction(fn () => MemberNotification::create($attributes));
+            //
+            // TASK-1377 — c'est ICI, et NULLE PART AILLEURS, que les livraisons
+            // sont planifiees. Les deux `catch` ci-dessous rendent des lignes
+            // DEJA existantes : y planifier renverrait un email a chaque rejeu
+            // d'un producteur, ce que l'idempotence annoncee de ce module
+            // interdit.
+            //
+            // La garantie est une garantie de CHEMIN. Elle ne repose pas sur
+            // `wasRecentlyCreated` : ce drapeau appartient a l'instance, se perd
+            // sur `fresh()` (constate en T1374) et ne prouve donc pas par quelle
+            // branche on est passe.
+            return DB::transaction(function () use ($attributes) {
+                $notification = MemberNotification::create($attributes);
+
+                $this->planner()->plan($notification);
+
+                return $notification;
+            });
         } catch (UniqueConstraintViolationException) {
             return $this->existingEmission($attributes);
         } catch (InvalidArgumentException $refus) {
