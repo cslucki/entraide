@@ -1100,11 +1100,11 @@ return [
     // The technical key stays `general` — see the French file.
     'types.general.label' => 'Community',
     'types.general.description' => 'A Loop for collective life: meeting up, consulting each other, keeping what matters.',
-    'types.project.label' => 'Projets',
+    'types.project.label' => 'Projects',
     'types.project.description' => 'A Loop that builds: AI summary, Manifesto, Roadmap and Members.',
     'types.coaching.label' => 'Coaching',
     'types.coaching.description' => 'A guided accompaniment: objectives, steps, and the exchanges that carry them.',
-    'types.training.label' => 'Formation',
+    'types.training.label' => 'Training',
     'types.training.description' => 'A learning Loop, with pedagogical goals and resources.',
     'types.peer_support.label' => 'Pair-Aidance',
     'types.peer_support.description' => 'A Loop for mutual help between peers, in a trusted setting.',
