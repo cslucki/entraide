@@ -11,6 +11,7 @@ use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Support\Traits\Localizable;
 
 /**
  * The one place a Loop's root Dossier and root document are created or moved.
@@ -34,6 +35,8 @@ use Illuminate\Support\Str;
  */
 class LoopRootDocumentService
 {
+    use Localizable;
+
     public function __construct(
         private LoopTypeRegistry $types,
         private DossierArticleIndexingDispatcher $indexing,
@@ -76,7 +79,20 @@ class LoopRootDocumentService
      */
     public function ensureRootDocument(Loop $loop, ?User $author = null): BlogPost
     {
-        return DB::transaction(function () use ($loop, $author) {
+        // Langue (TASK-1390) : le document racine porte un titre, un slug et
+        // des en-tetes de sections PERSISTES depuis `__()`. Ils appartiennent a
+        // l'Organization, pas au lecteur qui declenche la creation — sans quoi
+        // un membre francais creant une Boucle dans une Organization anglaise
+        // y ecrit un Manifeste francais, definitivement.
+        //
+        // Pose ICI plutot que chez les trois appelants (`LoopService` x2,
+        // `LoopManifestoCard`) : c'est le goulot ou toute la fabrication de
+        // texte se produit, et un quatrieme appelant ecrit demain en herite
+        // sans que personne y pense.
+        //
+        // `withLocale()` rend la locale d'origine dans un `finally` : la
+        // requete en cours continue de repondre dans la langue de son lecteur.
+        return $this->withLocale($loop->organization?->locale, fn () => DB::transaction(function () use ($loop, $author) {
             $dossier = $this->ensureRootDossier($loop);
             $dossier->refresh();
 
@@ -114,7 +130,7 @@ class LoopRootDocumentService
             ]);
 
             return $this->designate($loop, $post);
-        });
+        }));
     }
 
     /**

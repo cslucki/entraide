@@ -8,7 +8,9 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\Loops\LoopRootDocumentService;
 use App\Services\Loops\RootDocumentLocaleRepairService;
+use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Illuminate\Support\Traits\Localizable;
 use Tests\TestCase;
 
@@ -493,12 +495,28 @@ class TASK1389RootDocumentLocaleRepairTest extends TestCase
     // ── Fixtures ────────────────────────────────────────────────────────────
 
     /**
-     * Une Boucle dont le document racine a ete ecrit sous la locale FRANCAISE,
+     * Une Boucle dont le document racine porte le texte systeme FRANCAIS,
      * quelle que soit la locale de son Organization.
      *
-     * C'est exactement le defaut que TASK-1388 a ferme pour l'avenir :
-     * `ensureRootDocument()` appele hors du chargeur suit la locale ambiante.
-     * La fixture le reproduit donc sans rien simuler.
+     * ## Pourquoi la fixture n'appelle plus le service sous locale `fr`
+     *
+     * Elle le faisait, et c'etait le plus fidele tant que le defaut existait :
+     * `ensureRootDocument()` suivait la locale ambiante. **TASK-1390 a ferme ce
+     * chemin** — le service pose desormais lui-meme la locale de
+     * l'Organization, et il est devenu impossible de lui faire ecrire du
+     * francais dans un tenant anglais.
+     *
+     * La fixture EMPRUNTAIT donc son etat degrade au defaut du code. Le defaut
+     * corrige, elle s'effondrait : cinq tests de reparation rougissaient parce
+     * qu'ils n'avaient plus rien a reparer.
+     *
+     * Elle CONSTRUIT maintenant cet etat, a partir des memes cles de traduction
+     * et du meme echappement que `initialContent()`. C'est plus fidele au reel,
+     * pas moins : les documents a reparer existent en base et ne seront jamais
+     * reproduits par le service. Un test de reparation ne doit pas dependre du
+     * fabricant de ce qu'il repare.
+     *
+     * Aucune assertion n'a change — seule la fabrique.
      */
     private function boucleAvecDocumentFrancais(
         string $slug,
@@ -521,9 +539,45 @@ class TASK1389RootDocumentLocaleRepairTest extends TestCase
             'created_by' => $membre->id,
         ]);
 
-        $this->withLocale('fr', fn () => app(LoopRootDocumentService::class)->ensureRootDocument($boucle, $membre));
+        app(LoopRootDocumentService::class)->ensureRootDocument($boucle, $membre);
+
+        $document = $this->document($boucle);
+        $document->title = $this->titreFrancais($boucle);
+        $document->slug = Str::slug($boucle->name.'-Manifeste');
+        $document->content = $this->contenuFrancais($boucle, $description);
+        $document->save();
 
         return $boucle->refresh();
+    }
+
+    /**
+     * Le titre tel que le service l'ecrivait sous locale francaise.
+     *
+     * Non echappe : `ensureRootDocument()` n'applique `e()` qu'au contenu.
+     */
+    private function titreFrancais(Loop $boucle): string
+    {
+        return trans('loops.root_document.project', [], 'fr').' — '.$boucle->name;
+    }
+
+    /**
+     * Le contenu tel que `initialContent()` l'ecrivait sous locale francaise.
+     *
+     * Reproduit sa forme exacte, `e()` compris : une intro tiree de la
+     * description quand elle existe, sinon le placeholder, puis un `<h2>` par
+     * cle de section suivi d'un paragraphe vide.
+     */
+    private function contenuFrancais(Loop $boucle, ?string $description): string
+    {
+        $intro = filled($description)
+            ? '<p>'.e($description).'</p>'
+            : '<p>'.e(trans('loops.root_document_intro_placeholder', ['name' => $boucle->name], 'fr')).'</p>';
+
+        $sections = collect(app(LoopTypeRegistry::class)->rootDocumentSections('project'))
+            ->map(fn (string $cle) => '<h2>'.e(trans($cle, [], 'fr')).'</h2><p></p>')
+            ->implode('');
+
+        return $intro.$sections;
     }
 
     private function document(Loop $boucle): BlogPost
