@@ -9,7 +9,6 @@ use App\Ai\ProviderResolver;
 use App\Events\LoopMessageCreated;
 use App\Http\Middleware\ResolveOrganization;
 use App\Jobs\GenerateAiAgentResponse;
-use App\Listeners\LoginListener;
 use App\Models\AiConfig;
 use App\Models\BlogPost;
 use App\Models\BugReport;
@@ -66,7 +65,6 @@ use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiFabContext;
 use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Ops\ArtisanDatabaseGuard;
-use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\Events\NotificationSent;
@@ -265,10 +263,22 @@ class AppServiceProvider extends ServiceProvider
                 ->by('ai-doctrine-sandbox:'.($request->user()?->id ?: $request->ip()));
         });
 
-        Event::listen(
-            Login::class,
-            LoginListener::class,
-        );
+        // TASK-1385 — `LoginListener` N'EST PLUS enregistre ici, et il ne doit
+        // pas l'etre.
+        //
+        // Laravel 11 decouvre automatiquement les ecouteurs de `app/Listeners`
+        // par le TYPE de l'argument de `handle()`. L'inscription explicite qui
+        // vivait a cet endroit l'abonnait donc une SECONDE fois, et chaque
+        // connexion ecrivait deux lignes dans `login_logs`.
+        //
+        // Mesure sur la base de developpement avant correction : 6490 lignes
+        // pour 3220 evenements distincts. Le journal d'audit des connexions
+        // etait double depuis toujours.
+        //
+        // Le meme piege venait de mordre en T1384 sur `email_logs`. Si une
+        // future tranche croit cet ecouteur « oublie » et le rajoute ici, le
+        // test d'abonnement unique de T1385 rougira avant qu'une seule ligne
+        // soit ecrite.
 
         // TASK-1384 — l'ECHEC de ces memes envois est trace par
         // `App\Listeners\RecordFailedLegacyNotification`, sur
