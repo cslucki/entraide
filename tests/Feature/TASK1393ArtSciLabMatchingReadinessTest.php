@@ -147,15 +147,31 @@ class TASK1393ArtSciLabMatchingReadinessTest extends TestCase
 
             $this->assertNotSame('', $matiere, "Aucune matiere connue pour le persona « {$cle} ».");
 
-            foreach ((array) $profil->skills as $competence) {
-                $ancre = $this->ancre($competence);
+            // TASK-1394 : TOUS les champs declares, pas seulement `skills`.
+            //
+            // Ma premiere version ne verifiait que les competences. Elle a
+            // donc laisse passer `help_types => ['advice', 'review']`, que
+            // j'avais ecrit A L'IDENTIQUE pour les quatre profils, sans
+            // aucune source — et la recette l'a paye : toute demande
+            // contenant « review » remontait TOUT LE MONDE, dont Elena, sur
+            // un terme qui ne venait d'aucune de ses competences.
+            //
+            // La regle etait bonne, sa portee etait trop etroite. Un champ
+            // exclu du controle est un champ ou l'invention reste possible.
+            $declares = [
+                'skills' => (array) $profil->skills,
+                'help_types' => (array) $profil->help_types,
+            ];
 
-                $this->assertStringContainsString(
-                    $ancre,
-                    $matiere,
-                    "La competence « {$competence} » de {$cle} n'est etayee par aucun texte du pack. ".
-                    'Une competence sans source est une invention.',
-                );
+            foreach ($declares as $champ => $valeurs) {
+                foreach ($valeurs as $valeur) {
+                    $this->assertStringContainsString(
+                        $this->ancre((string) $valeur),
+                        $matiere,
+                        "La valeur « {$valeur} » du champ `{$champ}` de {$cle} n'est etayee par aucun ".
+                        'texte du pack. Une valeur sans source est une invention.',
+                    );
+                }
             }
         }
     }
@@ -247,6 +263,37 @@ class TASK1393ArtSciLabMatchingReadinessTest extends TestCase
         );
     }
 
+    /**
+     * Un mot generique ne remonte plus une personne sans rapport.
+     *
+     * TASK-1394 — la mesure de l'EFFET, et elle vient d'une recette reelle,
+     * pas d'une hypothese.
+     *
+     * Sur le banc, une demande de relecture ethique remontait DEUX
+     * PersonCards : Sam — a juste titre, `matched_terms: ["ethic","review"]`
+     * sur sa competence « Ethics review » — et Elena, sur le seul terme
+     * « review », qui ne venait d'aucune de ses competences mais du champ
+     * `help_types` que j'avais rempli a l'identique pour les quatre profils.
+     *
+     * Le champ retire, seule la personne reellement competente remonte.
+     * Rien dans la logique de selection n'a bouge : c'est la DONNEE qui a
+     * cesse de mentir.
+     */
+    public function test_a_generic_word_no_longer_surfaces_an_unrelated_person(): void
+    {
+        $this->chargerLePack();
+
+        // Wen demande : Elena et Sam sont tous deux candidats dans sa Boucle.
+        $pertinents = $this->pertinentsPour('I need someone to review the ethics of what we publish', 'circle_orientation', 'wen');
+
+        $this->assertContains('Sam Okafor', $pertinents, 'Sam declare « Ethics review » : il doit remonter.');
+        $this->assertNotContains(
+            'Elena Cho',
+            $pertinents,
+            'Elena ne remontait que par un `help_types` invente : le champ retire, elle ne doit plus apparaitre.',
+        );
+    }
+
     // ── Fixtures ────────────────────────────────────────────────────────────
 
     /**
@@ -258,7 +305,7 @@ class TASK1393ArtSciLabMatchingReadinessTest extends TestCase
      *
      * @return list<string>
      */
-    private function pertinentsPour(string $besoin): array
+    private function pertinentsPour(string $besoin, string $loopKey = 'sonic_terrain', string $demandeur = 'elena'): array
     {
         // La Boucle de Priya, ciblee explicitement : `sonic_terrain` a Priya
         // pour proprietaire et Elena parmi ses membres. Prendre « la premiere
@@ -267,10 +314,15 @@ class TASK1393ArtSciLabMatchingReadinessTest extends TestCase
         // matching.
         $loop = Loop::query()
             ->where('organization_id', $this->organization->id)
-            ->where('name', ArtSciLabEnglishPack::LOOPS['sonic_terrain']['name'])
+            ->where('name', ArtSciLabEnglishPack::LOOPS[$loopKey]['name'])
             ->firstOrFail();
 
-        $demandeur = User::query()->where('email', 'elena@artscilab-en.test')->firstOrFail();
+        // Le DEMANDEUR est exclu des candidats par `eligibleFor()`. Le choisir
+        // au hasard rend donc certaines personnes structurellement
+        // inatteignables — mon premier test d'effet passait pour cette raison
+        // et non parce que le correctif marchait. Le sabotage l'a montre :
+        // il restait vert avec le defaut restaure.
+        $demandeur = User::query()->where('email', $demandeur.'@artscilab-en.test')->firstOrFail();
 
         $resultat = app(RelevantPeopleService::class)
             ->relevantFor($this->organization, $loop, $demandeur, $besoin);
