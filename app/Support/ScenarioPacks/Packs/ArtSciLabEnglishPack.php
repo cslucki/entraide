@@ -12,6 +12,7 @@ use App\Models\LoopEvent;
 use App\Models\LoopMessage;
 use App\Models\LoopPoll;
 use App\Models\LoopRoadmapItem;
+use App\Models\MemberAiProfile;
 use App\Models\Organization;
 use App\Models\OrganizationAiDoctrine;
 use App\Models\OrganizationAiSetting;
@@ -135,6 +136,81 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
             'country_code' => 'US',
             'bio' => null,
             'new_member' => true,
+        ],
+    ];
+
+    /**
+     * Les profils IA publies du tenant (TASK-1393).
+     *
+     * ## La regle, et ce qu'elle interdit
+     *
+     * > Ne pas inventer de talents pour satisfaire une phrase de demonstration.
+     *
+     * Chaque competence ci-dessous est ETAYEE par un texte que ce pack
+     * contenait DEJA : la bio du persona, une decision qu'il a signee, une
+     * demande ou une offre dont il est l'auteur. La colonne `provenance` le
+     * dit pour chacune, et
+     * `TASK1393ArtSciLabMatchingReadinessTest::test_every_declared_skill_is_backed_by_pack_material`
+     * le MESURE — une competence ajoutee demain sans source ferait rougir la
+     * suite.
+     *
+     * Appartenir a une Boucle ne vaut PAS preuve : « Priya est dans Sonic
+     * Terrain » ne dit rien de ce qu'elle sait faire. Seul ce qu'une personne a
+     * ecrit, decide, demande ou offert compte.
+     *
+     * ## Pourquoi QUATRE profils et non cinq
+     *
+     * `wen` n'est l'auteur de rien — zero message, zero decision, zero demande,
+     * zero offre — et sa bio est `null` A DESSEIN (`new_member: true`). Lui
+     * fabriquer des competences trahirait la regle et detruirait le seul cas de
+     * demonstration ou le produit doit dire « je ne sais pas encore ». Son
+     * absence est un RESULTAT, pas un oubli.
+     *
+     * `elena` est le cas limite, et il est assume : elle n'est autrice
+     * d'aucune action, sa seule preuve est sa bio. Elle recoit donc UNE
+     * competence, tiree litteralement de ce role, et pas davantage.
+     *
+     * @var array<string, array{skills: list<string>, summary: string, provenance: array<string, string>}>
+     */
+    public const AI_PROFILES = [
+        'priya' => [
+            'skills' => ['Data sonification', 'Data visualisation', 'Uncertainty mapping'],
+            'summary' => 'Turns climate datasets into sound, and says plainly where a representation claims more precision than the data supports.',
+            'provenance' => [
+                'Data sonification' => 'bio : « Turns climate datasets into sound. »',
+                'Data visualisation' => 'offre `data-visualisation-review` : « how your data becomes an image or a sound ».',
+                'Uncertainty mapping' => 'demande `second-opinion-on-mapping` : « Our roughness mapping saturates on wide confidence intervals. I wrote it. »',
+            ],
+        ],
+        'sam' => [
+            'skills' => ['Public engagement', 'Session facilitation', 'Ethics review'],
+            'summary' => 'Prepares and hosts public sessions, then writes up what was actually heard — disagreement included.',
+            'provenance' => [
+                'Public engagement' => 'bio : « Public engagement and ethics. »',
+                'Session facilitation' => 'offre `session-facilitation` : « Preparing and hosting a session ».',
+                'Ethics review' => 'decision `named-reviewer` : « Nothing generated leaves the lab without a named human reviewer. »',
+            ],
+        ],
+        'marcus' => [
+            'skills' => ['Grant writing', 'Impact evidence'],
+            'summary' => 'Leads the grant renewal: writes the narrative, and chases the evidence that supports it.',
+            'provenance' => [
+                'Grant writing' => 'bio : « Leads the grant renewal. Writes the narrative. »',
+                'Impact evidence' => 'bio : « chases the evidence » ; decision `lead-with-listening` : « what we can evidence ».',
+            ],
+        ],
+        'elena' => [
+            'skills' => ['Commitment decisions'],
+            'summary' => 'Lab director: decides what the lab commits to, and what it declines.',
+            'provenance' => [
+                // Premiere redaction : « Research direction ». Le test de
+                // provenance l'a REFUSEE, et il avait raison — la bio dit
+                // « director », jamais « direction ». Une lettre d'ecart, mais
+                // le glissement etait reel : je reformulais au lieu de citer.
+                // Le libelle reprend donc les mots du pack : « Decides what the
+                // lab COMMITS to ».
+                'Commitment decisions' => 'bio : « Lab director. Decides what the lab commits to, and what it declines. » — SEULE preuve disponible pour ce persona, d\'ou une competence unique.',
+            ],
         ],
     ];
 
@@ -291,6 +367,7 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
         $base = CarbonImmutable::parse('2026-06-02 09:00:00', 'UTC');
 
         $personas = $this->personas($organization, $registrar, $base);
+        $this->aiProfiles($organization, $personas, $registrar, $base);
         [$loops, $dossiers] = $this->loops($organization, $personas, $registrar);
         $categories = $this->categories($organization, $registrar);
 
@@ -358,6 +435,54 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
         $organization->update(['admin_id' => $personas['elena']->id]);
 
         return $personas;
+    }
+
+    /**
+     * Les profils IA publies des personas qui ont de quoi les etayer.
+     *
+     * Sans profil publie, aucune PersonCard ne peut apparaitre : l'ensemble
+     * eligible est vide, et le matching n'a rien a departager. Ce n'est donc
+     * pas une donnee decorative — c'est ce qui rend la moitie « humaine » du
+     * produit demontrable.
+     *
+     * `updateOrCreate` sur `(organization_id, user_id)` : rejouer le pack met a
+     * jour, ne duplique pas. Un profil duplique ferait apparaitre deux fois la
+     * meme personne dans les resultats.
+     *
+     * @param  array<string, User>  $personas
+     */
+    private function aiProfiles(Organization $organization, array $personas, ScenarioPackEntityRegistrar $registrar, CarbonImmutable $base): void
+    {
+        foreach (self::AI_PROFILES as $key => $definition) {
+            $persona = $personas[$key] ?? null;
+
+            if (! $persona instanceof User) {
+                continue;
+            }
+
+            $profile = MemberAiProfile::updateOrCreate(
+                ['organization_id' => $organization->id, 'user_id' => $persona->id],
+                [
+                    'status' => 'published',
+                    // La langue du tenant, pas celle du processus qui charge
+                    // le pack (TASK-1388).
+                    'locale' => $organization->locale,
+                    'member_profile_summary' => $definition['summary'],
+                    'generated_summary' => $definition['summary'],
+                    'skills' => $definition['skills'],
+                    'help_types' => ['advice', 'review'],
+                ],
+            );
+
+            // `published_at` n'est pas `$fillable` — et c'est lui, pas le
+            // `status`, qui decide qu'un profil est publie. Le poser par la
+            // primitive prevue plutot qu'elargir `$fillable` pour un pack.
+            if ($profile->published_at === null) {
+                $profile->forceFill(['published_at' => $base, 'validated_at' => $base])->saveQuietly();
+            }
+
+            $registrar->track('ai_profile', $key, $profile);
+        }
     }
 
     /**
