@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\EmailLog;
 use App\Models\Organization;
+use App\Models\SystemEmailTemplate;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Notifications\TransactionStatusChanged;
@@ -154,6 +155,58 @@ class TASK1384LegacyNotificationFailureEvidenceTest extends TestCase
         $this->assertSame(1, EmailLog::count(), 'Un envoi, une ligne.');
         $this->assertSame(0, EmailLog::where('status', EmailLog::STATUS_SENT)->count());
         $this->assertSame(1, EmailLog::where('status', EmailLog::STATUS_FAILED)->count());
+    }
+
+    /**
+     * L'echec vient de la CONSTRUCTION du message, pas du transport.
+     *
+     * C'est le cas que la revue adverse a fait apparaitre, et il etait
+     * BLOQUANT : `sujet()` rendait `null` quand `toMail()` relevait, or
+     * `email_logs.subject` est declaree sans `nullable()`. L'insertion violait
+     * donc la contrainte NOT NULL, l'echec etait avale par le `catch`, et la
+     * tranche produisait exactement ce qu'elle existe pour supprimer : RIEN.
+     *
+     * Et ce n'est pas theorique : gabarit casse, cle de traduction absente,
+     * relation supprimee — toute la famille de pannes ou le sujet manque est
+     * precisement celle dont on veut une preuve. Aucun des autres tests ne
+     * l'atteignait : ils sabotent tous le TRANSPORT.
+     */
+    public function test_a_failure_coming_from_the_message_build_is_still_recorded(): void
+    {
+        $destinataire = User::factory()->create([
+            'organization_id' => $this->org->id,
+            'preferred_locale' => 'fr',
+        ]);
+
+        // Le gabarit fait prendre a `toMail()` la branche qui construit un lien
+        // par `route()` — sinon le repli n'appelle aucune route et ne leve pas.
+        SystemEmailTemplate::create([
+            'organization_id' => $this->org->id,
+            'locale' => 'fr',
+            'slug' => 'transaction_status_changed',
+            'name' => 'T1384',
+            'subject' => 'Sujet {{ status_label }}',
+            'content_html' => '<p>{{ url }}</p>',
+            'variables' => ['status_label', 'url'],
+            'enabled' => true,
+        ]);
+
+        // Transaction NON ENREGISTREE : `route('messages.show', $tx)` ne peut
+        // pas construire d'URL sans identifiant, et leve.
+        $notification = new TransactionStatusChanged(new Transaction);
+
+        event(new NotificationFailed(
+            $destinataire,
+            $notification,
+            'mail',
+            ['exception' => new TransportException('peu importe')],
+        ));
+
+        $ligne = EmailLog::query()->latest('id')->first();
+
+        $this->assertNotNull($ligne, 'La preuve doit exister MEME sans sujet.');
+        $this->assertSame(EmailLog::STATUS_FAILED, $ligne->status);
+        $this->assertSame('[subject-unavailable]', $ligne->subject);
     }
 
     // =====================================================================

@@ -5,6 +5,7 @@ namespace App\Listeners;
 use App\Models\EmailLog;
 use App\Models\User;
 use Illuminate\Notifications\Events\NotificationFailed;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -48,14 +49,30 @@ use Throwable;
  *
  * La classe de l'exception, elle, est stable, diagnostique et n'expose rien.
  *
- * ## Pourquoi PAS de `report()` ici
+ * ## Pourquoi PAS de `report()` sur l'exception de la NOTIFICATION
  *
- * Il avait ete envisage, puis mesure : `rescue($callback, false)` — la forme
- * utilisee par tous les appelants de ce flux — a pour signature
- * `rescue($callback, $rescue = null, $report = true)`. Le `false` est la VALEUR
- * DE REPLI, pas le drapeau de report. L'exception est donc **deja** reportee par
- * `rescue`, et celles qui remontent le sont par le gestionnaire de Laravel.
- * Ajouter un `report()` ici doublerait chaque trace sans rien apprendre.
+ * Parce que les appelants s'en chargent deja, chacun avec son contexte metier.
+ * La forme employee est `rescue($callback, $closure, false)` — TROIS arguments :
+ * `TransactionController` (quatre sites), `MessageThread` et `CheckAiBudgets`
+ * y journalisent eux-memes via leur closure de repli, et le troisieme argument
+ * `false` DESACTIVE explicitement le report automatique. Seul
+ * `RegisteredUserController` utilise la forme a un argument, donc le report par
+ * defaut.
+ *
+ * Rapporter ici en plus dupliquerait ce que le producteur dit deja mieux : lui
+ * sait de quel evenement metier il s'agit.
+ *
+ * ## Mais l'echec de CETTE ecriture, lui, est journalise
+ *
+ * C'est une exception differente, et elle n'escalade nulle part : le `catch`
+ * ci-dessous la retient, aucun `rescue` d'appelant ne la voit. La laisser
+ * disparaitre reproduirait exactement le defaut que cette tranche corrige — un
+ * traceur dont les pannes ne laissent aucune trace — applique au traceur
+ * lui-meme. Le silence a d'ailleurs deja masque un vrai defaut pendant
+ * l'ecriture de cette tranche.
+ *
+ * On journalise donc un CODE, jamais un message : la meme discipline que pour
+ * `error_message`.
  *
  * ## Il ne casse jamais la requete
  *
@@ -74,6 +91,24 @@ class RecordFailedLegacyNotification
      * qui contient le chemin du fichier et un octet nul.
      */
     private const CODE_MAX = 120;
+
+    /**
+     * Le sujet quand il est INDISPONIBLE — jamais `null`.
+     *
+     * `email_logs.subject` est declaree `string('subject')` SANS `nullable()` :
+     * la colonne est NOT NULL sur les deux moteurs. Un `null` ferait donc
+     * echouer l'insertion, l'echec serait avale par le `catch` ci-dessous, et la
+     * tranche produirait exactement ce qu'elle existe pour supprimer : rien.
+     *
+     * Et ce n'est pas un cas theorique : c'est LA famille de pannes ou le sujet
+     * manque, celle ou l'echec vient de la CONSTRUCTION du message — gabarit
+     * casse, cle de traduction absente, relation supprimee. Precisement celle
+     * dont on veut une preuve.
+     *
+     * Un marqueur stable, en clair, sans donnee. Meme idiome que le
+     * `[action-link-redacted]` du livreur du pipeline (T1377).
+     */
+    private const SUJET_INDISPONIBLE = '[subject-unavailable]';
 
     public function handle(NotificationFailed $event): void
     {
@@ -107,27 +142,33 @@ class RecordFailedLegacyNotification
                     'source' => class_basename($event->notification),
                 ],
             ]);
-        } catch (Throwable) {
+        } catch (Throwable $echec) {
             // Voir l'en-tete : la tenue de registre ne fait pas echouer ce qui a
-            // deja eu lieu.
+            // deja eu lieu. Mais elle ne disparait pas en silence pour autant.
+            Log::warning('TASK-1384 preuve d\'echec d\'email historique non enregistree', [
+                'raison' => mb_substr(class_basename($echec), 0, self::CODE_MAX),
+                'notification' => class_basename($event->notification),
+            ]);
         }
     }
 
     /**
-     * Le sujet, au mieux — et `null` plutot que rien du tout.
+     * Le sujet, au mieux — et un marqueur plutot que `null`.
      *
      * `toMail()` est rappele ici comme le fait l'ecouteur de succes. Mais sur le
      * chemin d'ECHEC il a pu echouer lui-meme : si l'exception vient de la
-     * construction du message, le rejouer relevera. La preuve que l'envoi a
-     * echoue vaut plus que son sujet, donc on garde la ligne et on perd le
-     * sujet.
+     * construction du message, le rejouer relevera.
+     *
+     * La preuve que l'envoi a echoue vaut plus que son sujet — d'ou le repli.
+     * Il ne peut PAS etre `null` : la colonne est NOT NULL, voir
+     * `SUJET_INDISPONIBLE`.
      */
-    private function sujet(NotificationFailed $event, User $destinataire): ?string
+    private function sujet(NotificationFailed $event, User $destinataire): string
     {
         try {
-            return $event->notification->toMail($destinataire)->subject;
+            return $event->notification->toMail($destinataire)->subject ?? self::SUJET_INDISPONIBLE;
         } catch (Throwable) {
-            return null;
+            return self::SUJET_INDISPONIBLE;
         }
     }
 
