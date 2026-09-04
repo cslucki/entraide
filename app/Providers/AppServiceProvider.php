@@ -270,6 +270,21 @@ class AppServiceProvider extends ServiceProvider
             LoginListener::class,
         );
 
+        // TASK-1384 — l'ECHEC de ces memes envois est trace par
+        // `App\Listeners\RecordFailedLegacyNotification`, sur
+        // `NotificationFailed`.
+        //
+        // Il n'est PAS enregistre ici, et c'est deliberе : Laravel decouvre
+        // automatiquement les ecouteurs de `app/Listeners` par le type de leur
+        // argument. Une ligne `Event::listen()` de plus l'abonnerait une SECONDE
+        // fois — mesure faite, deux lignes ecrites pour un seul echec.
+        //
+        // Les deux ecouteurs ecrivent dans `email_logs` et doivent accepter
+        // exactement les memes envois : canal `mail`, notification de
+        // l'application, destinataire `User`. Le succes filtre en clair
+        // ci-dessous ; l'echec filtre dans sa classe, ou la sanitisation du code
+        // d'erreur avait besoin d'un vrai domicile. Les deux jeux de filtres
+        // sont mesures, precisement parce qu'ils vivent a deux endroits.
         Event::listen(
             NotificationSent::class,
             function (NotificationSent $event) {
