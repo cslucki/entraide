@@ -470,7 +470,24 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
                     'member_profile_summary' => $definition['summary'],
                     'generated_summary' => $definition['summary'],
                     'skills' => $definition['skills'],
-                    'help_types' => ['advice', 'review'],
+                    // TASK-1394 : `help_types` n'est PAS declare.
+                    //
+                    // Ma premiere version y ecrivait `['advice', 'review']`,
+                    // a l'identique pour les quatre profils et sans aucune
+                    // source dans le pack. Le matching lit ce champ comme un
+                    // signal a part entiere : toute demande contenant
+                    // « review » remontait donc les QUATRE personnes, dont
+                    // celles dont aucune competence n'avait de rapport.
+                    //
+                    // Mesure en recette : une demande de relecture ethique
+                    // remontait Sam — a juste titre, sur sa competence
+                    // « Ethics review » — ET Elena, uniquement sur ce
+                    // `help_types` invente.
+                    //
+                    // Le pack ne dit nulle part quel type d'aide chaque
+                    // persona accepte. Un champ sans source ne doit pas
+                    // exister : le declarer vide vaut mieux que le remplir
+                    // d'une supposition qui pese sur les recommandations.
                 ],
             );
 
