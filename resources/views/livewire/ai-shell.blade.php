@@ -157,7 +157,22 @@
                             $isOfferDraft = $isUserDraft
                                 && $meta['intent'] === \App\Support\Ai\AiShellTurnCards::INTENT_OFFER;
 
-                            $requestDraftBody = $isUserDraft
+                            // TASK-1392 : les questions que le modele pose quand il n'a
+                            // pas compris. Leur ABSENCE — cle manquante sur les tours
+                            // ecrits avant cette tranche — vaut « aucune question », donc
+                            // le fil deja ecrit se relit inchange, comme `intent` l'a fait
+                            // pour TASK-1350.
+                            $clarificationQuestions = $isAnswered
+                                ? array_values(array_filter((array) ($meta['clarification_questions'] ?? [])))
+                                : [];
+
+                            $awaitingClarification = $isUserDraft && $clarificationQuestions !== [];
+
+                            // Tant qu'une question reste sans reponse, le brouillon
+                            // n'est pas propose : une carte redigee a la premiere
+                            // personne affirmerait avoir compris ce que le modele vient
+                            // de dire ne pas comprendre.
+                            $requestDraftBody = $isUserDraft && ! $awaitingClarification
                                 ? trim((string) ($meta['message_draft'] ?: $message->content))
                                 : '';
                         @endphp
@@ -204,6 +219,26 @@
                                  emprunte le pipeline EXISTANT `prepareRequest($messageId)`,
                                  qui depose un brouillon hors session et ouvre le
                                  formulaire canonique. L'humain relit et valide ensuite. --}}
+                            {{-- TASK-1392 — les questions de clarification, POSEES.
+                                 Le modele a dit qu'il lui manquait quelque chose : le
+                                 dire est plus honnete que de presenter un brouillon
+                                 assurant le contraire. Aucun bouton ici — la reponse se
+                                 tape dans le composeur, comme le reste de la
+                                 conversation. --}}
+                            @if($awaitingClarification)
+                                <div class="mt-2 w-full max-w-[92%] rounded-xl border border-dashed border-amber-300 bg-amber-50/70 p-3 dark:border-amber-700/60 dark:bg-amber-900/20"
+                                     data-ai-shell-clarification="{{ count($clarificationQuestions) }}">
+                                    <p class="flex items-center gap-1.5">
+                                        <span class="rounded bg-white px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-gray-800 dark:text-amber-200">{{ __('ai.shell_clarification_heading') }}</span>
+                                    </p>
+                                    <ul class="mt-1.5 space-y-1">
+                                        @foreach($clarificationQuestions as $clarificationQuestion)
+                                            <li class="text-sm leading-5 text-gray-700 dark:text-gray-200" data-ai-shell-clarification-question>{{ $clarificationQuestion }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
+
                             @if($isUserDraft && $requestDraftBody !== '')
                                 <div class="mt-2 w-full max-w-[92%] rounded-xl border border-dashed border-indigo-300 bg-indigo-50/60 p-3 dark:border-indigo-700/60 dark:bg-indigo-900/20"
                                      data-ai-shell-request-draft="{{ $message->id }}">

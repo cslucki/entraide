@@ -379,6 +379,25 @@ final class AiShellResponder
             'context' => $result->context,
             'expected_help_type' => $result->expectedHelpType,
             'message_draft' => $result->messageDraft,
+            // TASK-1392 : les questions de clarification, quand le modele en
+            // pose.
+            //
+            // Elles existaient deja de bout en bout — le schema de
+            // `HelpRequestClarifierAgent` declare `questions_for_user`, et
+            // `ClarifyUserHelpRequestService` les publie dans
+            // `fallback['questions']`. La surface LOOP les affiche. Le Shell,
+            // lui, ne les transportait pas jusqu'a sa vue : la donnee
+            // s'arretait ici, et aucune condition d'affichage n'existait
+            // en aval parce qu'il n'y avait rien a afficher.
+            //
+            // Le membre voyait donc un brouillon redige a la premiere
+            // personne, presente comme compris, alors que le modele venait de
+            // dire qu'il avait besoin de precisions. La question posee etait
+            // perdue, et l'assurance affichee etait fausse.
+            'clarification_questions' => array_values(array_filter(
+                (array) ($result->fallback['questions'] ?? []),
+                static fn ($question): bool => is_string($question) && trim($question) !== '',
+            )),
             // On ne garde que l'IDENTIFIANT : le libelle et l'URL sont
             // re-resolus a l'affichage, sous la garde de la page. Un fil relu
             // demain ne peut donc pas exposer une Boucle qu'on a quittee.
