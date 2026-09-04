@@ -287,6 +287,121 @@ class TASK1389RootDocumentLocaleRepairTest extends TestCase
         $this->assertSame($avant->content, $apres->content);
     }
 
+    /**
+     * Un article HUMAIN adopte comme document racine n'est jamais touche.
+     *
+     * `designate()` accepte n'importe quel article de l'Organization : le
+     * document racine n'est donc pas necessairement un scaffold. Un tel
+     * document a un titre entierement humain et aucune section — et le produit
+     * PROMET par ecrit qu'il sera preserve
+     * (`loops.root_document_replace_warning` : « Son contenu, son historique et
+     * son auteur sont conserves »).
+     *
+     * Aucun test ne couvrait ce cas, qui est pourtant le plus couteux : une
+     * ecriture de service ne cree aucun `BlogSnapshot`, donc un ecrasement
+     * serait irrecuperable.
+     */
+    public function test_an_adopted_human_article_is_never_touched(): void
+    {
+        $boucle = Loop::query()->create([
+            'organization_id' => $this->organisationAnglaise->id,
+            'slug' => 'task1389-adopte',
+            'name' => 'Consent & Ethics Review',
+            'description' => 'Une Boucle qui adopte un article existant.',
+            'type' => 'project',
+            'status' => 'active',
+            'visibility' => 'private',
+            'access_mode' => Loop::ACCESS_REQUEST,
+            'created_by' => $this->membre->id,
+        ]);
+
+        $article = BlogPost::query()->create([
+            'user_id' => $this->membre->id,
+            'organization_id' => $this->organisationAnglaise->id,
+            'title' => 'Consent protocol — reviewed 12 March 2026',
+            'slug' => 'consent-protocol-reviewed',
+            'content' => '<p>A protocol written by a person, with no system scaffold at all.</p>',
+            'status' => 'published',
+            'published_at' => now(),
+        ]);
+
+        app(LoopRootDocumentService::class)->designate($boucle, $article);
+
+        app(RootDocumentLocaleRepairService::class)->repair($this->organisationAnglaise);
+
+        $apres = BlogPost::query()->findOrFail($article->id);
+
+        $this->assertSame('Consent protocol — reviewed 12 March 2026', $apres->title);
+        $this->assertSame('<p>A protocol written by a person, with no system scaffold at all.</p>', $apres->content);
+    }
+
+    /**
+     * Une Boucle RETYPEE depuis la creation de son document est reparee.
+     *
+     * `loops.type` est mutable et le document ne se resynchronise jamais.
+     * Mesure sur le parc : la majorite des documents racines portent le libelle
+     * d'un type qu'ils n'ont plus — « Cadre du dialogue » sur des Boucles
+     * devenues `training`, `coaching`, `writing`, `peer_support`.
+     *
+     * Ne chercher que le type COURANT ferait conclure « titre ecrit a la main »
+     * et laisserait ces documents en francais **en silence** — exactement le
+     * defaut que cette tranche pretend corriger.
+     *
+     * Le libelle stocke est traduit A L'IDENTIQUE, pas re-type : la tranche
+     * repare une langue, elle ne redecide pas d'un type.
+     */
+    public function test_a_loop_retyped_since_creation_is_still_repaired(): void
+    {
+        $boucle = $this->boucleAvecDocumentFrancais('task1389-retypee');
+
+        $this->assertStringStartsWith('Manifeste — ', $this->document($boucle)->title);
+
+        $boucle->update(['type' => 'coaching']);
+
+        app(RootDocumentLocaleRepairService::class)->repair($this->organisationAnglaise);
+
+        $document = $this->document($boucle);
+
+        $this->assertStringStartsWith(
+            'Manifesto — ',
+            $document->title,
+            'Le libelle STOCKE doit etre traduit, pas remplace par celui du type courant.',
+        );
+        $this->assertStringContainsString('<h2>Why this Loop exists</h2>', $document->content);
+        $this->assertStringNotContainsString('Pourquoi cette Boucle existe', $document->content);
+    }
+
+    /**
+     * Le placeholder d'une Boucle RENOMMEE est traduit, et garde son nom
+     * historique.
+     *
+     * Le placeholder contient le nom sous lequel la Boucle a ete creee. Le
+     * reconnaitre par sa valeur — donc par le nom COURANT — echouait apres tout
+     * renommage : le titre et les en-tetes passaient a l'anglais, l'intro
+     * restait francaise, et le rejeu annoncait « tout est deja dans la bonne
+     * langue » sur un document chimere.
+     */
+    public function test_the_placeholder_of_a_renamed_loop_is_translated_and_keeps_its_historical_name(): void
+    {
+        $boucle = $this->boucleAvecDocumentFrancais('task1389-renommee-placeholder', description: null);
+
+        $this->assertStringContainsString('Boucle task1389-renommee-placeholder', $this->document($boucle)->content);
+
+        $boucle->update(['name' => 'Programme Alumni 2027']);
+
+        app(RootDocumentLocaleRepairService::class)->repair($this->organisationAnglaise);
+
+        $contenu = $this->document($boucle)->content;
+
+        $this->assertStringContainsString('This Loop is called', $contenu);
+        $this->assertStringNotContainsString('Cette Boucle s', $contenu);
+        $this->assertStringContainsString(
+            'Boucle task1389-renommee-placeholder',
+            $contenu,
+            'Le nom historique est du texte, pas un champ a resynchroniser.',
+        );
+    }
+
     // =====================================================================
     // Rejeu et surface CLI
     // =====================================================================

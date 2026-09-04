@@ -170,23 +170,61 @@ class RootDocumentLocaleRepairService
      */
     private function titreRepare(Loop $boucle, string $titre, string $cible, array $sources): ?string
     {
-        $prefixeCible = $this->libelle($boucle->type, $cible).' — ';
-
-        if (str_starts_with($titre, $prefixeCible)) {
-            return null;
-        }
-
-        foreach ($sources as $source) {
-            $prefixeSource = $this->libelle($boucle->type, $source).' — ';
-
-            if (str_starts_with($titre, $prefixeSource)) {
-                return $prefixeCible.mb_substr($titre, mb_strlen($prefixeSource));
+        foreach ($this->prefixesConnus($sources) as [$prefixeSource, $type]) {
+            if (! str_starts_with($titre, $prefixeSource)) {
+                continue;
             }
+
+            $prefixeCible = $this->libelle($type, $cible).' — ';
+
+            if ($prefixeCible === $prefixeSource) {
+                return null;
+            }
+
+            return $prefixeCible.mb_substr($titre, mb_strlen($prefixeSource));
         }
 
         // Aucun prefixe systeme reconnu : le titre a ete ecrit ou reecrit a la
         // main. On n'y touche pas.
         return null;
+    }
+
+    /**
+     * Tous les prefixes de titre que l'application a pu ecrire, dans les
+     * locales sources — TOUS types confondus, pas seulement le type courant.
+     *
+     * `loops.type` est mutable et le document racine ne se resynchronise
+     * jamais. Mesure sur le parc : une majorite des documents portent le
+     * libelle d'un type qu'ils n'ont plus — « Cadre du dialogue » sur des
+     * Boucles devenues `training`, `coaching`, `writing`, `peer_support`…
+     * Ne chercher que le type COURANT ferait conclure « titre ecrit a la
+     * main » et laisserait ces documents en francais pour toujours, en
+     * silence. C'est le defaut que cette tranche pretend corriger.
+     *
+     * La cible est le libelle du MEME type, traduit — pas celui du type
+     * courant. Cette tranche repare une LANGUE ; re-typer un document serait
+     * une autre decision, et elle ne se prend pas dans une commande de
+     * traduction.
+     *
+     * Tries du plus long au plus court : deux libelles pourraient se prefixer
+     * l'un l'autre, et le plus court gagnerait a tort.
+     *
+     * @param  array<int, string>  $sources
+     * @return array<int, array{0: string, 1: string}>
+     */
+    private function prefixesConnus(array $sources): array
+    {
+        $prefixes = [];
+
+        foreach ($sources as $source) {
+            foreach ($this->types->keys() as $type) {
+                $prefixes[] = [$this->libelle($type, $source).' — ', $type];
+            }
+        }
+
+        usort($prefixes, fn (array $a, array $b) => mb_strlen($b[0]) <=> mb_strlen($a[0]));
+
+        return $prefixes;
     }
 
     /**
@@ -218,16 +256,63 @@ class RootDocumentLocaleRepairService
      */
     private function remplacerPlaceholder(Loop $boucle, string $contenu, string $cible, string $source): string
     {
-        $arguments = ['name' => $boucle->name];
+        [$teteSource, $queueSource] = $this->motifDuPlaceholder($source);
+        [$teteCible, $queueCible] = $this->motifDuPlaceholder($cible);
 
-        $avant = '<p>'.e($this->traduire('loops.root_document_intro_placeholder', $source, $arguments)).'</p>';
-        $apres = '<p>'.e($this->traduire('loops.root_document_intro_placeholder', $cible, $arguments)).'</p>';
+        $debut = '<p>'.e($teteSource);
+        $fin = e($queueSource).'</p>';
 
-        return str_replace($avant, $apres, $contenu);
+        if (! str_starts_with($contenu, $debut)) {
+            return $contenu;
+        }
+
+        $reste = mb_substr($contenu, mb_strlen($debut));
+        $coupure = mb_strpos($reste, $fin);
+
+        if ($coupure === false) {
+            return $contenu;
+        }
+
+        // Ce qui separe la tete de la queue est le nom sous lequel la Boucle a
+        // ete creee — pas forcement celui qu'elle porte aujourd'hui. On le
+        // reinjecte tel quel : la tranche traduit, elle ne renomme pas.
+        $nomHistorique = mb_substr($reste, 0, $coupure);
+        $suite = mb_substr($reste, $coupure + mb_strlen($fin));
+
+        return '<p>'.e($teteCible).$nomHistorique.e($queueCible).'</p>'.$suite;
+    }
+
+    /**
+     * Le placeholder d'intro coupe en deux autour de son `:name`.
+     *
+     * La premiere version construisait l'aiguille avec le nom COURANT de la
+     * Boucle. Une Boucle renommee depuis la creation de son document ne
+     * correspondait donc plus, et l'intro restait francaise pendant que le
+     * titre et les en-tetes passaient a l'anglais : un document chimere, dont
+     * le paragraphe le plus visible — et entierement systeme — restait dans la
+     * mauvaise langue. Pire, le rejeu ne trouvait plus rien a faire et la
+     * commande annoncait « tout est deja dans la bonne langue ».
+     *
+     * Reconnaitre la FORME plutot que la valeur rend la reparation
+     * independante du nom, et permet de reinjecter le nom historique inchange.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function motifDuPlaceholder(string $locale): array
+    {
+        $motif = $this->traduire('loops.root_document_intro_placeholder', $locale);
+        $morceaux = explode(':name', $motif, 2);
+
+        return [$morceaux[0], $morceaux[1] ?? ''];
     }
 
     /**
      * Les en-tetes de section du type de la Boucle.
+     *
+     * L'union de TOUS les types, pas les sections du type courant : pour la
+     * meme raison que les prefixes de titre, un document ecrit sous un type
+     * puis retype garde les en-tetes de son type d'origine. N'iterer que sur le
+     * type courant laisserait ces `<h2>` en francais sans rien signaler.
      *
      * `rootDocumentSections()` rend des CLES, pas des libelles : la liste ne
      * depend pas de la locale, seule sa traduction en depend. Le remplacement
@@ -240,7 +325,7 @@ class RootDocumentLocaleRepairService
      */
     private function remplacerSections(Loop $boucle, string $contenu, string $cible, string $source): string
     {
-        foreach ($this->types->rootDocumentSections($boucle->type) as $cle) {
+        foreach ($this->clesDeSectionConnues() as $cle) {
             $avant = '<h2>'.e($this->traduire($cle, $source)).'</h2>';
             $apres = '<h2>'.e($this->traduire($cle, $cible)).'</h2>';
 
@@ -264,6 +349,24 @@ class RootDocumentLocaleRepairService
     private function libelle(?string $type, string $locale): string
     {
         return $this->withLocale($locale, fn () => $this->types->rootDocumentLabel($type));
+    }
+
+    /**
+     * L'union des cles de section de TOUS les types.
+     *
+     * @return array<int, string>
+     */
+    private function clesDeSectionConnues(): array
+    {
+        $cles = [];
+
+        foreach ($this->types->keys() as $type) {
+            foreach ($this->types->rootDocumentSections($type) as $cle) {
+                $cles[$cle] = true;
+            }
+        }
+
+        return array_keys($cles);
     }
 
     /**
