@@ -266,10 +266,15 @@ class AppServiceProvider extends ServiceProvider
         // TASK-1385 — `LoginListener` N'EST PLUS enregistre ici, et il ne doit
         // pas l'etre.
         //
-        // Laravel 11 decouvre automatiquement les ecouteurs de `app/Listeners`
-        // par le TYPE de l'argument de `handle()`. L'inscription explicite qui
-        // vivait a cet endroit l'abonnait donc une SECONDE fois, et chaque
+        // Laravel decouvre automatiquement les ecouteurs de `app/Listeners` :
+        // toute methode dont le nom commence par `handle` — ou `__invoke` — est
+        // abonnee a l'evenement TYPE dans sa signature. L'inscription explicite
+        // qui vivait a cet endroit l'abonnait donc une SECONDE fois, et chaque
         // connexion ecrivait deux lignes dans `login_logs`.
+        //
+        // La preuve d'execution est `php artisan event:list`, qui montre les
+        // abonnements REELLEMENT enregistres. C'est elle qui fait autorite, pas
+        // la lecture de ce fichier.
         //
         // Mesure sur la base de developpement avant correction : 6490 lignes
         // pour 3220 evenements distincts. Le journal d'audit des connexions
