@@ -18,8 +18,9 @@ use Tests\TestCase;
  *
  * `App\Listeners\LoginListener` etait abonne DEUX fois : explicitement par
  * `Event::listen(Login::class, LoginListener::class)` dans `AppServiceProvider`,
- * et automatiquement par la decouverte que Laravel 11 applique a `app/Listeners`
- * en lisant le type de l'argument de `handle()`.
+ * et automatiquement par la decouverte que Laravel applique a `app/Listeners` :
+ * toute methode dont le nom commence par `handle` — ou `__invoke` — est abonnee
+ * a l'evenement TYPE dans sa signature.
  *
  * Consequence en base de developpement : `login_logs` portait **6490 lignes pour
  * 3220 evenements distincts** (`user_id`, `created_at`). Le journal d'audit des
