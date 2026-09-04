@@ -46,6 +46,21 @@ final class KnowledgeAnswer
             'dossier_name' => $source['dossier_name'] ?? null,
             'excerpt' => $source['extrait'] ?? null,
             'url' => $source['url'] ?? null,
+            // TASK-1391 : ce que la source a REELLEMENT fourni.
+            //
+            // Le manifest liste des documents sans en lire une ligne —
+            // l'absence de cle `extrait` dans `DossierManifestSource` est
+            // deliberee et commentee. Cette forme publique jetait pourtant le
+            // `type`, et rien en aval ne pouvait plus distinguer un document
+            // LU d'un document seulement REPERTORIE : les deux s'affichaient
+            // sous « Sources utilisées », avec un lien « Ouvrir ». Le seul
+            // indice etait le prefixe `M` de la reference — lisible par un
+            // humain averti, jamais par le code.
+            //
+            // Mesure avant correctif, base de developpement : 14 messages IA
+            // sur 73 presentaient ainsi des sources dont aucun contenu
+            // n'avait ete lu.
+            'type' => $source['type'] ?? null,
         ];
     }
 

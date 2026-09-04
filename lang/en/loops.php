@@ -265,6 +265,7 @@ return [
     'knowledge_error' => 'The documentary answer is unavailable right now. Please try again later.',
     'knowledge_disclaimer' => 'AI-generated answer based only on the cited excerpts: check the sources before any decision.',
     'knowledge_open_source' => 'Open',
+    'knowledge_source_listed_only' => 'listed, not read',
     'knowledge_close' => 'Close',
     'ai_not_configured_for_organization' => 'AI is not configured for this organization. An organization administrator must set the provider, model and API key first.',
     'ai_summary_temporarily_unavailable' => 'AI summaries are temporarily unavailable for this organization.',

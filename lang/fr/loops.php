@@ -265,6 +265,7 @@ return [
     'knowledge_error' => 'La réponse documentaire est indisponible pour le moment. Réessayez plus tard.',
     'knowledge_disclaimer' => 'Réponse générée par l\'IA à partir des seuls extraits cités : vérifiez les sources avant toute décision.',
     'knowledge_open_source' => 'Ouvrir',
+    'knowledge_source_listed_only' => 'répertorié, non lu',
     'knowledge_close' => 'Fermer',
     'ai_not_configured_for_organization' => 'L\'IA n\'est pas configurée pour cette organisation. Un administrateur de l\'organisation doit d\'abord renseigner le fournisseur, le modèle et la clé API.',
     'ai_summary_temporarily_unavailable' => 'Le résumé IA est temporairement indisponible pour cette organisation.',
