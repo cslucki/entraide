@@ -264,6 +264,45 @@ class TASK1393ArtSciLabMatchingReadinessTest extends TestCase
     }
 
     /**
+     * Le rejeu EFFACE une valeur non sourcee deja en base.
+     *
+     * TASK-1395 — le defaut que TASK-1394 n'avait pas corrige, et que ses
+     * tests ne pouvaient pas voir.
+     *
+     * T1394 avait RETIRE `help_types` du tableau passe a `updateOrCreate`.
+     * Cela suffit pour une CREATION — mais `updateOrCreate` ne met a jour que
+     * les champs qu'on lui PASSE : sur un profil deja en base, l'ancienne
+     * valeur survit intacte. Mesure sur le tenant reel apres rechargement :
+     * `help_types` valait toujours `["advice","review"]`, et la PersonCard
+     * fausse remontait encore.
+     *
+     * Les tests de T1394 ne pouvaient pas l'attraper : `RefreshDatabase` part
+     * d'une base vide, ou le champ n'a jamais existe. Ils validaient la
+     * creation, jamais le REJEU.
+     *
+     * Ce test cree donc la valeur AVANT de charger le pack. C'est la seule
+     * forme qui reproduit l'etat d'un tenant deja provisionne — et donc la
+     * seule qui mesure ce que « retirer un champ » fait vraiment.
+     */
+    public function test_replaying_the_pack_erases_an_unsourced_value_already_stored(): void
+    {
+        $this->chargerLePack();
+
+        // L'etat d'AVANT : la valeur non sourcee, telle que T1393 l'ecrivait.
+        MemberAiProfile::query()->update(['help_types' => ['advice', 'review']]);
+
+        $this->chargerLePack();
+
+        foreach (MemberAiProfile::query()->get() as $profil) {
+            $this->assertSame(
+                [],
+                (array) $profil->help_types,
+                'Retirer un champ du code ne suffit pas : le rejeu doit EFFACER la valeur deja en base.',
+            );
+        }
+    }
+
+    /**
      * Un mot generique ne remonte plus une personne sans rapport.
      *
      * TASK-1394 — la mesure de l'EFFET, et elle vient d'une recette reelle,

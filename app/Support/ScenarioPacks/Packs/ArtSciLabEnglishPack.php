@@ -470,7 +470,20 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
                     'member_profile_summary' => $definition['summary'],
                     'generated_summary' => $definition['summary'],
                     'skills' => $definition['skills'],
-                    // TASK-1394 : `help_types` n'est PAS declare.
+                    // TASK-1395 : declare VIDE, et non omis.
+                    //
+                    // T1394 s'etait contentee de retirer la cle. C'etait
+                    // suffisant pour une creation et INOPERANT sur un tenant
+                    // deja provisionne : `updateOrCreate` ne met a jour que
+                    // les champs qu'on lui PASSE, donc l'ancienne valeur
+                    // survivait. Mesure apres rechargement reel :
+                    // `["advice","review"]` etait toujours la, et la
+                    // PersonCard fausse remontait encore.
+                    //
+                    // Retirer un champ du code n'efface pas la donnee. Le
+                    // declarer vide, si.
+                    'help_types' => [],
+                    // TASK-1394 : pourquoi ce champ n'a AUCUNE valeur.
                     //
                     // Ma premiere version y ecrivait `['advice', 'review']`,
                     // a l'identique pour les quatre profils et sans aucune
