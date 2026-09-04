@@ -275,10 +275,25 @@ class RootDocumentLocaleRepairService
     }
 
     /**
+     * Les locales entre lesquelles la reparation sait traduire.
+     *
+     * Ecrite ici, et c'est delibere apres verification : il n'existe dans ce
+     * depot AUCUNE declaration canonique des locales supportees. La liste est
+     * en dur a une douzaine d'endroits, et l'autorite au runtime HTTP est
+     * `App\Http\Middleware\SetLocale::$supportedLocales`, une propriete
+     * protegee — non lisible d'ici.
+     *
+     * La premiere version lisait `config('services.supported_locales')`. Cette
+     * cle **n'existe pas** : mesure `php artisan tinker` -> `NULL`. La seule
+     * `supported_locales` de `config/services.php` est imbriquee sous
+     * `bouclepro_demo`. Le code ne devait donc son bon comportement qu'a son
+     * defaut, en masquant une config morte. Une constante honnete vaut mieux
+     * qu'une lecture qui ment sur sa source.
+     *
      * @return array<int, string>
      */
     private function localesSupportees(): array
     {
-        return config('services.supported_locales', ['fr', 'en']);
+        return ['fr', 'en'];
     }
 }
