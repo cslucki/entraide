@@ -88,6 +88,36 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
     public const DISK = 'dossier_files';
 
     /**
+     * Le nom AFFICHE du tenant (TASK-1396).
+     *
+     * Il valait `ArtSciLab — Test anglais` : un libelle FRANCAIS pour
+     * l'Organization anglaise de la demonstration, visible dans l'en-tete, le
+     * selecteur de tenant et sous les cartes du Shell — donc sur le chemin que
+     * Roger verra.
+     */
+    public const ORGANIZATION_NAME = 'ArtSciLab — English test';
+
+    /**
+     * Les noms que ce pack a lui-meme ecrits par le passe.
+     *
+     * `provisionOrganization()` n'est appele QUE si l'Organization n'existe
+     * pas : sur un tenant deja provisionne, corriger la constante ne change
+     * RIEN. Le pack doit donc reconcilier a chaque chargement — c'est la lecon
+     * de TASK-1395, ou retirer une valeur du code n'avait rien efface en base.
+     *
+     * Mais reconcilier sans condition ecraserait un nom qu'une personne aurait
+     * choisi. Seules ces variantes, que le pack reconnait comme siennes, sont
+     * reprises. Meme garde que la migration de convergence TASK-1354, et pour
+     * la meme raison.
+     *
+     * @var list<string>
+     */
+    public const HISTORICAL_ORGANIZATION_NAMES = [
+        'ArtSciLab — Test anglais',
+        'ArtSciLab — English dogfooding',
+    ];
+
+    /**
      * Les cinq personas, dans l'ordre d'inscription au registre.
      *
      * `new_member` marque Wen Zhao : le pack lui refuse deliberement profil
@@ -302,7 +332,7 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
 
     public function packName(): string
     {
-        return 'ArtSciLab — Test anglais';
+        return self::ORGANIZATION_NAME;
     }
 
     public function purpose(): string
@@ -318,7 +348,7 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
     public function provisionOrganization(): Organization
     {
         return Organization::create([
-            'name' => 'ArtSciLab — Test anglais',
+            'name' => self::ORGANIZATION_NAME,
             'slug' => self::ORGANIZATION_SLUG,
             'description' => 'A fictional art-science lab used to demonstrate BouclePro in English.',
             'is_active' => true,
@@ -366,6 +396,8 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
 
         $base = CarbonImmutable::parse('2026-06-02 09:00:00', 'UTC');
 
+        $this->reconcileOrganizationName($organization);
+
         $personas = $this->personas($organization, $registrar, $base);
         $this->aiProfiles($organization, $personas, $registrar, $base);
         [$loops, $dossiers] = $this->loops($organization, $personas, $registrar);
@@ -382,6 +414,26 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
 
         $this->aiSettings($organization, $registrar);
         $this->doctrine($organization, $personas['elena'], $registrar);
+    }
+
+    /**
+     * Remet le nom du tenant a sa valeur canonique — et seulement si le nom
+     * courant est l'un de ceux que ce pack a lui-meme ecrits.
+     *
+     * Un nom choisi par une personne n'est jamais ecrase : il ne figure pas
+     * dans les variantes connues, donc rien ne se produit.
+     */
+    private function reconcileOrganizationName(Organization $organization): void
+    {
+        if ($organization->name === self::ORGANIZATION_NAME) {
+            return;
+        }
+
+        if (! in_array($organization->name, self::HISTORICAL_ORGANIZATION_NAMES, true)) {
+            return;
+        }
+
+        $organization->update(['name' => self::ORGANIZATION_NAME]);
     }
 
     /**
