@@ -835,8 +835,14 @@ class TASK1310AddAnswerToDossierTest extends TestCase
 
         $html = $this->articleHtml($post);
 
+        // Le nom du curateur est genere par Faker et peut contenir une
+        // apostrophe — « Osborne O'Connell » a fait rougir cette assertion en
+        // CI, le HTML rendant `O&#039;Connell`. Les deux autres assertions du
+        // fichier passent par `assertSee()`, qui echappe par defaut ; celle-ci
+        // comparait la chaine brute. Un faux rouge intermittent, dependant du
+        // seed, qui n'apprenait rien sur le code.
         $this->assertStringContainsString(
-            __('blog.ai_origin_notice', ['curator' => $this->curator->publicDisplayName()]),
+            e(__('blog.ai_origin_notice', ['curator' => $this->curator->publicDisplayName()])),
             $html,
         );
         $this->assertStringNotContainsString(__('blog.ai_origin_sources_title'), $html);

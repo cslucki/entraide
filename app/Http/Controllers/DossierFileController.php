@@ -9,9 +9,9 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DossierFileController extends Controller
@@ -267,7 +267,7 @@ class DossierFileController extends Controller
         try {
             if (config("filesystems.disks.{$file->disk}.driver") === 'local') {
                 return Storage::disk($file->disk)->download($file->path, $file->original_name, [
-                    'Content-Type' => $file->mime_type,
+                    'Content-Type' => $this->typeAffichable($file->mime_type),
                     'Content-Disposition' => 'inline; filename="'.$file->original_name.'"',
                 ]);
             }
@@ -278,6 +278,35 @@ class DossierFileController extends Controller
         } catch (\Exception $e) {
             abort(404);
         }
+    }
+
+    /**
+     * Le type sous lequel un apercu s'affiche REELLEMENT dans un navigateur.
+     *
+     * `Content-Disposition: inline` demande l'affichage ; encore faut-il que
+     * le navigateur sache rendre le type. Aucun n'embarque de moteur pour
+     * `text/markdown` : servi tel quel, le fichier se telecharge malgre
+     * l'en-tete, et la source d'une reponse IA devient invisible au moment
+     * meme ou le membre veut la verifier.
+     *
+     * Le Markdown est du texte : l'annoncer comme tel le rend lisible dans
+     * l'onglet, sans convertir quoi que ce soit. Le type STOCKE n'est pas
+     * modifie — c'est une decision de transport, pas de donnee.
+     *
+     * Ne concerne QUE le disque local : sur un disque distant, la reponse est
+     * une redirection vers une URL signee, et la disposition depend alors des
+     * metadonnees de l'objet, pas de ce code. La dette est signalee.
+     *
+     * Mesure qui a motive le correctif : le corpus de demonstration ArtSciLab
+     * compte 16 fichiers, dont 12 en `text/markdown`.
+     */
+    private function typeAffichable(?string $mimeType): string
+    {
+        if (in_array($mimeType, ['text/markdown', 'text/x-markdown'], true)) {
+            return 'text/plain; charset=UTF-8';
+        }
+
+        return $mimeType ?? 'application/octet-stream';
     }
 
     public function destroy(Request $request): JsonResponse

@@ -413,6 +413,14 @@ $renderableBody = preg_replace_callback(
                             @if(!empty($source['dossier_name']))
                             <span class="text-gray-500 dark:text-gray-400"> · {{ $source['dossier_name'] }}</span>
                             @endif
+                            {{-- TASK-1391 : dire ce que la source a fourni.
+                                 Le manifeste REPERTORIE un document sans en
+                                 lire une ligne. Presente comme les autres, il
+                                 laissait croire qu'il avait soutenu la
+                                 reponse. --}}
+                            @if(($source['type'] ?? null) === 'manifest')
+                            <span data-source-listed-only class="ml-1 whitespace-nowrap rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:border-amber-700/60 dark:bg-amber-900/30 dark:text-amber-200">{{ __('loops.knowledge_source_listed_only') }}</span>
+                            @endif
                         </div>
                         @if(!empty($source['url']))
                         <a href="{{ $source['url'] }}" target="_blank" rel="noopener" class="flex-shrink-0 text-sky-700 dark:text-sky-300 hover:underline">{{ __('loops.knowledge_open_source') }}</a>
