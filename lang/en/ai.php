@@ -715,6 +715,7 @@ return [
     // AI say « I am looking for a proofreader… ». The shared contract is
     // untouched; presentation now attributes the draft to the right person.
     'shell_request_framing' => 'I\'ve understood your need. Here\'s a reformulation if you\'d like to turn it into a help request.',
+    'shell_clarification_heading' => 'Before going further',
     'shell_request_draft_heading' => 'Your reformulated request',
 
     // TASK-1350: an offer is written in the first person just like a request.

@@ -722,6 +722,7 @@ return [
     // Le contrat partage n'a pas bouge ; c'est la PRESENTATION qui attribue
     // desormais le brouillon a la bonne personne.
     'shell_request_framing' => 'J\'ai compris votre besoin. Voici une reformulation si vous souhaitez en faire une demande d\'aide.',
+    'shell_clarification_heading' => 'Avant d\'aller plus loin',
     'shell_request_draft_heading' => 'Votre demande reformulée',
 
     // TASK-1350 : une OFFRE est ecrite a la premiere personne exactement comme
