@@ -18,6 +18,7 @@ use App\Models\AiInteraction;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\DTO\KnowledgeAnswer;
 use App\Support\Ai\AiCorrelation;
@@ -195,11 +196,20 @@ class LoopKnowledgeAnswerService
 
         $organization = $loop->organization()->firstOrFail();
 
+        // TASK-1400 — la langue de la reponse appartient a l'Organization.
+        //
+        // Une reponse aux Dossiers est relue par tout le cercle : la faire
+        // suivre la langue de qui a pose la question donnerait deux langues au
+        // meme fil selon le lecteur. C'est l'arbitrage generique du 04/09, deja
+        // applique par TASK-1388, TASK-1390 et TASK-1398 ; ce chemin etait le
+        // dernier a lire encore `app()->getLocale()`.
+        $locale = $this->localeDeReference($organization);
+
         $contexte = new ContexteIa(
             organizationId: (string) $organization->id,
             userId: (string) $requester->id,
             loopId: (string) $loop->id,
-            locale: str_starts_with((string) app()->getLocale(), 'en') ? 'en' : 'fr',
+            locale: $locale,
             capability: $capability,
             correlationId: AiCorrelation::id(),
             source: CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL,
@@ -241,6 +251,19 @@ class LoopKnowledgeAnswerService
         // appliquee en code (citations revalidees), la doctrine ne peut pas
         // autoriser d'inventer.
         $instructions = $this->prompts->compose($capability, $this->capabilityInstructions($definition->promptKey), (string) $organization->id);
+
+        // La consigne de langue vient EN DERNIER, et en code.
+        //
+        // En dernier parce que le prompt administrable est redige en francais
+        // et ne dit rien de la langue de sortie : place avant, la consigne
+        // serait noyee sous plusieurs paragraphes qui la contredisent par leur
+        // seule langue.
+        //
+        // En code, et surtout pas dans `admin_ai_prompts` : reecrire le prompt
+        // actif changerait le comportement de TOUS les tenants, francais
+        // compris, pour un defaut qui n'est qu'une regle manquante. Le reste du
+        // prompt n'est pas touche d'un caractere.
+        $instructions .= "\n\n".$this->consigneDeLangue($locale);
         // TASK-1236 : version de doctrine reellement composee ci-dessus, tracee
         // sur l'interaction enregistree plutot que reconstituee a posteriori.
         $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
@@ -301,7 +324,10 @@ class LoopKnowledgeAnswerService
             : ($mode === self::MODE_HYBRID ? self::HYBRID_NO_DOCUMENTARY_SOURCE_NOTICE : '');
         $prompt = $sourcesBlock
             .($thread === '' ? '' : "\n\n".$thread)
-            ."\n\nQuestion du membre :\n".$question;
+            // L'etiquette suit la meme autorite que la consigne. La laisser en
+            // francais rouvrirait, a l'endroit le plus proche du modele, l'ancrage
+            // que la consigne vient de fermer.
+            ."\n\n".trans('ai.loop_knowledge_member_question', [], $locale)."\n".$question;
 
         try {
             $response = $agent->prompt(
@@ -623,6 +649,34 @@ class LoopKnowledgeAnswerService
      * `loop_knowledge_answer` ou `loop_hybrid_answer`. Deux capabilities, deux
      * lignes administrables, une seule regle de chargement.
      */
+    /**
+     * La langue qui fait autorite pour ce que le modele produit.
+     *
+     * `Organization.locale` a une valeur par defaut en base (`fr`) et n'est
+     * donc jamais nulle en pratique. Le repli reste ecrit pour qu'une
+     * Organization arrivant d'un chemin qui ne l'aurait pas posee ne produise
+     * pas un `trans()` sur une locale vide — ou le traducteur retomberait sur
+     * la langue du LECTEUR, precisement ce que cette tranche supprime.
+     */
+    private function localeDeReference(Organization $organization): string
+    {
+        $locale = trim((string) $organization->locale);
+
+        return $locale !== '' ? $locale : (string) config('app.fallback_locale', 'fr');
+    }
+
+    /**
+     * La regle de langue envoyee au modele, ecrite DANS cette langue.
+     *
+     * Une consigne « answer in English » redigee en francais ajouterait un
+     * quatrieme signal francais a un prompt qui en compte deja trop ; formulee
+     * en anglais, elle est elle-meme une preuve de la langue attendue.
+     */
+    private function consigneDeLangue(string $locale): string
+    {
+        return (string) trans('ai.loop_knowledge_answer_language', [], $locale);
+    }
+
     private function capabilityInstructions(string $scenarioId): string
     {
         $prompt = AdminAiPrompt::query()
