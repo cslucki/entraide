@@ -52,33 +52,29 @@ use RuntimeException;
 final class DossierInsightsService
 {
     /**
-     * Rubriques attendues, DANS CET ORDRE. Une rubrique absente de la reponse
-     * filtree est simplement omise — jamais remplie par un texte generique.
+     * Rubriques attendues, DANS CET ORDRE, designees par un identifiant
+     * STABLE et non par leur libelle.
+     *
+     * Un titre de rubrique n'est pas de la chrome d'ecran : il est dicte au
+     * modele dans la question preetablie, relu par le parseur de la reponse,
+     * puis reemis dans le markdown rendu. Les trois usages doivent lire la
+     * meme autorite. Les comparer par identifiant plutot que par texte est ce
+     * qui rend cette autorite traduisible sans qu'aucune branche de code ne
+     * connaisse une langue.
      */
-    private const HEADING_SUMMARY = 'Synthèse';
-
-    private const HEADING_FACTS = 'Faits saillants';
-
-    private const HEADING_CONVERGENCES = 'Convergences';
-
-    private const HEADING_ATTENTION = 'Points nécessitant attention';
-
-    private const HEADING_QUESTIONS = 'Questions possibles';
-
-    private const BULLET_HEADINGS = [
-        self::HEADING_FACTS,
-        self::HEADING_CONVERGENCES,
-        self::HEADING_ATTENTION,
-        self::HEADING_QUESTIONS,
+    private const HEADING_KEYS = [
+        'summary' => 'dossiers.insights_heading_summary',
+        'facts' => 'dossiers.insights_heading_facts',
+        'convergences' => 'dossiers.insights_heading_convergences',
+        'attention' => 'dossiers.insights_heading_attention',
+        'questions' => 'dossiers.insights_heading_questions',
     ];
 
-    private const ALL_HEADINGS = [
-        self::HEADING_SUMMARY,
-        self::HEADING_FACTS,
-        self::HEADING_CONVERGENCES,
-        self::HEADING_ATTENTION,
-        self::HEADING_QUESTIONS,
-    ];
+    /**
+     * Rubriques dont le corps est une liste a puces — les seules soumises au
+     * filtrage ligne a ligne.
+     */
+    private const BULLET_SLUGS = ['facts', 'convergences', 'attention', 'questions'];
 
     /**
      * Nombre de documents representatifs demandes au corpus — meme borne que
@@ -122,6 +118,14 @@ final class DossierInsightsService
             throw new RuntimeException(__('dossiers.insights_not_authorized'));
         }
 
+        // La langue du contenu SYSTEME produit pour une Organization est celle
+        // de l'Organization, jamais celle du lecteur (arbitrage MASTER du
+        // 04/09, deja applique par TASK-1388 et TASK-1390). Un Insight est
+        // relu par tout le cercle : le faire suivre la langue de qui appuie
+        // sur le bouton donnerait au meme Dossier deux langues selon le
+        // visiteur.
+        $locale = $this->localeDeReference($organization);
+
         $capability = CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER;
         $definition = $this->capabilities->get($capability);
         // Smart Dossier tourne HORS Loop : la capability autorise deja la
@@ -142,7 +146,7 @@ final class DossierInsightsService
             organizationId: (string) $organization->id,
             userId: (string) $requester->id,
             loopId: null,
-            locale: str_starts_with((string) app()->getLocale(), 'en') ? 'en' : 'fr',
+            locale: $locale,
             capability: $capability,
             correlationId: AiCorrelation::id(),
             source: CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL,
@@ -181,7 +185,7 @@ final class DossierInsightsService
             (float) config('ai.knowledge.temperature', 0.2),
         );
 
-        $prompt = $sourcesBlock."\n\n".self::presetQuestion();
+        $prompt = $sourcesBlock."\n\n".$this->presetQuestion($locale);
 
         $startedAt = microtime(true);
 
@@ -202,7 +206,7 @@ final class DossierInsightsService
 
         // Revalidation serveur (mandat §7/§10) : refs inventees ou non
         // offertes supprimees, convergences a un seul document ecartees.
-        $answer = $this->filterSections($rawAnswer, $consulted);
+        $answer = $this->filterSections($rawAnswer, $consulted, $locale);
 
         if ($answer === '') {
             throw new RuntimeException(__('dossiers.insights_empty_response'));
@@ -297,7 +301,7 @@ final class DossierInsightsService
      *
      * @param  list<array<string, mixed>>  $consulted
      */
-    private function filterSections(string $markdown, array $consulted): string
+    private function filterSections(string $markdown, array $consulted, string $locale): string
     {
         $documentKeyByRef = [];
 
@@ -306,16 +310,18 @@ final class DossierInsightsService
         }
 
         $validRefs = array_keys($documentKeyByRef);
-        $sections = $this->splitSections($markdown);
+        $sections = $this->splitSections($markdown, $locale);
         $kept = [];
 
-        foreach (self::ALL_HEADINGS as $heading) {
-            if (! array_key_exists($heading, $sections)) {
+        foreach (array_keys(self::HEADING_KEYS) as $slug) {
+            if (! array_key_exists($slug, $sections)) {
                 continue;
             }
 
-            if (! in_array($heading, self::BULLET_HEADINGS, true)) {
-                $text = trim($this->stripInventedRefs($sections[$heading], $validRefs));
+            $heading = $this->heading($slug, $locale);
+
+            if (! in_array($slug, self::BULLET_SLUGS, true)) {
+                $text = trim($this->stripInventedRefs($sections[$slug], $validRefs));
 
                 if ($text !== '') {
                     $kept[] = "## {$heading}\n\n{$text}";
@@ -326,7 +332,7 @@ final class DossierInsightsService
 
             $keptLines = [];
 
-            foreach (preg_split('/\r?\n/', trim($sections[$heading])) as $line) {
+            foreach (preg_split('/\r?\n/', trim($sections[$slug])) as $line) {
                 $line = trim($line);
 
                 if ($line === '' || ! str_starts_with($line, '-')) {
@@ -337,7 +343,7 @@ final class DossierInsightsService
                 $validRefsInLine = array_values(array_intersect($refsInLine, $validRefs));
                 $line = trim($this->stripInventedRefs($line, $validRefs));
 
-                if ($heading === self::HEADING_QUESTIONS) {
+                if ($slug === 'questions') {
                     // Texte inerte, suggestif : aucune citation exigee.
                     if (trim($line, "- \t") !== '') {
                         $keptLines[] = $line;
@@ -351,7 +357,7 @@ final class DossierInsightsService
                     continue;
                 }
 
-                if ($heading === self::HEADING_CONVERGENCES) {
+                if ($slug === 'convergences') {
                     $documentKeys = array_unique(array_map(
                         static fn (string $ref): string => $documentKeyByRef[$ref],
                         $validRefsInLine,
@@ -375,12 +381,18 @@ final class DossierInsightsService
     }
 
     /**
-     * @return array<string, string> rubrique attendue => corps brut
+     * @return array<string, string> identifiant de rubrique => corps brut
      */
-    private function splitSections(string $markdown): array
+    private function splitSections(string $markdown, string $locale): array
     {
         if (! preg_match_all('/^##\s+(.+?)\s*$/m', $markdown, $matches, PREG_OFFSET_CAPTURE)) {
             return [];
+        }
+
+        $slugParTitre = [];
+
+        foreach (array_keys(self::HEADING_KEYS) as $slug) {
+            $slugParTitre[$this->heading($slug, $locale)] = $slug;
         }
 
         $sections = [];
@@ -389,16 +401,21 @@ final class DossierInsightsService
         for ($i = 0; $i < $count; $i++) {
             $heading = trim($matches[1][$i][0]);
 
-            if (! in_array($heading, self::ALL_HEADINGS, true)) {
+            if (! array_key_exists($heading, $slugParTitre)) {
                 // Un titre hors contrat n'ouvre jamais une rubrique — le
-                // modele ne peut pas inventer une septieme categorie.
+                // modele ne peut pas inventer une septieme categorie. Et un
+                // titre rendu dans une AUTRE langue que celle demandee n'en
+                // ouvre pas davantage : la rubrique tombe, ce qui rend le
+                // desaccord visible plutot que silencieux.
                 continue;
             }
+
+            $slug = $slugParTitre[$heading];
 
             $start = $matches[0][$i][1] + strlen($matches[0][$i][0]);
             $end = $i + 1 < $count ? $matches[0][$i + 1][1] : strlen($markdown);
 
-            $sections[$heading] = ($sections[$heading] ?? '')."\n".substr($markdown, $start, $end - $start);
+            $sections[$slug] = ($sections[$slug] ?? '')."\n".substr($markdown, $start, $end - $start);
         }
 
         return $sections;
@@ -531,45 +548,33 @@ final class DossierInsightsService
      * par defaut) directement dans le tour, sans toucher a l'AdminAiPrompt
      * `loop_knowledge_answer` partage avec le Q&A de Boucle.
      */
-    private static function presetQuestion(): string
+    private function presetQuestion(string $locale): string
     {
-        return <<<'TEXT'
-        Question du membre :
-        À partir UNIQUEMENT des sources documentaires ci-dessus — un échantillon
-        représentatif et borné de ce Dossier, jamais son contenu intégral —,
-        produis une synthèse de ce qui en ressort, structurée EXACTEMENT ainsi,
-        avec ces titres Markdown, dans cet ordre :
+        return (string) trans('dossiers.insights_preset_question', [], $locale);
+    }
 
-        ## Synthèse
-        Deux à quatre phrases resituant ce que ces documents apportent.
+    /**
+     * Le libelle d'une rubrique, dans la langue de l'Organization.
+     */
+    private function heading(string $slug, string $locale): string
+    {
+        return (string) trans(self::HEADING_KEYS[$slug], [], $locale);
+    }
 
-        ## Faits saillants
-        Une liste à puces (« - ... [Sn] »). Chaque ligne cite au moins une
-        source réelle parmi celles fournies. N'invente jamais un fait absent
-        des sources.
+    /**
+     * La langue qui fait autorite pour le contenu produit.
+     *
+     * `Organization.locale` a une valeur par defaut en base (`fr`) et n'est
+     * donc jamais nulle en pratique ; le repli reste ecrit pour qu'une
+     * Organization arrivant d'un chemin qui ne l'a pas posee ne produise pas
+     * un `trans()` sur une locale vide, ou le traducteur retomberait sur la
+     * langue du LECTEUR — precisement ce que cette tranche supprime.
+     */
+    private function localeDeReference(Organization $organization): string
+    {
+        $locale = trim((string) $organization->locale);
 
-        ## Convergences
-        Une liste à puces. N'écris une ligne QUE si au moins DEUX DOCUMENTS
-        DIFFÉRENTS (pas deux extraits du même document) disent la même chose —
-        cite alors les deux, par exemple « ... [S1][S4] ». Si aucune vraie
-        convergence entre documents distincts n'existe, n'écris PAS cette
-        rubrique du tout.
-
-        ## Points nécessitant attention
-        Une liste à puces. Uniquement des tensions, manques ou incohérences
-        RÉELLEMENT visibles dans les sources, chacune citée. Jamais une
-        priorité ou une urgence que les sources ne démontrent pas. Si rien ne
-        le justifie, n'écris PAS cette rubrique.
-
-        ## Questions possibles
-        Une liste à puces de questions ouvertes, suggestives, qu'un lecteur
-        pourrait explorer ensuite. Texte seul, jamais une action, jamais une
-        citation requise.
-
-        Règle absolue : n'invente aucune référence [Sn] en dehors de celles
-        listées ci-dessus. Une rubrique sans contenu réellement fondé est
-        omise entièrement — jamais remplie par une phrase générique.
-        TEXT;
+        return $locale !== '' ? $locale : (string) config('app.fallback_locale', 'fr');
     }
 
     private static function presetQuestionSummary(): string

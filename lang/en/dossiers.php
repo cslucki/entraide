@@ -281,6 +281,56 @@ return [
     'insights_no_content' => 'No indexed document was found in this Folder.',
     'insights_ai_error' => 'Generating the summary failed.',
     'insights_empty_response' => 'No grounded summary could be produced from this Folder.',
+    // Smart Dossier Insights headings. These are NOT screen chrome: they are
+    // dictated to the model in the preset question, read back by the response
+    // parser, then re-emitted into the rendered markdown. All three uses must
+    // read the SAME authority, otherwise a partial translation would silently
+    // drop every section.
+    'insights_heading_summary' => 'Summary',
+    'insights_heading_facts' => 'Key facts',
+    'insights_heading_convergences' => 'Convergences',
+    'insights_heading_attention' => 'Points needing attention',
+    'insights_heading_questions' => 'Possible questions',
+
+    // Smart Dossier V1 preset question. The headings it dictates are the five
+    // keys above: changing one here without the other would make the answer
+    // unreadable to the parser.
+    'insights_preset_question' => <<<'TEXT'
+        Member question:
+        Using ONLY the documentary sources above — a representative, bounded
+        sample of this Folder, never its full content —, produce a summary of
+        what stands out, structured EXACTLY like this, with these Markdown
+        headings, in this order:
+
+        ## Summary
+        Two to four sentences situating what these documents contribute.
+
+        ## Key facts
+        A bullet list ("- ... [Sn]"). Every line cites at least one real source
+        among those provided. Never invent a fact that is absent from the
+        sources.
+
+        ## Convergences
+        A bullet list. Write a line ONLY if at least TWO DIFFERENT DOCUMENTS
+        (not two excerpts of the same document) say the same thing — then cite
+        both, for example "... [S1][S4]". If no genuine convergence between
+        distinct documents exists, do NOT write this section at all.
+
+        ## Points needing attention
+        A bullet list. Only tensions, gaps or inconsistencies ACTUALLY visible
+        in the sources, each one cited. Never a priority or an urgency the
+        sources do not demonstrate. If nothing warrants it, do NOT write this
+        section.
+
+        ## Possible questions
+        A bullet list of open, suggestive questions a reader could explore
+        next. Text only, never an action, never a required citation.
+
+        Absolute rule: never invent an [Sn] reference beyond those listed
+        above. A section with no genuinely grounded content is omitted
+        entirely — never filled with a generic sentence.
+        TEXT,
+
     'insights_prompt_missing' => 'The documentary summary prompt is not configured.',
     // Series
     'series_tab' => 'Series',
