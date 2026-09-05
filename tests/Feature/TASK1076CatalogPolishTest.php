@@ -82,10 +82,15 @@ class TASK1076CatalogPolishTest extends TestCase
     public function test_placeholder_and_real_cover_share_the_same_aspect_ratio_box(): void
     {
         // Regression guard for the bug this task fixes: the ratio used to come
-        // from a Tailwind `aspect-[5/2]` class that was never emitted into the
-        // built CSS (this project ships both tailwindcss v3 and @tailwindcss/vite
-        // v4), so a placeholder fell back to the SVG's own near-square intrinsic
+        // from a Tailwind `aspect-[5/2]` class that was missing from the built
+        // CSS, so a placeholder fell back to the SVG's own near-square intrinsic
         // size and rendered a much taller card than one with a real image.
+        //
+        // Arbitrary values are emitted normally in this project (tailwindcss v3
+        // via postcss.config.js); the class was missing because the assets had
+        // not been rebuilt. The inline `aspect-ratio` is still the right fix, for
+        // a different reason: `ratio` is a per-call-site prop and Tailwind scans
+        // sources as plain text, so an interpolated class is never seen at all.
         $org = $this->org();
         Loop::factory()->create(['organization_id' => $org->id, 'cover_image_path' => 'loop-covers/a/c.jpg']);
         Loop::factory()->create(['organization_id' => $org->id, 'cover_image_path' => null]);
