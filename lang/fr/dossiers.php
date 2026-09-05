@@ -287,6 +287,58 @@ return [
     'insights_no_content' => 'Aucun document indexé n\'a été trouvé dans ce Dossier.',
     'insights_ai_error' => 'La génération de la synthèse a échoué.',
     'insights_empty_response' => 'Aucune synthèse fondée n\'a pu être produite à partir de ce Dossier.',
+    // Rubriques de Smart Dossier Insights. Elles ne sont PAS de la chrome
+    // d'ecran : elles sont dictees au modele dans la question preetablie,
+    // relues par le parseur de la reponse, puis reemises dans le markdown
+    // rendu. Les trois usages doivent lire la MEME autorite, sans quoi une
+    // traduction partielle ferait tomber toutes les rubriques en silence.
+    'insights_heading_summary' => 'Synthèse',
+    'insights_heading_facts' => 'Faits saillants',
+    'insights_heading_convergences' => 'Convergences',
+    'insights_heading_attention' => 'Points nécessitant attention',
+    'insights_heading_questions' => 'Questions possibles',
+
+    // Question preetablie de Smart Dossier V1. Les titres qu'elle dicte sont
+    // ceux des cinq cles ci-dessus : les changer ici sans les changer la-haut
+    // rendrait la reponse illisible pour le parseur.
+    'insights_preset_question' => <<<'TEXT'
+        Question du membre :
+        À partir UNIQUEMENT des sources documentaires ci-dessus — un échantillon
+        représentatif et borné de ce Dossier, jamais son contenu intégral —,
+        produis une synthèse de ce qui en ressort, structurée EXACTEMENT ainsi,
+        avec ces titres Markdown, dans cet ordre :
+
+        ## Synthèse
+        Deux à quatre phrases resituant ce que ces documents apportent.
+
+        ## Faits saillants
+        Une liste à puces (« - ... [Sn] »). Chaque ligne cite au moins une
+        source réelle parmi celles fournies. N'invente jamais un fait absent
+        des sources.
+
+        ## Convergences
+        Une liste à puces. N'écris une ligne QUE si au moins DEUX DOCUMENTS
+        DIFFÉRENTS (pas deux extraits du même document) disent la même chose —
+        cite alors les deux, par exemple « ... [S1][S4] ». Si aucune vraie
+        convergence entre documents distincts n'existe, n'écris PAS cette
+        rubrique du tout.
+
+        ## Points nécessitant attention
+        Une liste à puces. Uniquement des tensions, manques ou incohérences
+        RÉELLEMENT visibles dans les sources, chacune citée. Jamais une
+        priorité ou une urgence que les sources ne démontrent pas. Si rien ne
+        le justifie, n'écris PAS cette rubrique.
+
+        ## Questions possibles
+        Une liste à puces de questions ouvertes, suggestives, qu'un lecteur
+        pourrait explorer ensuite. Texte seul, jamais une action, jamais une
+        citation requise.
+
+        Règle absolue : n'invente aucune référence [Sn] en dehors de celles
+        listées ci-dessus. Une rubrique sans contenu réellement fondé est
+        omise entièrement — jamais remplie par une phrase générique.
+        TEXT,
+
     'insights_prompt_missing' => 'Le prompt de synthèse documentaire n\'est pas configuré.',
     // Series
     'series_tab' => 'Séries',
