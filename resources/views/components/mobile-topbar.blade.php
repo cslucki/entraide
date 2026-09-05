@@ -85,7 +85,10 @@
         } elseif (request()->routeIs('blog.my-posts', 'organization.blog.my-posts')) {
             $routeTitle = __('navigation.my_articles');
         } elseif (request()->routeIs('profile.show', 'organization.profile.show')) {
-            $routeTitle = request()->route('user')?->name;
+            // `name` porte le nom de FAMILLE depuis TASK-1399 ; c'est `fullName`
+            // que le produit affiche. Lire la colonne brute donnait « Okafor »
+            // la ou le reste de la page dit « Sam Okafor ».
+            $routeTitle = request()->route('user')?->fullName;
         } elseif (request()->routeIs('profile.edit', 'organization.profile.edit')) {
             $routeTitle = __('navigation.settings');
         } elseif (request()->routeIs('loops.show', 'organization.loops.show')) {
