@@ -120,39 +120,76 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
     /**
      * Les cinq personas, dans l'ordre d'inscription au registre.
      *
-     * `new_member` marque Wen Zhao : le pack lui refuse deliberement profil
+     * `new_member` marque Wen : le pack lui refuse deliberement profil
      * complet, activite et appartenances multiples.
      *
-     * @var array<string, array{name: string, first_name: string, city: string, country_code: string, bio: ?string, new_member: bool}>
+     * ## `name` porte le nom de FAMILLE
+     *
+     * `User::fullName` vaut `trim(first_name.' '.name)`. Ecrire le nom complet
+     * dans `name` produisait donc « Marcus Marcus Whitfield » partout ou le
+     * produit affiche une personne — en-tete, PersonCard, liste de membres,
+     * cartes du Shell. Le defaut etait dans le PACK, pas dans l'accesseur :
+     * c'est ici qu'il se corrige, et nulle part ailleurs.
+     *
+     * ## `phone` est fictif, et le dit
+     *
+     * `EnsureProfileComplete` exige un telephone pour publier une demande
+     * d'aide. Sans lui, « Prepare a help request » renvoie le persona vers
+     * `/profile/edit` au milieu de la demonstration. Le numero est donc pose
+     * par le pack, sur le meme motif que `Test20260822DogfoodingDataset` :
+     * indicatif regional reel (972, Dallas), prefixe `000` non attribuable par
+     * le plan de numerotation nord-americain, et marqueur `(DEMO)` visible.
+     * Aucun numero reel, aucune personne joignable.
+     *
+     * Wen n'en recoit pas : son profil est incomplet a DESSEIN, et il l'est
+     * deja par `bio` et `city`. Lui donner un telephone ne le completerait pas
+     * mais brouillerait l'intention.
+     *
+     * @var array<string, array{name: string, first_name: string, phone: ?string, city: string, country_code: string, bio: ?string, new_member: bool}>
      */
+    /**
+     * La accroche affichee sous le nom du tenant, notamment a la connexion.
+     *
+     * Sans elle, `AppServiceProvider` replie sur un litteral FRANCAIS —
+     * « Échangez vos talents » — et l'ecran de connexion du tenant anglais
+     * s'ouvre en francais. Poser la valeur ici corrige le chemin de la
+     * demonstration sans toucher a ce repli, qui reste juste pour toutes les
+     * Organizations francaises.
+     */
+    public const PLATFORM_TAGLINE = 'Where art, science and technology meet';
+
     public const PERSONAS = [
         'elena' => [
-            'name' => 'Elena Cho',
+            'name' => 'Cho',
             'first_name' => 'Elena',
+            'phone' => '+1 972 000 0001 (DEMO)',
             'city' => 'Dallas',
             'country_code' => 'US',
             'bio' => 'Lab director. Decides what the lab commits to, and what it declines.',
             'new_member' => false,
         ],
         'marcus' => [
-            'name' => 'Marcus Whitfield',
+            'name' => 'Whitfield',
             'first_name' => 'Marcus',
+            'phone' => '+1 972 000 0002 (DEMO)',
             'city' => 'Dallas',
             'country_code' => 'US',
             'bio' => 'Leads the grant renewal. Writes the narrative, chases the evidence.',
             'new_member' => false,
         ],
         'priya' => [
-            'name' => 'Priya Nandakumar',
+            'name' => 'Nandakumar',
             'first_name' => 'Priya',
+            'phone' => '+1 972 000 0003 (DEMO)',
             'city' => 'Austin',
             'country_code' => 'US',
             'bio' => 'Turns climate datasets into sound. Careful about what the data cannot say.',
             'new_member' => false,
         ],
         'sam' => [
-            'name' => 'Sam Okafor',
+            'name' => 'Okafor',
             'first_name' => 'Sam',
+            'phone' => '+1 972 000 0004 (DEMO)',
             'city' => 'Fort Worth',
             'country_code' => 'US',
             'bio' => 'Public engagement and ethics. Asks who is affected before anything ships.',
@@ -160,8 +197,9 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
         ],
         // NEW MEMBER / LOW CONTEXT — profil volontairement incomplet.
         'wen' => [
-            'name' => 'Wen Zhao',
+            'name' => 'Zhao',
             'first_name' => 'Wen',
+            'phone' => null,
             'city' => 'Dallas',
             'country_code' => 'US',
             'bio' => null,
@@ -360,6 +398,7 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
             'ai_profiles_enabled' => true,
             'loop_mode' => 'multi',
             'locale' => 'en',
+            'platform_tagline' => self::PLATFORM_TAGLINE,
             'default_country_code' => 'US',
             'show_country' => true,
         ]);
@@ -397,6 +436,7 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
         $base = CarbonImmutable::parse('2026-06-02 09:00:00', 'UTC');
 
         $this->reconcileOrganizationName($organization);
+        $this->reconcileOrganizationTagline($organization);
 
         $personas = $this->personas($organization, $registrar, $base);
         $this->aiProfiles($organization, $personas, $registrar, $base);
@@ -437,6 +477,28 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
     }
 
     /**
+     * Pose l'accroche du tenant si — et seulement si — il n'en a aucune.
+     *
+     * `provisionOrganization()` n'est appele QUE sur une Organization qui
+     * n'existe pas encore. La declarer la-bas n'aurait donc aucun effet sur le
+     * tenant deja provisionne, c'est-a-dire sur celui de la demonstration :
+     * c'est exactement ce qui s'etait passe en TASK-1395, puis en TASK-1396.
+     * La valeur doit etre RECONCILIEE a chaque chargement.
+     *
+     * La garde est plus simple que celle du nom, parce que le cas est plus
+     * simple : une accroche vide n'a jamais ete choisie par personne. Des
+     * qu'une valeur existe, quelle qu'elle soit, le pack n'y touche plus.
+     */
+    private function reconcileOrganizationTagline(Organization $organization): void
+    {
+        if (trim((string) $organization->platform_tagline) !== '') {
+            return;
+        }
+
+        $organization->update(['platform_tagline' => self::PLATFORM_TAGLINE]);
+    }
+
+    /**
      * @return array<string, User>
      */
     private function personas(Organization $organization, ScenarioPackEntityRegistrar $registrar, CarbonImmutable $base): array
@@ -452,6 +514,12 @@ class ArtSciLabEnglishPack implements ProvisionsItsOrganization, ScenarioPackDef
                     'organization_id' => $organization->id,
                     'name' => $persona['name'],
                     'first_name' => $persona['first_name'],
+                    // Passe EXPLICITEMENT, meme a null : `updateOrCreate` ne
+                    // met a jour que les champs qu'on lui donne (lecon de
+                    // TASK-1395). Omettre la cle laisserait intact le
+                    // telephone d'un tenant deja provisionne, et la correction
+                    // n'aurait aucun effet sur la demonstration.
+                    'phone' => $persona['phone'],
                     'password' => Hash::make('password'),
                     'bio' => $persona['bio'],
                     'city' => $persona['new_member'] ? null : $persona['city'],

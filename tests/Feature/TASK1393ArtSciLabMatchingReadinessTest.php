@@ -370,8 +370,15 @@ class TASK1393ArtSciLabMatchingReadinessTest extends TestCase
             return [];
         }
 
+        // `fullName` et non la colonne `name` : depuis TASK-1399, `name` porte
+        // le seul nom de FAMILLE, et c'est `fullName` que le produit affiche.
+        // Lire la colonne brute ferait dire a ce test « Nandakumar remonte »
+        // la ou la question posee est « la bonne PERSONNE remonte-t-elle ».
         return array_values(array_map(
-            static fn ($personne): string => (string) User::query()->whereKey($personne->person->userId)->value('name'),
+            static fn ($personne): string => (string) User::query()
+                ->whereKey($personne->person->userId)
+                ->firstOrFail()
+                ->fullName,
             $resultat->people,
         ));
     }
