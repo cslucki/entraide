@@ -6,6 +6,7 @@ use App\Models\Organization;
 use App\Support\ScenarioPacks\Packs\ArtSciLabEnglishPack;
 use App\Support\ScenarioPacks\ScenarioPackLoader;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -97,21 +98,81 @@ class TASK1396ArtSciLabTenantNameTest extends TestCase
     }
 
     /**
-     * Rejouer sur un tenant deja renomme ne change plus rien.
+     * Rejouer sur un tenant deja renomme n'ecrit plus le nom.
      *
-     * L'idempotence, mesuree sur la valeur cible elle-meme : une fois le nom
-     * correct, la reconciliation doit devenir un no-op.
+     * L'idempotence, mesuree sur la colonne que la reconciliation gouverne —
+     * et sur elle seule.
+     *
+     * ## Pourquoi pas `updated_at`
+     *
+     * La premiere version de cette mesure comparait `updated_at` avant et
+     * apres, en lisant « un no-op ne doit pas toucher la ligne ». Deux
+     * mesures l'ont tuee :
+     *
+     * - `load()` ecrit TOUJOURS la ligne, et c'est legitime : le pack designe
+     *   Elena comme administratrice, d'ou un
+     *   `update "organizations" set "admin_id" = ?, "updated_at" = ?` a chaque
+     *   chargement. La ligne EST touchee, meme quand le nom ne l'est pas.
+     * - `updated_at` est stocke a la SECONDE. L'ancienne assertion passait
+     *   donc uniquement quand `load()` s'achevait dans la meme seconde que la
+     *   creation du tenant — vert en local en 0,3 s, rouge sur un shard
+     *   PostgreSQL de quatre minutes. Une garde qui depend de l'horloge ne
+     *   garde rien.
+     *
+     * L'instrument juste est la requete elle-meme : aucune ecriture ne doit
+     * porter sur la colonne `name`.
+     *
+     * ## Ce qu'il attrape, et ce qu'il n'attrape pas
+     *
+     * Mesure faite, pas supposee. Une reconciliation rendue INCONDITIONNELLE
+     * via le query builder fait rougir cette garde. La meme reconciliation
+     * rendue inconditionnelle via `Model::update()` la laisse VERTE : Eloquent
+     * ne genere aucune requete quand la valeur est identique, et c'est alors
+     * son controle de « dirty », pas la garde du pack, qui produit le no-op.
+     * La garde qui protege reellement la donnee est celle du nom choisi par
+     * une personne, juste au-dessus — elle rougit dans les deux cas.
      */
-    public function test_replaying_on_an_already_correct_name_is_a_no_op(): void
+    public function test_replaying_on_an_already_correct_name_never_writes_the_name(): void
     {
         $organization = $this->organisation('ArtSciLab — English test');
-        $avant = $organization->refresh()->updated_at;
+
+        $ecrituresDuNom = [];
+
+        DB::listen(function ($requete) use (&$ecrituresDuNom): void {
+            if (str_contains($requete->sql, 'update "organizations"') && str_contains($requete->sql, '"name"')) {
+                $ecrituresDuNom[] = $requete->sql;
+            }
+        });
 
         app(ScenarioPackLoader::class)->load(app(ArtSciLabEnglishPack::class), $organization);
 
-        $apres = $organization->refresh();
-        $this->assertSame('ArtSciLab — English test', $apres->name);
-        $this->assertEquals($avant, $apres->updated_at, 'Un no-op ne doit pas toucher la ligne.');
+        $this->assertSame('ArtSciLab — English test', $organization->refresh()->name);
+        $this->assertSame([], $ecrituresDuNom, 'Le nom etait deja canonique : la reconciliation ne doit rien ecrire.');
+    }
+
+    /**
+     * Et le contre-exemple de l'instrument lui-meme.
+     *
+     * Une garde qui compte des ecritures ne vaut que si elle sait en compter
+     * au moins une. Sur un tenant portant encore un nom historique, la meme
+     * ecoute DOIT voir passer l'ecriture du nom — sans quoi le no-op mesure
+     * juste au-dessus serait vert pour n'importe quelle raison.
+     */
+    public function test_the_listener_really_sees_the_rename_when_it_happens(): void
+    {
+        $organization = $this->organisation('ArtSciLab — Test anglais');
+
+        $ecrituresDuNom = [];
+
+        DB::listen(function ($requete) use (&$ecrituresDuNom): void {
+            if (str_contains($requete->sql, 'update "organizations"') && str_contains($requete->sql, '"name"')) {
+                $ecrituresDuNom[] = $requete->sql;
+            }
+        });
+
+        app(ScenarioPackLoader::class)->load(app(ArtSciLabEnglishPack::class), $organization);
+
+        $this->assertNotSame([], $ecrituresDuNom, 'Le renommage doit passer par une ecriture visible.');
     }
 
     private function organisation(string $nom): Organization
