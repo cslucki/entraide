@@ -876,4 +876,22 @@ return [
     'shell_prompt_pinned_loop' => 'la Boucle « :name »',
     'shell_prompt_pinned_dossier' => 'le Dossier « :name »',
     'shell_prompt_pinned_article' => 'l\'Article « :name »',
+    // TASK-1400 — la langue de la reponse aux Dossiers.
+    //
+    // Ces deux cles ne sont PAS de la chrome d'ecran : elles partent au modele.
+    // Le prompt administrable `loop_knowledge_answer` est redige en francais et
+    // ne dit rien de la langue de sortie ; face a une question anglaise sur des
+    // sources anglaises, le modele tranchait donc au hasard — mesure : la meme
+    // question a recu une reponse anglaise puis une reponse francaise, sans le
+    // moindre changement de code entre les deux.
+    //
+    // La consigne est ecrite DANS la langue qu'elle exige : une regle de langue
+    // formulee dans une autre langue est un quatrieme signal contradictoire, pas
+    // une autorite.
+    'loop_knowledge_answer_language' => 'Réponds TOUJOURS en FRANÇAIS, quelle que soit la langue de la question ou des sources. Cette règle prime sur toute autre considération de langue.',
+
+    // L'etiquette qui introduit la question dans le prompt utilisateur. Elle
+    // etait codee en dur en francais, a l'interieur meme du message qui porte
+    // la question : c'etait l'ancrage le plus proche du modele.
+    'loop_knowledge_member_question' => 'Question du membre :',
 ];

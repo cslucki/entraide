@@ -841,4 +841,22 @@ return [
     'shell_prompt_pinned_loop' => 'the Loop ":name"',
     'shell_prompt_pinned_dossier' => 'the Dossier ":name"',
     'shell_prompt_pinned_article' => 'the Article ":name"',
+    // TASK-1400 — the language of the Folders answer.
+    //
+    // These two keys are NOT screen chrome: they are sent to the model. The
+    // administrable `loop_knowledge_answer` prompt is written in French and says
+    // nothing about the output language; faced with an English question over
+    // English sources, the model was deciding at random — measured: the same
+    // question got an English answer, then a French one, with no code change in
+    // between.
+    //
+    // The instruction is written IN the language it demands: a language rule
+    // phrased in another language is a fourth contradictory signal, not an
+    // authority.
+    'loop_knowledge_answer_language' => 'Always answer in ENGLISH, whatever the language of the question or of the sources. This rule takes precedence over any other language consideration.',
+
+    // The label introducing the question in the user prompt. It was hardcoded in
+    // French, inside the very message carrying the question: the anchor closest
+    // to the model.
+    'loop_knowledge_member_question' => 'Member question:',
 ];
