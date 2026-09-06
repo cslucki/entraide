@@ -306,4 +306,18 @@ return [
     'org_admin_ai_cockpit' => 'IA & connaissances',
     'org_admin_ai_behavior' => 'Comportement IA',
     'my_ai_usage' => 'Mes usages IA',
+
+    // TASK-1403 : les libelles VISIBLES du FAB mobile. Ils venaient de deux
+    // sources francaises : du texte code en dur dans le Blade, et `$T`
+    // (`config/terms.php`), dictionnaire francais GLOBAL ni localise ni
+    // par-tenant. Mesure a 390px sur `artscilab-en` (Organization EN) : le
+    // menu affichait « Faire une demande d'aide » et « Proposer un
+    // micro-service » — les valeurs de `$T`, pas les replis.
+    //
+    // DEBT_C : `$T` reste francais partout ailleurs (15 occurrences, 7 vues).
+    // Sa localisation generale est une TASK dediee post-campagne.
+    'mobile_fab_add' => 'Ajouter',
+    'mobile_fab_create_request' => 'Faire une demande d\'aide',
+    'mobile_fab_offer_service' => 'Proposer un micro-service',
+    'mobile_fab_write_article' => 'Écrire un article',
 ];
