@@ -154,9 +154,19 @@
         <button
             type="submit"
             class="mb-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full transition-all duration-200 ease-out active:scale-90 disabled:opacity-50"
+            {{-- TASK-1365 : la couleur active vient du THEME (--bp-primary, « Action
+                 principale » de /admin/themes) et non plus d'un indigo en dur. Le Shell
+                 utilise exactement le meme token : les deux composers changent ensemble
+                 quand le locataire change de theme.
+                 L'ECHELLE, l'etat inactif et le contrat CAN_SEND de T1329 sont INCHANGES —
+                 seule la teinte active bouge. Le halo `shadow-indigo-500/30` disparait avec
+                 l'indigo : une ombre teintee en dur aurait survecu au changement de theme. --}}
             x-bind:class="(hasText || {{ ($showUpload && $photo) ? 'true' : 'false' }})
-                ? 'scale-100 bg-indigo-600 text-white shadow-sm shadow-indigo-500/30 hover:bg-indigo-700'
+                ? 'scale-100 text-white shadow-sm hover:opacity-90'
                 : 'scale-95 bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500'"
+            x-bind:style="(hasText || {{ ($showUpload && $photo) ? 'true' : 'false' }})
+                ? 'background-color: var(--bp-primary)'
+                : ''"
             @if($disabled || $loading) disabled @endif
         >
             @if($loading)

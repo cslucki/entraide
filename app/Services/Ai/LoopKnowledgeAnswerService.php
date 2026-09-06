@@ -18,6 +18,7 @@ use App\Models\AiInteraction;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\DTO\KnowledgeAnswer;
 use App\Support\Ai\AiCorrelation;
@@ -195,11 +196,20 @@ class LoopKnowledgeAnswerService
 
         $organization = $loop->organization()->firstOrFail();
 
+        // TASK-1400 — la langue de la reponse appartient a l'Organization.
+        //
+        // Une reponse aux Dossiers est relue par tout le cercle : la faire
+        // suivre la langue de qui a pose la question donnerait deux langues au
+        // meme fil selon le lecteur. C'est l'arbitrage generique du 04/09, deja
+        // applique par TASK-1388, TASK-1390 et TASK-1398 ; ce chemin etait le
+        // dernier a lire encore `app()->getLocale()`.
+        $locale = $this->localeDeReference($organization);
+
         $contexte = new ContexteIa(
             organizationId: (string) $organization->id,
             userId: (string) $requester->id,
             loopId: (string) $loop->id,
-            locale: str_starts_with((string) app()->getLocale(), 'en') ? 'en' : 'fr',
+            locale: $locale,
             capability: $capability,
             correlationId: AiCorrelation::id(),
             source: CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL,
@@ -241,6 +251,19 @@ class LoopKnowledgeAnswerService
         // appliquee en code (citations revalidees), la doctrine ne peut pas
         // autoriser d'inventer.
         $instructions = $this->prompts->compose($capability, $this->capabilityInstructions($definition->promptKey), (string) $organization->id);
+
+        // La consigne de langue vient EN DERNIER, et en code.
+        //
+        // En dernier parce que le prompt administrable est redige en francais
+        // et ne dit rien de la langue de sortie : place avant, la consigne
+        // serait noyee sous plusieurs paragraphes qui la contredisent par leur
+        // seule langue.
+        //
+        // En code, et surtout pas dans `admin_ai_prompts` : reecrire le prompt
+        // actif changerait le comportement de TOUS les tenants, francais
+        // compris, pour un defaut qui n'est qu'une regle manquante. Le reste du
+        // prompt n'est pas touche d'un caractere.
+        $instructions .= "\n\n".$this->consigneDeLangue($locale);
         // TASK-1236 : version de doctrine reellement composee ci-dessus, tracee
         // sur l'interaction enregistree plutot que reconstituee a posteriori.
         $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
@@ -301,7 +324,10 @@ class LoopKnowledgeAnswerService
             : ($mode === self::MODE_HYBRID ? self::HYBRID_NO_DOCUMENTARY_SOURCE_NOTICE : '');
         $prompt = $sourcesBlock
             .($thread === '' ? '' : "\n\n".$thread)
-            ."\n\nQuestion du membre :\n".$question;
+            // L'etiquette suit la meme autorite que la consigne. La laisser en
+            // francais rouvrirait, a l'endroit le plus proche du modele, l'ancrage
+            // que la consigne vient de fermer.
+            ."\n\n".trans('ai.loop_knowledge_member_question', [], $locale)."\n".$question;
 
         try {
             $response = $agent->prompt(
@@ -317,8 +343,16 @@ class LoopKnowledgeAnswerService
             throw new RuntimeException(__('loops.ai_error'), 0, $exception);
         }
 
+        // TASK-1391 : normaliser les citations AVANT d'assainir.
+        //
+        // L'ordre est le correctif. `AiMarkdownSanitizer` neutralise les URL
+        // non http(s) en ne gardant que le libelle : une citation ecrite
+        // `[S1](fichier.pdf)` — habitude tres courante d'un modele — perdait
+        // ses crochets et devenait `S1` AVANT d'etre lue. La source etait
+        // reellement recuperee, reellement citee, et sortait quand meme de
+        // « Sources utilisees ».
         $answer = AiMarkdownSanitizer::sanitize(
-            (string) $response->text,
+            $this->normaliserCitations((string) $response->text),
             (int) config('ai.knowledge.max_answer_chars', 3000),
         );
 
@@ -333,6 +367,13 @@ class LoopKnowledgeAnswerService
         // dans la provenance REELLEMENT fournie. Une reference inventee est
         // ignoree.
         $cited = $this->citedSources($answer, $consulted);
+
+        // TASK-1391 : une reference inventee ne doit pas rester sous les yeux
+        // du membre. Qu'elle ne devienne pas une source etait deja acquis ;
+        // qu'elle disparaisse du texte ne l'etait pas, et un `[S9]` sans S9
+        // dans le bloc de provenance est exactement la citation qui ne pointe
+        // nulle part que cette tranche interdit.
+        $answer = $this->retirerReferencesInventees($answer, $consulted);
 
         $interaction = $this->recordInteraction($loop, $requester, $contexte, $definition, $resolved, $prompt,
             $answer, $usage, $cost->traceAttributes(), $cost, 'success', $startedAt, $response->invocationId, null,
@@ -511,6 +552,67 @@ class LoopKnowledgeAnswerService
         ));
     }
 
+    /**
+     * Ramene toute citation a sa forme canonique `[Ref]`, avant assainissement.
+     *
+     * Deux formes que le modele produit spontanement, et que le parseur —
+     * une comparaison LITTERALE de `[Ref]` — laissait tomber sans un mot :
+     *
+     * - le lien markdown `[S1](fichier.pdf)`. Le sanitizer neutralise les URL
+     *   non http(s) en ne gardant que le libelle, donc les crochets
+     *   disparaissaient AVANT la lecture des citations ;
+     * - le groupe `[S1, S2]`, forme naturelle des qu'une affirmation s'appuie
+     *   sur deux extraits. Aucun prompt ne l'interdit, et la seule doctrine
+     *   qui montre un exemple suggere la forme accolee.
+     *
+     * Normaliser en amont plutot que compliquer le parseur garde une seule
+     * definition d'une citation dans le service, et corrige du meme geste ce
+     * que le membre LIT : il voit desormais `[S1]`, pas `S1`.
+     */
+    private function normaliserCitations(string $texte): string
+    {
+        // `[S1](cible)` -> `[S1]`. La cible est jetee : la provenance
+        // affichee vient du registre, jamais d'une URL ecrite par le modele.
+        $texte = (string) preg_replace('/\[([SM]\d+)\]\([^)]*\)/', '[$1]', $texte);
+
+        // `[S1, S2]`, `[S1,S2]`, `[S1 et S2]`, `[S1; S2]` -> `[S1][S2]`.
+        return (string) preg_replace_callback(
+            '/\[([SM]\d+(?:\s*(?:,|;|et|and)\s*[SM]\d+)+)\]/i',
+            static function (array $groupe): string {
+                preg_match_all('/[SM]\d+/i', $groupe[1], $refs);
+
+                return implode('', array_map(static fn (string $ref): string => '['.$ref.']', $refs[0]));
+            },
+            $texte,
+        );
+    }
+
+    /**
+     * Efface du texte publie les references qui ne designent aucune source.
+     *
+     * `citedSources()` empechait deja une reference inventee de DEVENIR une
+     * source. Elle restait pourtant sous les yeux du membre : `[S9]` sans S9
+     * dans le bloc de provenance est une citation qui ne pointe nulle part —
+     * exactement ce que la promesse de cette tranche interdit.
+     *
+     * Seul le marqueur est retire ; la phrase qui le portait reste. Supprimer
+     * la phrase reviendrait a reecrire la reponse du modele, ce qui n'est pas
+     * le role de cette methode — et `DossierInsightsService`, qui le fait,
+     * assume ce choix dans un autre contexte.
+     *
+     * @param  list<array<string, mixed>>  $consulted
+     */
+    private function retirerReferencesInventees(string $texte, array $consulted): string
+    {
+        $connues = array_filter(array_column($consulted, 'ref'));
+
+        return trim((string) preg_replace_callback(
+            '/\s*\[([SM]\d+)\]/',
+            static fn (array $marqueur): string => in_array($marqueur[1], $connues, true) ? $marqueur[0] : '',
+            $texte,
+        ));
+    }
+
     private function citedSources(string $answer, array $consulted): array
     {
         return array_values(array_filter(
@@ -547,6 +649,34 @@ class LoopKnowledgeAnswerService
      * `loop_knowledge_answer` ou `loop_hybrid_answer`. Deux capabilities, deux
      * lignes administrables, une seule regle de chargement.
      */
+    /**
+     * La langue qui fait autorite pour ce que le modele produit.
+     *
+     * `Organization.locale` a une valeur par defaut en base (`fr`) et n'est
+     * donc jamais nulle en pratique. Le repli reste ecrit pour qu'une
+     * Organization arrivant d'un chemin qui ne l'aurait pas posee ne produise
+     * pas un `trans()` sur une locale vide — ou le traducteur retomberait sur
+     * la langue du LECTEUR, precisement ce que cette tranche supprime.
+     */
+    private function localeDeReference(Organization $organization): string
+    {
+        $locale = trim((string) $organization->locale);
+
+        return $locale !== '' ? $locale : (string) config('app.fallback_locale', 'fr');
+    }
+
+    /**
+     * La regle de langue envoyee au modele, ecrite DANS cette langue.
+     *
+     * Une consigne « answer in English » redigee en francais ajouterait un
+     * quatrieme signal francais a un prompt qui en compte deja trop ; formulee
+     * en anglais, elle est elle-meme une preuve de la langue attendue.
+     */
+    private function consigneDeLangue(string $locale): string
+    {
+        return (string) trans('ai.loop_knowledge_answer_language', [], $locale);
+    }
+
     private function capabilityInstructions(string $scenarioId): string
     {
         $prompt = AdminAiPrompt::query()

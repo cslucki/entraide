@@ -15,7 +15,16 @@ class PgvectorDossierChunksSchemaTest extends TestCase
 {
     public function test_postgresql_vector_storage_distance_constraints_and_indexes(): void
     {
-        $this->assertSame('pgsql', DB::connection()->getDriverName());
+        // TASK-1369 — une incapacite n'est pas un echec : SKIP conditionne a
+        // une incapacite reellement detectee, jamais universel. Sous
+        // PostgreSQL + pgvector le test s'execute normalement, donc la CI
+        // continue de l'eprouver pour de vrai.
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped(
+                'pgvector exige PostgreSQL ; pilote courant : '.DB::connection()->getDriverName().
+                '. Ce test ne peut pas exercer son contrat ici.'
+            );
+        }
         $this->assertSame('bouclepro_test', DB::connection()->getDatabaseName());
 
         $extension = DB::table('pg_extension')->where('extname', 'vector')->first();

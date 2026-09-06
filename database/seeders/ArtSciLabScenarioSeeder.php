@@ -50,7 +50,7 @@ use RuntimeException;
  *
  * TASK-1242: `compose()` accepts an optional `ScenarioPackEntityRegistrar`.
  * When provided, every row this seeder creates or reuses is declared to it
- * (`ArtSciLabRogerPack`, the scenario pack wrapping this seeder), so the
+ * (`ArtSciLabDemoPack`, the scenario pack wrapping this seeder), so the
  * scenario pack engine (TASK-1240) can idempotently reload, reset and
  * boundedly remove this exact content. `run()` (direct `db:seed` usage,
  * outside the pack engine) keeps passing no registrar and behaves exactly

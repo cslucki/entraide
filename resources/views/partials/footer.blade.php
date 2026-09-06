@@ -16,10 +16,13 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div class="flex flex-col sm:flex-row items-center justify-center gap-2 text-xs text-gray-400 dark:text-gray-500">
             <div x-data="{ bugOpen: false }" class="relative flex flex-wrap items-center justify-center text-center divide-x divide-gray-300 dark:divide-gray-700">
-                <a href="https://amteletravail.fr"
-                   target="_blank" rel="noopener noreferrer"
-                   class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors">
-                    {{ __('footer.by_amt') }}
+                {{-- TASK-1349 : le credit de portage cede sa place au lien de
+                     gouvernance. Un lien discret, au meme rang que les autres :
+                     le footer n'est pas surcharge, une entree en remplace une. --}}
+                <a href="{{ route('mycelium') }}"
+                   class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
+                   data-footer-mycelium>
+                    {{ __('mycelium.footer_link') }}
                 </a>
                 <a href="{{ route('mentions-legales') }}"
                    class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors">

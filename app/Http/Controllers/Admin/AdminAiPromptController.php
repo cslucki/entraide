@@ -52,7 +52,14 @@ class AdminAiPromptController extends Controller
             $validated['metadata'] = null;
         }
 
-        AdminAiPrompt::create($validated);
+        // TASK-1371 — la colonne vaut `->default(true)` : une version creee ici
+        // naissait ACTIVE sans que personne ne le demande, et sans desactiver
+        // ses soeurs. C'est vraisemblablement l'origine des deux versions
+        // actives de `clarify_help_request` constatees le 2026-09-02.
+        //
+        // Creer une version par cet ecran EST une activation : on la traite
+        // comme telle, donc elle devient la seule active de son scenario.
+        AdminAiPrompt::create($validated)->activate();
 
         return redirect()->route('admin.ai-prompts')
             ->with('success', 'Prompt IA créé avec succès.');
@@ -88,7 +95,28 @@ class AdminAiPromptController extends Controller
             $validated['metadata'] = null;
         }
 
+        // TASK-1371 — `is_active` n'est pas un booleen comme un autre : il
+        // designe QUI gouverne le scenario. L'activer par un `update()` nu
+        // laissait les soeurs actives, et l'ecran affichait plusieurs versions
+        // « actives » sans dire laquelle s'appliquait.
+        //
+        // PERIMETRE STRICT : on ne traite QUE l'activation. Le cas « case
+        // decochee » est laisse EXACTEMENT comme avant.
+        //
+        // Il porte pourtant un defaut preexistant : la case n'etant postee que
+        // lorsqu'elle est cochee, `is_active` est absent quand on la decoche, et
+        // `update()` laissait alors la valeur inchangee — autrement dit **on ne
+        // peut pas desactiver un prompt depuis cet ecran**. Le corriger ici
+        // changerait un comportement que personne n'a demande de changer dans
+        // cette TASK. Constate, consigne, laisse.
+        $activation = array_key_exists('is_active', $validated) && (bool) $validated['is_active'];
+        unset($validated['is_active']);
+
         $prompt->update($validated);
+
+        if ($activation) {
+            $prompt->activate();
+        }
 
         return redirect()->route('admin.ai-prompts')
             ->with('success', 'Prompt IA mis à jour avec succès.');

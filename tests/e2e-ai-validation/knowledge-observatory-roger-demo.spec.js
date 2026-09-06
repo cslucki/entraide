@@ -9,8 +9,8 @@
 //       tests/e2e-ai-validation/knowledge-observatory-roger-demo.spec.js
 //   ROGER_DEMO=1 KEEP=1 ...   -> laisse le fichier de demo en place (spot-check)
 //
-// Prerequis : serveur 8010 + worker de queue lances depuis CE worktree
-// (ai-validation-serve.sh / ai-validation-worker.sh).
+// Prerequis : serveur 8010 + worker de queue locaux lances depuis CE worktree
+// (scripts internes, non publies).
 //
 // Deroule (§12 du MASTER) :
 //   1. onglet A : Observatoire ouvert, compteurs releves ;

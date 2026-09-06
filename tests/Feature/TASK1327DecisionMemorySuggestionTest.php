@@ -232,8 +232,10 @@ class TASK1327DecisionMemorySuggestionTest extends TestCase
         $this->service()->suggestDecision($this->loop, $this->animateur);
 
         LoopDecisionSuggestionAgent::assertPrompted(function (AgentPrompt $prompt) use ($conclusion): bool {
-            // La Constitution ouvre les instructions, comme partout.
-            $this->assertStringStartsWith(
+            // TASK-1348 : la Constitution est presente, mais n'ouvre plus les
+            // instructions — un socle de code immuable la precede des qu'un
+            // texte administrable est compose.
+            $this->assertStringContainsString(
                 'Constitution BouclePro IA — v1',
                 (string) $prompt->agent->instructions(),
             );

@@ -9,7 +9,6 @@ use App\Ai\ProviderResolver;
 use App\Events\LoopMessageCreated;
 use App\Http\Middleware\ResolveOrganization;
 use App\Jobs\GenerateAiAgentResponse;
-use App\Listeners\LoginListener;
 use App\Models\AiConfig;
 use App\Models\BlogPost;
 use App\Models\BugReport;
@@ -65,7 +64,7 @@ use App\Services\RewardDispatcher;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiFabContext;
 use App\Support\Loops\LoopTypeRegistry;
-use Illuminate\Auth\Events\Login;
+use App\Support\Ops\ArtisanDatabaseGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\Events\NotificationSent;
@@ -187,6 +186,11 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // TASK-1367 — refuser une ecriture quand l'environnement annonce
+        // contredit la base reellement visee. Ne s'arme QUE sur contradiction :
+        // sans elle, ce garde n'existe pas.
+        ArtisanDatabaseGuard::arm($this->app);
+
         Paginator::useTailwind();
 
         Livewire::addPersistentMiddleware(ResolveOrganization::class);
@@ -259,11 +263,43 @@ class AppServiceProvider extends ServiceProvider
                 ->by('ai-doctrine-sandbox:'.($request->user()?->id ?: $request->ip()));
         });
 
-        Event::listen(
-            Login::class,
-            LoginListener::class,
-        );
+        // TASK-1385 — `LoginListener` N'EST PLUS enregistre ici, et il ne doit
+        // pas l'etre.
+        //
+        // Laravel decouvre automatiquement les ecouteurs de `app/Listeners` :
+        // toute methode dont le nom commence par `handle` — ou `__invoke` — est
+        // abonnee a l'evenement TYPE dans sa signature. L'inscription explicite
+        // qui vivait a cet endroit l'abonnait donc une SECONDE fois, et chaque
+        // connexion ecrivait deux lignes dans `login_logs`.
+        //
+        // La preuve d'execution est `php artisan event:list`, qui montre les
+        // abonnements REELLEMENT enregistres. C'est elle qui fait autorite, pas
+        // la lecture de ce fichier.
+        //
+        // Mesure sur la base de developpement avant correction : 6490 lignes
+        // pour 3220 evenements distincts. Le journal d'audit des connexions
+        // etait double depuis toujours.
+        //
+        // Le meme piege venait de mordre en T1384 sur `email_logs`. Si une
+        // future tranche croit cet ecouteur « oublie » et le rajoute ici, le
+        // test d'abonnement unique de T1385 rougira avant qu'une seule ligne
+        // soit ecrite.
 
+        // TASK-1384 — l'ECHEC de ces memes envois est trace par
+        // `App\Listeners\RecordFailedLegacyNotification`, sur
+        // `NotificationFailed`.
+        //
+        // Il n'est PAS enregistre ici, et c'est deliberе : Laravel decouvre
+        // automatiquement les ecouteurs de `app/Listeners` par le type de leur
+        // argument. Une ligne `Event::listen()` de plus l'abonnerait une SECONDE
+        // fois — mesure faite, deux lignes ecrites pour un seul echec.
+        //
+        // Les deux ecouteurs ecrivent dans `email_logs` et doivent accepter
+        // exactement les memes envois : canal `mail`, notification de
+        // l'application, destinataire `User`. Le succes filtre en clair
+        // ci-dessous ; l'echec filtre dans sa classe, ou la sanitisation du code
+        // d'erreur avait besoin d'un vrai domicile. Les deux jeux de filtres
+        // sont mesures, precisement parce qu'ils vivent a deux endroits.
         Event::listen(
             NotificationSent::class,
             function (NotificationSent $event) {

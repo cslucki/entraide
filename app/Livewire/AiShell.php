@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\AiShellMessage;
 use App\Models\Category;
+use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
@@ -226,6 +227,16 @@ class AiShell extends Component
             return null;
         }
 
+        // TASK-1350 : une OFFRE ne se prepare jamais en demande. Le bouton
+        // n'est pas rendu pour un tour d'offre (la LoopCard porte alors
+        // « Proposer de l'aide »), mais un `messageId` vient du client : la
+        // garde est donc rejouee ici, comme celle du statut juste au-dessus.
+        // L'absence de la cle vaut « demande » — les tours anterieurs a
+        // TASK-1350 gardent exactement leur comportement.
+        if (($metadata['intent'] ?? null) === AiShellTurnCards::INTENT_OFFER) {
+            return null;
+        }
+
         $categoryId = $metadata['suggested_category']['id'] ?? null;
         $category = $categoryId !== null
             ? Category::query()->whereKey($categoryId)->where('organization_id', $organization->id)->first(['id'])
@@ -340,6 +351,7 @@ class AiShell extends Component
         return view('livewire.ai-shell', [
             'shell' => [
                 'context' => $context,
+                'here' => $this->hereLabel($context),
                 'conversation_id' => $conversationId,
                 'messages' => $messages,
                 'cards' => $cards,
@@ -351,6 +363,16 @@ class AiShell extends Component
                 'actions' => $this->actions($context),
                 'refusal' => $this->creditRefusal(),
                 'offers_url' => $this->fab()['offers_url'] ?? null,
+                // TASK-1350 (P0) : le nom de l'Organization DEJA resolue par
+                // `actor()` pour ce rendu — aucun resolver de plus, aucune
+                // requete de plus. Il n'est qu'affiche, sous le choix humain :
+                // il n'accorde rien et ne franchit aucune frontiere de tenant.
+                'organization_name' => (string) $organization->name,
+                // TASK-1350 : le parcours canonique « Proposer de l'aide »,
+                // tenant-aware, construit par la meme cascade que
+                // `requestsCreateUrl()`. Un lien n'accorde rien : le controleur
+                // cible rejoue sa garde au clic.
+                'offer_help_url' => $this->servicesCreateUrl($organization),
                 'max_input_chars' => (int) config('ai.shell.max_input_chars', 2000),
             ],
         ]);
@@ -374,26 +396,52 @@ class AiShell extends Component
             return [];
         }
 
+        $objectId = (string) ($context['object']['id'] ?? '');
+        $fab = app(AiFabContext::class);
+
+        // TASK-1363 — le Shell tend les actions que la page autorise DEJA.
+        //
+        // Il n'en offrait qu'UNE : `loopActions()` etait appele, puis trois
+        // actions sur quatre etaient jetees par un `firstWhere()`. Le Shell
+        // nommait donc des possibilites — depuis T1359, il les enonce meme en
+        // toutes lettres — sans jamais les tendre.
+        //
+        // AUCUNE garde n'est ecrite ici, et c'est le point central :
+        // `AiFabContext` reste l'UNIQUE autorite des actions. Il rend `[]`
+        // pour un non-membre, pour une Boucle non ecrivable, pour un Dossier
+        // que la personne ne peut pas voir. Recopier ou assouplir ces regles
+        // creerait une seconde politique — exactement ce que la maison
+        // interdit depuis T1315.
+        $available = match ($context['kind'] ?? null) {
+            AiShellPageContext::KIND_LOOP => ($loop = Loop::query()->find($objectId)) instanceof Loop
+                ? $fab->loopActions($loop, $user)
+                : [],
+            AiShellPageContext::KIND_DOSSIER => ($dossier = Dossier::query()->find($objectId)) instanceof Dossier
+                ? $fab->dossierActions($dossier, $user)
+                : [],
+            default => [],
+        };
+
         $actions = [];
 
-        // Interroger les Dossiers de la Boucle courante — MEME garde que le
-        // bouton de la page, calculee par la seule autorite qui la connait.
-        if (($context['kind'] ?? null) === AiShellPageContext::KIND_LOOP) {
-            $loop = Loop::query()->find($context['object']['id'] ?? null);
-
-            if ($loop instanceof Loop) {
-                $knowledge = collect(app(AiFabContext::class)->loopActions($loop, $user))
-                    ->firstWhere('key', AiFabContext::ACTION_LOOP_KNOWLEDGE);
-
-                if (is_array($knowledge)) {
-                    $actions[] = [
-                        'key' => 'shell_loop_knowledge',
-                        'kind' => 'event',
-                        'label' => __('ai.shell_action_loop_knowledge'),
-                        'event' => $knowledge['event'],
-                    ];
-                }
+        foreach ($available as $action) {
+            // Une action sans evenement n'est pas rendue : le Shell ne
+            // fabrique jamais une destination, il relaie celle que l'autorite
+            // a produite.
+            if (($action['kind'] ?? null) !== 'event' || ! is_string($action['event'] ?? null)) {
+                continue;
             }
+
+            $actions[] = [
+                'key' => 'shell_'.$action['key'],
+                'kind' => 'event',
+                'label' => $action['label'],
+                'event' => $action['event'],
+                // `detail` porte le parametre de l'action — le Resume nomme la
+                // Card a ouvrir. La vue l'ecrasait par `{}` : le bouton
+                // partait, et n'ouvrait rien.
+                'detail' => is_array($action['detail'] ?? null) ? $action['detail'] : null,
+            ];
         }
 
         return $actions;
@@ -444,6 +492,36 @@ class AiShell extends Component
     }
 
     /** @return array<string, mixed> */
+    /**
+     * TASK-1365 — le LIEU tel qu'on l'affiche sous le composer, ou une chaine
+     * vide.
+     *
+     * Le libelle vient tel quel de `AiShellPageContext`, l'autorite de T1359 :
+     * cette methode ne resout rien, elle n'ecrit aucune regle de route, et ne
+     * lit ni URL, ni chemin, ni identifiant.
+     *
+     * Elle ne fait qu'une chose, et c'est la seule qui manquait : **fermer la
+     * liste**. Hors des quatre lieux gouvernes, `label()` retombe sur le nom de
+     * l'Organization — ce qui presenterait un TENANT comme un LIEU. C'est
+     * exactement le defaut fail-open corrige dans `hereLines()` en T1359, et il
+     * ne doit pas reapparaitre trois lignes plus bas dans un pied de page.
+     *
+     * Rien afficher vaut mieux que fabriquer un contexte.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private function hereLabel(array $context): string
+    {
+        $allowed = in_array($context['kind'] ?? null, [
+            AiShellPageContext::KIND_LOOP,
+            AiShellPageContext::KIND_DOSSIER,
+            AiShellPageContext::KIND_ARTICLE,
+            AiShellPageContext::KIND_DASHBOARD,
+        ], true);
+
+        return $allowed ? trim((string) ($context['label'] ?? '')) : '';
+    }
+
     private function pageContext(): array
     {
         [$user, $organization] = $this->actor();
@@ -514,5 +592,15 @@ class AiShell extends Component
         }
 
         return route('requests.create');
+    }
+
+    /** TASK-1350 — meme cascade, pour « Proposer de l'aide ». */
+    private function servicesCreateUrl(Organization $organization): ?string
+    {
+        if (RouteFacade::has('organization.services.create')) {
+            return route('organization.services.create', ['organization' => $organization->slug]);
+        }
+
+        return RouteFacade::has('services.create') ? route('services.create') : null;
     }
 }

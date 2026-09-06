@@ -43,7 +43,7 @@ class TASK1241ScenarioPackAdminUiTest extends TestCase
     {
         parent::setUp();
 
-        $this->allowedOrganization = Organization::factory()->create(['slug' => 'task1241-allowed-a', 'name' => 'Allowed A']);
+        $this->allowedOrganization = Organization::factory()->create(['slug' => FixtureScenarioPack::ORGANIZATION_SLUG, 'name' => 'Allowed A']);
         $this->otherAllowedOrganization = Organization::factory()->create(['slug' => 'task1241-allowed-b', 'name' => 'Allowed B']);
         $this->notAllowedOrganization = Organization::factory()->create(['slug' => 'task1241-not-allowed', 'name' => 'Not Allowed']);
 
@@ -97,15 +97,22 @@ class TASK1241ScenarioPackAdminUiTest extends TestCase
     // B. Selection bornee
     // =====================================================================
 
-    public function test_only_allowed_organizations_appear_in_the_picker(): void
+    public function test_the_target_organization_comes_from_the_pack_and_is_never_offered_as_a_choice(): void
     {
         $response = $this->actingAs($this->superAdmin)->get(route('admin.scenario-packs'));
 
         $response->assertOk();
-        $response->assertSee($this->allowedOrganization->slug);
-        $response->assertSee($this->otherAllowedOrganization->slug);
+
+        // TASK-1354 : la cible est AFFICHEE, jamais choisie. L'ancien second
+        // menu deroulant laissait croire qu'un pack pouvait aller dans
+        // n'importe quelle Organization qualifiee — combinaison que le moteur
+        // refuse depuis toujours.
+        $response->assertSee('data-scenario-pack-target-slug="'.FixtureScenarioPack::ORGANIZATION_SLUG.'"', false);
+        $response->assertDontSee('name="organization"', false);
+
+        // Et surtout : l'autre Organization allowlistee n'est pas proposee.
+        $response->assertDontSee($this->otherAllowedOrganization->slug);
         $response->assertDontSee($this->notAllowedOrganization->slug);
-        $response->assertDontSee($this->notAllowedOrganization->name);
     }
 
     public function test_only_registered_packs_appear(): void
@@ -131,14 +138,21 @@ class TASK1241ScenarioPackAdminUiTest extends TestCase
         $response->assertDontSee('data-scenario-pack-preview', false);
     }
 
-    public function test_it_states_clearly_when_no_organization_is_qualified(): void
+    public function test_it_states_clearly_when_the_target_organization_does_not_exist(): void
     {
-        config(['scenario_packs.allowed_organizations' => []]);
+        // L'Organization cible du pack n'existe pas encore.
+        Organization::query()->where('slug', FixtureScenarioPack::ORGANIZATION_SLUG)->forceDelete();
 
         $response = $this->actingAs($this->superAdmin)->get(route('admin.scenario-packs'));
 
         $response->assertOk();
-        $response->assertSee('data-scenario-packs-no-organization', false);
+        $response->assertSee('data-scenario-pack-state="missing"', false);
+        // Pack sans auto-provisionnement : l'ecran dit qu'il faut la creer avant.
+        $response->assertSee('data-scenario-pack-missing-hint="legacy"', false);
+        // Rien a charger, rien a retirer, rien a ouvrir tant qu'elle manque.
+        $response->assertDontSee('data-scenario-pack-action="load"', false);
+        $response->assertDontSee('data-scenario-pack-action="delete"', false);
+        $response->assertDontSee('data-scenario-pack-action="open-organization"', false);
     }
 
     // =====================================================================
@@ -150,7 +164,7 @@ class TASK1241ScenarioPackAdminUiTest extends TestCase
         $this->actingAs($this->superAdmin)->post(route('admin.scenario-packs.load'), [
             'pack' => 'task1240-fixture',
             'organization' => $this->allowedOrganization->slug,
-        ])->assertRedirect(route('admin.scenario-packs', ['pack' => 'task1240-fixture', 'organization' => $this->allowedOrganization->slug]))
+        ])->assertRedirect(route('admin.scenario-packs', ['pack' => 'task1240-fixture']))
             ->assertSessionHas('success');
 
         $this->assertSame(1, ScenarioPackLoad::query()->where('organization_id', $this->allowedOrganization->id)->count());
@@ -180,7 +194,7 @@ class TASK1241ScenarioPackAdminUiTest extends TestCase
             'organization' => $this->allowedOrganization->slug,
         ]);
 
-        $response->assertRedirect(route('admin.scenario-packs', ['pack' => 'task1240-fixture', 'organization' => $this->allowedOrganization->slug]));
+        $response->assertRedirect(route('admin.scenario-packs', ['pack' => 'task1240-fixture']));
         $response->assertSessionHas('error');
         $this->assertSame(0, ScenarioPackLoad::query()->count());
     }
@@ -227,18 +241,15 @@ class TASK1241ScenarioPackAdminUiTest extends TestCase
         $this->assertSame(0, ScenarioPackLoad::query()->count());
     }
 
-    public function test_actions_never_leak_across_two_allowed_organizations(): void
+    public function test_a_forged_organization_field_cannot_redirect_an_action_elsewhere(): void
     {
+        // Le champ n'existe plus dans le formulaire ; on le FORGE quand meme.
         $this->actingAs($this->superAdmin)->post(route('admin.scenario-packs.load'), [
-            'pack' => 'task1240-fixture',
-            'organization' => $this->allowedOrganization->slug,
-        ]);
-
-        $this->actingAs($this->superAdmin)->post(route('admin.scenario-packs.delete'), [
             'pack' => 'task1240-fixture',
             'organization' => $this->otherAllowedOrganization->slug,
         ]);
 
+        // L'action a atterri sur la cible DU PACK, pas sur celle demandee.
         $this->assertSame(1, ScenarioPackLoad::query()->where('organization_id', $this->allowedOrganization->id)->count());
         $this->assertSame(0, ScenarioPackLoad::query()->where('organization_id', $this->otherAllowedOrganization->id)->count());
     }
@@ -247,15 +258,19 @@ class TASK1241ScenarioPackAdminUiTest extends TestCase
     // E. Garde-fou de formulaire
     // =====================================================================
 
-    public function test_a_form_submission_for_a_non_allowed_organization_is_rejected_before_any_engine_call(): void
+    public function test_a_forged_non_allowed_organization_never_receives_anything(): void
     {
-        $response = $this->actingAs($this->superAdmin)->post(route('admin.scenario-packs.load'), [
+        $this->actingAs($this->superAdmin)->post(route('admin.scenario-packs.load'), [
             'pack' => 'task1240-fixture',
             'organization' => $this->notAllowedOrganization->slug,
         ]);
 
-        $response->assertSessionHasErrors('organization');
-        $this->assertSame(0, ScenarioPackLoad::query()->count());
+        // Rien n'a ete ecrit dans l'Organization non allowlistee : le controleur
+        // ne lit plus ce champ du tout.
+        $this->assertSame(
+            0,
+            ScenarioPackLoad::query()->where('organization_id', $this->notAllowedOrganization->id)->count(),
+        );
     }
 
     public function test_a_form_submission_for_an_unregistered_pack_is_rejected_before_any_engine_call(): void

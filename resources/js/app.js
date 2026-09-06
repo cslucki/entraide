@@ -2989,6 +2989,79 @@ function registerDossierSemanticArticleSearch() {
     }));
 }
 
+// TASK-1341 — Smart Dossier V1. Alpine MINIMAL : un POST explicite, un
+// fragment HTML rendu SERVEUR insere par x-html. Aucun rendu metier ici.
+function registerDossierInsights() {
+    if (typeof Alpine === 'undefined') return;
+
+    Alpine.data('dossierInsights', (config) => ({
+        loading: false,
+        generated: false,
+        resultHtml: '',
+        error: '',
+        errorCode: '',
+        offersUrl: '',
+        hasIndexedContent: !!config.hasIndexedContent,
+        endpoint: config.endpoint,
+        i18n: config.i18n || {},
+
+        async generate() {
+            if (this.loading || !this.hasIndexedContent) return;
+
+            this.loading = true;
+            this.error = '';
+            this.errorCode = '';
+            this.offersUrl = '';
+
+            try {
+                const response = await fetch(this.endpoint, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.resultHtml = data.html || '';
+                    this.generated = true;
+                    return;
+                }
+
+                if (response.status === 422) {
+                    this.error = this.i18n.noContent;
+                    return;
+                }
+
+                // TASK-1229 : refus economique avant tout appel (credit
+                // utilisateur epuise / budget Organization atteint).
+                if (response.status === 429) {
+                    let payload = null;
+                    try { payload = await response.json(); } catch (e) { payload = null; }
+                    this.error = (payload && payload.message) || this.i18n.unavailable;
+                    this.errorCode = (payload && payload.code) || '';
+                    this.offersUrl = (payload && payload.offers_url) || '';
+                    return;
+                }
+
+                if (response.status === 503) {
+                    this.error = this.i18n.unavailable;
+                    return;
+                }
+
+                this.error = this.i18n.genericError;
+            } catch (e) {
+                this.error = this.i18n.genericError;
+            } finally {
+                this.loading = false;
+            }
+        },
+    }));
+}
+
 function registerDossierMembersCard() {
     if (typeof Alpine === 'undefined') return;
 
@@ -7661,6 +7734,7 @@ document.addEventListener('alpine:init', () => {
     registerBlogInviteByEmail();
     registerBlogDossierCard();
     registerDossierSemanticArticleSearch();
+    registerDossierInsights();
     registerDossierArticlesCard();
     registerDossierMembersCard();
     registerDossierFilesCard();
@@ -7683,6 +7757,7 @@ registerBlogInviteByEmail();
     registerDossierSeriesReorder();
     registerDossierContentsCard();
     registerDossierSemanticArticleSearch();
+    registerDossierInsights();
     registerDossierMembersCard();
     registerDossierFilesCard();
     registerBlogLoopCard();

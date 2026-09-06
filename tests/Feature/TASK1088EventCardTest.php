@@ -1132,4 +1132,91 @@ class TASK1088EventCardTest extends TestCase
             ->call('shiftMonth', -2)
             ->assertSet('month', '2026-07');
     }
+
+    // ── TASK-1347 : navigation mensuelle aux fins de mois ────────────────────
+
+    /**
+     * TASK-1347 — le bug, gele sur le jour ou il se produit.
+     *
+     * `createFromFormat('Y-m', ...)` completait le JOUR manquant avec celui
+     * d'aujourd'hui. Un 31, viser un mois de 30 jours fabriquait une date
+     * inexistante que PHP faisait deborder sur le mois suivant, AVANT que
+     * `startOfMonth()` ne s'applique : la navigation repartait d'octobre en
+     * croyant repartir de septembre.
+     *
+     * Sans le correctif, ce test rougit ; le test voisin
+     * `test_the_month_navigation_moves_the_grid` ne rougissait, lui, QUE les
+     * jours dangereux — d'ou une CI verte 28 jours sur 31.
+     */
+    public function test_the_month_navigation_is_exact_on_a_month_end_day(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-08-31 10:00:00'));
+
+        try {
+            Livewire::actingAs($this->member)
+                ->test(LoopEventsCard::class, ['loop' => $this->loop])
+                ->set('month', '2026-09')
+                ->call('shiftMonth', -2)
+                ->assertSet('month', '2026-07');
+        } finally {
+            $this->travelBack();
+        }
+    }
+
+    /**
+     * La CLASSE de bug, pas seulement son exemplaire : tout jour superieur a la
+     * longueur du mois vise debordait. Un pas de +1 depuis un mois de 31 jours
+     * vers un mois de 30 suffit a le declencher.
+     */
+    public function test_no_month_end_day_can_make_the_navigation_drift(): void
+    {
+        foreach (['2026-08-29', '2026-08-30', '2026-08-31', '2026-01-31'] as $aujourdhui) {
+            $this->travelTo(CarbonImmutable::parse($aujourdhui.' 10:00:00'));
+
+            try {
+                Livewire::actingAs($this->member)
+                    ->test(LoopEventsCard::class, ['loop' => $this->loop])
+                    ->set('month', '2026-08')
+                    ->call('shiftMonth', 1)
+                    ->assertSet('month', '2026-09')
+                    ->call('shiftMonth', -2)
+                    ->assertSet('month', '2026-07');
+            } finally {
+                $this->travelBack();
+            }
+        }
+    }
+
+    /**
+     * Le second site du MEME defaut : la grille affichee.
+     *
+     * `LoopEventPresenter::monthGrid()` portait la ligne identique. Un 31 aout,
+     * demander septembre rendait la grille d'OCTOBRE — un mois faux sous les
+     * yeux de l'utilisateur, sans qu'aucune navigation soit en cause.
+     */
+    public function test_the_month_grid_renders_the_requested_month_on_a_month_end_day(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-08-31 10:00:00'));
+
+        try {
+            $grille = app(LoopEventPresenter::class)->monthGrid('2026-09', []);
+
+            // Le premier jour DANS le mois de la grille appartient bien a
+            // septembre : la grille deborde de part et d'autre, seule
+            // `in_month` designe le mois rendu.
+            $joursDuMois = [];
+            foreach ($grille['weeks'] as $semaine) {
+                foreach ($semaine as $jour) {
+                    if ($jour['in_month']) {
+                        $joursDuMois[] = $jour['date']->format('Y-m');
+                    }
+                }
+            }
+
+            $this->assertNotEmpty($joursDuMois);
+            $this->assertSame(['2026-09'], array_values(array_unique($joursDuMois)));
+        } finally {
+            $this->travelBack();
+        }
+    }
 }

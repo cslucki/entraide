@@ -55,7 +55,16 @@ class PgvectorDossierSemanticSearchEndpointTest extends TestCase
 
     private function assertPostgresqlPgvectorPreconditions(): void
     {
-        $this->assertSame('pgsql', DB::connection()->getDriverName());
+        // TASK-1369 — une incapacite n'est pas un echec : SKIP conditionne a
+        // une incapacite reellement detectee, jamais universel. Sous
+        // PostgreSQL + pgvector le test s'execute normalement, donc la CI
+        // continue de l'eprouver pour de vrai.
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped(
+                'pgvector exige PostgreSQL ; pilote courant : '.DB::connection()->getDriverName().
+                '. Ce test ne peut pas exercer son contrat ici.'
+            );
+        }
         $this->assertSame('bouclepro_test', DB::connection()->getDatabaseName());
         // **L'extension doit etre la ; sa version de correctif n'est pas une
         // regle du produit.** Epingler `0.8.5` faisait echouer ces tests sur

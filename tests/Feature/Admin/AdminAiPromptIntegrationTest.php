@@ -33,11 +33,25 @@ class AdminAiPromptIntegrationTest extends TestCase
 
     public function test_clarify_help_request_scenario_uses_db_prompt_when_available(): void
     {
+        // TASK-1350 : la v3 de `clarify_help_request` est desormais
+        // provisionnee par migration (interaction_fit). Ce test veut prouver
+        // qu'un prompt de BASE l'emporte sur le texte code, pas occuper un
+        // numero de version particulier — il prend donc le suivant.
+        //
+        // TASK-1370 : et il le prend VRAIMENT. Le numero etait ecrit en dur a
+        // `4`, ce qui etait « le suivant » au moment de T1350 et ne l'est plus
+        // depuis que la v4 est provisionnee par migration : la contrainte
+        // d'unicite (scenario_id, version) tombait. Un test qui promet « le
+        // suivant » doit le calculer, sinon il date.
+        $next = (int) (AdminAiPrompt::query()
+            ->where('scenario_id', 'clarify_help_request')
+            ->max('version') ?? 0) + 1;
+
         AdminAiPrompt::create([
             'scenario_id' => 'clarify_help_request',
             'name' => 'Test clarify prompt',
             'prompt_text' => 'DB PROMPT: clarify help request',
-            'version' => 3,
+            'version' => $next,
             'is_active' => true,
         ]);
 

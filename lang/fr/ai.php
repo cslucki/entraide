@@ -444,6 +444,38 @@ return [
     'behavior_doctrine_withdraw' => 'Retirer la doctrine',
     'behavior_doctrine_withdraw_confirm' => 'Retirer la doctrine active ? L\'IA reviendra au comportement par défaut. L\'historique est conservé.',
     'behavior_doctrine_withdraw_cancel' => 'Annuler',
+    // TASK-1348 — Constitution administrable (plateforme + Organization).
+    'behavior_org_constitution_title' => 'Constitution de votre Organization',
+    'behavior_org_constitution_badge' => 'Vos principes fondamentaux',
+    'behavior_org_constitution_help' => 'Qui êtes-vous, et quels principes fondamentaux gouvernent votre IA ? Ce texte s\'applique dans les limites de la Constitution BouclePro, qui prévaut. Il est facultatif.',
+    'behavior_org_constitution_placeholder' => 'Ex. : ArtSciLab favorise les collaborations transdisciplinaires entre artistes, scientifiques et chercheurs. L\'IA doit encourager la circulation des savoirs, les mises en relation pertinentes et l\'apprentissage entre pairs.',
+    'behavior_org_constitution_inherit_note' => 'Inutile de répéter la Constitution BouclePro ci-dessus : elle s\'applique déjà à votre Organization. Décrivez uniquement son identité, ses finalités et ses principes propres.',
+    'behavior_org_constitution_none' => 'Aucune Constitution propre. Votre Organization suit la Constitution BouclePro seule.',
+    'behavior_org_constitution_active' => 'Constitution v:version active.',
+    'behavior_org_constitution_saved' => 'Constitution de l\'Organization v:version active.',
+    'behavior_org_constitution_unchanged' => 'Texte inchangé : la version v:version reste active.',
+    'behavior_org_constitution_withdrawn' => 'Constitution de l\'Organization retirée.',
+    'behavior_org_constitution_nothing_to_withdraw' => 'Aucune Constitution active à retirer.',
+    'behavior_org_constitution_save' => 'Publier cette version',
+    'behavior_org_constitution_withdraw' => 'Retirer',
+    'behavior_org_constitution_history' => 'Versions précédentes',
+    'behavior_constitution_seed_badge' => 'Texte de référence du code',
+    'behavior_cascade_org_constitution' => 'Constitution de votre Organization — vos principes, sous celle de BouclePro',
+    'constitution_admin_title' => 'Constitution BouclePro IA',
+    'constitution_admin_help' => 'Le texte fondamental composé dans chaque appel IA de toutes les Organizations. Court, fondamental, général.',
+    'constitution_admin_guards_title' => 'Règles fondamentales — appliquées en code',
+    'constitution_admin_guards_help' => 'Non modifiables. Elles encadrent tout texte administrable et prévalent en toutes circonstances.',
+    'constitution_admin_seed_notice' => 'Aucune version publiée : le texte de référence du code est actuellement servi.',
+    'constitution_admin_active' => 'Version v:version active.',
+    'constitution_admin_saved' => 'Constitution BouclePro v:version active.',
+    'constitution_admin_unchanged' => 'Texte inchangé : la version v:version reste active.',
+    'constitution_admin_withdrawn' => 'Constitution retirée : le texte de référence du code reprend la main.',
+    'constitution_admin_nothing_to_withdraw' => 'Aucune version active à retirer.',
+    'constitution_admin_save' => 'Publier cette version',
+    'constitution_admin_withdraw' => 'Revenir au texte du code',
+    'constitution_admin_history' => 'Versions précédentes',
+    'constitution_admin_version_by' => 'v:version — :author, le :date',
+    'constitution_admin_version_by_system' => 'v:version — provisionnée, le :date',
     'behavior_doctrine_saved' => 'Doctrine v:version active.',
     'behavior_doctrine_unchanged' => 'Texte identique à la doctrine v:version déjà active : aucune nouvelle version.',
     'behavior_doctrine_withdrawn' => 'Doctrine retirée : l\'IA suit à nouveau le comportement par défaut.',
@@ -625,7 +657,10 @@ return [
     'fab_title' => 'BouclePro IA',
     'fab_subtitle_loop' => 'Sur cette Boucle',
     'fab_subtitle_dossier' => 'Dans ce Dossier',
-    'fab_subtitle_other' => 'Ici, aucune action IA — vos usages restent consultables.',
+    // TASK-1350 : le sous-titre situe, il ne devalue plus la page. Voir
+    // `fab_no_page_action` pour la phrase qui dit l'absence d'action de page.
+    'fab_subtitle_other' => 'Disponible partout sur BouclePro',
+    'fab_no_page_action' => "Cette page n'a pas d'action IA qui lui soit propre. Vous pouvez quand même discuter avec BouclePro IA : posez votre question, elle vous suit de page en page.",
     'fab_credit_title' => 'Crédit IA du mois',
     'fab_credit_included' => 'Inclus',
     'fab_credit_alert' => 'Vous approchez de votre crédit du mois.',
@@ -661,15 +696,151 @@ return [
     'shell_you' => 'Vous',
     'shell_assistant' => 'BouclePro IA',
     'shell_empty_title' => 'Commencez la conversation',
-    'shell_empty_hint' => 'Décrivez votre besoin en quelques mots. Le fil reste ouvert pendant que vous naviguez.',
+    // TASK-1350 : une conversation, pas un formulaire de demande deguise.
+    'shell_empty_hint' => 'Posez votre question ou décrivez votre besoin, simplement. Le fil reste ouvert pendant que vous naviguez.',
+
+    // ==========================================================================
+    // TASK-1350 — Shell honnête : non-Interaction, self-knowledge, offre
+    // ==========================================================================
+
+    // Le message canonique d'un tour hors Interaction. Simple, humain, et
+    // surtout HONNETE : il ne prétend pas avoir compris une demande, et il ne
+    // referme pas la conversation. Aucun vocabulaire technique — ni capability,
+    // ni provider, ni « interaction_fit ».
+    'shell_answer_non_interaction' => "Je n'en fais pas une demande d'aide : rien ici n'attend la contribution d'un autre membre. Si vous voulez que quelqu'un vous aide, ou proposer votre aide, dites-le-moi et je vous accompagne.",
+
+    // Appel à l'action d'une OFFRE : le membre apporte quelque chose.
+    'shell_card_offer_help' => 'Proposer de l\'aide',
+
+    // ==========================================================================
+    // TASK-1350 — presentation d'une INTENTION DE DEMANDE (P0 31/08 23h34)
+    // ==========================================================================
+    //
+    // Le clarificateur produit legitimement un brouillon a la PREMIERE PERSONNE :
+    // c'est la future demande DE L'UTILISATEUR. Rendu tel quel dans la bulle de
+    // l'assistant, il faisait dire a BouclePro IA « Je cherche un relecteur… ».
+    // Le contrat partage n'a pas bouge ; c'est la PRESENTATION qui attribue
+    // desormais le brouillon a la bonne personne.
+    'shell_request_framing' => 'J\'ai compris votre besoin. Voici une reformulation si vous souhaitez en faire une demande d\'aide.',
+    'shell_clarification_heading' => 'Avant d\'aller plus loin',
+    'shell_request_draft_heading' => 'Votre demande reformulée',
+
+    // TASK-1350 : une OFFRE est ecrite a la premiere personne exactement comme
+    // une demande. Elle recoit donc la meme attribution, avec son cadrage et son
+    // parcours propres.
+    'shell_offer_framing' => 'J\'ai compris ce que vous proposez. Voici une reformulation si vous souhaitez en faire une offre d\'aide.',
+    'shell_offer_draft_heading' => 'Votre proposition reformulée',
+
+    // Le choix humain. « Preparer », jamais « Publier » : rien n'est definitif,
+    // et le formulaire canonique reste devant toute publication.
+    'shell_request_continue' => 'Continuer à discuter',
+    'shell_request_prepare' => 'Préparer une demande d\'aide',
+    'shell_request_tenant' => 'dans :organization',
+
+    // TASK-1350 (P0) — l'etiquette du tour courant, injectee dans le prompt
+    // UNIQUEMENT quand un transcript precede. Elle dit au modele quel texte est
+    // l'objet et quel texte n'est que de l'arriere-plan.
+    'shell_prompt_current_turn' => 'Message actuel du membre — analyse et réponds à CE message, pas à un tour précédent du transcript :',
+
+    // --- Self-knowledge (réponses composées depuis les sources canoniques) ---
+    // TASK-1350 : la reponse a « C'est quoi BouclePro ? ». Elle part de la
+    // doctrine canonique — la phrase fondatrice de la Constitution plateforme —
+    // et n'ajoute qu'UNE phrase. Plus de prose de page d'accueil recollee.
+    'self_knowledge_platform' => 'BouclePro est une plateforme de pédagogie par l\'entraide. Vous y formulez un besoin en langage naturel, et vous êtes relié à quelques personnes de votre organisation qui peuvent vraiment aider — une boucle, pas un fil d\'actualité.',
+    'self_knowledge_loop_memory' => 'Ce qui se décide dans une boucle se dépose dans sa mémoire : rien à relire, l\'essentiel reste daté et retrouvable.',
+    'self_knowledge_ask_help_path' => 'Concrètement : ouvrez « Demander de l\'aide », décrivez votre besoin en langage naturel, et je le mets au net avant que vous validiez. Vous restez la personne qui publie — je ne publie jamais à votre place.',
+    // TASK-1359 : le lieu, nomme seulement s'il a passe sa propre garde, puis
+    // les actions que le FAB calcule deja sous les gardes de la page.
+    'self_knowledge_here_loop' => 'Vous êtes sur la Boucle « :name ».',
+    'self_knowledge_here_dossier' => 'Vous êtes sur le Dossier « :name ».',
+    'self_knowledge_here_article' => 'Vous êtes sur l\'Article « :name ».',
+    'self_knowledge_here_dashboard' => 'Vous êtes sur votre tableau de bord.',
+    'self_knowledge_here_actions' => 'Depuis cette page, vous pouvez :',
+    'self_knowledge_capabilities_intro' => 'Dans cette organisation, vous pouvez :',
+    // TASK-1350 : ne promet plus une navigation assistee qui n'existe pas.
+    // Ce que le Shell sait faire, c'est EXPLIQUER ou aller.
+    'self_knowledge_capabilities_outro' => 'Dites-moi ce que vous cherchez et je peux vous expliquer où aller.',
+    'self_knowledge_capabilities_empty' => 'Cette organisation n\'a encore ouvert aucun parcours. Un administrateur peut les activer.',
+
+    // --- Catalogue tenant-aware des capacités ---
+    'self_knowledge_capability_ask_help' => 'demander de l\'aide à d\'autres membres',
+    'self_knowledge_capability_offer_help' => 'proposer votre aide ou vos compétences',
+    // TASK-1361 : l'ancien libelle promettait « rejoindre les boucles
+    // auxquelles vous appartenez » — c'est de la NAVIGATION vers ses propres
+    // Boucles, pas une adhesion. Il trompait precisement sur la question la
+    // plus frequente d'un nouvel arrivant.
+    'self_knowledge_capability_loops' => 'retrouver les boucles dont vous etes membre, et decouvrir celles que vous pouvez rejoindre',
+    'self_knowledge_get_started_intro' => 'Pour vous installer sur BouclePro, il vous reste :',
+    'self_knowledge_get_started_outro' => 'Dites-moi par laquelle vous voulez commencer, je vous explique ou aller.',
+    'self_knowledge_get_started_complete' => 'Vous avez deja complete toutes les etapes d\'installation. Dites-moi ce que vous cherchez, et je vous explique ou aller.',
+    'self_knowledge_join_loop' => 'Ouvrez la liste des Boucles de votre organisation : vous y voyez toutes les Boucles actives, y compris celles dont vous n\'etes pas encore membre. Selon la Boucle, vous la rejoignez directement, ou vous envoyez une demande d\'adhesion qu\'un animateur valide.',
+    // TASK-1364 — « quelles Boucles sont dispo ? ». Le Shell nomme exactement
+    // ce que le catalogue montre deja. L'etat vide ne dit RIEN du nombre de
+    // Boucles qui existent ailleurs : ce serait reveler l'existence de ce
+    // qu'on refuse de nommer.
+    'self_knowledge_visible_loops_mine' => 'Vos Boucles :',
+    'self_knowledge_visible_loops_others' => 'Autres Boucles de votre organisation :',
+    'self_knowledge_visible_loops_access_open' => 'entree libre',
+    'self_knowledge_visible_loops_access_request' => 'sur demande',
+    'self_knowledge_visible_loops_access_pending' => 'demande en attente',
+    'self_knowledge_visible_loops_access_invitation' => 'sur invitation',
+    'self_knowledge_visible_loops_empty' => 'Je ne trouve aucune Boucle que vous puissiez consulter actuellement.',
+    'self_knowledge_capability_create_loop' => 'ouvrir une boucle autour d\'un sujet précis',
+    'self_knowledge_capability_ai_profile' => 'construire votre profil pour être trouvable par les autres',
+    // TASK-1350 : formule VRAIE quel que soit l'etat de la configuration IA de
+    // l'organisation. Le catalogue ne doit jamais promettre un usage generatif
+    // qui peut ne pas etre disponible ; ce qu'il annonce ici — repondre sur
+    // BouclePro — ne depend d'aucun provider.
+    'self_knowledge_capability_assistant' => 'me poser vos questions sur BouclePro, ici, de page en page',
     'shell_clear' => 'Effacer la conversation',
     'shell_clear_confirm' => 'Effacer tout le fil ?',
     'shell_clear_yes' => 'Effacer',
     'shell_clear_no' => 'Annuler',
     'shell_no_publication_note' => 'BouclePro IA ne publie rien : vous validez avant toute publication.',
     'shell_turn_in_progress' => 'Une réponse est déjà en cours. Laissez-la se terminer.',
-    'shell_answer_unavailable' => 'Je ne peux pas répondre pour l\'instant. L\'IA n\'est pas disponible dans cette Organization.',
+    // TASK-1350 : « Organization » etait visible en francais. Le comportement
+    // ne change pas — cette phrase reste l'indisponibilite EXPLICITE du cas ou
+    // aucun prompt actif n'existe — seul le vocabulaire est corrige.
+    'shell_answer_unavailable' => 'Je ne peux pas répondre pour l\'instant. L\'IA n\'est pas disponible dans cette organisation.',
+
+    // TASK-1350 — la phrase que voit une personne quand la preparation
+    // automatique de sa demande n'aboutit pas.
+    //
+    // Elle dit DEUX choses et pas une de plus : ce qui reste offert, et ce qui
+    // ne l'est pas maintenant. Elle ne nomme AUCUNE cause — le repli
+    // deterministe couvre plusieurs situations et ne porte pas laquelle s'est
+    // produite — et elle ne parle ni de provider, ni de credential, ni de
+    // configuration, ni de budget, ni d'organisation. Elle n'affirme pas non
+    // plus que « l'IA n'est pas disponible » : le fil vient peut-etre de le
+    // dementir deux fois.
+    //
+    // Elle ne promet pas non plus la creation manuelle : ce parcours existe
+    // (`organization.requests.create`) mais passe par `EnsureProfileComplete`,
+    // et le Shell ignore ici si ce membre le franchira. On ne promet que ce
+    // qu'on peut tenir.
+    'shell_answer_request_preparation_unavailable' => 'Je peux continuer à vous guider dans BouclePro, mais je ne peux pas préparer cette demande automatiquement pour le moment.',
     'shell_answer_blocked' => 'Je préfère ne pas traiter cette demande telle quelle.',
+    // TASK-1358 : la contrepartie francaise existe pour la PARITE des deux
+    // fichiers de langue, mais elle n'est jamais rendue tant que le prompt
+    // administrable actif est redige en francais : la garde ne se declenche
+    // que si la locale DIFFERE de `AiShellResponder::PROMPT_LANGUAGE`.
+    // TASK-1370 — les surfaces produit du ProductSurfaceManifest.
+    //
+    // Ce sont des NOMS DE LIEUX, pas des modes d'emploi : le manifest dit ce
+    // qui existe pour ce membre, jamais comment s'en servir ni ou cliquer.
+    'surfaces_context_none' => "Aucune surface n'est ouverte a ce membre dans cette organisation.",
+    'surface_loops' => 'les boucles de votre organisation',
+    'surface_create_loop' => 'ouvrir une nouvelle boucle',
+    'surface_members_directory' => 'l\'annuaire des membres',
+    'surface_exchanges' => 'vos échanges avec d\'autres membres',
+    'surface_messages' => 'votre messagerie',
+    'surface_dossiers' => 'vos dossiers et documents',
+    'surface_agenda' => 'l\'agenda de l\'organisation',
+    'surface_ai_profile' => 'votre profil IA',
+    'surface_subscriptions' => 'les abonnements',
+    'surface_organization_admin' => 'l\'administration de l\'organisation',
+    'shell_prompt_language_guard' => 'IMPORTANT : Réponds en français. Quelle que soit la langue des instructions et du contexte ci-dessous, tu dois répondre au membre en français.',
+    'shell_prompt_where_dashboard' => 'L\'utilisateur est sur son tableau de bord.',
     'shell_prompt_where_loop' => 'L\'utilisateur consulte la Boucle « :name ».',
     'shell_prompt_where_dossier' => 'L\'utilisateur consulte le Dossier « :name ».',
     'shell_prompt_where_article' => 'L\'utilisateur consulte l\'Article « :name ».',
@@ -678,6 +849,11 @@ return [
     'shell_action_loop_knowledge' => 'Interroger les Dossiers de cette Boucle',
     'shell_card_loop_badge' => 'Boucle',
     'shell_card_person_badge' => 'Membre',
+    // TASK-1360 : ne dit ni combien de membres, ni pourquoi telle personne
+    // n'est pas proposee — seulement qu'il n'y a personne a proposer ici, et
+    // le seul geste qui change cela.
+    'shell_people_empty' => 'Personne à vous proposer ici pour le moment.',
+    'shell_people_empty_cta' => 'Publier mon profil IA',
     'shell_card_document_badge_dossier' => 'Dossier',
     'shell_card_document_badge_article' => 'Article',
     'shell_card_open' => 'Ouvrir',
@@ -700,4 +876,37 @@ return [
     'shell_prompt_pinned_loop' => 'la Boucle « :name »',
     'shell_prompt_pinned_dossier' => 'le Dossier « :name »',
     'shell_prompt_pinned_article' => 'l\'Article « :name »',
+    // TASK-1400 — la langue de la reponse aux Dossiers.
+    //
+    // Ces deux cles ne sont PAS de la chrome d'ecran : elles partent au modele.
+    // Le prompt administrable `loop_knowledge_answer` est redige en francais et
+    // ne dit rien de la langue de sortie ; face a une question anglaise sur des
+    // sources anglaises, le modele tranchait donc au hasard — mesure : la meme
+    // question a recu une reponse anglaise puis une reponse francaise, sans le
+    // moindre changement de code entre les deux.
+    //
+    // La consigne est ecrite DANS la langue qu'elle exige : une regle de langue
+    // formulee dans une autre langue est un quatrieme signal contradictoire, pas
+    // une autorite.
+    'loop_knowledge_answer_language' => 'Réponds TOUJOURS en FRANÇAIS, quelle que soit la langue de la question ou des sources. Cette règle prime sur toute autre considération de langue.',
+
+    // L'etiquette qui introduit la question dans le prompt utilisateur. Elle
+    // etait codee en dur en francais, a l'interieur meme du message qui porte
+    // la question : c'etait l'ancrage le plus proche du modele.
+    'loop_knowledge_member_question' => 'Question du membre :',
+
+    // TASK-1402 : les libelles SYSTEME du manifeste Dossier
+    // (`DossierManifestSource`, source `dossier.manifest`) etaient codes en dur
+    // en francais. Ce texte n'est pas de la donnee humaine : il ENTRE dans le
+    // prompt comme un fait, et le modele le restitue tel quel — mesure sur
+    // `artscilab-en`, une reponse anglaise contenait « Fichier MD » et
+    // « Fichier TXT ». T1400 avait pose la langue de la REPONSE ; ici c'est la
+    // langue du CONTEXTE, un producteur distinct.
+    //
+    // Le contenu HUMAIN (nom de fichier, titre d'article, nom de Dossier) n'est
+    // JAMAIS traduit : seuls les libelles de structure le sont.
+    'dossier_manifest_header' => '--- ELEMENTS DU DOSSIER DE CETTE BOUCLE (metadonnees, pas de contenu) ---',
+    'dossier_manifest_article' => 'Article : :title — Dossier « :dossier »',
+    'dossier_manifest_file' => 'Fichier :type : :name — Dossier « :dossier »',
+    'dossier_manifest_file_type_fallback' => 'fichier',
 ];

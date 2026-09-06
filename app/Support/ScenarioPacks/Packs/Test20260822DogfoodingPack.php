@@ -180,7 +180,7 @@ use Symfony\Component\HttpFoundation\File\File;
  */
 class Test20260822DogfoodingPack implements ScenarioPackDefinition
 {
-    public const PACK_ID = 'test20260822-dogfooding';
+    public const PACK_ID = 'test20260822';
 
     public const ORGANIZATION_SLUG = 'test20260822';
 
@@ -253,12 +253,12 @@ class Test20260822DogfoodingPack implements ScenarioPackDefinition
 
     public function packName(): string
     {
-        return 'Dogfooding Cyril — test20260822';
+        return 'BouclePro — Test historique';
     }
 
     public function purpose(): string
     {
-        return 'Charger les vrais documents de travail de Cyril (10 Boucles, leurs Dossiers racines, 83 fichiers) dans l\'Organization isolee test20260822 pour le dogfooding IA/RAG, sans declencher aucune indexation ; puis le socle FR (T1274) : profils humains des 4 personas, 6 categories et 37 skills issus des CV, points de bienvenue, 4 profils IA publies ; puis (T1275) les 7 types de Boucles, les membres et leurs roles, les Cards actives et principales, selon le mapping valide ; puis (T1335) l\'activite humaine collective de 08-Protocole, 09-UT Dallas et 10-Aria : 9 messages, 1 sondage, 1 decision, 1 evenement, 1 element de roadmap, distilles de la matiere reelle du corpus — aucun message IA, aucune ai_interaction simulee.';
+        return 'Charger les vrais documents de travail de Cyril (10 Boucles, leurs Dossiers racines, 83 fichiers) dans l\'organisation isolée test20260822, pour éprouver l\'IA et le RAG sans déclencher aucune indexation.';
     }
 
     public function apply(Organization $organization, ScenarioPackEntityRegistrar $registrar): void

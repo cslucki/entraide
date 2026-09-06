@@ -90,6 +90,32 @@ return [
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
             'throw' => false,
             'report' => false,
+
+            /*
+             * Un repertoire prive de Flysystem vaut 0700 par defaut. Le
+             * processus qui SERT les fichiers n'est pas celui qui les ECRIT :
+             * une piece deposee en console, ou rejouee par un ScenarioPack,
+             * atterrit alors dans une arborescence qu'Apache ne peut pas
+             * traverser. Les fichiers eux-memes sont lisibles (0644) : c'est
+             * le chemin qui bloque.
+             *
+             * Et le symptome ment. `DossierFileController::preview()` rattrape
+             * l'exception de lecture en `abort(404)` : une source citee par
+             * l'IA se presente comme ABSENTE alors qu'elle est seulement
+             * inaccessible. La promesse « une source citee s'ouvre » se casse
+             * sans qu'aucune trace ne dise pourquoi.
+             *
+             * 0770 rend le chemin franchissable par le groupe proprietaire —
+             * celui du serveur web — sans jamais l'ouvrir au reste du monde.
+             * C'est le mode que portent deja les repertoires sains du banc.
+             * Cle ignoree par le driver s3.
+             */
+            'permissions' => [
+                'dir' => [
+                    'public' => 0755,
+                    'private' => 0770,
+                ],
+            ],
         ],
 
     ],

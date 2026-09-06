@@ -196,10 +196,11 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 
   {{-- FOOTER --}}
   <footer class="foot">
+    {{-- TASK-1349 : le credit de portage cede sa place au lien de gouvernance.
+         Meme emplacement, meme rang visuel que les autres liens du pied : le
+         footer ne s'allonge pas, une entree en remplace une. --}}
     <div class="foot-credit">
-      <a href="https://amteletravail.fr" target="_blank" rel="noopener">{{ __('footer.by_amt') }}</a>
-      <span class="foot-sep">·</span>
-      <a href="{{ route('organization.home', 'launchpals') }}">{{ __('footer.partner_artscilab') }}</a>
+      <a href="{{ route('mycelium') }}" data-footer-mycelium>{{ __('mycelium.footer_link') }}</a>
     </div>
     <nav class="foot-links">
       <a href="{{ route('mentions-legales') }}">{{ __('footer.mentions_legales') }}</a>

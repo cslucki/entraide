@@ -257,6 +257,30 @@ class User extends Authenticatable
             ->count();
     }
 
+    /**
+     * TASK-1373 — les notifications non lues de ce membre DANS une Organization.
+     *
+     * Le parametre n'a deliberement PAS de valeur par defaut. `MemberNotification`
+     * ecarte volontairement `BelongsToOrganizationScope` (il retombe sur
+     * `whereRaw('0 = 1')` hors requete HTTP, donc silencieusement vide dans un
+     * job) : aucun scope global ne rattraperait un appelant qui oublie le
+     * tenant, et la requete partirait nue.
+     *
+     * C'est ce qui distingue cette methode de `unreadMessagesCount()` juste
+     * au-dessus, qui ne porte aucun `organization_id` : un membre present dans
+     * deux Organizations y verrait un compteur agrege.
+     *
+     * `forRecipient()` est la seule porte de lecture du modele — jamais un
+     * `where('recipient_id')` nu.
+     */
+    public function unreadNotificationsCount(string $organizationId): int
+    {
+        return MemberNotification::query()
+            ->forRecipient($organizationId, (string) $this->id)
+            ->unread()
+            ->count();
+    }
+
     public function badges(): BelongsToMany
     {
         return $this->belongsToMany(Badge::class, 'badge_user', 'user_id', 'badge_id')

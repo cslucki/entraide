@@ -256,6 +256,13 @@ return [
         'enabled' => (bool) env('AI_SHELL_ENABLED', true),
         'max_thread_messages' => (int) env('AI_SHELL_MAX_THREAD_MESSAGES', 40),
         'max_input_chars' => (int) env('AI_SHELL_MAX_INPUT_CHARS', 2000),
+        // TASK-1346 : borne du transcript de la conversation courante injecte
+        // dans le prompt. Volontairement TRES en dessous de
+        // `ai.clarify.max_context_chars` (8000), qui borne deja le contexte
+        // compose par ContextBuilder pour la MEME capability : les deux
+        // s'additionnent dans le meme appel. La reduire retire d'office les
+        // tours les plus anciens ; 0 desactive la memoire sans rien casser.
+        'max_context_chars' => (int) env('AI_SHELL_MAX_CONTEXT_CHARS', 4000),
         // TASK-1326 : borne du contexte epingle. La limite est STRUCTURELLE
         // (AiShellPinnedContext tronque a la relecture) : la reduire retire
         // d'office les pins excedentaires.

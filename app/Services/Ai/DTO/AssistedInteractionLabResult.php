@@ -31,6 +31,31 @@ class AssistedInteractionLabResult
         public readonly string $originalPhrase = '',
         public readonly ?array $suggestedCategory = null,
         public readonly string $producer = 'unknown',
+        /**
+         * TASK-1350 — verdict d'Interaction, DEJA arbitre par la version du
+         * prompt au point de production.
+         *
+         *  - `true`  : un autre membre pourrait utilement contribuer ;
+         *  - `false` : l'enonce est clairement hors Interaction ;
+         *  - `null`  : AUCUNE autorite — prompt en v1/v2, version non
+         *              exploitable, champ absent ou non booleen, ou repli
+         *              deterministe. Un appelant qui lit `null` doit se
+         *              comporter exactement comme avant TASK-1350.
+         *
+         * Le fail-open est donc porte par le TYPE : seul `false` change
+         * quelque chose, et seulement chez qui choisit de le lire.
+         */
+        public readonly ?bool $interactionFit = null,
+        /**
+         * TASK-1350 — la reponse conversationnelle du modele au message
+         * COURANT, quand celui-ci n'appelle pas d'Interaction collective.
+         *
+         * `null` quand le champ est absent, vide, ou quand le prompt actif n'a
+         * pas l'autorite pour le produire (v1/v2). Un appelant qui lit `null`
+         * doit disposer d'un repli sur : ce champ est un CONFORT, jamais une
+         * garantie.
+         */
+        public readonly ?string $directReply = null,
     ) {}
 
     public function toArray(): array
@@ -54,6 +79,8 @@ class AssistedInteractionLabResult
             '_scenario_label' => $this->scenarioLabel,
             'original_phrase' => $this->originalPhrase,
             '_producer' => $this->producer,
+            'interaction_fit' => $this->interactionFit,
+            'direct_reply' => $this->directReply,
         ];
     }
 

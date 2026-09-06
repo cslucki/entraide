@@ -46,6 +46,16 @@ return [
     'field_skills' => 'Compétences',
     'field_experience' => 'Expérience',
     'field_help_types' => 'Types d\'aide proposés',
+    // TASK-1366 — le retrait volontaire. Ce sont les SEULES chaines de cette
+    // surface qui passent par __() : le reste de la vue est en francais en dur
+    // depuis son origine, et le traduire n'appartient pas a cette TASK
+    // (dette consignee). On ne livre pas pour autant un nouveau controle
+    // monolingue trois heures apres avoir rendu le Shell bilingue.
+    'withdraw_button' => 'Retirer mon profil',
+    'withdraw_confirm' => 'Retirer votre profil ? Il ne sera plus propose aux autres membres. Vous pourrez le republier quand vous voudrez, sans rien ressaisir.',
+    'withdraw_done' => 'Profil retiré. Il n\'est plus proposé aux autres membres.',
+    'republish_button' => 'Republier mon profil',
+    'publish_refused_admin_disabled' => 'Ce profil a été désactivé par un administrateur : lui seul peut le republier.',
     'field_service_scope' => 'Cadre d\'intervention',
     'field_boundaries' => 'Limites',
     'field_preferred_contact' => 'Contact préféré',

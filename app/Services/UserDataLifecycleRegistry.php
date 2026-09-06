@@ -52,6 +52,15 @@ class UserDataLifecycleRegistry
             ['key' => 'custom_loop_types_created_by', 'type' => 'sql', 'table' => 'custom_loop_types', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'A created Loop type is organization configuration, not personal data: it must outlive whoever created it, with the author simply detached.'],
             // TASK-1227 : la doctrine IA est une configuration editoriale de l'Organization ; l'auteur d'une version est un audit detachable (FK nullOnDelete).
             ['key' => 'organization_ai_doctrines_created_by', 'type' => 'sql', 'table' => 'organization_ai_doctrines', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'An AI doctrine version is organization configuration, not personal data: it must outlive its author, who is simply detached.'],
+            // TASK-1348 : memes natures, meme politique que la doctrine juste
+            // au-dessus. Une version de Constitution est de la CONFIGURATION —
+            // editoriale pour l'Organization, de plateforme pour l'autre — et
+            // non une donnee personnelle : elle doit survivre a son auteur, qui
+            // est simplement detache (FK nullOnDelete). La table plateforme n'a
+            // pas de colonne `organization_id` : son scope est `none`, comme
+            // les autres tables de portee plateforme du registre.
+            ['key' => 'organization_ai_constitutions_created_by', 'type' => 'sql', 'table' => 'organization_ai_constitutions', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'An Organization AI constitution version is organization configuration, not personal data: it must outlive its author, who is simply detached.'],
+            ['key' => 'platform_ai_constitutions_created_by', 'type' => 'sql', 'table' => 'platform_ai_constitutions', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'none', 'justification' => 'A platform AI constitution version is platform configuration, not personal data: it must outlive its author, who is simply detached. The table is global and carries no organization_id.'],
             ['key' => 'article_series_created_by', 'type' => 'sql', 'table' => 'article_series', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Series can survive with creator detached.'],
             ['key' => 'article_series_items_added_by', 'type' => 'sql', 'table' => 'article_series_items', 'column' => 'added_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_article_series', 'justification' => 'Series item audit can be detached.'],
             ['key' => 'badge_user', 'type' => 'sql', 'table' => 'badge_user', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'justification' => 'Badge assignment is user-specific derived data.'],
@@ -91,6 +100,28 @@ class UserDataLifecycleRegistry
             ['key' => 'member_ai_profile_interactions_owner', 'type' => 'sql', 'table' => 'member_ai_profile_interactions', 'column' => 'profile_owner_user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'AI profile interaction content may include personal data.'],
             ['key' => 'member_ai_profile_interactions_visitor', 'type' => 'sql', 'table' => 'member_ai_profile_interactions', 'column' => 'visitor_user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'Visitor AI profile interaction content may include personal data.'],
             ['key' => 'member_ai_profile', 'type' => 'sql', 'table' => 'member_ai_profiles', 'column' => 'user_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'direct', 'justification' => 'Structured personal profile needs explicit product decision.'],
+            // TASK-1372 — les deux FK de `member_notifications`. Le registre dit
+            // ce que le schema FAIT, et les deux colonnes ne font pas la meme
+            // chose :
+            //
+            // `recipient_id` designe la personne PREVENUE. La notification n'a
+            // aucun sens sans elle — c'est une adresse, pas une trace. La FK est
+            // NOT NULL ON DELETE CASCADE, et le registre dit DELETE.
+            //
+            // `actor_id` designe qui a declenche. C'est une attribution, pas la
+            // raison d'etre de la ligne : la notification du destinataire ne doit
+            // pas disparaitre parce que l'auteur du geste s'en va. FK nullOnDelete,
+            // donc DETACH — meme regime que les autres attributions du registre.
+            //
+            // La ligne ne porte aucun contenu (references seules), donc aucune
+            // question d'anonymisation ne se pose : il n'y a rien a anonymiser.
+            // TASK-1375 — un reglage de notification est un ECART exprime par une
+            // personne sur ses propres envois. Il n'a aucun sens sans elle, ne
+            // sert a personne d'autre, et ne constitue aucune trace d'audit :
+            // il suit son auteur. FK NOT NULL ON DELETE CASCADE.
+            ['key' => 'member_notification_preferences_user_id', 'type' => 'sql', 'table' => 'member_notification_preferences', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'justification' => 'A notification preference is a personal choice about what a person receives: it has no meaning without them and serves no one else. The FK is NOT NULL ON DELETE CASCADE and the registry says so.'],
+            ['key' => 'member_notifications_recipient_id', 'type' => 'sql', 'table' => 'member_notifications', 'column' => 'recipient_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'An in-app notification is addressed TO a person: it is an address, not a trace, and it carries no content of its own (references only). The FK is NOT NULL ON DELETE CASCADE and the registry says so.'],
+            ['key' => 'member_notifications_actor_id', 'type' => 'sql', 'table' => 'member_notifications', 'column' => 'actor_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'The actor is an attribution, not the reason the row exists: the recipient notification must outlive whoever triggered it, so the author is simply detached (FK nullOnDelete).'],
             ['key' => 'messages_pinned_by_id', 'type' => 'sql', 'table' => 'messages', 'column' => 'pinned_by_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_transaction', 'justification' => 'Pin attribution can be detached.'],
             ['key' => 'messages_sent', 'type' => 'sql', 'table' => 'messages', 'column' => 'sender_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_transaction', 'justification' => 'Conversation sender can be anonymized.'],
             ['key' => 'organization_requests', 'type' => 'sql', 'table' => 'organization_requests', 'column' => 'user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Organization request history is retained.'],

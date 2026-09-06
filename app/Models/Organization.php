@@ -39,6 +39,8 @@ class Organization extends Model
         'loops_enabled',
         'members_can_create_loops',
         'ai_profiles_enabled',
+        // TASK-1349 : opt-in explicite de publication de la Constitution.
+        'ai_constitution_public',
         'subscriptions_enabled',
         'loop_mode',
         'primary_loop_id',
@@ -79,6 +81,7 @@ class Organization extends Model
             'loops_enabled' => 'boolean',
             'members_can_create_loops' => 'boolean',
             'ai_profiles_enabled' => 'boolean',
+            'ai_constitution_public' => 'boolean',
             'subscriptions_enabled' => 'boolean',
             'maintenance_mode' => 'boolean',
             'header_javascript_enabled' => 'boolean',

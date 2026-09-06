@@ -18,6 +18,7 @@ use App\Support\Ai\AiRefusedException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Tests\Support\Ai\RecordsAiConsumption;
 use Tests\TestCase;
 
 /**
@@ -45,6 +46,8 @@ use Tests\TestCase;
  */
 class TASK1231ChatLoopLegacyGuardTest extends TestCase
 {
+    use RecordsAiConsumption;
+
     use RefreshDatabase;
 
     private Organization $organization;
@@ -378,20 +381,12 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
      */
     private function generation(User $user, float $cost): void
     {
-        AiInteraction::create([
-            'user_id' => $user->id,
-            'organization_id' => $this->organization->id,
-            'correlation_id' => (string) Str::uuid(),
-            'process' => 'chatloop.ask',
-            'feature' => 'chatloop_ai_ask',
-            'model' => 'openai/gpt-4o-mini',
-            'prompt' => 'p',
-            'response' => 'r',
-            'input_tokens' => 100,
-            'output_tokens' => 50,
-            'cost_usd' => $cost,
-            'cost_unknown' => false,
-            'metadata' => ['provider' => 'openai', 'status' => 'success'],
-        ]);
+        $this->recordAiGeneration(
+            (string) $this->organization->id,
+            (string) $user->id,
+            'chatloop.ask',
+            'chatloop_ai_ask',
+            $cost,
+        );
     }
 }

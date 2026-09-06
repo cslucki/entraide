@@ -60,9 +60,13 @@ class TASK1211CanonicalHelpRequestTest extends TestCase
         app()->instance('current_organization', $this->organization);
 
         AiConfig::set('clarification_enabled', true);
+        // TASK-1350 : viser la ligne ACTIVE, et non la v2 par son numero — la
+        // version active du scenario evolue (v3 depuis TASK-1350), alors que ce
+        // que le test prouve — le prompt administrable est bien celui qui est
+        // compose — ne depend d'aucun numero.
         AdminAiPrompt::query()
             ->where('scenario_id', 'clarify_help_request')
-            ->where('version', 2)
+            ->where('is_active', true)
             ->update([
                 'name' => 'Clarification de demande d’aide — test',
                 'prompt_text' => 'MARQUEUR PROMPT ADMIN CLARIFY.',

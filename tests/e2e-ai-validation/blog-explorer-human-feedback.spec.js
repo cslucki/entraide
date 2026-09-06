@@ -14,7 +14,7 @@
 //    (enveloppe economique identique, aucune semantique de methode) ;
 //  - desktop clair + mobile sombre, aucune erreur console / 5xx.
 //
-// Prerequis : banc 8010 (`ai/scripts/ai-validation-serve.sh`), migration
+// Prerequis : banc 8010 (serveur + worker locaux, scripts internes non publies), migration
 // `2026_08_19_170000_create_ai_interaction_feedbacks_table` appliquee sur
 // `bouclepro_ai_validation`, `npm run build` a jour.
 //

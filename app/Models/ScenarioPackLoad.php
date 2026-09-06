@@ -26,6 +26,9 @@ class ScenarioPackLoad extends Model
         'organization_id',
         'loaded_at',
         'reset_at',
+        // TASK-1351 : ce chargement a-t-il cree lui-meme son Organization ?
+        // Seule provenance qui autorise le retrait a revenir a l'etat ABSENT.
+        'organization_created_by_pack',
     ];
 
     protected function casts(): array
@@ -33,6 +36,7 @@ class ScenarioPackLoad extends Model
         return [
             'loaded_at' => 'datetime',
             'reset_at' => 'datetime',
+            'organization_created_by_pack' => 'boolean',
         ];
     }
 

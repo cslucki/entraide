@@ -118,6 +118,13 @@ jobs:
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
       APP_ENV: testing
+      # TASK-1367 — cette CI ecrit DELIBEREMENT dans une base PostgreSQL de
+      # test (bouclepro_test) sous APP_ENV=testing. Le garde applicatif
+      # refuse ce couple par defaut, parce qu'il ne peut pas deviner qu'une
+      # base serveur est jetable. Ce marqueur est la declaration d'intention
+      # qui le leve — un accuse d'EXECUTION, jamais une configuration : il ne
+      # doit apparaitre ni dans .env, ni dans .env.example, ni dans config/.
+      BOUCLEPRO_TEST_DB_APPROVED: '1'
       APP_KEY: base64:b+IwxNpzaahGTvmk+0WLnzODWBnKA99oQDutpRQ7xfI=
       CACHE_STORE: array
       QUEUE_CONNECTION: sync
@@ -210,6 +217,13 @@ jobs:
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
       APP_ENV: testing
+      # TASK-1367 — cette CI ecrit DELIBEREMENT dans une base PostgreSQL de
+      # test (bouclepro_test) sous APP_ENV=testing. Le garde applicatif
+      # refuse ce couple par defaut, parce qu'il ne peut pas deviner qu'une
+      # base serveur est jetable. Ce marqueur est la declaration d'intention
+      # qui le leve — un accuse d'EXECUTION, jamais une configuration : il ne
+      # doit apparaitre ni dans .env, ni dans .env.example, ni dans config/.
+      BOUCLEPRO_TEST_DB_APPROVED: '1'
       APP_KEY: base64:b+IwxNpzaahGTvmk+0WLnzODWBnKA99oQDutpRQ7xfI=
       CACHE_STORE: array
       QUEUE_CONNECTION: sync

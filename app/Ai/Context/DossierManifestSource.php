@@ -94,7 +94,17 @@ final class DossierManifestSource implements ContextSource
             return SourceFragment::empty();
         }
 
-        $organizationSlug = Organization::query()->whereKey($contexte->organizationId)->value('slug');
+        $organization = Organization::query()->whereKey($contexte->organizationId)->first(['id', 'slug', 'locale']);
+        $organizationSlug = $organization?->slug;
+
+        // TASK-1402 : l'autorite de langue des libelles SYSTEME de ce manifeste
+        // est `Organization.locale`, pas la locale applicative ni celle du
+        // lecteur. Un membre francophone d'une Organization anglaise lit le
+        // meme inventaire que ses collegues — et surtout, le MODELE recoit un
+        // contexte d'une seule langue. Le texte du manifeste entre dans le
+        // prompt comme un FAIT : quand il disait « Fichier MD », le modele le
+        // restituait tel quel dans une reponse anglaise.
+        $locale = $this->localeDeReference($organization);
 
         $items = [];
 
@@ -103,14 +113,14 @@ final class DossierManifestSource implements ContextSource
                 break;
             }
 
-            $items = [...$items, ...$this->itemsFor($dossier, self::MAX_ITEMS - count($items), $organizationSlug)];
+            $items = [...$items, ...$this->itemsFor($dossier, self::MAX_ITEMS - count($items), $organizationSlug, $locale)];
         }
 
         if ($items === []) {
             return SourceFragment::empty();
         }
 
-        $lines = ['--- ELEMENTS DU DOSSIER DE CETTE BOUCLE (metadonnees, pas de contenu) ---'];
+        $lines = [trans('ai.dossier_manifest_header', [], $locale)];
         $provenance = [];
         $used = mb_strlen($lines[0]);
 
@@ -154,7 +164,7 @@ final class DossierManifestSource implements ContextSource
     /**
      * @return list<array{text: string, id: string, dossier_id: string, dossier_name: string, source_type: string, blog_post_id: ?string, dossier_file_id: ?string, title: string, url: ?string}>
      */
-    private function itemsFor(Dossier $dossier, int $remaining, ?string $organizationSlug): array
+    private function itemsFor(Dossier $dossier, int $remaining, ?string $organizationSlug, string $locale): array
     {
         if ($remaining <= 0) {
             return [];
@@ -183,7 +193,10 @@ final class DossierManifestSource implements ContextSource
 
         foreach ($articles as $article) {
             $items[] = [
-                'text' => "Article : {$article->title} — Dossier « {$dossier->name} »",
+                'text' => trans('ai.dossier_manifest_article', [
+                    'title' => (string) $article->title,
+                    'dossier' => (string) $dossier->name,
+                ], $locale),
                 'id' => (string) $article->blog_post_id,
                 'dossier_id' => (string) $dossier->id,
                 'dossier_name' => (string) $dossier->name,
@@ -209,10 +222,14 @@ final class DossierManifestSource implements ContextSource
             ->get(['id', 'display_name', 'original_name', 'mime_type']);
 
         foreach ($files as $file) {
-            $label = $this->mimeLabel((string) $file->mime_type);
+            $label = $this->mimeLabel((string) $file->mime_type, $locale);
             $name = (string) ($file->display_name ?: $file->original_name);
             $items[] = [
-                'text' => "Fichier {$label} : {$name} — Dossier « {$dossier->name} »",
+                'text' => trans('ai.dossier_manifest_file', [
+                    'type' => $label,
+                    'name' => $name,
+                    'dossier' => (string) $dossier->name,
+                ], $locale),
                 'id' => (string) $file->id,
                 'dossier_id' => (string) $dossier->id,
                 'dossier_name' => (string) $dossier->name,
@@ -227,14 +244,32 @@ final class DossierManifestSource implements ContextSource
         return $items;
     }
 
-    private function mimeLabel(string $mimeType): string
+    /**
+     * TASK-1402 : PDF / MD / TXT et les sous-types d'image sont des sigles
+     * techniques, identiques dans toutes les langues — seul le repli, quand le
+     * type MIME est vide, est un MOT et doit donc suivre l'Organization.
+     */
+    private function mimeLabel(string $mimeType, string $locale): string
     {
         return match (true) {
             $mimeType === 'application/pdf' => 'PDF',
             in_array($mimeType, ['text/markdown', 'text/x-markdown'], true) => 'MD',
             $mimeType === 'text/plain' => 'TXT',
             str_starts_with($mimeType, 'image/') => strtoupper(substr($mimeType, 6)),
-            default => $mimeType !== '' ? $mimeType : 'fichier',
+            default => $mimeType !== '' ? $mimeType : trans('ai.dossier_manifest_file_type_fallback', [], $locale),
         };
+    }
+
+    /**
+     * Meme repli que `LoopKnowledgeAnswerService::localeDeReference()` : une
+     * Organization sans locale retombe sur `app.fallback_locale`, jamais sur
+     * la locale applicative courante — celle-ci depend du lecteur, et c'est
+     * precisement ce qu'on refuse ici.
+     */
+    private function localeDeReference(?Organization $organization): string
+    {
+        $locale = trim((string) $organization?->locale);
+
+        return $locale !== '' ? $locale : (string) config('app.fallback_locale', 'fr');
     }
 }

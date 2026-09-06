@@ -387,6 +387,8 @@ class TASK1284BlogDoctrineCanonicalTest extends TestCase
         $this->service()->generate($this->post, $this->author, 'T', 'S');
 
         $messages = $this->sentMessages();
-        $this->assertStringStartsWith(app(Constitution::class)->text(), $messages['system']);
+        // TASK-1348 : presente, plus forcement en tete — un socle de code
+        // immuable precede desormais tout texte administrable.
+        $this->assertStringContainsString(app(Constitution::class)->text(), $messages['system']);
     }
 }

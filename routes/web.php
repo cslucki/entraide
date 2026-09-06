@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AdminAiBenchmarkController;
 use App\Http\Controllers\Admin\AdminAiConfigController;
+use App\Http\Controllers\Admin\AdminAiConstitutionController;
 use App\Http\Controllers\Admin\AdminAiInteractionController;
 use App\Http\Controllers\Admin\AdminAiMonetizationController;
 use App\Http\Controllers\Admin\AdminAiOrganizationsController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\Admin\AdminLoopPermissionController;
 use App\Http\Controllers\Admin\AdminLoopTypeController;
 use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
+use App\Http\Controllers\Admin\AdminNotificationCockpitController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
@@ -56,6 +58,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DossierArticleController;
 use App\Http\Controllers\DossierController;
 use App\Http\Controllers\DossierFileController;
+use App\Http\Controllers\DossierInsightsController;
 use App\Http\Controllers\DossierMemberController;
 use App\Http\Controllers\DossierSemanticSearchController;
 use App\Http\Controllers\DossierSeriesController;
@@ -73,6 +76,9 @@ use App\Http\Controllers\LoopToolsController;
 use App\Http\Controllers\MemberAiProfileConversationsController;
 use App\Http\Controllers\MemberAiProfileInteractionController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\MyceliumController;
+use App\Http\Controllers\NotificationCenterController;
+use App\Http\Controllers\NotificationPreferenceController;
 use App\Http\Controllers\OrganizationLandingController;
 use App\Http\Controllers\OrganizationRequestController;
 use App\Http\Controllers\PointController;
@@ -101,6 +107,10 @@ require __DIR__.'/auth.php';
 
 // Public routes
 Route::get('/', [HomeController::class, 'index'])->name('home');
+
+// TASK-1349 — la gouvernance IA, publique par conception. Aucune
+// authentification : ce sont des principes, pas des donnees d'exploitation.
+Route::get('/mycelium', [MyceliumController::class, 'index'])->name('mycelium');
 Route::get('/launchpals', fn () => redirect()->to(route('organization.home', ['organization' => 'launchpals'], false), 301))
     ->name('public.launchpals');
 Route::get('/demo', function () {
@@ -299,6 +309,18 @@ Route::middleware('auth')->group(function () {
     Route::get('/favorites', [FavoriteController::class, 'index'])->name('favorites.index');
     Route::post('/favorites/{service}/toggle', [FavoriteController::class, 'toggle'])->middleware('throttle:30,1')->name('favorites.toggle');
 
+    // TASK-1373 — Centre de notifications. La route RACINE doit exister meme
+    // quand une version org-scopee est disponible : le helper d'URL du rail
+    // retombe sur `route('notifications.index')` des qu'il n'y a pas de slug, et
+    // une route absente y leverait une RouteNotFoundException sur TOUTE page.
+    // Regime `auth` seul, comme Favoris, Points et Invitations.
+    Route::get('/notifications', [NotificationCenterController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/read-all', [NotificationCenterController::class, 'readAll'])->middleware('throttle:30,1')->name('notifications.read-all');
+    Route::get('/notifications/preferences', [NotificationPreferenceController::class, 'edit'])->name('notifications.preferences.edit');
+    Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.update');
+    Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
+    Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
+
     // Reports
     Route::post('/reports/service/{service}', [ReportController::class, 'storeService'])->middleware('throttle:5,1')->name('reports.service');
     Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'storeRequest'])->middleware('throttle:5,1')->name('reports.request');
@@ -407,6 +429,20 @@ Route::get('/abonnements', [SubscriptionController::class, 'index'])->name('subs
 // Admin routes
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+
+    // TASK-1348/1349 — le MYCELIUM : nom public de la Constitution IA de la
+    // PLATEFORME. Zone admin GLOBALE : la garde est `is_admin` (attribut), pas
+    // l'appartenance a une Organization. Aucun administrateur d'organisation
+    // n'atteint ces routes.
+    Route::get('/mycelium', [AdminAiConstitutionController::class, 'index'])->name('mycelium');
+    Route::put('/mycelium', [AdminAiConstitutionController::class, 'update'])->name('mycelium.update');
+    Route::delete('/mycelium', [AdminAiConstitutionController::class, 'withdraw'])->name('mycelium.withdraw');
+
+    // L'ancienne URL de TASK-1348 ne devient PAS une seconde autorite : elle
+    // redirige. Un alias qui rendrait la meme vue creerait deux chemins
+    // vivants pour un seul ecran, et c'est ainsi que deux logiques finissent
+    // par diverger.
+    Route::get('/ai-constitution', fn () => redirect()->route('admin.mycelium'))->name('ai-constitution');
     Route::get('/themes', [AdminThemeController::class, 'index'])->name('themes');
     Route::get('/themes/create', [AdminThemeController::class, 'create'])->name('themes.create');
     Route::post('/themes', [AdminThemeController::class, 'store'])->name('themes.store');
@@ -521,6 +557,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/email-templates/{emailTemplate}/send', [AdminEmailTemplatesController::class, 'sendExecute'])->name('email-templates.send.execute');
 
     // Email logs
+    // TASK-1380 — supervision des notifications. Il COMPTE, il ne lit pas :
+    // aucun destinataire, aucun corps de message, aucune adresse. La garde est
+    // le groupe ['auth','admin'] ci-dessus — `is_admin` est un attribut de
+    // plateforme, pas une appartenance a une Organization.
+    Route::get('/notifications-cockpit', [AdminNotificationCockpitController::class, 'index'])->name('notifications-cockpit');
+
     Route::get('/email-logs', [AdminEmailLogsController::class, 'index'])->name('email-logs');
     Route::get('/email-logs/{emailLog}', [AdminEmailLogsController::class, 'show'])->name('email-logs.show');
 
@@ -676,6 +718,10 @@ Route::prefix('/org/{organization}')
     ->group(function () {
         Route::get('/', [OrganizationLandingController::class, '__invoke'])->name('home');
         Route::get('/about', [OrganizationLandingController::class, 'about'])->name('about');
+        // TASK-1349 — publique UNIQUEMENT sur opt-in explicite. Sans opt-in,
+        // ou sans version active, la route rend 404 : publiquement, la
+        // ressource n'existe pas.
+        Route::get('/constitution', [MyceliumController::class, 'organization'])->name('constitution');
         Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
 
         Route::middleware('guest')->group(function () {
@@ -741,6 +787,13 @@ Route::prefix('/org/{organization}')
 
             Route::get('/favorites', [FavoriteController::class, 'index'])->name('favorites.index');
             Route::post('/favorites/{service}/toggle', [FavoriteController::class, 'toggle'])->middleware('throttle:30,1')->middleware('consume.org')->name('favorites.toggle');
+
+            Route::get('/notifications', [NotificationCenterController::class, 'index'])->name('notifications.index');
+            Route::post('/notifications/read-all', [NotificationCenterController::class, 'readAll'])->middleware('throttle:30,1')->name('notifications.read-all');
+            Route::get('/notifications/preferences', [NotificationPreferenceController::class, 'edit'])->name('notifications.preferences.edit');
+            Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.update');
+            Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
+            Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
 
             Route::post('/reports/service/{service}', [ReportController::class, 'orgStoreService'])->middleware('throttle:5,1')->name('reports.service');
             Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'orgStoreRequest'])->middleware('throttle:5,1')->name('reports.request');
@@ -818,6 +871,7 @@ Route::prefix('/org/{organization}')
                 Route::post('/dossiers', [DossierController::class, 'store'])->name('dossiers.store');
                 Route::get('/dossiers/{dossier}', [DossierController::class, 'show'])->name('dossiers.show');
                 Route::get('/dossiers/{dossier}/semantic-search', DossierSemanticSearchController::class)->name('dossiers.semantic-search');
+                Route::post('/dossiers/{dossier}/insights', DossierInsightsController::class)->middleware('throttle:5,1')->name('dossiers.insights');
                 Route::post('/dossiers/{dossier}/articles', [DossierArticleController::class, 'store'])->name('dossiers.articles.store');
                 Route::post('/dossiers/{dossier}/articles/create-and-attach', [DossierArticleController::class, 'createAndAttach'])->name('dossiers.articles.create-and-attach');
                 Route::patch('/dossiers/{dossier}/articles/{post}/move', [DossierArticleController::class, 'move'])->name('dossiers.articles.move');
@@ -1044,6 +1098,17 @@ Route::prefix('/org/{organization}')
                 Route::get('/ai-behavior', [OrgAdminController::class, 'aiBehavior'])->name('ai-behavior');
                 Route::put('/ai-behavior/doctrine', [OrgAdminController::class, 'updateAiDoctrine'])->name('ai-behavior.doctrine.update');
                 Route::delete('/ai-behavior/doctrine', [OrgAdminController::class, 'withdrawAiDoctrine'])->name('ai-behavior.doctrine.withdraw');
+                // TASK-1348 — Constitution de CETTE Organization. L'Organization
+                // vient du route model binding : la cible reste explicite meme
+                // pour un Super Admin, qui ne peut ecrire que sur celle qu'il a
+                // ouverte.
+                Route::put('/ai-behavior/constitution', [OrgAdminController::class, 'updateAiConstitution'])->name('ai-behavior.constitution.update');
+                Route::delete('/ai-behavior/constitution', [OrgAdminController::class, 'withdrawAiConstitution'])->name('ai-behavior.constitution.withdraw');
+                // TASK-1349 — page DEDIEE a la Constitution de l'organisation.
+                // Elle partage l'autorite d'ecriture ci-dessus : seul l'ecran
+                // change, jamais la logique de versionnement.
+                Route::get('/constitution', [OrgAdminController::class, 'aiConstitution'])->name('constitution');
+                Route::put('/constitution/publication', [OrgAdminController::class, 'updateAiConstitutionPublication'])->name('constitution.publication');
                 Route::post('/ai-behavior/sandbox', [OrgAdminController::class, 'sandboxAiDoctrine'])->middleware('throttle:ai-doctrine-sandbox')->name('ai-behavior.sandbox');
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
                 Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');

@@ -190,7 +190,9 @@ class TASK1221NervousSystemConvergenceTest extends TestCase
             // Le prompt DB est bien celui envoye…
             $this->assertStringContainsString('SENTINELLE-PROMPT-DB-TASK1221', $instructions);
             // …compose SOUS la Constitution commune, jamais a sa place.
-            $this->assertStringStartsWith('Constitution BouclePro IA', $instructions);
+            // TASK-1348 : presente, plus forcement en tete — un socle de code
+            // immuable precede desormais tout texte administrable.
+            $this->assertStringContainsString('Constitution BouclePro IA', $instructions);
             // Et l'instruction de langue reste presente.
             $this->assertStringContainsString('répondre en français', $instructions);
 
@@ -352,8 +354,21 @@ class TASK1221NervousSystemConvergenceTest extends TestCase
         $clarify = $registry->get(CapabilityRegistry::CLARIFY_HELP_REQUEST);
         $this->assertTrue($clarify->requiresHumanConfirmation, 'clarify: the human validates BEFORE any publication');
         $this->assertFalse($clarify->canWrite);
+        // TASK-1370 — le contrat GAGNE une troisieme source gouvernee, et cette
+        // ligne est le seul endroit ou ce gain devient visible. Ce garde-fou
+        // n'est pas adapte pour taire une regression : il documente que
+        // `product.surfaces` entre dans le perimetre autorise de clarify, par
+        // l'architecture Registry -> ContextBuilder -> allowedSources.
+        //
+        // Les deux proprietes epinglees juste au-dessus ne bougent PAS :
+        // `requiresHumanConfirmation` reste vrai et `canWrite` reste faux. La
+        // capability gagne le droit de LIRE ce qui existe, jamais celui d'agir.
         $this->assertSame(
-            [CapabilityRegistry::SOURCE_ORGANIZATION_CATEGORIES, CapabilityRegistry::SOURCE_USER_LOOPS],
+            [
+                CapabilityRegistry::SOURCE_ORGANIZATION_CATEGORIES,
+                CapabilityRegistry::SOURCE_USER_LOOPS,
+                CapabilityRegistry::SOURCE_PRODUCT_SURFACES,
+            ],
             $clarify->allowedSources,
         );
 

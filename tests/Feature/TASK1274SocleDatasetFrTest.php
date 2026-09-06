@@ -216,7 +216,8 @@ class TASK1274SocleDatasetFrTest extends TestCase
 
         $this->assertSame('Slucki', $this->personas['test_cyril']->fresh()->name);
         $this->assertSame('Marseille', $this->personas['test_cyril']->fresh()->city);
-        $this->assertSame('https://www.leonardo.info', $this->personas['test_roger']->fresh()->website);
+        // TASK-1344 : website/linkedin des personas tiers neutralises (identity closure).
+        $this->assertNull($this->personas['test_roger']->fresh()->website);
         $this->assertNull($this->personas['test_kiran']->fresh()->website);
     }
 

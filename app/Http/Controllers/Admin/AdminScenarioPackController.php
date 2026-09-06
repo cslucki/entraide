@@ -11,6 +11,7 @@ use App\Support\ScenarioPacks\ScenarioPackCatalog;
 use App\Support\ScenarioPacks\ScenarioPackLoader;
 use App\Support\ScenarioPacks\ScenarioPackRemover;
 use App\Support\ScenarioPacks\ScenarioPackResetter;
+use App\Support\ScenarioPacks\ScenarioPackTarget;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -28,38 +29,69 @@ use RuntimeException;
  */
 class AdminScenarioPackController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, ScenarioPackTarget $targets): View
     {
         $packIds = array_keys(config('scenario_packs.definitions', []));
-        $organizations = Organization::query()
-            ->whereIn('slug', config('scenario_packs.allowed_organizations', []))
-            ->orderBy('name')
-            ->get();
 
         $selectedPackId = $request->query('pack');
         if (! in_array($selectedPackId, $packIds, true)) {
             $selectedPackId = $packIds[0] ?? null;
         }
 
-        $selectedOrganization = $organizations->firstWhere('slug', $request->query('organization'))
-            ?? $organizations->first();
-
         $pack = null;
-        $status = null;
+        $target = null;
 
-        if ($selectedPackId !== null && $selectedOrganization !== null) {
+        if ($selectedPackId !== null) {
             $pack = app(ScenarioPackCatalog::class)->get($selectedPackId);
-            $status = $this->currentStatus($selectedPackId, $selectedOrganization);
+            $target = $this->targetOf($pack, $targets);
         }
 
         return view('admin.scenario-packs.index', [
             'packIds' => $packIds,
-            'organizations' => $organizations,
             'selectedPackId' => $selectedPackId,
-            'selectedOrganization' => $selectedOrganization,
             'pack' => $pack,
-            'status' => $status,
+            'target' => $target,
         ]);
+    }
+
+    /**
+     * Tout ce que l'ecran doit savoir de la cible d'un pack, en une lecture.
+     *
+     * L'Organization n'est plus un choix de l'utilisateur : elle est DEDUITE du
+     * pack. Une combinaison incoherente ne peut donc plus etre proposee, ni
+     * soumise.
+     *
+     * @return array{slug: ?string, organization: ?Organization, exists: bool, can_provision: bool, state: string, status: ?array<string, mixed>, created_by_pack: bool}
+     */
+    private function targetOf(ScenarioPackDefinition $pack, ScenarioPackTarget $targets): array
+    {
+        $slug = $targets->slugFor($pack);
+        $organization = $targets->organizationFor($pack);
+        $canProvision = $targets->provisionsItsOrganization($pack);
+
+        $status = $organization !== null
+            ? $this->currentStatus($pack->packId(), $organization)
+            : null;
+
+        // Trois etats, et un seul a la fois : l'organisation manque, elle est
+        // la mais le scenario n'y est pas encore, ou le scenario est charge.
+        $state = match (true) {
+            $organization === null => 'missing',
+            ($status['loaded'] ?? false) === true => 'loaded',
+            default => 'ready',
+        };
+
+        return [
+            'slug' => $slug,
+            'organization' => $organization,
+            'exists' => $organization !== null,
+            'can_provision' => $canProvision,
+            'state' => $state,
+            'status' => $status,
+            // Decide le texte d'avertissement du retrait : une Organization creee
+            // par ce chargement disparaitra avec lui.
+            'created_by_pack' => $status['created_by_pack'] ?? false,
+        ];
     }
 
     public function load(Request $request, ScenarioPackLoader $loader): RedirectResponse
@@ -69,12 +101,12 @@ class AdminScenarioPackController extends Controller
         try {
             $result = $loader->load($pack, $organization);
         } catch (RuntimeException $e) {
-            return $this->back($pack->packId(), $organization->slug)->with('error', $e->getMessage());
+            return $this->back($pack->packId())->with('error', $e->getMessage());
         }
 
         $label = $result->wasFirstLoad ? 'Premier chargement' : 'Rechargement (idempotent)';
 
-        return $this->back($pack->packId(), $organization->slug)
+        return $this->back($pack->packId())
             ->with('success', "{$label} : {$result->totalEntities()} entite(s) pour « {$pack->packName()} » dans « {$organization->name} ».");
     }
 
@@ -85,12 +117,12 @@ class AdminScenarioPackController extends Controller
         try {
             $result = $resetter->reset($pack, $organization);
         } catch (RuntimeException $e) {
-            return $this->back($pack->packId(), $organization->slug)->with('error', $e->getMessage());
+            return $this->back($pack->packId())->with('error', $e->getMessage());
         }
 
         $orphans = count($result->removedOrphans);
 
-        return $this->back($pack->packId(), $organization->slug)
+        return $this->back($pack->packId())
             ->with('success', "Reset effectue pour « {$pack->packName()} » dans « {$organization->name} » : {$result->totalEntities()} entite(s) restante(s), {$orphans} orpheline(s) retiree(s).");
     }
 
@@ -101,10 +133,10 @@ class AdminScenarioPackController extends Controller
         try {
             $remover->remove($pack->packId(), $organization);
         } catch (RuntimeException $e) {
-            return $this->back($pack->packId(), $organization->slug)->with('error', $e->getMessage());
+            return $this->back($pack->packId())->with('error', $e->getMessage());
         }
 
-        return $this->back($pack->packId(), $organization->slug)
+        return $this->back($pack->packId())
             ->with('success', "« {$pack->packName()} » retire de « {$organization->name} » (ou n'etait deja pas charge).");
     }
 
@@ -113,23 +145,30 @@ class AdminScenarioPackController extends Controller
      */
     private function resolveSelection(Request $request): array
     {
-        $allowedOrganizations = config('scenario_packs.allowed_organizations', []);
         $registeredPackIds = array_keys(config('scenario_packs.definitions', []));
 
         $data = $request->validate([
             'pack' => ['required', 'string', Rule::in($registeredPackIds)],
-            'organization' => ['required', 'string', Rule::in($allowedOrganizations)],
         ]);
 
         $pack = app(ScenarioPackCatalog::class)->get($data['pack']);
-        $organization = Organization::query()->where('slug', $data['organization'])->firstOrFail();
+
+        // L'Organization n'est PLUS lue depuis la requete : elle est deduite du
+        // pack. Un formulaire forge ne peut donc plus viser une autre cible,
+        // meme allowlistee — la garde du moteur refusait deja, l'interface ne
+        // le propose plus du tout.
+        $organization = app(ScenarioPackTarget::class)->organizationFor($pack);
+
+        if ($organization === null) {
+            abort(404);
+        }
 
         return [$pack, $organization];
     }
 
-    private function back(string $packId, string $organizationSlug): RedirectResponse
+    private function back(string $packId): RedirectResponse
     {
-        return redirect()->route('admin.scenario-packs', ['pack' => $packId, 'organization' => $organizationSlug]);
+        return redirect()->route('admin.scenario-packs', ['pack' => $packId]);
     }
 
     /**
@@ -143,7 +182,7 @@ class AdminScenarioPackController extends Controller
             ->first();
 
         if ($load === null) {
-            return ['loaded' => false, 'pack_version' => null, 'loaded_at' => null, 'reset_at' => null, 'counts' => [], 'total' => 0];
+            return ['loaded' => false, 'pack_version' => null, 'loaded_at' => null, 'reset_at' => null, 'counts' => [], 'total' => 0, 'created_by_pack' => false];
         }
 
         $counts = ScenarioPackEntity::query()
@@ -161,6 +200,9 @@ class AdminScenarioPackController extends Controller
             'reset_at' => $load->reset_at?->toDateTimeString(),
             'counts' => $counts,
             'total' => array_sum($counts),
+            // TASK-1351 : ce chargement a-t-il cree l'Organization ? C'est ce
+            // qui decide si le retrait l'emportera avec lui.
+            'created_by_pack' => (bool) $load->organization_created_by_pack,
         ];
     }
 }

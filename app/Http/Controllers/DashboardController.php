@@ -6,12 +6,13 @@ use App\Models\MemberAiProfile;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
+use App\Support\Onboarding\MemberOnboardingSteps;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function index(): View
+    public function index(MemberOnboardingSteps $onboarding): View
     {
         $organization = currentOrganization();
 
@@ -66,10 +67,17 @@ class DashboardController extends Controller
         $activatedReferralsCount = $user->sentReferrals()->where('organization_id', $organization->id)->where('status', 'activated')->count();
         $referralPointsEarned = $user->referralRewards()->sum('points');
 
-        $hasPresentation = filled($user->bio);
-        $hasServiceRequest = $user->serviceRequests()->where('organization_id', $organization->id)->exists();
-        $hasService = $user->services()->where('organization_id', $organization->id)->exists();
-        $hasPublishedAiProfile = $aiProfile?->status === MemberAiProfile::STATUS_PUBLISHED;
+        // TASK-1361 : la definition des etapes vit desormais dans un support
+        // partage, pour que le Shell reponde « je commence par quoi ? » a
+        // partir de la MEME verite que cette page — et pas d'une copie.
+        // Les libelles, les CTA et l'affichage restent ici : le support ne
+        // porte que des cles et des booleens.
+        $stepsDoneByKey = $onboarding->doneFor($user, $organization, $aiProfile);
+
+        $hasPresentation = $stepsDoneByKey[MemberOnboardingSteps::STEP_PRESENTATION];
+        $hasServiceRequest = $stepsDoneByKey[MemberOnboardingSteps::STEP_REQUEST];
+        $hasService = $stepsDoneByKey[MemberOnboardingSteps::STEP_SERVICE];
+        $hasPublishedAiProfile = $stepsDoneByKey[MemberOnboardingSteps::STEP_AI_PROFILE];
 
         $onboardingRoute = function (string $name, array $parameters = []) use ($organization): string {
             $orgRoute = 'organization.'.$name;

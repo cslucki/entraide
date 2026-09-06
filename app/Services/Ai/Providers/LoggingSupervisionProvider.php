@@ -39,8 +39,8 @@ class LoggingSupervisionProvider implements SupervisionProvider
 
         $result = $this->inner->supervise($content, $model);
 
-        $endMs = round(microtime(true) * 1000, 2);
-        $latencyMs = round($endMs - $startedAt, 2);
+        $elapsedMs = round((microtime(true) * 1000) - $startedAt, 2);
+        $latencyMs = (int) round($elapsedMs);
 
         $this->logger->log([
             'timestamp' => now()->toIso8601String(),
@@ -48,7 +48,7 @@ class LoggingSupervisionProvider implements SupervisionProvider
             'model' => $result->model,
             'input_tokens' => $result->inputTokens,
             'output_tokens' => $result->outputTokens,
-            'latency_ms' => $latencyMs,
+            'latency_ms' => $elapsedMs,
             'cost_usd' => $result->estimatedCostUsd,
             'cost_unknown' => $result->costUnknown,
             'content_length' => mb_strlen($content),
@@ -72,7 +72,7 @@ class LoggingSupervisionProvider implements SupervisionProvider
             ],
             'input_tokens' => $result->inputTokens,
             'output_tokens' => $result->outputTokens,
-            'latency_ms' => (int) $latencyMs,
+            'latency_ms' => $latencyMs,
             'cost_usd' => $result->estimatedCostUsd,
             'cost_unknown' => $result->costUnknown,
         ]);
@@ -102,8 +102,8 @@ class LoggingSupervisionProvider implements SupervisionProvider
 
         $result = $this->inner->runScenario($scenario, $content, $model);
 
-        $endMs = round(microtime(true) * 1000, 2);
-        $latencyMs = round($endMs - $startedAt, 2);
+        $elapsedMs = round((microtime(true) * 1000) - $startedAt, 2);
+        $latencyMs = (int) round($elapsedMs);
 
         $this->logger->log([
             'timestamp' => now()->toIso8601String(),
@@ -111,7 +111,7 @@ class LoggingSupervisionProvider implements SupervisionProvider
             'model' => $model,
             'input_tokens' => null,
             'output_tokens' => null,
-            'latency_ms' => $latencyMs,
+            'latency_ms' => $elapsedMs,
             'cost_usd' => null,
             'cost_unknown' => true,
             'content_length' => mb_strlen($content),
@@ -131,7 +131,7 @@ class LoggingSupervisionProvider implements SupervisionProvider
             'metadata' => [
                 'scenario_class' => $scenario::class,
             ],
-            'latency_ms' => (int) $latencyMs,
+            'latency_ms' => $latencyMs,
             'cost_usd' => null,
             'cost_unknown' => true,
         ]);

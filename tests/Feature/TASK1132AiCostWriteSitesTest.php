@@ -60,6 +60,13 @@ class TASK1132AiCostWriteSitesTest extends TestCase
             'ai.default_provider' => 'openai',
             'ai.openai.api_key' => 'test-key',
             'ai.openai.model' => 'gpt-catalogued',
+            // TASK-1369 — le `setUp` promet que « le .env de la machine ne doit
+            // pas influencer ces tests », mais il oubliait CETTE cle. Un poste
+            // qui renseigne `AI_DEFAULT_MODEL` voyait donc son modele l'emporter
+            // sur `ai.openai.model`, sortir du catalogue de test, et le cout
+            // etait ecrit `unknown`. Les deux autres tests du fichier posaient
+            // deja `ai.default_model => null` ; celui-ci ne le faisait pas.
+            'ai.default_model' => null,
         ]);
 
         $this->organization = Organization::factory()->create([

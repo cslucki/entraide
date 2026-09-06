@@ -40,4 +40,23 @@ return [
         'supported_locales' => ['fr', 'en'],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | MailHog (developpement local uniquement)
+    |--------------------------------------------------------------------------
+    |
+    | TASK-1376 — l'adresse de l'INTERFACE, distincte de celle de la sonde.
+    |
+    | La sonde part du serveur, donc de l'interieur de WSL : `127.0.0.1` y est
+    | correct et reste une CONSTANTE dans le code.
+    |
+    | Le lien, lui, est clique depuis le navigateur de l'humain — souvent sur
+    | Windows, ou `127.0.0.1` designe une AUTRE machine. D'ou une valeur de
+    | configuration, jamais une URL construite depuis une requete.
+    |
+    */
+    'mailhog' => [
+        'ui_url' => env('MAILHOG_UI_URL', 'http://127.0.0.1:8025'),
+    ],
+
 ];

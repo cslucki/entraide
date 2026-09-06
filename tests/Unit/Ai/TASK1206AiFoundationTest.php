@@ -121,6 +121,10 @@ class TASK1206AiFoundationTest extends TestCase
         $second = $repository->compose('loop_summary', 'Resume fidelement les messages autorises.');
 
         $this->assertSame($first, $second);
+        // TASK-1348 : la Constitution reste AVANT l'instruction capability.
+        // Elle n'ouvre plus forcement la composition — un socle de code la
+        // precede des qu'un texte administrable est present — mais l'ordre
+        // relatif, qui est le contrat de ce test, est inchange.
         $this->assertLessThan(
             strpos($first, 'Instructions capability'),
             strpos($first, 'Constitution BouclePro IA — v1'),

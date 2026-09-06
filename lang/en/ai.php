@@ -444,6 +444,38 @@ return [
     'behavior_doctrine_withdraw' => 'Withdraw the doctrine',
     'behavior_doctrine_withdraw_confirm' => 'Withdraw the active doctrine? The AI will return to the default behaviour. History is kept.',
     'behavior_doctrine_withdraw_cancel' => 'Cancel',
+    // TASK-1348 — Constitution administrable (plateforme + Organization).
+    'behavior_org_constitution_title' => 'Your Organization\'s constitution',
+    'behavior_org_constitution_badge' => 'Your founding principles',
+    'behavior_org_constitution_help' => 'Who are you, and which founding principles govern your AI? This text applies within the limits of the BouclePro constitution, which prevails. It is optional.',
+    'behavior_org_constitution_placeholder' => 'E.g.: ArtSciLab fosters cross-disciplinary collaboration between artists, scientists and researchers. The AI should encourage knowledge sharing, meaningful introductions and peer learning.',
+    'behavior_org_constitution_inherit_note' => 'No need to repeat the BouclePro constitution above: it already applies to your Organization. Describe only its own identity, purpose and principles.',
+    'behavior_org_constitution_none' => 'No constitution of your own. Your Organization follows the BouclePro constitution alone.',
+    'behavior_org_constitution_active' => 'Constitution v:version active.',
+    'behavior_org_constitution_saved' => 'Organization constitution v:version active.',
+    'behavior_org_constitution_unchanged' => 'Text unchanged: version v:version stays active.',
+    'behavior_org_constitution_withdrawn' => 'Organization constitution withdrawn.',
+    'behavior_org_constitution_nothing_to_withdraw' => 'No active constitution to withdraw.',
+    'behavior_org_constitution_save' => 'Publish this version',
+    'behavior_org_constitution_withdraw' => 'Withdraw',
+    'behavior_org_constitution_history' => 'Previous versions',
+    'behavior_constitution_seed_badge' => 'Reference text from the code',
+    'behavior_cascade_org_constitution' => 'Your Organization\'s constitution — your principles, under BouclePro\'s',
+    'constitution_admin_title' => 'BouclePro AI constitution',
+    'constitution_admin_help' => 'The founding text composed into every AI call of every Organization. Short, fundamental, general.',
+    'constitution_admin_guards_title' => 'Founding rules — enforced in code',
+    'constitution_admin_guards_help' => 'Not editable. They frame every administrable text and prevail in all circumstances.',
+    'constitution_admin_seed_notice' => 'No published version: the reference text from the code is currently served.',
+    'constitution_admin_active' => 'Version v:version active.',
+    'constitution_admin_saved' => 'BouclePro constitution v:version active.',
+    'constitution_admin_unchanged' => 'Text unchanged: version v:version stays active.',
+    'constitution_admin_withdrawn' => 'Constitution withdrawn: the reference text from the code takes over.',
+    'constitution_admin_nothing_to_withdraw' => 'No active version to withdraw.',
+    'constitution_admin_save' => 'Publish this version',
+    'constitution_admin_withdraw' => 'Back to the code text',
+    'constitution_admin_history' => 'Previous versions',
+    'constitution_admin_version_by' => 'v:version — :author, on :date',
+    'constitution_admin_version_by_system' => 'v:version — provisioned, on :date',
     'behavior_doctrine_saved' => 'Doctrine v:version active.',
     'behavior_doctrine_unchanged' => 'Same text as the already active doctrine v:version: no new version.',
     'behavior_doctrine_withdrawn' => 'Doctrine withdrawn: the AI follows the default behaviour again.',
@@ -625,7 +657,9 @@ return [
     'fab_title' => 'BouclePro AI',
     'fab_subtitle_loop' => 'On this Loop',
     'fab_subtitle_dossier' => 'In this Folder',
-    'fab_subtitle_other' => 'No AI action here — your usage stays available.',
+    // TASK-1350: the subtitle locates you, it no longer devalues the page.
+    'fab_subtitle_other' => 'Available everywhere on BouclePro',
+    'fab_no_page_action' => 'This page has no AI action of its own. You can still talk with BouclePro AI: ask your question, the conversation follows you from page to page.',
     'fab_credit_title' => 'AI credit this month',
     'fab_credit_included' => 'Included',
     'fab_credit_alert' => 'You are getting close to your monthly credit.',
@@ -661,15 +695,117 @@ return [
     'shell_you' => 'You',
     'shell_assistant' => 'BouclePro AI',
     'shell_empty_title' => 'Start the conversation',
-    'shell_empty_hint' => 'Describe your need in a few words. The thread stays open while you navigate.',
+    // TASK-1350: a conversation, not a disguised request form.
+    'shell_empty_hint' => 'Ask your question or describe your need, simply. The thread stays open while you navigate.',
+
+    // ==========================================================================
+    // TASK-1350 — Honest Shell: non-Interaction, self-knowledge, offer
+    // ==========================================================================
+
+    'shell_answer_non_interaction' => "I'm not turning this into a help request: nothing here is waiting for another member's contribution. If you'd like someone to help you, or want to offer your help, just say so and I'll walk you through it.",
+
+    'shell_card_offer_help' => 'Offer help',
+
+    // ==========================================================================
+    // TASK-1350 — presenting a valid REQUEST INTENT (P0 2026-08-31)
+    // ==========================================================================
+    //
+    // The clarifier legitimately drafts in the FIRST PERSON: it is the user's
+    // future request. Rendered as-is in the assistant bubble, it made BouclePro
+    // AI say « I am looking for a proofreader… ». The shared contract is
+    // untouched; presentation now attributes the draft to the right person.
+    'shell_request_framing' => 'I\'ve understood your need. Here\'s a reformulation if you\'d like to turn it into a help request.',
+    'shell_clarification_heading' => 'Before going further',
+    'shell_request_draft_heading' => 'Your reformulated request',
+
+    // TASK-1350: an offer is written in the first person just like a request.
+    'shell_offer_framing' => 'I\'ve understood what you are offering. Here\'s a reformulation if you\'d like to turn it into an offer of help.',
+    'shell_offer_draft_heading' => 'Your reformulated offer',
+
+    'shell_request_continue' => 'Continue chatting',
+    'shell_request_prepare' => 'Prepare a help request',
+    'shell_request_tenant' => 'in :organization',
+
+    // TASK-1350 (P0) — the current-turn label, injected only when a transcript
+    // precedes it.
+    'shell_prompt_current_turn' => 'The member\'s current message — analyse and answer THIS message, not an earlier turn of the transcript:',
+
+    // --- Self-knowledge (composed from the canonical sources) ---
+    // TASK-1350: starts from the canonical doctrine sentence, adds ONE sentence.
+    'self_knowledge_platform' => 'BouclePro is a platform for learning through mutual aid. You express a need in plain language, and you get connected to a few people in your organization who can genuinely help — a loop, not a feed.',
+    'self_knowledge_loop_memory' => 'What a loop decides is laid down in its memory: nothing to re-read, the essentials stay dated and findable.',
+    'self_knowledge_ask_help_path' => 'Concretely: open "Ask for help", describe your need in plain language, and I\'ll clarify it before you confirm. You remain the one who publishes — I never publish for you.',
+    // TASK-1359 : le lieu, nomme seulement s'il a passe sa propre garde, puis
+    // les actions que le FAB calcule deja sous les gardes de la page.
+    'self_knowledge_here_loop' => 'You are on the Loop ":name".',
+    'self_knowledge_here_dossier' => 'You are on the Folder ":name".',
+    'self_knowledge_here_article' => 'You are on the Article ":name".',
+    'self_knowledge_here_dashboard' => 'You are on your dashboard.',
+    'self_knowledge_here_actions' => 'From this page, you can:',
+    'self_knowledge_capabilities_intro' => 'In this organization, you can:',
+    // TASK-1350: no longer promises assisted navigation that does not exist.
+    'self_knowledge_capabilities_outro' => 'Tell me what you are looking for and I can explain where to go.',
+    'self_knowledge_capabilities_empty' => 'This organization has not opened any journey yet. An administrator can enable them.',
+
+    // --- Tenant-aware capability catalogue ---
+    'self_knowledge_capability_ask_help' => 'ask other members for help',
+    'self_knowledge_capability_offer_help' => 'offer your help or your skills',
+    // TASK-1361 : voir la note du fichier francais — l'ancien libelle
+    // promettait une adhesion la ou il ne s'agissait que de navigation.
+    'self_knowledge_capability_loops' => 'find the loops you belong to, and discover the ones you can join',
+    'self_knowledge_get_started_intro' => 'To get set up on BouclePro, you still have:',
+    'self_knowledge_get_started_outro' => 'Tell me which one you want to start with and I will explain where to go.',
+    'self_knowledge_get_started_complete' => 'You have already completed every setup step. Tell me what you are looking for and I will explain where to go.',
+    'self_knowledge_join_loop' => 'Open your organization\'s list of Loops: it shows every active Loop, including those you are not a member of yet. Depending on the Loop, you either join it directly, or you send a join request that a facilitator approves.',
+    // TASK-1364 — see the French file for the reasoning behind the empty state.
+    'self_knowledge_visible_loops_mine' => 'Your Loops:',
+    'self_knowledge_visible_loops_others' => 'Other Loops in your organization:',
+    'self_knowledge_visible_loops_access_open' => 'open to join',
+    'self_knowledge_visible_loops_access_request' => 'on request',
+    'self_knowledge_visible_loops_access_pending' => 'request pending',
+    'self_knowledge_visible_loops_access_invitation' => 'by invitation',
+    'self_knowledge_visible_loops_empty' => 'I cannot find any Loop you can currently view.',
+    'self_knowledge_capability_create_loop' => 'open a loop around a precise topic',
+    'self_knowledge_capability_ai_profile' => 'build your profile so others can find you',
+    // TASK-1350: true whatever the organization's AI configuration is.
+    'self_knowledge_capability_assistant' => 'ask me your questions about BouclePro, right here, from page to page',
     'shell_clear' => 'Clear the conversation',
     'shell_clear_confirm' => 'Clear the whole thread?',
     'shell_clear_yes' => 'Clear',
     'shell_clear_no' => 'Cancel',
     'shell_no_publication_note' => 'BouclePro AI publishes nothing: you validate before anything is published.',
     'shell_turn_in_progress' => 'An answer is already being generated. Let it finish.',
-    'shell_answer_unavailable' => 'I cannot answer right now. AI is not available in this Organization.',
+    // TASK-1350: behaviour unchanged — this stays the EXPLICIT unavailability
+    // of the « no active prompt » case. Only the wording is normalised.
+    'shell_answer_unavailable' => 'I cannot answer right now. AI is not available in this organization.',
+
+    // TASK-1350: names no cause, mentions no provider, credential,
+    // configuration, budget or organization, and never claims AI as a whole is
+    // down. It also does not promise manual creation: that journey exists but
+    // sits behind EnsureProfileComplete, and the Shell cannot know here whether
+    // this member would get through.
+    'shell_answer_request_preparation_unavailable' => 'I can still guide you around BouclePro, but I can\'t prepare this request automatically right now.',
     'shell_answer_blocked' => 'I would rather not handle this request as it stands.',
+    // TASK-1358 : instruction de langue du Shell, posee en TETE du prompt. Le
+    // texte suit le precedent deja en production sur le chemin ChatLoop
+    // (`LoopMessagesSource::wrap()`).
+    // TASK-1370 — product surfaces from the ProductSurfaceManifest.
+    //
+    // These are PLACE NAMES, not instructions: the manifest states what exists
+    // for this member, never how to use it or where to click.
+    'surfaces_context_none' => 'No surface is open to this member in this organization.',
+    'surface_loops' => 'the loops in your organization',
+    'surface_create_loop' => 'opening a new loop',
+    'surface_members_directory' => 'the member directory',
+    'surface_exchanges' => 'your exchanges with other members',
+    'surface_messages' => 'your messages',
+    'surface_dossiers' => 'your folders and documents',
+    'surface_agenda' => 'the organization agenda',
+    'surface_ai_profile' => 'your AI profile',
+    'surface_subscriptions' => 'subscriptions',
+    'surface_organization_admin' => 'the organization administration',
+    'shell_prompt_language_guard' => 'IMPORTANT: Answer in English. Whatever the language of the instructions and of the context below, you must reply to the member in English.',
+    'shell_prompt_where_dashboard' => 'The user is on their dashboard.',
     'shell_prompt_where_loop' => 'The user is viewing the Loop ":name".',
     'shell_prompt_where_dossier' => 'The user is viewing the Folder ":name".',
     'shell_prompt_where_article' => 'The user is viewing the Article ":name".',
@@ -678,6 +814,11 @@ return [
     'shell_action_loop_knowledge' => 'Search this Loop\'s Folders',
     'shell_card_loop_badge' => 'Loop',
     'shell_card_person_badge' => 'Member',
+    // TASK-1360 : ne dit ni combien de membres, ni pourquoi telle personne
+    // n'est pas proposee — seulement qu'il n'y a personne a proposer ici, et
+    // le seul geste qui change cela.
+    'shell_people_empty' => 'No one to suggest here yet.',
+    'shell_people_empty_cta' => 'Publish my AI profile',
     'shell_card_document_badge_dossier' => 'Folder',
     'shell_card_document_badge_article' => 'Article',
     'shell_card_open' => 'Open',
@@ -700,4 +841,37 @@ return [
     'shell_prompt_pinned_loop' => 'the Loop ":name"',
     'shell_prompt_pinned_dossier' => 'the Dossier ":name"',
     'shell_prompt_pinned_article' => 'the Article ":name"',
+    // TASK-1400 — the language of the Folders answer.
+    //
+    // These two keys are NOT screen chrome: they are sent to the model. The
+    // administrable `loop_knowledge_answer` prompt is written in French and says
+    // nothing about the output language; faced with an English question over
+    // English sources, the model was deciding at random — measured: the same
+    // question got an English answer, then a French one, with no code change in
+    // between.
+    //
+    // The instruction is written IN the language it demands: a language rule
+    // phrased in another language is a fourth contradictory signal, not an
+    // authority.
+    'loop_knowledge_answer_language' => 'Always answer in ENGLISH, whatever the language of the question or of the sources. This rule takes precedence over any other language consideration.',
+
+    // The label introducing the question in the user prompt. It was hardcoded in
+    // French, inside the very message carrying the question: the anchor closest
+    // to the model.
+    'loop_knowledge_member_question' => 'Member question:',
+
+    // TASK-1402: the SYSTEM labels of the Folder manifest
+    // (`DossierManifestSource`, source `dossier.manifest`) used to be hardcoded
+    // in French. That text is not human data: it ENTERS the prompt as a fact,
+    // and the model echoes it verbatim — measured on `artscilab-en`, an English
+    // answer contained « Fichier MD » and « Fichier TXT ». T1400 pinned the
+    // language of the ANSWER; this is the language of the CONTEXT, a distinct
+    // producer.
+    //
+    // HUMAN content (file name, article title, Folder name) is NEVER translated:
+    // only the structural labels are.
+    'dossier_manifest_header' => '--- ITEMS IN THIS LOOP\'S FOLDER (metadata, not content) ---',
+    'dossier_manifest_article' => 'Article: :title — Folder ":dossier"',
+    'dossier_manifest_file' => ':type file: :name — Folder ":dossier"',
+    'dossier_manifest_file_type_fallback' => 'file',
 ];

@@ -19,8 +19,10 @@ use App\Models\LoopInvitation;
 use App\Models\LoopMember;
 use App\Models\Message;
 use App\Models\Organization;
+use App\Models\OrganizationAiConstitution;
 use App\Models\OrganizationAiDoctrine;
 use App\Models\OrganizationAiSetting;
+use App\Models\PlatformAiConstitution;
 use App\Models\Referral;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -1426,8 +1428,26 @@ class OrgAdminController extends Controller
 
         return [
             'organization' => $organization,
-            'constitutionVersion' => Constitution::VERSION,
-            'constitutionText' => app(Constitution::class)->text(),
+            // TASK-1348 : ce que la composition sert REELLEMENT — la version
+            // active en base, ou la graine de code quand il n'y en a aucune.
+            // L'ecran ne doit pas montrer un texte que le prompt n'utilise pas.
+            'platformConstitution' => $platformConstitution = PlatformAiConstitution::active(),
+            'constitutionVersion' => $platformConstitution !== null
+                ? 'v'.$platformConstitution->version
+                : Constitution::VERSION,
+            'constitutionText' => PlatformAiConstitution::activeTextOrSeed(),
+            'constitutionIsSeed' => $platformConstitution === null,
+            'orgConstitution' => $orgConstitution = OrganizationAiConstitution::activeFor((string) $organization->id),
+            'orgConstitutionHistory' => OrganizationAiConstitution::query()
+                ->where('organization_id', $organization->id)
+                ->orderByDesc('version')
+                ->with('author')
+                ->limit(5)
+                ->get(),
+            'orgConstitutionHistoryTotal' => OrganizationAiConstitution::query()
+                ->where('organization_id', $organization->id)
+                ->count(),
+            'orgConstitutionMaxChars' => OrganizationAiConstitution::maxChars(),
             'doctrine' => $active,
             'doctrineHistory' => $history,
             'doctrineHistoryTotal' => OrganizationAiDoctrine::query()->where('organization_id', $organization->id)->count(),
@@ -1481,6 +1501,132 @@ class OrgAdminController extends Controller
     }
 
     /**
+     * Ou revenir apres une ecriture de Constitution.
+     *
+     * Deux ecrans partagent cette autorite : le cockpit « Comportement IA » et
+     * la page dediee. `url()->previous()` serait fragile ; on lit le referer
+     * UNIQUEMENT pour distinguer deux routes CONNUES de cette application, et
+     * on retombe sur le cockpit dans tous les autres cas. Aucune redirection
+     * ne peut donc etre dirigee vers l'exterieur.
+     */
+    private function constitutionRedirectTarget(Request $request, Organization $organization): string
+    {
+        $dedicated = route('organization.admin.constitution', ['organization' => $organization->slug]);
+        $cockpit = route('organization.admin.ai-behavior', ['organization' => $organization->slug]);
+
+        return str_starts_with((string) $request->headers->get('referer'), $dedicated) ? $dedicated : $cockpit;
+    }
+
+    /**
+     * TASK-1349 — page DEDIEE a la Constitution de cette organisation.
+     *
+     * Elle ne duplique AUCUNE logique : l'ecriture passe toujours par
+     * `updateAiConstitution()` / `withdrawAiConstitution()` ci-dessous, donc
+     * par `OrganizationAiConstitution::activate()`. Seule la surface change —
+     * l'ecran « Comportement IA » reste le cockpit du systeme nerveux, celui-ci
+     * ne montre que l'heritage et le texte propre.
+     */
+    public function aiConstitution(Organization $organization): View
+    {
+        $platform = PlatformAiConstitution::active();
+        $constitution = OrganizationAiConstitution::activeFor((string) $organization->id);
+
+        return view('admin.org.constitution', [
+            'organization' => $organization,
+            // Ce qui est REELLEMENT compose au-dessus de cette organisation.
+            'platformText' => PlatformAiConstitution::activeTextOrSeed(),
+            'platformVersion' => $platform !== null ? 'v'.$platform->version : Constitution::VERSION,
+            'platformIsSeed' => $platform === null,
+            'constitution' => $constitution,
+            'constitutionMaxChars' => OrganizationAiConstitution::maxChars(),
+            'history' => OrganizationAiConstitution::query()
+                ->where('organization_id', $organization->id)
+                ->orderByDesc('version')
+                ->with('author')
+                ->limit(5)
+                ->get(),
+            'historyTotal' => OrganizationAiConstitution::query()
+                ->where('organization_id', $organization->id)
+                ->count(),
+            'isPublic' => (bool) $organization->ai_constitution_public,
+        ]);
+    }
+
+    /**
+     * TASK-1349 — l'opt-in de publication, et lui seul.
+     *
+     * Separe de l'ecriture du TEXTE : publier n'est pas ecrire, et confondre
+     * les deux gestes ferait qu'enregistrer une version pourrait changer sa
+     * visibilite sans qu'on l'ait demande. Le defaut reste PRIVE.
+     */
+    public function updateAiConstitutionPublication(Request $request, Organization $organization): RedirectResponse
+    {
+        $data = $request->validate([
+            'ai_constitution_public' => ['required', 'boolean'],
+        ]);
+
+        $organization->update(['ai_constitution_public' => (bool) $data['ai_constitution_public']]);
+
+        // On revient LA d'ou l'on vient : le cockpit et la page dediee portent
+        // tous deux ce bouton, et ejecter l'administrateur de son ecran serait
+        // une surprise a chaque bascule.
+        return redirect()
+            ->to($this->constitutionRedirectTarget($request, $organization))
+            ->with('success', $data['ai_constitution_public']
+                ? __('mycelium.publication_enabled')
+                : __('mycelium.publication_disabled'));
+    }
+
+    /**
+     * TASK-1348 — Constitution de CETTE Organization : nouvelle version, activee.
+     *
+     * Miroir exact de `updateAiDoctrine()`. L'Organization vient du route model
+     * binding et `OrgAdminMiddleware` a deja verifie que l'acteur en est
+     * l'administrateur (ou un Super Admin) : la cible est donc TOUJOURS
+     * explicite, y compris pour un Super Admin, qui ne peut pas ecrire « en
+     * general » mais seulement sur l'Organization qu'il a ouverte.
+     */
+    public function updateAiConstitution(Request $request, Organization $organization): RedirectResponse
+    {
+        // `constitution_body` et non `body` : la doctrine occupe deja `body`
+        // sur la meme page, et `old()` est partage. Un nom commun laissait le
+        // PRG du bac a sable recopier la doctrine dans le champ Constitution.
+        $data = $request->validate([
+            'constitution_body' => ['required', 'string', 'max:'.OrganizationAiConstitution::maxChars()],
+        ]);
+
+        $before = OrganizationAiConstitution::activeFor((string) $organization->id);
+        $constitution = OrganizationAiConstitution::activate($organization, $data['constitution_body'], $request->user());
+
+        $message = $before !== null && $before->is($constitution)
+            ? __('ai.behavior_org_constitution_unchanged', ['version' => $constitution->version])
+            : __('ai.behavior_org_constitution_saved', ['version' => $constitution->version]);
+
+        // TASK-1349 : on revient LA d'ou l'on vient. Les deux ecrans partagent
+        // cette autorite d'ecriture ; renvoyer toujours vers le cockpit
+        // ejecterait l'administrateur de la page dediee a chaque publication.
+        return redirect()
+            ->to($this->constitutionRedirectTarget($request, $organization))
+            ->with('success', $message);
+    }
+
+    /**
+     * Retire la Constitution active de cette Organization : la composition
+     * revient a « socle + Constitution plateforme + doctrine eventuelle ».
+     * L'historique reste.
+     */
+    public function withdrawAiConstitution(Organization $organization): RedirectResponse
+    {
+        $withdrawn = OrganizationAiConstitution::withdraw($organization);
+
+        return redirect()
+            ->to($this->constitutionRedirectTarget(request(), $organization))
+            ->with($withdrawn ? 'success' : 'info', $withdrawn
+                ? __('ai.behavior_org_constitution_withdrawn')
+                : __('ai.behavior_org_constitution_nothing_to_withdraw'));
+    }
+
+    /**
      * Retire la doctrine active : l'Organization revient a la composition
      * sans doctrine (identique a l'avant-TASK). L'historique reste.
      */
@@ -1507,6 +1653,9 @@ class OrgAdminController extends Controller
     ): RedirectResponse {
         $data = $request->validate([
             'body' => ['nullable', 'string', 'max:'.OrganizationAiDoctrine::maxChars()],
+            // TASK-1348 : Constitution CANDIDATE, facultative — « tester sans
+            // publier » vaut pour les deux textes, par le meme mecanisme.
+            'constitution_body' => ['nullable', 'string', 'max:'.OrganizationAiConstitution::maxChars()],
             'capability' => ['required', 'string', Rule::in(OrganizationDoctrineSandbox::SUPPORTED)],
             'question' => ['required', 'string', 'min:3', 'max:1000'],
         ]);
@@ -1517,11 +1666,12 @@ class OrgAdminController extends Controller
             $data['capability'],
             (string) ($data['body'] ?? ''),
             $data['question'],
+            $data['constitution_body'] ?? null,
         );
 
         return redirect()
             ->route('organization.admin.ai-behavior', ['organization' => $organization->slug])
-            ->withInput($request->only(['body', 'capability', 'question']))
+            ->withInput($request->only(['body', 'constitution_body', 'capability', 'question']))
             ->with('doctrine_sandbox', $result->toArray());
     }
 

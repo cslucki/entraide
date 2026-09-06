@@ -28,6 +28,14 @@ use DomainException;
 
 class ClarifyUserHelpRequestService implements AiProvider
 {
+    /**
+     * TASK-1350 — version du prompt `clarify_help_request` a partir de
+     * laquelle `interaction_fit` devient autoritaire. En deca, le champ est
+     * ignore integralement : le prompt n'a pas ete ecrit pour le produire, et
+     * une valeur non instruite n'est pas un verdict.
+     */
+    public const INTERACTION_FIT_MIN_PROMPT_VERSION = 3;
+
     public function __construct(
         private readonly FakeAIProvider $fallback,
         private readonly CapabilityRegistry $capabilities,
@@ -169,10 +177,20 @@ class ClarifyUserHelpRequestService implements AiProvider
 
         // TASK-1227 : la doctrine active de l'Organization se compose ici,
         // sous la Constitution — meme point que les deux autres capabilities.
-        $instructions = $this->prompts->compose($capability, $this->clarifyInstructions(), (string) $organization->id);
+        [$clarifyInstructions, $clarifyPromptVersion] = $this->clarifyInstructions();
+
+        $instructions = $this->prompts->compose($capability, $clarifyInstructions, (string) $organization->id);
         // TASK-1236 : version de doctrine reellement composee ci-dessus, tracee
         // sur l'interaction enregistree plutot que reconstituee a posteriori.
         $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
+        // TASK-1348 : les deux Constitutions REELLEMENT composees ci-dessus,
+        // relevees a cote de la doctrine et par la meme autorite. `null` sur la
+        // plateforme signifie « graine de code servie », pas « rien » — la
+        // distinction compte pour relire une interaction ancienne.
+        $constitutionVersions = [
+            'platform_constitution_version' => $this->prompts->activePlatformConstitutionVersion(),
+            'org_constitution_version' => $this->prompts->activeOrganizationConstitutionVersion((string) $organization->id),
+        ];
 
         $agent = new HelpRequestClarifierAgent(
             $instructions,
@@ -192,7 +210,7 @@ class ClarifyUserHelpRequestService implements AiProvider
             $this->recordInteraction(
                 $loop, $requester, $contexte, $definition, $resolved, $phrase,
                 null, AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null,
-                'failed', $startedAt, null, $exception::class, $doctrineVersion,
+                'failed', $startedAt, null, $exception::class, $doctrineVersion, $constitutionVersions,
             );
 
             // Un echec ne bloque pas le membre : il retombe sur la clarification
@@ -212,7 +230,7 @@ class ClarifyUserHelpRequestService implements AiProvider
         $interaction = $this->recordInteraction(
             $loop, $requester, $contexte, $definition, $resolved, $phrase,
             json_encode($structured, JSON_UNESCAPED_UNICODE), $usage, $cost->traceAttributes(), $cost,
-            'success', $startedAt, $response->invocationId, null, $doctrineVersion,
+            'success', $startedAt, $response->invocationId, null, $doctrineVersion, $constitutionVersions,
         );
 
         return $this->mapStructuredToDto(
@@ -222,6 +240,7 @@ class ClarifyUserHelpRequestService implements AiProvider
             $categoriesOffertes,
             $organization,
             $interaction,
+            $clarifyPromptVersion,
         );
     }
 
@@ -315,6 +334,7 @@ class ClarifyUserHelpRequestService implements AiProvider
         array $categoriesOffertes,
         Organization $organization,
         ?AiInteraction $interaction,
+        ?int $clarifyPromptVersion = null,
     ): AssistedInteractionLabResult {
         $confidence = (float) ($structured['confidence'] ?? 0.0);
         $needsHumanReview = (bool) ($structured['needs_human_review'] ?? true);
@@ -373,6 +393,8 @@ class ClarifyUserHelpRequestService implements AiProvider
                 $organization,
             ),
             producer: 'laravel_ai_sdk',
+            interactionFit: $this->authoritativeInteractionFit($structured, $clarifyPromptVersion),
+            directReply: $this->authoritativeDirectReply($structured, $clarifyPromptVersion),
         );
     }
 
@@ -388,11 +410,50 @@ class ClarifyUserHelpRequestService implements AiProvider
     }
 
     /**
-     * Instruction capability chargee depuis la source editable. L'absence de
-     * prompt actif est une indisponibilite explicite : aucun texte metier
-     * hardcode ne doit contourner silencieusement l'administration.
+     * TASK-1350 — la reponse conversationnelle, soumise aux MEMES conditions
+     * que le verdict qui la commande.
+     *
+     * Meme porte que `authoritativeInteractionFit()` : un prompt en v1/v2 n'a
+     * pas ete ecrit pour produire ce champ, donc ce qu'il rendrait n'aurait
+     * aucune autorite. Une chaine vide ou non textuelle vaut `null` : l'appelant
+     * a toujours un repli.
+     *
+     * @param  array<string, mixed>  $structured
      */
-    private function clarifyInstructions(): string
+    private function authoritativeDirectReply(array $structured, ?int $promptVersion): ?string
+    {
+        if ($promptVersion === null || $promptVersion < self::INTERACTION_FIT_MIN_PROMPT_VERSION) {
+            return null;
+        }
+
+        $value = $structured['direct_reply'] ?? null;
+
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * Instruction capability chargee depuis la source editable, AVEC sa
+     * version. L'absence de prompt actif est une indisponibilite explicite :
+     * aucun texte metier hardcode ne doit contourner silencieusement
+     * l'administration.
+     *
+     * TASK-1350 : la version est relevee sur LA MEME ligne, dans LA MEME
+     * resolution. C'est la contrainte structurelle du scope : le verdict
+     * `interaction_fit` ne doit jamais declencher une seconde requete apres
+     * l'appel provider — le prompt actif pourrait avoir change entre les deux,
+     * et l'on jugerait alors une reponse a l'aune d'un autre contrat. Une
+     * version nulle ou non entiere n'est pas une erreur : elle vaut « pas
+     * d'autorite », donc comportement legacy.
+     *
+     * @return array{0: string, 1: ?int}
+     */
+    private function clarifyInstructions(): array
     {
         $prompt = AdminAiPrompt::query()
             ->where('scenario_id', 'clarify_help_request')
@@ -404,7 +465,36 @@ class ClarifyUserHelpRequestService implements AiProvider
             throw new DomainException('No active AdminAiPrompt is configured for clarify_help_request.');
         }
 
-        return (string) $prompt->prompt_text;
+        $version = $prompt->version;
+
+        return [(string) $prompt->prompt_text, is_int($version) ? $version : null];
+    }
+
+    /**
+     * TASK-1350 — le verdict d'Interaction, arbitre ICI et une seule fois.
+     *
+     * Deux conditions cumulatives, et rien d'autre : le prompt actif est en
+     * version 3 ou plus, ET le modele a rendu un VRAI booleen. Tout le reste
+     * — v1/v2, version absente, champ absent, `null`, chaine, entier — rend
+     * `null`, c'est-a-dire « aucune autorite » : les appelants se comportent
+     * alors exactement comme avant TASK-1350.
+     *
+     * Le champ est declare `required` dans le schema de l'agent, mais un
+     * schema n'est pas une garantie : un provider degrade, un fake ancien ou
+     * une reponse tronquee peuvent l'omettre. Le fail-open est donc verifie
+     * ici, pas suppose la-bas.
+     *
+     * @param  array<string, mixed>  $structured
+     */
+    private function authoritativeInteractionFit(array $structured, ?int $promptVersion): ?bool
+    {
+        if ($promptVersion === null || $promptVersion < self::INTERACTION_FIT_MIN_PROMPT_VERSION) {
+            return null;
+        }
+
+        $value = $structured['interaction_fit'] ?? null;
+
+        return is_bool($value) ? $value : null;
     }
 
     private function userPrompt(string $phrase, string $contexteBorne): string
@@ -446,6 +536,7 @@ class ClarifyUserHelpRequestService implements AiProvider
         ?string $sdkInvocationId,
         ?string $failure,
         ?int $doctrineVersion,
+        array $constitutionVersions = [],
     ): AiInteraction {
         $this->ledger->recordGeneration(
             organizationId: $contexte->organizationId,
@@ -487,7 +578,11 @@ class ClarifyUserHelpRequestService implements AiProvider
                 // TASK-1236 : cle toujours presente, meme a null (aucune doctrine
                 // active) — sa PRESENCE distingue une interaction tracee d'une
                 // ligne anterieure au mecanisme, ce qu'un array_filter effacerait.
-                + ['doctrine_version' => $doctrineVersion],
+                + ['doctrine_version' => $doctrineVersion]
+                // TASK-1348 : memes regles que la doctrine — cles TOUJOURS presentes,
+                // meme a null, pour distinguer « aucune version active » de
+                // « interaction anterieure au mecanisme ».
+                + $constitutionVersions,
         ]);
     }
 }

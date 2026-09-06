@@ -28,6 +28,7 @@ use App\Support\Ai\AiEconomicVerdict;
 use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiUserCreditPolicy;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -41,6 +42,7 @@ use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\EmbeddingsResponse;
 use Laravel\Ai\Responses\TextResponse;
 use Livewire\Livewire;
+use Tests\Support\Ai\RecordsAiConsumption;
 use Tests\TestCase;
 
 /**
@@ -67,6 +69,8 @@ use Tests\TestCase;
  */
 class TASK1229UserAiCreditTest extends TestCase
 {
+    use RecordsAiConsumption;
+
     use RefreshDatabase;
 
     private Organization $orgA;
@@ -560,8 +564,8 @@ class TASK1229UserAiCreditTest extends TestCase
         $this->platform(monthlyUses: 2);
         $now = CarbonImmutable::now();
         // Une utilisation juste AVANT la fenetre du budget, une juste dedans.
-        $this->generation($this->orgA, $this->memberA, cost: 0.01)->forceFill(['created_at' => $now->startOfMonth()->subSecond()])->saveQuietly();
-        $this->generation($this->orgA, $this->memberA, cost: 0.01)->forceFill(['created_at' => $now->startOfMonth()])->saveQuietly();
+        $this->generation($this->orgA, $this->memberA, cost: 0.01, at: $now->startOfMonth()->subSecond());
+        $this->generation($this->orgA, $this->memberA, cost: 0.01, at: $now->startOfMonth());
 
         $status = $this->guard()->userCreditStatus($this->orgA, $this->memberA);
 
@@ -832,48 +836,29 @@ class TASK1229UserAiCreditTest extends TestCase
         }
     }
 
+    /**
+     * TASK-1352 : delegue au helper partage, qui ecrit les DEUX autorites
+     * (ledger + trace). Dater la trace seule laissait l'invocation a l'heure
+     * du runner — c'est ce qui rendait ces tests dependants du mois.
+     */
     private function generation(
         Organization $organization,
         User $user,
         ?float $cost,
         string $feature = 'loop_knowledge_answer',
         string $process = 'loop_knowledge.answer',
+        ?CarbonInterface $at = null,
     ): AiInteraction {
-        AiProviderInvocation::create([
-            'organization_id' => $organization->id,
-            'user_id' => $user->id,
-            'capability' => $feature,
-            'process' => $process,
-            'operation' => AiProviderInvocation::OPERATION_GENERATION,
-            'provider' => 'openrouter',
-            'model' => 'openai/gpt-4o-mini',
-            'credential_source' => AiProviderInvocation::CREDENTIAL_ORGANIZATION,
-            'input_tokens' => 100,
-            'output_tokens' => 50,
-            'total_tokens' => 150,
-            'provider_cost' => $cost,
-            'currency' => $cost !== null ? 'USD' : null,
-            'cost_status' => $cost !== null ? AiProviderInvocation::COST_KNOWN : AiProviderInvocation::COST_UNKNOWN,
-            'cost_source' => $cost !== null ? AiCost::SOURCE_CATALOG_ESTIMATED : AiProviderInvocation::COST_UNKNOWN,
-            'status' => AiProviderInvocation::STATUS_SUCCESS,
-        ]);
-
-        return AiInteraction::create([
-            'user_id' => $user->id,
-            'organization_id' => $organization->id,
-            'correlation_id' => (string) Str::uuid(),
-            'process' => $process,
-            'feature' => $feature,
-            'model' => 'openrouter/openai/gpt-4o-mini',
-            'prompt' => 'p',
-            'response' => 'r',
-            'input_tokens' => 100,
-            'output_tokens' => 50,
-            'cost_usd' => $cost,
-            'cost_unknown' => $cost === null,
-            'metadata' => ['provider' => 'openrouter', 'status' => 'success', 'capability' => $feature],
-        ]);
+        return $this->recordAiGeneration(
+            (string) $organization->id,
+            (string) $user->id,
+            $process,
+            $feature,
+            $cost,
+            $at,
+        );
     }
+
 
     private function embedding(Organization $organization, User $user, ?string $operation, ?float $cost, ?string $feature = null): AiProviderInvocation
     {

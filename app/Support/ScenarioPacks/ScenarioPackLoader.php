@@ -7,6 +7,7 @@ use App\Models\ScenarioPackEntity;
 use App\Models\ScenarioPackLoad;
 use App\Support\ScenarioPacks\Contracts\ScenarioPackDefinition;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Traits\Localizable;
 use Throwable;
 
 /**
@@ -21,9 +22,18 @@ use Throwable;
  * condition que l'implementation du pack utilise elle-meme une primitive
  * idempotente (`updateOrCreate` sur cle naturelle) pour ses propres entites,
  * comme `ArtSciLabScenarioSeeder` (TASK-1203).
+ *
+ * Langue (TASK-1388) : `apply()` court sous la locale de l'Organization
+ * cible, jamais sous celle du processus. Un pack fabrique du contenu
+ * PERSISTE — titres, sections, slugs — et il est charge depuis un CLI ou un
+ * worker, ou aucun middleware n'a pose de locale. Sans cette enveloppe, un
+ * `php artisan scenario-pack:load` lance depuis un shell francais peuplait
+ * une Organization anglaise en francais, definitivement.
  */
 class ScenarioPackLoader
 {
+    use Localizable;
+
     public function load(ScenarioPackDefinition $pack, Organization $organization): ScenarioPackLoadResult
     {
         ScenarioPackOrganizationGuard::assertAllowed($organization);
@@ -45,17 +55,25 @@ class ScenarioPackLoader
             $load->save();
 
             $registrar = new ScenarioPackEntityRegistrar($load);
-            try {
-                $pack->apply($organization, $registrar);
-            } catch (Throwable $e) {
-                // La transaction DB s'annule ; le storage, non. Efface ce que
-                // ce passage a ecrit sur des chemins qui etaient libres, sinon
-                // la garde de collision (TASK-1245) refuserait tout nouvel
-                // essai. Aucun fichier preexistant n'est concerne.
-                $registrar->discardStoragePathsClaimedThisRun();
 
-                throw $e;
-            }
+            // `withLocale()` rend la locale d'origine dans un `finally` : elle
+            // revient meme si le pack leve, et le processus appelant n'herite
+            // de rien. C'est la raison de preferer l'idiome du framework a un
+            // `setLocale()` pose puis rendu a la main.
+            $this->withLocale($organization->locale, function () use ($pack, $organization, $registrar) {
+                try {
+                    $pack->apply($organization, $registrar);
+                } catch (Throwable $e) {
+                    // La transaction DB s'annule ; le storage, non. Efface ce
+                    // que ce passage a ecrit sur des chemins qui etaient
+                    // libres, sinon la garde de collision (TASK-1245)
+                    // refuserait tout nouvel essai. Aucun fichier preexistant
+                    // n'est concerne.
+                    $registrar->discardStoragePathsClaimedThisRun();
+
+                    throw $e;
+                }
+            });
 
             $counts = ScenarioPackEntity::query()
                 ->where('scenario_pack_load_id', $load->id)

@@ -524,6 +524,51 @@
                         </div>
                     </div>
 
+                    {{-- Smart Dossier V1 (TASK-1341) : question prereglee sur
+                         le pipeline documentaire existant (capability
+                         loop_knowledge_answer) — jamais de generation
+                         automatique, un bouton explicite, un fragment HTML
+                         rendu serveur insere par Alpine. --}}
+                    <div x-show="vue === 'documents'"
+                         x-data="dossierInsights(@js([
+                             'endpoint' => route('organization.dossiers.insights', ['organization' => $organizationRouteParam, 'dossier' => $dossier->getKey()]),
+                             'hasIndexedContent' => $dossierHasIndexedContent,
+                             'i18n' => [
+                                 'unavailable' => __('dossiers.insights_error_unavailable'),
+                                 'genericError' => __('dossiers.insights_error_generic'),
+                                 'noContent' => __('dossiers.insights_error_no_content'),
+                             ],
+                         ]))">
+                        <section class="mt-6 rounded-3xl border border-indigo-100 bg-white p-5 shadow-sm dark:border-indigo-900/50 dark:bg-gray-800 sm:p-6">
+                            <div class="flex flex-col gap-2">
+                                <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">{{ __('dossiers.insights_label') }}</p>
+                                <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.insights_title') }}</h2>
+                                <p class="text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.insights_help') }}</p>
+                            </div>
+
+                            <div class="mt-4 flex flex-wrap items-center gap-3">
+                                <button type="button"
+                                        @click="generate"
+                                        :disabled="loading || !hasIndexedContent"
+                                        data-dossier-insights-generate
+                                        class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-gray-800">
+                                    <span x-show="!loading" x-text="generated ? '{{ __('dossiers.insights_regenerate_button') }}' : '{{ __('dossiers.insights_button') }}'"></span>
+                                    <span x-show="loading" x-cloak>{{ __('dossiers.insights_loading') }}</span>
+                                </button>
+                                <p x-show="!hasIndexedContent" class="text-xs text-gray-500 dark:text-gray-400">{{ __('dossiers.insights_disabled_no_content') }}</p>
+                            </div>
+
+                            <div class="mt-4" aria-live="polite">
+                                <div x-show="error" x-cloak class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200" data-dossier-insights-error :data-ai-refusal-code="errorCode || null">
+                                    <span x-text="error"></span>
+                                    <a x-show="errorCode === 'user_credit_exhausted' && offersUrl" x-cloak :href="offersUrl" class="ml-2 font-semibold underline underline-offset-2 hover:no-underline" data-ai-credit-offers-link>{{ __('ai.credit_see_offers') }}</a>
+                                </div>
+                            </div>
+
+                            <div class="mt-4" x-html="resultHtml" data-dossier-insights-container></div>
+                        </section>
+                    </div>
+
                     {{-- Recherche semantique (pilote, gatee par
                          DossierSemanticSearchGate) : re-logee en bloc autonome
                          discret de la vue Documents — elle cherche des

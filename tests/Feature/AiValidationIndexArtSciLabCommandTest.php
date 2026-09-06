@@ -14,6 +14,21 @@ use Tests\TestCase;
 
 class AiValidationIndexArtSciLabCommandTest extends TestCase
 {
+    /** Un worktree de validation : le genre d'endroit d'ou cette commande a le droit de tourner. */
+    private const SAFE_BASE_PATH = '/home/dev/projects/sites/worktrees/example-worktree';
+
+    private ?string $originalBasePath = null;
+
+    protected function tearDown(): void
+    {
+        if ($this->originalBasePath !== null) {
+            $this->app->setBasePath($this->originalBasePath);
+            $this->originalBasePath = null;
+        }
+
+        parent::tearDown();
+    }
+
     public function test_command_requires_ai_validation_environment(): void
     {
         $this->app->detectEnvironment(fn (): string => 'testing');
@@ -59,6 +74,19 @@ class AiValidationIndexArtSciLabCommandTest extends TestCase
         $this->artisan('ai-validation:index-artscilab');
     }
 
+    /**
+     * TASK-1369 — ce helper ne rendait sure que la MOITIE des conditions.
+     *
+     * `AiValidationDatabaseGuard::assertSafe()` verifie la connexion ET le
+     * chemin d'execution. Le helper configurait la premiere et laissait la
+     * seconde valoir `base_path()`, c'est-a-dire le depot canonique — que le
+     * garde refuse deliberement. Les deux tests etaient donc rouges en
+     * permanence sur la machine de reference, avec un message qui parlait du
+     * depot principal la ou le test croyait parler d'OPENROUTER_API_KEY.
+     *
+     * Le garde n'est pas en cause : c'est le helper qui ne tenait pas la
+     * promesse de son nom.
+     */
     private function configureSafeGuard(): void
     {
         config()->set('database.connections.bouclepro_ai_validation', [
@@ -66,6 +94,9 @@ class AiValidationIndexArtSciLabCommandTest extends TestCase
             'host' => '127.0.0.1',
             'database' => 'bouclepro_ai_validation',
         ]);
+
+        $this->originalBasePath ??= $this->app->basePath();
+        $this->app->setBasePath(self::SAFE_BASE_PATH);
     }
 
     private function configureOpenRouter(): void

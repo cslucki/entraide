@@ -260,7 +260,31 @@ class PgvectorDossierSemanticSearchServiceTest extends TestCase
 
     private function assertPostgresqlPgvectorPreconditions(): void
     {
-        $this->assertSame('pgsql', DB::connection()->getDriverName());
+        // TASK-1369 — UNE INCAPACITE N'EST PAS UN ECHEC.
+        //
+        // Ces deux lignes ASSERTAIENT le pilote au lieu de SAUTER dessus. Sur
+        // un poste ou la suite tourne en sqlite, dix tests de cette classe
+        // etaient donc rouges en permanence — non parce que le produit est
+        // casse, mais parce que la machine n'a pas pgvector. Le commentaire
+        // quinze lignes plus bas disait deja la regle : « un test qui asserte
+        // son environnement casse des qu'il change d'environnement. » Elle
+        // n'etait simplement pas appliquee ici.
+        //
+        // Le SKIP est CONDITIONNE a une incapacite reellement detectee, jamais
+        // universel : sous PostgreSQL + pgvector, tout ce qui suit s'execute et
+        // les assertions d'environnement restent en place. La CI PostgreSQL
+        // continue donc d'eprouver ces tests pour de vrai.
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped(
+                'pgvector exige PostgreSQL ; pilote courant : '.DB::connection()->getDriverName().
+                '. Ce test ne peut pas exercer son contrat ici.'
+            );
+        }
+
+        if (DB::table('pg_extension')->where('extname', 'vector')->doesntExist()) {
+            $this->markTestSkipped("l'extension pgvector n'est pas installee sur cette base.");
+        }
+
         $this->assertSame('bouclepro_test', DB::connection()->getDatabaseName());
         // **L'extension doit etre la ; sa version de correctif n'est pas une
         // regle du produit.** Epingler `0.8.5` faisait echouer ces tests sur

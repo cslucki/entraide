@@ -1,6 +1,23 @@
 @php
     $routeName = request()->route()?->getName() ?? '';
     $organizationRouteParam = request()->route('organization');
+
+    // TASK-1374 — le Centre doit etre atteignable sur mobile.
+    //
+    // Le rail est `hidden md:flex` : sans cette entree, un membre qui recoit une
+    // invitation sur telephone ne voit rien et ne peut rien ouvrir. La recette a
+    // mesure zero lien visible a 390px.
+    //
+    // MEME expression d'Organization que `app-side-nav` et
+    // `NotificationCenterController` : sur la route non prefixee, l'Organization
+    // « courante » est celle par defaut de la plateforme, et trois surfaces qui
+    // divergeraient se contrediraient.
+    $notificationsOrganization = auth()->check()
+        ? (auth()->user()->organization ?? currentOrganization())
+        : null;
+    $mobileUnreadNotifications = $notificationsOrganization
+        ? auth()->user()->unreadNotificationsCount((string) $notificationsOrganization->id)
+        : 0;
     $canSeeFlux = auth()->check() && auth()->user()->can('create', \App\Models\FeedPost::class);
 
     if (! $organizationRouteParam && request()->routeIs('organization.*') && isset($currentOrganization)) {
@@ -68,7 +85,10 @@
         } elseif (request()->routeIs('blog.my-posts', 'organization.blog.my-posts')) {
             $routeTitle = __('navigation.my_articles');
         } elseif (request()->routeIs('profile.show', 'organization.profile.show')) {
-            $routeTitle = request()->route('user')?->name;
+            // `name` porte le nom de FAMILLE depuis TASK-1399 ; c'est `fullName`
+            // que le produit affiche. Lire la colonne brute donnait « Okafor »
+            // la ou le reste de la page dit « Sam Okafor ».
+            $routeTitle = request()->route('user')?->fullName;
         } elseif (request()->routeIs('profile.edit', 'organization.profile.edit')) {
             $routeTitle = __('navigation.settings');
         } elseif (request()->routeIs('loops.show', 'organization.loops.show')) {
@@ -195,6 +215,19 @@
                     <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
                     @endif
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                    <x-dropdown-link :href="$routeUrl('notifications.index', 'organization.notifications.index')">
+                        <span class="flex items-center justify-between gap-2">
+                            <span>{{ __('navigation.notifications') }}</span>
+                            @if($mobileUnreadNotifications > 0)
+                                {{-- La valeur BRUTE dans l'attribut, le texte plafonne a l'ecran :
+                                     asserter « 9+ » reviendrait a tester le plafond, pas le compte. --}}
+                                <span data-mobile-notifications-unread="{{ $mobileUnreadNotifications }}"
+                                      class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold leading-none text-white">
+                                    {{ $mobileUnreadNotifications > 9 ? '9+' : $mobileUnreadNotifications }}
+                                </span>
+                            @endif
+                        </span>
+                    </x-dropdown-link>
                     <x-dropdown-link :href="$routeUrl('points.index', 'organization.points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
                     <x-dropdown-link :href="$routeUrl('invitations.index', 'organization.invitations.index')">{{ __('navigation.invitations') }}</x-dropdown-link>
                     <x-dropdown-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-dropdown-link>

@@ -344,6 +344,24 @@ class RelevantPeopleService
         $tokens = [];
 
         foreach ($parts as $part) {
+            // TASK-1360 — le mot d'emballage est ecarte AVANT toute troncature.
+            //
+            // L'ordre inverse laissait fuir tous les mots vides de quatre
+            // lettres ou plus finissant par « s » : le singulier naif les
+            // rendait meconnaissables de la liste. « dans » devenait « dan »,
+            // qui n'y figure pas — et se retrouvait donc presente a
+            // l'utilisateur comme une raison de mise en relation. Constate en
+            // base : une carte justifiait un rapprochement par `matched_terms:
+            // ["dan"]`. Meme fuite pour sous, sans, plus, tous, nous, vous,
+            // moins et tres.
+            //
+            // Le second controle, apres troncature, reste necessaire : il
+            // attrape les mots vides que le singulier naif REND identiques a
+            // une entree de la liste (« elles » -> « elle »).
+            if (in_array($part, self::STOPWORDS, true)) {
+                continue;
+            }
+
             if (strlen($part) >= 4 && str_ends_with($part, 's')) {
                 $part = substr($part, 0, -1);
             }
