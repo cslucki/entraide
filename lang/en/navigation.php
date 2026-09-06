@@ -306,4 +306,18 @@ return [
     'org_admin_ai_cockpit' => 'AI & knowledge',
     'org_admin_ai_behavior' => 'AI behaviour',
     'my_ai_usage' => 'My AI usage',
+
+    // TASK-1403: the VISIBLE labels of the mobile FAB. They came from two
+    // French sources: text hardcoded in the Blade, and `$T`
+    // (`config/terms.php`), a GLOBAL French dictionary that is neither
+    // localised nor per-tenant. Measured at 390px on `artscilab-en` (an
+    // English Organization): the menu displayed « Faire une demande d'aide »
+    // and « Proposer un micro-service » — the `$T` values, not the fallbacks.
+    //
+    // DEBT_C: `$T` stays French everywhere else (15 occurrences, 7 views).
+    // Localising it generally is a dedicated post-campaign TASK.
+    'mobile_fab_add' => 'Add',
+    'mobile_fab_create_request' => 'Create a help request',
+    'mobile_fab_offer_service' => 'Offer a micro-service',
+    'mobile_fab_write_article' => 'Write an article',
 ];
