@@ -245,7 +245,7 @@
                     <div class="flex items-center justify-between mb-3">
                         <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.services_offered') }}</h2>
                         @if($services->isNotEmpty())
-                        <span class="text-xs text-gray-400">{{ __('profile.services_count', ['count' => $services->count()]) }}</span>
+                        <span class="text-xs text-gray-400">{{ trans_choice('profile.services_count', $services->count(), ['count' => $services->count()]) }}</span>
                         @endif
                     </div>
                     @if($services->isEmpty())
@@ -282,7 +282,7 @@
                 <section>
                     <div class="flex items-center justify-between mb-3">
                         <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.help_section') }}</h2>
-                        <span class="text-xs text-gray-400">{{ __('profile.requests_count', ['count' => $openRequests->count()]) }}</span>
+                        <span class="text-xs text-gray-400">{{ trans_choice('profile.requests_count', $openRequests->count(), ['count' => $openRequests->count()]) }}</span>
                     </div>
                     <div class="grid gap-3 sm:grid-cols-2">
                         @foreach($openRequests as $req)
@@ -310,7 +310,7 @@
                     <div class="flex items-center justify-between mb-3">
                         <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('profile.blog_section') }}</h2>
                         @if($blogPosts->isNotEmpty())
-                        <span class="text-xs text-gray-400">{{ __('profile.blog_count', ['count' => $blogPosts->count()]) }}</span>
+                        <span class="text-xs text-gray-400">{{ trans_choice('profile.blog_count', $blogPosts->count(), ['count' => $blogPosts->count()]) }}</span>
                         @endif
                     </div>
                     @if($blogPosts->isEmpty())
