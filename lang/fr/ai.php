@@ -894,4 +894,19 @@ return [
     // etait codee en dur en francais, a l'interieur meme du message qui porte
     // la question : c'etait l'ancrage le plus proche du modele.
     'loop_knowledge_member_question' => 'Question du membre :',
+
+    // TASK-1402 : les libelles SYSTEME du manifeste Dossier
+    // (`DossierManifestSource`, source `dossier.manifest`) etaient codes en dur
+    // en francais. Ce texte n'est pas de la donnee humaine : il ENTRE dans le
+    // prompt comme un fait, et le modele le restitue tel quel — mesure sur
+    // `artscilab-en`, une reponse anglaise contenait « Fichier MD » et
+    // « Fichier TXT ». T1400 avait pose la langue de la REPONSE ; ici c'est la
+    // langue du CONTEXTE, un producteur distinct.
+    //
+    // Le contenu HUMAIN (nom de fichier, titre d'article, nom de Dossier) n'est
+    // JAMAIS traduit : seuls les libelles de structure le sont.
+    'dossier_manifest_header' => '--- ELEMENTS DU DOSSIER DE CETTE BOUCLE (metadonnees, pas de contenu) ---',
+    'dossier_manifest_article' => 'Article : :title — Dossier « :dossier »',
+    'dossier_manifest_file' => 'Fichier :type : :name — Dossier « :dossier »',
+    'dossier_manifest_file_type_fallback' => 'fichier',
 ];
