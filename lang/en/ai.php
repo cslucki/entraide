@@ -859,4 +859,19 @@ return [
     // French, inside the very message carrying the question: the anchor closest
     // to the model.
     'loop_knowledge_member_question' => 'Member question:',
+
+    // TASK-1402: the SYSTEM labels of the Folder manifest
+    // (`DossierManifestSource`, source `dossier.manifest`) used to be hardcoded
+    // in French. That text is not human data: it ENTERS the prompt as a fact,
+    // and the model echoes it verbatim — measured on `artscilab-en`, an English
+    // answer contained « Fichier MD » and « Fichier TXT ». T1400 pinned the
+    // language of the ANSWER; this is the language of the CONTEXT, a distinct
+    // producer.
+    //
+    // HUMAN content (file name, article title, Folder name) is NEVER translated:
+    // only the structural labels are.
+    'dossier_manifest_header' => '--- ITEMS IN THIS LOOP\'S FOLDER (metadata, not content) ---',
+    'dossier_manifest_article' => 'Article: :title — Folder ":dossier"',
+    'dossier_manifest_file' => ':type file: :name — Folder ":dossier"',
+    'dossier_manifest_file_type_fallback' => 'file',
 ];
