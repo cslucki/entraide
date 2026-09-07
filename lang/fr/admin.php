@@ -637,6 +637,10 @@ return [
     'crm_col_next_action' => 'Prochaine action',
     'crm_col_contactable' => 'Joignable',
     'crm_col_source' => 'Provenance',
+    // TASK-1431 — administration CRM plateforme.
+    'crm_state_active' => 'Contacts actifs',
+    'crm_state_trashed' => 'Contacts supprimés',
+    'crm_create_title' => 'Nouveau contact dans une organisation',
     // TASK-1429 — SW-1 : Shell Welcome par Organization.
     'guest_shell_config' => 'Shell Welcome par organisation',
     'guest_shell_config_hint' => 'Accueil IA public pour les visiteurs non connectés. Le provider, le modèle et la clé restent ceux de l\'organisation (« Organizations & IA ») : rien n\'est dupliqué ici. Aucun appel provider ne part tant que l\'état n\'est pas ACTIF.',

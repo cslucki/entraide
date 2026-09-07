@@ -47,15 +47,50 @@ class OrgCrmController extends Controller
     private const MEMBER_PICKER_LIMIT = 20;
 
     public function __construct(
-        private readonly CrmContactService $contacts,
-        private readonly CrmStatusService $statuses,
-        private readonly CrmTimelineService $timeline,
-        private readonly CrmNextActionService $nextActions,
-        private readonly CrmEmailSendService $emails,
-        private readonly CrmEmailTemplateService $emailTemplates,
-        private readonly CrmContactPolicyService $policy,
-        private readonly CrmDashboardService $dashboard,
+        protected readonly CrmContactService $contacts,
+        protected readonly CrmStatusService $statuses,
+        protected readonly CrmTimelineService $timeline,
+        protected readonly CrmNextActionService $nextActions,
+        protected readonly CrmEmailSendService $emails,
+        protected readonly CrmEmailTemplateService $emailTemplates,
+        protected readonly CrmContactPolicyService $policy,
+        protected readonly CrmDashboardService $dashboard,
     ) {}
+
+    // ── TASK-1431 — la MEME fiche et les MEMES actions pour l'OrgAdmin et pour la
+    // plateforme (AdminCrmController) : seul le contexte change (URLs, layout, liens).
+
+    /** URL d'une action CRM de cette Organization dans le contexte courant. */
+    protected function crmUrl(Organization $organization, string $name, array $params = []): string
+    {
+        return route('organization.admin.crm.'.$name, ['organization' => $organization->slug] + $params);
+    }
+
+    protected function crmView(string $name, array $data): View
+    {
+        return view('admin.org.crm.'.$name, $data);
+    }
+
+    /** Liens de la fiche hors actions CRM (retour, compte relie, modeles), selon le contexte. */
+    protected function crmLinks(Organization $organization, CrmContact $contact): array
+    {
+        return [
+            'index' => $this->crmUrl($organization, 'contacts'),
+            'linked_user' => route('organization.admin.users', ['organization' => $organization->slug, 'search' => $contact->user?->email]),
+            'templates_create' => route('organization.admin.crm.templates.create', ['organization' => $organization->slug]),
+        ];
+    }
+
+    protected function crmRouter(Organization $organization): \Closure
+    {
+        return fn (string $name, array $params = []) => $this->crmUrl($organization, $name, $params);
+    }
+
+    /** La fiche : ici jamais un Contact supprime (404) ; la plateforme le montre pour le restaurer. */
+    protected function resolveContactForShow(Organization $organization, string $id): CrmContact
+    {
+        return $this->resolveContact($organization, $id);
+    }
 
     /**
      * TASK-1424 — CRM-14 : « Aujourd'hui », la page d'entree de Relations.
@@ -189,11 +224,13 @@ class OrgCrmController extends Controller
      */
     public function show(Organization $organization, string $contact): View
     {
-        $contact = $this->resolveContact($organization, $contact);
+        $contact = $this->resolveContactForShow($organization, $contact);
         $this->statuses->ensureDefaultPipeline($organization);
 
-        return view('admin.org.crm.show', [
+        return $this->crmView('show', [
             'organization' => $organization,
+            'r' => $this->crmRouter($organization),
+            'links' => $this->crmLinks($organization, $contact),
             'contact' => $contact->load(['status', 'user', 'createdBy']),
             'statuses' => CrmStatus::forOrganization($organization)->active()->ordered()->get(),
             'events' => $contact->events()->with('author')->chronological()->get()->reverse()->values(),
@@ -231,7 +268,7 @@ class OrgCrmController extends Controller
             return back()->withInput()->with('error', __('crm.flash_update_conflict'));
         }
 
-        return redirect()->route('organization.admin.crm.contacts.show', ['organization' => $organization->slug, 'contact' => $contact->id])
+        return redirect()->to($this->crmUrl($organization, 'contacts.show', ['contact' => $contact->id]))
             ->with('success', $changes === [] ? __('crm.flash_contact_unchanged') : __('crm.flash_contact_updated'));
     }
 
@@ -247,7 +284,7 @@ class OrgCrmController extends Controller
 
         $contact = $this->contacts->findOrCreate($organization, $data + ['source' => CrmContact::SOURCE_MANUAL], $request->user());
 
-        return redirect()->route('organization.admin.crm.contacts', ['organization' => $organization->slug])
+        return redirect()->to($this->crmUrl($organization, 'contacts'))
             ->with('success', $contact->wasRecentlyCreated ? __('crm.flash.contact_created') : __('crm.flash.contact_found'));
     }
 
@@ -427,7 +464,7 @@ class OrgCrmController extends Controller
         $contact = $this->resolveContact($organization, $contact);
         $template = $this->emailTemplates->resolve($organization, (string) $request->input('template'));
 
-        return redirect()->route('organization.admin.crm.contacts.email.preview', ['organization' => $organization->slug, 'contact' => $contact->id, 'template' => $template->id]);
+        return redirect()->to($this->crmUrl($organization, 'contacts.email.preview', ['contact' => $contact->id, 'template' => $template->id]));
     }
 
     /**
@@ -443,12 +480,14 @@ class OrgCrmController extends Controller
         try {
             $this->emails->guard($contact, $template, $request->user());
         } catch (LogicException $e) {
-            return redirect()->route('organization.admin.crm.contacts.show', ['organization' => $organization->slug, 'contact' => $contact->id])
+            return redirect()->to($this->crmUrl($organization, 'contacts.show', ['contact' => $contact->id]))
                 ->with('error', __('crm.email.flash_blocked', ['reason' => __('crm.email.reason.'.$e->getMessage())]));
         }
 
-        return view('admin.org.crm.email', [
+        return $this->crmView('email', [
             'organization' => $organization,
+            'r' => $this->crmRouter($organization),
+            'links' => $this->crmLinks($organization, $contact),
             'contact' => $contact,
             'template' => $template,
             'rendered' => $this->emails->render($contact, $template),
@@ -460,7 +499,7 @@ class OrgCrmController extends Controller
     {
         $contact = $this->resolveContact($organization, $contact);
         $template = $this->emailTemplates->resolve($organization, $template);
-        $back = redirect()->route('organization.admin.crm.contacts.show', ['organization' => $organization->slug, 'contact' => $contact->id]);
+        $back = redirect()->to($this->crmUrl($organization, 'contacts.show', ['contact' => $contact->id]));
 
         // Le jeton est consomme AVANT tout : un second clic n'envoie rien.
         if (! $this->emails->consumeToken($contact, $template, $request->input('token'))) {
@@ -542,8 +581,10 @@ class OrgCrmController extends Controller
         $contact = $this->resolveContact($organization, $contact);
         $log = $this->contactEmailLogs($organization, $contact)->with('template:id,name')->whereKey($log)->firstOrFail();
 
-        return view('admin.org.crm.email-log', [
+        return $this->crmView('email-log', [
             'organization' => $organization,
+            'r' => $this->crmRouter($organization),
+            'links' => $this->crmLinks($organization, $contact),
             'contact' => $contact,
             'log' => $log,
             'sender' => $this->emailSenders($organization, collect([$log]))->get($log->data['sender_id'] ?? ''),
@@ -566,7 +607,8 @@ class OrgCrmController extends Controller
 
         return $ids->isEmpty()
             ? collect()
-            : User::where('organization_id', $organization->id)->whereIn('id', $ids)->get()->keyBy('id');
+            // TASK-1431 : un expediteur PLATEFORME (is_admin, autre Organization) reste nomme.
+            : User::where(fn ($q) => $q->where('organization_id', $organization->id)->orWhere('is_admin', true))->whereIn('id', $ids)->get()->keyBy('id');
     }
 
     /** « ok » si sha256(body_html) === body_hash, « divergent » sinon, « none » sans empreinte ou sans copie. */
@@ -606,7 +648,7 @@ class OrgCrmController extends Controller
             .'</head><body>'.$disarmed.'</body></html>';
     }
 
-    private function resolveContact(Organization $organization, string $id): CrmContact
+    protected function resolveContact(Organization $organization, string $id): CrmContact
     {
         return CrmContact::forOrganization($organization)->whereKey($id)->firstOrFail();
     }

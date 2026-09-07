@@ -55,8 +55,39 @@ class CrmEmailSendService
         }
 
         if ($sending && $sender->organization_id !== $contact->organization_id) {
-            throw new LogicException('sender_organization');
+            // TASK-1431 (MASTER Q53, supersede Q29 sur ce point) : la plateforme peut
+            // envoyer pour un tenant dont elle n'est pas membre, mais ne le SIGNE
+            // jamais — le Reply-To est l'admin de l'Organization cible ; sans admin
+            // exploitable, rien ne part (fail-closed). Un simple membre d'ailleurs
+            // reste refuse.
+            if (! $sender->is_admin) {
+                throw new LogicException('sender_organization');
+            }
+
+            if ($this->replyToFor($contact, $sender) === null) {
+                throw new LogicException('no_organization_admin');
+            }
         }
+    }
+
+    /**
+     * A qui le prospect repond : l'acteur s'il est membre de l'Organization du
+     * Contact ; sinon (plateforme) l'admin de cette Organization, s'il est
+     * exploitable (existe, a un email, n'est pas banni) ; sinon personne.
+     */
+    public function replyToFor(CrmContact $contact, User $sender): ?User
+    {
+        if ($sender->organization_id === $contact->organization_id) {
+            return $sender;
+        }
+
+        $admin = $contact->organization?->admin;
+
+        if ($admin === null || $admin->organization_id !== $contact->organization_id || $admin->banned_at !== null || CrmContact::normalizeEmail($admin->email) === null) {
+            return null;
+        }
+
+        return $admin;
     }
 
     /** Rendu pour CE Contact (objet + corps), sans rien ecrire. */
@@ -106,7 +137,7 @@ class CrmEmailSendService
     {
         $this->guard($contact, $template, $sender, sending: true);
 
-        $log = $this->emailer->sendFromTemplateToContact($template, $contact, $sender);
+        $log = $this->emailer->sendFromTemplateToContact($template, $contact, $sender, $this->replyToFor($contact, $sender));
 
         DB::transaction(function () use ($contact, $template, $sender, $log) {
             $sent = $log->status === EmailLog::STATUS_SENT;

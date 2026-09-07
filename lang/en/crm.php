@@ -25,6 +25,16 @@ return [
     'do_not_contact' => 'Do not contact',
     'follow_member' => 'Add to follow-up',
     // TASK-1430 — "Add an existing member" from Relationships.
+    // TASK-1431 — platform delete/restore (SoftDelete, traced, restorable).
+    'trashed' => [
+        'banner' => 'Contact deleted on :date. It is hidden from lists and cannot be changed until it is restored.',
+        'delete' => 'Delete this contact',
+        'confirm' => 'Delete this contact? It will leave the lists and can be restored by the platform.',
+        'restore' => 'Restore',
+        'flash_deleted' => 'Contact deleted. It can be restored.',
+        'flash_restored' => 'Contact restored.',
+    ],
+    'event_by_platform' => 'Platform admin',
     'add_existing_member' => 'Add an existing member',
     'member_picker' => [
         'search' => 'Search a member by name or email…',
@@ -97,6 +107,8 @@ return [
         'account_created' => 'Account created',
         'email_verified' => 'Email verified',
         'member_linked' => 'Member added to follow-up',
+        'contact_deleted' => 'Contact deleted',
+        'contact_restored' => 'Contact restored',
         'contact_updated' => 'Details updated',
     ],
     'edit' => [
@@ -221,6 +233,7 @@ return [
             'no_email' => 'this contact has no email address',
             'template_organization' => 'this template does not belong to your organization',
             'sender_organization' => 'you are not a member of this organization',
+            'no_organization_admin' => 'this organization has no usable administrator for the Reply-To',
         ],
     ],
     'event_email_sent' => 'Email sent',

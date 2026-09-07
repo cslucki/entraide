@@ -633,6 +633,10 @@ return [
     'crm_col_next_action' => 'Next action',
     'crm_col_contactable' => 'Reachable',
     'crm_col_source' => 'Source',
+    // TASK-1431 — platform CRM management.
+    'crm_state_active' => 'Active contacts',
+    'crm_state_trashed' => 'Deleted contacts',
+    'crm_create_title' => 'New contact in an organization',
     // TASK-1429 — SW-1: Shell Welcome per Organization.
     'guest_shell_config' => 'Shell Welcome per organization',
     'guest_shell_config_hint' => 'Public AI welcome for visitors who are not signed in. Provider, model and key stay those of the organization ("Organizations & AI"): nothing is duplicated here. No provider call leaves while the state is not ACTIVE.',

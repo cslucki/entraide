@@ -34,6 +34,7 @@ class AdminCrmOverviewController extends Controller
             'due' => in_array($request->input('due'), CrmGlobalPanelService::DUE, true) ? (string) $request->input('due') : '',
             'idle' => $request->boolean('idle'),
             'contactable' => in_array($request->input('contactable'), ['yes', 'no'], true) ? (string) $request->input('contactable') : '',
+            'state' => $request->input('state') === 'trashed' ? 'trashed' : '',
         ];
 
         return [

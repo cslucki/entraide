@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\AdminBlogTodoController;
 use App\Http\Controllers\Admin\AdminBugReportController;
 use App\Http\Controllers\Admin\AdminCategoryController;
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AdminCrmController;
 use App\Http\Controllers\Admin\AdminCrmOverviewController;
 use App\Http\Controllers\Admin\AdminEmailController;
 use App\Http\Controllers\Admin\AdminEmailLogsController;
@@ -506,6 +507,22 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // TASK-1427 : decision Cyril — le SuperAdmin voit TOUT (contacts, echeances, faits de toutes les Organizations).
     Route::get('/relations/aujourdhui', [AdminCrmOverviewController::class, 'today'])->name('crm.overview.today');
     Route::get('/relations/faits', [AdminCrmOverviewController::class, 'facts'])->name('crm.overview.facts');
+    // TASK-1431 (CRM CORE FIX B) : le SuperAdmin ADMINISTRE les Relations de chaque Organization —
+    // Organization explicite dans l'URL, memes services metier, SoftDelete/restore plateforme.
+    Route::post('/relations/{organization}/contacts', [AdminCrmController::class, 'storeContact'])->name('crm.contacts.store');
+    Route::get('/relations/{organization}/contacts/{contact}', [AdminCrmController::class, 'show'])->name('crm.contacts.show');
+    Route::put('/relations/{organization}/contacts/{contact}', [AdminCrmController::class, 'updateContact'])->name('crm.contacts.update');
+    Route::delete('/relations/{organization}/contacts/{contact}', [AdminCrmController::class, 'destroy'])->name('crm.contacts.destroy');
+    Route::post('/relations/{organization}/contacts/{contact}/restore', [AdminCrmController::class, 'restore'])->name('crm.contacts.restore');
+    Route::post('/relations/{organization}/contacts/{contact}/status', [AdminCrmController::class, 'changeStatus'])->name('crm.contacts.status');
+    Route::post('/relations/{organization}/contacts/{contact}/notes', [AdminCrmController::class, 'storeNote'])->name('crm.contacts.notes.store');
+    Route::post('/relations/{organization}/contacts/{contact}/next-action', [AdminCrmController::class, 'planNextAction'])->name('crm.contacts.next-action.plan');
+    Route::post('/relations/{organization}/contacts/{contact}/next-action/complete', [AdminCrmController::class, 'completeNextAction'])->name('crm.contacts.next-action.complete');
+    Route::post('/relations/{organization}/contacts/{contact}/policy', [AdminCrmController::class, 'changePolicy'])->name('crm.contacts.policy');
+    Route::get('/relations/{organization}/contacts/{contact}/email', [AdminCrmController::class, 'pickEmailTemplate'])->name('crm.contacts.email.pick');
+    Route::get('/relations/{organization}/contacts/{contact}/email/{template}', [AdminCrmController::class, 'previewEmail'])->name('crm.contacts.email.preview');
+    Route::post('/relations/{organization}/contacts/{contact}/email/{template}', [AdminCrmController::class, 'sendEmail'])->name('crm.contacts.email.send');
+    Route::get('/relations/{organization}/contacts/{contact}/emails/{log}', [AdminCrmController::class, 'showEmail'])->name('crm.contacts.emails.show');
     Route::get('/organizations/create', [AdminOrganizationController::class, 'create'])->name('organizations.create');
     Route::post('/organizations', [AdminOrganizationController::class, 'store'])->name('organizations.store');
     Route::get('/organizations/{organization}/edit', [AdminOrganizationController::class, 'edit'])->name('organizations.edit');

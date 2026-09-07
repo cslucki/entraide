@@ -171,13 +171,21 @@ class TASK1425CrmGlobalOverviewTest extends TestCase
         $this->assertStringContainsString('data-crm-admin-contact="'.$contact->id.'"', $html);
         $this->assertStringContainsString('Zorglub Amaranthe', $html);
         $this->assertStringContainsString('zorglub.amaranthe@example.com', $html);
-        $this->assertStringContainsString(route('organization.admin.crm.contacts.show', ['organization' => 'org-a-1425', 'contact' => $contact->id]), $html);
+        $this->assertStringContainsString(route('admin.crm.contacts.show', ['organization' => 'org-a-1425', 'contact' => $contact->id]), $html);
     }
 
-    public function test_the_overview_is_read_only(): void
+    /**
+     * TASK-1431 (decision Cyril) : la vue d'ensemble n'est plus READ ONLY — mais
+     * chaque mutation qu'elle propose cible une Organization EXPLICITE dans l'URL.
+     */
+    public function test_every_mutation_offered_by_the_overview_targets_an_explicit_organization_route(): void
     {
         $html = $this->actingAs($this->superAdmin)->get($this->url())->assertOk()->getContent();
 
-        $this->assertDoesNotMatchRegularExpression('/<form[^>]*action="[^"]*\/relations[^"]*"/', $html);
+        preg_match_all('/<form[^>]*\saction="([^"]*\/relations[^"]*)"/', $html, $m);
+        $this->assertNotEmpty($m[1], 'la creation plateforme doit etre proposee');
+        foreach ($m[1] as $action) {
+            $this->assertMatchesRegularExpression('#/admin/relations/[^/]+/contacts#', $action, $action);
+        }
     }
 }

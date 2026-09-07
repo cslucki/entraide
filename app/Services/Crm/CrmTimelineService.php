@@ -94,6 +94,21 @@ class CrmTimelineService
         return $this->record($contact, CrmContactEvent::TYPE_CONTACT_UPDATED, ['changes' => $changes], $actor, now());
     }
 
+    /** TASK-1431 — suppression/restauration plateforme : un fait, un auteur, jamais silencieux. */
+    public function recordContactDeleted(CrmContact $contact, User $actor): CrmContactEvent
+    {
+        $this->guardAuthor($contact, $actor);
+
+        return $this->record($contact, CrmContactEvent::TYPE_CONTACT_DELETED, [], $actor, now());
+    }
+
+    public function recordContactRestored(CrmContact $contact, User $actor): CrmContactEvent
+    {
+        $this->guardAuthor($contact, $actor);
+
+        return $this->record($contact, CrmContactEvent::TYPE_CONTACT_RESTORED, [], $actor, now());
+    }
+
     public function timeline(CrmContact $contact): Collection
     {
         return $contact->events()->chronological()->get();
