@@ -470,13 +470,19 @@ class ChatLoopAiServiceTest extends TestCase
         $this->assertStringNotContainsString('javascript:', $message->body);
     }
 
+    /**
+     * TASK-1423 — `Mail::fake()` + `assertNothingSent()` etait aveugle a
+     * `Mail::html()` (retransmis au vrai mailer par `MailFake::__call`).
+     * Un mock strict rougit sur N'IMPORTE QUEL appel a la facade Mail :
+     * mailable, raw, html ou mailer() d'un canal de notification.
+     */
     public function test_it_does_not_send_any_email(): void
     {
-        Mail::fake();
+        Mail::shouldReceive('html', 'send', 'raw', 'to', 'queue', 'later', 'mailer')->never();
 
         $this->service()->answer($this->loop, $this->member);
 
-        Mail::assertNothingSent();
+        $this->assertTrue(true, 'aucun appel a la facade Mail : le mock strict aurait rougi');
     }
 
     public function test_member_can_request_an_ai_answer(): void
