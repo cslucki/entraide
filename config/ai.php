@@ -476,4 +476,21 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | TASK-1429 — SW-1 : Shell Welcome (visiteurs non connectes)
+    |--------------------------------------------------------------------------
+    | La politique par Organization vit en base (organization_guest_shell_policies).
+    | Ici : le plafond du process quand une Organization n'a pas de budget Guest
+    | propre (jamais « illimite »), le quota d'appels au cout inconnu, et le
+    | plafond PLATEFORME mensuel — NULL = non configure = fail-closed (aucun
+    | appel payant tant que Cyril n'a pas fixe l'exposition globale).
+    */
+    'guest_shell' => [
+        'economic_guard' => [
+            'monthly_budget_usd' => (float) env('AI_GUEST_SHELL_MONTHLY_BUDGET_USD', 2.00),
+            'monthly_unknown_limit' => (int) env('AI_GUEST_SHELL_MONTHLY_UNKNOWN_LIMIT', 10),
+        ],
+        'platform_monthly_ceiling_usd' => env('AI_GUEST_SHELL_PLATFORM_CEILING_USD') === null || env('AI_GUEST_SHELL_PLATFORM_CEILING_USD') === '' ? null : (float) env('AI_GUEST_SHELL_PLATFORM_CEILING_USD'),
+    ],
 ];
