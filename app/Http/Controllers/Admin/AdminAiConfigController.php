@@ -9,6 +9,7 @@ use App\Models\Organization;
 use App\Models\OrganizationGuestShellPolicy;
 use App\Services\Ai\SupervisionProviderResolver;
 use App\Services\GuestShell\GuestShellPolicyService;
+use App\Support\GuestShell\GuestShellDisplayMode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -129,6 +130,7 @@ class AdminAiConfigController extends Controller
         $validated = $request->validate([
             'organization_id' => 'required|string|exists:organizations,id',
             'enabled' => 'sometimes|boolean',
+            'display_mode' => ['sometimes', 'string', 'in:'.implode(',', GuestShellDisplayMode::MODES)],
             'max_messages' => ['required', 'integer', 'min:1', 'max:'.OrganizationGuestShellPolicy::MAX_MESSAGES_LIMIT],
             'retention_days' => ['required', 'integer', 'min:1', 'max:'.OrganizationGuestShellPolicy::RETENTION_DAYS_LIMIT],
             'guest_monthly_budget_usd' => 'nullable|numeric|min:0|max:100000',
@@ -137,6 +139,7 @@ class AdminAiConfigController extends Controller
         $organization = Organization::findOrFail($validated['organization_id']);
         $policies->update($organization, [
             'enabled' => (bool) ($validated['enabled'] ?? false),
+            'display_mode' => $validated['display_mode'] ?? null,
             'max_messages' => (int) $validated['max_messages'],
             'retention_days' => (int) $validated['retention_days'],
             'guest_monthly_budget_usd' => $validated['guest_monthly_budget_usd'] ?? null,

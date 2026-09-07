@@ -580,6 +580,9 @@ return [
     'consumption_budget_none' => 'Aucun budget mensuel défini — l\'IA n\'est pas plafonnée par un budget fournisseur.',
     // TASK-1438 — SW-10 : bloc Shell Welcome de la console de consommation.
     'consumption_guest_title' => 'Shell Welcome (visiteurs non connectés)',
+    'consumption_guest_mode' => 'Mode choisi par la plateforme : :mode',
+    'consumption_guest_effective_on' => 'sur l\'accueil public aujourd\'hui : :mode',
+    'consumption_guest_effective_off' => 'sur l\'accueil public aujourd\'hui : aucun Shell (:reason)',
     'consumption_guest_hint' => 'Ce que les visiteurs ont déclenché sur cette organisation pendant la période, avec la même doctrine que la garde économique.',
     'consumption_budget_custom_period' => 'Période personnalisée : le budget mensuel ne s\'y applique pas, seul le consommé est affiché.',
     'consumption_breakdown_title' => 'Ventilation de la période',

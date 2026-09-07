@@ -40,6 +40,8 @@ use App\Services\Ai\OrganizationDoctrineSandbox;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Services\Dossiers\OrganizationRagOverview;
+use App\Services\GuestShell\GuestPageContextResolver;
+use App\Services\GuestShell\GuestShellDisplayModeResolver;
 use App\Services\GuestShell\GuestShellPolicyService;
 use App\Services\GuestShell\GuestShellUsageService;
 use App\Services\LoopGovernanceService;
@@ -2001,6 +2003,8 @@ class OrgAdminController extends Controller
         $guestShell = [
             'state' => app(GuestShellPolicyService::class)->state($organization),
             'usage' => app(GuestShellUsageService::class)->organizationUsage($organization, $filters->from, $filters->to),
+            // TASK-1441 (MASTER Q69) : le mode choisi par le SuperAdmin et la decision EFFECTIVE sur l'accueil public — lecture seule.
+            'display' => app(GuestShellDisplayModeResolver::class)->resolve($organization, app(GuestPageContextResolver::class)->organizationHome($organization)),
         ];
 
         return view('admin.org.ai-consumption', [

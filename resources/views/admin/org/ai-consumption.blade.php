@@ -97,7 +97,7 @@
     @endphp
     {{-- TASK-1438 — SW-10 : le Shell Welcome de CETTE Organization (Shell Welcome V3 §17/§18). Jamais un contenu de conversation. --}}
     @php $guestState = strtolower($guestShell['state']->status); @endphp
-    <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6" data-consumption-guest-block data-consumption-guest-state="{{ $guestState }}">
+    <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6" data-consumption-guest-block data-consumption-guest-state="{{ $guestState }}" data-consumption-guest-mode="{{ $guestShell['state']->policy->display_mode }}" data-consumption-guest-effective="{{ $guestShell['display']->mode }}" data-consumption-guest-effective-reason="{{ $guestShell['display']->reason }}">
         <div class="flex flex-wrap items-baseline justify-between gap-2 mb-1">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.consumption_guest_title') }}</h2>
             <span class="px-2 py-0.5 rounded text-xs font-semibold {{ match($guestState) { 'active' => 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300', 'disabled' => 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300', default => 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300' } }}">{{ __('admin.guest_shell_state_'.$guestState) }}</span>
@@ -113,6 +113,11 @@
             @endforeach
         </div>
         <p class="text-xs text-gray-500 dark:text-gray-400 mt-3">{{ __('admin.guest_shell_units_hint') }}</p>
+        {{-- TASK-1441 (MASTER Q69) : mode choisi par la plateforme et decision effective sur l'accueil public — lecture seule. --}}
+        <p class="text-xs text-gray-600 dark:text-gray-300 mt-2" data-consumption-guest-display>
+            {{ __('ai.consumption_guest_mode', ['mode' => __('admin.guest_shell_display_mode_'.$guestShell['state']->policy->display_mode)]) }}
+            — {{ $guestShell['display']->isVisible() ? __('ai.consumption_guest_effective_on', ['mode' => __('admin.guest_shell_display_mode_'.$guestShell['display']->mode)]) : __('ai.consumption_guest_effective_off', ['reason' => __('admin.guest_shell_display_reason_'.$guestShell['display']->reason)]) }}
+        </p>
     </section>
 
     <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6" data-consumption-budget-block>

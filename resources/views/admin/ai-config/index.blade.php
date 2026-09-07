@@ -222,6 +222,13 @@
                                 <input type="checkbox" name="enabled" value="1" @checked($policy->enabled) class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
                                 {{ __('admin.guest_shell_enabled') }}
                             </label>
+                            <div data-guest-shell-display-mode="{{ $policy->display_mode }}">
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('admin.guest_shell_display_mode') }}</label>
+                                <select name="display_mode" class="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                                    @foreach(\App\Support\GuestShell\GuestShellDisplayMode::MODES as $mode)<option value="{{ $mode }}" @selected(old('display_mode', $policy->display_mode) === $mode)>{{ __('admin.guest_shell_display_mode_'.$mode) }}</option>@endforeach
+                                </select>
+                                <p class="text-[11px] text-gray-400 mt-1">{{ __('admin.guest_shell_display_mode_hint') }}</p>
+                            </div>
                             <div>
                                 <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('admin.guest_shell_max_messages') }}</label>
                                 <input type="number" name="max_messages" min="1" max="{{ \App\Models\OrganizationGuestShellPolicy::MAX_MESSAGES_LIMIT }}" value="{{ old('max_messages', $policy->max_messages) }}" class="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
