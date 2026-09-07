@@ -1,5 +1,6 @@
 <x-admin-layout :title="__('admin.crm_overview_title')">
     {{-- TASK-1425 — CRM-15 : agregats par Organization (MASTER Q37, option a). Aucun contenu de tenant. --}}
+    @include('admin.crm._tabs')
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ __('admin.crm_overview_hint', ['days' => $idleDays, 'recent' => $recentDays]) }}</p>
 
     <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6" data-crm-global-totals>
@@ -55,4 +56,5 @@
             </tbody>
         </table>
     </div>
+    @include('admin.crm._contacts')
 </x-admin-layout>

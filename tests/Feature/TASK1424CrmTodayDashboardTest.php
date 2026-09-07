@@ -56,7 +56,8 @@ class TASK1424CrmTodayDashboardTest extends TestCase
 
         $this->orgA = Organization::factory()->create(['slug' => 'org-a-1424', 'is_active' => true, 'locale' => 'fr']);
         $this->orgB = Organization::factory()->create(['slug' => 'org-b-1424', 'is_active' => true, 'locale' => 'fr']);
-        $this->adminA = User::factory()->create(['organization_id' => $this->orgA->id]);
+        // Nom FIXE : un nom Faker avec apostrophe est rendu `&#039;` et rougit une assertion sur une chance (CI develop f2cbffc0).
+        $this->adminA = User::factory()->create(['organization_id' => $this->orgA->id, 'first_name' => 'Ada', 'name' => 'Lovelace']);
         $this->adminB = User::factory()->create(['organization_id' => $this->orgB->id]);
         $this->orgA->update(['admin_id' => $this->adminA->id]);
         $this->orgB->update(['admin_id' => $this->adminB->id]);
@@ -272,7 +273,7 @@ class TASK1424CrmTodayDashboardTest extends TestCase
         $this->assertStringNotContainsString('Fait numero 11', $facts);
         $this->assertStringNotContainsString('Fait numero 12', $facts);
         $this->assertStringNotContainsString('Fait ailleurs', $html);
-        $this->assertStringContainsString($this->adminA->fullName, $facts);
+        $this->assertStringContainsString('Ada Lovelace', $facts);
     }
 
     // ── 4. Tenant et etats vides ────────────────────────────────────────────

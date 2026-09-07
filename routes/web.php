@@ -503,6 +503,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/organizations', [AdminOrganizationController::class, 'index'])->name('organizations');
     // TASK-1425 (CRM-15) : « Relations » cote plateforme, agregats par Organization, lecture seule.
     Route::get('/relations', [AdminCrmOverviewController::class, 'index'])->name('crm.overview');
+    // TASK-1427 : decision Cyril — le SuperAdmin voit TOUT (contacts, echeances, faits de toutes les Organizations).
+    Route::get('/relations/aujourdhui', [AdminCrmOverviewController::class, 'today'])->name('crm.overview.today');
+    Route::get('/relations/faits', [AdminCrmOverviewController::class, 'facts'])->name('crm.overview.facts');
     Route::get('/organizations/create', [AdminOrganizationController::class, 'create'])->name('organizations.create');
     Route::post('/organizations', [AdminOrganizationController::class, 'store'])->name('organizations.store');
     Route::get('/organizations/{organization}/edit', [AdminOrganizationController::class, 'edit'])->name('organizations.edit');
