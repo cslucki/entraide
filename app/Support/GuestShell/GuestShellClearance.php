@@ -20,6 +20,9 @@ final class GuestShellClearance
 
     public const STEP_CREDENTIAL = 'credential';
 
+    /** Shell Welcome V3 §13 (4) : le prompt d'accueil ACTIF en base — absent = ferme, avant tout appel. */
+    public const STEP_PROMPT = 'prompt';
+
     public const STEP_CONVERSATION_LIMIT = 'conversation_limit';
 
     public const STEP_VISITOR_QUOTA = 'visitor_quota';
@@ -42,7 +45,7 @@ final class GuestShellClearance
 
     /** L'ordre canonique (cadre Cyril §5) — le premier refus arrete tout. */
     public const STEPS = [
-        self::STEP_POLICY, self::STEP_ORGANIZATION, self::STEP_CREDENTIAL, self::STEP_CONVERSATION_LIMIT,
+        self::STEP_POLICY, self::STEP_ORGANIZATION, self::STEP_CREDENTIAL, self::STEP_PROMPT, self::STEP_CONVERSATION_LIMIT,
         self::STEP_VISITOR_QUOTA, self::STEP_ORGANIZATION_BUDGET, self::STEP_GUEST_BUDGET, self::STEP_PROCESS_BUDGET,
         self::STEP_PLATFORM_CEILING, self::STEP_PRICING, self::STEP_INPUT_BOUND, self::STEP_OUTPUT_BOUND, self::STEP_LEDGER,
     ];
@@ -52,6 +55,7 @@ final class GuestShellClearance
         public readonly ?string $reason,
         public readonly ?string $step,
         public readonly ?ResolvedModel $resolved,
+        public readonly ?GuestShellPrompt $prompt,
         public readonly ?int $maxOutputTokens,
         public readonly ?string $correlationId,
         public readonly array $facts,
@@ -59,12 +63,12 @@ final class GuestShellClearance
 
     public static function refuse(string $step, string $reason, array $facts = []): self
     {
-        return new self(false, $reason, $step, null, null, null, $facts);
+        return new self(false, $reason, $step, null, null, null, null, $facts);
     }
 
-    public static function allow(ResolvedModel $resolved, int $maxOutputTokens, string $correlationId, array $facts = []): self
+    public static function allow(ResolvedModel $resolved, GuestShellPrompt $prompt, int $maxOutputTokens, string $correlationId, array $facts = []): self
     {
-        return new self(true, null, null, $resolved, $maxOutputTokens, $correlationId, $facts);
+        return new self(true, null, null, $resolved, $prompt, $maxOutputTokens, $correlationId, $facts);
     }
 
     public function isRefused(): bool

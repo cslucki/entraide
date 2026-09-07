@@ -13,6 +13,7 @@ use App\Services\Ai\AiProviderInvocationLedger;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiPricingCatalog;
 use App\Support\GuestShell\GuestShellClearance;
+use App\Support\GuestShell\GuestShellPrompt;
 use DomainException;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
@@ -21,7 +22,7 @@ use Illuminate\Support\Str;
  * TASK-1436 — SW-6 : la garde economique du Shell Welcome, AVANT tout appel
  * provider (Addendum V2 §11, cadre Cyril 21h50 §5, MASTER Q60/Q61).
  *
- * Treize controles, dans l'ordre canonique ; le PREMIER refus arrete tout et
+ * Quatorze controles (Shell Welcome V3 §13), dans l'ordre canonique ; le PREMIER refus arrete tout et
  * aucun provider n'est appele — un refus n'ecrit rien (ni ledger, ni trace).
  * Le credential est TOUJOURS celui de l'Organization, resolu par
  * `ProviderResolver` (`OrganizationAiSetting`) : la primitive plateforme de la
@@ -38,6 +39,7 @@ final class GuestShellGate
         private readonly ProviderResolver $providers,
         private readonly AiEconomicGuard $economy,
         private readonly CapabilityRegistry $capabilities,
+        private readonly GuestShellPromptResolver $prompts,
     ) {}
 
     public function clear(Organization $organization, GuestVisitor $visitor, GuestConversation $conversation, string $candidateMessage): GuestShellClearance
@@ -80,12 +82,18 @@ final class GuestShellGate
             return GuestShellClearance::refuse(GuestShellClearance::STEP_CREDENTIAL, 'no_credential', ['detail' => $exception->getMessage()]);
         }
 
-        // 4. La limite de messages de CETTE conversation (SW-4).
+        // 4. Le prompt d'accueil ACTIF en base (SW-2) — Shell Welcome V3 §13 : sans lui, rien ne part.
+        $prompt = $this->prompts->resolve();
+        if (! $prompt instanceof GuestShellPrompt) {
+            return GuestShellClearance::refuse(GuestShellClearance::STEP_PROMPT, 'no_active_prompt');
+        }
+
+        // 5. La limite de messages de CETTE conversation (SW-4) — conversation active ET tours restants.
         if (! $conversation->isActive() || $this->conversations->remainingUserMessages($conversation, $policy) <= 0) {
             return GuestShellClearance::refuse(GuestShellClearance::STEP_CONVERSATION_LIMIT, 'max_messages_reached', ['max_messages' => $policy->max_messages]);
         }
 
-        // 5. Le quota TRANSVERSE du visiteur (toutes conversations) + le rate limit anti-rafale.
+        // 6. Le quota TRANSVERSE du visiteur (toutes conversations) + le rate limit anti-rafale.
         $monthlyMax = config('ai.guest_shell.visitor_monthly_max_messages');
         if (! is_int($monthlyMax) || $monthlyMax < 1) {
             return GuestShellClearance::refuse(GuestShellClearance::STEP_VISITOR_QUOTA, 'visitor_quota_unset');
@@ -103,7 +111,7 @@ final class GuestShellGate
             return GuestShellClearance::refuse(GuestShellClearance::STEP_VISITOR_QUOTA, 'rate_limited', ['retry_after_seconds' => RateLimiter::availableIn($rateKey)]);
         }
 
-        // 6, 7, 8, 10. Budgets et politique de prix — les autorites existantes, une seule fois.
+        // 7, 8, 9, 11. Budgets et politique de prix — les autorites existantes, une seule fois.
         // Le budget passe au processus `guest_shell` EST le budget Guest de l'Organization
         // (sa politique, sinon le defaut plateforme) : en V1 les deux coincident.
         $verdict = $this->economy->authorize(
@@ -125,7 +133,7 @@ final class GuestShellGate
             return GuestShellClearance::refuse($step, $reason, ['known_monthly_cost_usd' => $verdict->knownMonthlyCostUsd]);
         }
 
-        // 9. Le plafond PLATEFORME : un vrai coupe-circuit, pas un indicateur (SW-1 -> SW-6).
+        // 10. Le plafond PLATEFORME : un vrai coupe-circuit, pas un indicateur (SW-1 -> SW-6).
         $ceiling = config('ai.guest_shell.platform_monthly_ceiling_usd');
         if (! is_numeric($ceiling) || (float) $ceiling <= 0) {
             return GuestShellClearance::refuse(GuestShellClearance::STEP_PLATFORM_CEILING, 'platform_ceiling_unset');
@@ -135,23 +143,23 @@ final class GuestShellGate
             return GuestShellClearance::refuse(GuestShellClearance::STEP_PLATFORM_CEILING, 'platform_ceiling_reached', ['platform_monthly_cost_usd' => $platformCost, 'ceiling_usd' => (float) $ceiling]);
         }
 
-        // 10. Politique de prix : un modele sans tarif connu n'est admis que sous le quota « inconnu » (deja verifie) — on le dit.
+        // 11. Politique de prix : un modele sans tarif connu n'est admis que sous le quota « inconnu » (deja verifie) — on le dit.
         $pricingKnown = AiPricingCatalog::hasRate($resolved->provider, $resolved->model);
 
-        // 11. Borne d'entree — l'autorite du Shell (SW-4), cote serveur.
+        // 12. Borne d'entree — l'autorite du Shell (SW-4), cote serveur.
         $length = mb_strlen(trim($candidateMessage));
         if ($length === 0 || $length > GuestMessage::maxUserBodyLength()) {
             return GuestShellClearance::refuse(GuestShellClearance::STEP_INPUT_BOUND, 'input_out_of_bounds', ['length' => $length, 'max' => GuestMessage::maxUserBodyLength()]);
         }
 
-        // 12. Borne de sortie — UNE autorite (MASTER Q61), jamais fournie par le visiteur.
+        // 13. Borne de sortie — UNE autorite (MASTER Q61), jamais fournie par le visiteur.
         $maxOutput = config('ai.guest_shell.max_output_tokens');
         if (! is_int($maxOutput) || $maxOutput < 1) {
             return GuestShellClearance::refuse(GuestShellClearance::STEP_OUTPUT_BOUND, 'output_bound_unset');
         }
         $maxOutput = min($maxOutput, $definition->maxOutput);
 
-        // 13. Le ledger est pret : l'autorite economique existe et l'Organization est identifiee.
+        // 14. Le ledger est pret : l'autorite economique existe et l'Organization est identifiee.
         if (! app()->bound(AiProviderInvocationLedger::class) && ! class_exists(AiProviderInvocationLedger::class)) {
             return GuestShellClearance::refuse(GuestShellClearance::STEP_LEDGER, 'ledger_unavailable');
         }
@@ -159,7 +167,7 @@ final class GuestShellGate
         // Tout est vert : ce passage compte dans la rafale (il precede un appel).
         RateLimiter::hit($rateKey, 60);
 
-        return GuestShellClearance::allow($resolved, $maxOutput, $correlationId, [
+        return GuestShellClearance::allow($resolved, $prompt, $maxOutput, $correlationId, [
             'pricing_known' => $pricingKnown,
             'known_monthly_cost_usd' => $verdict->knownMonthlyCostUsd,
             'visitor_monthly_used' => $used,

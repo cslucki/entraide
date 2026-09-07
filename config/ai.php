@@ -499,6 +499,9 @@ return [
         // toutes conversations, par Organization, par mois) et rafale par minute. Absents = fail-closed.
         'visitor_monthly_max_messages' => (int) env('AI_GUEST_SHELL_VISITOR_MONTHLY_MAX_MESSAGES', 30),
         'rate_limit_per_minute' => (int) env('AI_GUEST_SHELL_RATE_LIMIT_PER_MINUTE', 6),
+        // TASK-1437 — SW-7 : temperature de l'accueil et fenetre d'historique (messages de CETTE conversation) montree au modele.
+        'temperature' => (float) env('AI_GUEST_SHELL_TEMPERATURE', 0.4),
+        'history_messages' => (int) env('AI_GUEST_SHELL_HISTORY_MESSAGES', 10),
         'platform_monthly_ceiling_usd' => env('AI_GUEST_SHELL_PLATFORM_CEILING_USD') === null || env('AI_GUEST_SHELL_PLATFORM_CEILING_USD') === '' ? null : (float) env('AI_GUEST_SHELL_PLATFORM_CEILING_USD'),
     ],
 ];
