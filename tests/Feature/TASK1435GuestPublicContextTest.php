@@ -83,7 +83,9 @@ class TASK1435GuestPublicContextTest extends TestCase
             CapabilityRegistry::SOURCE_ORGANIZATION_CONSTITUTION_PUBLIC,
         ], $definition->allowedSources);
         $this->assertSame('guest_shell_welcome', $definition->promptKey);
-        $this->assertGreaterThan(0, $definition->maxOutput);
+        // MASTER Q61 : une seule autorite de sortie, lue par la capability, imposee par SW-6.
+        $this->assertSame(650, (int) config('ai.guest_shell.max_output_tokens'));
+        $this->assertSame((int) config('ai.guest_shell.max_output_tokens'), $definition->maxOutput);
 
         foreach ([CapabilityRegistry::SOURCE_LOOP_MESSAGES, CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL, CapabilityRegistry::SOURCE_MEMBER_PROFILE, CapabilityRegistry::SOURCE_USER_LOOPS] as $forbidden) {
             $this->assertFalse($definition->allowsSource($forbidden), $forbidden);
@@ -210,5 +212,45 @@ class TASK1435GuestPublicContextTest extends TestCase
         $tiny = $this->builderWithBudget(5)->build($this->main);
         $this->assertTrue($tiny->isEmpty());
         $this->assertSame('', $tiny->text());
+    }
+
+    /**
+     * Le budget ARRETE la composition, il ne la trie pas.
+     *
+     * Garde ajoutee par l'audit externe de nuit (07/09 22h36) apres sabotage : remplacer le `break` de `fit()` par un
+     * `continue` laissait les six autres tests VERTS, faute d'un troisieme bloc
+     * plus court que celui qui deborde. Un `continue` ferait entrer la
+     * Constitution de l'Organization APRES avoir saute celle de la plateforme :
+     * le visiteur lirait des principes de tenant sans le socle qui les domine,
+     * et l'ordre cesserait d'etre deterministe. Ce test est le seul endroit ou
+     * les deux comportements divergent.
+     */
+    public function test_a_block_that_does_not_fit_stops_the_composition_instead_of_skipping_to_the_next(): void
+    {
+        $author = User::factory()->create(['organization_id' => $this->main->id]);
+        OrganizationAiConstitution::activate($this->main, 'Court.', $author);
+        $this->main->update(['ai_constitution_public' => true]);
+        $organization = $this->main->fresh();
+
+        $full = $this->builder->build($organization);
+        $this->assertSame([
+            CapabilityRegistry::SOURCE_ORGANIZATION_PUBLIC_IDENTITY,
+            CapabilityRegistry::SOURCE_PLATFORM_CONSTITUTION,
+            CapabilityRegistry::SOURCE_ORGANIZATION_CONSTITUTION_PUBLIC,
+        ], $full->sources, 'les trois blocs sont composes dans cet ordre quand le budget suffit');
+
+        $identity = mb_strlen($full->blocks[0]['text']);
+        $platform = mb_strlen($full->blocks[1]['text']);
+        $organizationConstitution = mb_strlen($full->blocks[2]['text']);
+        $this->assertGreaterThan($organizationConstitution, $platform, 'le discriminant exige un 3e bloc PLUS COURT que celui qui deborde');
+
+        // Budget calibre : l'identite et la Constitution de l'Organization y
+        // tiendraient ensemble — mais la plateforme, prise avant, n'y tient pas.
+        $context = $this->builderWithBudget($identity + $organizationConstitution)->build($organization);
+
+        $this->assertCount(1, $context->blocks, 'la composition S ARRETE au bloc qui deborde ; elle ne saute pas au suivant');
+        $this->assertSame([CapabilityRegistry::SOURCE_ORGANIZATION_PUBLIC_IDENTITY], $context->sources);
+        $this->assertFalse($context->hasSource(CapabilityRegistry::SOURCE_ORGANIZATION_CONSTITUTION_PUBLIC));
+        $this->assertStringNotContainsString('Court.', $context->text());
     }
 }

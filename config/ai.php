@@ -493,6 +493,8 @@ return [
         ],
         // TASK-1435 — SW-5 : budget de contexte PUBLIC ajoute au prompt d'accueil.
         'max_context_chars' => (int) env('AI_GUEST_SHELL_MAX_CONTEXT_CHARS', 6000),
+        // TASK-1435 (MASTER Q61) — borne de SORTIE unique : lue par la capability, imposee par SW-6 ; le visiteur ne la controle jamais.
+        'max_output_tokens' => (int) env('AI_GUEST_SHELL_MAX_OUTPUT_TOKENS', 650),
         'platform_monthly_ceiling_usd' => env('AI_GUEST_SHELL_PLATFORM_CEILING_USD') === null || env('AI_GUEST_SHELL_PLATFORM_CEILING_USD') === '' ? null : (float) env('AI_GUEST_SHELL_PLATFORM_CEILING_USD'),
     ],
 ];

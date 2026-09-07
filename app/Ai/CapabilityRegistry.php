@@ -363,8 +363,9 @@ final class CapabilityRegistry
                 self::SOURCE_PLATFORM_CONSTITUTION,
                 self::SOURCE_ORGANIZATION_CONSTITUTION_PUBLIC,
             ],
-            // Borne de definition ; la borne d'execution (max_tokens) est posee par la garde SW-6.
-            maxOutput: 650,
+            // MASTER Q61 : UNE seule autorite de sortie — `ai.guest_shell.max_output_tokens` —
+            // lue ici (definition) et imposee cote serveur par la garde SW-6 (execution).
+            maxOutput: self::guestShellMaxOutput(),
             promptKey: 'guest_shell_welcome',
             contextCharBudget: self::guestShellContextBudget(),
         );
@@ -485,6 +486,18 @@ final class CapabilityRegistry
         }
 
         return (int) config('ai.guest_shell.max_context_chars', $default);
+    }
+
+    /** TASK-1435 / MASTER Q61 : la borne de sortie du Shell Welcome, jamais dupliquee, jamais fournie par le visiteur. */
+    private static function guestShellMaxOutput(): int
+    {
+        $default = 650;
+
+        if (! function_exists('app') || ! app()->bound('config')) {
+            return $default;
+        }
+
+        return (int) config('ai.guest_shell.max_output_tokens', $default);
     }
 
     public function has(string $capability): bool
