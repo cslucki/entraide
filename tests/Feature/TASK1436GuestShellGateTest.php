@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AdminAiPrompt;
 use App\Models\AiProviderInvocation;
 use App\Models\GuestConversation;
 use App\Models\GuestVisitor;
@@ -10,6 +11,7 @@ use App\Models\OrganizationAiSetting;
 use App\Services\GuestShell\GuestConversationService;
 use App\Services\GuestShell\GuestShellGate;
 use App\Services\GuestShell\GuestShellPolicyService;
+use App\Services\GuestShell\GuestShellPromptResolver;
 use App\Services\GuestShell\GuestVisitorResolver;
 use App\Support\GuestShell\GuestShellClearance;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -156,6 +158,14 @@ class TASK1436GuestShellGateTest extends TestCase
         $this->assertRefused($this->clear(), GuestShellClearance::STEP_CREDENTIAL, 'no_credential');
         $this->setting->delete();
         $this->assertRefused($this->clear(), GuestShellClearance::STEP_CREDENTIAL, 'no_credential');
+
+        // Shell Welcome V3 §13 (4) : sans prompt ACTIF en base, rien ne part — apres le credential, avant la conversation.
+        $this->setting = OrganizationAiSetting::create(['organization_id' => $this->org->id, 'provider' => 'openrouter', 'model' => 'openai/gpt-4o-mini', 'api_key' => 'sk-test', 'is_enabled' => true]);
+        AdminAiPrompt::byScenario(GuestShellPromptResolver::SCENARIO)->update(['is_active' => false]);
+        $this->assertRefused($this->clear(), GuestShellClearance::STEP_PROMPT, 'no_active_prompt');
+        AdminAiPrompt::byScenario(GuestShellPromptResolver::SCENARIO)->update(['is_active' => true]);
+        $this->assertTrue($this->clear()->allowed);
+        $this->assertSame('guest_shell_welcome', $this->clear()->prompt?->scenarioId);
 
         // L'ordre : politique fermee ET credential absent -> c'est la politique qui parle.
         app(GuestShellPolicyService::class)->update($this->org, ['enabled' => false]);
