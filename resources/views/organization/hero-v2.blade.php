@@ -254,5 +254,6 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
   document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
 })();
 </script>
+@include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization])
 </body>
 </html>

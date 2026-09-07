@@ -7,12 +7,14 @@ use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
+use App\Services\GuestShell\GuestShellSurface;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class OrganizationLandingController extends Controller
 {
-    public function __invoke(string $organization): View|RedirectResponse
+    public function __invoke(Request $request, string $organization): View|RedirectResponse
     {
         $organization = Organization::findBySlug($organization);
         abort_if(! $organization || ! $organization->is_active, 404);
@@ -20,6 +22,9 @@ class OrganizationLandingController extends Controller
         if (! $organization->is_public && ! auth()->check()) {
             return redirect()->route('organization.login', ['organization' => $organization->slug]);
         }
+
+        // TASK-1442 — SW-8a : lecture PURE du Shell Welcome (aucun cookie, aucune identite, aucun appel) ; l'overlay se monte selon la decision.
+        $guestShell = $organization->is_public ? app(GuestShellSurface::class)->read($organization, $request) : null;
 
         $stats = [
             'users' => $organization->users()->activeAccount()->count(),
@@ -47,7 +52,7 @@ class OrganizationLandingController extends Controller
                 ->map(fn ($user) => $user->avatar_url)
                 ->values();
 
-            return view('organization.hero-v2', compact('organization', 'heroAvatars'));
+            return view('organization.hero-v2', compact('organization', 'heroAvatars', 'guestShell'));
         }
 
         if ($organization->homepage_template === 'artscilab_hero') {
@@ -60,12 +65,12 @@ class OrganizationLandingController extends Controller
                 ->map(fn ($user) => $user->avatar_url)
                 ->values();
 
-            return view('organization.artscilab-hero', compact('organization', 'heroAvatars'));
+            return view('organization.artscilab-hero', compact('organization', 'heroAvatars', 'guestShell'));
         }
 
         $defaultOrganization = $organization;
 
-        return view('organization.home', compact('organization', 'stats', 'featuredServices', 'categories', 'defaultOrganization'));
+        return view('organization.home', compact('organization', 'stats', 'featuredServices', 'categories', 'defaultOrganization', 'guestShell'));
     }
 
     public function about(string $organization): View

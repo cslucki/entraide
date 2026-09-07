@@ -70,6 +70,7 @@ use App\Http\Controllers\DossierSemanticSearchController;
 use App\Http\Controllers\DossierSeriesController;
 use App\Http\Controllers\ExplorerController;
 use App\Http\Controllers\FavoriteController;
+use App\Http\Controllers\GuestShellController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LikeController;
@@ -756,6 +757,9 @@ Route::prefix('/org/{organization}')
     ->name('organization.')
     ->group(function () {
         Route::get('/', [OrganizationLandingController::class, '__invoke'])->name('home');
+        // TASK-1442 — SW-8a : la surface publique du Shell Welcome (lecture pure + premier geste). Distincte du Shell membre.
+        Route::get('/shell', [GuestShellController::class, 'show'])->middleware('throttle:60,1')->name('shell.show');
+        Route::post('/shell/message', [GuestShellController::class, 'message'])->middleware('throttle:30,1')->name('shell.message');
         Route::get('/about', [OrganizationLandingController::class, 'about'])->name('about');
         // TASK-1349 — publique UNIQUEMENT sur opt-in explicite. Sans opt-in,
         // ou sans version active, la route rend 404 : publiquement, la
