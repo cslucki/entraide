@@ -730,6 +730,7 @@ return [
     'guest_shell_display_reason_policy_not_ready' => 'politique pas prête (état non actif)',
     'guest_shell_display_reason_no_active_prompt' => 'aucun prompt d\'accueil actif',
     'guest_shell_display_reason_page_not_eligible' => 'page non éligible',
+    'guest_shell_display_reason_authenticated' => 'utilisateur connecté (expérience membre)',
     'guest_shell_display_reason_overlay' => 'overlay',
     'guest_shell_display_reason_shell_first' => 'shell first',
     'guest_shell_provider' => 'Provider / modèle réels',
