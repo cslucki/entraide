@@ -109,9 +109,10 @@ final class GuestShellPolicyService
 
     /**
      * Le mois courant, lu dans le ledger provider : nombre d'appels reussis
-     * (= messages repondus), cout connu cumule, nombre d'appels au cout inconnu.
+     * (= messages repondus), nombre d'appels et d'echecs, cout connu cumule
+     * (quel que soit le statut), nombre d'appels reussis au cout inconnu.
      *
-     * @return array{messages: int, cost_usd: float, cost_unknown: int}
+     * @return array{messages: int, invocations: int, failed: int, cost_usd: float, cost_unknown: int}
      */
     public function monthlyUsage(Organization $organization, CarbonInterface $now): array
     {
@@ -123,8 +124,12 @@ final class GuestShellPolicyService
 
         return [
             'messages' => (int) (clone $base)->where('status', AiProviderInvocation::STATUS_SUCCESS)->count(),
-            // Comme AiEconomicGuard : seuls les appels REUSSIS au cout connu pesent sur le budget.
-            'cost_usd' => (float) (clone $base)->where('status', AiProviderInvocation::STATUS_SUCCESS)->where('cost_status', AiProviderInvocation::COST_KNOWN)->sum('provider_cost'),
+            'invocations' => (int) (clone $base)->count(),
+            'failed' => (int) (clone $base)->where('status', AiProviderInvocation::STATUS_FAILED)->count(),
+            // TASK-1438 (Shell Welcome V3 §14, MASTER Q64) — la MEME doctrine que AiEconomicGuard :
+            // un cout CONNU est compte quel que soit le statut (un appel qui a echoue apres avoir
+            // consomme des tokens a coute) ; le quota « inconnu » ne compte que les succes, comme la garde.
+            'cost_usd' => (float) (clone $base)->where('cost_status', AiProviderInvocation::COST_KNOWN)->sum('provider_cost'),
             'cost_unknown' => (int) (clone $base)->where('status', AiProviderInvocation::STATUS_SUCCESS)->where('cost_status', '!=', AiProviderInvocation::COST_KNOWN)->count(),
         ];
     }
@@ -145,13 +150,16 @@ final class GuestShellPolicyService
         return $value === null || $value === '' ? null : (float) $value;
     }
 
-    /** Cout connu cumule de TOUTES les Organizations sur le process guest_shell ce mois-ci. */
+    /**
+     * Cout connu cumule de TOUTES les Organizations sur le process guest_shell
+     * ce mois-ci — quel que soit le statut (TASK-1438, V3 §14) : un appel qui a
+     * echoue apres avoir consomme a coute a la plateforme aussi.
+     */
     public function platformMonthlyCostUsd(CarbonInterface $now): float
     {
         return (float) AiProviderInvocation::query()
             ->where('process', self::PROCESS)
             ->where('operation', AiProviderInvocation::OPERATION_GENERATION)
-            ->where('status', AiProviderInvocation::STATUS_SUCCESS)
             ->where('cost_status', AiProviderInvocation::COST_KNOWN)
             ->whereBetween('created_at', [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()])
             ->sum('provider_cost');

@@ -95,6 +95,26 @@
             + $economics['embedding_ingestion']['invocation_count']
             + $economics['embedding_undeclared']['invocation_count'];
     @endphp
+    {{-- TASK-1438 — SW-10 : le Shell Welcome de CETTE Organization (Shell Welcome V3 §17/§18). Jamais un contenu de conversation. --}}
+    @php $guestState = strtolower($guestShell['state']->status); @endphp
+    <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6" data-consumption-guest-block data-consumption-guest-state="{{ $guestState }}">
+        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-1">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.consumption_guest_title') }}</h2>
+            <span class="px-2 py-0.5 rounded text-xs font-semibold {{ match($guestState) { 'active' => 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300', 'disabled' => 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300', default => 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300' } }}">{{ __('admin.guest_shell_state_'.$guestState) }}</span>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ __('ai.consumption_guest_hint') }}@if($guestState !== 'active' && $guestShell['state']->reasons !== []) — {{ implode(', ', array_map(fn ($r) => __('admin.guest_shell_reason_'.$r), $guestShell['state']->reasons)) }}@endif</p>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            @foreach(['visitor_messages', 'visitors', 'conversations', 'invocations', 'success', 'failed', 'known_cost_usd', 'cost_unknown'] as $key)
+            <div class="rounded-lg border border-gray-100 dark:border-gray-700 px-4 py-3" data-consumption-guest-metric="{{ $key }}" data-consumption-guest-value="{{ $guestShell['usage'][$key] }}">
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.guest_shell_metric_'.$key) }}</div>
+                <div class="text-xl font-semibold tabular-nums {{ $key === 'failed' && $guestShell['usage'][$key] > 0 ? 'text-red-600 dark:text-red-400' : ($key === 'cost_unknown' && $guestShell['usage'][$key] > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-gray-100') }}">{{ $key === 'known_cost_usd' ? $cost($guestShell['usage'][$key]) : $guestShell['usage'][$key] }}</div>
+            </div>
+            @endforeach
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-3">{{ __('admin.guest_shell_units_hint') }}</p>
+    </section>
+
     <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6" data-consumption-budget-block>
         <div class="flex flex-wrap items-baseline justify-between gap-2 mb-4">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.consumption_budget_title') }}</h2>
