@@ -66,11 +66,11 @@ class TASK1445GuestClaimTest extends TestCase
         return $this->withCredentials()->withUnencryptedCookie(GuestVisitorResolver::COOKIE, $this->encryptedCookie($raw));
     }
 
-    /** Un visiteur qui a parle (avec attribution), tel que SW-8a le produit. */
+    /** Un visiteur qui a parle (avec attribution), tel que SW-8a le produit — depuis TASK-1447 l'attribution voyage dans le payload borne du premier geste (allowlist UTM), plus dans la query du POST. */
     private function talkingVisitor(Organization $organization, string $raw): GuestVisitor
     {
         GuestShellAgent::fake([new TextResponse('Bienvenue.', new Usage(10, 5), new Meta('openrouter', 'openai/gpt-4o-mini'))]);
-        $this->asBrowser($raw)->postJson(route('organization.shell.message', ['organization' => $organization->slug]).'?utm_source=newsletter&utm_campaign=sept', ['message' => 'Bonjour, je cherche un freelance'])->assertOk()->assertJsonPath('turn', 'answered');
+        $this->asBrowser($raw)->postJson(route('organization.shell.message', ['organization' => $organization->slug]), ['message' => 'Bonjour, je cherche un freelance', 'attribution' => ['utm_source' => 'newsletter', 'utm_campaign' => 'sept']])->assertOk()->assertJsonPath('turn', 'answered');
 
         return GuestVisitor::forOrganization($organization)->where('visitor_key_hash', GuestVisitorResolver::hash($raw))->firstOrFail();
     }
