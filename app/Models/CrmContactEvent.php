@@ -50,6 +50,9 @@ class CrmContactEvent extends Model
 
     public const TYPE_EMAIL_FAILED = 'email_failed';
 
+    /** TASK-1422 — contactabilite changee explicitement : `payload` = from_contactable, to_contactable, reason, note. */
+    public const TYPE_CONTACT_POLICY_CHANGED = 'contact_policy_changed';
+
     /** Faits systeme : sans auteur humain, une seule fois par Contact. */
     public const SYSTEM_TYPES = [self::TYPE_ACCOUNT_CREATED, self::TYPE_EMAIL_VERIFIED];
 

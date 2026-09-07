@@ -80,6 +80,31 @@
                 </form>
             </div>
 
+            {{-- TASK-1422 — CRM-13 : contactabilite, decidee explicitement (raison, auteur, trace). --}}
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5" data-crm-policy x-data="{ open: {{ $errors->hasAny(['reason', 'note', 'action']) ? 'true' : 'false' }} }">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ __('crm.policy.title') }}</h2>
+                @if($contact->isContactable())
+                <p class="text-sm text-gray-700 dark:text-gray-300" data-crm-policy-state="contactable">{{ __('crm.policy.state_contactable') }}</p>
+                <button type="button" @click="open = !open" data-crm-policy-toggle class="mt-3 px-3 py-1.5 text-xs rounded border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30">{{ __('crm.policy.block') }}</button>
+                @else
+                <p class="text-sm text-red-700 dark:text-red-300" data-crm-policy-state="blocked">{{ __('crm.policy.state_blocked', ['date' => $contact->do_not_contact_at->format('d/m/Y')]) }}</p>
+                <button type="button" @click="open = !open" data-crm-policy-toggle class="mt-3 px-3 py-1.5 text-xs rounded border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30">{{ __('crm.policy.allow') }}</button>
+                @endif
+                <form method="POST" action="{{ route('organization.admin.crm.contacts.policy', ['organization' => $organization->slug, 'contact' => $contact->id]) }}" x-show="open" x-cloak data-crm-policy-form class="mt-3 grid grid-cols-1 gap-2">
+                    @csrf
+                    <input type="hidden" name="action" value="{{ $contact->isContactable() ? 'block' : 'allow' }}">
+                    <select name="reason" required class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                        @foreach($policyReasons as $reason)
+                        <option value="{{ $reason }}" {{ old('reason') === $reason ? 'selected' : '' }}>{{ __('crm.policy.reason.'.$reason) }}</option>
+                        @endforeach
+                    </select>
+                    <input type="text" name="note" maxlength="500" value="{{ old('note') }}" placeholder="{{ __('crm.policy.note_placeholder') }}" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                    @error('reason')<p class="text-xs text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('crm.policy.hint') }}</p>
+                    <div class="flex justify-end"><button type="submit" class="px-4 py-2 rounded-lg text-sm text-white {{ $contact->isContactable() ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700' }}">{{ $contact->isContactable() ? __('crm.policy.confirm_block') : __('crm.policy.confirm_allow') }}</button></div>
+                </form>
+            </div>
+
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5" x-data="{ open: {{ $errors->hasAny(['first_name','last_name','email','phone','company']) ? 'true' : 'false' }} }">
                 <button type="button" @click="open = !open" data-crm-edit-toggle class="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center justify-between w-full">
                     <span>{{ __('crm.edit.title') }}</span><span class="text-gray-400" x-text="open ? '−' : '+'"></span>
@@ -148,10 +173,10 @@
                 <ol class="space-y-3">
                     @forelse($events as $event)
                     <li class="flex gap-3" data-crm-event="{{ $event->type }}">
-                        <div class="mt-1 w-2 h-2 rounded-full flex-shrink-0 {{ match($event->type) { 'note' => 'bg-indigo-500', 'status_changed' => 'bg-amber-500', 'contact_updated' => 'bg-gray-400', 'next_action_planned' => 'bg-sky-500', 'next_action_done' => 'bg-emerald-600', 'email_sent' => 'bg-violet-500', 'email_failed' => 'bg-red-500', default => 'bg-green-500' } }}"></div>
+                        <div class="mt-1 w-2 h-2 rounded-full flex-shrink-0 {{ match($event->type) { 'note' => 'bg-indigo-500', 'status_changed' => 'bg-amber-500', 'contact_updated' => 'bg-gray-400', 'next_action_planned' => 'bg-sky-500', 'next_action_done' => 'bg-emerald-600', 'email_sent' => 'bg-violet-500', 'email_failed' => 'bg-red-500', 'contact_policy_changed' => 'bg-orange-500', default => 'bg-green-500' } }}"></div>
                         <div class="flex-1 min-w-0">
                             <div class="flex flex-wrap items-baseline gap-x-2 text-xs text-gray-500 dark:text-gray-400">
-                                <span class="font-semibold text-gray-700 dark:text-gray-300">{{ in_array($event->type, ['next_action_planned', 'next_action_done', 'email_sent', 'email_failed'], true) ? __('crm.event_'.$event->type) : __('crm.event.'.$event->type) }}</span>
+                                <span class="font-semibold text-gray-700 dark:text-gray-300">{{ in_array($event->type, ['next_action_planned', 'next_action_done', 'email_sent', 'email_failed', 'contact_policy_changed'], true) ? __('crm.event_'.$event->type) : __('crm.event.'.$event->type) }}</span>
                                 @if($event->type === 'note' && ($event->payload['channel'] ?? null))<span class="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">{{ __('crm.channel.'.$event->payload['channel']) }}</span>@endif
                                 <span>{{ $event->occurred_at->format('d/m/Y H:i') }}</span>
                                 @if($event->author)<span>· {{ $event->author->fullName }}</span>@endif
@@ -178,6 +203,11 @@
                                         <span class="font-medium">{{ $event->payload['subject'] ?? '' }}</span>
                                         <span class="text-xs text-gray-500 dark:text-gray-400">&rarr; {{ $event->payload['to'] ?? '' }} · {{ $event->payload['template_name'] ?? '' }}</span>
                                         @if(!empty($event->payload['error']))<div class="text-xs text-red-600 dark:text-red-400">{{ $event->payload['error'] }}</div>@endif
+                                    @break
+                                    @case('contact_policy_changed')
+                                        <strong>{{ __('crm.policy_state.'.(($event->payload['to_contactable'] ?? true) ? 'contactable' : 'do_not_contact')) }}</strong>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">· {{ __('crm.policy.reason.'.($event->payload['reason'] ?? 'other')) }}</span>
+                                        @if(!empty($event->payload['note']))<div class="text-xs text-gray-600 dark:text-gray-300">{{ $event->payload['note'] }}</div>@endif
                                     @break
                                     @default —
                                 @endswitch
