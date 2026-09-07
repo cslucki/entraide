@@ -93,6 +93,12 @@ final class AiEconomicGuard
         'member_profile.agent_visitor_chat' => '2026-08-20T00:00:00+00:00',
         'member_profile.agent_setup' => '2026-08-25T00:00:00+00:00',
         'service_offer.master' => '2026-08-25T00:00:00+00:00',
+        // TASK-1436 (SW-6) : le Shell Welcome nait SOUS l'autorite du ledger — le
+        // Guest n'ecrit jamais `ai_interactions`, `ai_provider_invocations` est
+        // sa seule comptabilite (cadre Cyril 07/09 §4). Sans cette ligne, le
+        // process serait lu dans le registre legacy (vide) et ses budgets ne
+        // s'appliqueraient jamais.
+        'guest_shell' => '2026-09-07T00:00:00+00:00',
     ];
 
     /**

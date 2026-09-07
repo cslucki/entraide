@@ -32,8 +32,8 @@ final class GuestShellPromptResolver
      * Le prompt actif tel qu'il est en base, ou null (fail-closed). Aucun
      * templating maison (MASTER Q46 refocus 2) : le registre n'en a pas, le
      * runtime Guest (SW-5/SW-8) ajoutera identite, locale et contexte PUBLIC
-     * de l'Organization A LA SUITE du texte, comme le font les autres
-     * responders (MemberProfileAgentResponder).
+     * de l'Organization A LA SUITE du texte, comme le font les responders
+     * du Shell membre.
      */
     public function resolve(): ?GuestShellPrompt
     {

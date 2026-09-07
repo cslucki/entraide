@@ -103,8 +103,9 @@ class TASK1286LedgerConvergenceTest extends TestCase
             AiEconomicGuard::ledgerAuthorityProcesses(),
         );
 
-        // 12 (T1286) + les 2 de la surface courte (T1291) = 14.
-        $this->assertCount(14, AiEconomicGuard::ledgerAuthorityProcesses());
+        // 12 (T1286) + les 2 de la surface courte (T1291) + guest_shell (T1436, SW-6 :
+        // le Shell Welcome nait sous l'autorite du ledger, il n'ecrit jamais ai_interactions) = 15.
+        $this->assertCount(15, AiEconomicGuard::ledgerAuthorityProcesses());
     }
 
     // =====================================================================
