@@ -49,6 +49,12 @@ class TASK1432GuestShellPromptTest extends TestCase
         // Le prompt interdit explicitement le prive et l'invention.
         $this->assertMatchesRegularExpression('/priv/i', $seeded->first()->prompt_text);
         $this->assertMatchesRegularExpression('/invente/i', $seeded->first()->prompt_text);
+
+        // Idempotence MESUREE : rejouer la migration ne cree ni doublon ni erreur.
+        $migration = require base_path('database/migrations/2026_09_07_231000_seed_guest_shell_welcome_prompt.php');
+        $migration->up();
+        $this->assertSame(1, AdminAiPrompt::byScenario(GuestShellPromptResolver::SCENARIO)->count());
+        $this->assertSame($seeded->first()->id, AdminAiPrompt::byScenario(GuestShellPromptResolver::SCENARIO)->first()->id);
     }
 
     public function test_the_resolver_returns_the_active_prompt_verbatim_with_its_provenance(): void
