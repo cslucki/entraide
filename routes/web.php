@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\AdminBlogTodoController;
 use App\Http\Controllers\Admin\AdminBugReportController;
 use App\Http\Controllers\Admin\AdminCategoryController;
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AdminCrmOverviewController;
 use App\Http\Controllers\Admin\AdminEmailController;
 use App\Http\Controllers\Admin\AdminEmailLogsController;
 use App\Http\Controllers\Admin\AdminEmailTemplatesController;
@@ -500,6 +501,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Organizations
     Route::get('/organizations', [AdminOrganizationController::class, 'index'])->name('organizations');
+    // TASK-1425 (CRM-15) : « Relations » cote plateforme, agregats par Organization, lecture seule.
+    Route::get('/relations', [AdminCrmOverviewController::class, 'index'])->name('crm.overview');
     Route::get('/organizations/create', [AdminOrganizationController::class, 'create'])->name('organizations.create');
     Route::post('/organizations', [AdminOrganizationController::class, 'store'])->name('organizations.store');
     Route::get('/organizations/{organization}/edit', [AdminOrganizationController::class, 'edit'])->name('organizations.edit');
