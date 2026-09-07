@@ -14,10 +14,14 @@ use App\Models\DossierFile;
 class DossierFileIndexingDispatcher
 {
     /**
-     * TASK-1268 : queue DEDIEE de la reindexation explicite (commande
-     * `dossiers:index-files`). Jamais `default` : sur la surface produit
-     * `main`, la queue `default` porte deja des jobs historiques que personne
-     * n'a decide d'executer ; un worker n'ecoute QUE cette queue-ci.
+     * TASK-1268 : queue DEDIEE de l'indexation des fichiers de Dossier.
+     * Jamais `default` : sur la surface produit `main`, la queue `default`
+     * porte deja des jobs historiques que personne n'a decide d'executer ;
+     * un worker n'ecoute QUE cette queue-ci.
+     *
+     * TASK-1407 : elle etait la queue de la seule reindexation EXPLICITE
+     * (commande `dossiers:index-files`). Elle est desormais celle de TOUTE
+     * indexation de fichier, l'auto-indexation de l'Observer comprise.
      */
     public const DEDICATED_QUEUE = 'dossier-files-indexing';
 
@@ -25,9 +29,20 @@ class DossierFileIndexingDispatcher
     {
         $pending = IndexDossierFileChunks::dispatch($organizationId, $dossierId, $fileId)->afterCommit();
 
-        if ($queue !== null && $queue !== '') {
-            $pending->onQueue($queue);
-        }
+        // TASK-1407 : `null` et `''` signifient « aucune queue explicite
+        // demandee », jamais « la queue `default` ». Sans cette ligne, les six
+        // chemins de DossierFileObserver (created, contenu modifie, les DEUX
+        // cotes d'un deplacement, deleted, restored) partaient sur `default`,
+        // en contradiction avec la doctrine ci-dessus : un worker dedie ne les
+        // aurait jamais vus.
+        //
+        // Le defaut est pose ICI, dans le corps, et NON comme valeur par
+        // defaut du parametre. `dispatchForFiles()` retransmet son propre
+        // `$queue` EXPLICITEMENT, y compris quand il vaut null — or une valeur
+        // par defaut de parametre ne s'applique qu'a un argument OMIS.
+        // `dispatchForFiles($files)` serait donc reste sur `default`, et la
+        // correction aurait eu un trou invisible a la lecture de la signature.
+        $pending->onQueue($queue !== null && $queue !== '' ? $queue : self::DEDICATED_QUEUE);
     }
 
     public function dispatchForFile(DossierFile $file, ?string $dossierId = null): void
