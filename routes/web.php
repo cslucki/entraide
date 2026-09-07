@@ -1057,6 +1057,9 @@ Route::prefix('/org/{organization}')
                 // pour un Contact d'ailleurs), jamais par un binding global.
                 Route::get('/relations', [OrgCrmController::class, 'contacts'])->name('crm.contacts');
                 Route::post('/relations', [OrgCrmController::class, 'storeContact'])->name('crm.contacts.store');
+                // TASK-1417 (CRM-5) : la fiche Contact et l'edition tracee de ses coordonnees.
+                Route::get('/relations/{contact}', [OrgCrmController::class, 'show'])->name('crm.contacts.show');
+                Route::put('/relations/{contact}', [OrgCrmController::class, 'updateContact'])->name('crm.contacts.update');
                 Route::post('/relations/{contact}/status', [OrgCrmController::class, 'changeStatus'])->name('crm.contacts.status');
                 Route::post('/relations/{contact}/notes', [OrgCrmController::class, 'storeNote'])->name('crm.contacts.notes.store');
                 Route::post('/users/{user}/follow', [OrgCrmController::class, 'followMember'])->name('crm.members.follow');

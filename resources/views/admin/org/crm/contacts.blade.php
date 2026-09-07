@@ -71,7 +71,8 @@
                 @forelse($contacts as $contact)
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 align-top" data-crm-contact="{{ $contact->id }}" x-data="{ note: false }">
                     <td class="px-4 py-3">
-                        <div class="font-medium text-gray-900 dark:text-gray-100">{{ $contact->fullName !== '' ? $contact->fullName : '—' }}</div>
+                        <a href="{{ route('organization.admin.crm.contacts.show', ['organization' => $organization->slug, 'contact' => $contact->id]) }}" data-crm-open="{{ $contact->id }}"
+                           class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline">{{ $contact->fullName !== '' ? $contact->fullName : '—' }}</a>
                         @if($contact->company)<div class="text-xs text-gray-500">{{ $contact->company }}</div>@endif
                         @if($contact->isLinkedToAccount())<span class="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300" data-crm-linked>{{ __('crm.linked_account') }}</span>@endif
                         @unless($contact->isContactable())<span class="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300" data-crm-do-not-contact>{{ __('crm.do_not_contact') }}</span>@endunless

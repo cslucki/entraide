@@ -71,4 +71,28 @@ return [
         'member_already_followed' => 'This member was already followed.',
         'follow_conflict' => 'Cannot add this member to follow-up: a contact with this email is already linked to another account.',
     ],
+    // TASK-1417 — CRM-5: the contact page.
+    'show' => [
+        'untitled' => 'Unnamed contact',
+        'created_at' => 'Created on',
+        'add_note' => 'Add a note',
+        'channel_hint' => 'A channel marks a real contact and updates "Last contact".',
+        'timeline' => 'History',
+        'timeline_order' => 'newest first',
+        'timeline_empty' => 'Nothing yet. The first note will write the first line.',
+    ],
+    'event' => [
+        'note' => 'Note',
+        'status_changed' => 'Status',
+        'account_created' => 'Account created',
+        'email_verified' => 'Email verified',
+        'contact_updated' => 'Details updated',
+    ],
+    'edit' => [
+        'title' => 'Edit details',
+        'hint' => 'Every change is recorded in the history.',
+    ],
+    'flash_contact_updated' => 'Details updated.',
+    'flash_contact_unchanged' => 'No change.',
+    'flash_update_conflict' => 'Another contact of your organization already has this email.',
 ];
