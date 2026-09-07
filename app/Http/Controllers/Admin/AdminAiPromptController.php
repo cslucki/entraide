@@ -161,6 +161,8 @@ class AdminAiPromptController extends Controller
             'profile_agent_master' => 'Agent de profil IA — Prompt master',
             'profile_agent_setup' => 'Agent de profil IA — Prompt setup',
             'profile_agent_visitor_chat' => 'Agent de profil IA — Chat visiteur',
+            // TASK-1432 (SW-2) : accueil public du Shell Welcome (plateforme seule en V1).
+            'guest_shell_welcome' => 'Shell Welcome — Accueil public (visiteur non connecté)',
             'service_offer_master_fr' => 'Service Offer Master — Prompt FR',
             'service_offer_master_en' => 'Service Offer Master — Prompt EN',
             'chatloop_ai_answer_fr' => 'ChatLoop IA — Répondre — FR',
