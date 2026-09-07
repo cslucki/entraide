@@ -117,8 +117,14 @@ class EmailerService
      * compte). Le corps envoye est conserve (`body_html` + `body_hash`,
      * colonnes T1383) pour rester relisible depuis la fiche.
      */
-    public function sendFromTemplateToContact(EmailTemplate $template, CrmContact $contact, ?User $sender = null): EmailLog
+    /**
+     * TASK-1431 (MASTER Q53) : `$sender` est l'ACTEUR (audit : sender_id, timeline) ;
+     * `$replyTo` est l'adresse a laquelle le prospect repond — par defaut l'acteur,
+     * mais jamais un admin plateforme au nom d'un tenant dont il n'est pas membre.
+     */
+    public function sendFromTemplateToContact(EmailTemplate $template, CrmContact $contact, ?User $sender = null, ?User $replyTo = null): EmailLog
     {
+        $replyTo ??= $sender;
         $variables = $this->availableVariablesForContact($contact);
         $extra = ['company'];
         $html = $this->interpolate($template->content_html, $variables, $extra);
@@ -127,12 +133,12 @@ class EmailerService
         $name = $contact->fullName !== '' ? $contact->fullName : $to;
 
         try {
-            Mail::html($html, function ($message) use ($to, $name, $subject, $sender) {
+            Mail::html($html, function ($message) use ($to, $name, $subject, $replyTo) {
                 $message->to($to, $name)
                     ->subject($subject);
 
-                if ($sender) {
-                    $message->replyTo($sender->email, $sender->fullName);
+                if ($replyTo) {
+                    $message->replyTo($replyTo->email, $replyTo->fullName);
                 }
             });
 
@@ -157,6 +163,7 @@ class EmailerService
             'data' => [
                 'source' => 'crm',
                 'sender_id' => $sender?->id,
+                'reply_to_id' => $replyTo?->id,
                 'template_slug' => $template->slug,
             ],
         ]);

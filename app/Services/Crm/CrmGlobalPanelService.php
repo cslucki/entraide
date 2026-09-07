@@ -42,12 +42,17 @@ final class CrmGlobalPanelService
     }
 
     /**
-     * @param  array{search?: string, organization?: string, status?: string, due?: string, idle?: bool, contactable?: string}  $filters
+     * @param  array{search?: string, organization?: string, status?: string, due?: string, idle?: bool, contactable?: string, state?: string}  $filters
      */
     public function contacts(array $filters, ?CarbonInterface $now = null): LengthAwarePaginator
     {
         $now = $now ?? now();
         $query = CrmContact::query()->with(['organization:id,name,slug', 'status']);
+
+        // TASK-1431 — les Contacts supprimes (SoftDelete plateforme) ne se voient que sur demande.
+        if (($filters['state'] ?? '') === 'trashed') {
+            $query->onlyTrashed();
+        }
 
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {

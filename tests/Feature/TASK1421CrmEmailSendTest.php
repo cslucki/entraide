@@ -268,13 +268,6 @@ class TASK1421CrmEmailSendTest extends TestCase
             $this->assertSame('sender_organization', $e->getMessage());
         }
 
-        // Un admin plateforme d'une AUTRE Organization voit la preview mais ne
-        // signe pas l'email du tenant (MASTER Q29).
-        $superAdmin = User::factory()->create(['organization_id' => $this->orgB->id, 'is_admin' => true]);
-        $this->actingAs($superAdmin)->get($this->preview($this->contactA, $this->templateA))->assertOk();
-        $token = session(CrmEmailSendService::TOKEN_SESSION_PREFIX.$this->orgA->id.':'.$this->contactA->id.':'.$this->templateA->id)['token'];
-        $this->actingAs($superAdmin)->post($this->send($this->contactA, $this->templateA), ['token' => $token])
-            ->assertSessionHas('error', __('crm.email.flash_blocked', ['reason' => __('crm.email.reason.sender_organization')]));
         try {
             $service->send($this->contactA, $templateB, $this->adminA);
             $this->fail('modele d une autre Organization refuse');
@@ -284,6 +277,22 @@ class TASK1421CrmEmailSendTest extends TestCase
 
         $this->assertSame(0, $this->capturedMailCount());
         $this->assertSame(0, EmailLog::count());
+
+        // TASK-1431 (MASTER Q53, supersede Q29) : un admin PLATEFORME d'une autre
+        // Organization peut envoyer pour le tenant, mais ne le signe pas — le
+        // Reply-To est l'admin de l'Organization du Contact ; l'acteur reste trace.
+        $superAdmin = User::factory()->create(['organization_id' => $this->orgB->id, 'is_admin' => true]);
+        $this->actingAs($superAdmin)->get($this->preview($this->contactA, $this->templateA))->assertOk();
+        $token = session(CrmEmailSendService::TOKEN_SESSION_PREFIX.$this->orgA->id.':'.$this->contactA->id.':'.$this->templateA->id)['token'];
+        $response = $this->actingAs($superAdmin)->post($this->send($this->contactA, $this->templateA), ['token' => $token]);
+        $this->assertNull(session('error'), (string) session('error'));
+        $response->assertSessionHas('success', __('crm.email.flash_sent', ['to' => $this->contactA->email]));
+        $this->assertSame(1, $this->capturedMailCount());
+        $replyTo = array_map(fn ($a) => $a->getAddress(), $this->capturedMailHtml[0]['message']->getSymfonyMessage()->getReplyTo());
+        $this->assertSame([$this->adminA->email], $replyTo);
+        $log = EmailLog::firstOrFail();
+        $this->assertSame($superAdmin->id, $log->data['sender_id']);
+        $this->assertSame($this->adminA->id, $log->data['reply_to_id']);
     }
 
     // ── 4. Un echec de transport est une preuve, pas une interaction ────────

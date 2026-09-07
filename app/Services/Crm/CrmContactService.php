@@ -6,6 +6,7 @@ use App\Models\CrmContact;
 use App\Models\CrmContactEvent;
 use App\Models\Organization;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use LogicException;
 
 /**
@@ -199,6 +200,41 @@ class CrmContactService
         $this->timeline->recordOnce($linked, CrmContactEvent::TYPE_MEMBER_LINKED, ['user_id' => $member->id], $actor);
 
         return $linked;
+    }
+
+    /**
+     * TASK-1431 — suppression PLATEFORME (SoftDelete) : reservee au SuperAdmin
+     * en V1 (MASTER Q50), tracee dans la timeline avec son auteur AVANT la
+     * suppression, jamais de hard delete. Un Contact supprime sort des listes
+     * et ne recoit plus aucune mutation tant qu'il n'est pas restaure.
+     */
+    public function delete(CrmContact $contact, User $actor): void
+    {
+        $this->guardPlatformActor($actor);
+
+        DB::transaction(function () use ($contact, $actor) {
+            $this->timeline->recordContactDeleted($contact, $actor);
+            $contact->delete();
+        });
+    }
+
+    public function restore(CrmContact $contact, User $actor): CrmContact
+    {
+        $this->guardPlatformActor($actor);
+
+        DB::transaction(function () use ($contact, $actor) {
+            $contact->restore();
+            $this->timeline->recordContactRestored($contact, $actor);
+        });
+
+        return $contact;
+    }
+
+    private function guardPlatformActor(User $actor): void
+    {
+        if (! $actor->is_admin) {
+            throw new LogicException('Only a platform admin can delete or restore a CRM contact.');
+        }
     }
 
     /**

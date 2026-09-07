@@ -1,10 +1,36 @@
-    {{-- TASK-1427 — decision Cyril : le SuperAdmin voit TOUS les contacts. Lecture ; on agit depuis la fiche du cockpit. --}}
+    {{-- TASK-1427 — decision Cyril : le SuperAdmin voit TOUS les contacts. TASK-1431 : il les ADMINISTRE (fiche plateforme, creation, SoftDelete/restore). --}}
     <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 mt-8 mb-3" id="contacts">{{ __('admin.crm_contacts_title') }}</h2>
     @php
         $name = fn ($c) => $c->full_name !== '' ? $c->full_name : ($c->email ?: $c->phone ?: __('crm.show.untitled'));
-        $fiche = fn ($c) => route('organization.admin.crm.contacts.show', ['organization' => $c->organization->slug, 'contact' => $c->id]);
+        $fiche = fn ($c) => route('admin.crm.contacts.show', ['organization' => $c->organization->slug, 'contact' => $c->id]);
     @endphp
-    <form method="GET" class="mb-4 grid grid-cols-1 md:grid-cols-6 gap-2 text-sm" data-crm-admin-filters>
+    {{-- TASK-1431 — creer un Contact DANS une Organization explicite : l'URL de l'action porte l'Organization choisie. --}}
+    <details class="mb-4" data-crm-admin-create {{ $errors->any() ? 'open' : '' }}>
+        <summary class="cursor-pointer text-sm font-medium text-indigo-700 dark:text-indigo-300">{{ __('admin.crm_create_title') }}</summary>
+        <form method="POST" x-data="{ org: '{{ old('organization_slug', $organizations->first()?->slug) }}' }"
+              action="{{ route('admin.crm.contacts.store', ['organization' => $organizations->first()?->slug ?? '-']) }}"
+              :action="'{{ route('admin.crm.contacts.store', ['organization' => '__ORG__']) }}'.replace('__ORG__', org)"
+              class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-sm" data-crm-admin-create-form>
+            @csrf
+            <select x-model="org" name="organization_slug" data-crm-admin-create-org class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+                @foreach($organizations as $organization)<option value="{{ $organization->slug }}">{{ $organization->name }}</option>@endforeach
+            </select>
+            <input type="text" name="first_name" value="{{ old('first_name') }}" placeholder="{{ __('crm.field.first_name') }}" maxlength="100" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+            <input type="text" name="last_name" value="{{ old('last_name') }}" placeholder="{{ __('crm.field.last_name') }}" maxlength="100" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+            <input type="email" name="email" value="{{ old('email') }}" placeholder="{{ __('crm.field.email') }}" maxlength="255" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+            <input type="text" name="phone" value="{{ old('phone') }}" placeholder="{{ __('crm.field.phone') }}" maxlength="30" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+            <input type="text" name="company" value="{{ old('company') }}" placeholder="{{ __('crm.field.company') }}" maxlength="150" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+            @if($errors->any())
+            <ul class="sm:col-span-3 text-xs text-red-600 dark:text-red-400 space-y-0.5" data-crm-admin-create-errors>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+            @endif
+            <div class="sm:col-span-3 flex items-center justify-between gap-2">
+                <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('crm.field.email_or_phone_hint') }}</span>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">{{ __('crm.save_contact') }}</button>
+            </div>
+        </form>
+    </details>
+
+    <form method="GET" class="mb-4 grid grid-cols-1 md:grid-cols-7 gap-2 text-sm" data-crm-admin-filters>
         <input type="text" name="search" value="{{ $filters['search'] }}" placeholder="{{ __('crm.filter.search') }}" class="md:col-span-2 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
         <select name="organization" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
             <option value="">{{ __('admin.crm_filter_all_organizations') }}</option>
@@ -22,8 +48,12 @@
             <option value="yes" @selected($filters['contactable'] === 'yes')>{{ __('crm.policy_state.contactable') }}</option>
             <option value="no" @selected($filters['contactable'] === 'no')>{{ __('crm.policy_state.do_not_contact') }}</option>
         </select>
+        <select name="state" data-crm-admin-state class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+            <option value="">{{ __('admin.crm_state_active') }}</option>
+            <option value="trashed" @selected($filters['state'] === 'trashed')>{{ __('admin.crm_state_trashed') }}</option>
+        </select>
         <label class="flex items-center gap-2 text-gray-700 dark:text-gray-200"><input type="checkbox" name="idle" value="1" @checked($filters['idle'])> {{ __('crm.filter.idle', ['days' => $idleDays]) }}</label>
-        <div class="md:col-span-5 flex gap-2">
+        <div class="md:col-span-6 flex gap-2">
             <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">{{ __('admin.crm_filter_apply') }}</button>
             <a href="{{ route('admin.crm.overview') }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">{{ __('admin.crm_filter_reset') }}</a>
             <span class="self-center text-xs text-gray-500 dark:text-gray-400" data-crm-admin-total="{{ $contacts->total() }}">{{ trans_choice('admin.crm_contacts_count', $contacts->total(), ['count' => $contacts->total()]) }}</span>
@@ -45,6 +75,12 @@
                     <td class="px-3 py-2 whitespace-nowrap"><a href="{{ route('organization.admin.crm.today', ['organization' => $contact->organization->slug]) }}" class="text-gray-700 dark:text-gray-200 hover:text-indigo-600">{{ $contact->organization->name }}</a></td>
                     <td class="px-3 py-2">
                         <a href="{{ $fiche($contact) }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400" data-crm-admin-open="{{ $contact->id }}">{{ $name($contact) }}</a>
+                        @if($contact->trashed())
+                        <form method="POST" action="{{ route('admin.crm.contacts.restore', ['organization' => $contact->organization->slug, 'contact' => $contact->id]) }}" class="inline ml-2">
+                            @csrf
+                            <button type="submit" data-crm-admin-restore="{{ $contact->id }}" class="px-2 py-0.5 text-xs rounded bg-green-600 text-white hover:bg-green-700">{{ __('crm.trashed.restore') }}</button>
+                        </form>
+                        @endif
                         <div class="text-xs text-gray-500 dark:text-gray-400">{{ $contact->email ?? '' }}@if($contact->email && $contact->phone) · @endif{{ $contact->phone ?? '' }}@if($contact->company) · {{ $contact->company }}@endif</div>
                     </td>
                     <td class="px-3 py-2 whitespace-nowrap">@if($contact->status)<span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full" style="background-color: {{ $contact->status->color ?: '#9ca3af' }}"></span>{{ $contact->status->label }}</span>@else <span class="text-gray-400">—</span>@endif</td>

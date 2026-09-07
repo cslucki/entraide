@@ -19,7 +19,7 @@ use Tests\TestCase;
 /**
  * TASK-1427 — Panneau CRM du SuperAdmin : TOUT voir (decision Cyril, 07/09
  * 20h30). Contacts, echeances et derniers faits de TOUTES les Organizations,
- * avec leur contenu ; reserve a `is_admin` ; lecture seule (on agit depuis
+ * avec leur contenu ; reserve a `is_admin` ; TASK-1431 : les mutations passent par /admin/relations/{organization} (on agissait depuis
  * la fiche du cockpit de l'Organization, ou le SuperAdmin passe deja).
  */
 class TASK1427CrmSuperAdminPanelTest extends TestCase
@@ -92,7 +92,7 @@ class TASK1427CrmSuperAdminPanelTest extends TestCase
         $this->assertSame('/admin/relations/faits', parse_url(route('admin.crm.overview.facts'), PHP_URL_PATH));
     }
 
-    public function test_the_overview_lists_every_organization_s_contacts_under_the_aggregates_with_names_and_links_to_the_right_cockpit(): void
+    public function test_the_overview_lists_every_organization_s_contacts_under_the_aggregates_with_names_and_links_to_the_platform_fiche_of_the_right_organization(): void
     {
         $a = $this->contact($this->orgA, 'Zorglub', 'Amaranthe', ['last_interaction_at' => Carbon::parse('2026-09-08 09:00:00')]);
         $b = $this->contact($this->orgB, 'Quixotic', 'Bellwether');
@@ -104,8 +104,8 @@ class TASK1427CrmSuperAdminPanelTest extends TestCase
         $this->assertStringContainsString('Quixotic Bellwether', $html);
         $this->assertStringContainsString('Alpha Corp', $html);
         $this->assertStringContainsString('Beta SAS', $html);
-        $this->assertStringContainsString(route('organization.admin.crm.contacts.show', ['organization' => 'org-a-1427', 'contact' => $a->id]), $html);
-        $this->assertStringContainsString(route('organization.admin.crm.contacts.show', ['organization' => 'org-b-1427', 'contact' => $b->id]), $html);
+        $this->assertStringContainsString(route('admin.crm.contacts.show', ['organization' => 'org-a-1427', 'contact' => $a->id]), $html);
+        $this->assertStringContainsString(route('admin.crm.contacts.show', ['organization' => 'org-b-1427', 'contact' => $b->id]), $html);
         $this->assertStringContainsString('data-crm-admin-total="2"', $html);
         // Le plus recemment contacte d'abord ; jamais contacte en dernier.
         $this->assertMatchesRegularExpression('/Zorglub Amaranthe.*Quixotic Bellwether/s', $html);
@@ -199,12 +199,20 @@ class TASK1427CrmSuperAdminPanelTest extends TestCase
         $this->assertStringNotContainsString('Fait B numero 52', $html);
     }
 
-    public function test_the_panel_is_read_only(): void
+    /**
+     * TASK-1431 (decision Cyril) : le panneau n'est plus READ ONLY — chaque
+     * mutation qu'il propose cible une Organization EXPLICITE dans l'URL
+     * (/admin/relations/{organization}/contacts…), jamais une route org-admin.
+     */
+    public function test_every_mutation_offered_by_the_panel_targets_an_explicit_organization_route(): void
     {
         $this->contact($this->orgA, 'Zorglub', 'Amaranthe');
         foreach (['admin.crm.overview', 'admin.crm.overview.today', 'admin.crm.overview.facts'] as $route) {
             $html = $this->actingAs($this->superAdmin)->get(route($route))->assertOk()->getContent();
-            $this->assertDoesNotMatchRegularExpression('/<form[^>]*method="POST"[^>]*action="[^"]*relations[^"]*"/i', $html, $route);
+            preg_match_all('/<form[^>]*method="POST"[^>]*\saction="([^"]*relations[^"]*)"/i', $html, $m);
+            foreach ($m[1] as $action) {
+                $this->assertMatchesRegularExpression('#/admin/relations/[^/]+/contacts#', $action, $route.' → '.$action);
+            }
             $this->assertStringContainsString('data-crm-admin-tabs', $html);
         }
     }

@@ -59,6 +59,11 @@ class CrmContactEvent extends Model
      */
     public const TYPE_MEMBER_LINKED = 'member_linked';
 
+    /** TASK-1431 — suppression (SoftDelete) et restauration par la plateforme, avec leur auteur. */
+    public const TYPE_CONTACT_DELETED = 'contact_deleted';
+
+    public const TYPE_CONTACT_RESTORED = 'contact_restored';
+
     /** Faits systeme : sans auteur humain, une seule fois par Contact. */
     public const SYSTEM_TYPES = [self::TYPE_ACCOUNT_CREATED, self::TYPE_EMAIL_VERIFIED];
 

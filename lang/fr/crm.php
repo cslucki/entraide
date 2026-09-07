@@ -25,6 +25,16 @@ return [
     'do_not_contact' => 'Ne pas contacter',
     'follow_member' => 'Ajouter au suivi',
     // TASK-1430 — « Ajouter un membre existant » depuis Relations.
+    // TASK-1431 — suppression/restauration PLATEFORME (SoftDelete, tracée, restaurable).
+    'trashed' => [
+        'banner' => 'Contact supprimé le :date. Il est absent des listes et ne peut plus être modifié tant qu\'il n\'est pas restauré.',
+        'delete' => 'Supprimer ce contact',
+        'confirm' => 'Supprimer ce contact ? Il disparaîtra des listes et pourra être restauré par la plateforme.',
+        'restore' => 'Restaurer',
+        'flash_deleted' => 'Contact supprimé. Il peut être restauré.',
+        'flash_restored' => 'Contact restauré.',
+    ],
+    'event_by_platform' => 'Admin plateforme',
     'add_existing_member' => 'Ajouter un membre existant',
     'member_picker' => [
         'search' => 'Rechercher un membre par nom ou email…',
@@ -97,6 +107,8 @@ return [
         'account_created' => 'Compte créé',
         'email_verified' => 'Email vérifié',
         'member_linked' => 'Membre ajouté au suivi',
+        'contact_deleted' => 'Contact supprimé',
+        'contact_restored' => 'Contact restauré',
         'contact_updated' => 'Coordonnées modifiées',
     ],
     'edit' => [
@@ -221,6 +233,7 @@ return [
             'no_email' => 'ce contact n\'a pas d\'adresse email',
             'template_organization' => 'ce modèle n\'appartient pas à votre organisation',
             'sender_organization' => 'vous n\'êtes pas membre de cette organisation',
+            'no_organization_admin' => 'cette organisation n\'a aucun administrateur exploitable pour le Reply-To',
         ],
     ],
     'event_email_sent' => 'Email envoyé',
