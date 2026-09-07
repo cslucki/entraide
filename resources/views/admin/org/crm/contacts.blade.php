@@ -86,8 +86,9 @@
                     <td class="px-4 py-3 text-xs text-gray-500 break-all">{{ $contact->email ?? '—' }}</td>
                     <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{{ $contact->phone ?? '—' }}</td>
                     <td class="px-4 py-3">
-                        <form method="POST" action="{{ route('organization.admin.crm.contacts.status', ['organization' => $organization->slug, 'contact' => $contact->id]) }}">
+                        <form method="POST" action="{{ route('organization.admin.crm.contacts.status', ['organization' => $organization->slug, 'contact' => $contact->id]) }}" class="flex items-center gap-1.5">
                             @csrf
+                            @if($contact->status?->color)<span class="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" data-crm-status-color style="background-color: {{ $contact->status->color }}"></span>@endif
                             <select name="status_id" onchange="this.form.submit()" data-crm-status-select aria-label="{{ __('crm.column.status') }}"
                                 class="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs">
                                 @if(!$contact->status_id)<option value="" selected>—</option>@endif

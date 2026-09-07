@@ -247,6 +247,115 @@ class OrgCrmController extends Controller
         return back()->with('success', $done ? __('crm.flash_next_action_done') : __('crm.flash_next_action_nothing'));
     }
 
+    // ── TASK-1419 — CRM-4b : gestion du pipeline ─────────────────────────────
+
+    public function statuses(Organization $organization): View
+    {
+        $this->statuses->ensureDefaultPipeline($organization);
+
+        return view('admin.org.crm.statuses', [
+            'organization' => $organization,
+            'statuses' => CrmStatus::forOrganization($organization)->ordered()->withCount('contacts')->get(),
+        ]);
+    }
+
+    public function storeStatus(Request $request, Organization $organization): RedirectResponse
+    {
+        $data = $request->validate([
+            'label' => ['required', 'string', 'max:60'],
+            'color' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'no_color' => ['nullable', 'boolean'],
+        ]);
+
+        // Le pipeline initial est seme AVANT toute creation manuelle : un statut
+        // cree en premier ne doit pas priver l'Organization de ses six statuts.
+        $this->statuses->ensureDefaultPipeline($organization);
+
+        try {
+            $this->statuses->create($organization, $data['label'], $request->boolean('no_color') ? null : ($data['color'] ?? null));
+        } catch (LogicException) {
+            return back()->withInput()->with('error', __('crm.flash_status_label_taken'));
+        }
+
+        return redirect()->route('organization.admin.crm.statuses', ['organization' => $organization->slug])->with('success', __('crm.flash_status_created'));
+    }
+
+    public function updateStatus(Request $request, Organization $organization, string $status): RedirectResponse
+    {
+        $status = $this->resolveStatus($organization, $status);
+
+        $data = $request->validate([
+            'label' => ['required', 'string', 'max:60'],
+            'color' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
+        ]);
+
+        try {
+            $this->statuses->edit($status, $data['label'], $data['color'] ?? null);
+        } catch (LogicException) {
+            return back()->with('error', __('crm.flash_status_label_taken'));
+        }
+
+        return back()->with('success', __('crm.flash_status_updated'));
+    }
+
+    /**
+     * Monter / descendre d'un cran : l'ordre COMPLET est recalcule dans
+     * l'Organization et confie a `reorder`, qui refuse tout id etranger.
+     */
+    public function moveStatus(Request $request, Organization $organization, string $status): RedirectResponse
+    {
+        $status = $this->resolveStatus($organization, $status);
+        $direction = $request->input('direction') === 'up' ? -1 : 1;
+
+        $ids = CrmStatus::forOrganization($organization)->ordered()->pluck('id')->all();
+        $i = array_search($status->id, $ids, true);
+        $j = $i + $direction;
+
+        if ($i !== false && $j >= 0 && $j < count($ids)) {
+            [$ids[$i], $ids[$j]] = [$ids[$j], $ids[$i]];
+            $this->statuses->reorder($organization, $ids);
+        }
+
+        return back()->with('success', __('crm.flash_status_moved'));
+    }
+
+    public function toggleStatus(Organization $organization, string $status): RedirectResponse
+    {
+        $status = $this->resolveStatus($organization, $status);
+
+        try {
+            if ($status->is_active) {
+                $this->statuses->deactivate($status);
+
+                return back()->with('success', __('crm.flash_status_deactivated'));
+            }
+
+            $this->statuses->activate($status);
+
+            return back()->with('success', __('crm.flash_status_activated'));
+        } catch (LogicException) {
+            return back()->with('error', __('crm.flash_status_default_cannot_deactivate'));
+        }
+    }
+
+    public function defaultStatus(Organization $organization, string $status): RedirectResponse
+    {
+        $status = $this->resolveStatus($organization, $status);
+
+        try {
+            $this->statuses->setDefault($status);
+        } catch (LogicException) {
+            return back()->with('error', __('crm.flash_status_inactive_cannot_default'));
+        }
+
+        return back()->with('success', __('crm.flash_status_default'));
+    }
+
+    private function resolveStatus(Organization $organization, string $id): CrmStatus
+    {
+        return CrmStatus::forOrganization($organization)->whereKey($id)->firstOrFail();
+    }
+
     /**
      * « Ajouter au suivi » : un membre ne devient un Contact que par decision
      * explicite de l'OrgAdmin (MASTER Q1/Q12). Meme Organization obligatoire ;
