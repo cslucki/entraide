@@ -553,12 +553,27 @@ class OrgCrmController extends Controller
      * Le document isole : CSP default-src 'none' (aucun script, aucune ressource
      * distante ; styles inline autorises pour que l'email garde son aspect),
      * dans un iframe `sandbox` sans aucune capacite ajoutee.
+     *
+     * Le sandbox n'empeche PAS un cadre de se naviguer lui-meme (mesure en
+     * navigateur reel : un clic sur un lien chargeait l'URL distante dans
+     * l'iframe). Les liens et les rafraichissements sont donc DESARMES a
+     * l'affichage — `href` devient `data-href`, `http-equiv` devient
+     * `data-http-equiv` — et `<base target="_blank">` renvoie tout ce qui
+     * resterait vers une fenetre que le sandbox (sans allow-popups) refuse.
+     * Le snapshot STOCKE n'est pas touche : l'integrite se verifie dessus.
      */
     private function snapshotDocument(EmailLog $log): string
     {
+        $disarmed = preg_replace(
+            ['/\b(href|xlink:href)\s*=/i', '/\bhttp-equiv\s*=/i'],
+            ['data-$1=', 'data-http-equiv='],
+            (string) $log->body_html
+        );
+
         return '<!DOCTYPE html><html><head><meta charset="utf-8">'
             .'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'">'
-            .'</head><body>'.$log->body_html.'</body></html>';
+            .'<base target="_blank">'
+            .'</head><body>'.$disarmed.'</body></html>';
     }
 
     private function resolveContact(Organization $organization, string $id): CrmContact

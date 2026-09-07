@@ -173,10 +173,31 @@ class TASK1426CrmEmailHistoryTest extends TestCase
         $this->assertMatchesRegularExpression('/<iframe[^>]*\ssandbox=""[^>]*\ssrcdoc="/', $html);
         $this->assertStringContainsString(e("default-src 'none'; style-src 'unsafe-inline'"), $html);
         $this->assertStringContainsString(e('<img src="https://tracker.example.com/pixel.gif">'), $html, 'le snapshot est la, tel quel, echappe');
+        // Les liens sont DESARMES a l'affichage (le sandbox n'empeche pas un cadre de se naviguer lui-meme) :
+        // href → data-href, plus <base target="_blank"> que le sandbox sans allow-popups refuse.
+        $this->assertStringContainsString(e('<a data-href="https://x.test/offre">'), $html, 'lien desarme');
+        $this->assertStringNotContainsString(e('<a href="https://x.test/offre">'), $html, 'aucun lien arme dans le document isole');
+        $this->assertStringContainsString(e('<base target="_blank">'), $html);
         // Jamais rendu brut dans le DOM parent : ni le pixel ni le lien ne sont des elements actifs de la page.
         $this->assertStringNotContainsString('<img src="https://tracker.example.com/pixel.gif">', $html);
         $this->assertStringNotContainsString('<a href="https://x.test/offre">', $html);
         $this->assertStringNotContainsString('allow-scripts', $html);
+    }
+
+    public function test_reread_disarms_a_meta_refresh_and_an_area_link_inside_the_snapshot(): void
+    {
+        $log = $this->log($this->contactA, EmailLog::STATUS_SENT, 'Piege', ['body_html' => '<meta http-equiv="refresh" content="0;url=https://evil.test"><map><area href="https://evil.test/a"></map><p>Corps</p>']);
+
+        $html = $this->actingAs($this->adminA)->get($this->reread($this->contactA, $log->id))->assertOk()->getContent();
+
+        $this->assertStringContainsString(e('<meta data-http-equiv="refresh" content="0;url=https://evil.test">'), $html);
+        $this->assertStringContainsString(e('<area data-href="https://evil.test/a">'), $html);
+        $this->assertStringNotContainsString(e('<meta http-equiv="refresh"'), $html);
+        $this->assertStringNotContainsString(e('<area href="'), $html);
+        // La CSP du document isole, elle, garde son http-equiv.
+        $this->assertStringContainsString(e('<meta http-equiv="Content-Security-Policy"'), $html);
+        // L'integrite se verifie sur le snapshot STOCKE, pas sur la forme desarmee.
+        $this->assertStringContainsString('data-crm-email-integrity="ok"', $html);
     }
 
     public function test_reread_uses_the_stored_body_never_the_current_template_and_detects_a_divergent_copy(): void
