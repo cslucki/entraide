@@ -62,12 +62,15 @@ class EmailLog extends Model
     protected $fillable = [
         'template_id',
         'user_id',
+        'crm_contact_id',
         'to_email',
         'subject',
         'status',
         'error_message',
         'data',
         'organization_id',
+        'body_html',
+        'body_hash',
     ];
 
     public function organization(): BelongsTo

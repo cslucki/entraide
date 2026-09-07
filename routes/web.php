@@ -1082,6 +1082,11 @@ Route::prefix('/org/{organization}')
                 // TASK-1418 (CRM-6) : la prochaine action — planifier, marquer faite.
                 Route::post('/relations/{contact}/next-action', [OrgCrmController::class, 'planNextAction'])->name('crm.contacts.next-action.plan');
                 Route::post('/relations/{contact}/next-action/complete', [OrgCrmController::class, 'completeNextAction'])->name('crm.contacts.next-action.complete');
+                // TASK-1421 (CRM-7b) : envoyer un modele d'email a un Contact — choisir,
+                // confirmer (jeton one-shot), envoyer. L'humain declenche tout.
+                Route::get('/relations/{contact}/email', [OrgCrmController::class, 'pickEmailTemplate'])->name('crm.contacts.email.pick');
+                Route::get('/relations/{contact}/email/{template}', [OrgCrmController::class, 'previewEmail'])->name('crm.contacts.email.preview');
+                Route::post('/relations/{contact}/email/{template}', [OrgCrmController::class, 'sendEmail'])->name('crm.contacts.email.send');
                 Route::post('/users/{user}/follow', [OrgCrmController::class, 'followMember'])->name('crm.members.follow');
 
                 // Administration

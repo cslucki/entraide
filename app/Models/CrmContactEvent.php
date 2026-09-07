@@ -45,6 +45,11 @@ class CrmContactEvent extends Model
 
     public const TYPE_NEXT_ACTION_DONE = 'next_action_done';
 
+    /** TASK-1421 — un email envoye (accepte par le transport) ou echoue : `payload` = template, subject, to, log_id, error. */
+    public const TYPE_EMAIL_SENT = 'email_sent';
+
+    public const TYPE_EMAIL_FAILED = 'email_failed';
+
     /** Faits systeme : sans auteur humain, une seule fois par Contact. */
     public const SYSTEM_TYPES = [self::TYPE_ACCOUNT_CREATED, self::TYPE_EMAIL_VERIFIED];
 
