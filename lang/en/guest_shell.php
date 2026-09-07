@@ -8,6 +8,7 @@ return [
     'instruction_locale' => 'Answer in this language: :locale.',
     'context' => [
         'identity' => ':name — public presentation',
+        'usage_reference' => 'What this space is for — :title',
         'platform_constitution' => 'Platform AI Constitution (Mycelium)',
         'organization_constitution' => ':name AI Constitution (published)',
         'name' => 'Name',

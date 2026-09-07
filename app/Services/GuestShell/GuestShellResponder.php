@@ -8,6 +8,7 @@ use App\Models\GuestConversation;
 use App\Models\GuestMessage;
 use App\Models\GuestVisitor;
 use App\Models\Organization;
+use App\Models\UsageReference;
 use App\Services\Ai\AiProviderInvocationLedger;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiUsage;
@@ -58,7 +59,7 @@ final class GuestShellResponder
         $prompt = $clearance->prompt ?? throw new \LogicException('A guest shell clearance must carry the active prompt.');
 
         // Le contexte public de l'Organization (SW-5) ; la garde a deja verifie active + publique.
-        $context = $this->context->build($organization);
+        $context = $this->context->build($organization, UsageReference::SURFACE_SHELL_WELCOME);
         if ($context === null) {
             return GuestShellTurn::refused(GuestShellClearance::STEP_ORGANIZATION, 'organization_not_public');
         }

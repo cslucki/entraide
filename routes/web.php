@@ -38,6 +38,7 @@ use App\Http\Controllers\Admin\AdminSystemEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminTagController;
 use App\Http\Controllers\Admin\AdminThemeController;
 use App\Http\Controllers\Admin\AdminTranslationController;
+use App\Http\Controllers\Admin\AdminUsageReferenceController;
 use App\Http\Controllers\Admin\OrgAdminController;
 use App\Http\Controllers\Admin\OrgCrmController;
 use App\Http\Controllers\Admin\OrgCrmTemplateController;
@@ -619,6 +620,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/ai-supervision', [AdminAiSupervisionController::class, 'index'])->name('ai-supervision');
     // TASK-1438 (SW-10) : observabilite plateforme du Shell Welcome — lecture seule, jamais un contenu de conversation.
     Route::get('/shell-welcome', [AdminGuestShellController::class, 'index'])->name('guest-shell');
+    // TASK-1439 : UsageReference V1 — plateforme-only, brouillon -> publication humaine -> retrait (V3 §9).
+    Route::get('/usage-references', [AdminUsageReferenceController::class, 'index'])->name('usage-references');
+    Route::get('/usage-references/create', [AdminUsageReferenceController::class, 'create'])->name('usage-references.create');
+    Route::post('/usage-references', [AdminUsageReferenceController::class, 'store'])->name('usage-references.store');
+    Route::get('/usage-references/{usageReference}/edit', [AdminUsageReferenceController::class, 'edit'])->name('usage-references.edit');
+    Route::put('/usage-references/{usageReference}', [AdminUsageReferenceController::class, 'update'])->name('usage-references.update');
+    Route::post('/usage-references/{usageReference}/publish', [AdminUsageReferenceController::class, 'publish'])->name('usage-references.publish');
+    Route::delete('/usage-references/{usageReference}', [AdminUsageReferenceController::class, 'retire'])->name('usage-references.retire');
     Route::post('/ai-supervision', [AdminAiSupervisionController::class, 'analyze'])->name('ai-supervision.analyze');
 
     // Historique des interactions IA (TASK-249)
