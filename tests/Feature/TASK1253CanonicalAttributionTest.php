@@ -230,9 +230,16 @@ class TASK1253CanonicalAttributionTest extends TestCase
                 // plus, sur le process du resume dont elle partage l'acte
                 // economique (meme geste que TASK-1309).
                 CapabilityRegistry::LOOP_DECISION_SUGGESTION,
+                // TASK-1435 (SW-5) : l'accueil du visiteur NON connecte. Elle est
+                // canonique comme les autres — meme registre, meme process
+                // (`guest_shell`), meme ledger — et c'est precisement ce qui
+                // garantit qu'un tour invite ne peut pas etre facture hors
+                // comptabilite. Sa seule singularite est sa whitelist de
+                // sources, toutes publiques.
+                CapabilityRegistry::GUEST_SHELL_WELCOME,
             ],
             array_map(static fn ($definition): string => $definition->id, $registry->all()),
-            'Les onze capabilities canoniques (TASK-1285 : + les deux reponses de l\'agent de profil ; TASK-1309 : + IA + Dossiers ; TASK-1327 : + la suggestion de Decision) — aucune pour la suggestion sur selection, la configuration conversationnelle du profil, l\'Explorer, l\'offre, les bancs.',
+            'Les douze capabilities canoniques (TASK-1285 : + les deux reponses de l\'agent de profil ; TASK-1309 : + IA + Dossiers ; TASK-1327 : + la suggestion de Decision ; TASK-1435 : + l\'accueil du visiteur) — aucune pour la suggestion sur selection, la configuration conversationnelle du profil, l\'Explorer, l\'offre, les bancs.',
         );
     }
 
@@ -244,7 +251,7 @@ class TASK1253CanonicalAttributionTest extends TestCase
         $this->assertSame(BlogExplorerController::class, NervousSystemCoverage::INHERITED['blog_explorer']);
         $this->assertNotSame('ai.inherited_label.blog_explorer', __('ai.inherited_label.blog_explorer', [], 'fr'));
         $this->assertNotSame('ai.inherited_label.blog_explorer', __('ai.inherited_label.blog_explorer', [], 'en'));
-        $this->assertSame(11 + 4, $coverage->totalCount(), 'Onze canoniques (TASK-1285 : + les deux reponses de l\'agent de profil ; TASK-1309 : + IA + Dossiers ; TASK-1327 : + la suggestion de Decision) + quatre heritees (configuration conversationnelle du profil, suggestion sur selection Blog, Explorer, offre de service).');
+        $this->assertSame(12 + 4, $coverage->totalCount(), 'Douze canoniques (TASK-1285 : + les deux reponses de l\'agent de profil ; TASK-1309 : + IA + Dossiers ; TASK-1327 : + la suggestion de Decision ; TASK-1435 : + l\'accueil du visiteur) + quatre heritees (configuration conversationnelle du profil, suggestion sur selection Blog, Explorer, offre de service).');
     }
 
     // =====================================================================
