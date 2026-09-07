@@ -14,6 +14,7 @@ use App\Services\Crm\CrmEmailTemplateService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use LogicException;
+use Tests\Support\CapturesMailHtml;
 use Tests\TestCase;
 
 /**
@@ -31,7 +32,7 @@ use Tests\TestCase;
  */
 class TASK1421CrmEmailSendTest extends TestCase
 {
-    use RefreshDatabase;
+    use CapturesMailHtml, RefreshDatabase;
 
     private Organization $orgA;
 
@@ -75,32 +76,6 @@ class TASK1421CrmEmailSendTest extends TestCase
         return route('organization.admin.crm.contacts.show', ['organization' => $this->orgA->slug, 'contact' => $contact->id]);
     }
 
-    /** @var array<int, array{html: string, message: \Illuminate\Mail\Message}> */
-    private array $captured = [];
-
-    /**
-     * `Mail::fake()` ne connait pas `Mail::html()` (il le RETRANSMET au vrai
-     * mailer) : on intercepte l'appel et on conserve le Message que le
-     * callback a construit — destinataire, objet, reply-to sont ainsi
-     * MESURES, pas supposes. Aucun transport n'est touche.
-     */
-    private function captureMail(): void
-    {
-        $this->captured = [];
-        Mail::shouldReceive('html')->andReturnUsing(function (string $html, callable $callback) {
-            $message = new \Illuminate\Mail\Message(new \Symfony\Component\Mime\Email);
-            $callback($message);
-            $this->captured[] = ['html' => $html, 'message' => $message];
-
-            return null;
-        });
-    }
-
-    private function sentCount(): int
-    {
-        return count($this->captured);
-    }
-
     /** Preview puis envoi avec le jeton pose en session par la preview. */
     private function previewThenSend(CrmContact $contact, EmailTemplate $template)
     {
@@ -114,7 +89,7 @@ class TASK1421CrmEmailSendTest extends TestCase
 
     public function test_preview_renders_for_this_contact_and_writes_nothing(): void
     {
-        $this->captureMail();
+        $this->captureMailHtml();
 
         $this->actingAs($this->adminA)->get($this->preview($this->contactA, $this->templateA))
             ->assertOk()
@@ -124,7 +99,7 @@ class TASK1421CrmEmailSendTest extends TestCase
             ->assertSee('data-crm-email-send', false);
 
         $this->assertIsString(session(CrmEmailSendService::TOKEN_SESSION_PREFIX.$this->orgA->id.':'.$this->contactA->id.':'.$this->templateA->id)['token'] ?? null);
-        $this->assertSame(0, $this->sentCount());
+        $this->assertSame(0, $this->capturedMailCount());
         $this->assertSame(0, EmailLog::count());
         $this->assertSame(0, $this->contactA->events()->count());
         $this->assertNull($this->contactA->fresh()->last_interaction_at);
@@ -132,19 +107,19 @@ class TASK1421CrmEmailSendTest extends TestCase
 
     public function test_a_confirmed_send_reaches_the_contact_logs_the_proof_and_counts_as_an_interaction(): void
     {
-        $this->captureMail();
+        $this->captureMailHtml();
 
         $this->previewThenSend($this->contactA, $this->templateA)
             ->assertRedirect($this->show($this->contactA))
             ->assertSessionHas('success', __('crm.email.flash_sent', ['to' => 'zorglub@example.com']));
 
-        $this->assertSame(1, $this->sentCount());
-        $symfony = $this->captured[0]['message']->getSymfonyMessage();
+        $this->assertSame(1, $this->capturedMailCount());
+        $symfony = $this->capturedMailHtml[0]['message']->getSymfonyMessage();
         $this->assertSame('zorglub@example.com', $symfony->getTo()[0]->getAddress());
         $this->assertSame('Zorglub Amaranthe', $symfony->getTo()[0]->getName());
         $this->assertSame('Suite à notre échange, Zorglub', $symfony->getSubject());
         $this->assertSame('aline@alpha.test', $symfony->getReplyTo()[0]->getAddress());
-        $this->assertStringContainsString('Zorglub Amaranthe (ACME) — Alpha Conseil', $this->captured[0]['html']);
+        $this->assertStringContainsString('Zorglub Amaranthe (ACME) — Alpha Conseil', $this->capturedMailHtml[0]['html']);
 
         $log = EmailLog::firstOrFail();
         $this->assertSame(EmailLog::STATUS_SENT, $log->status);
@@ -171,7 +146,7 @@ class TASK1421CrmEmailSendTest extends TestCase
 
     public function test_a_linked_contact_keeps_its_user_on_the_proof(): void
     {
-        $this->captureMail();
+        $this->captureMailHtml();
         $member = User::factory()->create(['organization_id' => $this->orgA->id, 'email' => 'zorglub@example.com']);
         app(CrmContactService::class)->linkToUser($this->contactA, $member);
 
@@ -184,7 +159,7 @@ class TASK1421CrmEmailSendTest extends TestCase
 
     public function test_a_second_submit_with_the_same_token_sends_nothing(): void
     {
-        $this->captureMail();
+        $this->captureMailHtml();
         $this->actingAs($this->adminA)->get($this->preview($this->contactA, $this->templateA))->assertOk();
         $token = session(CrmEmailSendService::TOKEN_SESSION_PREFIX.$this->orgA->id.':'.$this->contactA->id.':'.$this->templateA->id)['token'];
 
@@ -196,14 +171,14 @@ class TASK1421CrmEmailSendTest extends TestCase
         $this->actingAs($this->adminA)->post($this->send($this->contactA, $this->templateA), [])
             ->assertSessionHas('error', __('crm.email.flash_token'));
 
-        $this->assertSame(1, $this->sentCount());
+        $this->assertSame(1, $this->capturedMailCount());
         $this->assertSame(1, EmailLog::count());
         $this->assertSame(1, $this->contactA->events()->count());
     }
 
     public function test_a_token_expires_after_fifteen_minutes_and_a_new_preview_replaces_the_old_one(): void
     {
-        $this->captureMail();
+        $this->captureMailHtml();
         $key = CrmEmailSendService::TOKEN_SESSION_PREFIX.$this->orgA->id.':'.$this->contactA->id.':'.$this->templateA->id;
 
         $this->actingAs($this->adminA)->get($this->preview($this->contactA, $this->templateA))->assertOk();
@@ -214,7 +189,7 @@ class TASK1421CrmEmailSendTest extends TestCase
 
         $this->actingAs($this->adminA)->post($this->send($this->contactA, $this->templateA), ['token' => $old])
             ->assertSessionHas('error', __('crm.email.flash_token'));
-        $this->assertSame(0, $this->sentCount());
+        $this->assertSame(0, $this->capturedMailCount());
 
         // L'ancien jeton a ete consomme par l'echec : nouvelle preview, puis on laisse passer 16 minutes.
         $this->actingAs($this->adminA)->get($this->preview($this->contactA, $this->templateA))->assertOk();
@@ -224,7 +199,7 @@ class TASK1421CrmEmailSendTest extends TestCase
             ->assertSessionHas('error', __('crm.email.flash_token'));
         $this->travelBack();
 
-        $this->assertSame(0, $this->sentCount());
+        $this->assertSame(0, $this->capturedMailCount());
         $this->assertSame(0, EmailLog::count());
     }
 
@@ -232,7 +207,7 @@ class TASK1421CrmEmailSendTest extends TestCase
 
     public function test_do_not_contact_blocks_before_preview_and_before_send(): void
     {
-        $this->captureMail();
+        $this->captureMailHtml();
         $this->actingAs($this->adminA)->get($this->preview($this->contactA, $this->templateA))->assertOk();
         $token = session(CrmEmailSendService::TOKEN_SESSION_PREFIX.$this->orgA->id.':'.$this->contactA->id.':'.$this->templateA->id)['token'];
 
@@ -244,7 +219,7 @@ class TASK1421CrmEmailSendTest extends TestCase
         $this->actingAs($this->adminA)->post($this->send($this->contactA, $this->templateA), ['token' => $token])
             ->assertSessionHas('error', __('crm.email.flash_blocked', ['reason' => __('crm.email.reason.do_not_contact')]));
 
-        $this->assertSame(0, $this->sentCount());
+        $this->assertSame(0, $this->capturedMailCount());
         $this->assertSame(0, EmailLog::count());
         $this->assertSame(0, $this->contactA->events()->count());
         $this->actingAs($this->adminA)->get($this->show($this->contactA))->assertOk()->assertSee('data-crm-email-blocked', false)->assertDontSee('data-crm-email-pick');
@@ -252,19 +227,19 @@ class TASK1421CrmEmailSendTest extends TestCase
 
     public function test_a_contact_without_email_is_refused(): void
     {
-        $this->captureMail();
+        $this->captureMailHtml();
         $phoneOnly = app(CrmContactService::class)->findOrCreate($this->orgA, ['first_name' => 'Sans', 'last_name' => 'Email', 'phone' => '+33600000099']);
 
         $this->actingAs($this->adminA)->get($this->preview($phoneOnly, $this->templateA))
             ->assertRedirect()->assertSessionHas('error', __('crm.email.flash_blocked', ['reason' => __('crm.email.reason.no_email')]));
 
-        $this->assertSame(0, $this->sentCount());
+        $this->assertSame(0, $this->capturedMailCount());
         $this->assertSame(0, EmailLog::count());
     }
 
     public function test_a_foreign_template_or_a_foreign_contact_is_a_404_and_nothing_leaves(): void
     {
-        $this->captureMail();
+        $this->captureMailHtml();
         $templateB = app(CrmEmailTemplateService::class)->create($this->orgB, 'Modele B', 'x', '<p>x</p>');
         $contactB = app(CrmContactService::class)->findOrCreate($this->orgB, ['email' => 'b@example.com']);
         $global = EmailTemplate::create(['slug' => 'global-1421', 'name' => 'Global', 'subject' => 'x', 'content_html' => '<p>x</p>', 'organization_id' => null]);
@@ -276,13 +251,13 @@ class TASK1421CrmEmailSendTest extends TestCase
         $this->actingAs($this->adminA)->post($this->send($contactB, $this->templateA), ['token' => 'x'])->assertNotFound();
         $this->actingAs($this->adminB)->get($this->preview($this->contactA, $this->templateA))->assertForbidden();
 
-        $this->assertSame(0, $this->sentCount());
+        $this->assertSame(0, $this->capturedMailCount());
         $this->assertSame(0, EmailLog::count());
     }
 
     public function test_the_service_refuses_a_sender_from_another_organization_and_a_mismatched_template(): void
     {
-        $this->captureMail();
+        $this->captureMailHtml();
         $service = app(CrmEmailSendService::class);
         $templateB = app(CrmEmailTemplateService::class)->create($this->orgB, 'Modele B', 'x', '<p>x</p>');
 
@@ -307,7 +282,7 @@ class TASK1421CrmEmailSendTest extends TestCase
             $this->assertSame('template_organization', $e->getMessage());
         }
 
-        $this->assertSame(0, $this->sentCount());
+        $this->assertSame(0, $this->capturedMailCount());
         $this->assertSame(0, EmailLog::count());
     }
 
@@ -352,9 +327,9 @@ class TASK1421CrmEmailSendTest extends TestCase
 
     public function test_the_probe_sees_a_sent_mail_when_one_is_sent(): void
     {
-        $this->captureMail();
-        $this->assertSame(0, $this->sentCount());
+        $this->captureMailHtml();
+        $this->assertSame(0, $this->capturedMailCount());
         $this->previewThenSend($this->contactA, $this->templateA);
-        $this->assertSame(1, $this->sentCount());
+        $this->assertSame(1, $this->capturedMailCount());
     }
 }

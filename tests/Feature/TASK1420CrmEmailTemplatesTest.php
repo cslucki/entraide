@@ -8,7 +8,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\Crm\CrmEmailTemplateService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Mail;
+use Tests\Support\CapturesMailHtml;
 use Tests\TestCase;
 
 /**
@@ -22,7 +22,7 @@ use Tests\TestCase;
  */
 class TASK1420CrmEmailTemplatesTest extends TestCase
 {
-    use RefreshDatabase;
+    use CapturesMailHtml, RefreshDatabase;
 
     private Organization $orgA;
 
@@ -140,7 +140,7 @@ class TASK1420CrmEmailTemplatesTest extends TestCase
 
     public function test_preview_interpolates_a_sample_contact_and_writes_nothing(): void
     {
-        Mail::fake();
+        $this->captureMailHtml();
         $template = $this->template($this->orgA);
 
         $this->actingAs($this->adminA)
@@ -151,7 +151,7 @@ class TASK1420CrmEmailTemplatesTest extends TestCase
             ->assertSee('data-crm-template-preview-notice', false);
 
         $this->assertSame(0, EmailLog::count());
-        Mail::assertNothingSent();
+        $this->assertSame(0, $this->capturedMailCount(), 'la preview n emprunte jamais Mail::html');
     }
 
     public function test_the_form_lists_the_contact_variables(): void
