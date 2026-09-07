@@ -19,3 +19,6 @@ Artisan::command('feed:publish-scheduled', function () {
 })->purpose('Publish scheduled feed announcements whose date has passed');
 
 Schedule::command('feed:publish-scheduled')->everyMinute();
+
+// TASK-1433 — SW-3 : la retention des visiteurs du Shell Welcome est une promesse.
+Schedule::command('guest:purge-expired')->daily();
