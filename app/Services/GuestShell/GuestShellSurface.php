@@ -6,6 +6,7 @@ use App\Models\GuestConversation;
 use App\Models\GuestMessage;
 use App\Models\Organization;
 use App\Models\OrganizationGuestShellPolicy;
+use App\Support\GuestShell\GuestPageContext;
 use App\Support\GuestShell\GuestShellDisplay;
 use App\Support\GuestShell\GuestShellDisplayMode;
 use Illuminate\Http\Request;
@@ -47,7 +48,7 @@ final class GuestShellSurface
     public function read(Organization $organization, Request $request): array
     {
         $page = $this->pages->organizationHome($organization);
-        $decision = $this->display->resolve($organization, $page);
+        $decision = $this->decide($organization, $page, $request);
         $policy = $this->policies->policyFor($organization);
 
         $conversation = null;
@@ -71,7 +72,7 @@ final class GuestShellSurface
     public function turn(Organization $organization, Request $request, string $message): array
     {
         $page = $this->pages->organizationHome($organization);
-        $decision = $this->display->resolve($organization, $page);
+        $decision = $this->decide($organization, $page, $request);
         $policy = $this->policies->policyFor($organization);
 
         if ($page === null || ! $decision->isVisible()) {
@@ -108,6 +109,20 @@ final class GuestShellSurface
             'conversation' => $this->conversationPayload($conversation->fresh(), $policy),
             'cta' => $page->publicCta,
         ];
+    }
+
+    /**
+     * TASK-1445 (MASTER Q73) : un utilisateur AUTHENTIFIE n'a jamais le Guest Shell —
+     * ni rendu, ni lecture, ni geste (aucune identite Guest, aucune invocation) :
+     * l'experience membre seulement. Decide cote serveur, avant tout le reste.
+     */
+    private function decide(Organization $organization, ?GuestPageContext $page, Request $request): GuestShellDisplay
+    {
+        if ($request->user() !== null) {
+            return GuestShellDisplay::off(GuestShellDisplay::REASON_AUTHENTICATED);
+        }
+
+        return $this->display->resolve($organization, $page);
     }
 
     /**

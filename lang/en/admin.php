@@ -726,6 +726,7 @@ return [
     'guest_shell_display_reason_policy_not_ready' => 'policy not ready (state not active)',
     'guest_shell_display_reason_no_active_prompt' => 'no active welcome prompt',
     'guest_shell_display_reason_page_not_eligible' => 'page not eligible',
+    'guest_shell_display_reason_authenticated' => 'signed-in user (member experience)',
     'guest_shell_display_reason_overlay' => 'overlay',
     'guest_shell_display_reason_shell_first' => 'shell first',
     'guest_shell_provider' => 'Actual provider / model',

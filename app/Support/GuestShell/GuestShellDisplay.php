@@ -23,11 +23,15 @@ final class GuestShellDisplay
 
     public const REASON_PAGE_NOT_ELIGIBLE = 'page_not_eligible';
 
+    /** TASK-1445 (MASTER Q73) : un utilisateur authentifie n'a JAMAIS le Guest Shell — l'experience membre seulement. */
+    public const REASON_AUTHENTICATED = 'authenticated';
+
     public const REASONS = [
         self::REASON_DISABLED,
         self::REASON_POLICY_NOT_READY,
         self::REASON_NO_ACTIVE_PROMPT,
         self::REASON_PAGE_NOT_ELIGIBLE,
+        self::REASON_AUTHENTICATED,
         GuestShellDisplayMode::OVERLAY,
         GuestShellDisplayMode::SHELL_FIRST,
     ];
