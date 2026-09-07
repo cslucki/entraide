@@ -10,6 +10,7 @@ use App\Services\Crm\CrmContactService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 use LogicException;
@@ -63,9 +64,22 @@ class TASK1413CrmContactFoundationTest extends TestCase
         // passerait. Elle doit echouer — l'Organization se declare, toujours.
         app()->instance('current_organization', $this->orgA);
 
-        $this->expectException(QueryException::class);
+        // PostgreSQL abandonne TOUTE la transaction apres une erreur SQL
+        // (25P02) : sans ce point de sauvegarde, le tearDown echouerait a son
+        // tour. SQLite, lui, ne dit rien — c'est la CI double-moteur qui l'a vu.
+        DB::beginTransaction();
+        $refused = false;
 
-        CrmContact::create(['first_name' => 'Sans', 'last_name' => 'Tenant', 'email' => 'sans@tenant.test']);
+        try {
+            CrmContact::create(['first_name' => 'Sans', 'last_name' => 'Tenant', 'email' => 'sans@tenant.test']);
+        } catch (QueryException) {
+            $refused = true;
+        } finally {
+            DB::rollBack();
+        }
+
+        $this->assertTrue($refused, 'un Contact sans Organization doit etre refuse par le schema');
+        $this->assertSame(0, CrmContact::withTrashed()->count());
     }
 
     // ── 2. Deduplication tenant-scoped ──────────────────────────────────────
