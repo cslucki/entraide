@@ -1,15 +1,25 @@
 {{--
     TASK-1442 — SW-8a : l'OVERLAY public du Shell Welcome (Shell Welcome V3 §19, MASTER Q70).
+    TASK-1443 — SW-8b : le meme runtime, le meme partial, deux PLACEMENTS (MASTER Q70) :
+      - overlay      : widget flottant, inclus en BAS de la landing (`position` = bottom) ;
+      - shell_first  : le Shell est l'experience principale, inclus en HAUT (`position` = top),
+                       le contenu public classique reste entier juste en dessous.
+    Une seule instance est rendue par page ; l'autre include ne produit rien.
     Autonome par construction (CSS + JS inline, aucun Alpine/Tailwind requis) : il se monte
     aussi bien dans les landings « hero » (HTML brut) que dans x-app-layout.
-    Monte SEULEMENT si le Shell est reellement disponible en overlay, ou en etat DEGRADE
-    honnete (politique activee mais pas prete) : accueil non-IA + CTA, jamais un faux echange.
+    Monte SEULEMENT si le Shell est reellement disponible, ou en etat DEGRADE honnete
+    (politique activee mais pas prete) : accueil non-IA + CTA, jamais un faux echange.
     Jamais un cookie, jamais une identite Guest sur simple visite : tout part du premier message.
     Distinct du Shell membre : aucun composant membre touche, aucun @auth retire.
 --}}
 @php
     $gsDisplay = $guestShell['display'] ?? null;
-    $gsMount = $gsDisplay !== null && (($gsDisplay['visible'] && $gsDisplay['mode'] === \App\Support\GuestShell\GuestShellDisplayMode::OVERLAY) || $gsDisplay['degraded']);
+    $gsPosition = $position ?? 'bottom';
+    // Le placement suit le mode EFFECTIF quand le Shell est disponible, la preference choisie quand il est degrade.
+    $gsLayout = $gsDisplay === null ? null : ($gsDisplay['visible'] ? $gsDisplay['mode'] : ($gsDisplay['degraded'] ? $gsDisplay['preference'] : null));
+    $gsMount = $gsLayout !== null
+        && (($gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::OVERLAY && $gsPosition === 'bottom')
+            || ($gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::SHELL_FIRST && $gsPosition === 'top'));
 @endphp
 @if($gsMount)
 @php
@@ -54,9 +64,15 @@
 #bp-guest-shell .bpgs-form button[disabled],#bp-guest-shell .bpgs-form textarea[disabled]{opacity:.5;cursor:not-allowed}
 #bp-guest-shell .bpgs-foot{font-size:11px;color:#9ca3af;padding:0 12px 10px;text-align:center}
   @media (max-width:480px){#bp-guest-shell{right:12px;bottom:12px}#bp-guest-shell .bpgs-panel{position:fixed;left:0;right:0;bottom:0;width:100vw;max-width:100vw;height:82vh;max-height:82vh;border-radius:16px 16px 0 0}}
+  #bp-guest-shell.bpgs-first{position:static;right:auto;bottom:auto;display:block;width:100%;max-width:960px;margin:0 auto;padding:16px}
+  #bp-guest-shell.bpgs-first .bpgs-panel{position:static;width:100%;max-width:100%;height:480px;max-height:70vh;bottom:auto;right:auto}
+  #bp-guest-shell.bpgs-first .bpgs-after{display:block;text-align:center;font-size:13px;color:#4f46e5;margin-top:10px}
+  @media (max-width:480px){#bp-guest-shell.bpgs-first{padding:8px}#bp-guest-shell.bpgs-first .bpgs-panel{position:static;width:100%;height:70vh;max-height:70vh;border-radius:16px}}
 </style>
 <div id="bp-guest-shell"
+     class="{{ $gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::SHELL_FIRST ? 'bpgs-first' : '' }}"
      data-guest-shell
+     data-guest-shell-layout="{{ $gsLayout }}"
      data-guest-shell-mode="{{ $gsDisplay['mode'] }}"
      data-guest-shell-reason="{{ $gsDisplay['reason'] }}"
      data-guest-shell-state="{{ $gsLive ? 'live' : 'degraded' }}"
@@ -64,13 +80,15 @@
      data-guest-shell-csrf="{{ csrf_token() }}"
      data-guest-shell-max="{{ $guestShell['limits']['max_input_chars'] }}"
      data-guest-shell-labels='@json($gsLabels)'>
+  @if($gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::OVERLAY)
   <button type="button" class="bpgs-toggle" data-guest-shell-toggle aria-expanded="false" aria-controls="bpgs-panel">
     <span aria-hidden="true">💬</span><span>{{ __('guest_shell.ui.open', ['name' => $organization->name]) }}</span>
   </button>
-  <section id="bpgs-panel" class="bpgs-panel" hidden role="dialog" aria-label="{{ __('guest_shell.ui.title', ['name' => $organization->name]) }}" data-guest-shell-panel>
+  @endif
+  <section id="bpgs-panel" class="bpgs-panel" @if($gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::OVERLAY) hidden @endif role="{{ $gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::OVERLAY ? 'dialog' : 'region' }}" aria-label="{{ __('guest_shell.ui.title', ['name' => $organization->name]) }}" data-guest-shell-panel>
     <div class="bpgs-head">
       <strong>{{ __('guest_shell.ui.title', ['name' => $organization->name]) }}</strong>
-      <button type="button" class="bpgs-close" data-guest-shell-close aria-label="{{ __('guest_shell.ui.close') }}">×</button>
+      @if($gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::OVERLAY)<button type="button" class="bpgs-close" data-guest-shell-close aria-label="{{ __('guest_shell.ui.close') }}">×</button>@endif
     </div>
     <div class="bpgs-log" data-guest-shell-log aria-live="polite">
       @if($gsLive)
@@ -97,6 +115,7 @@
     </form>
     <div class="bpgs-foot">{{ __('guest_shell.ui.privacy') }}</div>
   </section>
+  @if($gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::SHELL_FIRST)<a class="bpgs-after" href="#bpgs-after" data-guest-shell-after>{{ __('guest_shell.ui.first_after', ['name' => $organization->name]) }}</a><span id="bpgs-after"></span>@endif
 </div>
 <script>
 (function () {
@@ -112,11 +131,12 @@
   var send = root.querySelector('[data-guest-shell-send]');
   var cta = root.querySelector('[data-guest-shell-cta]');
   var busy = false;
-  function open() { panel.hidden = false; toggle.setAttribute('aria-expanded', 'true'); if (!input.disabled) input.focus(); log.scrollTop = log.scrollHeight; }
-  function shut() { panel.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
-  toggle.addEventListener('click', function () { panel.hidden ? open() : shut(); });
-  close.addEventListener('click', shut);
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !panel.hidden) shut(); });
+  var floating = !!toggle;
+  function open() { panel.hidden = false; if (toggle) toggle.setAttribute('aria-expanded', 'true'); if (!input.disabled) input.focus(); log.scrollTop = log.scrollHeight; }
+  function shut() { if (!floating) return; panel.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
+  if (toggle) toggle.addEventListener('click', function () { panel.hidden ? open() : shut(); });
+  if (close) close.addEventListener('click', shut);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && floating && !panel.hidden) shut(); });
   function line(cls, text, attr) { var el = document.createElement('div'); el.className = cls; el.textContent = text; if (attr) el.setAttribute(attr[0], attr[1]); if (cta) log.insertBefore(el, cta); else log.appendChild(el); log.scrollTop = log.scrollHeight; return el; }
   function lock(off) { input.disabled = off; send.disabled = off; }
   form.addEventListener('submit', function (e) {

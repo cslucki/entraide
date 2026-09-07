@@ -1,5 +1,6 @@
 <x-app-layout :title="$organization->name">
     <section class="min-h-screen bg-[var(--bp-page)] px-4 py-6 text-[var(--bp-text)] md:px-8 md:py-8">
+        @include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'top'])
         <div class="mx-auto flex min-h-[calc(100vh-3.5rem)] flex-col border-0 md:bg-[var(--bp-surface)]/80 md:shadow-sm md:backdrop-blur md:min-h-[calc(100vh-4rem)] md:max-w-6xl md:rounded-[2rem]">
             @guest
             <div class="hidden items-center justify-end border-b border-[var(--bp-border)] px-5 py-4 md:flex md:px-8">
@@ -72,5 +73,5 @@
         </div>
         @include('partials.footer')
     </section>
-    @include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization])
+    @include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'bottom'])
 </x-app-layout>

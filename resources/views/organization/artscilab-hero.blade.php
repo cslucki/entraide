@@ -39,6 +39,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 <div class="mouse-light" id="bp-mlight"></div>
 
 <div class="page">
+@include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'top'])
 
   {{-- HEADER --}}
   <header class="nav">
@@ -162,6 +163,6 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 </div>
 
 <script src="{{ asset('js/artscilab-hero.js') }}?v={{ filemtime(public_path('js/artscilab-hero.js')) }}"></script>
-@include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization])
+@include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'bottom'])
 </body>
 </html>
