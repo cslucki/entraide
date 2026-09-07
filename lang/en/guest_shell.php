@@ -39,6 +39,7 @@ return [
         'refused_input_out_of_bounds' => 'Your message is empty or too long.',
         'remaining' => ':count message(s) left',
         'limit_reached' => 'Conversation limit reached.',
+        'first_after' => 'See the :name page ↓',
     ],
     'page' => [
         'kind' => 'Surface',
