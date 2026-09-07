@@ -21,6 +21,8 @@ use LogicException;
  */
 class CrmContactService
 {
+    public function __construct(private readonly CrmStatusService $statuses) {}
+
     /**
      * Trouve ou cree le Contact d'une Organization.
      *
@@ -66,9 +68,13 @@ class CrmContactService
             throw new LogicException("Unknown CRM contact source [{$source}].");
         }
 
+        // TASK-1414 — un Contact nait avec le statut par defaut de SON
+        // Organization (arbitrage MASTER Q7) : une liste sans statut serait
+        // ambigue des la premiere ligne.
         return CrmContact::create([
             'organization_id' => $organization->id,
             'created_by_user_id' => $actor?->id,
+            'status_id' => $this->statuses->defaultStatus($organization)->id,
             'first_name' => $this->clean($attributes['first_name'] ?? null),
             'last_name' => $this->clean($attributes['last_name'] ?? null),
             'email' => $email,

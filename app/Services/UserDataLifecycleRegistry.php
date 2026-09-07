@@ -215,6 +215,10 @@ class UserDataLifecycleRegistry
             // fiche est un audit detachable, comme partout ailleurs.
             ['key' => 'crm_contacts_user_id', 'type' => 'sql', 'table' => 'crm_contacts', 'column' => 'user_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'A CRM contact is the Organization relationship record (TASK-1413): it exists before any account and must outlive the member, who is simply detached (FK nullOnDelete). The commercial history stays with the Organization.'],
             ['key' => 'crm_contacts_created_by_user_id', 'type' => 'sql', 'table' => 'crm_contacts', 'column' => 'created_by_user_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Who created a CRM contact is Organization audit, not personal data: the author is detached (TASK-1413).'],
+            // TASK-1414 (CRM-2) : la timeline d'un Contact est la memoire de
+            // l'Organization (append-only). L'auteur d'un fait est detache,
+            // le fait reste.
+            ['key' => 'crm_contact_events_author_user_id', 'type' => 'sql', 'table' => 'crm_contact_events', 'column' => 'author_user_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'A CRM timeline event belongs to the Organization relationship history (TASK-1414): it must outlive its author, who is simply detached (FK nullOnDelete).'],
 
             ['key' => 'loop_roadmap_items_created_by', 'type' => 'sql', 'table' => 'loop_roadmap_items', 'column' => 'created_by', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'The action survives; its author is anonymized.'],
             ['key' => 'loop_roadmap_item_messages_user_id', 'type' => 'sql', 'table' => 'loop_roadmap_item_messages', 'column' => 'user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'Thread author is anonymized, as for ChatLoop messages.'],
