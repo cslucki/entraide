@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * TASK-1433 — SW-3 : un visiteur pseudonyme du Shell Welcome, propre a UNE
@@ -44,6 +45,11 @@ class GuestVisitor extends Model
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(GuestConversation::class, 'guest_visitor_id');
     }
 
     public function claimedUser(): BelongsTo
