@@ -102,6 +102,23 @@ final class AiEconomicGuard
     ];
 
     /**
+     * TASK-1448 (Growth V3 §3, P0) — process dont le quota « inconnu » compte
+     * TOUTE tentative provider au cout inconnu, quel que soit le statut.
+     *
+     * Regle du Shell Welcome : refus avant provider = zero cout ; provider
+     * appele + cout connu = cout compte quel que soit le statut ; provider
+     * appele + cout inconnu = UNE operation du quota `unknown`, meme en
+     * `failed` — un timeout ou une reponse ambigue n'est jamais suppose
+     * gratuit, et le Guest ne retente jamais (une ligne = un tour).
+     *
+     * Borne a ce process : les jobs d'ingestion et les autres process
+     * retentent une panne provider (retries de job) — pour eux, compter
+     * les echecs fermerait un process a cause d'une panne ; leur regle
+     * `status = success` (TASK-1260) reste inchangee.
+     */
+    public const UNKNOWN_QUOTA_COUNTS_FAILED_ATTEMPTS = ['guest_shell'];
+
+    /**
      * Les process migres — derives du mapping, jamais une liste a part.
      *
      * @return list<string>
@@ -480,7 +497,10 @@ final class AiEconomicGuard
      *    le registre, un echec portait `cost_unknown = NULL` et n'entrait
      *    nulle part — au ledger il porte `cost_status = unknown`, le filtre
      *    de statut est donc obligatoire pour ne pas fermer un process a
-     *    cause d'une panne.
+     *    cause d'une panne. EXCEPTION bornee (TASK-1448, Growth V3 §3 P0) :
+     *    les process de `UNKNOWN_QUOTA_COUNTS_FAILED_ATTEMPTS` comptent
+     *    aussi leurs tentatives en echec au cout inconnu — une tentative
+     *    Guest qui a atteint le provider n'est jamais supposee gratuite.
      *
      *  - tout autre process (chemins restes hors mapping apres TASK-1291 —
      *    les bancs SuperAdmin : `supervision.content` au tenant par defaut
@@ -528,9 +548,14 @@ final class AiEconomicGuard
                 ->where('cost_status', AiProviderInvocation::COST_KNOWN)
                 ->sum('provider_cost');
 
-            $unknownRow = (clone $ledger)
-                ->where('status', AiProviderInvocation::STATUS_SUCCESS)
-                ->where('cost_status', AiProviderInvocation::COST_UNKNOWN)
+            $unknownQuery = (clone $ledger)
+                ->where('cost_status', AiProviderInvocation::COST_UNKNOWN);
+
+            if (! in_array($process, self::UNKNOWN_QUOTA_COUNTS_FAILED_ATTEMPTS, true)) {
+                $unknownQuery->where('status', AiProviderInvocation::STATUS_SUCCESS);
+            }
+
+            $unknownRow = $unknownQuery
                 ->selectRaw('COUNT(DISTINCT COALESCE(correlation_id, id)) as operations')
                 ->first();
 
