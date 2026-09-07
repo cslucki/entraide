@@ -1062,6 +1062,9 @@ Route::prefix('/org/{organization}')
                 Route::put('/relations/{contact}', [OrgCrmController::class, 'updateContact'])->name('crm.contacts.update');
                 Route::post('/relations/{contact}/status', [OrgCrmController::class, 'changeStatus'])->name('crm.contacts.status');
                 Route::post('/relations/{contact}/notes', [OrgCrmController::class, 'storeNote'])->name('crm.contacts.notes.store');
+                // TASK-1418 (CRM-6) : la prochaine action — planifier, marquer faite.
+                Route::post('/relations/{contact}/next-action', [OrgCrmController::class, 'planNextAction'])->name('crm.contacts.next-action.plan');
+                Route::post('/relations/{contact}/next-action/complete', [OrgCrmController::class, 'completeNextAction'])->name('crm.contacts.next-action.complete');
                 Route::post('/users/{user}/follow', [OrgCrmController::class, 'followMember'])->name('crm.members.follow');
 
                 // Administration

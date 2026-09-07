@@ -8,10 +8,12 @@ use App\Models\CrmStatus;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Crm\CrmContactService;
+use App\Services\Crm\CrmNextActionService;
 use App\Services\Crm\CrmStatusService;
 use App\Services\Crm\CrmTimelineService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use LogicException;
@@ -37,6 +39,7 @@ class OrgCrmController extends Controller
         private readonly CrmContactService $contacts,
         private readonly CrmStatusService $statuses,
         private readonly CrmTimelineService $timeline,
+        private readonly CrmNextActionService $nextActions,
     ) {}
 
     public function contacts(Request $request, Organization $organization): View
@@ -81,9 +84,29 @@ class OrgCrmController extends Controller
             });
         }
 
+        // TASK-1418 — « que dois-je faire aujourd'hui ? » : Aujourd'hui / En retard /
+        // Cette semaine (semaine ISO, jusqu'a dimanche). Avec une echeance
+        // active, on trie par echeance ; sinon par dernier contact.
+        $due = (string) $request->input('due');
+        $now = now();
+        match ($due) {
+            // whereDate : la colonne DATE s'ecrit « Y-m-d H:i:s » sur SQLite (cast
+            // Eloquent) et « Y-m-d » sur PostgreSQL ; comparer des JOURS, pas des chaines.
+            'today' => $query->whereDate('next_action_date', $now->toDateString()),
+            'overdue' => $query->whereDate('next_action_date', '<', $now->toDateString()),
+            'week' => $query->whereDate('next_action_date', '>=', $now->toDateString())
+                ->whereDate('next_action_date', '<=', $now->copy()->endOfWeek()->toDateString()),
+            default => $due = '',
+        };
+
+        if ($due !== '') {
+            $query->orderBy('next_action_date')->orderByRaw('next_action_time IS NULL')->orderBy('next_action_time');
+        } else {
+            $query->orderByRaw('last_interaction_at IS NULL')
+                ->orderByDesc('last_interaction_at');
+        }
+
         $contacts = $query
-            ->orderByRaw('last_interaction_at IS NULL')
-            ->orderByDesc('last_interaction_at')
             ->orderByDesc('created_at')
             ->paginate(25)
             ->withQueryString();
@@ -97,6 +120,8 @@ class OrgCrmController extends Controller
             'idle' => $idle,
             'channels' => CrmTimelineService::CHANNELS,
             'idleDays' => self::IDLE_DAYS,
+            'due' => $due,
+            'actionTypes' => CrmNextActionService::TYPES,
         ]);
     }
 
@@ -115,6 +140,7 @@ class OrgCrmController extends Controller
             'statuses' => CrmStatus::forOrganization($organization)->active()->ordered()->get(),
             'events' => $contact->events()->with('author')->chronological()->get()->reverse()->values(),
             'channels' => CrmTimelineService::CHANNELS,
+            'actionTypes' => CrmNextActionService::TYPES,
         ]);
     }
 
@@ -190,6 +216,35 @@ class OrgCrmController extends Controller
         $this->timeline->addNote($contact, $data['body'], $request->user(), $data['channel'] ?? null);
 
         return back()->with('success', __('crm.flash.note_added'));
+    }
+
+    /**
+     * TASK-1418 — planifier (ou remplacer) la prochaine action : un JOUR et une
+     * heure OPTIONNELLE, jamais d'heure inventee ; « en retard » = jour passe.
+     */
+    public function planNextAction(Request $request, Organization $organization, string $contact): RedirectResponse
+    {
+        $contact = $this->resolveContact($organization, $contact);
+
+        $data = $request->validate([
+            'next_action_type' => ['required', 'string', Rule::in(CrmNextActionService::TYPES)],
+            'next_action_date' => ['required', 'date_format:Y-m-d'],
+            'next_action_time' => ['nullable', 'date_format:H:i'],
+            'next_action_label' => ['nullable', 'string', 'max:'.CrmNextActionService::MAX_LABEL_LENGTH],
+        ]);
+
+        $this->nextActions->plan($contact, $data['next_action_type'], Carbon::parse($data['next_action_date']), $data['next_action_time'] ?? null, $data['next_action_label'] ?? null, $request->user());
+
+        return back()->with('success', __('crm.flash_next_action_planned'));
+    }
+
+    public function completeNextAction(Request $request, Organization $organization, string $contact): RedirectResponse
+    {
+        $contact = $this->resolveContact($organization, $contact);
+
+        $done = $this->nextActions->complete($contact, $request->user());
+
+        return back()->with('success', $done ? __('crm.flash_next_action_done') : __('crm.flash_next_action_nothing'));
     }
 
     /**
