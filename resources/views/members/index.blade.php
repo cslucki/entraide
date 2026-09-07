@@ -58,7 +58,7 @@
                     </span>
                     <span class="text-gray-300 dark:text-gray-600">·</span>
                     <span title="{{ __('directory.open_requests') }}">
-                        <span class="font-semibold text-green-600 dark:text-green-400">{{ $member->open_requests_count }}</span> {{ trans_choice('directory.request_count', $member->open_requests_count, ['count' => $member->open_requests_count]) }}
+                        <span class="font-semibold text-green-600 dark:text-green-400">{{ $member->open_requests_count }}</span> {{ trans_choice('directory.request_label', $member->open_requests_count) }}
                     </span>
                 </div>
 
