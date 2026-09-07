@@ -41,6 +41,45 @@
                 </form>
             </div>
 
+            {{-- TASK-1418 — CRM-6 : la prochaine action, sur la fiche. --}}
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5" data-crm-next-action x-data="{ open: {{ $errors->hasAny(['next_action_type','next_action_date','next_action_time','next_action_label']) ? 'true' : 'false' }} }">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ __('crm.next_action.title') }}</h2>
+                @if($contact->hasNextAction())
+                <div class="text-sm text-gray-900 dark:text-gray-100 flex flex-wrap items-center gap-2" data-crm-next-action-current>
+                    <span class="font-medium">{{ __('crm.action_type.'.$contact->next_action_type) }}</span>
+                    <span class="{{ $contact->isNextActionOverdue() ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-600 dark:text-gray-300' }}" @if($contact->isNextActionOverdue()) data-crm-overdue @endif>{{ $contact->nextActionDueLabel() }}@if($contact->isNextActionOverdue()) · {{ __('crm.next_action.overdue') }}@endif</span>
+                    @if($contact->next_action_label)<span class="text-gray-500 dark:text-gray-400">— {{ $contact->next_action_label }}</span>@endif
+                </div>
+                <div class="mt-3 flex gap-2">
+                    <form method="POST" action="{{ route('organization.admin.crm.contacts.next-action.complete', ['organization' => $organization->slug, 'contact' => $contact->id]) }}">
+                        @csrf
+                        <button type="submit" data-crm-next-action-done class="px-3 py-1.5 text-xs rounded bg-green-600 text-white hover:bg-green-700">{{ __('crm.next_action.done') }}</button>
+                    </form>
+                    <button type="button" @click="open = !open" data-crm-next-action-toggle class="px-3 py-1.5 text-xs rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">{{ __('crm.next_action.replan') }}</button>
+                </div>
+                @else
+                <p class="text-sm text-gray-400" data-crm-next-action-none>{{ __('crm.next_action.none') }}</p>
+                <button type="button" @click="open = !open" data-crm-next-action-toggle class="mt-3 px-3 py-1.5 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700">{{ __('crm.next_action.plan') }}</button>
+                @endif
+                <form method="POST" action="{{ route('organization.admin.crm.contacts.next-action.plan', ['organization' => $organization->slug, 'contact' => $contact->id]) }}" x-show="open" x-cloak data-crm-next-action-form class="mt-3 grid grid-cols-1 gap-2">
+                    @csrf
+                    <select name="next_action_type" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                        @foreach($actionTypes as $type)
+                        <option value="{{ $type }}" {{ old('next_action_type', $contact->next_action_type) === $type ? 'selected' : '' }}>{{ __('crm.action_type.'.$type) }}</option>
+                        @endforeach
+                    </select>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="date" name="next_action_date" required value="{{ old('next_action_date', $contact->next_action_date?->format('Y-m-d')) }}" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                        <input type="time" name="next_action_time" value="{{ old('next_action_time', $contact->nextActionTime()) }}" placeholder="{{ __('crm.next_action.time_placeholder') }}" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                    </div>
+                    <input type="text" name="next_action_label" maxlength="120" value="{{ old('next_action_label', $contact->next_action_label) }}" placeholder="{{ __('crm.next_action.label_placeholder') }}" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                    @error('next_action_type')<p class="text-xs text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
+                    @error('next_action_date')<p class="text-xs text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
+                    @error('next_action_time')<p class="text-xs text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
+                    <div class="flex justify-end"><button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">{{ __('crm.next_action.plan') }}</button></div>
+                </form>
+            </div>
+
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5" x-data="{ open: {{ $errors->hasAny(['first_name','last_name','email','phone','company']) ? 'true' : 'false' }} }">
                 <button type="button" @click="open = !open" data-crm-edit-toggle class="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center justify-between w-full">
                     <span>{{ __('crm.edit.title') }}</span><span class="text-gray-400" x-text="open ? '−' : '+'"></span>
@@ -88,10 +127,10 @@
                 <ol class="space-y-3">
                     @forelse($events as $event)
                     <li class="flex gap-3" data-crm-event="{{ $event->type }}">
-                        <div class="mt-1 w-2 h-2 rounded-full flex-shrink-0 {{ match($event->type) { 'note' => 'bg-indigo-500', 'status_changed' => 'bg-amber-500', 'contact_updated' => 'bg-gray-400', default => 'bg-green-500' } }}"></div>
+                        <div class="mt-1 w-2 h-2 rounded-full flex-shrink-0 {{ match($event->type) { 'note' => 'bg-indigo-500', 'status_changed' => 'bg-amber-500', 'contact_updated' => 'bg-gray-400', 'next_action_planned' => 'bg-sky-500', 'next_action_done' => 'bg-emerald-600', default => 'bg-green-500' } }}"></div>
                         <div class="flex-1 min-w-0">
                             <div class="flex flex-wrap items-baseline gap-x-2 text-xs text-gray-500 dark:text-gray-400">
-                                <span class="font-semibold text-gray-700 dark:text-gray-300">{{ __('crm.event.'.$event->type) }}</span>
+                                <span class="font-semibold text-gray-700 dark:text-gray-300">{{ in_array($event->type, ['next_action_planned', 'next_action_done'], true) ? __('crm.event_'.$event->type) : __('crm.event.'.$event->type) }}</span>
                                 @if($event->type === 'note' && ($event->payload['channel'] ?? null))<span class="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">{{ __('crm.channel.'.$event->payload['channel']) }}</span>@endif
                                 <span>{{ $event->occurred_at->format('d/m/Y H:i') }}</span>
                                 @if($event->author)<span>· {{ $event->author->fullName }}</span>@endif
@@ -106,6 +145,12 @@
                                             <li>{{ __('crm.field.'.$field) }} : <span class="line-through text-gray-400">{{ $change['from'] ?? '—' }}</span> &rarr; {{ $change['to'] ?? '—' }}</li>
                                         @endforeach
                                         </ul>
+                                    @break
+                                    @case('next_action_planned')
+                                    @case('next_action_done')
+                                        {{ __('crm.action_type.'.($event->payload['action_type'] ?? 'other')) }}
+                                        @if(!empty($event->payload['date'])) · {{ \Carbon\Carbon::parse($event->payload['date'])->format('d/m/Y') }}@endif@if(!empty($event->payload['time'])) {{ $event->payload['time'] }}@endif
+                                        @if(!empty($event->payload['label'])) — {{ $event->payload['label'] }}@endif
                                     @break
                                     @default —
                                 @endswitch

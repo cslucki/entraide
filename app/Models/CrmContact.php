@@ -67,11 +67,16 @@ class CrmContact extends Model
         'source_ref',
         'do_not_contact_at',
         'last_interaction_at',
+        'next_action_type',
+        'next_action_date',
+        'next_action_time',
+        'next_action_label',
     ];
 
     protected $casts = [
         'do_not_contact_at' => 'datetime',
         'last_interaction_at' => 'datetime',
+        'next_action_date' => 'date',
     ];
 
     // ── Relations ───────────────────────────────────────────────────────────
@@ -136,6 +141,41 @@ class CrmContact extends Model
     public function isContactable(): bool
     {
         return $this->do_not_contact_at === null;
+    }
+
+    /** TASK-1418 — une seule prochaine action a la fois ; type + JOUR presents = action. */
+    public function hasNextAction(): bool
+    {
+        return $this->next_action_type !== null && $this->next_action_date !== null;
+    }
+
+    /** « En retard » = le JOUR est passe ; une heure depassee le jour meme ne compte pas (V1). */
+    public function isNextActionOverdue(): bool
+    {
+        return $this->hasNextAction() && $this->next_action_date->toDateString() < now()->toDateString();
+    }
+
+    /** L'heure optionnelle en « HH:MM », ou null : jamais d'heure inventee. */
+    public function nextActionTime(): ?string
+    {
+        return is_string($this->next_action_time) && $this->next_action_time !== '' ? substr($this->next_action_time, 0, 5) : null;
+    }
+
+    /** « Aujourd'hui », « Demain » ou « 09/09 », suivi de « · 14:30 » s'il y a une heure. */
+    public function nextActionDueLabel(): string
+    {
+        if (! $this->hasNextAction()) {
+            return '';
+        }
+
+        $day = $this->next_action_date->toDateString();
+        $label = match (true) {
+            $day === now()->toDateString() => __('crm.next_action.today'),
+            $day === now()->addDay()->toDateString() => __('crm.next_action.tomorrow'),
+            default => $this->next_action_date->format('d/m'),
+        };
+
+        return $this->nextActionTime() ? $label.' · '.$this->nextActionTime() : $label;
     }
 
     public function hasInternationalPhone(): bool

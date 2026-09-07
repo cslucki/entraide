@@ -44,12 +44,17 @@
             <option value="{{ $status->id }}" {{ $statusFilter === $status->id ? 'selected' : '' }}>{{ $status->label }}</option>
             @endforeach
         </select>
+        <select name="due" data-crm-due-filter class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+            @foreach(['any' => '', 'today' => 'today', 'overdue' => 'overdue', 'week' => 'week'] as $key => $value)
+            <option value="{{ $value }}" {{ $due === $value ? 'selected' : '' }}>{{ __('crm.filter_due.'.$key) }}</option>
+            @endforeach
+        </select>
         <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             <input type="checkbox" name="idle" value="1" {{ $idle ? 'checked' : '' }} class="rounded border-gray-300 dark:border-gray-600">
             {{ __('crm.filter.idle', ['days' => $idleDays]) }}
         </label>
         <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">{{ __('navigation.org_admin_filter') }}</button>
-        @if($search !== '' || $statusFilter !== '' || $idle)
+        @if($search !== '' || $statusFilter !== '' || $idle || $due !== '')
         <a href="{{ route('organization.admin.crm.contacts', ['organization' => $organization->slug]) }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">{{ __('navigation.org_admin_clear') }}</a>
         @endif
     </form>
@@ -64,12 +69,13 @@
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('crm.column.status') }}</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('crm.column.last_interaction') }}</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('crm.column.source') }}</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('crm.column_next_action') }}</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('crm.column.actions') }}</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                 @forelse($contacts as $contact)
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 align-top" data-crm-contact="{{ $contact->id }}" x-data="{ note: false }">
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 align-top" data-crm-contact="{{ $contact->id }}" x-data="{ note: false, plan: false }">
                     <td class="px-4 py-3">
                         <a href="{{ route('organization.admin.crm.contacts.show', ['organization' => $organization->slug, 'contact' => $contact->id]) }}" data-crm-open="{{ $contact->id }}"
                            class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline">{{ $contact->fullName !== '' ? $contact->fullName : '—' }}</a>
@@ -96,7 +102,33 @@
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap" data-crm-last-interaction>{{ $contact->last_interaction_at?->diffForHumans() ?? __('crm.never_contacted') }}</td>
                     <td class="px-4 py-3 text-xs text-gray-500">{{ __('crm.source.'.$contact->source) }}</td>
+                    <td class="px-4 py-3 text-xs whitespace-nowrap" data-crm-next-action-cell>
+                        @if($contact->hasNextAction())
+                        <span class="text-gray-900 dark:text-gray-100">{{ __('crm.action_type.'.$contact->next_action_type) }}</span>
+                        <span class="{{ $contact->isNextActionOverdue() ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-500' }}" @if($contact->isNextActionOverdue()) data-crm-overdue @endif>· {{ $contact->nextActionDueLabel() }}</span>
+                        @if($contact->next_action_label)<div class="text-gray-500 truncate max-w-[12rem]">{{ $contact->next_action_label }}</div>@endif
+                        @else
+                        <span class="text-gray-400">—</span>
+                        @endif
+                    </td>
                     <td class="px-4 py-3">
+                        <button type="button" @click="plan = !plan" data-crm-plan-toggle
+                            class="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 mr-1">{{ __('crm.next_action.plan') }}</button>
+                        <form method="POST" action="{{ route('organization.admin.crm.contacts.next-action.plan', ['organization' => $organization->slug, 'contact' => $contact->id]) }}"
+                              x-show="plan" x-cloak data-crm-plan-form class="mt-2 flex flex-col gap-2 min-w-[14rem]">
+                            @csrf
+                            <select name="next_action_type" class="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs">
+                                @foreach($actionTypes as $type)
+                                <option value="{{ $type }}" {{ $contact->next_action_type === $type ? 'selected' : '' }}>{{ __('crm.action_type.'.$type) }}</option>
+                                @endforeach
+                            </select>
+                            <div class="flex gap-1">
+                                <input type="date" name="next_action_date" required value="{{ $contact->next_action_date?->format('Y-m-d') }}" class="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs">
+                                <input type="time" name="next_action_time" value="{{ $contact->nextActionTime() }}" class="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs">
+                            </div>
+                            <input type="text" name="next_action_label" maxlength="120" value="{{ $contact->next_action_label }}" placeholder="{{ __('crm.next_action.label_placeholder') }}" class="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs">
+                            <button type="submit" class="px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700">{{ __('crm.next_action.plan') }}</button>
+                        </form>
                         <button type="button" @click="note = !note" data-crm-note-toggle
                             class="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">{{ __('crm.add_note') }}</button>
                         <form method="POST" action="{{ route('organization.admin.crm.contacts.notes.store', ['organization' => $organization->slug, 'contact' => $contact->id]) }}"
@@ -118,7 +150,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-400" data-crm-empty>{{ __('crm.empty') }}</td>
+                    <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-400" data-crm-empty>{{ __('crm.empty') }}</td>
                 </tr>
                 @endforelse
             </tbody>
