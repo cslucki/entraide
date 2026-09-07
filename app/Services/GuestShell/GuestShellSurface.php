@@ -6,6 +6,7 @@ use App\Models\GuestConversation;
 use App\Models\GuestMessage;
 use App\Models\Organization;
 use App\Models\OrganizationGuestShellPolicy;
+use App\Services\Acquisition\GuestAttribution;
 use App\Support\GuestShell\GuestPageContext;
 use App\Support\GuestShell\GuestShellDisplay;
 use App\Support\GuestShell\GuestShellDisplayMode;
@@ -40,6 +41,7 @@ final class GuestShellSurface
         private readonly GuestVisitorResolver $visitors,
         private readonly GuestConversationService $conversations,
         private readonly GuestShellResponder $responder,
+        private readonly GuestAttribution $attribution,
     ) {}
 
     /**
@@ -69,7 +71,10 @@ final class GuestShellSurface
     /**
      * @return array<string, mixed>
      */
-    public function turn(Organization $organization, Request $request, string $message): array
+    /**
+     * @param  array<string, mixed>  $claimed  ce que le navigateur declare (shortcut + UTM) — relu en base, jamais cru sur parole (TASK-1447)
+     */
+    public function turn(Organization $organization, Request $request, string $message, array $claimed = []): array
     {
         $page = $this->pages->organizationHome($organization);
         $decision = $this->decide($organization, $page, $request);
@@ -92,10 +97,7 @@ final class GuestShellSurface
         $visitor = $this->visitors->ensure($request, $organization, [
             'locale' => app()->getLocale(),
             'referrer' => $request->headers->get('referer'),
-            'utm_source' => $request->query('utm_source'),
-            'utm_medium' => $request->query('utm_medium'),
-            'utm_campaign' => $request->query('utm_campaign'),
-        ]);
+        ] + $this->attribution->resolve($organization, $claimed));
         $conversation = $this->conversations->resumeOrStart($visitor);
         $result = $this->responder->respond($organization, $visitor, $conversation, $message, $page);
 
