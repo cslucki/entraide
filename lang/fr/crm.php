@@ -214,4 +214,29 @@ return [
     ],
     'event_email_sent' => 'Email envoyé',
     'event_email_failed' => 'Échec d\'envoi',
+    // TASK-1422 — CRM-13 : contactabilite.
+    'policy' => [
+        'title' => 'Contactabilité',
+        'state_contactable' => 'Ce contact peut être contacté.',
+        'state_blocked' => 'Ne pas contacter depuis le :date. Aucun email, WhatsApp ni SMS ne partira.',
+        'block' => 'Ne plus contacter',
+        'allow' => 'Autoriser à nouveau',
+        'confirm_block' => 'Confirmer : ne plus contacter',
+        'confirm_allow' => 'Confirmer : contactable',
+        'note_placeholder' => 'Précision (facultatif)',
+        'hint' => 'Le changement est tracé dans l\'historique avec sa raison et son auteur. Il ne modifie pas le passé.',
+        'reason' => [
+            'contact_request' => 'À la demande du contact',
+            'data_error' => 'Erreur de saisie / donnée',
+            'other' => 'Autre raison',
+        ],
+        'flash_blocked' => 'Ce contact ne sera plus contacté.',
+        'flash_allowed' => 'Ce contact peut être contacté à nouveau.',
+        'flash_unchanged' => 'Aucun changement : l\'état demandé était déjà en place.',
+    ],
+    'event_contact_policy_changed' => 'Contactabilité',
+    'policy_state' => [
+        'do_not_contact' => 'Ne plus contacter',
+        'contactable' => 'Contactable',
+    ],
 ];

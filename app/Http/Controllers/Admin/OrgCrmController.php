@@ -8,6 +8,7 @@ use App\Models\CrmStatus;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Crm\CrmContactService;
+use App\Services\Crm\CrmContactPolicyService;
 use App\Services\Crm\CrmEmailSendService;
 use App\Services\Crm\CrmEmailTemplateService;
 use App\Services\Crm\CrmNextActionService;
@@ -44,6 +45,7 @@ class OrgCrmController extends Controller
         private readonly CrmNextActionService $nextActions,
         private readonly CrmEmailSendService $emails,
         private readonly CrmEmailTemplateService $emailTemplates,
+        private readonly CrmContactPolicyService $policy,
     ) {}
 
     public function contacts(Request $request, Organization $organization): View
@@ -146,6 +148,7 @@ class OrgCrmController extends Controller
             'channels' => CrmTimelineService::CHANNELS,
             'actionTypes' => CrmNextActionService::TYPES,
             'emailTemplates' => $this->emailTemplates->forOrganization($organization)->orderBy('name')->get(),
+            'policyReasons' => CrmContactPolicyService::REASONS,
         ]);
     }
 
@@ -420,6 +423,31 @@ class OrgCrmController extends Controller
         }
 
         return $back->with('error', __('crm.email.flash_failed', ['error' => \Illuminate\Support\Str::limit((string) $log->error_message, 120)]));
+    }
+
+    /**
+     * TASK-1422 — CRM-13 : « ne plus contacter » / « autoriser a nouveau », avec
+     * une raison bornee. Le meme etat redemande n'ecrit rien.
+     */
+    public function changePolicy(Request $request, Organization $organization, string $contact): RedirectResponse
+    {
+        $contact = $this->resolveContact($organization, $contact);
+
+        $data = $request->validate([
+            'action' => ['required', 'string', Rule::in(['block', 'allow'])],
+            'reason' => ['required', 'string', Rule::in(CrmContactPolicyService::REASONS)],
+            'note' => ['nullable', 'string', 'max:'.CrmContactPolicyService::MAX_NOTE_LENGTH],
+        ]);
+
+        $event = $data['action'] === 'block'
+            ? $this->policy->block($contact, $data['reason'], $data['note'] ?? null, $request->user())
+            : $this->policy->allow($contact, $data['reason'], $data['note'] ?? null, $request->user());
+
+        if ($event === null) {
+            return back()->with('success', __('crm.policy.flash_unchanged'));
+        }
+
+        return back()->with('success', $data['action'] === 'block' ? __('crm.policy.flash_blocked') : __('crm.policy.flash_allowed'));
     }
 
     /**
