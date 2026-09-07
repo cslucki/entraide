@@ -37,6 +37,7 @@ use App\Http\Controllers\Admin\AdminThemeController;
 use App\Http\Controllers\Admin\AdminTranslationController;
 use App\Http\Controllers\Admin\OrgAdminController;
 use App\Http\Controllers\Admin\OrgCrmController;
+use App\Http\Controllers\Admin\OrgCrmTemplateController;
 use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\AiAgentLoopController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -1065,6 +1066,14 @@ Route::prefix('/org/{organization}')
                 Route::post('/relations/statuts/{status}/move', [OrgCrmController::class, 'moveStatus'])->name('crm.statuses.move');
                 Route::post('/relations/statuts/{status}/toggle', [OrgCrmController::class, 'toggleStatus'])->name('crm.statuses.toggle');
                 Route::post('/relations/statuts/{status}/default', [OrgCrmController::class, 'defaultStatus'])->name('crm.statuses.default');
+                // TASK-1420 (CRM-7a) : modeles d'email de l'Organization. Declare AVANT
+                // /relations/{contact} : « modeles » n'est jamais un id de Contact.
+                Route::get('/relations/modeles', [OrgCrmTemplateController::class, 'index'])->name('crm.templates');
+                Route::get('/relations/modeles/nouveau', [OrgCrmTemplateController::class, 'create'])->name('crm.templates.create');
+                Route::post('/relations/modeles', [OrgCrmTemplateController::class, 'store'])->name('crm.templates.store');
+                Route::get('/relations/modeles/{template}/modifier', [OrgCrmTemplateController::class, 'edit'])->name('crm.templates.edit');
+                Route::put('/relations/modeles/{template}', [OrgCrmTemplateController::class, 'update'])->name('crm.templates.update');
+                Route::get('/relations/modeles/{template}/apercu', [OrgCrmTemplateController::class, 'preview'])->name('crm.templates.preview');
                 // TASK-1417 (CRM-5) : la fiche Contact et l'edition tracee de ses coordonnees.
                 Route::get('/relations/{contact}', [OrgCrmController::class, 'show'])->name('crm.contacts.show');
                 Route::put('/relations/{contact}', [OrgCrmController::class, 'updateContact'])->name('crm.contacts.update');

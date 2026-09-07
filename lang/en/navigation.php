@@ -120,6 +120,7 @@ return [
     'org_admin_section_relations' => 'Relationships',
     'org_admin_relations' => 'Contacts',
     'org_admin_crm_statuses' => 'Statuses',
+    'org_admin_crm_templates' => 'Email templates',
     'org_admin_section_administration' => 'Administration',
 
     // LOT B — Services, Requests, Transactions
