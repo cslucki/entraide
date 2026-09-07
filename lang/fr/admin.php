@@ -601,7 +601,7 @@ return [
     'scenario_packs_confirm_delete_org_removed' => 'Retirer ce scénario supprimera également l\'organisation « :organization », car elle a été créée par ce pack. Les données ajoutées ensuite dans cette organisation seront également supprimées. Confirmer ?',
     // TASK-1425 — CRM-15 : « Relations » cote plateforme, agregats par Organization.
     'crm_overview_title' => 'Relations (toutes organisations)',
-    'crm_overview_hint' => 'Compteurs par organisation, sans aucun contenu : ni notes, ni emails, ni noms de contacts. « Sans contact » = joignables sans interaction depuis :days jours ; « Faits récents » = sur :recent jours.',
+    'crm_overview_hint' => 'Compteurs par organisation ; les contacts de toutes les organisations sont listés dessous, le contenu des faits est dans l\'onglet « Derniers faits ». « Sans contact » = joignables sans interaction depuis :days jours ; « Faits récents » = sur :recent jours.',
     'crm_overview_organization' => 'Organisation',
     'crm_overview_contacts' => 'Contacts',
     'crm_overview_contactable' => 'Joignables',

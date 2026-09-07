@@ -597,7 +597,7 @@ return [
     'scenario_packs_confirm_delete_org_removed' => 'Removing this scenario will also delete the organisation ":organization", because it was created by this pack. Data added to that organisation afterwards will be deleted too. Confirm?',
     // TASK-1425 — CRM-15: platform-side "Relationships", aggregates per Organization.
     'crm_overview_title' => 'Relationships (all organizations)',
-    'crm_overview_hint' => 'Counters per organization, with no content: no notes, no emails, no contact names. "No contact" = reachable contacts with no interaction for :days days; "Recent facts" = over :recent days.',
+    'crm_overview_hint' => 'Counters per organization; the contacts of every organization are listed below, the content of facts lives in the "Latest facts" tab. "No contact" = reachable contacts with no interaction for :days days; "Recent facts" = over :recent days.',
     'crm_overview_organization' => 'Organization',
     'crm_overview_contacts' => 'Contacts',
     'crm_overview_contactable' => 'Reachable',
