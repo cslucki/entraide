@@ -47,15 +47,49 @@
         };
     };
     $formatLabel = static fn (string $format): string => __('ai.observatory_format_'.$format);
+    // TASK-1406 : chaque raison porte desormais `actionable` — l'admin de
+    // cette Organization peut-il la resoudre depuis « Configuration IA » ?
+    // L'activation de la recherche semantique est une gate PLATEFORME : aucun
+    // ecran d'Organization ne la resout, donc aucun bouton n'est propose pour
+    // elle. Un CTA qui ne peut rien resoudre est pire que pas de CTA.
+    $embeddingFamily = trim((string) config('ai.default_for_embeddings', ''));
+    $organizationProvider = trim((string) ($organization->aiSetting->provider ?? ''));
+    // Le nom lisible d'une famille de fournisseur. Jamais une cle, jamais une
+    // URL : seulement le slug rendu presentable, avec repli sur le slug brut
+    // si la plateforme en configure un que cet ecran ne connait pas.
+    $providerLabel = static fn (string $slug): string => match ($slug) {
+        'openai' => 'OpenAI',
+        'openrouter' => 'OpenRouter',
+        'ollama' => 'Ollama',
+        default => $slug,
+    };
     $infraMessages = [];
     if (! $availability['semantic_search_enabled']) {
-        $infraMessages['disabled'] = __('ai.observatory_infra_disabled');
+        $infraMessages['disabled'] = [
+            'message' => __('ai.observatory_infra_disabled'),
+            'actionable' => false,
+        ];
     }
     if (! $availability['embedding_credential_available']) {
-        $infraMessages['no_credential'] = __('ai.observatory_infra_no_credential');
+        // Le cas le plus deroutant : l'Organization A une configuration IA
+        // valide, mais d'une AUTRE famille que celle de l'index. L'ecran de
+        // configuration lui parait correct et n'explique rien. On nomme donc
+        // les deux familles — jamais la cle, qui n'est ni lue ni rendue ici.
+        $infraMessages['no_credential'] = [
+            'message' => ($embeddingFamily !== '' && $organizationProvider !== '' && $organizationProvider !== $embeddingFamily)
+                ? __('ai.observatory_infra_no_credential_family', [
+                    'expected' => $providerLabel($embeddingFamily),
+                    'configured' => $providerLabel($organizationProvider),
+                ])
+                : __('ai.observatory_infra_no_credential'),
+            'actionable' => true,
+        ];
     }
     if (! $availability['budget_allows_indexing']) {
-        $infraMessages['budget'] = __('ai.observatory_infra_budget');
+        $infraMessages['budget'] = [
+            'message' => __('ai.observatory_infra_budget'),
+            'actionable' => true,
+        ];
     }
     $sourceCountLabel = static fn (int $count): string => trans_choice('ai.observatory_sources_count', $count, ['count' => number_format($count)]);
     $chunkCountLabel = static fn (int $count): string => trans_choice('ai.observatory_chunks_count', $count, ['count' => number_format($count)]);
@@ -70,15 +104,21 @@
                 <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
                 <div class="min-w-0 flex-1">
                     <p class="text-sm font-semibold text-amber-900 dark:text-amber-100">{{ __('ai.observatory_infra_title') }}</p>
-                    <ul class="mt-1 space-y-1 text-sm text-amber-800 dark:text-amber-200">
-                        @foreach($infraMessages as $key => $message)
-                            <li data-knowledge-infra-reason="{{ $key }}">{{ $message }}</li>
+                    <ul class="mt-1 space-y-2 text-sm text-amber-800 dark:text-amber-200">
+                        @foreach($infraMessages as $key => $reason)
+                            <li data-knowledge-infra-reason="{{ $key }}" data-knowledge-infra-actionable="{{ $reason['actionable'] ? 'yes' : 'no' }}">
+                                <span>{{ $reason['message'] }}</span>
+                                @if($reason['actionable'])
+                                    {{-- Le bouton n'existe que pour une raison que cet
+                                         admin peut REELLEMENT resoudre sur l'ecran cible. --}}
+                                    <a href="{{ route('organization.admin.ai', ['organization' => $organization->slug]) }}"
+                                       class="ml-1 inline-block rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-600 dark:bg-transparent dark:text-amber-100 dark:hover:bg-amber-900/40">{{ __('ai.observatory_infra_configure') }}</a>
+                                @endif
+                            </li>
                         @endforeach
                     </ul>
                     <p class="mt-2 text-xs text-amber-700/80 dark:text-amber-300/80">{{ __('ai.observatory_infra_note') }}</p>
                 </div>
-                <a href="{{ route('organization.admin.ai', ['organization' => $organization->slug]) }}"
-                   class="flex-shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-600 dark:bg-transparent dark:text-amber-100 dark:hover:bg-amber-900/40">{{ __('ai.observatory_infra_configure') }}</a>
             </div>
         </div>
     @else
