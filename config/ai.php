@@ -495,6 +495,10 @@ return [
         'max_context_chars' => (int) env('AI_GUEST_SHELL_MAX_CONTEXT_CHARS', 6000),
         // TASK-1435 (MASTER Q61) — borne de SORTIE unique : lue par la capability, imposee par SW-6 ; le visiteur ne la controle jamais.
         'max_output_tokens' => (int) env('AI_GUEST_SHELL_MAX_OUTPUT_TOKENS', 650),
+        // TASK-1436 — SW-6 (MASTER Q60) : quota TRANSVERSE d'un visiteur (messages role=user acceptes,
+        // toutes conversations, par Organization, par mois) et rafale par minute. Absents = fail-closed.
+        'visitor_monthly_max_messages' => (int) env('AI_GUEST_SHELL_VISITOR_MONTHLY_MAX_MESSAGES', 30),
+        'rate_limit_per_minute' => (int) env('AI_GUEST_SHELL_RATE_LIMIT_PER_MINUTE', 6),
         'platform_monthly_ceiling_usd' => env('AI_GUEST_SHELL_PLATFORM_CEILING_USD') === null || env('AI_GUEST_SHELL_PLATFORM_CEILING_USD') === '' ? null : (float) env('AI_GUEST_SHELL_PLATFORM_CEILING_USD'),
     ],
 ];
