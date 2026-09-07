@@ -491,6 +491,8 @@ return [
             'monthly_budget_usd' => (float) env('AI_GUEST_SHELL_MONTHLY_BUDGET_USD', 2.00),
             'monthly_unknown_limit' => (int) env('AI_GUEST_SHELL_MONTHLY_UNKNOWN_LIMIT', 10),
         ],
+        // TASK-1435 — SW-5 : budget de contexte PUBLIC ajoute au prompt d'accueil.
+        'max_context_chars' => (int) env('AI_GUEST_SHELL_MAX_CONTEXT_CHARS', 6000),
         'platform_monthly_ceiling_usd' => env('AI_GUEST_SHELL_PLATFORM_CEILING_USD') === null || env('AI_GUEST_SHELL_PLATFORM_CEILING_USD') === '' ? null : (float) env('AI_GUEST_SHELL_PLATFORM_CEILING_USD'),
     ],
 ];
