@@ -168,6 +168,34 @@
                 @endif
             </div>
 
+            {{-- TASK-1426 — CRM-8 : ce qui a ete tente par email, avec quel resultat (lecture seule, tenant + Contact). --}}
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5" data-crm-email-history>
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">{{ __('crm.email_history.title') }}</h2>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ __('crm.email_history.status_hint') }}</p>
+                @if($emailLogs->isEmpty())
+                    <p class="text-sm text-gray-500 dark:text-gray-400" data-crm-email-history-empty>{{ __('crm.email_history.empty') }}</p>
+                @else
+                <ul class="divide-y divide-gray-100 dark:divide-gray-700">
+                    @foreach($emailLogs as $log)
+                    <li class="py-2 text-sm" data-crm-email-log="{{ $log->id }}" data-crm-email-status="{{ $log->status }}">
+                        <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                            <span class="font-medium text-gray-900 dark:text-gray-100 truncate">{{ $log->subject }}</span>
+                            <span class="px-2 py-0.5 rounded text-xs font-semibold {{ match($log->status) { 'sent' => 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300', 'failed' => 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300', default => 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300' } }}">{{ __('crm.email_history.status_'.$log->status) }}</span>
+                        </div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 flex flex-wrap gap-x-2">
+                            <span>{{ $log->created_at->format('d/m/Y H:i') }}</span>
+                            <span>&rarr; {{ $log->to_email }}</span>
+                            <span>· {{ $log->template?->name ?? ($log->data['template_slug'] ?? '—') }}</span>
+                            @if(isset($emailSenders[$log->data['sender_id'] ?? '']))<span>· {{ __('crm.email_history.by') }} {{ $emailSenders[$log->data['sender_id']]->fullName }}</span>@endif
+                            <a href="{{ route('organization.admin.crm.contacts.emails.show', ['organization' => $organization->slug, 'contact' => $contact->id, 'log' => $log->id]) }}" class="text-indigo-600 dark:text-indigo-400 hover:underline" data-crm-email-reread="{{ $log->id }}">{{ __('crm.email_history.reread') }}</a>
+                        </div>
+                        @if($log->error_message)<div class="text-xs text-red-600 dark:text-red-400">{{ \Illuminate\Support\Str::limit($log->error_message, 120) }}</div>@endif
+                    </li>
+                    @endforeach
+                </ul>
+                @endif
+            </div>
+
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5" data-crm-timeline>
                 <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">{{ __('crm.show.timeline') }} <span class="font-normal text-gray-400">· {{ __('crm.show.timeline_order') }}</span></h2>
                 <ol class="space-y-3">
@@ -203,6 +231,10 @@
                                         <span class="font-medium">{{ $event->payload['subject'] ?? '' }}</span>
                                         <span class="text-xs text-gray-500 dark:text-gray-400">&rarr; {{ $event->payload['to'] ?? '' }} · {{ $event->payload['template_name'] ?? '' }}</span>
                                         @if(!empty($event->payload['error']))<div class="text-xs text-red-600 dark:text-red-400">{{ $event->payload['error'] }}</div>@endif
+                                        {{-- TASK-1426 — CRM-8 : « Relire » seulement si le log est bien de ce Contact et de ce tenant. --}}
+                                        @if(!empty($event->payload['log_id']) && $emailLogs->contains('id', $event->payload['log_id']))
+                                            <a href="{{ route('organization.admin.crm.contacts.emails.show', ['organization' => $organization->slug, 'contact' => $contact->id, 'log' => $event->payload['log_id']]) }}" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline" data-crm-event-reread="{{ $event->payload['log_id'] }}">{{ __('crm.email_history.reread') }}</a>
+                                        @endif
                                     @break
                                     @case('contact_policy_changed')
                                         <strong>{{ __('crm.policy_state.'.(($event->payload['to_contactable'] ?? true) ? 'contactable' : 'do_not_contact')) }}</strong>

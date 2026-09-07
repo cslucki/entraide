@@ -17,8 +17,10 @@ use App\Services\Crm\CrmNextActionService;
 use App\Services\Crm\CrmStatusService;
 use App\Services\Crm\CrmTimelineService;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -166,6 +168,9 @@ class OrgCrmController extends Controller
             'actionTypes' => CrmNextActionService::TYPES,
             'emailTemplates' => $this->emailTemplates->forOrganization($organization)->orderBy('name')->get(),
             'policyReasons' => CrmContactPolicyService::REASONS,
+            // TASK-1426 — CRM-8 : ce qui a ete tente par email, tenant + Contact obligatoires.
+            'emailLogs' => $emailLogs = $this->contactEmailLogs($organization, $contact)->with('template:id,name')->orderByDesc('created_at')->orderByDesc('id')->get(),
+            'emailSenders' => $this->emailSenders($organization, $emailLogs),
         ]);
     }
 
@@ -492,6 +497,68 @@ class OrgCrmController extends Controller
 
         return redirect()->route('organization.admin.crm.contacts', ['organization' => $organization->slug, 'search' => $user->email])
             ->with('success', $contact->wasRecentlyCreated ? __('crm.flash.member_followed') : __('crm.flash.member_already_followed'));
+    }
+
+    // ── TASK-1426 — CRM-8 : relire l'email reellement envoye/tente ───────────────
+
+    /**
+     * Le log est resolu DANS l'Organization et POUR ce Contact : un log
+     * d'ailleurs (autre tenant, autre Contact) est un 404, jamais un 403.
+     * Le snapshot est celui STOCKE a l'envoi (`body_html`), jamais recalcule
+     * depuis le modele courant ; il est rendu isole (iframe sandbox + CSP).
+     */
+    public function showEmail(Organization $organization, string $contact, string $log): View
+    {
+        $contact = $this->resolveContact($organization, $contact);
+        $log = $this->contactEmailLogs($organization, $contact)->with('template:id,name')->whereKey($log)->firstOrFail();
+
+        return view('admin.org.crm.email-log', [
+            'organization' => $organization,
+            'contact' => $contact,
+            'log' => $log,
+            'sender' => $this->emailSenders($organization, collect([$log]))->get($log->data['sender_id'] ?? ''),
+            'integrity' => $this->snapshotIntegrity($log),
+            'srcdoc' => $log->body_html === null ? null : $this->snapshotDocument($log),
+        ]);
+    }
+
+    private function contactEmailLogs(Organization $organization, CrmContact $contact): Builder
+    {
+        return EmailLog::query()
+            ->where('organization_id', $organization->id)
+            ->where('crm_contact_id', $contact->id);
+    }
+
+    /** Les expediteurs (data.sender_id) resolus parmi les membres de l'Organization seulement. */
+    private function emailSenders(Organization $organization, Collection $logs): Collection
+    {
+        $ids = $logs->map(fn (EmailLog $log) => $log->data['sender_id'] ?? null)->filter()->unique()->values();
+
+        return $ids->isEmpty()
+            ? collect()
+            : User::where('organization_id', $organization->id)->whereIn('id', $ids)->get()->keyBy('id');
+    }
+
+    /** « ok » si sha256(body_html) === body_hash, « divergent » sinon, « none » sans empreinte ou sans copie. */
+    private function snapshotIntegrity(EmailLog $log): string
+    {
+        if ($log->body_hash === null || $log->body_html === null) {
+            return 'none';
+        }
+
+        return hash_equals($log->body_hash, hash('sha256', $log->body_html)) ? 'ok' : 'divergent';
+    }
+
+    /**
+     * Le document isole : CSP default-src 'none' (aucun script, aucune ressource
+     * distante ; styles inline autorises pour que l'email garde son aspect),
+     * dans un iframe `sandbox` sans aucune capacite ajoutee.
+     */
+    private function snapshotDocument(EmailLog $log): string
+    {
+        return '<!DOCTYPE html><html><head><meta charset="utf-8">'
+            .'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'">'
+            .'</head><body>'.$log->body_html.'</body></html>';
     }
 
     private function resolveContact(Organization $organization, string $id): CrmContact
