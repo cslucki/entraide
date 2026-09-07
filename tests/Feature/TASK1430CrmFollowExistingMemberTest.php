@@ -20,7 +20,7 @@ use Tests\TestCase;
  *    toujours DANS cette Organization ;
  * 2. un membre deja suivi est signale (lien vers sa fiche), pas re-propose ;
  * 3. « Ajouter au suivi » cree UN Contact relie, avec statut par defaut,
- *    acteur, et le fait « compte » une seule fois — idempotent ;
+ *    acteur, et le fait « membre ajoute au suivi » une seule fois — idempotent ;
  * 4. un membre dont l'email est deja un Contact non relie est RELIE, pas
  *    duplique ; un Contact supprime est restaure ;
  * 5. cross-tenant : 404 pour un membre d'ailleurs, 403 hors OrgAdmin, conflit
@@ -133,14 +133,25 @@ class TASK1430CrmFollowExistingMemberTest extends TestCase
         $this->assertSame(CrmContact::SOURCE_MANUAL, $contact->source);
         $this->assertSame($this->adminA->id, $contact->created_by_user_id);
         $this->assertSame(app(CrmStatusService::class)->defaultStatus($this->orgA)->id, $contact->status_id);
-        $this->assertSame(1, $contact->events()->where('type', CrmContactEvent::TYPE_ACCOUNT_CREATED)->count());
+        // MASTER Q51 : le compte existait — le fait est « membre ajoute au suivi »,
+        // signe par l'OrgAdmin, jamais « compte cree ».
+        $linkedFacts = $contact->events()->where('type', CrmContactEvent::TYPE_MEMBER_LINKED)->get();
+        $this->assertCount(1, $linkedFacts);
+        $this->assertSame($this->adminA->id, $linkedFacts->first()->author_user_id);
+        $this->assertSame($this->memberA1->id, $linkedFacts->first()->payload['user_id']);
+        $this->assertSame(0, $contact->events()->where('type', CrmContactEvent::TYPE_ACCOUNT_CREATED)->count());
+
+        $this->actingAs($this->adminA)->get(route('organization.admin.crm.contacts.show', ['organization' => $this->orgA->slug, 'contact' => $contact->id]))
+            ->assertOk()
+            ->assertSee('data-crm-event="member_linked"', false)
+            ->assertSee(__('crm.event.member_linked'));
 
         $this->actingAs($this->adminA)->post($this->follow($this->orgA, $this->memberA1))
             ->assertRedirect()
             ->assertSessionHas('success', __('crm.flash.member_already_followed'));
 
         $this->assertSame(1, CrmContact::withTrashed()->forOrganization($this->orgA)->where('user_id', $this->memberA1->id)->count());
-        $this->assertSame(1, $contact->events()->where('type', CrmContactEvent::TYPE_ACCOUNT_CREATED)->count());
+        $this->assertSame(1, $contact->events()->where('type', CrmContactEvent::TYPE_MEMBER_LINKED)->count());
     }
 
     // ── 4. Email deja Contact : relier, pas dupliquer ; supprime : restaurer ─

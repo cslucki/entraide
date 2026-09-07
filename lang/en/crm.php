@@ -96,6 +96,7 @@ return [
         'status_changed' => 'Status',
         'account_created' => 'Account created',
         'email_verified' => 'Email verified',
+        'member_linked' => 'Member added to follow-up',
         'contact_updated' => 'Details updated',
     ],
     'edit' => [

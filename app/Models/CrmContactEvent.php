@@ -53,8 +53,17 @@ class CrmContactEvent extends Model
     /** TASK-1422 — contactabilite changee explicitement : `payload` = from_contactable, to_contactable, reason, note. */
     public const TYPE_CONTACT_POLICY_CHANGED = 'contact_policy_changed';
 
+    /**
+     * TASK-1430 — un membre EXISTANT relie au Contact par decision de l'OrgAdmin
+     * (MASTER Q51 : pas « compte cree », le compte existait deja).
+     */
+    public const TYPE_MEMBER_LINKED = 'member_linked';
+
     /** Faits systeme : sans auteur humain, une seule fois par Contact. */
     public const SYSTEM_TYPES = [self::TYPE_ACCOUNT_CREATED, self::TYPE_EMAIL_VERIFIED];
+
+    /** Faits enregistres UNE seule fois par Contact (systeme, ou liaison d'un membre par un humain). */
+    public const ONCE_TYPES = [self::TYPE_ACCOUNT_CREATED, self::TYPE_EMAIL_VERIFIED, self::TYPE_MEMBER_LINKED];
 
     protected $fillable = [
         'organization_id',

@@ -175,8 +175,8 @@ class CrmContactService
      * Q1/Q12). Idempotent : retrouve le Contact deja relie, ou celui qui porte
      * le meme email et le relie, restaure un Contact supprime, ne cree jamais
      * de doublon. Un membre d'une AUTRE Organization est refuse avant toute
-     * ecriture (LogicException). Le fait « compte » entre dans la timeline une
-     * seule fois, comme a l'inscription.
+     * ecriture (LogicException). Le fait « membre ajoute au suivi » entre dans
+     * la timeline une seule fois, avec son auteur (MASTER Q51).
      */
     public function followMember(Organization $organization, User $member, User $actor): CrmContact
     {
@@ -194,11 +194,9 @@ class CrmContactService
 
         $linked = $this->linkToUser($contact, $member);
 
-        $this->timeline->recordOnce($linked, CrmContactEvent::TYPE_ACCOUNT_CREATED, ['user_id' => $member->id]);
-
-        if ($member->hasVerifiedEmail()) {
-            $this->timeline->recordOnce($linked, CrmContactEvent::TYPE_EMAIL_VERIFIED);
-        }
+        // MASTER Q51 : le compte EXISTAIT — « compte cree » serait faux. Le fait
+        // dedie porte l'acteur ; un Contact deja relie ne recoit aucune trace.
+        $this->timeline->recordOnce($linked, CrmContactEvent::TYPE_MEMBER_LINKED, ['user_id' => $member->id], $actor);
 
         return $linked;
     }
