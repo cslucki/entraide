@@ -141,6 +141,12 @@ class Organization extends Model
      * Configuration IA du tenant (TASK-1212 / P4-lite). Absente = pas d'IA
      * transverse pour cette Organization.
      */
+    /** TASK-1429 — SW-1 : la politique Shell Welcome (absente = DISABLED). */
+    public function guestShellPolicy(): HasOne
+    {
+        return $this->hasOne(OrganizationGuestShellPolicy::class);
+    }
+
     public function aiSetting(): HasOne
     {
         return $this->hasOne(OrganizationAiSetting::class);

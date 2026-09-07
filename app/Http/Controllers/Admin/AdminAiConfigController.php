@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\AiConfig;
 use App\Models\BlogAiConfig;
 use App\Models\Organization;
+use App\Models\OrganizationGuestShellPolicy;
 use App\Services\Ai\SupervisionProviderResolver;
+use App\Services\GuestShell\GuestShellPolicyService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -32,6 +34,13 @@ class AdminAiConfigController extends Controller
 
         $clarificationEnabled = AiConfig::get('clarification_enabled', false);
 
+        // TASK-1429 — SW-1 : l'etat Shell Welcome calcule de chaque Organization (jamais persiste).
+        $guestShellStates = [];
+        $guestShell = app(GuestShellPolicyService::class);
+        foreach (Organization::orderBy('name')->get() as $organization) {
+            $guestShellStates[$organization->id] = $guestShell->state($organization);
+        }
+
         return view('admin.ai-config.index', [
             'providers' => $providers,
             'defaultProvider' => $defaultProvider,
@@ -41,6 +50,7 @@ class AdminAiConfigController extends Controller
             'organizations' => $organizations,
             'blogConfigs' => $blogConfigs,
             'clarificationEnabled' => $clarificationEnabled,
+            'guestShellStates' => $guestShellStates,
         ]);
     }
 
@@ -107,5 +117,32 @@ class AdminAiConfigController extends Controller
 
         return redirect()->route('admin.ai-config')
             ->with('success', 'Configuration profil IA mise à jour pour l\'organisation.');
+    }
+
+    /**
+     * TASK-1429 — SW-1 : la politique Shell Welcome d'une Organization
+     * (ON/OFF, limite de messages, retention, budget Guest). Le provider, le
+     * modele et la cle restent dans l'autorite IA existante : rien ici.
+     */
+    public function updateGuestShellConfig(Request $request, GuestShellPolicyService $policies): RedirectResponse
+    {
+        $validated = $request->validate([
+            'organization_id' => 'required|string|exists:organizations,id',
+            'enabled' => 'sometimes|boolean',
+            'max_messages' => ['required', 'integer', 'min:1', 'max:'.OrganizationGuestShellPolicy::MAX_MESSAGES_LIMIT],
+            'retention_days' => ['required', 'integer', 'min:1', 'max:'.OrganizationGuestShellPolicy::RETENTION_DAYS_LIMIT],
+            'guest_monthly_budget_usd' => 'nullable|numeric|min:0|max:100000',
+        ]);
+
+        $organization = Organization::findOrFail($validated['organization_id']);
+        $policies->update($organization, [
+            'enabled' => (bool) ($validated['enabled'] ?? false),
+            'max_messages' => (int) $validated['max_messages'],
+            'retention_days' => (int) $validated['retention_days'],
+            'guest_monthly_budget_usd' => $validated['guest_monthly_budget_usd'] ?? null,
+        ]);
+
+        return redirect()->route('admin.ai-config')
+            ->with('success', __('admin.guest_shell_saved', ['name' => $organization->name]));
     }
 }

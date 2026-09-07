@@ -186,6 +186,65 @@
             </div>
         </div>
 
+        {{-- TASK-1429 — SW-1 : Shell Welcome par Organization (politique seulement ; provider/modele/cle = autorite IA existante). --}}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5" data-guest-shell-config>
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">{{ __('admin.guest_shell_config') }}</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ __('admin.guest_shell_config_hint') }}</p>
+
+            <div class="space-y-4">
+                @forelse($organizations as $org)
+                    @php $state = $guestShellStates[$org->id]; $policy = $state->policy; @endphp
+                    <form method="POST" action="{{ route('admin.ai-config.guest-shell') }}" class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3" data-guest-shell-org="{{ $org->slug }}" data-guest-shell-status="{{ $state->status }}">
+                        @csrf
+                        <input type="hidden" name="organization_id" value="{{ $org->id }}">
+
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $org->name }} <span class="text-gray-400 font-mono text-xs">({{ $org->slug }})</span></h4>
+                            <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ match($state->status) { 'ACTIVE' => 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300', 'DISABLED' => 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300', 'BUDGET_BLOCKED' => 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300', default => 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300' } }}">{{ __('admin.guest_shell_state_'.strtolower($state->status)) }}</span>
+                        </div>
+
+                        @if($state->reasons !== [])
+                        <ul class="text-xs text-gray-600 dark:text-gray-300 space-y-0.5" data-guest-shell-reasons>
+                            @foreach($state->reasons as $reason)<li>· {{ __('admin.guest_shell_reason_'.$reason) }}</li>@endforeach
+                        </ul>
+                        @endif
+
+                        <dl class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs" data-guest-shell-usage>
+                            <div><dt class="text-gray-500 dark:text-gray-400">{{ __('admin.guest_shell_provider') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $state->providerLabel() ?? '—' }}@if($state->setting) <span class="text-gray-400">· {{ $state->setting->credential_management_mode }}</span>@endif</dd></div>
+                            <div><dt class="text-gray-500 dark:text-gray-400">{{ __('admin.guest_shell_month_messages') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $state->monthlyUsage['messages'] }}</dd></div>
+                            <div><dt class="text-gray-500 dark:text-gray-400">{{ __('admin.guest_shell_month_cost') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ number_format($state->monthlyUsage['cost_usd'], 4) }} USD @if($state->monthlyUsage['cost_unknown'] > 0) <span class="text-amber-600">(+{{ $state->monthlyUsage['cost_unknown'] }} {{ __('admin.guest_shell_unknown_cost') }})</span>@endif</dd></div>
+                            <div><dt class="text-gray-500 dark:text-gray-400">{{ __('admin.guest_shell_avg_cost') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $state->averageCostPerMessage() === null ? '—' : number_format($state->averageCostPerMessage(), 4).' USD' }}</dd></div>
+                        </dl>
+
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-4">
+                                <input type="hidden" name="enabled" value="0">
+                                <input type="checkbox" name="enabled" value="1" @checked($policy->enabled) class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                                {{ __('admin.guest_shell_enabled') }}
+                            </label>
+                            <div>
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('admin.guest_shell_max_messages') }}</label>
+                                <input type="number" name="max_messages" min="1" max="{{ \App\Models\OrganizationGuestShellPolicy::MAX_MESSAGES_LIMIT }}" value="{{ old('max_messages', $policy->max_messages) }}" class="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('admin.guest_shell_retention_days') }}</label>
+                                <input type="number" name="retention_days" min="1" max="{{ \App\Models\OrganizationGuestShellPolicy::RETENTION_DAYS_LIMIT }}" value="{{ old('retention_days', $policy->retention_days) }}" class="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('admin.guest_shell_budget') }}</label>
+                                <input type="number" step="0.01" min="0" name="guest_monthly_budget_usd" value="{{ old('guest_monthly_budget_usd', $policy->guest_monthly_budget_usd) }}" placeholder="{{ __('admin.guest_shell_budget_placeholder') }}" class="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                            </div>
+                            <div class="flex items-end justify-end">
+                                <button type="submit" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">{{ __('admin.ai_save_for', ['name' => $org->name]) }}</button>
+                            </div>
+                        </div>
+                    </form>
+                @empty
+                    <div class="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-3">{{ __('admin.ai_no_profiles_config') }}</div>
+                @endforelse
+            </div>
+        </div>
+
         {{-- Providers disponibles --}}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
             <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">{{ __('admin.ai_available_providers') }}</h3>
