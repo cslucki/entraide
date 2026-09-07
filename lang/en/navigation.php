@@ -121,6 +121,7 @@ return [
     'org_admin_crm_today' => 'Today',
     'org_admin_relations' => 'Contacts',
     'org_admin_crm_statuses' => 'Statuses',
+    'org_admin_acquisition' => 'Acquisition journeys',
     'org_admin_crm_templates' => 'Email templates',
     'org_admin_section_administration' => 'Administration',
 

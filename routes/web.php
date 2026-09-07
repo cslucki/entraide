@@ -39,6 +39,7 @@ use App\Http\Controllers\Admin\AdminTagController;
 use App\Http\Controllers\Admin\AdminThemeController;
 use App\Http\Controllers\Admin\AdminTranslationController;
 use App\Http\Controllers\Admin\AdminUsageReferenceController;
+use App\Http\Controllers\Admin\OrgAcquisitionController;
 use App\Http\Controllers\Admin\OrgAdminController;
 use App\Http\Controllers\Admin\OrgCrmController;
 use App\Http\Controllers\Admin\OrgCrmTemplateController;
@@ -1102,6 +1103,14 @@ Route::prefix('/org/{organization}')
                 Route::get('/relations', [OrgCrmController::class, 'today'])->name('crm.today');
                 Route::get('/relations/contacts', [OrgCrmController::class, 'contacts'])->name('crm.contacts');
                 Route::post('/relations/contacts', [OrgCrmController::class, 'storeContact'])->name('crm.contacts.store');
+                // TASK-1446 : AcquisitionJourney foundation — {journey} est resolu DANS l'Organization par le controller (404 ailleurs).
+                Route::get('/acquisition', [OrgAcquisitionController::class, 'index'])->name('acquisition');
+                Route::get('/acquisition/create', [OrgAcquisitionController::class, 'create'])->name('acquisition.create');
+                Route::post('/acquisition', [OrgAcquisitionController::class, 'store'])->name('acquisition.store');
+                Route::get('/acquisition/{journey}/edit', [OrgAcquisitionController::class, 'edit'])->name('acquisition.edit')->whereUuid('journey');
+                Route::put('/acquisition/{journey}', [OrgAcquisitionController::class, 'update'])->name('acquisition.update')->whereUuid('journey');
+                Route::post('/acquisition/{journey}/publish', [OrgAcquisitionController::class, 'publish'])->name('acquisition.publish')->whereUuid('journey');
+                Route::delete('/acquisition/{journey}', [OrgAcquisitionController::class, 'retire'])->name('acquisition.retire')->whereUuid('journey');
                 // TASK-1419 (CRM-4b) : gestion du pipeline. Declare AVANT /relations/{contact}
                 // pour que « statuts » ne soit jamais pris pour un id de Contact.
                 Route::get('/relations/statuts', [OrgCrmController::class, 'statuses'])->name('crm.statuses');
