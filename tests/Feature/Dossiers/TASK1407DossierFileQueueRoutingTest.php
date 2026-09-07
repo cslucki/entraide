@@ -29,8 +29,13 @@ use Tests\TestCase;
  * source.
  *
  * HORS SCOPE, et volontairement non teste ici : les Articles
- * (`IndexDossierArticleChunks`), qui continuent d'alimenter `default`. Aucun
- * job historique n'est reveille, purge ni draine par cette TASK.
+ * (`IndexDossierArticleChunks`). Aucun job historique n'est reveille, purge ni
+ * draine par cette TASK.
+ *
+ * TASK-1408 : les Articles ont depuis recu le meme traitement, sur une queue
+ * DISTINCTE (`dossier-articles-indexing`) — voir
+ * TASK1408DossierArticleQueueRoutingTest. Ils n'alimentent donc plus `default`
+ * non plus.
  */
 class TASK1407DossierFileQueueRoutingTest extends TestCase
 {
