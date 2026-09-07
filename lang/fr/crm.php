@@ -71,4 +71,28 @@ return [
         'member_already_followed' => 'Ce membre était déjà suivi.',
         'follow_conflict' => 'Impossible d\'ajouter ce membre au suivi : un contact portant cet email est déjà relié à un autre compte.',
     ],
+    // TASK-1417 — CRM-5 : la fiche Contact.
+    'show' => [
+        'untitled' => 'Contact sans nom',
+        'created_at' => 'Créé le',
+        'add_note' => 'Ajouter une note',
+        'channel_hint' => 'Un canal marque un vrai contact et met à jour « Dernier contact ».',
+        'timeline' => 'Historique',
+        'timeline_order' => 'du plus récent au plus ancien',
+        'timeline_empty' => 'Rien encore. La première note écrira la première ligne.',
+    ],
+    'event' => [
+        'note' => 'Note',
+        'status_changed' => 'Statut',
+        'account_created' => 'Compte créé',
+        'email_verified' => 'Email vérifié',
+        'contact_updated' => 'Coordonnées modifiées',
+    ],
+    'edit' => [
+        'title' => 'Modifier les coordonnées',
+        'hint' => 'Chaque modification est tracée dans l\'historique.',
+    ],
+    'flash_contact_updated' => 'Coordonnées mises à jour.',
+    'flash_contact_unchanged' => 'Aucune modification.',
+    'flash_update_conflict' => 'Un autre contact de votre organisation porte déjà cet email.',
 ];

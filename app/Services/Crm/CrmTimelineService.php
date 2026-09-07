@@ -77,6 +77,17 @@ class CrmTimelineService
         return $this->record($contact, $type, $payload, null, now());
     }
 
+    /**
+     * TASK-1417 — un fait « coordonnees modifiees » : quels champs, de quoi a
+     * quoi, par qui. Aucun effet sur `last_interaction_at`.
+     */
+    public function recordContactUpdated(CrmContact $contact, array $changes, User $actor): CrmContactEvent
+    {
+        $this->guardAuthor($contact, $actor);
+
+        return $this->record($contact, CrmContactEvent::TYPE_CONTACT_UPDATED, ['changes' => $changes], $actor, now());
+    }
+
     public function timeline(CrmContact $contact): Collection
     {
         return $contact->events()->chronological()->get();

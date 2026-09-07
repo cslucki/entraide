@@ -90,6 +90,51 @@ class CrmContactService
         ]);
     }
 
+    /**
+     * TASK-1417 — met a jour les coordonnees et retourne les changements
+     * (`champ => [from, to]`) apres les avoir ecrits dans la timeline. Un
+     * email deja porte par un AUTRE Contact de l'Organization est refuse
+     * (LogicException, rien n'est ecrit) — jamais de lecture hors tenant.
+     */
+    public function update(CrmContact $contact, array $attributes, User $actor): array
+    {
+        $next = [
+            'first_name' => $this->clean($attributes['first_name'] ?? null),
+            'last_name' => $this->clean($attributes['last_name'] ?? null),
+            'email' => CrmContact::normalizeEmail($attributes['email'] ?? null),
+            'phone' => $this->clean($attributes['phone'] ?? null),
+            'company' => $this->clean($attributes['company'] ?? null),
+        ];
+
+        if ($next['email'] !== null && $next['email'] !== $contact->email) {
+            $taken = CrmContact::withTrashed()->forOrganization($contact->organization_id)
+                ->where('email', $next['email'])->whereKeyNot($contact->id)->exists();
+
+            if ($taken) {
+                throw new LogicException('Another contact of this Organization already has this email.');
+            }
+        }
+
+        $changes = [];
+        foreach ($next as $field => $value) {
+            if ($contact->{$field} !== $value) {
+                $changes[$field] = ['from' => $contact->{$field}, 'to' => $value];
+            }
+        }
+
+        if ($changes === []) {
+            return [];
+        }
+
+        $contact->fill($next);
+        $contact->phone_normalized = CrmContact::normalizePhone($next['phone']);
+        $contact->save();
+
+        $this->timeline->recordContactUpdated($contact, $changes, $actor);
+
+        return $changes;
+    }
+
     public function findByEmail(Organization $organization, ?string $email): ?CrmContact
     {
         $email = CrmContact::normalizeEmail($email);

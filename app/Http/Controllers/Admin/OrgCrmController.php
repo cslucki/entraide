@@ -100,6 +100,52 @@ class OrgCrmController extends Controller
         ]);
     }
 
+    /**
+     * TASK-1417 — CRM-5 : la fiche. Le Contact courant fait autorite ; la
+     * timeline se lit du plus recent au plus ancien.
+     */
+    public function show(Organization $organization, string $contact): View
+    {
+        $contact = $this->resolveContact($organization, $contact);
+        $this->statuses->ensureDefaultPipeline($organization);
+
+        return view('admin.org.crm.show', [
+            'organization' => $organization,
+            'contact' => $contact->load(['status', 'user', 'createdBy']),
+            'statuses' => CrmStatus::forOrganization($organization)->active()->ordered()->get(),
+            'events' => $contact->events()->with('author')->chronological()->get()->reverse()->values(),
+            'channels' => CrmTimelineService::CHANNELS,
+        ]);
+    }
+
+    /**
+     * TASK-1417 — corriger une coordonnee sans supprimer/recreer : chaque
+     * changement est un fait `contact_updated` de la MEME timeline. La
+     * deduplication tenant-scoped reste souveraine : un email deja porte par
+     * un autre Contact de l'Organization est refuse (rien n'est ecrit).
+     */
+    public function updateContact(Request $request, Organization $organization, string $contact): RedirectResponse
+    {
+        $contact = $this->resolveContact($organization, $contact);
+
+        $data = $request->validate([
+            'first_name' => ['nullable', 'string', 'max:100'],
+            'last_name' => ['nullable', 'string', 'max:100'],
+            'email' => ['nullable', 'string', 'email', 'max:255', 'required_without:phone'],
+            'phone' => ['nullable', 'string', 'max:30', 'required_without:email'],
+            'company' => ['nullable', 'string', 'max:150'],
+        ]);
+
+        try {
+            $changes = $this->contacts->update($contact, $data, $request->user());
+        } catch (LogicException) {
+            return back()->withInput()->with('error', __('crm.flash_update_conflict'));
+        }
+
+        return redirect()->route('organization.admin.crm.contacts.show', ['organization' => $organization->slug, 'contact' => $contact->id])
+            ->with('success', $changes === [] ? __('crm.flash_contact_unchanged') : __('crm.flash_contact_updated'));
+    }
+
     public function storeContact(Request $request, Organization $organization): RedirectResponse
     {
         $data = $request->validate([
