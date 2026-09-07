@@ -126,20 +126,6 @@
             'badge' => $unreadMessagesCount,
         ],
         [
-            // `active` porte les DEUX noms : la comparaison est une egalite
-            // stricte ou un prefixe suivi d'un point, donc 'notifications' ne
-            // matche pas 'organization.notifications.index'. Et cette cle est
-            // lue SANS `??` plus bas : l'omettre casserait le rail sur toutes
-            // les pages, pas seulement sur celle-ci.
-            'key' => 'notifications',
-            'url' => $routeUrl('notifications.index', 'organization.notifications.index'),
-            'active' => ['notifications', 'organization.notifications'],
-            'label' => __('navigation.notifications'),
-            'hint' => __('navigation.notifications_hint'),
-            'icon' => 'M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
-            'badge' => $unreadNotificationsCount,
-        ],
-        [
             'url' => $routeUrl('members.index', 'organization.members.index'),
             'active' => ['members', 'organization.members', 'profile.show'],
             'label' => __('navigation.directory'),
@@ -339,6 +325,43 @@
              surtout l'avatar restent visibles quel que soit le nombre d'entrées
              au-dessus — c'est la nav qui défile, pas le bas du rail. --}}
         <div class="mt-2 flex shrink-0 flex-col items-center gap-1.5 border-t border-[var(--bp-border)] pt-2">
+            @auth
+                {{-- TASK-1411 — Notifications vit dans la zone BASSE du rail, avec les
+                     reglages et l'avatar : c'est un signal personnel, pas une entree
+                     de navigation metier. L'item a ete RETIRE de $items (aucune
+                     duplication). Tout ce que TASK-1373 mesure est preserve a
+                     l'identique : `data-nav-badge-notifications` porte la valeur
+                     BRUTE, le texte visible est plafonne a « 9+ », et l'attribut
+                     disparait a zero. `active` porte les DEUX noms de route, comme
+                     avant : 'notifications' ne matche pas
+                     'organization.notifications.index'. --}}
+                @php
+                    $notificationsActive = $isActive(['active' => ['notifications', 'organization.notifications']]);
+                @endphp
+                <a href="{{ $routeUrl('notifications.index', 'organization.notifications.index') }}"
+                   data-side-nav-notifications
+                   class="group relative flex w-full shrink-0 flex-col items-center px-1 py-0.5 text-[9px] font-medium leading-none transition {{ $notificationsActive ? 'text-[var(--bp-primary)]' : 'text-[var(--bp-muted)] hover:text-[var(--bp-text)]' }}"
+                   title="{{ __('navigation.notifications_hint') }}"
+                   aria-label="{{ __('navigation.notifications') }}"
+                   @if($notificationsActive) aria-current="page" @endif>
+                    <span class="relative flex h-8 w-8 items-center justify-center rounded-lg transition {{ $notificationsActive ? 'bg-[color-mix(in_srgb,var(--bp-primary)_14%,transparent)] text-[var(--bp-primary)] shadow-sm' : 'bg-transparent group-hover:bg-[var(--bp-panel)] group-hover:shadow-sm' }}">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                        @if($unreadNotificationsCount > 0)
+                            <span data-nav-badge-notifications="{{ $unreadNotificationsCount }}"
+                                  class="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold leading-none text-white ring-2 ring-[var(--bp-surface)]">
+                                {{ $unreadNotificationsCount > 9 ? '9+' : $unreadNotificationsCount }}
+                            </span>
+                        @endif
+                    </span>
+                    <span class="mt-0.5 leading-none">{{ __('navigation.notifications') }}</span>
+                    @if($notificationsActive)
+                        <span class="absolute right-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-l-full bg-[var(--bp-primary)]"></span>
+                    @endif
+                </a>
+            @endauth
+
             <button type="button" @click="$store.visualTheme.next()" class="flex w-9 flex-col items-center rounded-lg border border-[var(--bp-border)] bg-[var(--bp-panel)] px-0.5 py-0.5 text-[7px] font-semibold uppercase tracking-wide text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="{{ __('navigation.change_theme') }}">
                 <span class="h-1.5 w-1.5 rounded-full bg-[var(--bp-primary)] ring-2 ring-[var(--bp-surface-soft)]" aria-hidden="true"></span>
                 <span class="mt-0.5 leading-none" x-text="$store.visualTheme.label()">Sable</span>
