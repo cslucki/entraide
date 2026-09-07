@@ -36,6 +36,7 @@ use App\Http\Controllers\Admin\AdminTagController;
 use App\Http\Controllers\Admin\AdminThemeController;
 use App\Http\Controllers\Admin\AdminTranslationController;
 use App\Http\Controllers\Admin\OrgAdminController;
+use App\Http\Controllers\Admin\OrgCrmController;
 use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\AiAgentLoopController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -1050,6 +1051,15 @@ Route::prefix('/org/{organization}')
                 Route::patch('/users/{user}/toggle-ban', [OrgAdminController::class, 'toggleUserBan'])->name('users.toggle-ban');
                 Route::get('/users/{user}/delete-preview', [OrgAdminController::class, 'deletePreview'])->name('users.delete-preview');
                 Route::post('/users/{user}/delete', [OrgAdminController::class, 'deleteUser'])->name('users.delete');
+
+                // TASK-1416 (CRM-4) : « Relations », le Mini-CRM de l'Organization.
+                // {contact} est resolu DANS l'Organization par le controller (404
+                // pour un Contact d'ailleurs), jamais par un binding global.
+                Route::get('/relations', [OrgCrmController::class, 'contacts'])->name('crm.contacts');
+                Route::post('/relations', [OrgCrmController::class, 'storeContact'])->name('crm.contacts.store');
+                Route::post('/relations/{contact}/status', [OrgCrmController::class, 'changeStatus'])->name('crm.contacts.status');
+                Route::post('/relations/{contact}/notes', [OrgCrmController::class, 'storeNote'])->name('crm.contacts.notes.store');
+                Route::post('/users/{user}/follow', [OrgCrmController::class, 'followMember'])->name('crm.members.follow');
 
                 // Administration
                 Route::get('/reports', [OrgAdminController::class, 'reports'])->name('reports');

@@ -86,6 +86,12 @@
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-500">{{ $user->created_at?->format('d/m/Y') ?? '—' }}</td>
                     <td class="px-4 py-3">
+                        {{-- TASK-1416 (CRM-4) : un membre n'entre dans Relations que par decision explicite. --}}
+                        <form method="POST" action="{{ route('organization.admin.crm.members.follow', [$organization, $user]) }}" class="inline">
+                            @csrf
+                            <button type="submit" data-crm-follow="{{ $user->id }}"
+                                class="px-2 py-1 text-xs rounded border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 mr-1">{{ __('crm.follow_member') }}</button>
+                        </form>
                         @if(!$user->is_admin)
                         <form method="POST" action="{{ route('organization.admin.users.toggle-ban', [$organization, $user]) }}" class="inline">
                             @csrf
