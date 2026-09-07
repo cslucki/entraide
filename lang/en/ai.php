@@ -580,6 +580,9 @@ return [
     'consumption_budget_none' => 'No monthly budget defined — the AI is not capped by a provider budget.',
     // TASK-1438 — SW-10: Welcome Shell block of the consumption console.
     'consumption_guest_title' => 'Welcome Shell (signed-out visitors)',
+    'consumption_guest_mode' => 'Mode chosen by the platform: :mode',
+    'consumption_guest_effective_on' => 'on the public home today: :mode',
+    'consumption_guest_effective_off' => 'on the public home today: no Shell (:reason)',
     'consumption_guest_hint' => 'What visitors triggered on this organization over the period, with the same doctrine as the economic guard.',
     'consumption_budget_custom_period' => 'Custom period: the monthly budget does not apply to it, only the consumption is shown.',
     'consumption_breakdown_title' => 'Period breakdown',

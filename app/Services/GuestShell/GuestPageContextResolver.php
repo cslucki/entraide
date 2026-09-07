@@ -49,6 +49,25 @@ final class GuestPageContextResolver
             return null;
         }
 
+        return $this->make($organization, $kind, $name);
+    }
+
+    /**
+     * TASK-1441 — le PageContext de l'accueil public de CETTE Organization, sans
+     * requete en cours (cockpits OrgAdmin/SuperAdmin) : exactement le DTO que
+     * la route `organization.home` produirait, memes gardes fail-closed.
+     */
+    public function organizationHome(Organization $organization): ?GuestPageContext
+    {
+        if (! $organization->is_active || ! $organization->is_public) {
+            return null;
+        }
+
+        return $this->make($organization, GuestPageContext::KIND_ORGANIZATION_HOME, 'organization.home');
+    }
+
+    private function make(Organization $organization, string $kind, string $name): GuestPageContext
+    {
         return match ($kind) {
             GuestPageContext::KIND_ORGANIZATION_HOME => new GuestPageContext(
                 organizationId: (string) $organization->id,

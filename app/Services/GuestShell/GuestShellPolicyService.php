@@ -6,6 +6,7 @@ use App\Models\AiProviderInvocation;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\OrganizationGuestShellPolicy;
+use App\Support\GuestShell\GuestShellDisplayMode;
 use App\Support\GuestShell\GuestShellState;
 use Carbon\CarbonInterface;
 
@@ -34,14 +35,20 @@ final class GuestShellPolicyService
     }
 
     /**
-     * @param  array{enabled?: bool, max_messages?: int, retention_days?: int, guest_monthly_budget_usd?: float|string|null}  $attributes
+     * @param  array{enabled?: bool, display_mode?: string, max_messages?: int, retention_days?: int, guest_monthly_budget_usd?: float|string|null}  $attributes
      */
     public function update(Organization $organization, array $attributes): OrganizationGuestShellPolicy
     {
         $policy = $this->policyFor($organization);
 
+        // TASK-1441 (MASTER Q69) : overlay | shell_first seulement — `off` n'existe pas, `enabled = false` est l'unique autorite OFF.
+        if (array_key_exists('display_mode', $attributes) && $attributes['display_mode'] !== null && ! GuestShellDisplayMode::isValid($attributes['display_mode'])) {
+            throw new \InvalidArgumentException('A guest shell display mode is overlay or shell_first; OFF is enabled=false.');
+        }
+
         $policy->fill([
             'enabled' => (bool) ($attributes['enabled'] ?? $policy->enabled),
+            'display_mode' => ($attributes['display_mode'] ?? null) ?: ($policy->display_mode ?: GuestShellDisplayMode::DEFAULT),
             'max_messages' => $this->bounded((int) ($attributes['max_messages'] ?? $policy->max_messages), 1, OrganizationGuestShellPolicy::MAX_MESSAGES_LIMIT),
             'retention_days' => $this->bounded((int) ($attributes['retention_days'] ?? $policy->retention_days), 1, OrganizationGuestShellPolicy::RETENTION_DAYS_LIMIT),
             'guest_monthly_budget_usd' => array_key_exists('guest_monthly_budget_usd', $attributes)

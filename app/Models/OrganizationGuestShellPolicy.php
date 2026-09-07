@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\GuestShell\GuestShellDisplayMode;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -28,6 +29,7 @@ class OrganizationGuestShellPolicy extends Model
     protected $fillable = [
         'organization_id',
         'enabled',
+        'display_mode',
         'max_messages',
         'retention_days',
         'guest_monthly_budget_usd',
@@ -42,6 +44,8 @@ class OrganizationGuestShellPolicy extends Model
 
     protected $attributes = [
         'enabled' => false,
+        // TASK-1441 (MASTER Q69) : COMMENT le Shell apparait quand il est pret ; OFF = enabled=false, jamais un mode.
+        'display_mode' => GuestShellDisplayMode::DEFAULT,
         'max_messages' => self::DEFAULT_MAX_MESSAGES,
         'retention_days' => self::DEFAULT_RETENTION_DAYS,
     ];
