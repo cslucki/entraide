@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -61,6 +62,7 @@ class CrmContact extends Model
         'phone',
         'phone_normalized',
         'company',
+        'status_id',
         'source',
         'source_ref',
         'do_not_contact_at',
@@ -87,6 +89,17 @@ class CrmContact extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    /** TASK-1414 — le statut COURANT fait autorite ; la timeline est la memoire. */
+    public function status(): BelongsTo
+    {
+        return $this->belongsTo(CrmStatus::class, 'status_id');
+    }
+
+    public function events(): HasMany
+    {
+        return $this->hasMany(CrmContactEvent::class, 'crm_contact_id');
     }
 
     // ── Scopes ──────────────────────────────────────────────────────────────
