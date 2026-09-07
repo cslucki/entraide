@@ -27,7 +27,7 @@ use Tests\TestCase;
  *
  * Apres : l'interface est implementee, donc (1) un nouveau compte recoit un
  * email de verification, (2) `verified` devient EFFECTIF, (3) les comptes nes
- * avant la verification sont reputes verifies a leur date de creation par une
+ * avant la verification sont grandfathered a l'instant du cutover par une
  * migration de donnees — sans elle, 45 des 57 comptes du banc local (des
  * membres reels) auraient ete exclus du blog et des Dossiers a l'instant du
  * deploiement.
@@ -206,23 +206,33 @@ class TASK1412EmailVerificationFoundationTest extends TestCase
         $this->assertSame($autre->id, $frais->organization_id);
     }
 
-    // ── 6. Le backfill des comptes nes avant la verification ────────────────
+    // ── 6. Le cutover : les comptes legacy sont grandfathered ───────────────
 
-    public function test_the_backfill_marks_pre_verification_accounts_verified_at_their_creation_date(): void
+    /**
+     * Doctrine MASTER (07/09 17h08) : « legacy accounts trusted during
+     * verification cutover ». La date posee est celle du CUTOVER, jamais
+     * `created_at` — ce serait une fausse preuve historique.
+     */
+    public function test_the_cutover_grandfathers_legacy_accounts_at_the_migration_moment_not_at_creation(): void
     {
         $creation = Carbon::parse('2026-06-01 10:00:00');
-        $ancien = User::factory()->unverified()->create(['organization_id' => $this->organization->id]);
-        DB::table('users')->where('id', $ancien->id)->update(['created_at' => $creation]);
+        $legacy = User::factory()->unverified()->create(['organization_id' => $this->organization->id]);
+        DB::table('users')->where('id', $legacy->id)->update(['created_at' => $creation]);
 
         $dejaVerifie = User::factory()->create(['organization_id' => $this->organization->id]);
         $dateVerif = $dejaVerifie->email_verified_at->copy();
 
-        $this->assertNull($ancien->fresh()->email_verified_at);
+        $this->assertNull($legacy->fresh()->email_verified_at);
 
+        $avant = now()->subSecond();
         (require database_path('migrations/2026_09_07_170000_backfill_email_verified_at_for_pre_verification_accounts.php'))->up();
+        $apres = now()->addSecond();
 
-        $this->assertTrue($creation->equalTo($ancien->fresh()->email_verified_at));
-        // Un compte deja verifie garde SA date : le backfill ne remplit que des NULL.
+        $pose = $legacy->fresh()->email_verified_at;
+        $this->assertNotNull($pose);
+        $this->assertTrue($pose->between($avant, $apres), 'la date posee est celle du cutover');
+        $this->assertFalse($pose->equalTo($creation), 'jamais created_at comme pseudo-preuve');
+        // Un compte deja verifie garde SA date : le cutover ne remplit que des NULL.
         $this->assertTrue($dateVerif->equalTo($dejaVerifie->fresh()->email_verified_at));
     }
 

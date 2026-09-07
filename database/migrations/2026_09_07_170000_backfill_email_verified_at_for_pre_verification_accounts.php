@@ -4,41 +4,35 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
 /**
- * TASK-1412 — les comptes crees AVANT que la verification d'email existe sont
- * consideres verifies.
+ * TASK-1412 — cutover de la verification d'email.
  *
- * Jusqu'ici `User` n'implementait pas l'interface `MustVerifyEmail` : aucun
- * email de verification n'a jamais ete envoye, et `email_verified_at` est
- * reste NULL pour la plupart des comptes reels (45 sur 57 sur le banc local
- * au 07/09/2026). Le middleware `verified` deja pose sur la redaction du blog
- * et sur les Dossiers etait donc un no-op.
+ * Jusqu'a cette release, `User` n'implementait pas l'interface
+ * `MustVerifyEmail` : aucun email de verification n'a jamais ete envoye et le
+ * middleware `verified` (blog, Dossiers) etait un no-op. Les comptes existants
+ * sont donc a `email_verified_at NULL` sans avoir jamais eu l'occasion de
+ * verifier quoi que ce soit.
  *
- * Activer l'interface rend ce middleware EFFECTIF. Sans ce backfill, tous ces
- * comptes — des membres reels — seraient exclus du blog et des Dossiers a
- * l'instant du deploiement, sans avoir jamais eu la possibilite de verifier
- * quoi que ce soit. Ce n'est pas une regression acceptable.
- *
- * Doctrine : un compte ne de l'epoque sans verification est repute verifie a
- * la date de sa creation. Les comptes crees APRES cette migration doivent
- * verifier leur email — c'est tout l'objet de la TASK.
- *
- * Migration de DONNEES, additive et tenant-neutre : elle ne remplit que des
- * NULL, ne touche aucune autre colonne, et ne lit aucune Organization.
+ * Doctrine (MASTER, 07/09/2026 17h08) : « legacy accounts trusted during
+ * verification cutover ». Ces comptes sont reputes verifies A L'INSTANT DU
+ * CUTOVER — l'horodatage d'execution de cette migration — et PAS a leur date
+ * de creation, qui fabriquerait une fausse preuve historique. Les comptes
+ * crees apres le cutover restent reellement non verifies jusqu'au lien signe.
  */
 return new class extends Migration
 {
     public function up(): void
     {
+        $cutover = now();
+
         DB::table('users')
             ->whereNull('email_verified_at')
-            ->update(['email_verified_at' => DB::raw('created_at')]);
+            ->update(['email_verified_at' => $cutover]);
     }
 
     /**
-     * Volontairement inerte. Une fois remplie, la colonne ne permet plus de
-     * distinguer un compte backfille d'un compte reellement verifie : remettre
-     * NULL frapperait aussi des verifications authentiques posterieures.
-     * L'etat « verifie » est de toute facon le plus sur des deux cotes.
+     * No-op documente : une fois le cutover passe, rien ne distingue un compte
+     * grandfathered d'un compte reellement verifie, et remettre des NULL
+     * exclurait des membres reels du blog et des Dossiers.
      */
     public function down(): void
     {
