@@ -80,6 +80,31 @@ class GenerateAiAgentResponse implements ShouldQueue
     /** Fonction produit emettrice (`ai_provider_invocations.feature`). */
     public const FEATURE = 'member_profile_agent_loop_reply';
 
+    /**
+     * TASK-1410 — file DEDIEE de la reponse de l'agent de profil.
+     *
+     * Jamais `default`. Deux raisons, et la seconde est la vraie.
+     *
+     * 1. Sur la surface produit `main`, `default` porte des jobs historiques
+     *    en quarantaine que personne n'a decide d'executer. Un worker borne a
+     *    cette file-ci ne peut pas y toucher, meme par erreur — meme doctrine
+     *    que `NotificationEmailDeliverer::QUEUE` (TASK-1377) et que les deux
+     *    files d'indexation (TASK-1407, TASK-1408).
+     *
+     * 2. PROD tourne en `QUEUE_CONNECTION=sync` : ce job s'execute aujourd'hui
+     *    DANS la requete du message poste. Le pilote RAG exigera `database`.
+     *    Tant que ce job partait sur `default`, basculer signifiait choisir
+     *    entre deux maux : ne pas ecouter `default` et perdre TOUTE reponse
+     *    d'agent en silence, ou l'ecouter et drainer la quarantaine. Cette
+     *    file supprime le dilemme.
+     *
+     * Le nom suit le vocabulaire de domaine du job lui-meme
+     * (`member_profile_agent_loop_reply`, process `member_profile.loop_agent_reply`,
+     * `LoopMessage.type = member_agent`), pas un « ai- » generique qui
+     * n'existe nulle part ailleurs dans le projet.
+     */
+    public const QUEUE = 'member-agent-replies';
+
     /** Statut de la trace operationnelle quand la garde a refuse l'appel (alias, cf. modele). */
     public const INTERACTION_STATUS_REFUSED = MemberAiProfileInteraction::STATUS_REFUSED;
 
@@ -101,6 +126,14 @@ class GenerateAiAgentResponse implements ShouldQueue
         public ?string $correlationId = null,
     ) {
         $this->correlationId = $correlationId ?? AiCorrelation::id();
+
+        // TASK-1410 : la file est posee ICI, dans le constructeur, et non au
+        // site de dispatch. Il n'y a qu'un seul appelant aujourd'hui
+        // (`AppServiceProvider`, sur `LoopMessageCreated`) mais la destination
+        // est une propriete du JOB, pas de celui qui l'emet : un futur
+        // appelant l'obtient sans avoir a y penser. Meme forme que
+        // `SendNotificationEmail`.
+        $this->onQueue(self::QUEUE);
     }
 
     public function handle(MemberProfileAgentResponder $responder): void
