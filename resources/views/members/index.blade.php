@@ -54,7 +54,7 @@
                 <!-- Compteurs + catégories -->
                 <div class="mt-auto pt-2 border-t border-gray-100 dark:border-gray-700 flex items-center gap-3 text-xs text-gray-400">
                     <span title="{{ __('directory.active_services', ['label' => $T['Services']]) }}">
-                        <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ $member->active_services_count }}</span> {{ $T['services'] }}
+                        <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ $member->active_services_count }}</span> {{ $member->active_services_count === 1 ? $T['service'] : $T['services'] }}
                     </span>
                     <span class="text-gray-300 dark:text-gray-600">·</span>
                     <span title="{{ __('directory.open_requests') }}">
