@@ -62,10 +62,16 @@ class CrmTimelineService
      * Idempotent par (contact, type) pour les faits qui n'arrivent qu'une fois
      * dans la vie d'un compte.
      */
-    public function recordOnce(CrmContact $contact, string $type, array $payload = []): ?CrmContactEvent
+    public function recordOnce(CrmContact $contact, string $type, array $payload = [], ?User $author = null): ?CrmContactEvent
     {
-        if (! in_array($type, CrmContactEvent::SYSTEM_TYPES, true)) {
-            throw new LogicException("Type [{$type}] is not a system timeline fact.");
+        if (! in_array($type, CrmContactEvent::ONCE_TYPES, true)) {
+            throw new LogicException("Type [{$type}] is not a one-time timeline fact.");
+        }
+
+        // Un fait systeme n'a pas d'auteur humain ; un fait humain « une fois »
+        // (TASK-1430 member_linked) garde le sien.
+        if ($author !== null && in_array($type, CrmContactEvent::SYSTEM_TYPES, true)) {
+            throw new LogicException("Type [{$type}] is a system fact and cannot carry an author.");
         }
 
         $already = $contact->events()->where('type', $type)->exists();
@@ -74,7 +80,7 @@ class CrmTimelineService
             return null;
         }
 
-        return $this->record($contact, $type, $payload, null, now());
+        return $this->record($contact, $type, $payload, $author, now());
     }
 
     /**

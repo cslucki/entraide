@@ -24,6 +24,16 @@ return [
     'linked_account' => 'Account',
     'do_not_contact' => 'Do not contact',
     'follow_member' => 'Add to follow-up',
+    // TASK-1430 — "Add an existing member" from Relationships.
+    'add_existing_member' => 'Add an existing member',
+    'member_picker' => [
+        'search' => 'Search a member by name or email…',
+        'search_button' => 'Search',
+        'hint' => 'Only members of this Organization are listed. Those already followed are flagged.',
+        'already_followed' => 'Already followed',
+        'empty' => 'No member matches.',
+        'truncated' => 'Only the first :limit members are shown: refine the search.',
+    ],
     'field' => [
         'first_name' => 'First name',
         'last_name' => 'Last name',
@@ -86,6 +96,7 @@ return [
         'status_changed' => 'Status',
         'account_created' => 'Account created',
         'email_verified' => 'Email verified',
+        'member_linked' => 'Member added to follow-up',
         'contact_updated' => 'Details updated',
     ],
     'edit' => [

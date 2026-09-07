@@ -24,6 +24,16 @@ return [
     'linked_account' => 'Compte',
     'do_not_contact' => 'Ne pas contacter',
     'follow_member' => 'Ajouter au suivi',
+    // TASK-1430 — « Ajouter un membre existant » depuis Relations.
+    'add_existing_member' => 'Ajouter un membre existant',
+    'member_picker' => [
+        'search' => 'Rechercher un membre par nom ou email…',
+        'search_button' => 'Chercher',
+        'hint' => 'Seuls les membres de cette Organization apparaissent. Ceux déjà suivis sont signalés.',
+        'already_followed' => 'Déjà suivi',
+        'empty' => 'Aucun membre ne correspond.',
+        'truncated' => 'Seuls les :limit premiers membres sont affichés : précisez la recherche.',
+    ],
     'field' => [
         'first_name' => 'Prénom',
         'last_name' => 'Nom',
@@ -86,6 +96,7 @@ return [
         'status_changed' => 'Statut',
         'account_created' => 'Compte créé',
         'email_verified' => 'Email vérifié',
+        'member_linked' => 'Membre ajouté au suivi',
         'contact_updated' => 'Coordonnées modifiées',
     ],
     'edit' => [
