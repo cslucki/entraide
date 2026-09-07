@@ -1093,6 +1093,8 @@ Route::prefix('/org/{organization}')
                 Route::get('/relations/{contact}/email', [OrgCrmController::class, 'pickEmailTemplate'])->name('crm.contacts.email.pick');
                 Route::get('/relations/{contact}/email/{template}', [OrgCrmController::class, 'previewEmail'])->name('crm.contacts.email.preview');
                 Route::post('/relations/{contact}/email/{template}', [OrgCrmController::class, 'sendEmail'])->name('crm.contacts.email.send');
+                // TASK-1426 (CRM-8) : relire l'email reellement envoye/tente (lecture seule, 404 hors tenant/Contact).
+                Route::get('/relations/{contact}/emails/{log}', [OrgCrmController::class, 'showEmail'])->name('crm.contacts.emails.show');
                 // TASK-1422 (CRM-13) : contactabilite, decidee explicitement avec une raison.
                 Route::post('/relations/{contact}/policy', [OrgCrmController::class, 'changePolicy'])->name('crm.contacts.policy');
                 Route::post('/users/{user}/follow', [OrgCrmController::class, 'followMember'])->name('crm.members.follow');
