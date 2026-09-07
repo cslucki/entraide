@@ -207,6 +207,14 @@ class UserDataLifecycleRegistry
             ['key' => 'loop_join_requests_decided_by', 'type' => 'sql', 'table' => 'loop_join_requests', 'column' => 'decided_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Decision audit can be detached.'],
             ['key' => 'loop_invitations_sender_id', 'type' => 'sql', 'table' => 'loop_invitations', 'column' => 'sender_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_loop', 'justification' => 'Invitation sender is audit/history, as for blog invitations.'],
             ['key' => 'loop_invitations_accepted_by_user_id', 'type' => 'sql', 'table' => 'loop_invitations', 'column' => 'accepted_by_user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'through_loop', 'justification' => 'Invitation acceptance is audit/history.'],
+            // TASK-1413 (CRM-1) : le Contact CRM est la fiche de RELATION de
+            // l'Organization, pas le magasin personnel du membre. Il existe
+            // AVANT tout compte et doit survivre au depart du membre : la FK
+            // est nullOnDelete, le membre est simplement DETACHE et
+            // l'historique commercial reste a l'Organization. L'auteur de la
+            // fiche est un audit detachable, comme partout ailleurs.
+            ['key' => 'crm_contacts_user_id', 'type' => 'sql', 'table' => 'crm_contacts', 'column' => 'user_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'A CRM contact is the Organization relationship record (TASK-1413): it exists before any account and must outlive the member, who is simply detached (FK nullOnDelete). The commercial history stays with the Organization.'],
+            ['key' => 'crm_contacts_created_by_user_id', 'type' => 'sql', 'table' => 'crm_contacts', 'column' => 'created_by_user_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Who created a CRM contact is Organization audit, not personal data: the author is detached (TASK-1413).'],
 
             ['key' => 'loop_roadmap_items_created_by', 'type' => 'sql', 'table' => 'loop_roadmap_items', 'column' => 'created_by', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'The action survives; its author is anonymized.'],
             ['key' => 'loop_roadmap_item_messages_user_id', 'type' => 'sql', 'table' => 'loop_roadmap_item_messages', 'column' => 'user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'Thread author is anonymized, as for ChatLoop messages.'],
