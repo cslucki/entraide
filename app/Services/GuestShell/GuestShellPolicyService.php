@@ -117,7 +117,9 @@ final class GuestShellPolicyService
     /**
      * Le mois courant, lu dans le ledger provider : nombre d'appels reussis
      * (= messages repondus), nombre d'appels et d'echecs, cout connu cumule
-     * (quel que soit le statut), nombre d'appels reussis au cout inconnu.
+     * (quel que soit le statut), nombre d'appels au cout inconnu — quel que
+     * soit le statut (TASK-1448, Growth V3 §3 P0 : une tentative qui a
+     * atteint le provider et echoue n'est jamais supposee gratuite).
      *
      * @return array{messages: int, invocations: int, failed: int, cost_usd: float, cost_unknown: int}
      */
@@ -135,9 +137,11 @@ final class GuestShellPolicyService
             'failed' => (int) (clone $base)->where('status', AiProviderInvocation::STATUS_FAILED)->count(),
             // TASK-1438 (Shell Welcome V3 §14, MASTER Q64) — la MEME doctrine que AiEconomicGuard :
             // un cout CONNU est compte quel que soit le statut (un appel qui a echoue apres avoir
-            // consomme des tokens a coute) ; le quota « inconnu » ne compte que les succes, comme la garde.
+            // consomme des tokens a coute). TASK-1448 (Growth V3 §3 P0) : le compteur « inconnu »
+            // compte aussi les tentatives en ECHEC — exactement ce que la garde compte pour
+            // `guest_shell` (`AiEconomicGuard::UNKNOWN_QUOTA_COUNTS_FAILED_ATTEMPTS`).
             'cost_usd' => (float) (clone $base)->where('cost_status', AiProviderInvocation::COST_KNOWN)->sum('provider_cost'),
-            'cost_unknown' => (int) (clone $base)->where('status', AiProviderInvocation::STATUS_SUCCESS)->where('cost_status', '!=', AiProviderInvocation::COST_KNOWN)->count(),
+            'cost_unknown' => (int) (clone $base)->where('cost_status', '!=', AiProviderInvocation::COST_KNOWN)->count(),
         ];
     }
 
