@@ -52,7 +52,7 @@ class TASK1426CrmEmailHistoryTest extends TestCase
         $this->orgA = Organization::factory()->create(['slug' => 'org-a-1426', 'is_active' => true, 'locale' => 'fr']);
         $this->orgB = Organization::factory()->create(['slug' => 'org-b-1426', 'is_active' => true, 'locale' => 'fr']);
         $this->adminA = User::factory()->create(['organization_id' => $this->orgA->id, 'first_name' => 'Ada', 'name' => 'Lovelace']);
-        $this->adminB = User::factory()->create(['organization_id' => $this->orgB->id]);
+        $this->adminB = User::factory()->create(['organization_id' => $this->orgB->id, 'first_name' => 'Boris', 'name' => 'Vian']);
         $this->orgA->update(['admin_id' => $this->adminA->id]);
         $this->orgB->update(['admin_id' => $this->adminB->id]);
         $this->memberA = User::factory()->create(['organization_id' => $this->orgA->id]);
@@ -136,7 +136,7 @@ class TASK1426CrmEmailHistoryTest extends TestCase
         $this->assertStringContainsString('SMTP 550 mailbox unavailable', $history);
         $this->assertStringContainsString('Relance atelier', $history);
         $this->assertStringContainsString('Ada Lovelace', $history, 'expediteur resolu dans l Organization');
-        $this->assertStringNotContainsString($this->adminB->fullName, $history, 'un membre d une autre Organization n est jamais resolu');
+        $this->assertStringNotContainsString('Boris Vian', $history, 'un membre d une autre Organization n est jamais resolu');
         $this->assertStringContainsString('data-crm-email-reread="'.$old->id.'"', $history);
         $this->assertStringNotContainsString('Pas pour Zorglub', $history);
         $this->assertStringNotContainsString('Envoye ailleurs', $html);
