@@ -77,8 +77,10 @@ class TASK1435GuestPublicContextTest extends TestCase
         $this->assertFalse($definition->canWrite);
         $this->assertFalse($definition->requiresHumanConfirmation);
         $this->assertSame([CapabilityRegistry::SCOPE_ORGANIZATION], $definition->allowedScopes);
+        // TASK-1439 (MASTER Q67) : `usage_reference` est la 4e source whitelistee — un bloc explicite, jamais du texte melange.
         $this->assertEqualsCanonicalizing([
             CapabilityRegistry::SOURCE_ORGANIZATION_PUBLIC_IDENTITY,
+            CapabilityRegistry::SOURCE_USAGE_REFERENCE,
             CapabilityRegistry::SOURCE_PLATFORM_CONSTITUTION,
             CapabilityRegistry::SOURCE_ORGANIZATION_CONSTITUTION_PUBLIC,
         ], $definition->allowedSources);
@@ -235,17 +237,20 @@ class TASK1435GuestPublicContextTest extends TestCase
         $full = $this->builder->build($organization);
         $this->assertSame([
             CapabilityRegistry::SOURCE_ORGANIZATION_PUBLIC_IDENTITY,
+            // TASK-1439 (MASTER Q67) : la UsageReference publiee de la surface (graine `shell_welcome`)
+            // entre entre l'identite et les Constitutions — un 4e bloc, le meme discriminant.
+            CapabilityRegistry::SOURCE_USAGE_REFERENCE,
             CapabilityRegistry::SOURCE_PLATFORM_CONSTITUTION,
             CapabilityRegistry::SOURCE_ORGANIZATION_CONSTITUTION_PUBLIC,
-        ], $full->sources, 'les trois blocs sont composes dans cet ordre quand le budget suffit');
+        ], $full->sources, 'les quatre blocs sont composes dans cet ordre quand le budget suffit');
 
         $identity = mb_strlen($full->blocks[0]['text']);
-        $platform = mb_strlen($full->blocks[1]['text']);
-        $organizationConstitution = mb_strlen($full->blocks[2]['text']);
-        $this->assertGreaterThan($organizationConstitution, $platform, 'le discriminant exige un 3e bloc PLUS COURT que celui qui deborde');
+        $second = mb_strlen($full->blocks[1]['text']);
+        $organizationConstitution = mb_strlen($full->blocks[3]['text']);
+        $this->assertGreaterThan($organizationConstitution, $second, 'le discriminant exige un dernier bloc PLUS COURT que celui qui deborde');
 
         // Budget calibre : l'identite et la Constitution de l'Organization y
-        // tiendraient ensemble — mais la plateforme, prise avant, n'y tient pas.
+        // tiendraient ensemble — mais le 2e bloc (la UsageReference), pris avant, n'y tient pas.
         $context = $this->builderWithBudget($identity + $organizationConstitution)->build($organization);
 
         $this->assertCount(1, $context->blocks, 'la composition S ARRETE au bloc qui deborde ; elle ne saute pas au suivant');

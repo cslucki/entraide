@@ -8,6 +8,7 @@ return [
     'instruction_locale' => 'Réponds dans la langue : :locale.',
     'context' => [
         'identity' => ':name — présentation publique',
+        'usage_reference' => 'À quoi sert cet espace — :title',
         'platform_constitution' => 'Constitution IA de la plateforme (Mycélium)',
         'organization_constitution' => 'Constitution IA de :name (publiée)',
         'name' => 'Nom',

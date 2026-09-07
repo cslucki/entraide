@@ -6,6 +6,8 @@ use App\Ai\CapabilityRegistry;
 use App\Models\Organization;
 use App\Models\OrganizationAiConstitution;
 use App\Models\PlatformAiConstitution;
+use App\Models\UsageReference;
+use App\Services\UsageReference\UsageReferenceResolver;
 use App\Support\GuestShell\GuestPublicContext;
 
 /**
@@ -18,6 +20,10 @@ use App\Support\GuestShell\GuestPublicContext;
  *    publiques (ce que la landing montre deja a n'importe qui) ;
  *  - `platform.constitution` : la Constitution IA de la plateforme (Mycelium
  *    public, `/mycelium`) ;
+ *  - `usage_reference` (TASK-1439, V3 §9, MASTER Q67) : la UsageReference
+ *    PUBLIEE de la surface demandee (« a quoi sert cet endroit ? »), texte
+ *    cure plateforme, dans la locale de l'Organization ou celle de la
+ *    plateforme — placee apres l'identite, avant les Constitutions ;
  *  - `organization.constitution_public` : la Constitution IA de l'Organization
  *    SEULEMENT si elle a decide de la publier (`ai_constitution_public`, meme
  *    regle que `/org/{slug}/constitution`).
@@ -29,9 +35,13 @@ use App\Support\GuestShell\GuestPublicContext;
  */
 final class GuestPublicContextBuilder
 {
-    public function __construct(private readonly CapabilityRegistry $capabilities) {}
+    public function __construct(
+        private readonly CapabilityRegistry $capabilities,
+        private readonly UsageReferenceResolver $references,
+    ) {}
 
-    public function build(Organization $organization): ?GuestPublicContext
+    /** @param  string  $surfaceKey  la surface dont la UsageReference est demandee — jamais une autre. */
+    public function build(Organization $organization, string $surfaceKey = UsageReference::SURFACE_SHELL_WELCOME): ?GuestPublicContext
     {
         if (! $organization->is_active || ! $organization->is_public) {
             return null;
@@ -41,11 +51,19 @@ final class GuestPublicContextBuilder
         $budget = $definition->contextCharBudget;
         $blocks = [];
         $sources = [];
+        $locale = (string) ($organization->locale ?: config('app.locale', 'fr'));
 
         $identity = $this->identity($organization);
         if ($identity !== '') {
             $blocks[] = ['source' => CapabilityRegistry::SOURCE_ORGANIZATION_PUBLIC_IDENTITY, 'label' => __('guest_shell.context.identity', ['name' => $organization->name]), 'text' => $identity];
             $sources[] = CapabilityRegistry::SOURCE_ORGANIZATION_PUBLIC_IDENTITY;
+        }
+
+        // « A quoi sert cette surface ? » — la version publiee de LA surface demandee, ou rien (fail-closed).
+        $reference = $this->references->resolve($surfaceKey, $locale);
+        if ($reference !== null && trim((string) $reference->content) !== '') {
+            $blocks[] = ['source' => CapabilityRegistry::SOURCE_USAGE_REFERENCE, 'label' => __('guest_shell.context.usage_reference', ['title' => $reference->title]), 'text' => trim((string) $reference->content)];
+            $sources[] = CapabilityRegistry::SOURCE_USAGE_REFERENCE;
         }
 
         $platform = trim(PlatformAiConstitution::activeTextOrSeed());
@@ -75,7 +93,7 @@ final class GuestPublicContextBuilder
         return new GuestPublicContext(
             organizationId: (string) $organization->id,
             organizationName: (string) $organization->name,
-            locale: (string) ($organization->locale ?: config('app.locale', 'fr')),
+            locale: $locale,
             blocks: $kept,
             sources: array_values(array_map(fn (array $block) => $block['source'], $kept)),
             charBudget: $budget,

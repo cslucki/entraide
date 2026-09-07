@@ -156,6 +156,9 @@ final class CapabilityRegistry
     /** La Constitution IA de l'Organization, SEULEMENT si elle l'a publiee (ai_constitution_public + version active). */
     public const SOURCE_ORGANIZATION_CONSTITUTION_PUBLIC = 'organization.constitution_public';
 
+    /** TASK-1439 — UsageReference V1 (V3 §9, MASTER Q67) : « a quoi sert cette surface ? », texte cure plateforme, bloc entier apres l'identite, avant les Constitutions. */
+    public const SOURCE_USAGE_REFERENCE = 'usage_reference';
+
     /** @var array<string, CapabilityDefinition> */
     private array $definitions;
 
@@ -360,6 +363,7 @@ final class CapabilityRegistry
             allowedScopes: [self::SCOPE_ORGANIZATION],
             allowedSources: [
                 self::SOURCE_ORGANIZATION_PUBLIC_IDENTITY,
+                self::SOURCE_USAGE_REFERENCE,
                 self::SOURCE_PLATFORM_CONSTITUTION,
                 self::SOURCE_ORGANIZATION_CONSTITUTION_PUBLIC,
             ],

@@ -504,4 +504,15 @@ return [
         'history_messages' => (int) env('AI_GUEST_SHELL_HISTORY_MESSAGES', 10),
         'platform_monthly_ceiling_usd' => env('AI_GUEST_SHELL_PLATFORM_CEILING_USD') === null || env('AI_GUEST_SHELL_PLATFORM_CEILING_USD') === '' ? null : (float) env('AI_GUEST_SHELL_PLATFORM_CEILING_USD'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | UsageReference V1 (TASK-1439, Shell Welcome V3 §9)
+    |--------------------------------------------------------------------------
+    | « A quoi sert cette surface ? » — texte cure plateforme, versionne, publie
+    | par un humain. Borne dure du contenu d'une version.
+    */
+    'usage_reference' => [
+        'max_chars' => (int) env('AI_USAGE_REFERENCE_MAX_CHARS', 4000),
+    ],
 ];
