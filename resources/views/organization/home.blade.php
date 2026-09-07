@@ -72,4 +72,5 @@
         </div>
         @include('partials.footer')
     </section>
+    @include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization])
 </x-app-layout>

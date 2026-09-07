@@ -19,6 +19,27 @@ return [
         'description' => 'Présentation',
     ],
     // TASK-1440 — Guest PageContext V1 : le bloc « où suis-je ? ».
+    // TASK-1442 — SW-8a : l'overlay public (textes visibles par le visiteur).
+    'ui' => [
+        'open' => 'Une question ?',
+        'title' => 'Assistant de :name',
+        'close' => 'Fermer',
+        'welcome' => 'Bonjour ! Je suis l\'assistant public de :name. Posez votre question : je réponds à partir des informations publiques, sans créer de compte.',
+        'placeholder' => 'Votre question…',
+        'send' => 'Envoyer',
+        'sending' => 'Réponse en cours…',
+        'privacy' => 'Échange public sans compte. Ne partagez pas de données personnelles.',
+        'degraded_text' => 'L\'assistant de :name n\'est pas disponible pour le moment. Vous pouvez créer un compte pour rejoindre la communauté.',
+        'network_error' => 'La connexion a échoué. Réessayez dans un instant.',
+        'failed' => 'La réponse n\'a pas pu être produite. Vous pouvez réessayer.',
+        'refused_generic' => 'Votre message n\'a pas pu être traité pour le moment.',
+        'refused_max_messages_reached' => 'Cette conversation a atteint sa limite de messages. Créez un compte pour continuer.',
+        'refused_visitor_monthly_quota_reached' => 'Vous avez atteint le nombre de messages possibles ce mois-ci. Créez un compte pour continuer.',
+        'refused_rate_limited' => 'Un instant : trop de messages en peu de temps.',
+        'refused_input_out_of_bounds' => 'Votre message est vide ou trop long.',
+        'remaining' => ':count message(s) restant(s)',
+        'limit_reached' => 'Limite de la conversation atteinte.',
+    ],
     'page' => [
         'kind' => 'Surface',
         'label' => 'Page',

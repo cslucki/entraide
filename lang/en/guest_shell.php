@@ -19,6 +19,27 @@ return [
         'description' => 'About',
     ],
     // TASK-1440 — Guest PageContext V1: the "where am I?" block.
+    // TASK-1442 — SW-8a: the public overlay (visitor-facing texts).
+    'ui' => [
+        'open' => 'Any question?',
+        'title' => ':name assistant',
+        'close' => 'Close',
+        'welcome' => 'Hello! I am the public assistant of :name. Ask your question: I answer from public information, no account needed.',
+        'placeholder' => 'Your question…',
+        'send' => 'Send',
+        'sending' => 'Answering…',
+        'privacy' => 'Public exchange without an account. Do not share personal data.',
+        'degraded_text' => 'The :name assistant is not available right now. You can create an account to join the community.',
+        'network_error' => 'The connection failed. Try again in a moment.',
+        'failed' => 'The answer could not be produced. You can try again.',
+        'refused_generic' => 'Your message could not be handled right now.',
+        'refused_max_messages_reached' => 'This conversation reached its message limit. Create an account to continue.',
+        'refused_visitor_monthly_quota_reached' => 'You reached the number of messages possible this month. Create an account to continue.',
+        'refused_rate_limited' => 'One moment: too many messages in a short time.',
+        'refused_input_out_of_bounds' => 'Your message is empty or too long.',
+        'remaining' => ':count message(s) left',
+        'limit_reached' => 'Conversation limit reached.',
+    ],
     'page' => [
         'kind' => 'Surface',
         'label' => 'Page',
