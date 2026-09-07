@@ -48,7 +48,7 @@ final class GuestVisitorResolver
     }
 
     /**
-     * @param  array{locale?: string|null, referrer?: string|null, utm_source?: string|null, utm_medium?: string|null, utm_campaign?: string|null, shortcut?: string|null}  $attributes
+     * @param  array{locale?: string|null, referrer?: string|null, utm_source?: string|null, utm_medium?: string|null, utm_campaign?: string|null, shortcut?: string|null, acquisition_journey_id?: string|null}  $attributes
      */
     public function ensure(Request $request, Organization $organization, array $attributes = []): GuestVisitor
     {
@@ -79,6 +79,8 @@ final class GuestVisitorResolver
                 'utm_medium' => $this->clean($attributes['utm_medium'] ?? null, 100),
                 'utm_campaign' => $this->clean($attributes['utm_campaign'] ?? null, 100),
                 'shortcut' => $this->clean($attributes['shortcut'] ?? null, 100),
+                // TASK-1447 : la Journey figee a la creation, jamais reecrite ensuite (first touch wins).
+                'acquisition_journey_id' => $attributes['acquisition_journey_id'] ?? null,
                 'first_seen_at' => $now,
                 'last_seen_at' => $now,
                 'expires_at' => $now->copy()->addDays($retentionDays),

@@ -131,6 +131,8 @@
   var send = root.querySelector('[data-guest-shell-send]');
   var cta = root.querySelector('[data-guest-shell-cta]');
   var busy = false;
+  // TASK-1447 : l'attribution TRANSPARENTE de l'URL d'atterrissage (shortcut, utm_*) — le serveur la relit en base, jamais crue sur parole.
+  function attribution() { var q = new URLSearchParams(window.location.search); var out = {}; ['shortcut', 'utm_source', 'utm_medium', 'utm_campaign'].forEach(function (k) { var v = q.get(k); if (v) out[k] = String(v).slice(0, 200); }); return out; }
   var floating = !!toggle;
   function open() { panel.hidden = false; if (toggle) toggle.setAttribute('aria-expanded', 'true'); if (!input.disabled) input.focus(); log.scrollTop = log.scrollHeight; }
   function shut() { if (!floating) return; panel.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
@@ -150,7 +152,7 @@
     fetch(root.getAttribute('data-guest-shell-endpoint'), {
       method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': root.getAttribute('data-guest-shell-csrf'), 'X-Requested-With': 'XMLHttpRequest' },
-      body: JSON.stringify({ message: text })
+      body: JSON.stringify({ message: text, attribution: attribution() })
     }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, json: j }; }); }).then(function (res) {
       pending.remove();
       var j = res.json || {};

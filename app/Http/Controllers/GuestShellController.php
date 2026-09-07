@@ -28,9 +28,15 @@ class GuestShellController extends Controller
         $target = $this->publicOrganization($organization);
         $data = $request->validate([
             'message' => ['required', 'string', 'max:'.GuestMessage::maxUserBodyLength()],
+            // TASK-1447 : ce que la page d'atterrissage portait (shortcut, UTM) — borne ici, relu en base par GuestAttribution.
+            'attribution' => ['sometimes', 'array:shortcut,utm_source,utm_medium,utm_campaign'],
+            'attribution.shortcut' => ['nullable', 'string', 'max:32'],
+            'attribution.utm_source' => ['nullable', 'string', 'max:200'],
+            'attribution.utm_medium' => ['nullable', 'string', 'max:200'],
+            'attribution.utm_campaign' => ['nullable', 'string', 'max:200'],
         ]);
 
-        return response()->json($surface->turn($target, $request, $data['message']));
+        return response()->json($surface->turn($target, $request, $data['message'], $data['attribution'] ?? []));
     }
 
     /** Public != Global : une Organization inactive ou non publique n'a aucune surface Guest (404, comme sa landing). */

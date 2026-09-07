@@ -34,6 +34,7 @@ use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminScenarioPackController;
+use App\Http\Controllers\Admin\AdminShortcutController;
 use App\Http\Controllers\Admin\AdminSystemEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminTagController;
 use App\Http\Controllers\Admin\AdminThemeController;
@@ -96,6 +97,7 @@ use App\Http\Controllers\RequestController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\ShortcutController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\TransactionController;
@@ -119,6 +121,8 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 // TASK-1349 — la gouvernance IA, publique par conception. Aucune
 // authentification : ce sont des principes, pas des donnees d'exploitation.
 Route::get('/mycelium', [MyceliumController::class, 'index'])->name('mycelium');
+// TASK-1447 — OrganizationShortcut : /s/{code} → 302 vers une destination canonique de l'Organization (Growth V2 §5).
+Route::get('/s/{code}', ShortcutController::class)->middleware('throttle:60,1')->where('code', '[a-z0-9\\-]{3,32}')->name('shortcut');
 Route::get('/launchpals', fn () => redirect()->to(route('organization.home', ['organization' => 'launchpals'], false), 301))
     ->name('public.launchpals');
 Route::get('/demo', function () {
@@ -630,6 +634,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::put('/usage-references/{usageReference}', [AdminUsageReferenceController::class, 'update'])->name('usage-references.update');
     Route::post('/usage-references/{usageReference}/publish', [AdminUsageReferenceController::class, 'publish'])->name('usage-references.publish');
     Route::delete('/usage-references/{usageReference}', [AdminUsageReferenceController::class, 'retire'])->name('usage-references.retire');
+    // TASK-1447 : OrganizationShortcut, SuperAdmin-managed V1.
+    Route::get('/shortcuts', [AdminShortcutController::class, 'index'])->name('shortcuts');
+    Route::post('/shortcuts', [AdminShortcutController::class, 'store'])->name('shortcuts.store');
+    Route::patch('/shortcuts/{shortcut}/toggle', [AdminShortcutController::class, 'toggle'])->name('shortcuts.toggle');
     Route::post('/ai-supervision', [AdminAiSupervisionController::class, 'analyze'])->name('ai-supervision.analyze');
 
     // Historique des interactions IA (TASK-249)

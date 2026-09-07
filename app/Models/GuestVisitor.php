@@ -28,6 +28,7 @@ class GuestVisitor extends Model
         'utm_medium',
         'utm_campaign',
         'shortcut',
+        'acquisition_journey_id',
         'first_seen_at',
         'last_seen_at',
         'expires_at',
@@ -50,6 +51,12 @@ class GuestVisitor extends Model
     public function conversations(): HasMany
     {
         return $this->hasMany(GuestConversation::class, 'guest_visitor_id');
+    }
+
+    /** TASK-1447 — la version publiee EXACTE de la Journey par laquelle ce visiteur est entre (first touch wins). */
+    public function acquisitionJourney(): BelongsTo
+    {
+        return $this->belongsTo(AcquisitionJourney::class, 'acquisition_journey_id');
     }
 
     public function claimedUser(): BelongsTo
