@@ -1057,6 +1057,14 @@ Route::prefix('/org/{organization}')
                 // pour un Contact d'ailleurs), jamais par un binding global.
                 Route::get('/relations', [OrgCrmController::class, 'contacts'])->name('crm.contacts');
                 Route::post('/relations', [OrgCrmController::class, 'storeContact'])->name('crm.contacts.store');
+                // TASK-1419 (CRM-4b) : gestion du pipeline. Declare AVANT /relations/{contact}
+                // pour que « statuts » ne soit jamais pris pour un id de Contact.
+                Route::get('/relations/statuts', [OrgCrmController::class, 'statuses'])->name('crm.statuses');
+                Route::post('/relations/statuts', [OrgCrmController::class, 'storeStatus'])->name('crm.statuses.store');
+                Route::put('/relations/statuts/{status}', [OrgCrmController::class, 'updateStatus'])->name('crm.statuses.update');
+                Route::post('/relations/statuts/{status}/move', [OrgCrmController::class, 'moveStatus'])->name('crm.statuses.move');
+                Route::post('/relations/statuts/{status}/toggle', [OrgCrmController::class, 'toggleStatus'])->name('crm.statuses.toggle');
+                Route::post('/relations/statuts/{status}/default', [OrgCrmController::class, 'defaultStatus'])->name('crm.statuses.default');
                 // TASK-1417 (CRM-5) : la fiche Contact et l'edition tracee de ses coordonnees.
                 Route::get('/relations/{contact}', [OrgCrmController::class, 'show'])->name('crm.contacts.show');
                 Route::put('/relations/{contact}', [OrgCrmController::class, 'updateContact'])->name('crm.contacts.update');

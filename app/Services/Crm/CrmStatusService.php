@@ -83,7 +83,7 @@ class CrmStatusService
             'sort_order' => $next,
             'is_active' => true,
             'is_default' => false,
-            'color' => $color,
+            'color' => $this->cleanColor($color),
         ]);
     }
 
@@ -99,6 +99,34 @@ class CrmStatusService
         $status->update(['label' => $label]);
 
         return $status;
+    }
+
+    /**
+     * TASK-1419 — libelle et couleur en un geste (l'UI les edite ensemble).
+     * Une couleur est « #rrggbb » ou null ; le libelle passe par `rename`.
+     */
+    public function edit(CrmStatus $status, string $label, ?string $color): CrmStatus
+    {
+        $this->rename($status, $label);
+        $status->update(['color' => $this->cleanColor($color)]);
+
+        return $status;
+    }
+
+    /** Une couleur est « #rrggbb » (rangee en minuscules) ou null. */
+    private function cleanColor(?string $color): ?string
+    {
+        $color = trim((string) $color);
+
+        if ($color === '') {
+            return null;
+        }
+
+        if (! preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
+            throw new LogicException('A CRM status color must be #rrggbb.');
+        }
+
+        return strtolower($color);
     }
 
     /**

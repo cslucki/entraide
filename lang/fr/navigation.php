@@ -119,6 +119,7 @@ return [
     'org_admin_section_community' => 'Communauté',
     'org_admin_section_relations' => 'Relations',
     'org_admin_relations' => 'Contacts',
+    'org_admin_crm_statuses' => 'Statuts',
     'org_admin_section_administration' => 'Administration',
 
     // LOT B — Services, Demandes, Transactions

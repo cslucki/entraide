@@ -27,7 +27,7 @@
                 </dl>
                 <form method="POST" action="{{ route('organization.admin.crm.contacts.status', ['organization' => $organization->slug, 'contact' => $contact->id]) }}" class="mt-4">
                     @csrf
-                    <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{{ __('crm.column.status') }}</label>
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1.5">@if($contact->status?->color)<span class="inline-block w-2.5 h-2.5 rounded-full" data-crm-status-color style="background-color: {{ $contact->status->color }}"></span>@endif{{ __('crm.column.status') }}</label>
                     <select name="status_id" onchange="this.form.submit()" data-crm-status-select
                         class="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
                         @if(!$contact->status_id)<option value="" selected>—</option>@endif
