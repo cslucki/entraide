@@ -30,6 +30,16 @@ class CrmContactEvent extends Model
 
     public const TYPE_STATUS_CHANGED = 'status_changed';
 
+    /** TASK-1415 — une note ecrite par un humain ; `payload.channel` non nul = interaction reelle. */
+    public const TYPE_NOTE = 'note';
+
+    public const TYPE_ACCOUNT_CREATED = 'account_created';
+
+    public const TYPE_EMAIL_VERIFIED = 'email_verified';
+
+    /** Faits systeme : sans auteur humain, une seule fois par Contact. */
+    public const SYSTEM_TYPES = [self::TYPE_ACCOUNT_CREATED, self::TYPE_EMAIL_VERIFIED];
+
     protected $fillable = [
         'organization_id',
         'crm_contact_id',

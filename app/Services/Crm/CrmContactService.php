@@ -3,6 +3,7 @@
 namespace App\Services\Crm;
 
 use App\Models\CrmContact;
+use App\Models\CrmContactEvent;
 use App\Models\Organization;
 use App\Models\User;
 use LogicException;
@@ -21,7 +22,10 @@ use LogicException;
  */
 class CrmContactService
 {
-    public function __construct(private readonly CrmStatusService $statuses) {}
+    public function __construct(
+        private readonly CrmStatusService $statuses,
+        private readonly CrmTimelineService $timeline,
+    ) {}
 
     /**
      * Trouve ou cree le Contact d'une Organization.
@@ -147,7 +151,16 @@ class CrmContactService
             return null;
         }
 
-        return $this->linkToUser($contact, $user);
+        $linked = $this->linkToUser($contact, $user);
+
+        // TASK-1415 — le fait « compte cree » entre dans la timeline, une fois.
+        $this->timeline->recordOnce($linked, CrmContactEvent::TYPE_ACCOUNT_CREATED, ['user_id' => $user->id]);
+
+        if ($user->hasVerifiedEmail()) {
+            $this->timeline->recordOnce($linked, CrmContactEvent::TYPE_EMAIL_VERIFIED);
+        }
+
+        return $linked;
     }
 
     private function match(Organization $organization, ?string $email, ?string $phoneNormalized): ?CrmContact
