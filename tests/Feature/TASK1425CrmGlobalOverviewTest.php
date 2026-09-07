@@ -135,7 +135,15 @@ class TASK1425CrmGlobalOverviewTest extends TestCase
         $this->assertStringContainsString('data-crm-total="blocked" data-crm-value="1"', $html);
     }
 
-    public function test_recent_facts_are_counted_and_dated_but_never_shown(): void
+    /**
+     * TASK-1427 — decision Cyril (07/09 20h30) : « le SuperAdmin doit pouvoir
+     * tout voir ». La vue d'ensemble montre donc les CONTACTS (noms, emails)
+     * de toutes les Organizations sous les agregats ; le CONTENU des faits
+     * (corps de note, objet d'email) vit dans l'onglet « Derniers faits »,
+     * pas dans les agregats. Ce test remplace explicitement l'ancien
+     * « jamais affiche » (option a de Q37, remplacee par la decision Cyril).
+     */
+    public function test_recent_facts_are_counted_and_dated_and_the_contacts_are_listed_below_the_aggregates(): void
     {
         $contact = $this->contact($this->orgA, 'Zorglub', 'Amaranthe');
         $timeline = app(CrmTimelineService::class);
@@ -155,10 +163,15 @@ class TASK1425CrmGlobalOverviewTest extends TestCase
         // 1 fait recent (la note, aujourd'hui) ; l'email d'il y a 10 jours n'est pas « recent ».
         $this->assertStringContainsString('data-crm-recent="1"', $rowA);
         $this->assertStringContainsString(now()->format('d/m/Y H:i'), $rowA);
-        // Aucun contenu de tenant sur la page.
-        foreach (['Secret commercial', 'remise de 40', 'Proposition confidentielle', 'Zorglub', 'Amaranthe', 'zorglub.amaranthe@example.com', 'Relance'] as $leak) {
-            $this->assertStringNotContainsString($leak, $html, "fuite : {$leak}");
+        // Les agregats ne portent aucun contenu ; le contenu des faits est dans l'onglet dedie.
+        foreach (['Secret commercial', 'remise de 40', 'Proposition confidentielle', 'Relance'] as $content) {
+            $this->assertStringNotContainsString($content, $html, "contenu de fait sur la vue d'ensemble : {$content}");
         }
+        // Tout voir : le Contact est liste sous les agregats, avec son email et le lien vers sa fiche.
+        $this->assertStringContainsString('data-crm-admin-contact="'.$contact->id.'"', $html);
+        $this->assertStringContainsString('Zorglub Amaranthe', $html);
+        $this->assertStringContainsString('zorglub.amaranthe@example.com', $html);
+        $this->assertStringContainsString(route('organization.admin.crm.contacts.show', ['organization' => 'org-a-1425', 'contact' => $contact->id]), $html);
     }
 
     public function test_the_overview_is_read_only(): void
