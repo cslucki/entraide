@@ -81,6 +81,8 @@ class TASK1435GuestPublicContextTest extends TestCase
         $this->assertEqualsCanonicalizing([
             CapabilityRegistry::SOURCE_ORGANIZATION_PUBLIC_IDENTITY,
             CapabilityRegistry::SOURCE_USAGE_REFERENCE,
+            // TASK-1440 (MASTER Q68) : `page_context`, 5e source — un DTO borne, jamais dans le prompt DB.
+            CapabilityRegistry::SOURCE_PAGE_CONTEXT,
             CapabilityRegistry::SOURCE_PLATFORM_CONSTITUTION,
             CapabilityRegistry::SOURCE_ORGANIZATION_CONSTITUTION_PUBLIC,
         ], $definition->allowedSources);

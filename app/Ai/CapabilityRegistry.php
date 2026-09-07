@@ -159,6 +159,9 @@ final class CapabilityRegistry
     /** TASK-1439 — UsageReference V1 (V3 §9, MASTER Q67) : « a quoi sert cette surface ? », texte cure plateforme, bloc entier apres l'identite, avant les Constitutions. */
     public const SOURCE_USAGE_REFERENCE = 'usage_reference';
 
+    /** TASK-1440 — Guest PageContext V1 (V3 §10, MASTER Q68) : « ou se trouve exactement le visiteur ? », DTO borne issu d'une whitelist de routes, bloc entier apres la UsageReference, avant les Constitutions. */
+    public const SOURCE_PAGE_CONTEXT = 'page_context';
+
     /** @var array<string, CapabilityDefinition> */
     private array $definitions;
 
@@ -364,6 +367,7 @@ final class CapabilityRegistry
             allowedSources: [
                 self::SOURCE_ORGANIZATION_PUBLIC_IDENTITY,
                 self::SOURCE_USAGE_REFERENCE,
+                self::SOURCE_PAGE_CONTEXT,
                 self::SOURCE_PLATFORM_CONSTITUTION,
                 self::SOURCE_ORGANIZATION_CONSTITUTION_PUBLIC,
             ],

@@ -12,6 +12,7 @@ use App\Models\UsageReference;
 use App\Services\Ai\AiProviderInvocationLedger;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiUsage;
+use App\Support\GuestShell\GuestPageContext;
 use App\Support\GuestShell\GuestPublicContext;
 use App\Support\GuestShell\GuestShellClearance;
 use App\Support\GuestShell\GuestShellLimitReached;
@@ -47,7 +48,8 @@ final class GuestShellResponder
         private readonly AiProviderInvocationLedger $ledger,
     ) {}
 
-    public function respond(Organization $organization, GuestVisitor $visitor, GuestConversation $conversation, string $message): GuestShellTurn
+    /** @param  GuestPageContext|null  $page  ou se trouve le visiteur (TASK-1440) — compose dans le contexte, jamais dans le prompt DB. */
+    public function respond(Organization $organization, GuestVisitor $visitor, GuestConversation $conversation, string $message, ?GuestPageContext $page = null): GuestShellTurn
     {
         $clearance = $this->gate->clear($organization, $visitor, $conversation, $message);
         if ($clearance->isRefused()) {
@@ -59,7 +61,7 @@ final class GuestShellResponder
         $prompt = $clearance->prompt ?? throw new \LogicException('A guest shell clearance must carry the active prompt.');
 
         // Le contexte public de l'Organization (SW-5) ; la garde a deja verifie active + publique.
-        $context = $this->context->build($organization, UsageReference::SURFACE_SHELL_WELCOME);
+        $context = $this->context->build($organization, UsageReference::SURFACE_SHELL_WELCOME, $page);
         if ($context === null) {
             return GuestShellTurn::refused(GuestShellClearance::STEP_ORGANIZATION, 'organization_not_public');
         }

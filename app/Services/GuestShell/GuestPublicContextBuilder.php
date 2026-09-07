@@ -8,6 +8,7 @@ use App\Models\OrganizationAiConstitution;
 use App\Models\PlatformAiConstitution;
 use App\Models\UsageReference;
 use App\Services\UsageReference\UsageReferenceResolver;
+use App\Support\GuestShell\GuestPageContext;
 use App\Support\GuestShell\GuestPublicContext;
 
 /**
@@ -24,6 +25,10 @@ use App\Support\GuestShell\GuestPublicContext;
  *    PUBLIEE de la surface demandee (« a quoi sert cet endroit ? »), texte
  *    cure plateforme, dans la locale de l'Organization ou celle de la
  *    plateforme — placee apres l'identite, avant les Constitutions ;
+ *  - `page_context` (TASK-1440, V3 §10, MASTER Q68) : OU se trouve le visiteur —
+ *    un DTO borne construit par `GuestPageContextResolver` depuis une
+ *    whitelist de routes (jamais un parsing d'URL), apres la UsageReference,
+ *    avant les Constitutions ; un DTO d'une autre Organization est une faute de code ;
  *  - `organization.constitution_public` : la Constitution IA de l'Organization
  *    SEULEMENT si elle a decide de la publier (`ai_constitution_public`, meme
  *    regle que `/org/{slug}/constitution`).
@@ -41,8 +46,12 @@ final class GuestPublicContextBuilder
     ) {}
 
     /** @param  string  $surfaceKey  la surface dont la UsageReference est demandee — jamais une autre. */
-    public function build(Organization $organization, string $surfaceKey = UsageReference::SURFACE_SHELL_WELCOME): ?GuestPublicContext
+    public function build(Organization $organization, string $surfaceKey = UsageReference::SURFACE_SHELL_WELCOME, ?GuestPageContext $page = null): ?GuestPublicContext
     {
+        if ($page !== null && $page->organizationId !== (string) $organization->getKey()) {
+            throw new \LogicException('A guest page context of another Organization can never be composed.');
+        }
+
         if (! $organization->is_active || ! $organization->is_public) {
             return null;
         }
@@ -64,6 +73,12 @@ final class GuestPublicContextBuilder
         if ($reference !== null && trim((string) $reference->content) !== '') {
             $blocks[] = ['source' => CapabilityRegistry::SOURCE_USAGE_REFERENCE, 'label' => __('guest_shell.context.usage_reference', ['title' => $reference->title]), 'text' => trim((string) $reference->content)];
             $sources[] = CapabilityRegistry::SOURCE_USAGE_REFERENCE;
+        }
+
+        // « Ou suis-je ? » — la surface metier concrete, si la route est whitelistee (sinon aucun bloc).
+        if ($page !== null) {
+            $blocks[] = ['source' => CapabilityRegistry::SOURCE_PAGE_CONTEXT, 'label' => __('guest_shell.context.page'), 'text' => $this->page($page)];
+            $sources[] = CapabilityRegistry::SOURCE_PAGE_CONTEXT;
         }
 
         $platform = trim(PlatformAiConstitution::activeTextOrSeed());
@@ -98,6 +113,24 @@ final class GuestPublicContextBuilder
             sources: array_values(array_map(fn (array $block) => $block['source'], $kept)),
             charBudget: $budget,
         );
+    }
+
+    /** Le bloc page : genre de surface, libelle public, provenance de route, CTA interne eventuel — rien de prive. */
+    private function page(GuestPageContext $page): string
+    {
+        $lines = [
+            __('guest_shell.page.kind').' : '.__('guest_shell.page.kind_'.$page->kind),
+            __('guest_shell.page.label').' : '.$page->publicLabel,
+            __('guest_shell.page.route').' : '.$page->routeName,
+        ];
+        if ($page->publicId !== null) {
+            $lines[] = __('guest_shell.page.public_id').' : '.$page->publicId;
+        }
+        if ($page->publicCta !== null) {
+            $lines[] = __('guest_shell.page.next_step').' : '.$page->publicCta['label'].' — '.$page->publicCta['url'];
+        }
+
+        return implode("\n", $lines);
     }
 
     /** Ce que la landing publique montre deja a n'importe qui — rien de plus. */
