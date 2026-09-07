@@ -144,6 +144,10 @@
                             ['route' => 'organization.admin.messages', 'label' => __('navigation.org_admin_messages'), 'icon' => 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z'],
                             ['route' => 'organization.admin.users', 'label' => __('navigation.org_admin_users'), 'icon' => 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z'],
                         ];
+                        // TASK-1416 (CRM-4) : « Relations », le Mini-CRM de l'Organization.
+                        $relationsItems = [
+                            ['route' => 'organization.admin.crm.contacts', 'label' => __('navigation.org_admin_relations'), 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'],
+                        ];
                         $adminItems = [
                             ['route' => 'organization.admin.identity', 'label' => __('navigation.org_admin_identity'), 'icon' => 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z'],
                             ['route' => 'organization.admin.reports', 'label' => __('navigation.org_admin_reports'), 'icon' => 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'],
@@ -247,6 +251,41 @@
                              x-transition:leave-end="opacity-0 scale-y-95"
                              class="origin-top">
                             @foreach($contentItems as $item)
+                            @php $itemActive = $isActive($item['route']); @endphp
+                            <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
+                               class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
+                                       {{ $itemActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($itemActive) style="background-color: var(--bp-primary)"@endif">
+                                <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
+                                </svg>
+                                {{ $item['label'] }}
+                            </a>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <!-- Relations (TASK-1416) -->
+                    @php $relationsGroupActive = $isGroupActive($relationsItems); @endphp
+                    <div x-data="{ open: {{ $relationsGroupActive ? 'true' : "localStorage.getItem('org_admin_sidebar_relations_open') !== 'false'" }} }">
+                        <button @click.stop="open = !open; localStorage.setItem('org_admin_sidebar_relations_open', open)"
+                                class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
+                                       {{ $relationsGroupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
+                            <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
+                                 :class="{'rotate-180': !open}"
+                                 fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                            <span class="text-xs font-semibold uppercase tracking-wider">{{ __('navigation.org_admin_section_relations') }}</span>
+                        </button>
+                        <div x-show="open" x-cloak
+                             x-transition:enter="transition ease-out duration-200"
+                             x-transition:enter-start="opacity-0 scale-y-95"
+                             x-transition:enter-end="opacity-100 scale-y-100"
+                             x-transition:leave="transition ease-in duration-150"
+                             x-transition:leave-start="opacity-100 scale-y-100"
+                             x-transition:leave-end="opacity-0 scale-y-95"
+                             class="origin-top">
+                            @foreach($relationsItems as $item)
                             @php $itemActive = $isActive($item['route']); @endphp
                             <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
