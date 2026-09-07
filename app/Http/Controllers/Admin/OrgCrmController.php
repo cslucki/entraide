@@ -8,6 +8,8 @@ use App\Models\CrmStatus;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Crm\CrmContactService;
+use App\Services\Crm\CrmEmailSendService;
+use App\Services\Crm\CrmEmailTemplateService;
 use App\Services\Crm\CrmNextActionService;
 use App\Services\Crm\CrmStatusService;
 use App\Services\Crm\CrmTimelineService;
@@ -40,6 +42,8 @@ class OrgCrmController extends Controller
         private readonly CrmStatusService $statuses,
         private readonly CrmTimelineService $timeline,
         private readonly CrmNextActionService $nextActions,
+        private readonly CrmEmailSendService $emails,
+        private readonly CrmEmailTemplateService $emailTemplates,
     ) {}
 
     public function contacts(Request $request, Organization $organization): View
@@ -141,6 +145,7 @@ class OrgCrmController extends Controller
             'events' => $contact->events()->with('author')->chronological()->get()->reverse()->values(),
             'channels' => CrmTimelineService::CHANNELS,
             'actionTypes' => CrmNextActionService::TYPES,
+            'emailTemplates' => $this->emailTemplates->forOrganization($organization)->orderBy('name')->get(),
         ]);
     }
 
@@ -354,6 +359,67 @@ class OrgCrmController extends Controller
     private function resolveStatus(Organization $organization, string $id): CrmStatus
     {
         return CrmStatus::forOrganization($organization)->whereKey($id)->firstOrFail();
+    }
+
+    // ── TASK-1421 — CRM-7b : envoyer un email au Contact ───────────────────────
+
+    /** Le select de la fiche envoie ici ; on redirige vers la confirmation du modele choisi. */
+    public function pickEmailTemplate(Request $request, Organization $organization, string $contact): RedirectResponse
+    {
+        $contact = $this->resolveContact($organization, $contact);
+        $template = $this->emailTemplates->resolve($organization, (string) $request->input('template'));
+
+        return redirect()->route('organization.admin.crm.contacts.email.preview', ['organization' => $organization->slug, 'contact' => $contact->id, 'template' => $template->id]);
+    }
+
+    /**
+     * Confirmation : rendu pour CE Contact, jeton one-shot pose en session.
+     * Les gardes fail-closed s'appliquent ICI aussi : un Contact non
+     * contactable n'a meme pas de preview.
+     */
+    public function previewEmail(Request $request, Organization $organization, string $contact, string $template): View|RedirectResponse
+    {
+        $contact = $this->resolveContact($organization, $contact);
+        $template = $this->emailTemplates->resolve($organization, $template);
+
+        try {
+            $this->emails->guard($contact, $template, $request->user());
+        } catch (LogicException $e) {
+            return redirect()->route('organization.admin.crm.contacts.show', ['organization' => $organization->slug, 'contact' => $contact->id])
+                ->with('error', __('crm.email.flash_blocked', ['reason' => __('crm.email.reason.'.$e->getMessage())]));
+        }
+
+        return view('admin.org.crm.email', [
+            'organization' => $organization,
+            'contact' => $contact,
+            'template' => $template,
+            'rendered' => $this->emails->render($contact, $template),
+            'token' => $this->emails->issueToken($contact, $template),
+        ]);
+    }
+
+    public function sendEmail(Request $request, Organization $organization, string $contact, string $template): RedirectResponse
+    {
+        $contact = $this->resolveContact($organization, $contact);
+        $template = $this->emailTemplates->resolve($organization, $template);
+        $back = redirect()->route('organization.admin.crm.contacts.show', ['organization' => $organization->slug, 'contact' => $contact->id]);
+
+        // Le jeton est consomme AVANT tout : un second clic n'envoie rien.
+        if (! $this->emails->consumeToken($contact, $template, $request->input('token'))) {
+            return $back->with('error', __('crm.email.flash_token'));
+        }
+
+        try {
+            $log = $this->emails->send($contact, $template, $request->user());
+        } catch (LogicException $e) {
+            return $back->with('error', __('crm.email.flash_blocked', ['reason' => __('crm.email.reason.'.$e->getMessage())]));
+        }
+
+        if ($log->status === \App\Models\EmailLog::STATUS_SENT) {
+            return $back->with('success', __('crm.email.flash_sent', ['to' => $log->to_email]));
+        }
+
+        return $back->with('error', __('crm.email.flash_failed', ['error' => \Illuminate\Support\Str::limit((string) $log->error_message, 120)]));
     }
 
     /**

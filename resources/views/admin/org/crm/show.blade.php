@@ -122,15 +122,36 @@
                 </form>
             </div>
 
+            {{-- TASK-1421 — CRM-7b : envoyer un modele d'email a ce Contact (l'humain confirme sur la page suivante). --}}
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5" data-crm-email-block>
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ __('crm.email.block_title') }}</h2>
+                @if(!$contact->isContactable())
+                <p class="text-xs text-red-600 dark:text-red-400" data-crm-email-blocked>{{ __('crm.email.blocked_do_not_contact') }}</p>
+                @elseif(!$contact->email)
+                <p class="text-xs text-gray-500 dark:text-gray-400" data-crm-email-blocked>{{ __('crm.email.blocked_no_email') }}</p>
+                @elseif($emailTemplates->isEmpty())
+                <p class="text-xs text-gray-500 dark:text-gray-400" data-crm-email-no-template>{{ __('crm.email.no_template') }} <a href="{{ route('organization.admin.crm.templates.create', ['organization' => $organization->slug]) }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">{{ __('crm.templates.new') }}</a></p>
+                @else
+                <form method="GET" action="{{ route('organization.admin.crm.contacts.email.pick', ['organization' => $organization->slug, 'contact' => $contact->id]) }}" class="flex gap-2" data-crm-email-pick>
+                    <select name="template" required class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                        @foreach($emailTemplates as $emailTemplate)
+                        <option value="{{ $emailTemplate->id }}">{{ $emailTemplate->name }}</option>
+                        @endforeach
+                    </select>
+                    <button type="submit" class="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">{{ __('crm.email.prepare') }}</button>
+                </form>
+                @endif
+            </div>
+
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5" data-crm-timeline>
                 <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">{{ __('crm.show.timeline') }} <span class="font-normal text-gray-400">· {{ __('crm.show.timeline_order') }}</span></h2>
                 <ol class="space-y-3">
                     @forelse($events as $event)
                     <li class="flex gap-3" data-crm-event="{{ $event->type }}">
-                        <div class="mt-1 w-2 h-2 rounded-full flex-shrink-0 {{ match($event->type) { 'note' => 'bg-indigo-500', 'status_changed' => 'bg-amber-500', 'contact_updated' => 'bg-gray-400', 'next_action_planned' => 'bg-sky-500', 'next_action_done' => 'bg-emerald-600', default => 'bg-green-500' } }}"></div>
+                        <div class="mt-1 w-2 h-2 rounded-full flex-shrink-0 {{ match($event->type) { 'note' => 'bg-indigo-500', 'status_changed' => 'bg-amber-500', 'contact_updated' => 'bg-gray-400', 'next_action_planned' => 'bg-sky-500', 'next_action_done' => 'bg-emerald-600', 'email_sent' => 'bg-violet-500', 'email_failed' => 'bg-red-500', default => 'bg-green-500' } }}"></div>
                         <div class="flex-1 min-w-0">
                             <div class="flex flex-wrap items-baseline gap-x-2 text-xs text-gray-500 dark:text-gray-400">
-                                <span class="font-semibold text-gray-700 dark:text-gray-300">{{ in_array($event->type, ['next_action_planned', 'next_action_done'], true) ? __('crm.event_'.$event->type) : __('crm.event.'.$event->type) }}</span>
+                                <span class="font-semibold text-gray-700 dark:text-gray-300">{{ in_array($event->type, ['next_action_planned', 'next_action_done', 'email_sent', 'email_failed'], true) ? __('crm.event_'.$event->type) : __('crm.event.'.$event->type) }}</span>
                                 @if($event->type === 'note' && ($event->payload['channel'] ?? null))<span class="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">{{ __('crm.channel.'.$event->payload['channel']) }}</span>@endif
                                 <span>{{ $event->occurred_at->format('d/m/Y H:i') }}</span>
                                 @if($event->author)<span>· {{ $event->author->fullName }}</span>@endif
@@ -151,6 +172,12 @@
                                         {{ __('crm.action_type.'.($event->payload['action_type'] ?? 'other')) }}
                                         @if(!empty($event->payload['date'])) · {{ \Carbon\Carbon::parse($event->payload['date'])->format('d/m/Y') }}@endif@if(!empty($event->payload['time'])) {{ $event->payload['time'] }}@endif
                                         @if(!empty($event->payload['label'])) — {{ $event->payload['label'] }}@endif
+                                    @break
+                                    @case('email_sent')
+                                    @case('email_failed')
+                                        <span class="font-medium">{{ $event->payload['subject'] ?? '' }}</span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">&rarr; {{ $event->payload['to'] ?? '' }} · {{ $event->payload['template_name'] ?? '' }}</span>
+                                        @if(!empty($event->payload['error']))<div class="text-xs text-red-600 dark:text-red-400">{{ $event->payload['error'] }}</div>@endif
                                     @break
                                     @default —
                                 @endswitch
