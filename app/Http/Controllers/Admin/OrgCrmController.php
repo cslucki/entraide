@@ -43,6 +43,9 @@ class OrgCrmController extends Controller
 {
     public const IDLE_DAYS = 30;
 
+    /** TASK-1430 — le panneau « Ajouter un membre existant » n'affiche jamais plus que ceci. */
+    private const MEMBER_PICKER_LIMIT = 20;
+
     public function __construct(
         private readonly CrmContactService $contacts,
         private readonly CrmStatusService $statuses,
@@ -136,6 +139,32 @@ class OrgCrmController extends Controller
             ->paginate(25)
             ->withQueryString();
 
+        // TASK-1430 — « Ajouter un membre existant » : le panneau ne liste des
+        // membres QUE sur demande (parametre present), toujours DANS cette
+        // Organization, et signale ceux deja suivis au lieu de les recreer.
+        // La recherche est un GET : rien n'est ecrit sans clic « Ajouter au suivi ».
+        $memberSearch = $request->has('member_search') ? trim((string) $request->input('member_search')) : null;
+        $members = collect();
+        $followedContactIds = collect();
+
+        if ($memberSearch !== null) {
+            $memberQuery = User::where('organization_id', $organization->id);
+
+            if ($memberSearch !== '') {
+                $memberNeedle = '%'.mb_strtolower($memberSearch).'%';
+                $memberQuery->where(function ($q) use ($memberNeedle) {
+                    $q->whereRaw('LOWER(first_name) LIKE ?', [$memberNeedle])
+                        ->orWhereRaw('LOWER(name) LIKE ?', [$memberNeedle])
+                        ->orWhereRaw('LOWER(email) LIKE ?', [$memberNeedle]);
+                });
+            }
+
+            $members = $memberQuery->orderBy('name')->orderBy('first_name')->limit(self::MEMBER_PICKER_LIMIT)->get();
+            $followedContactIds = CrmContact::forOrganization($organization)
+                ->whereIn('user_id', $members->pluck('id'))
+                ->pluck('id', 'user_id');
+        }
+
         return view('admin.org.crm.contacts', [
             'organization' => $organization,
             'contacts' => $contacts,
@@ -147,6 +176,10 @@ class OrgCrmController extends Controller
             'idleDays' => self::IDLE_DAYS,
             'due' => $due,
             'actionTypes' => CrmNextActionService::TYPES,
+            'memberSearch' => $memberSearch,
+            'members' => $members,
+            'followedContactIds' => $followedContactIds,
+            'memberPickerLimit' => self::MEMBER_PICKER_LIMIT,
         ]);
     }
 
@@ -473,30 +506,27 @@ class OrgCrmController extends Controller
     }
 
     /**
-     * « Ajouter au suivi » : un membre ne devient un Contact que par decision
-     * explicite de l'OrgAdmin (MASTER Q1/Q12). Meme Organization obligatoire ;
-     * idempotent : un second clic retrouve le meme Contact.
+     * « Ajouter au suivi » (Membres, et depuis TASK-1430 le panneau « Ajouter un
+     * membre existant » de Relations) : la logique vit dans
+     * CrmContactService::followMember. Un membre d'ailleurs n'existe pas ici :
+     * 404, jamais 403 — rien a reveler.
      */
     public function followMember(Request $request, Organization $organization, User $user): RedirectResponse
     {
         abort_unless($user->organization_id === $organization->id, 404);
 
         try {
-            $contact = $this->contacts->findOrCreate($organization, [
-                'email' => $user->email,
-                'first_name' => $user->first_name,
-                'last_name' => $user->name,
-                'phone' => $user->phone,
-                'source' => CrmContact::SOURCE_MANUAL,
-            ], $request->user());
-
-            $this->contacts->linkToUser($contact, $user);
+            $contact = $this->contacts->followMember($organization, $user, $request->user());
         } catch (LogicException $e) {
             return back()->with('error', __('crm.flash.follow_conflict'));
         }
 
+        // Nouveau Contact, ou Contact existant que ce clic vient de RELIER :
+        // dans les deux cas le membre est maintenant suivi.
+        $newlyFollowed = $contact->wasRecentlyCreated || $contact->wasChanged('user_id');
+
         return redirect()->route('organization.admin.crm.contacts', ['organization' => $organization->slug, 'search' => $user->email])
-            ->with('success', $contact->wasRecentlyCreated ? __('crm.flash.member_followed') : __('crm.flash.member_already_followed'));
+            ->with('success', $newlyFollowed ? __('crm.flash.member_followed') : __('crm.flash.member_already_followed'));
     }
 
     // ── TASK-1426 — CRM-8 : relire l'email reellement envoye/tente ───────────────

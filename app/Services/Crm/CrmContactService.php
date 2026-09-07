@@ -170,6 +170,40 @@ class CrmContactService
     }
 
     /**
+     * TASK-1430 — « Ajouter un membre existant » : un membre de l'Organization
+     * ne devient un Contact que par decision explicite de l'OrgAdmin (MASTER
+     * Q1/Q12). Idempotent : retrouve le Contact deja relie, ou celui qui porte
+     * le meme email et le relie, restaure un Contact supprime, ne cree jamais
+     * de doublon. Un membre d'une AUTRE Organization est refuse avant toute
+     * ecriture (LogicException). Le fait « compte » entre dans la timeline une
+     * seule fois, comme a l'inscription.
+     */
+    public function followMember(Organization $organization, User $member, User $actor): CrmContact
+    {
+        if ($member->organization_id !== $organization->id) {
+            throw new LogicException('Only a member of this Organization can be followed in its CRM.');
+        }
+
+        $contact = $this->findOrCreate($organization, [
+            'email' => $member->email,
+            'first_name' => $member->first_name,
+            'last_name' => $member->name,
+            'phone' => $member->phone,
+            'source' => CrmContact::SOURCE_MANUAL,
+        ], $actor);
+
+        $linked = $this->linkToUser($contact, $member);
+
+        $this->timeline->recordOnce($linked, CrmContactEvent::TYPE_ACCOUNT_CREATED, ['user_id' => $member->id]);
+
+        if ($member->hasVerifiedEmail()) {
+            $this->timeline->recordOnce($linked, CrmContactEvent::TYPE_EMAIL_VERIFIED);
+        }
+
+        return $linked;
+    }
+
+    /**
      * Inscription : RELIER seulement (MASTER Q1). On cherche, dans
      * l'Organization du nouveau membre, le Contact non relie qui porte son
      * email ; s'il n'y en a pas, on ne cree RIEN — un membre n'est un Contact

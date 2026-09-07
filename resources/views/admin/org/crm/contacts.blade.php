@@ -5,9 +5,14 @@
             <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('crm.title') }}</h1>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('crm.subtitle') }}</p>
         </div>
-        <div x-data="{ open: {{ $errors->any() ? 'true' : 'false' }} }" class="w-full lg:w-auto">
-            <button type="button" @click="open = !open" data-crm-new-toggle
-                class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">{{ __('crm.new_contact') }}</button>
+        <div x-data="{ open: {{ $errors->any() ? 'true' : 'false' }}, pick: {{ $memberSearch !== null ? 'true' : 'false' }} }" class="w-full lg:w-auto">
+            <div class="flex flex-wrap gap-2">
+                <button type="button" @click="open = !open; if (open) pick = false" data-crm-new-toggle
+                    class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">{{ __('crm.new_contact') }}</button>
+                {{-- TASK-1430 — un membre EXISTANT de l'Organization entre dans Relations d'ici aussi. --}}
+                <button type="button" @click="pick = !pick; if (pick) open = false" data-crm-member-toggle
+                    class="px-4 py-2 border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 rounded-lg text-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/30">{{ __('crm.add_existing_member') }}</button>
+            </div>
             <form method="POST" action="{{ route('organization.admin.crm.contacts.store', ['organization' => $organization->slug]) }}"
                   x-show="open" x-cloak data-crm-new-form
                   class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 lg:w-[36rem]">
@@ -32,6 +37,43 @@
                     <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">{{ __('crm.save_contact') }}</button>
                 </div>
             </form>
+            <div x-show="pick" x-cloak data-crm-member-panel
+                 class="mt-3 p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 lg:w-[36rem]">
+                {{-- TASK-1430 — la recherche est un GET : rien n'est ecrit tant que l'OrgAdmin n'a pas clique « Ajouter au suivi ». --}}
+                <form method="GET" action="{{ route('organization.admin.crm.contacts', ['organization' => $organization->slug]) }}" class="flex gap-2" data-crm-member-search>
+                    <input type="search" name="member_search" value="{{ $memberSearch }}" placeholder="{{ __('crm.member_picker.search') }}" maxlength="100" autocomplete="off"
+                        class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                    <button type="submit" class="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">{{ __('crm.member_picker.search_button') }}</button>
+                </form>
+                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('crm.member_picker.hint') }}</p>
+                @if($memberSearch !== null)
+                <ul class="mt-3 divide-y divide-gray-100 dark:divide-gray-700" data-crm-member-results>
+                    @forelse($members as $member)
+                    <li class="py-2 flex items-center justify-between gap-3" data-crm-member="{{ $member->id }}">
+                        <div class="min-w-0">
+                            <div class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ trim(($member->first_name ?? '').' '.($member->name ?? '')) ?: '—' }}</div>
+                            <div class="text-xs text-gray-500 truncate">{{ $member->email }}</div>
+                        </div>
+                        @if($followedContactIds->has($member->id))
+                        <a href="{{ route('organization.admin.crm.contacts.show', ['organization' => $organization->slug, 'contact' => $followedContactIds->get($member->id)]) }}" data-crm-member-followed="{{ $member->id }}"
+                           class="shrink-0 px-2 py-1 text-xs rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 hover:underline">{{ __('crm.member_picker.already_followed') }}</a>
+                        @else
+                        <form method="POST" action="{{ route('organization.admin.crm.members.follow', ['organization' => $organization->slug, 'user' => $member->id]) }}" class="shrink-0">
+                            @csrf
+                            <button type="submit" data-crm-follow="{{ $member->id }}"
+                                class="px-2 py-1 text-xs rounded border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30">{{ __('crm.follow_member') }}</button>
+                        </form>
+                        @endif
+                    </li>
+                    @empty
+                    <li class="py-3 text-sm text-gray-400" data-crm-member-empty>{{ __('crm.member_picker.empty') }}</li>
+                    @endforelse
+                </ul>
+                @if($members->count() >= $memberPickerLimit)
+                <p class="mt-2 text-xs text-gray-400" data-crm-member-truncated>{{ __('crm.member_picker.truncated', ['limit' => $memberPickerLimit]) }}</p>
+                @endif
+                @endif
+            </div>
         </div>
     </div>
 
