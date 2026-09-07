@@ -9,6 +9,7 @@ return [
     'context' => [
         'identity' => ':name — public presentation',
         'usage_reference' => 'What this space is for — :title',
+        'page' => 'Where the visitor is',
         'platform_constitution' => 'Platform AI Constitution (Mycelium)',
         'organization_constitution' => ':name AI Constitution (published)',
         'name' => 'Name',
@@ -16,5 +17,19 @@ return [
         'headline' => 'Headline',
         'pitch' => 'Promise',
         'description' => 'About',
+    ],
+    // TASK-1440 — Guest PageContext V1: the "where am I?" block.
+    'page' => [
+        'kind' => 'Surface',
+        'label' => 'Page',
+        'route' => 'Route',
+        'public_id' => 'Public identifier',
+        'next_step' => 'Possible next step',
+        'kind_organization_home' => 'Public home of the organization',
+        'kind_signup' => 'Sign-up page of the organization',
+        'kind_workshop_page' => 'Workshop page',
+        'kind_workshop_session' => 'Workshop session',
+        'cta_signup' => 'Create an account',
+        'signup_label' => 'Sign-up to :name',
     ],
 ];
