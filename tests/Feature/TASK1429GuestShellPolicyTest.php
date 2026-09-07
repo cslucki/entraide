@@ -188,7 +188,10 @@ class TASK1429GuestShellPolicyTest extends TestCase
         $usage = $this->policies->state($this->org)->monthlyUsage;
 
         $this->assertSame(2, $usage['messages'], 'succes du process guest_shell de cette Organization ce mois-ci (cout connu + inconnu)');
-        $this->assertEqualsWithDelta(0.10, $usage['cost_usd'], 0.0001, 'seul le cout CONNU est somme');
+        // TASK-1438 (V3 §14) : le cout CONNU compte quel que soit le statut — l'echec a 0.30 a coute.
+        $this->assertEqualsWithDelta(0.40, $usage['cost_usd'], 0.0001, 'tout cout CONNU est somme, succes ou echec');
+        $this->assertSame(1, $usage['failed']);
+        $this->assertSame(3, $usage['invocations']);
         $this->assertSame(1, $usage['cost_unknown']);
     }
 

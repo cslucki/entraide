@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\AdminCrmOverviewController;
 use App\Http\Controllers\Admin\AdminEmailController;
 use App\Http\Controllers\Admin\AdminEmailLogsController;
 use App\Http\Controllers\Admin\AdminEmailTemplatesController;
+use App\Http\Controllers\Admin\AdminGuestShellController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
@@ -616,6 +617,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Centre de supervision IA (T078.1) — appel réel OpenAI gpt-4o-mini
     Route::get('/ai-supervision', [AdminAiSupervisionController::class, 'index'])->name('ai-supervision');
+    // TASK-1438 (SW-10) : observabilite plateforme du Shell Welcome — lecture seule, jamais un contenu de conversation.
+    Route::get('/shell-welcome', [AdminGuestShellController::class, 'index'])->name('guest-shell');
     Route::post('/ai-supervision', [AdminAiSupervisionController::class, 'analyze'])->name('ai-supervision.analyze');
 
     // Historique des interactions IA (TASK-249)

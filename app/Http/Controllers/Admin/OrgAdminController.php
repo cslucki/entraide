@@ -40,6 +40,8 @@ use App\Services\Ai\OrganizationDoctrineSandbox;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Services\Dossiers\OrganizationRagOverview;
+use App\Services\GuestShell\GuestShellPolicyService;
+use App\Services\GuestShell\GuestShellUsageService;
 use App\Services\LoopGovernanceService;
 use App\Services\Loops\LoopCardCompositionService;
 use App\Services\Loops\LoopLifecycleService;
@@ -1995,8 +1997,15 @@ class OrgAdminController extends Controller
             ? $usage->creditUsesByUser((string) $organization->id, $filters->from, $filters->to)
             : null;
 
+        // TASK-1438 — SW-10 : le Shell Welcome de CETTE Organization, meme periode, meme doctrine que la garde.
+        $guestShell = [
+            'state' => app(GuestShellPolicyService::class)->state($organization),
+            'usage' => app(GuestShellUsageService::class)->organizationUsage($organization, $filters->from, $filters->to),
+        ];
+
         return view('admin.org.ai-consumption', [
             'organization' => $organization,
+            'guestShell' => $guestShell,
             'filters' => $filters,
             'isCurrentMonth' => $isCurrentMonth,
             'economics' => $economics,
