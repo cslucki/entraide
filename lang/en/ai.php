@@ -415,6 +415,7 @@ return [
         'member_profile_agent_loop_reply' => 'Profile agent reply in a Loop',
         'member_profile_agent_visitor_chat' => 'Profile agent visitor chat',
         'loop_decision_suggestion' => 'Decision suggestion (Decision Memory)',
+        'guest_shell_welcome' => 'Visitor welcome (Welcome Shell)',
     ],
     'inherited_label' => [
         'member_profile_agent_setup' => 'Conversational AI profile setup',

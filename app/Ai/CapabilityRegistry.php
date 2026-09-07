@@ -139,6 +139,23 @@ final class CapabilityRegistry
      */
     public const LOOP_DECISION_SUGGESTION = 'loop_decision_suggestion';
 
+    /**
+     * TASK-1435 — SW-5 : le Shell Welcome, pour un visiteur NON connecte. Scope
+     * Organization seulement ; sources = la whitelist PUBLIQUE (cadre Cyril §8) :
+     * jamais une Boucle, un Dossier, People, la memoire membre, le CRM, la
+     * doctrine interne, un autre visiteur, ni credentials/economie/admin.
+     */
+    public const GUEST_SHELL_WELCOME = 'guest_shell_welcome';
+
+    /** Ce que la landing publique montre deja a n'importe qui (nom, tagline, accroche, presentation). */
+    public const SOURCE_ORGANIZATION_PUBLIC_IDENTITY = 'organization.public_identity';
+
+    /** La Constitution IA de la plateforme (Mycelium public, /mycelium). */
+    public const SOURCE_PLATFORM_CONSTITUTION = 'platform.constitution';
+
+    /** La Constitution IA de l'Organization, SEULEMENT si elle l'a publiee (ai_constitution_public + version active). */
+    public const SOURCE_ORGANIZATION_CONSTITUTION_PUBLIC = 'organization.constitution_public';
+
     /** @var array<string, CapabilityDefinition> */
     private array $definitions;
 
@@ -335,6 +352,24 @@ final class CapabilityRegistry
             contextCharBudget: self::loopSummaryContextBudget(),
         );
 
+        $guestShellWelcome = new CapabilityDefinition(
+            id: self::GUEST_SHELL_WELCOME,
+            process: AiProcess::GUEST_SHELL,
+            requiresHumanConfirmation: false,
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION],
+            allowedSources: [
+                self::SOURCE_ORGANIZATION_PUBLIC_IDENTITY,
+                self::SOURCE_PLATFORM_CONSTITUTION,
+                self::SOURCE_ORGANIZATION_CONSTITUTION_PUBLIC,
+            ],
+            // MASTER Q61 : UNE seule autorite de sortie — `ai.guest_shell.max_output_tokens` —
+            // lue ici (definition) et imposee cote serveur par la garde SW-6 (execution).
+            maxOutput: self::guestShellMaxOutput(),
+            promptKey: 'guest_shell_welcome',
+            contextCharBudget: self::guestShellContextBudget(),
+        );
+
         $this->definitions = [
             $loopSummary->id => $loopSummary,
             $clarifyHelpRequest->id => $clarifyHelpRequest,
@@ -347,6 +382,7 @@ final class CapabilityRegistry
             $memberProfileLoopReply->id => $memberProfileLoopReply,
             $memberProfileVisitorChat->id => $memberProfileVisitorChat,
             $loopDecisionSuggestion->id => $loopDecisionSuggestion,
+            $guestShellWelcome->id => $guestShellWelcome,
         ];
     }
 
@@ -434,6 +470,34 @@ final class CapabilityRegistry
         }
 
         return (int) config('ai.member_profile.max_context_chars', $default);
+    }
+
+    /**
+     * TASK-1435 — budget de contexte du Shell Welcome : identite publique +
+     * Constitutions ; tres en deca du Shell membre, car le materiau est court
+     * et public par definition.
+     */
+    private static function guestShellContextBudget(): int
+    {
+        $default = 6000;
+
+        if (! function_exists('app') || ! app()->bound('config')) {
+            return $default;
+        }
+
+        return (int) config('ai.guest_shell.max_context_chars', $default);
+    }
+
+    /** TASK-1435 / MASTER Q61 : la borne de sortie du Shell Welcome, jamais dupliquee, jamais fournie par le visiteur. */
+    private static function guestShellMaxOutput(): int
+    {
+        $default = 650;
+
+        if (! function_exists('app') || ! app()->bound('config')) {
+            return $default;
+        }
+
+        return (int) config('ai.guest_shell.max_output_tokens', $default);
     }
 
     public function has(string $capability): bool

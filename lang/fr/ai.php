@@ -415,6 +415,7 @@ return [
         'member_profile_agent_loop_reply' => 'Réponse de l\'agent de profil dans une Boucle',
         'member_profile_agent_visitor_chat' => 'Chat visiteur de l\'agent de profil',
         'loop_decision_suggestion' => 'Suggestion de décision (Decision Memory)',
+        'guest_shell_welcome' => 'Accueil du visiteur (Shell Welcome)',
     ],
     'inherited_label' => [
         'member_profile_agent_setup' => 'Configuration conversationnelle du profil IA',

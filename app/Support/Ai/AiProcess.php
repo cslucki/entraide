@@ -45,6 +45,9 @@ final class AiProcess
 
     public const DOSSIER_EMBEDDINGS_SEARCH = 'dossier.embeddings_search';
 
+    /** TASK-1435 — SW-5 : le Shell Welcome (visiteur non connecte), process canonique `guest_shell` (SW-1). */
+    public const GUEST_SHELL = 'guest_shell';
+
     /**
      * `ai_interactions.feature` → process (correspondance exacte).
      *
@@ -95,6 +98,7 @@ final class AiProcess
         'profile_agent_master' => 'member_profile.agent_master',
         'dossier_embeddings_index' => self::DOSSIER_EMBEDDINGS_INDEX,
         'dossier_embeddings_search' => self::DOSSIER_EMBEDDINGS_SEARCH,
+        'guest_shell_welcome' => self::GUEST_SHELL,
     ];
 
     private function __construct() {}
