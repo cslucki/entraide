@@ -118,6 +118,7 @@ return [
     'org_admin_section_content' => 'Contenu',
     'org_admin_section_community' => 'Communauté',
     'org_admin_section_relations' => 'Relations',
+    'org_admin_crm_today' => 'Aujourd\'hui',
     'org_admin_relations' => 'Contacts',
     'org_admin_crm_statuses' => 'Statuts',
     'org_admin_crm_templates' => 'Modèles d\'email',

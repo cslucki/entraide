@@ -1056,8 +1056,11 @@ Route::prefix('/org/{organization}')
                 // TASK-1416 (CRM-4) : « Relations », le Mini-CRM de l'Organization.
                 // {contact} est resolu DANS l'Organization par le controller (404
                 // pour un Contact d'ailleurs), jamais par un binding global.
-                Route::get('/relations', [OrgCrmController::class, 'contacts'])->name('crm.contacts');
-                Route::post('/relations', [OrgCrmController::class, 'storeContact'])->name('crm.contacts.store');
+                // TASK-1424 (CRM-14) : « Aujourd'hui » est la page d'entree de Relations ; la
+                // liste des Contacts vit sous /relations/contacts, son nom de route est inchange.
+                Route::get('/relations', [OrgCrmController::class, 'today'])->name('crm.today');
+                Route::get('/relations/contacts', [OrgCrmController::class, 'contacts'])->name('crm.contacts');
+                Route::post('/relations/contacts', [OrgCrmController::class, 'storeContact'])->name('crm.contacts.store');
                 // TASK-1419 (CRM-4b) : gestion du pipeline. Declare AVANT /relations/{contact}
                 // pour que « statuts » ne soit jamais pris pour un id de Contact.
                 Route::get('/relations/statuts', [OrgCrmController::class, 'statuses'])->name('crm.statuses');

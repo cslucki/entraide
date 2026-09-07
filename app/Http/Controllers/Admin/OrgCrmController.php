@@ -5,18 +5,21 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\CrmContact;
 use App\Models\CrmStatus;
+use App\Models\EmailLog;
 use App\Models\Organization;
 use App\Models\User;
-use App\Services\Crm\CrmContactService;
 use App\Services\Crm\CrmContactPolicyService;
+use App\Services\Crm\CrmContactService;
+use App\Services\Crm\CrmDashboardService;
 use App\Services\Crm\CrmEmailSendService;
 use App\Services\Crm\CrmEmailTemplateService;
 use App\Services\Crm\CrmNextActionService;
 use App\Services\Crm\CrmStatusService;
 use App\Services\Crm\CrmTimelineService;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Carbon\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use LogicException;
@@ -46,7 +49,21 @@ class OrgCrmController extends Controller
         private readonly CrmEmailSendService $emails,
         private readonly CrmEmailTemplateService $emailTemplates,
         private readonly CrmContactPolicyService $policy,
+        private readonly CrmDashboardService $dashboard,
     ) {}
+
+    /**
+     * TASK-1424 — CRM-14 : « Aujourd'hui », la page d'entree de Relations.
+     * Lecture seule : que dois-je faire aujourd'hui ? Le read model est
+     * dans CrmDashboardService ; ici on ne fait que semer le pipeline
+     * (comme la liste) et rendre.
+     */
+    public function today(Organization $organization): View
+    {
+        $this->statuses->ensureDefaultPipeline($organization);
+
+        return view('admin.org.crm.today', ['organization' => $organization] + $this->dashboard->today($organization));
+    }
 
     public function contacts(Request $request, Organization $organization): View
     {
@@ -418,11 +435,11 @@ class OrgCrmController extends Controller
             return $back->with('error', __('crm.email.flash_blocked', ['reason' => __('crm.email.reason.'.$e->getMessage())]));
         }
 
-        if ($log->status === \App\Models\EmailLog::STATUS_SENT) {
+        if ($log->status === EmailLog::STATUS_SENT) {
             return $back->with('success', __('crm.email.flash_sent', ['to' => $log->to_email]));
         }
 
-        return $back->with('error', __('crm.email.flash_failed', ['error' => \Illuminate\Support\Str::limit((string) $log->error_message, 120)]));
+        return $back->with('error', __('crm.email.flash_failed', ['error' => Str::limit((string) $log->error_message, 120)]));
     }
 
     /**

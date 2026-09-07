@@ -146,6 +146,8 @@
                         ];
                         // TASK-1416 (CRM-4) : « Relations », le Mini-CRM de l'Organization.
                         $relationsItems = [
+                            // TASK-1424 (CRM-14) : « Aujourd'hui », l'entree par defaut.
+                            ['route' => 'organization.admin.crm.today', 'label' => __('navigation.org_admin_crm_today'), 'icon' => 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z'],
                             ['route' => 'organization.admin.crm.contacts', 'label' => __('navigation.org_admin_relations'), 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'],
                             ['route' => 'organization.admin.crm.statuses', 'label' => __('navigation.org_admin_crm_statuses'), 'icon' => 'M4 6h16M4 12h16M4 18h7'],
                             ['route' => 'organization.admin.crm.templates', 'label' => __('navigation.org_admin_crm_templates'), 'icon' => 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'],
