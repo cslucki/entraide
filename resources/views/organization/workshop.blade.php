@@ -71,7 +71,8 @@
                 @if(session('workshop_registration'))<p class="mt-3 rounded-xl bg-emerald-50 px-4 py-2 text-sm text-emerald-800" data-workshop-registration-flash>{{ __('workshops.public_registration_flash') }}</p>@endif
                 @if(session('workshop_registration_full'))<p class="mt-3 rounded-xl bg-amber-50 px-4 py-2 text-sm text-amber-800" data-workshop-registration-full>{{ __('workshops.public_registration_full') }}</p>@endif
                 @if(session('workshop_interest'))<p class="mt-3 rounded-xl bg-emerald-50 px-4 py-2 text-sm text-emerald-800" data-workshop-interest-flash>{{ __('workshops.public_interest_flash') }} <a href="{{ route('organization.register', ['organization' => $organization->slug]) }}" class="font-semibold underline" data-workshop-interest-account>{{ __('workshops.public_interest_account') }}</a></p>@endif
-                <p class="mt-3 text-xs text-[var(--bp-muted)]" data-workshop-registration-soon>{{ __('workshops.public_registration_soon') }}</p>
+                {{-- TASK-1462 (audit F4) : plus de promesse perimee — un Guest apprend comment confirmer (compte + email verifie, retour ici) ; un membre a deja son geste au-dessus. --}}
+                @unless($member['present'])<p class="mt-3 text-xs text-[var(--bp-muted)]" data-workshop-guest-register-hint>{{ __('workshops.public_guest_register_hint') }}</p>@endunless
             @else
                 <p class="mt-8 rounded-xl border border-dashed border-[var(--bp-border)] px-4 py-3 text-sm text-[var(--bp-muted)]" data-workshop-sessions-soon>{{ __('workshops.public_sessions_soon') }}</p>
             @endif

@@ -95,7 +95,7 @@ return [
     'public_session_date_format' => 'l j F Y, H\hi',
     'public_session_time_format' => 'H\hi',
     'public_session_capacity' => ':count places (indicatif)',
-    'public_registration_soon' => 'L\'inscription sera proposée ici prochainement.',
+    'public_guest_register_hint' => 'Pour confirmer votre participation, créez un compte : après la vérification de votre email, vous reviendrez ici confirmer votre place.',
     // TASK-1452 (B4-B) — interet Guest.
     'public_interest_select' => 'Je choisis cette session',
     'public_interest_selected' => 'Session choisie',
