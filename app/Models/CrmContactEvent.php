@@ -65,10 +65,17 @@ class CrmContactEvent extends Model
     public const TYPE_CONTACT_RESTORED = 'contact_restored';
 
     /** Faits systeme : sans auteur humain, une seule fois par Contact. */
-    public const SYSTEM_TYPES = [self::TYPE_ACCOUNT_CREATED, self::TYPE_EMAIL_VERIFIED];
+    public const SYSTEM_TYPES = [self::TYPE_ACCOUNT_CREATED, self::TYPE_EMAIL_VERIFIED, self::TYPE_WORKSHOP_PARTICIPATION_CONFIRMED, self::TYPE_SHELL_CLAIMED];
 
     /** Faits enregistres UNE seule fois par Contact (systeme, ou liaison d'un membre par un humain). */
     public const ONCE_TYPES = [self::TYPE_ACCOUNT_CREATED, self::TYPE_EMAIL_VERIFIED, self::TYPE_MEMBER_LINKED];
+
+    /** F0 (audit OPUS) — faits REPETABLES par objet : identite = type + reference canonique (Mini-CRM V2 §6). */
+    public const TYPE_WORKSHOP_PARTICIPATION_CONFIRMED = 'workshop_participation_confirmed';
+
+    public const TYPE_SHELL_CLAIMED = 'shell_claimed';
+
+    public const REPEATABLE_ONCE_TYPES = [self::TYPE_WORKSHOP_PARTICIPATION_CONFIRMED, self::TYPE_SHELL_CLAIMED];
 
     protected $fillable = [
         'organization_id',
@@ -76,6 +83,7 @@ class CrmContactEvent extends Model
         'type',
         'author_user_id',
         'payload',
+        'dedupe_key',
         'occurred_at',
     ];
 
