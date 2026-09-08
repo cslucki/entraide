@@ -110,11 +110,15 @@ return [
         'contact_deleted' => 'Contact deleted',
         'contact_restored' => 'Contact restored',
         'contact_updated' => 'Details updated',
+        // TASK-1457 / TASK-1458 — repeatable bridge facts (identity = type + reference).
+        'workshop_participation_confirmed' => 'Workshop participation confirmed',
+        'shell_claimed' => 'Shell visitor linked',
     ],
     'edit' => [
         'title' => 'Edit details',
         'hint' => 'Every change is recorded in the history.',
     ],
+    'shell_conversations' => '{0} no conversation|{1} :count conversation|[2,*] :count conversations',
     'flash_contact_updated' => 'Details updated.',
     'flash_contact_unchanged' => 'No change.',
     'flash_update_conflict' => 'Another contact of your organization already has this email.',

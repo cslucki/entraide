@@ -10,6 +10,7 @@ use App\Models\WorkshopRegistration;
 use App\Models\WorkshopSession;
 use App\Models\WorkshopSessionInterest;
 use App\Services\Acquisition\AcquisitionEventRecorder;
+use App\Services\Crm\WorkshopCrmBridge;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use LogicException;
@@ -36,7 +37,10 @@ use LogicException;
  */
 final class WorkshopRegistrationService
 {
-    public function __construct(private readonly AcquisitionEventRecorder $events) {}
+    public function __construct(
+        private readonly AcquisitionEventRecorder $events,
+        private readonly WorkshopCrmBridge $crm,
+    ) {}
 
     public function register(WorkshopSession $session, User $user): WorkshopRegistration
     {
@@ -93,6 +97,10 @@ final class WorkshopRegistrationService
                 $this->events->record($session->organization, AcquisitionEvent::CONVERTED, ['journey' => $journey] + $dimensions, ['goal' => $journey->conversion_goal] + $metadata, AcquisitionEvent::CONVERTED.':journey:'.$journey->getKey().':user:'.$user->getKey());
             }
         });
+
+        // TASK-1457 (Growth V3 §15, Mini-CRM V2 §10) : le moment produit pertinent — le CRM retrouve/cree/lie le Contact.
+        // Sous rescue() et HORS de la transaction de capacite : le CRM ne decide jamais d'une inscription.
+        rescue(fn () => $this->crm->onParticipationConfirmed($registration->fresh()));
 
         return $registration;
     }

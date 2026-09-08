@@ -110,12 +110,16 @@ return [
         'contact_deleted' => 'Contact supprimé',
         'contact_restored' => 'Contact restauré',
         'contact_updated' => 'Coordonnées modifiées',
+        // TASK-1457 / TASK-1458 — faits répétables des bridges (identité = type + référence).
+        'workshop_participation_confirmed' => 'Participation à un atelier confirmée',
+        'shell_claimed' => 'Visiteur du Shell rattaché',
     ],
     'edit' => [
         'title' => 'Modifier les coordonnées',
         'hint' => 'Chaque modification est tracée dans l\'historique.',
     ],
     'flash_contact_updated' => 'Coordonnées mises à jour.',
+    'shell_conversations' => '{0} aucune conversation|{1} :count conversation|[2,*] :count conversations',
     'flash_contact_unchanged' => 'Aucune modification.',
     'flash_update_conflict' => 'Un autre contact de votre organisation porte déjà cet email.',
     // TASK-1418 — CRM-6 : la prochaine action.

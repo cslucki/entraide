@@ -5,6 +5,7 @@ namespace App\Services\Crm;
 use App\Models\CrmContact;
 use App\Models\CrmContactEvent;
 use App\Models\User;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use LogicException;
@@ -87,6 +88,36 @@ class CrmTimelineService
      * TASK-1417 — un fait « coordonnees modifiees » : quels champs, de quoi a
      * quoi, par qui. Aucun effet sur `last_interaction_at`.
      */
+    /**
+     * F0 (audit OPUS PRE-CRM-BRIDGE, MASTER #47) — un fait REPETABLE par objet (un par atelier / session /
+     * visiteur) : identite = (contact, type, cle canonique), jamais « type seul » ; la contrainte unique
+     * `dedupe_key` tranche la course. Rejeu = null, jamais une seconde ligne. `recordOnce()` est inchange.
+     * Fait systeme ou humain « une fois » selon le type (meme regle d'auteur que recordOnce()).
+     */
+    public function recordOnceByKey(CrmContact $contact, string $type, string $dedupeKey, array $payload = [], ?User $author = null): ?CrmContactEvent
+    {
+        if (! in_array($type, CrmContactEvent::REPEATABLE_ONCE_TYPES, true)) {
+            throw new LogicException("Type [{$type}] is not a repeatable one-time timeline fact.");
+        }
+        if ($author !== null && in_array($type, CrmContactEvent::SYSTEM_TYPES, true)) {
+            throw new LogicException("Type [{$type}] is a system fact and cannot carry an author.");
+        }
+        $dedupeKey = trim($dedupeKey);
+        if ($dedupeKey === '') {
+            throw new LogicException('A repeatable timeline fact needs its canonical key.');
+        }
+        $key = mb_substr($contact->getKey().':'.$dedupeKey, 0, 160);
+        if ($contact->events()->where('dedupe_key', $key)->exists()) {
+            return null;
+        }
+
+        try {
+            return $this->record($contact, $type, $payload, $author, now(), $key);
+        } catch (UniqueConstraintViolationException) {
+            return null;
+        }
+    }
+
     public function recordContactUpdated(CrmContact $contact, array $changes, User $actor): CrmContactEvent
     {
         $this->guardAuthor($contact, $actor);
@@ -114,7 +145,7 @@ class CrmTimelineService
         return $contact->events()->chronological()->get();
     }
 
-    private function record(CrmContact $contact, string $type, array $payload, ?User $author, $occurredAt): CrmContactEvent
+    private function record(CrmContact $contact, string $type, array $payload, ?User $author, $occurredAt, ?string $dedupeKey = null): CrmContactEvent
     {
         return CrmContactEvent::create([
             'organization_id' => $contact->organization_id,
@@ -122,6 +153,7 @@ class CrmTimelineService
             'type' => $type,
             'author_user_id' => $author?->id,
             'payload' => $payload,
+            'dedupe_key' => $dedupeKey,
             'occurred_at' => $occurredAt,
         ]);
     }

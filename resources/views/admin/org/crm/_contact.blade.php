@@ -255,6 +255,14 @@
                                         @if(!empty($event->payload['date'])) · {{ \Carbon\Carbon::parse($event->payload['date'])->format('d/m/Y') }}@endif@if(!empty($event->payload['time'])) {{ $event->payload['time'] }}@endif
                                         @if(!empty($event->payload['label'])) — {{ $event->payload['label'] }}@endif
                                     @break
+                                    @case('workshop_participation_confirmed')
+                                        <span class="font-medium">{{ $event->payload['workshop_title'] ?? '—' }}</span>
+                                        @if(!empty($event->payload['session_starts_at']))<span class="text-xs text-gray-500 dark:text-gray-400">· {{ $event->payload['session_starts_at'] }}</span>@endif
+                                        @if(!empty($event->payload['utm_campaign']) || !empty($event->payload['shortcut']))<span class="text-xs text-gray-500 dark:text-gray-400">· {{ $event->payload['utm_campaign'] ?? '' }}{{ !empty($event->payload['shortcut']) ? ' /s/'.$event->payload['shortcut'] : '' }}</span>@endif
+                                    @break
+                                    @case('shell_claimed')
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ trans_choice('crm.shell_conversations', (int) ($event->payload['conversations'] ?? 0), ['count' => (int) ($event->payload['conversations'] ?? 0)]) }}{{ !empty($event->payload['utm_campaign']) ? ' · '.$event->payload['utm_campaign'] : '' }}{{ !empty($event->payload['shortcut']) ? ' · /s/'.$event->payload['shortcut'] : '' }}</span>
+                                    @break
                                     @case('email_sent')
                                     @case('email_failed')
                                         <span class="font-medium">{{ $event->payload['subject'] ?? '' }}</span>
