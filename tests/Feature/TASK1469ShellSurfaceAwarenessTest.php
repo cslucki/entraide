@@ -187,7 +187,10 @@ class TASK1469ShellSurfaceAwarenessTest extends TestCase
         ]);
 
         $cases = [
-            'organization_home' => route('organization.dashboard', ['organization' => $this->organization->slug]),
+            // TASK-1473 : le tableau de bord est `dashboard`, pas
+            // `organization_home` — cette clé désigne l'accueil public, et
+            // `UsageReference` la porte déjà dans ce sens.
+            'dashboard' => route('organization.dashboard', ['organization' => $this->organization->slug]),
             'dossier' => route('organization.dossiers.show', ['organization' => $this->organization->slug, 'dossier' => $dossier->id]),
         ];
 
@@ -208,6 +211,6 @@ class TASK1469ShellSurfaceAwarenessTest extends TestCase
             ->getContent();
 
         $this->assertStringNotContainsString(e(__('ai.fab_subtitle_other')), $html);
-        $this->assertStringContainsString(e(__('ai.shell_surface_organization_home')), $html);
+        $this->assertStringContainsString(e(__('ai.shell_surface_dashboard')), $html);
     }
 }

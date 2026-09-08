@@ -76,7 +76,16 @@ final class AiShellPageContext
      * @var array<string, list<string>>
      */
     public const SURFACE_ROUTES = [
-        'organization_home' => ['dashboard', 'organization.dashboard'],
+        // TASK-1473 : deux surfaces, deux cles. `organization_home` designait
+        // le TABLEAU DE BORD depuis TASK-1469 — alors que
+        // `UsageReference::SURFACE_ORGANIZATION_HOME` porte la meme chaine pour
+        // designer l'ACCUEIL PUBLIC. Meme mot, deux lieux. Aucune fuite n'en
+        // resultait (le Shell membre ne lit pas UsageReference), mais le Shell
+        // annoncait « Vous etes sur l'accueil » a quelqu'un qui regardait son
+        // tableau de bord, et la premiere surface qui aurait relie les deux
+        // couches aurait servi l'aide de l'accueil public au dashboard.
+        'organization_home' => ['home', 'organization.home'],
+        'dashboard' => ['dashboard', 'organization.dashboard'],
         'agenda' => ['events.agenda', 'organization.events.agenda'],
         'directory' => ['members.index', 'organization.members.index'],
         // Les Dossiers n'existent QUE sous le prefixe Organization : il n'y a

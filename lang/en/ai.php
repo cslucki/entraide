@@ -689,6 +689,7 @@ return [
     'fab_action_open_shell_hint' => 'The conversation that follows you from page to page.',
     // TASK-1469 — see the French file for the reasoning.
     'shell_surface_organization_home' => 'You are on the home page',
+    'shell_surface_dashboard' => 'You are on the dashboard',
     'shell_surface_agenda' => 'You are on the calendar',
     'shell_surface_directory' => 'You are in the directory',
     'shell_surface_dossiers' => 'You are in the folders',
