@@ -12,6 +12,7 @@ use App\Services\Acquisition\AcquisitionEventRecorder;
 use App\Services\GuestShell\GuestVisitorResolver;
 use App\Services\InvitationResumption;
 use App\Services\ReferralService;
+use App\Services\Workshops\WorkshopResumption;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
@@ -111,6 +112,10 @@ class RegisteredUserController extends Controller
         ]);
 
         event(new Registered($user));
+
+        // TASK-1453 (V3 §11, MASTER Q80) : le Guest ENGAGE la creation de compte depuis son interet Workshop —
+        // une reference STRUCTUREE est parquee (jamais une URL) ; VerifyEmailController la consomme apres la verification.
+        rescue(fn () => app(WorkshopResumption::class)->park($organization, app(GuestVisitorResolver::class)->find($request, $organization)));
 
         rescue(fn () => $user->notify(new WelcomeNotification));
 

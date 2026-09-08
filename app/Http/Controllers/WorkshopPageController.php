@@ -8,6 +8,7 @@ use App\Models\Workshop;
 use App\Services\Acquisition\AcquisitionEventRecorder;
 use App\Services\GuestShell\GuestVisitorResolver;
 use App\Services\Workshops\WorkshopInterestService;
+use App\Services\Workshops\WorkshopRegistrationService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -31,6 +32,7 @@ class WorkshopPageController extends Controller
         private readonly GuestVisitorResolver $visitors,
         private readonly WorkshopInterestService $interests,
         private readonly AcquisitionEventRecorder $events,
+        private readonly WorkshopRegistrationService $registrations,
     ) {}
 
     public function show(Request $request, string $organization, string $workshop): View
@@ -55,6 +57,29 @@ class WorkshopPageController extends Controller
             'sessions' => $workshop->publicUpcomingSessions()->get(),
             'selectedSessionIds' => $selected,
             'canSelect' => $request->user() === null,
+            // TASK-1453 : l'etat MEMBRE — inscriptions, droit de confirmer (verifie + meme Organization), sessions choisies en Guest (visiteurs claimes).
+            'member' => $this->memberState($request, $organization, $workshop),
         ]);
+    }
+
+    /**
+     * @return array{present: bool, sameOrganization: bool, verified: bool, registeredSessionIds: list<string>, guestSelectedSessionIds: list<string>}
+     */
+    private function memberState(Request $request, Organization $organization, Workshop $workshop): array
+    {
+        $user = $request->user();
+        if ($user === null) {
+            return ['present' => false, 'sameOrganization' => false, 'verified' => false, 'registeredSessionIds' => [], 'guestSelectedSessionIds' => []];
+        }
+        $same = (string) $user->organization_id === (string) $organization->getKey();
+
+        return [
+            'present' => true,
+            'sameOrganization' => $same,
+            'verified' => $user->email_verified_at !== null,
+            'registeredSessionIds' => $same ? $this->registrations->registeredSessionIds($user, (string) $workshop->getKey()) : [],
+            // Les sessions choisies en Guest par les visiteurs rattaches a ce compte (claim SW-11) : mises en evidence, jamais converties sans geste.
+            'guestSelectedSessionIds' => $same ? $this->registrations->guestSelectedSessionIds($user, (string) $workshop->getKey()) : [],
+        ];
     }
 }
