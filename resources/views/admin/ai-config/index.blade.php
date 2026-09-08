@@ -193,20 +193,37 @@
 
             <div class="space-y-4">
                 @forelse($organizations as $org)
-                    @php $state = $guestShellStates[$org->id]; $policy = $state->policy; @endphp
+                    @php
+                        $state = $guestShellStates[$org->id];
+                        $policy = $state->policy;
+                        // TASK-1468 : le diagnostic actionnable — libelle, cause, geste. Derive
+                        // des reason codes que `GuestShellPolicyService::state()` produit deja ;
+                        // aucune seconde logique de politique ici.
+                        $diag = \App\Support\GuestShell\GuestShellDiagnosis::for($state);
+                        $diagTone = match($diag['tone']) {
+                            \App\Support\GuestShell\GuestShellDiagnosis::TONE_READY => 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300',
+                            \App\Support\GuestShell\GuestShellDiagnosis::TONE_NEUTRAL => 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
+                            \App\Support\GuestShell\GuestShellDiagnosis::TONE_BUDGET => 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300',
+                            default => 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300',
+                        };
+                    @endphp
                     <form method="POST" action="{{ route('admin.ai-config.guest-shell') }}" class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3" data-guest-shell-org="{{ $org->slug }}" data-guest-shell-status="{{ $state->status }}">
                         @csrf
                         <input type="hidden" name="organization_id" value="{{ $org->id }}">
 
                         <div class="flex flex-wrap items-center justify-between gap-2">
                             <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $org->name }} <span class="text-gray-400 font-mono text-xs">({{ $org->slug }})</span></h4>
-                            <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ match($state->status) { 'ACTIVE' => 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300', 'DISABLED' => 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300', 'BUDGET_BLOCKED' => 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300', default => 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300' } }}">{{ __('admin.guest_shell_state_'.strtolower($state->status)) }}</span>
+                            <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $diagTone }}" data-guest-shell-diag="{{ $diag['key'] }}">{{ $diag['label'] }}</span>
                         </div>
 
-                        @if($state->reasons !== [])
-                        <ul class="text-xs text-gray-600 dark:text-gray-300 space-y-0.5" data-guest-shell-reasons>
-                            @foreach($state->reasons as $reason)<li>· {{ __('admin.guest_shell_reason_'.$reason) }}</li>@endforeach
-                        </ul>
+                        {{-- TASK-1468 : la cause, puis le geste. Un SuperAdmin ne doit pas
+                             avoir a traduire un code pour savoir quoi faire. --}}
+                        @if($diag['cause'] !== null || $diag['action'] !== null)
+                        <div class="text-xs space-y-0.5" data-guest-shell-reasons>
+                            @if($diag['cause'] !== null)<p class="text-gray-600 dark:text-gray-300" data-guest-shell-diag-cause>{{ $diag['cause'] }}</p>@endif
+                            @if($diag['action'] !== null)<p class="font-medium text-gray-900 dark:text-gray-100" data-guest-shell-diag-action>→ {{ $diag['action'] }}</p>@endif
+                            @if($diag['technical'] !== null)<p class="font-mono text-[11px] text-gray-400" data-guest-shell-diag-technical>{{ __('admin.guest_shell_diag_technical') }} {{ $diag['technical'] }}</p>@endif
+                        </div>
                         @endif
 
                         <dl class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs" data-guest-shell-usage>
