@@ -788,5 +788,6 @@ return [
     'guest_shell_reason_guest_monthly_budget_reached' => 'Monthly guest budget reached.',
     'guest_shell_reason_platform_ceiling_unset' => 'Platform ceiling not configured (AI_GUEST_SHELL_PLATFORM_CEILING_USD): no paid call until Cyril sets it.',
     'guest_shell_reason_platform_ceiling_reached' => 'Platform ceiling reached this month.',
+    'guest_shell_reason_organization_budget_reached' => 'Organization monthly AI budget reached.',
     'guest_shell_reason_process_budget_reached' => 'Guest process ceiling reached (no organization-specific budget).',
 ];

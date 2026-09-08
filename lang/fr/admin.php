@@ -792,5 +792,6 @@ return [
     'guest_shell_reason_guest_monthly_budget_reached' => 'Budget Guest du mois atteint.',
     'guest_shell_reason_platform_ceiling_unset' => 'Plafond plateforme non configuré (AI_GUEST_SHELL_PLATFORM_CEILING_USD) : aucun appel payant tant que Cyril ne l\'a pas fixé.',
     'guest_shell_reason_platform_ceiling_reached' => 'Plafond plateforme du mois atteint.',
+    'guest_shell_reason_organization_budget_reached' => 'Budget IA mensuel de l\'organisation atteint.',
     'guest_shell_reason_process_budget_reached' => 'Plafond du process Guest atteint (aucun budget propre à l\'organisation).',
 ];

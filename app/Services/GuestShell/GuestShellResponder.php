@@ -113,23 +113,52 @@ final class GuestShellResponder
             return GuestShellTurn::failed($userMessage, $fallback, $invocation, 'provider_failed');
         }
 
-        $usage = AiUsage::fromSdkTextTokens($response->usage->promptTokens, $response->usage->completionTokens);
-        $cost = $this->economy->finalize($resolved->provider, $resolved->model, $usage);
+        // TASK-1460 (V3 §3, audit F3) : la reponse EST facturee — si la mesure ou le ledger echouent apres coup,
+        // le cout entre quand meme au ledger (unknown, failed : T1448 le compte dans les operations inconnues) et le
+        // visiteur recoit le repli honnete ; jamais un cout reel sans trace.
+        try {
+            $usage = AiUsage::fromSdkTextTokens($response->usage->promptTokens, $response->usage->completionTokens);
+            $cost = $this->economy->finalize($resolved->provider, $resolved->model, $usage);
 
-        $invocation = $this->ledger->recordGeneration(
-            organizationId: (string) $organization->getKey(),
-            userId: null,
-            capability: CapabilityRegistry::GUEST_SHELL_WELCOME,
-            process: GuestShellPolicyService::PROCESS,
-            resolved: $resolved,
-            usage: $usage,
-            cost: $cost,
-            status: 'success',
-            correlationId: $clearance->correlationId,
-            sdkInvocationId: $response->invocationId ?? null,
-            failureReason: null,
-            startedAtMicrotime: $startedAt,
-        );
+            $invocation = $this->ledger->recordGeneration(
+                organizationId: (string) $organization->getKey(),
+                userId: null,
+                capability: CapabilityRegistry::GUEST_SHELL_WELCOME,
+                process: GuestShellPolicyService::PROCESS,
+                resolved: $resolved,
+                usage: $usage,
+                cost: $cost,
+                status: 'success',
+                correlationId: $clearance->correlationId,
+                sdkInvocationId: $response->invocationId ?? null,
+                failureReason: null,
+                startedAtMicrotime: $startedAt,
+            );
+        } catch (Throwable $exception) {
+            $invocation = $this->ledger->recordGeneration(
+                organizationId: (string) $organization->getKey(),
+                userId: null,
+                capability: CapabilityRegistry::GUEST_SHELL_WELCOME,
+                process: GuestShellPolicyService::PROCESS,
+                resolved: $resolved,
+                usage: AiUsage::notObserved(),
+                cost: null,
+                status: 'failed',
+                correlationId: $clearance->correlationId,
+                sdkInvocationId: $response->invocationId ?? null,
+                failureReason: Str::limit('ledger:'.$exception::class, 120, ''),
+                startedAtMicrotime: $startedAt,
+            );
+            report($exception);
+
+            $fallback = $this->conversations->recordAssistantMessage(
+                $conversation,
+                __('guest_shell.fallback_unavailable', [], $context->locale),
+                $invocation->id,
+            );
+
+            return GuestShellTurn::failed($userMessage, $fallback, $invocation, 'ledger_failed');
+        }
 
         $text = trim((string) $response->text);
         $answer = $this->conversations->recordAssistantMessage(

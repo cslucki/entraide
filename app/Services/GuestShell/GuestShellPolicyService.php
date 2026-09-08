@@ -6,6 +6,7 @@ use App\Models\AiProviderInvocation;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\OrganizationGuestShellPolicy;
+use App\Support\Ai\AiEconomicGuard;
 use App\Support\GuestShell\GuestShellDisplayMode;
 use App\Support\GuestShell\GuestShellState;
 use Carbon\CarbonInterface;
@@ -104,6 +105,13 @@ final class GuestShellPolicyService
         $platformCost = $this->platformMonthlyCostUsd($now ?? now());
         if ($platformCost >= $ceiling) {
             return new GuestShellState(GuestShellState::BUDGET_BLOCKED, ['platform_ceiling_reached'], $policy, $setting, $usage);
+        }
+
+        // TASK-1460 (V3 §3, audit F2) : le budget IA GLOBAL de l'Organization (toutes capabilities) passe avant le budget Guest —
+        // la promesse publique dit la meme verite que la garde economique.
+        $organizationBudget = $setting?->monthly_budget_usd;
+        if ($organizationBudget !== null && app(AiEconomicGuard::class)->organizationMonthlyCostUsd($organization, $now ?? now()) >= (float) $organizationBudget) {
+            return new GuestShellState(GuestShellState::BUDGET_BLOCKED, ['organization_budget_reached'], $policy, $setting, $usage);
         }
 
         $budget = $this->effectiveMonthlyBudgetUsd($policy);
