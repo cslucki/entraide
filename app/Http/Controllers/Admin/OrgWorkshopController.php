@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\AcquisitionJourney;
 use App\Models\Organization;
 use App\Models\Workshop;
+use App\Models\WorkshopRegistration;
+use App\Models\WorkshopSession;
+use App\Models\WorkshopSessionInterest;
 use App\Services\Workshops\WorkshopService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,7 +31,12 @@ class OrgWorkshopController extends Controller
 
     public function index(Organization $organization): View
     {
-        $rows = Workshop::query()->forOrganization($organization)->with(['author', 'journey'])->withCount('sessions')->orderByRaw("case status when 'published' then 0 when 'draft' then 1 else 2 end")->orderBy('title')->get();
+        $rows = Workshop::query()->forOrganization($organization)->with(['author', 'journey'])->withCount([
+            'sessions',
+            'sessions as published_sessions_count' => fn ($q) => $q->where('status', WorkshopSession::STATUS_PUBLISHED),
+            'registrations as registrations_count' => fn ($q) => $q->where('status', WorkshopRegistration::STATUS_REGISTERED),
+            'interests as interests_count' => fn ($q) => $q->where('status', WorkshopSessionInterest::STATUS_SELECTED),
+        ])->orderByRaw("case status when 'published' then 0 when 'draft' then 1 else 2 end")->orderBy('title')->get();
 
         return view('admin.org.workshops.index', ['organization' => $organization, 'rows' => $rows]);
     }
