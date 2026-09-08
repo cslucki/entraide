@@ -55,7 +55,7 @@ class ClaimGuestVisitorOnVerification
 
             $journey = $dimensions['journey'] ?? null;
             if ($visitor !== null && $journey instanceof AcquisitionJourney && $journey->conversion_goal === AcquisitionJourney::GOAL_ACCOUNT) {
-                $this->events->record($organization, AcquisitionEvent::CONVERTED, $dimensions, ['goal' => $journey->conversion_goal], AcquisitionEvent::CONVERTED.':visitor:'.$visitor->getKey());
+                $this->events->record($organization, AcquisitionEvent::CONVERTED, $dimensions, ['goal' => $journey->conversion_goal], AcquisitionEvent::CONVERTED.':journey:'.$journey->getKey().':user:'.$user->getKey());
             }
         });
 

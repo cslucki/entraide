@@ -38,6 +38,7 @@
                     <div class="flex justify-between gap-3"><dt class="text-gray-500 dark:text-gray-400">{{ __('crm.column.last_interaction') }}</dt><dd class="text-gray-900 dark:text-gray-100 text-right" data-crm-last-interaction>{{ $contact->last_interaction_at?->format('d/m/Y H:i') ?? __('crm.never_contacted') }}</dd></div>
                     <div class="flex justify-between gap-3"><dt class="text-gray-500 dark:text-gray-400">{{ __('crm.show.created_at') }}</dt><dd class="text-gray-900 dark:text-gray-100 text-right">{{ $contact->created_at?->format('d/m/Y') }}@if($contact->createdBy) · {{ $contact->createdBy->fullName }}@endif</dd></div>
                 </dl>
+                @include('admin.org.crm._attribution', ['attribution' => $attribution ?? null])
                 @if(isset($links['delete']) && $mutable)
                 {{-- TASK-1431 — suppression PLATEFORME : SoftDelete, tracee, restaurable. Jamais proposee a l'OrgAdmin (MASTER Q50). --}}
                 <form method="POST" action="{{ $links['delete'] }}" class="mt-4" data-crm-admin-delete-form onsubmit="return confirm(this.dataset.confirm)" data-confirm="{{ __('crm.trashed.confirm') }}">
