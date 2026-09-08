@@ -77,4 +77,10 @@ return [
     'public_session_time_format' => 'H\hi',
     'public_session_capacity' => ':count places (indicatif)',
     'public_registration_soon' => 'L\'inscription sera proposée ici prochainement.',
+    // TASK-1452 (B4-B) — interet Guest.
+    'public_interest_select' => 'Je choisis cette session',
+    'public_interest_selected' => 'Session choisie',
+    'public_interest_withdraw' => 'Retirer mon choix',
+    'public_interest_flash' => 'Votre choix est noté. Ce n\'est pas encore une inscription.',
+    'public_interest_account' => 'Créer un compte',
 ];

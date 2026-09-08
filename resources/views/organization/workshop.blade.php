@@ -27,9 +27,30 @@
                         <span class="text-[var(--bp-muted)]">({{ $session->timezone }})</span>
                         @if($session->location)<span class="block text-[var(--bp-muted)]" data-workshop-session-location>{{ $session->location }}</span>@endif
                         @if($session->capacity)<span class="block text-xs text-[var(--bp-muted)]" data-workshop-session-capacity>{{ __('workshops.public_session_capacity', ['count' => $session->capacity]) }}</span>@endif
+                        {{-- TASK-1452 (B4-B) : « je choisis cette session » — un interet Guest, jamais une inscription. --}}
+                        @if($canSelect)
+                            @if(in_array($session->id, $selectedSessionIds, true))
+                                <form method="POST" action="{{ route('organization.workshop.session.interest.withdraw', ['organization' => $organization->slug, 'workshop' => $workshop->slug, 'session' => $session->id]) }}" class="mt-2" data-workshop-interest-withdraw="{{ $session->id }}">
+                                    @csrf @method('DELETE')
+                                    <span class="mr-2 inline-block rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800" data-workshop-interest-selected>{{ __('workshops.public_interest_selected') }}</span>
+                                    <button type="submit" class="text-xs text-[var(--bp-muted)] underline">{{ __('workshops.public_interest_withdraw') }}</button>
+                                </form>
+                            @else
+                                <form method="POST" action="{{ route('organization.workshop.session.interest', ['organization' => $organization->slug, 'workshop' => $workshop->slug, 'session' => $session->id]) }}" class="mt-2" data-workshop-interest="{{ $session->id }}">
+                                    @csrf
+                                    <input type="hidden" name="attribution[shortcut]" value="{{ request()->query('shortcut') }}">
+                                    <input type="hidden" name="attribution[utm_source]" value="{{ request()->query('utm_source') }}">
+                                    <input type="hidden" name="attribution[utm_medium]" value="{{ request()->query('utm_medium') }}">
+                                    <input type="hidden" name="attribution[utm_campaign]" value="{{ request()->query('utm_campaign') }}">
+                                    <button type="submit" class="rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">{{ __('workshops.public_interest_select') }}</button>
+                                </form>
+                            @endif
+                        @endif
                     </li>
                     @endforeach
                 </ul>
+                {{-- MASTER Q79 : le choix est memorise, aucune promesse « compte = participation confirmee » avant le flux Registration ; le lien « Creer un compte » existe car creer un compte est reellement possible. --}}
+                @if(session('workshop_interest'))<p class="mt-3 rounded-xl bg-emerald-50 px-4 py-2 text-sm text-emerald-800" data-workshop-interest-flash>{{ __('workshops.public_interest_flash') }} <a href="{{ route('organization.register', ['organization' => $organization->slug]) }}" class="font-semibold underline" data-workshop-interest-account>{{ __('workshops.public_interest_account') }}</a></p>@endif
                 <p class="mt-3 text-xs text-[var(--bp-muted)]" data-workshop-registration-soon>{{ __('workshops.public_registration_soon') }}</p>
             @else
                 <p class="mt-8 rounded-xl border border-dashed border-[var(--bp-border)] px-4 py-3 text-sm text-[var(--bp-muted)]" data-workshop-sessions-soon>{{ __('workshops.public_sessions_soon') }}</p>
