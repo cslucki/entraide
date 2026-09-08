@@ -2,10 +2,12 @@
 
 namespace App\Services\GuestShell;
 
+use App\Models\AcquisitionEvent;
 use App\Models\GuestConversation;
 use App\Models\GuestMessage;
 use App\Models\Organization;
 use App\Models\OrganizationGuestShellPolicy;
+use App\Services\Acquisition\AcquisitionEventRecorder;
 use App\Services\Acquisition\GuestAttribution;
 use App\Support\GuestShell\GuestPageContext;
 use App\Support\GuestShell\GuestShellDisplay;
@@ -42,6 +44,7 @@ final class GuestShellSurface
         private readonly GuestConversationService $conversations,
         private readonly GuestShellResponder $responder,
         private readonly GuestAttribution $attribution,
+        private readonly AcquisitionEventRecorder $events,
     ) {}
 
     /**
@@ -98,7 +101,14 @@ final class GuestShellSurface
             'locale' => app()->getLocale(),
             'referrer' => $request->headers->get('referer'),
         ] + $this->attribution->resolve($organization, $claimed));
+        // TASK-1449 (V3 §5) : les faits de cycle de vie, une fois chacun, avec l'attribution FIRST TOUCH du visiteur.
+        if ($visitor->wasRecentlyCreated) {
+            rescue(fn () => $this->events->record($organization, AcquisitionEvent::GUEST_CREATED, $this->events->visitorDimensions($visitor), [], AcquisitionEvent::GUEST_CREATED.':visitor:'.$visitor->getKey()));
+        }
         $conversation = $this->conversations->resumeOrStart($visitor);
+        if ($conversation->wasRecentlyCreated) {
+            rescue(fn () => $this->events->record($organization, AcquisitionEvent::CONVERSATION_STARTED, $this->events->visitorDimensions($visitor) + ['conversation' => $conversation], [], AcquisitionEvent::CONVERSATION_STARTED.':conversation:'.$conversation->getKey()));
+        }
         $result = $this->responder->respond($organization, $visitor, $conversation, $message, $page);
 
         return [

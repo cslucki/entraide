@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\AcquisitionEvent;
 use App\Models\Country;
 use App\Models\PointLedger;
 use App\Models\User;
 use App\Notifications\WelcomeNotification;
+use App\Services\Acquisition\AcquisitionEventRecorder;
+use App\Services\GuestShell\GuestVisitorResolver;
 use App\Services\InvitationResumption;
 use App\Services\ReferralService;
 use App\Support\Tenancy\DefaultOrganizationResolver;
@@ -24,9 +27,20 @@ class RegisteredUserController extends Controller
     /**
      * Display the registration view.
      */
-    public function create(Request $request): View
+    public function create(Request $request, GuestVisitorResolver $visitors, AcquisitionEventRecorder $events): View
     {
         $organization = currentOrganization();
+
+        // TASK-1449 (Growth V3 §5) : `signup_started`, une fois par visiteur Guest de la MEME Organization —
+        // lecture pure du cookie (`find()`, jamais `ensure()`) : afficher le formulaire ne cree aucune identite.
+        if ($organization !== null) {
+            rescue(function () use ($request, $organization, $visitors, $events): void {
+                $visitor = $visitors->find($request, $organization);
+                if ($visitor !== null) {
+                    $events->record($organization, AcquisitionEvent::SIGNUP_STARTED, $events->visitorDimensions($visitor), [], AcquisitionEvent::SIGNUP_STARTED.':visitor:'.$visitor->getKey());
+                }
+            });
+        }
         $localeColumn = app()->getLocale() === 'en' ? 'name_en' : 'name_fr';
 
         $defaultCountry = $organization?->defaultCountry;
