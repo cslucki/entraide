@@ -7,6 +7,7 @@ use App\Models\Organization;
 use App\Models\OrganizationAiConstitution;
 use App\Models\PlatformAiConstitution;
 use App\Models\UsageReference;
+use App\Models\Workshop;
 use App\Services\UsageReference\UsageReferenceResolver;
 use App\Support\GuestShell\GuestPageContext;
 use App\Support\GuestShell\GuestPublicContext;
@@ -81,6 +82,14 @@ final class GuestPublicContextBuilder
             $sources[] = CapabilityRegistry::SOURCE_PAGE_CONTEXT;
         }
 
+        // TASK-1461 (Growth V3 §17) : « ce qui est reellement possible ici, maintenant » — les ateliers publies a venir,
+        // derives des routes reelles (page publique), bornes (WORKSHOPS_RUNTIME_MAX), jamais une documentation bis.
+        $runtime = $this->workshopsRuntime($organization, $locale);
+        if ($runtime !== '') {
+            $blocks[] = ['source' => CapabilityRegistry::SOURCE_WORKSHOPS_RUNTIME, 'label' => __('guest_shell.context.workshops_runtime'), 'text' => $runtime];
+            $sources[] = CapabilityRegistry::SOURCE_WORKSHOPS_RUNTIME;
+        }
+
         $platform = trim(PlatformAiConstitution::activeTextOrSeed());
         if ($platform !== '') {
             $blocks[] = ['source' => CapabilityRegistry::SOURCE_PLATFORM_CONSTITUTION, 'label' => __('guest_shell.context.platform_constitution'), 'text' => $platform];
@@ -113,6 +122,33 @@ final class GuestPublicContextBuilder
             sources: array_values(array_map(fn (array $block) => $block['source'], $kept)),
             charBudget: $budget,
         );
+    }
+
+    /** Growth V3 §17 : pas toutes les capabilities — au plus N ateliers, chacun avec sa prochaine session publiee et son URL publique. */
+    public const WORKSHOPS_RUNTIME_MAX = 3;
+
+    /**
+     * Les ateliers PUBLIES de l'Organization ayant au moins une session PUBLIEE a venir, par prochaine session :
+     * titre, date locale + fuseau, format, URL publique (route reelle). Aucun meeting_url, aucun inscrit, aucune capacite.
+     */
+    private function workshopsRuntime(Organization $organization, string $locale): string
+    {
+        $lines = [];
+        $workshops = Workshop::query()->forOrganization($organization)->published()->with(['sessions' => fn ($q) => $q->published()->upcoming()->orderBy('starts_at')])->get()
+            ->filter(fn (Workshop $workshop) => $workshop->sessions->isNotEmpty())
+            ->sortBy(fn (Workshop $workshop) => $workshop->sessions->first()->starts_at)
+            ->take(self::WORKSHOPS_RUNTIME_MAX);
+        foreach ($workshops as $workshop) {
+            $session = $workshop->sessions->first();
+            $lines[] = __('guest_shell.context.workshop_line', [
+                'title' => $workshop->title,
+                'when' => $session->localStartsAt()->locale($locale)->isoFormat('LLLL').' ('.$session->timezone.')',
+                'format' => __('workshops.format_'.$workshop->format, [], $locale),
+                'url' => route('organization.workshop.show', ['organization' => $organization->slug, 'workshop' => $workshop->slug]),
+            ], $locale);
+        }
+
+        return $lines === [] ? '' : __('guest_shell.context.workshops_intro', [], $locale)."\n".implode("\n", $lines);
     }
 
     /** Le bloc page : genre de surface, libelle public, provenance de route, CTA interne eventuel — rien de prive. */

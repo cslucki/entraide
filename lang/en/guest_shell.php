@@ -10,6 +10,10 @@ return [
         'identity' => ':name — public presentation',
         'usage_reference' => 'What this space is for — :title',
         'page' => 'Where the visitor is',
+        // TASK-1461 — Growth V3 §17: what is really possible here, now.
+        'workshops_runtime' => 'Workshops open right now',
+        'workshops_intro' => 'Published workshops with an upcoming session (only offer these, with their link):',
+        'workshop_line' => '- :title — :when — :format — :url',
         'platform_constitution' => 'Platform AI Constitution (Mycelium)',
         'organization_constitution' => ':name AI Constitution (published)',
         'name' => 'Name',
