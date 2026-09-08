@@ -41,17 +41,12 @@
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
+        {{-- TASK-1471 : la MEME source que le composant `theme-tokens` et que
+             `layouts/org-admin` — le bloc de chargement etait recopie ici. --}}
         @php
-            $cachePath = storage_path('app/bouclepro-themes.php');
-
-            if (file_exists($cachePath)) {
-                $bpThemes = require $cachePath;
-                $bpDefaultTheme = $bpThemes['_meta']['default'] ?? config('bouclepro_themes.default', 'zen');
-                unset($bpThemes['_meta']);
-            } else {
-                $bpThemes = config('bouclepro_themes.themes');
-                $bpDefaultTheme = config('bouclepro_themes.default', 'zen');
-            }
+            $bp = bp_themes();
+            $bpThemes = $bp['themes'];
+            $bpDefaultTheme = $bp['default'];
         @endphp
 
         <!-- Scripts -->
@@ -78,35 +73,10 @@
 
         @stack('head')
 
+        {{-- TASK-1471 : le producteur unique des variables CSS de theme. --}}
+        <x-theme-tokens />
+
         <style>
-            :root {
-                @foreach($bpThemes[$bpDefaultTheme]['tokens'] as $token => $value)
-                --bp-{{ $token }}: {{ $value }};
-                @endforeach
-            }
-
-            @foreach($bpThemes as $key => $theme)
-            [data-bp-theme="{{ $key }}"] {
-                @foreach($theme['tokens'] as $token => $value)
-                --bp-{{ $token }}: {{ $value }};
-                @endforeach
-            }
-            @endforeach
-
-            .dark {
-                @foreach($bpThemes[$bpDefaultTheme]['dark'] as $token => $value)
-                --bp-{{ $token }}: {{ $value }};
-                @endforeach
-            }
-
-            @foreach($bpThemes as $key => $theme)
-            .dark[data-bp-theme="{{ $key }}"] {
-                @foreach($theme['dark'] as $token => $value)
-                --bp-{{ $token }}: {{ $value }};
-                @endforeach
-            }
-            @endforeach
-
             /* Mobile safe areas */
             .mobile-safe-top { padding-top: 0; }
             .mobile-safe-bottom-auth { padding-bottom: 0; }

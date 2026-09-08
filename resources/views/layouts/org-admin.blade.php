@@ -9,16 +9,11 @@
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
+        {{-- TASK-1471 : meme source que `layouts/app` et le composant `theme-tokens`. --}}
         @php
-            $cachePath = storage_path('app/bouclepro-themes.php');
-            if (file_exists($cachePath)) {
-                $bpThemes = require $cachePath;
-                $bpDefaultTheme = $bpThemes['_meta']['default'] ?? config('bouclepro_themes.default', 'zen');
-                unset($bpThemes['_meta']);
-            } else {
-                $bpThemes = config('bouclepro_themes.themes');
-                $bpDefaultTheme = config('bouclepro_themes.default', 'zen');
-            }
+            $bp = bp_themes();
+            $bpThemes = $bp['themes'];
+            $bpDefaultTheme = $bp['default'];
         @endphp
 
         <script>
@@ -32,37 +27,11 @@
             }
         </script>
 
-        <style>
-            :root {
-                @foreach($bpThemes[$bpDefaultTheme]['tokens'] as $token => $value)
-                --bp-{{ $token }}: {{ $value }};
-                @endforeach
-            }
-            @foreach($bpThemes as $key => $theme)
-            [data-bp-theme="{{ $key }}"] {
-                @foreach($theme['tokens'] as $token => $value)
-                --bp-{{ $token }}: {{ $value }};
-                @endforeach
-            }
-            @endforeach
-            .dark {
-                @foreach($bpThemes[$bpDefaultTheme]['dark'] as $token => $value)
-                --bp-{{ $token }}: {{ $value }};
-                @endforeach
-            }
-            .dark[data-bp-theme="{{ $bpDefaultTheme }}"] {
-                @foreach($bpThemes[$bpDefaultTheme]['dark'] as $token => $value)
-                --bp-{{ $token }}: {{ $value }};
-                @endforeach
-            }
-            @foreach($bpThemes as $key => $theme)
-            .dark[data-bp-theme="{{ $key }}"] {
-                @foreach($theme['dark'] as $token => $value)
-                --bp-{{ $token }}: {{ $value }};
-                @endforeach
-            }
-            @endforeach
-        </style>
+        {{-- TASK-1471 : le producteur unique. Cette vue portait CINQ blocs contre
+             quatre dans `layouts/app` : un `.dark[data-bp-theme="<defaut>"]`
+             explicite que la boucle suivante regenerait deja, aux memes valeurs.
+             Cette redondance disparait sans changer une seule valeur calculee. --}}
+        <x-theme-tokens />
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @livewireStyles
