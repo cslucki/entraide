@@ -7,9 +7,11 @@ use App\Models\Organization;
 use App\Models\OrganizationAiConstitution;
 use App\Models\PlatformAiConstitution;
 use App\Models\UsageReference;
+use App\Models\Workshop;
 use App\Services\UsageReference\UsageReferenceResolver;
 use App\Support\GuestShell\GuestPageContext;
 use App\Support\GuestShell\GuestPublicContext;
+use Illuminate\Support\Str;
 
 /**
  * TASK-1435 — SW-5 : le contexte PUBLIC d'une Organization pour le Shell
@@ -81,6 +83,14 @@ final class GuestPublicContextBuilder
             $sources[] = CapabilityRegistry::SOURCE_PAGE_CONTEXT;
         }
 
+        // TASK-1461 (Growth V3 §17) : « ce qui est reellement possible ici, maintenant » — les ateliers publies a venir,
+        // derives des routes reelles (page publique), bornes (WORKSHOPS_RUNTIME_MAX), jamais une documentation bis.
+        $runtime = $this->workshopsRuntime($organization, $locale);
+        if ($runtime !== '') {
+            $blocks[] = ['source' => CapabilityRegistry::SOURCE_WORKSHOPS_RUNTIME, 'label' => __('guest_shell.context.workshops_runtime'), 'text' => $runtime];
+            $sources[] = CapabilityRegistry::SOURCE_WORKSHOPS_RUNTIME;
+        }
+
         $platform = trim(PlatformAiConstitution::activeTextOrSeed());
         if ($platform !== '') {
             $blocks[] = ['source' => CapabilityRegistry::SOURCE_PLATFORM_CONSTITUTION, 'label' => __('guest_shell.context.platform_constitution'), 'text' => $platform];
@@ -113,6 +123,39 @@ final class GuestPublicContextBuilder
             sources: array_values(array_map(fn (array $block) => $block['source'], $kept)),
             charBudget: $budget,
         );
+    }
+
+    /** Growth V3 §17 : pas toutes les capabilities — au plus N ateliers, chacun avec sa prochaine session publiee et son URL publique. */
+    public const WORKSHOPS_RUNTIME_MAX = 3;
+
+    /** La promesse courte (colonne bornee a 255) reste bornee dans le contexte : jamais une description. */
+    public const WORKSHOP_PROMISE_MAX_CHARS = 160;
+
+    /**
+     * Les ateliers PUBLIES de l'Organization ayant au moins une session PUBLIEE a venir, par prochaine session :
+     * titre, date locale + fuseau, format, URL publique (route reelle). Aucun meeting_url, aucun inscrit, aucune capacite.
+     */
+    private function workshopsRuntime(Organization $organization, string $locale): string
+    {
+        $lines = [];
+        $workshops = Workshop::query()->forOrganization($organization)->published()->with(['sessions' => fn ($q) => $q->published()->upcoming()->orderBy('starts_at')])->get()
+            ->filter(fn (Workshop $workshop) => $workshop->sessions->isNotEmpty())
+            ->sortBy(fn (Workshop $workshop) => $workshop->sessions->first()->starts_at)
+            ->take(self::WORKSHOPS_RUNTIME_MAX);
+        foreach ($workshops as $workshop) {
+            $session = $workshop->sessions->first();
+            // MASTER #54 : la promesse COURTE et deja publique (page atelier) aide le modele a proposer a bon escient ; la description longue, jamais.
+            $promise = trim((string) $workshop->promise);
+            $lines[] = __('guest_shell.context.workshop_line', [
+                'title' => $workshop->title,
+                'promise' => $promise === '' ? '' : ' — '.Str::limit($promise, self::WORKSHOP_PROMISE_MAX_CHARS, '…'),
+                'when' => $session->localStartsAt()->locale($locale)->isoFormat('LLLL').' ('.$session->timezone.')',
+                'format' => __('workshops.format_'.$workshop->format, [], $locale),
+                'url' => route('organization.workshop.show', ['organization' => $organization->slug, 'workshop' => $workshop->slug]),
+            ], $locale);
+        }
+
+        return $lines === [] ? '' : __('guest_shell.context.workshops_intro', [], $locale)."\n".implode("\n", $lines);
     }
 
     /** Le bloc page : genre de surface, libelle public, provenance de route, CTA interne eventuel — rien de prive. */

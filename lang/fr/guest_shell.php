@@ -10,6 +10,10 @@ return [
         'identity' => ':name — présentation publique',
         'usage_reference' => 'À quoi sert cet espace — :title',
         'page' => 'Où se trouve le visiteur',
+        // TASK-1461 — Growth V3 §17 : ce qui est réellement possible ici, maintenant.
+        'workshops_runtime' => 'Ateliers ouverts en ce moment',
+        'workshops_intro' => 'Ateliers publiés avec une prochaine session (ne proposer que ceux-ci, avec leur lien) :',
+        'workshop_line' => '- :title:promise — :when — :format — :url',
         'platform_constitution' => 'Constitution IA de la plateforme (Mycélium)',
         'organization_constitution' => 'Constitution IA de :name (publiée)',
         'name' => 'Nom',

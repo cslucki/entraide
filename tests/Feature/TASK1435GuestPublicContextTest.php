@@ -83,6 +83,8 @@ class TASK1435GuestPublicContextTest extends TestCase
             CapabilityRegistry::SOURCE_USAGE_REFERENCE,
             // TASK-1440 (MASTER Q68) : `page_context`, 5e source — un DTO borne, jamais dans le prompt DB.
             CapabilityRegistry::SOURCE_PAGE_CONTEXT,
+            // TASK-1461 (Growth V3 §17) : `workshops.runtime`, 6e source — les ateliers publies a venir, derives des routes reelles.
+            CapabilityRegistry::SOURCE_WORKSHOPS_RUNTIME,
             CapabilityRegistry::SOURCE_PLATFORM_CONSTITUTION,
             CapabilityRegistry::SOURCE_ORGANIZATION_CONSTITUTION_PUBLIC,
         ], $definition->allowedSources);

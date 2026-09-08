@@ -162,6 +162,9 @@ final class CapabilityRegistry
     /** TASK-1440 — Guest PageContext V1 (V3 §10, MASTER Q68) : « ou se trouve exactement le visiteur ? », DTO borne issu d'une whitelist de routes, bloc entier apres la UsageReference, avant les Constitutions. */
     public const SOURCE_PAGE_CONTEXT = 'page_context';
 
+    /** TASK-1461 — Growth V3 §17 : « ce qui est reellement possible ici, maintenant » — les ateliers PUBLIES a venir de l'Organization (titre, prochaine session, URL publique), derives des routes reelles, bornes ; jamais une documentation bis, jamais toutes les capabilities. */
+    public const SOURCE_WORKSHOPS_RUNTIME = 'workshops.runtime';
+
     /** @var array<string, CapabilityDefinition> */
     private array $definitions;
 
@@ -368,6 +371,7 @@ final class CapabilityRegistry
                 self::SOURCE_ORGANIZATION_PUBLIC_IDENTITY,
                 self::SOURCE_USAGE_REFERENCE,
                 self::SOURCE_PAGE_CONTEXT,
+                self::SOURCE_WORKSHOPS_RUNTIME,
                 self::SOURCE_PLATFORM_CONSTITUTION,
                 self::SOURCE_ORGANIZATION_CONSTITUTION_PUBLIC,
             ],
