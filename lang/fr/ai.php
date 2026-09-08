@@ -693,6 +693,7 @@ return [
     // s'explique pas (c'est le role d'UsageReference) et elle ne dit pas ce
     // qu'on peut y faire (c'est le role du runtime).
     'shell_surface_organization_home' => 'Vous êtes sur l\'accueil',
+    'shell_surface_dashboard' => 'Vous êtes sur le tableau de bord',
     'shell_surface_agenda' => 'Vous êtes sur l\'agenda',
     'shell_surface_directory' => 'Vous êtes dans l\'annuaire',
     'shell_surface_dossiers' => 'Vous êtes dans les dossiers',
