@@ -50,7 +50,13 @@
   #bp-guest-shell{position:fixed;right:16px;bottom:16px;z-index:9990;font-family:inherit;color:#111827}
   #bp-guest-shell *{box-sizing:border-box}
   #bp-guest-shell button,#bp-guest-shell textarea,#bp-guest-shell a{all:revert;box-sizing:border-box;font-family:inherit}
-#bp-guest-shell .bpgs-toggle{display:flex;align-items:center;gap:10px;border:0;cursor:pointer;background:#111827;color:#fff;border-radius:999px;padding:12px 18px;font:inherit;font-weight:600;box-shadow:0 10px 30px rgba(17,24,39,.25)}
+/* TASK-1472 : le declencheur porte la couleur « Action principale » du theme
+   de l'Organization. Le repli #111827 n'est pas decoratif : si le token
+   manquait, un bouton transparent serait pire qu'un bouton d'une autre
+   couleur. Depuis TASK-1471 le token est reellement emis sur ces landings —
+   avant, ce `var()` aurait ete un no-op silencieux. */
+#bp-guest-shell .bpgs-toggle{display:flex;align-items:center;gap:10px;border:0;cursor:pointer;background:var(--bp-primary,#111827);color:#fff;border-radius:999px;padding:12px 18px;font:inherit;font-weight:600;box-shadow:0 10px 30px rgba(17,24,39,.25)}
+#bp-guest-shell .bpgs-toggle:hover{background:var(--bp-primary-deep,#111827)}
 #bp-guest-shell .bpgs-toggle:focus-visible{outline:3px solid #6366f1;outline-offset:2px}
 #bp-guest-shell .bpgs-panel{position:absolute;right:0;bottom:64px;width:360px;max-width:calc(100vw - 32px);height:520px;max-height:calc(100vh - 96px);display:flex;flex-direction:column;background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 20px 50px rgba(17,24,39,.25);overflow:hidden}
 #bp-guest-shell .bpgs-panel[hidden]{display:none}
@@ -63,10 +69,11 @@
 #bp-guest-shell .bpgs-msg-assistant{align-self:flex-start;background:#f3f4f6;color:#111827;border-bottom-left-radius:4px}
 #bp-guest-shell .bpgs-note{align-self:stretch;font-size:12px;color:#6b7280;text-align:center;padding:4px 0}
 #bp-guest-shell .bpgs-note-warn{color:#b45309}
-#bp-guest-shell .bpgs-cta{display:inline-block;align-self:center;margin-top:4px;background:#4f46e5;color:#fff;text-decoration:none;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:600}
+#bp-guest-shell .bpgs-cta{display:inline-block;align-self:center;margin-top:4px;background:var(--bp-primary,#4f46e5);color:#fff;text-decoration:none;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:600}
 #bp-guest-shell .bpgs-form{display:flex;gap:8px;padding:10px 12px;border-top:1px solid #e5e7eb;background:#fff}
 #bp-guest-shell .bpgs-form textarea{flex:1;resize:none;min-height:40px;max-height:120px;border:1px solid #d1d5db;border-radius:10px;padding:8px 10px;font:inherit;font-size:14px}
-#bp-guest-shell .bpgs-form button{border:0;background:#4f46e5;color:#fff;border-radius:10px;padding:0 14px;font:inherit;font-weight:600;cursor:pointer}
+#bp-guest-shell .bpgs-form button{border:0;background:var(--bp-primary,#4f46e5);color:#fff;border-radius:10px;padding:0 14px;font:inherit;font-weight:600;cursor:pointer}
+#bp-guest-shell .bpgs-form button:hover:not([disabled]){background:var(--bp-primary-deep,#4338ca)}
 #bp-guest-shell .bpgs-form button[disabled],#bp-guest-shell .bpgs-form textarea[disabled]{opacity:.5;cursor:not-allowed}
 #bp-guest-shell .bpgs-foot{font-size:11px;color:#9ca3af;padding:0 12px 10px;text-align:center}
   @media (max-width:480px){#bp-guest-shell{right:12px;bottom:12px}#bp-guest-shell .bpgs-panel{position:fixed;left:0;right:0;bottom:0;width:100vw;max-width:100vw;height:82vh;max-height:82vh;border-radius:16px 16px 0 0}}
@@ -90,8 +97,13 @@
      data-guest-shell-max="{{ $guestShell['limits']['max_input_chars'] }}"
      data-guest-shell-labels='@json($gsLabels)'>
   @if($gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::OVERLAY)
-  <button type="button" class="bpgs-toggle" data-guest-shell-toggle aria-expanded="false" aria-controls="bpgs-panel">
-    <span aria-hidden="true">💬</span><span>{{ __('guest_shell.ui.open', ['name' => $organization->name]) }}</span>
+  {{-- TASK-1472 (P2 laisse ouvert par TASK-1467) : le PANNEAU disait deja la
+       verite en etat degrade, le BOUTON promettait encore « Une question ? ».
+       On ouvrait pour poser une question, on apprenait ensuite que l'assistant
+       ne repond pas. Le declencheur se nomme donc simplement, et porte l'etat. --}}
+  <button type="button" class="bpgs-toggle" data-guest-shell-toggle aria-expanded="false" aria-controls="bpgs-panel"
+          data-guest-shell-toggle-state="{{ $gsLive ? 'live' : 'degraded' }}">
+    <span aria-hidden="true">{{ $gsLive ? '💬' : 'ⓘ' }}</span><span>{{ $gsLive ? __('guest_shell.ui.open', ['name' => $organization->name]) : __('guest_shell.ui.open_unavailable') }}</span>
   </button>
   @endif
   <section id="bpgs-panel" class="bpgs-panel" @if($gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::OVERLAY) hidden @endif role="{{ $gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::OVERLAY ? 'dialog' : 'region' }}" aria-label="{{ __('guest_shell.ui.title', ['name' => $organization->name]) }}" data-guest-shell-panel>

@@ -26,6 +26,7 @@ return [
     // TASK-1442 — SW-8a: the public overlay (visitor-facing texts).
     'ui' => [
         'open' => 'Any question?',
+        'open_unavailable' => 'BouclePro AI — unavailable',
         'title' => ':name assistant',
         'close' => 'Close',
         'welcome' => 'Hello! I am the public assistant of :name. Ask your question: I answer from public information, no account needed.',
