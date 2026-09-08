@@ -30,7 +30,7 @@
                         <td class="px-3 py-2"><span class="px-2 py-0.5 rounded text-xs font-semibold {{ $row->isRegistered() ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300' }}">{{ __('workshops.registration_status_'.$row->status) }}</span></td>
                         <td class="px-3 py-2 text-gray-900 dark:text-gray-100">{{ $row->user?->name ?? '—' }}</td>
                         <td class="px-3 py-2 text-xs text-gray-500">{{ $row->user?->email ?? '—' }}</td>
-                        <td class="px-3 py-2 text-xs tabular-nums">{{ $row->registered_at?->format('d/m/Y H:i') }}</td>
+                        <td class="px-3 py-2 text-xs tabular-nums" data-registrant-registered-at>{{ $row->registered_at?->copy()->setTimezone($session->timezone)->format('d/m/Y H:i') }} <span class="text-gray-400">{{ $session->timezone }}</span></td>
                         <td class="px-3 py-2 text-xs text-gray-500" data-registrant-provenance>{{ $row->journey ? $row->journey->name.' v'.$row->journey->version : '—' }}{{ $row->visitor?->utm_campaign ? ' · '.$row->visitor->utm_campaign : '' }}{{ $row->visitor?->shortcut ? ' · /s/'.$row->visitor->shortcut : '' }}</td>
                         <td class="px-3 py-2 text-xs">
                             @if($row->user_id && $contacts->has($row->user_id))

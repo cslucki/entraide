@@ -106,6 +106,7 @@ class TASK1455WorkshopRegistrantsTest extends TestCase
         $this->assertStringContainsString('data-registrants-session="'.$this->s1->id.'" data-registrants-count="2" data-registrants-interests="2"', $html);
         $this->assertStringNotContainsString($gone->pseudonym(), $html, 'un interet retire disparait');
         $this->assertStringContainsString('Second Inscrit', $html);
+        $this->assertStringContainsString('08/09/2026 12:00 <span class="text-gray-400">Europe/Paris</span>', $html, 'inscrit le : dans le fuseau de la session, pas en UTC');
         $this->assertStringNotContainsString('data-registrant-contact="'.$foreignContact->id.'"', $html, 'un Contact d\'une autre Organization n\'est jamais propose');
         $this->assertStringContainsString('Membre Inscrit', $html);
         $this->assertStringContainsString('inscrit@example.test', $html);
