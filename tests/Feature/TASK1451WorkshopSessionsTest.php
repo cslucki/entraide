@@ -134,7 +134,7 @@ class TASK1451WorkshopSessionsTest extends TestCase
         $this->assertStringContainsString('America/Toronto', $html);
         $this->assertStringContainsString('Montréal', $html);
         $this->assertStringContainsString('data-workshop-session-capacity', $html);
-        $this->assertStringContainsString('data-workshop-registration-soon', $html, 'aucune inscription inventee : une annonce honnete');
+        $this->assertStringNotContainsString('data-workshop-guest-register-hint', $html, 'TASK-1462 (audit F4) : un membre connecte n\'a plus la promesse perimee ni le conseil Guest');
         $this->assertStringNotContainsString('data-workshop-sessions-soon', $html);
         $this->assertStringNotContainsString('meeting', $html);
         $this->assertStringNotContainsString($this->adminA->email, $html);
@@ -145,6 +145,14 @@ class TASK1451WorkshopSessionsTest extends TestCase
         $this->assertStringNotContainsString('data-workshop-interest', $article, 'un membre connecte n\'a pas le geste Guest');
         $this->assertStringContainsString('data-workshop-register="'.$session->id.'"', $article, 'le geste membre (TASK-1453) est le seul formulaire de l\'article');
         $this->assertSame(1, substr_count($article, '<form'), 'un seul formulaire dans l\'article : celui du membre');
+        // Le meme atelier vu par un VISITEUR (l'admin reste connecte entre deux requetes : on le deconnecte) : le geste Guest
+        // et le conseil honnete « compte + email verifie, puis retour ici » (TASK-1462, audit F4) — jamais une promesse perimee.
+        auth()->logout();
+        $this->flushSession();
+        $guestHtml = $this->get($this->publicUrl($this->a))->assertOk()->getContent();
+        $this->assertStringContainsString('data-workshop-interest', $guestHtml);
+        $this->assertStringContainsString('data-workshop-guest-register-hint', $guestHtml);
+        $this->assertStringNotContainsString('prochainement', $guestHtml, 'aucune promesse perimee');
 
         // Publier deux fois : 404 ; annuler : disparue de la page publique ; annulee non editable.
         $this->actingAs($this->adminA)->post(route('organization.admin.workshops.sessions.publish', [$this->a, $this->workshopA, $session]))->assertNotFound();

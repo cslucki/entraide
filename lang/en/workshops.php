@@ -94,7 +94,7 @@ return [
     'public_session_date_format' => 'l F j, Y, g:i a',
     'public_session_time_format' => 'g:i a',
     'public_session_capacity' => ':count seats (indicative)',
-    'public_registration_soon' => 'Registration will be offered here soon.',
+    'public_guest_register_hint' => 'To confirm your participation, create an account: after verifying your email you will come back here to confirm your seat.',
     // TASK-1452 (B4-B) — Guest interest.
     'public_interest_select' => 'I choose this session',
     'public_interest_selected' => 'Session chosen',
