@@ -63,6 +63,11 @@
         <div class="flex items-start justify-between gap-3 border-b border-gray-100 px-4 pt-4 pb-3 dark:border-gray-700">
             <div class="min-w-0">
                 <p id="ai-shell-title" class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.shell_title') }}</p>
+                {{-- TASK-1469 (CDC §2.4) : « ou suis-je ? ». Une phrase courte, sous le nom,
+                     avant meme que la personne ait a formuler quoi que ce soit. Elle NOMME
+                     la surface — elle ne l'explique pas (UsageReference) et ne promet aucune
+                     fonction (runtime). --}}
+                <p class="truncate text-xs text-gray-500 dark:text-gray-400" data-ai-shell-surface="{{ $shell['surface'] }}">{{ __('ai.shell_surface_'.$shell['surface']) }}</p>
             </div>
             <button type="button" @click="close()" data-ai-shell-close
                     class="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"

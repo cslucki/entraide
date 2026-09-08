@@ -351,6 +351,11 @@ class AiShell extends Component
         return view('livewire.ai-shell', [
             'shell' => [
                 'context' => $context,
+                // TASK-1469 : « ou suis-je ? », resolu par la MEME autorite que
+                // le FAB. Un contexte reconstitue depuis une requete Livewire
+                // n'a pas de route de page : le repli `unknown` ne dit rien de
+                // faux.
+                'surface' => $context['surface'] ?? \App\Support\Ai\AiShellPageContext::SURFACE_UNKNOWN,
                 'here' => $this->hereLabel($context),
                 'conversation_id' => $conversationId,
                 'messages' => $messages,

@@ -59,6 +59,42 @@ final class AiShellPageContext
     public const KIND_OTHER = 'other';
 
     /**
+     * TASK-1469 (CDC 21h-23h §2.4, UX-3) — la SURFACE : « ou suis-je ? », dite
+     * en francais et non en jargon.
+     *
+     * A ne pas confondre avec `KIND_*`, qui repond a « sur quel OBJET
+     * gouverne suis-je ? ». Un Dossier a un kind ET une surface ; l'annuaire
+     * n'a pas d'objet, mais il a bien une surface. Et surtout, cette entree
+     * n'accorde AUCUN droit : c'est une description de ce que la personne voit
+     * deja, comme tout ce fichier.
+     *
+     * La resolution se fait sur le NOM DE ROUTE exact, jamais sur l'URL : une
+     * surface inconnue retombe sur `unknown`, dont le libelle ne dit rien de
+     * faux. Chaque surface existe en deux formes — prefixee par l'Organization
+     * et non prefixee — qui sont la MEME page.
+     *
+     * @var array<string, list<string>>
+     */
+    public const SURFACE_ROUTES = [
+        'organization_home' => ['dashboard', 'organization.dashboard'],
+        'agenda' => ['events.agenda', 'organization.events.agenda'],
+        'directory' => ['members.index', 'organization.members.index'],
+        // Les Dossiers n'existent QUE sous le prefixe Organization : il n'y a
+        // pas de `dossiers.index` / `dossiers.show` non prefixes dans cette
+        // application. Le test d'existence des routes l'a montre — une table
+        // qui nommerait une route absente resoudrait pourtant « correctement »
+        // en test, sans jamais etre atteinte.
+        'dossiers' => ['organization.dossiers.index'],
+        'dossier' => ['organization.dossiers.show'],
+        'blog' => ['blog.index', 'organization.blog.index'],
+        'article' => ['blog.show', 'organization.blog.show'],
+        'exchanges' => ['explorer', 'organization.explorer'],
+        'profile' => ['profile.show', 'organization.profile.show', 'profile.edit'],
+    ];
+
+    public const SURFACE_UNKNOWN = 'unknown';
+
+    /**
      * Le contexte de la page en cours de rendu.
      *
      * @return array<string, mixed>
@@ -117,10 +153,28 @@ final class AiShellPageContext
                 'slug' => (string) $organization->slug,
             ],
             'route' => $routeName,
+            // TASK-1469 : « ou suis-je ? ». Deduit du seul nom de route ; ne
+            // depend pas de l'objet, et n'ouvre aucun acces.
+            'surface' => self::surfaceFor($routeName),
             'kind' => $resolvedKind,
             'object' => $object,
             'label' => $this->label($resolvedKind, $object, $organization),
         ];
+    }
+
+    /**
+     * La surface d'un nom de route, ou `unknown`. Statique et pure : le Shell
+     * comme le FAB la lisent, et ils doivent lire la MEME.
+     */
+    public static function surfaceFor(string $routeName): string
+    {
+        foreach (self::SURFACE_ROUTES as $surface => $routes) {
+            if (in_array($routeName, $routes, true)) {
+                return $surface;
+            }
+        }
+
+        return self::SURFACE_UNKNOWN;
     }
 
     /**

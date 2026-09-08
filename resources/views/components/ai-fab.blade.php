@@ -90,9 +90,12 @@
                          serait inutile ici. « Aucune action propre a cette page »
                          ne signifie pas « BouclePro IA indisponible » : la
                          distinction est faite plus bas, a l'endroit des actions. --}}
-                    @if($fab['page'] === 'loop') {{ __('ai.fab_subtitle_loop') }}
-                    @elseif($fab['page'] === 'dossier') {{ __('ai.fab_subtitle_dossier') }}
-                    @else {{ __('ai.fab_subtitle_other') }}
+                    {{-- TASK-1469 : « Disponible partout sur BouclePro » ne disait rien
+                         et n'etait meme pas vrai depuis TASK-1466 (pas sur une Boucle).
+                         Le sous-titre nomme desormais la SURFACE, via la seule autorite
+                         qui la resout — la meme que celle lue par le Shell. --}}
+                    @if($fab['page'] === 'dossier') {{ __('ai.fab_subtitle_dossier') }}
+                    @else {{ __('ai.shell_surface_'.($fab['page_context']['surface'] ?? \App\Support\Ai\AiShellPageContext::SURFACE_UNKNOWN)) }}
                     @endif
                 </p>
             </div>

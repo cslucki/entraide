@@ -688,6 +688,22 @@ return [
     // reste disponible pendant la navigation.
     'fab_action_open_shell' => 'Ouvrir BouclePro IA',
     'fab_action_open_shell_hint' => 'La conversation qui vous suit de page en page.',
+    // TASK-1469 (CDC 21h-23h §2.4) — « ou suis-je ? ». Phrases courtes, aucun
+    // jargon, jamais une promesse de fonction : la surface se NOMME, elle ne
+    // s'explique pas (c'est le role d'UsageReference) et elle ne dit pas ce
+    // qu'on peut y faire (c'est le role du runtime).
+    'shell_surface_organization_home' => 'Vous êtes sur l\'accueil',
+    'shell_surface_agenda' => 'Vous êtes sur l\'agenda',
+    'shell_surface_directory' => 'Vous êtes dans l\'annuaire',
+    'shell_surface_dossiers' => 'Vous êtes dans les dossiers',
+    'shell_surface_dossier' => 'Vous consultez un dossier',
+    'shell_surface_blog' => 'Vous êtes sur le blog',
+    'shell_surface_article' => 'Vous lisez un article',
+    'shell_surface_exchanges' => 'Vous êtes dans les échanges',
+    'shell_surface_profile' => 'Vous consultez un profil',
+    // Le repli ne dit rien de faux : il ne pretend ni connaitre la page, ni
+    // etre disponible partout.
+    'shell_surface_unknown' => 'Vous naviguez sur BouclePro',
     'shell_title' => 'BouclePro IA',
     'shell_open' => 'Ouvrir la conversation BouclePro IA',
     'shell_close' => 'Fermer la conversation',
