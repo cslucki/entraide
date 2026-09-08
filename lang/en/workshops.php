@@ -92,6 +92,9 @@ return [
     'flash_session_cancelled' => 'Session cancelled.',
     'public_sessions_title' => 'Upcoming sessions',
     'public_session_date_format' => 'l F j, Y, g:i a',
+    // TASK-1463 — public home “Workshops” block.
+    'home_block_title' => 'Open workshops',
+    'home_block_hint' => 'Upcoming published sessions. Pick yours on the workshop page; a verified account confirms the seat.',
     'public_session_time_format' => 'g:i a',
     'public_session_capacity' => ':count seats (indicative)',
     'public_guest_register_hint' => 'To confirm your participation, create an account: after verifying your email you will come back here to confirm your seat.',

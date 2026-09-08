@@ -7,8 +7,8 @@ use App\Models\Organization;
 use App\Models\OrganizationAiConstitution;
 use App\Models\PlatformAiConstitution;
 use App\Models\UsageReference;
-use App\Models\Workshop;
 use App\Services\UsageReference\UsageReferenceResolver;
+use App\Services\Workshops\PublicWorkshopListing;
 use App\Support\GuestShell\GuestPageContext;
 use App\Support\GuestShell\GuestPublicContext;
 use Illuminate\Support\Str;
@@ -45,6 +45,7 @@ final class GuestPublicContextBuilder
     public function __construct(
         private readonly CapabilityRegistry $capabilities,
         private readonly UsageReferenceResolver $references,
+        private readonly PublicWorkshopListing $workshops,
     ) {}
 
     /** @param  string  $surfaceKey  la surface dont la UsageReference est demandee — jamais une autre. */
@@ -138,11 +139,8 @@ final class GuestPublicContextBuilder
     private function workshopsRuntime(Organization $organization, string $locale): string
     {
         $lines = [];
-        $workshops = Workshop::query()->forOrganization($organization)->published()->with(['sessions' => fn ($q) => $q->published()->upcoming()->orderBy('starts_at')])->get()
-            ->filter(fn (Workshop $workshop) => $workshop->sessions->isNotEmpty())
-            ->sortBy(fn (Workshop $workshop) => $workshop->sessions->first()->starts_at)
-            ->take(self::WORKSHOPS_RUNTIME_MAX);
-        foreach ($workshops as $workshop) {
+        // TASK-1463 : la MEME selection que le bloc « Ateliers » de l'accueil (PublicWorkshopListing) — une seule verite publique.
+        foreach ($this->workshops->upcoming($organization, self::WORKSHOPS_RUNTIME_MAX) as $workshop) {
             $session = $workshop->sessions->first();
             // MASTER #54 : la promesse COURTE et deja publique (page atelier) aide le modele a proposer a bon escient ; la description longue, jamais.
             $promise = trim((string) $workshop->promise);
