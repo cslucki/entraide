@@ -93,6 +93,9 @@ return [
     'flash_session_cancelled' => 'Session annulée.',
     'public_sessions_title' => 'Prochaines sessions',
     'public_session_date_format' => 'l j F Y, H\hi',
+    // TASK-1463 — bloc « Ateliers » de l'accueil public.
+    'home_block_title' => 'Ateliers ouverts',
+    'home_block_hint' => 'Les prochaines sessions publiées. Choisissez la vôtre sur la page de l\'atelier ; un compte vérifié confirme la place.',
     'public_session_time_format' => 'H\hi',
     'public_session_capacity' => ':count places (indicatif)',
     'public_guest_register_hint' => 'Pour confirmer votre participation, créez un compte : après la vérification de votre email, vous reviendrez ici confirmer votre place.',

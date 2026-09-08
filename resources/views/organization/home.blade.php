@@ -71,6 +71,7 @@
                 </div>
             </div>
         </div>
+        @include('organization.partials.workshops-block', ['publicWorkshops' => $publicWorkshops ?? collect(), 'organization' => $organization])
         @include('partials.footer')
     </section>
     @include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'bottom'])

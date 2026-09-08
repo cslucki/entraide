@@ -145,6 +145,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
         </div>
       </div>
     </section>
+  @include('organization.partials.workshops-block', ['publicWorkshops' => $publicWorkshops ?? collect(), 'organization' => $organization])
   </main>
 
   {{-- FOOTER --}}

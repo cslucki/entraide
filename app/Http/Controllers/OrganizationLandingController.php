@@ -8,6 +8,7 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Services\GuestShell\GuestShellSurface;
+use App\Services\Workshops\PublicWorkshopListing;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -25,6 +26,10 @@ class OrganizationLandingController extends Controller
 
         // TASK-1442 — SW-8a : lecture PURE du Shell Welcome (aucun cookie, aucune identite, aucun appel) ; l'overlay se monte selon la decision.
         $guestShell = $organization->is_public ? app(GuestShellSurface::class)->read($organization, $request) : null;
+
+        // TASK-1463 (audit OPUS final P1-1) : les ateliers publies a session publiee a venir — la meme selection que
+        // workshops.runtime ; lecture pure (aucun cookie), seulement pour une Organization active et publique.
+        $publicWorkshops = $organization->is_public && $organization->is_active ? app(PublicWorkshopListing::class)->upcoming($organization) : collect();
 
         $stats = [
             'users' => $organization->users()->activeAccount()->count(),
@@ -52,7 +57,7 @@ class OrganizationLandingController extends Controller
                 ->map(fn ($user) => $user->avatar_url)
                 ->values();
 
-            return view('organization.hero-v2', compact('organization', 'heroAvatars', 'guestShell'));
+            return view('organization.hero-v2', compact('organization', 'heroAvatars', 'guestShell', 'publicWorkshops'));
         }
 
         if ($organization->homepage_template === 'artscilab_hero') {
@@ -65,12 +70,12 @@ class OrganizationLandingController extends Controller
                 ->map(fn ($user) => $user->avatar_url)
                 ->values();
 
-            return view('organization.artscilab-hero', compact('organization', 'heroAvatars', 'guestShell'));
+            return view('organization.artscilab-hero', compact('organization', 'heroAvatars', 'guestShell', 'publicWorkshops'));
         }
 
         $defaultOrganization = $organization;
 
-        return view('organization.home', compact('organization', 'stats', 'featuredServices', 'categories', 'defaultOrganization', 'guestShell'));
+        return view('organization.home', compact('organization', 'stats', 'featuredServices', 'categories', 'defaultOrganization', 'guestShell', 'publicWorkshops'));
     }
 
     public function about(string $organization): View

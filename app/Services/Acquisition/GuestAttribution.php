@@ -46,6 +46,23 @@ final class GuestAttribution
     }
 
     /**
+     * TASK-1463 (audit OPUS final P1-1) — ce qu'un lien INTERNE peut transporter d'une page a l'autre pour que le
+     * premier geste retrouve son atterrissage : le code de Shortcut (forme valide seulement) et les UTM autorises,
+     * bornes. Jamais `journey` ni `campaign` : ils sont RELUS EN BASE par resolve() a partir du code — le
+     * navigateur ne transporte qu'un code, jamais une autorite.
+     *
+     * @param  array<string, mixed>  $query
+     * @return array<string, string>
+     */
+    public static function carry(array $query): array
+    {
+        $code = $query[OrganizationShortcut::QUERY_PARAM] ?? null;
+        $carry = OrganizationShortcut::isValidCode($code) ? [OrganizationShortcut::QUERY_PARAM => $code] : [];
+
+        return $carry + self::allowedUtm($query);
+    }
+
+    /**
      * Ce qui sera fige sur le GuestVisitor a sa creation (first touch wins).
      *
      * @param  array<string, mixed>  $claimed  ce que le navigateur declare : shortcut + UTM
