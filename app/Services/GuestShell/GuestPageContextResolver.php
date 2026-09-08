@@ -3,6 +3,7 @@
 namespace App\Services\GuestShell;
 
 use App\Models\Organization;
+use App\Models\Workshop;
 use App\Support\GuestShell\GuestPageContext;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
@@ -19,10 +20,15 @@ use Illuminate\Routing\Route;
  */
 final class GuestPageContextResolver
 {
-    /** Les routes publiques REELLES → kind. Les kinds Workshop n'ont pas de route : ils restent NULL (pas de faux contexte). */
+    /**
+     * Les routes publiques REELLES → kind. TASK-1450 : la page d'atelier existe
+     * (`organization.workshop.show`) → `workshop_page` est resolvable ; le kind
+     * `workshop_session` n'a toujours pas de route et reste NULL (pas de faux contexte).
+     */
     private const ROUTES = [
         'organization.home' => GuestPageContext::KIND_ORGANIZATION_HOME,
         'organization.register' => GuestPageContext::KIND_SIGNUP,
+        'organization.workshop.show' => GuestPageContext::KIND_WORKSHOP_PAGE,
     ];
 
     public function fromRequest(Organization $organization, Request $request): ?GuestPageContext
@@ -49,7 +55,28 @@ final class GuestPageContextResolver
             return null;
         }
 
+        if ($kind === GuestPageContext::KIND_WORKSHOP_PAGE) {
+            // L'atelier PUBLIE de CETTE Organization, par son slug de route — jamais un parsing d'URL, jamais un brouillon.
+            $slugParameter = $route->parameter('workshop');
+            $workshop = is_string($slugParameter) ? Workshop::query()->forOrganization($organization)->published()->where('slug', $slugParameter)->first() : null;
+
+            return $workshop === null ? null : $this->workshopPage($organization, $workshop, $name);
+        }
+
         return $this->make($organization, $kind, $name);
+    }
+
+    /** TASK-1450 — le PageContext d'un atelier publie : identifiant public = slug, libelle = titre, aucune CTA inventee avant B4. */
+    private function workshopPage(Organization $organization, Workshop $workshop, string $name): GuestPageContext
+    {
+        return new GuestPageContext(
+            organizationId: (string) $organization->id,
+            kind: GuestPageContext::KIND_WORKSHOP_PAGE,
+            publicId: $workshop->slug,
+            publicLabel: (string) $workshop->title,
+            publicCta: null,
+            routeName: $name,
+        );
     }
 
     /**
