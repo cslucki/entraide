@@ -26,6 +26,7 @@ return [
     // TASK-1442 — SW-8a : l'overlay public (textes visibles par le visiteur).
     'ui' => [
         'open' => 'Une question ?',
+        'open_unavailable' => 'BouclePro IA — indisponible',
         'title' => 'Assistant de :name',
         'close' => 'Fermer',
         'welcome' => 'Bonjour ! Je suis l\'assistant public de :name. Posez votre question : je réponds à partir des informations publiques, sans créer de compte.',

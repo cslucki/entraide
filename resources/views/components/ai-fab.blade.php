@@ -15,6 +15,20 @@
         : null;
 @endphp
 @if($fab)
+{{-- TASK-1472 : le declencheur « BouclePro IA » herite de la couleur « Action
+     principale » du theme de l'Organization. Un <style> local plutot que des
+     classes Tailwind arbitraires : une classe Tailwind arbitraire portant le token, absente
+     du build serait un no-op SILENCIEUX, et ce piege a deja mordu ici. Le
+     repli couvre le cas ou le token manquerait — jamais de bouton
+     transparent. --}}
+<style>
+  .bp-ai-trigger{background:var(--bp-primary,#4f46e5)}
+  .bp-ai-trigger:hover{background:var(--bp-primary-deep,#4338ca)}
+  /* L'anneau de focus vit ici aussi : une classe utilitaire arbitraire portant le token
+     est une valeur arbitraire Tailwind, absente du build tant qu'elle n'y a pas
+     ete generee — l'anneau aurait disparu sans un mot. */
+  .bp-ai-trigger:focus-visible{outline:3px solid var(--bp-primary-deep,#4338ca);outline-offset:2px}
+</style>
 <div x-data="{
         open: false,
         ctx: @js($fab),
@@ -46,7 +60,7 @@
             aria-label="{{ __('ai.fab_open') }}"
             title="{{ __('ai.fab_label') }}"
             data-ai-fab-toggle
-            class="fixed bottom-36 right-4 md:bottom-24 md:right-6 z-40 inline-flex items-center gap-2 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-indigo-900/20 ring-1 ring-white/20 hover:from-violet-500 hover:to-indigo-500 active:scale-95 transition h-12 w-12 md:h-auto md:w-auto md:px-4 md:py-2.5 justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500">
+            class="bp-ai-trigger fixed bottom-36 right-4 md:bottom-24 md:right-6 z-40 inline-flex items-center gap-2 rounded-full text-white shadow-lg shadow-gray-900/20 ring-1 ring-white/20 active:scale-95 transition h-12 w-12 md:h-auto md:w-auto md:px-4 md:py-2.5 justify-center focus:outline-none">
         {{-- Symbole de marque en monochrome blanc translucide : essai visuel,
              directement sur l'aplat violet/indigo du bouton, sans pastille. --}}
         <svg class="h-5 w-5 flex-shrink-0" viewBox="0 0 512 512" fill="none" stroke="white" stroke-width="46" stroke-linecap="round" stroke-opacity="0.92" aria-hidden="true">
@@ -113,7 +127,7 @@
                 <button type="button"
                         @click="close(); window.dispatchEvent(new CustomEvent('bp-open-ai-shell', { detail: {} }))"
                         data-ai-fab-shell
-                        class="w-full text-left flex items-start gap-3 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-3 py-2.5 text-white shadow-sm hover:from-violet-500 hover:to-indigo-500 transition">
+                        class="bp-ai-trigger w-full text-left flex items-start gap-3 rounded-xl px-3 py-2.5 text-white shadow-sm transition">
                     <span class="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white/15">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8M8 14h5M21 12a8 8 0 0 1-8 8H7l-4 3v-5.5A8 8 0 1 1 21 12Z"/></svg>
                     </span>
