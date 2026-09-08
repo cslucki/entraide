@@ -30,6 +30,9 @@ return [
     'col_author' => 'Auteur',
     'col_published' => 'Publié le',
     'col_actions' => 'Actions',
+    // TASK-1454 — cockpit OrgAdmin (lecture seule).
+    'col_funnel' => 'Sessions · intérêts · inscrits',
+    'funnel_cell' => ':sessions publiée(s) · :interests intérêt(s) · :registrations inscrit(s)',
     'edit' => 'Modifier',
     'publish' => 'Publier',
     'retire' => 'Retirer',

@@ -20,7 +20,7 @@
             <table class="w-full text-sm">
                 <thead class="bg-gray-50 dark:bg-gray-700">
                     <tr>
-                        @foreach(['status', 'title', 'slug', 'format', 'duration', 'locale', 'journey', 'author', 'published', 'actions'] as $col)
+                        @foreach(['status', 'title', 'slug', 'format', 'duration', 'locale', 'journey', 'funnel', 'author', 'published', 'actions'] as $col)
                         <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('workshops.col_'.$col) }}</th>
                         @endforeach
                     </tr>
@@ -34,7 +34,9 @@
                         <td class="px-3 py-2 text-xs">{{ __('workshops.format_'.$row->format) }}</td>
                         <td class="px-3 py-2 text-xs tabular-nums">{{ $row->duration_minutes ?? '—' }}</td>
                         <td class="px-3 py-2 font-mono text-xs">{{ strtoupper($row->locale) }}</td>
-                        <td class="px-3 py-2 text-xs text-gray-500">{{ $row->journey ? $row->journey->name.' v'.$row->journey->version : '—' }}</td>
+                        <td class="px-3 py-2 text-xs text-gray-500">{{ $row->journey ? $row->journey->name.' v'.$row->journey->version : '—' }}{{ $row->journey?->campaign ? ' · '.$row->journey->campaign : '' }}</td>
+                        {{-- TASK-1454 : le cockpit — compteurs interets Guest / inscrits confirmes (lecture seule), provenance synthetique. --}}
+                        <td class="px-3 py-2 text-xs tabular-nums" data-workshop-funnel="{{ $row->id }}" data-workshop-interests="{{ $row->interests_count }}" data-workshop-registrations="{{ $row->registrations_count }}" data-workshop-published-sessions="{{ $row->published_sessions_count }}">{{ __('workshops.funnel_cell', ['sessions' => $row->published_sessions_count, 'interests' => $row->interests_count, 'registrations' => $row->registrations_count]) }}</td>
                         <td class="px-3 py-2 text-xs text-gray-500">{{ $row->author?->name ?? '—' }}</td>
                         <td class="px-3 py-2 text-xs text-gray-500">{{ $row->published_at?->format('d/m/Y H:i') ?? '—' }}</td>
                         <td class="px-3 py-2">

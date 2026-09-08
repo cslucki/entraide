@@ -167,6 +167,17 @@ class Workshop extends Model
         return $this->hasMany(WorkshopSession::class);
     }
 
+    /** TASK-1454 : les inscriptions (toutes sessions) et les interets Guest — lecture OrgAdmin/SuperAdmin. */
+    public function registrations(): HasMany
+    {
+        return $this->hasMany(WorkshopRegistration::class);
+    }
+
+    public function interests(): HasMany
+    {
+        return $this->hasMany(WorkshopSessionInterest::class);
+    }
+
     /** Les sessions publiees a venir, celles que la page publique montre (jamais un brouillon, jamais une annulee). */
     public function publicUpcomingSessions(): HasMany
     {
