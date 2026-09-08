@@ -44,6 +44,7 @@ use App\Http\Controllers\Admin\OrgAcquisitionController;
 use App\Http\Controllers\Admin\OrgAdminController;
 use App\Http\Controllers\Admin\OrgCrmController;
 use App\Http\Controllers\Admin\OrgCrmTemplateController;
+use App\Http\Controllers\Admin\OrgWorkshopController;
 use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\AiAgentLoopController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -102,6 +103,7 @@ use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserAiUsageController;
+use App\Http\Controllers\WorkshopPageController;
 use App\Http\Middleware\OrgAdminMiddleware;
 use App\Livewire\BoundedMemberAgent;
 use App\Livewire\CreateFeedPost;
@@ -770,6 +772,8 @@ Route::prefix('/org/{organization}')
         Route::get('/shell', [GuestShellController::class, 'show'])->middleware('throttle:60,1')->name('shell.show');
         Route::post('/shell/message', [GuestShellController::class, 'message'])->middleware('throttle:30,1')->name('shell.message');
         Route::get('/about', [OrganizationLandingController::class, 'about'])->name('about');
+        // TASK-1450 — Workshop domain foundation : la page PUBLIQUE d'un atelier publie de CETTE Organization (404 sinon). Pas de Shell ici.
+        Route::get('/ateliers/{workshop}', [WorkshopPageController::class, 'show'])->name('workshop.show')->where('workshop', '[a-z0-9][a-z0-9\-]{2,79}');
         // TASK-1349 — publique UNIQUEMENT sur opt-in explicite. Sans opt-in,
         // ou sans version active, la route rend 404 : publiquement, la
         // ressource n'existe pas.
@@ -1119,6 +1123,14 @@ Route::prefix('/org/{organization}')
                 Route::put('/acquisition/{journey}', [OrgAcquisitionController::class, 'update'])->name('acquisition.update')->whereUuid('journey');
                 Route::post('/acquisition/{journey}/publish', [OrgAcquisitionController::class, 'publish'])->name('acquisition.publish')->whereUuid('journey');
                 Route::delete('/acquisition/{journey}', [OrgAcquisitionController::class, 'retire'])->name('acquisition.retire')->whereUuid('journey');
+                // TASK-1450 : Workshop domain foundation — {workshop} est resolu DANS l'Organization par le controller (404 ailleurs).
+                Route::get('/ateliers', [OrgWorkshopController::class, 'index'])->name('workshops');
+                Route::get('/ateliers/create', [OrgWorkshopController::class, 'create'])->name('workshops.create');
+                Route::post('/ateliers', [OrgWorkshopController::class, 'store'])->name('workshops.store');
+                Route::get('/ateliers/{workshop}/edit', [OrgWorkshopController::class, 'edit'])->name('workshops.edit')->whereUuid('workshop');
+                Route::put('/ateliers/{workshop}', [OrgWorkshopController::class, 'update'])->name('workshops.update')->whereUuid('workshop');
+                Route::post('/ateliers/{workshop}/publish', [OrgWorkshopController::class, 'publish'])->name('workshops.publish')->whereUuid('workshop');
+                Route::delete('/ateliers/{workshop}', [OrgWorkshopController::class, 'retire'])->name('workshops.retire')->whereUuid('workshop');
                 // TASK-1419 (CRM-4b) : gestion du pipeline. Declare AVANT /relations/{contact}
                 // pour que « statuts » ne soit jamais pris pour un id de Contact.
                 Route::get('/relations/statuts', [OrgCrmController::class, 'statuses'])->name('crm.statuses');

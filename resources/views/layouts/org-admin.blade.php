@@ -153,6 +153,8 @@
                             ['route' => 'organization.admin.crm.templates', 'label' => __('navigation.org_admin_crm_templates'), 'icon' => 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'],
                             // TASK-1446 : les parcours d'acquisition (AcquisitionJourney foundation).
                             ['route' => 'organization.admin.acquisition', 'label' => __('navigation.org_admin_acquisition'), 'icon' => 'M13 10V3L4 14h7v7l9-11h-7z'],
+                            // TASK-1450 : les ateliers (Workshop domain foundation). Icone dont le path SVG ne contient aucune sequence de montant : T1228 mesure des montants ABSENTS de la page OrgAdmin (assertDontSee) et un path SVG peut les fournir par accident (CI rouge du 08/09).
+                            ['route' => 'organization.admin.workshops', 'label' => __('navigation.org_admin_workshops'), 'icon' => 'M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z'],
                         ];
                         $adminItems = [
                             ['route' => 'organization.admin.identity', 'label' => __('navigation.org_admin_identity'), 'icon' => 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z'],
