@@ -7,6 +7,7 @@ use App\Models\AcquisitionJourney;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Acquisition\AcquisitionEventRecorder;
+use App\Services\Crm\ShellCrmBridge;
 use App\Services\GuestShell\GuestClaimService;
 use Illuminate\Auth\Events\Verified;
 
@@ -31,6 +32,7 @@ class ClaimGuestVisitorOnVerification
     public function __construct(
         private readonly GuestClaimService $claims,
         private readonly AcquisitionEventRecorder $events,
+        private readonly ShellCrmBridge $crm,
     ) {}
 
     public function handle(Verified $event): void
@@ -56,5 +58,11 @@ class ClaimGuestVisitorOnVerification
                 $this->events->record($organization, AcquisitionEvent::CONVERTED, $dimensions, ['goal' => $journey->conversion_goal], AcquisitionEvent::CONVERTED.':visitor:'.$visitor->getKey());
             }
         });
+
+        // TASK-1458 (Shell Welcome V3 §23 SW-12, Mini-CRM V2 §9, Growth V3 §16) : le claim est LE moment produit pertinent —
+        // le Contact du membre est retrouve/cree/lie une fois, jamais a chaque message. Un CRM en panne ne casse jamais la verification.
+        if ($visitor !== null) {
+            rescue(fn () => $this->crm->onClaim($visitor, $user));
+        }
     }
 }
