@@ -103,13 +103,19 @@
             <div class="space-y-4">
                 @foreach($organizations as $org)
                     @php $cfg = $blogConfigs[$org->id] ?? null; @endphp
-                    <form method="POST" action="{{ route('admin.ai-config.blog') }}" class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+                    {{-- TASK-1474 : meme repli que la section Shell Welcome. Ces trois
+                         sections empilaient le MEME motif — un bloc deplie par
+                         Organization — et representaient a elles seules 84 % de la
+                         hauteur de l'ecran. --}}
+                    <details class="border border-gray-200 dark:border-gray-700 rounded-lg" data-ai-config-row="blog:{{ $org->slug }}">
+                        <summary class="flex flex-wrap items-center gap-2 px-4 py-2.5 cursor-pointer select-none">
+                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $org->name }}</span>
+                            <span class="text-gray-400 font-mono text-xs">{{ $org->slug }}</span>
+                            <span class="ml-auto text-xs {{ ($cfg?->generate_enabled ?? true) ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-500 dark:text-gray-400' }}">{{ ($cfg?->generate_enabled ?? true) ? __('admin.ai_blog_generation') : __('admin.guest_shell_summary_disabled') }}</span>
+                        </summary>
+                    <form method="POST" action="{{ route('admin.ai-config.blog') }}" class="border-t border-gray-200 dark:border-gray-700 p-4 space-y-3">
                         @csrf
                         <input type="hidden" name="organization_id" value="{{ $org->id }}">
-
-                        <div class="flex items-center justify-between">
-                            <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $org->name }} <span class="text-gray-400 font-mono text-xs">({{ $org->slug }})</span></h4>
-                        </div>
 
                         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                             <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
@@ -142,6 +148,7 @@
                             </button>
                         </div>
                     </form>
+                    </details>
                 @endforeach
             </div>
         </div>
@@ -152,13 +159,15 @@
 
             <div class="space-y-4">
                 @forelse($organizations as $org)
-                    <form method="POST" action="{{ route('admin.ai-config.profile') }}" class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+                    <details class="border border-gray-200 dark:border-gray-700 rounded-lg" data-ai-config-row="profile:{{ $org->slug }}">
+                        <summary class="flex flex-wrap items-center gap-2 px-4 py-2.5 cursor-pointer select-none">
+                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $org->name }}</span>
+                            <span class="text-gray-400 font-mono text-xs">{{ $org->slug }}</span>
+                            <span class="ml-auto text-xs {{ ($org->ai_profiles_enabled ?? true) ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-500 dark:text-gray-400' }}">{{ ($org->ai_profiles_enabled ?? true) ? __('admin.ai_profile_toggle_label') : __('admin.guest_shell_summary_disabled') }}</span>
+                        </summary>
+                    <form method="POST" action="{{ route('admin.ai-config.profile') }}" class="border-t border-gray-200 dark:border-gray-700 p-4 space-y-3">
                         @csrf
                         <input type="hidden" name="organization_id" value="{{ $org->id }}">
-
-                        <div class="flex items-center justify-between">
-                            <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $org->name }} <span class="text-gray-400 font-mono text-xs">({{ $org->slug }})</span></h4>
-                        </div>
 
                         <div>
                             <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
@@ -178,6 +187,7 @@
                             </button>
                         </div>
                     </form>
+                    </details>
                 @empty
                     <div class="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-3">
                         {{ __('admin.ai_no_profiles_config') }}
@@ -191,7 +201,41 @@
             <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">{{ __('admin.guest_shell_config') }}</h3>
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ __('admin.guest_shell_config_hint') }}</p>
 
-            <div class="space-y-4">
+            @php
+                // TASK-1474 : le RESUME de tete. Aucune logique economique nouvelle —
+                // on compte les diagnostics que `GuestShellDiagnosis` produit deja,
+                // organisation par organisation. Le plafond plateforme est lu par
+                // l'autorite qui le detient, jamais reinterprete ici.
+                $diagnoses = collect($organizations)->map(fn ($o) => \App\Support\GuestShell\GuestShellDiagnosis::for($guestShellStates[$o->id]));
+                $summary = [
+                    'ready' => $diagnoses->where('tone', \App\Support\GuestShell\GuestShellDiagnosis::TONE_READY)->count(),
+                    'disabled' => $diagnoses->where('tone', \App\Support\GuestShell\GuestShellDiagnosis::TONE_NEUTRAL)->count(),
+                    'action' => $diagnoses->where('tone', \App\Support\GuestShell\GuestShellDiagnosis::TONE_ACTION)->count(),
+                    'budget' => $diagnoses->where('tone', \App\Support\GuestShell\GuestShellDiagnosis::TONE_BUDGET)->count(),
+                ];
+                $platformCeiling = \App\Services\GuestShell\GuestShellPolicyService::platformCeilingUsd();
+            @endphp
+
+            <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5" data-guest-shell-summary>
+                @foreach($summary as $key => $count)
+                <div class="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2" data-guest-shell-summary-item="{{ $key }}" data-guest-shell-summary-value="{{ $count }}">
+                    <div class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('admin.guest_shell_summary_'.$key) }}</div>
+                    <div class="text-xl font-bold tabular-nums text-gray-900 dark:text-gray-100">{{ $count }}</div>
+                </div>
+                @endforeach
+                <div class="rounded-lg border px-3 py-2 {{ $platformCeiling === null ? 'border-amber-300 dark:border-amber-700' : 'border-gray-200 dark:border-gray-700' }}" data-guest-shell-summary-item="platform_ceiling" data-guest-shell-summary-value="{{ $platformCeiling === null ? 'unset' : 'set' }}">
+                    <div class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('admin.guest_shell_summary_platform_ceiling') }}</div>
+                    <div class="text-sm font-semibold {{ $platformCeiling === null ? 'text-amber-700 dark:text-amber-300' : 'text-gray-900 dark:text-gray-100' }}">{{ $platformCeiling === null ? __('admin.guest_shell_summary_ceiling_unset') : number_format($platformCeiling, 2).' USD' }}</div>
+                </div>
+            </div>
+
+            {{-- TASK-1474 : chaque Organization se replie. L'ecran empilait neuf
+                 formulaires deplies — mesure : 3453 px pour cette seule section,
+                 45 % d'une page de 8119 px. Le diagnostic, le provider et le mode
+                 restent lisibles SANS deplier ; l'edition est a un clic, et n'a
+                 pas bouge d'une ligne. `<details>` : aucun JavaScript, aucun
+                 composant nouveau, l'etat ouvert survit a l'impression. --}}
+            <div class="space-y-2">
                 @forelse($organizations as $org)
                     @php
                         $state = $guestShellStates[$org->id];
@@ -204,14 +248,21 @@
                         // partagee — le `match` etait recopie dans trois vues.
                         $diagTone = \App\Support\GuestShell\GuestShellDiagnosis::badgeClasses($diag['tone']);
                     @endphp
-                    <form method="POST" action="{{ route('admin.ai-config.guest-shell') }}" class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3" data-guest-shell-org="{{ $org->slug }}" data-guest-shell-status="{{ $state->status }}">
+                    <details class="border border-gray-200 dark:border-gray-700 rounded-lg" data-guest-shell-row="{{ $org->slug }}" @if($diag['tone'] === \App\Support\GuestShell\GuestShellDiagnosis::TONE_ACTION) open @endif>
+                        <summary class="flex flex-wrap items-center gap-2 px-4 py-2.5 cursor-pointer select-none">
+                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $org->name }}</span>
+                            <span class="text-gray-400 font-mono text-xs">{{ $org->slug }}</span>
+                            <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $diagTone }}" data-guest-shell-diag="{{ $diag['key'] }}">{{ $diag['label'] }}</span>
+                            <span class="ml-auto flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                                <span data-guest-shell-summary-provider>{{ $state->providerLabel() ?? '—' }}</span>
+                                <span data-guest-shell-summary-mode>{{ __('admin.guest_shell_display_mode_'.$policy->display_mode) }}</span>
+                                <span class="tabular-nums" data-guest-shell-summary-cost>{{ number_format($state->monthlyUsage['cost_usd'], 4) }} USD</span>
+                            </span>
+                        </summary>
+                    <form method="POST" action="{{ route('admin.ai-config.guest-shell') }}" class="border-t border-gray-200 dark:border-gray-700 p-4 space-y-3" data-guest-shell-org="{{ $org->slug }}" data-guest-shell-status="{{ $state->status }}">
                         @csrf
                         <input type="hidden" name="organization_id" value="{{ $org->id }}">
 
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                            <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $org->name }} <span class="text-gray-400 font-mono text-xs">({{ $org->slug }})</span></h4>
-                            <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $diagTone }}" data-guest-shell-diag="{{ $diag['key'] }}">{{ $diag['label'] }}</span>
-                        </div>
 
                         {{-- TASK-1468 : la cause, puis le geste. Un SuperAdmin ne doit pas
                              avoir a traduire un code pour savoir quoi faire. --}}
@@ -260,6 +311,7 @@
                             </div>
                         </div>
                     </form>
+                    </details>
                 @empty
                     <div class="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-3">{{ __('admin.ai_no_profiles_config') }}</div>
                 @endforelse

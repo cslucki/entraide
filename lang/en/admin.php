@@ -781,6 +781,13 @@ return [
     // personne (« tant que Cyril ne l'a pas fixe ») dans une chaine d'interface.
     // Une chaine morte qui dit quelque chose de faux est pire qu'une chaine
     // absente : elle attend d'etre reaffichee.
+    // TASK-1474 — the summary header of /admin/ai-config.
+    'guest_shell_summary_ready' => 'Ready',
+    'guest_shell_summary_disabled' => 'Disabled',
+    'guest_shell_summary_action' => 'Action required',
+    'guest_shell_summary_budget' => 'Budget reached',
+    'guest_shell_summary_platform_ceiling' => 'Platform ceiling',
+    'guest_shell_summary_ceiling_unset' => 'Not set',
     'guest_shell_diag_ready_label' => 'Ready',
     'guest_shell_diag_disabled_label' => 'Disabled',
     'guest_shell_diag_organization_inactive_label' => 'Action required',
