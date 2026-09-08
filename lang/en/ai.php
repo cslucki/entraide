@@ -687,6 +687,17 @@ return [
     // available while the user navigates.
     'fab_action_open_shell' => 'Open BouclePro AI',
     'fab_action_open_shell_hint' => 'The conversation that follows you from page to page.',
+    // TASK-1469 — see the French file for the reasoning.
+    'shell_surface_organization_home' => 'You are on the home page',
+    'shell_surface_agenda' => 'You are on the calendar',
+    'shell_surface_directory' => 'You are in the directory',
+    'shell_surface_dossiers' => 'You are in the folders',
+    'shell_surface_dossier' => 'You are viewing a folder',
+    'shell_surface_blog' => 'You are on the blog',
+    'shell_surface_article' => 'You are reading an article',
+    'shell_surface_exchanges' => 'You are in the exchanges',
+    'shell_surface_profile' => 'You are viewing a profile',
+    'shell_surface_unknown' => 'You are browsing BouclePro',
     'shell_title' => 'BouclePro AI',
     'shell_open' => 'Open the BouclePro AI conversation',
     'shell_close' => 'Close the conversation',
