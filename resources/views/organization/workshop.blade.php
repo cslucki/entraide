@@ -1,4 +1,4 @@
-<x-app-layout :title="$workshop->title.' — '.$organization->name">
+<x-app-layout :title="$workshop->title">
     {{-- TASK-1450 — La page PUBLIQUE d'un atelier (Growth V3 §8) : titre, promesse, description, format, duree. Ni meeting_url, ni participants, ni CRM, ni CTA d'inscription inventee (B4). Pas de Shell Welcome ici (MASTER Q76). --}}
     <section class="min-h-screen bg-[var(--bp-page)] px-4 py-6 text-[var(--bp-text)] md:px-8 md:py-8">
         <article class="mx-auto max-w-3xl rounded-[2rem] border border-[var(--bp-border)] bg-[var(--bp-surface)]/80 p-6 shadow-sm md:p-10" data-workshop-page="{{ $workshop->slug }}" data-workshop-format="{{ $workshop->format }}">
