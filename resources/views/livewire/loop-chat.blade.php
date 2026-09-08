@@ -573,6 +573,45 @@
                  mobile) + « Qui peut m'aider » + l'upload d'image existant,
                  sans dupliquer sa saisie de fichier (voir composer.blade.php). --}}
             <x-slot:leading>
+                {{-- TASK-1475 : l'IA de la Boucle, VISIBLE sur mobile.
+
+                     TASK-1466 a retire le Shell global des Boucles — a raison : la
+                     Boucle porte deja son IA. Mais la mesure a 390 px montrait
+                     ensuite ZERO affordance IA visible : la seule porte etait le
+                     bouton « Plus d'actions », qui ne nomme pas l'IA, et il fallait
+                     l'ouvrir pour la trouver. Sur desktop l'action est dans la barre ;
+                     sur mobile elle avait disparu de la vue.
+
+                     Ce bouton n'ajoute AUCUNE capacite : il actionne exactement le
+                     meme interrupteur de moteur que la feuille (`toggleComposerEngine`),
+                     avec les memes gardes et le meme `aria-pressed`. Il ne monte pas
+                     le Shell global, ne cree aucune source de contexte, et laisse le
+                     desktop inchange (`md:hidden`).
+
+                     Attribut distinct de `data-engine-toggle` : la recette e2e cible
+                     ce dernier par `:visible` et un second element portant la meme
+                     valeur rendrait sa premiere correspondance ambigue. --}}
+                @if($aiEnginesAvailable)
+                {{-- La couleur active vit dans une feuille locale, pas dans une
+                     classe Tailwind arbitraire : `bg-[var(--bp-primary,#4f46e5)]`
+                     n'est pas dans le build et rendait le bouton TRANSPARENT.
+                     Mesure faite avant livraison — `getComputedStyle` rendait
+                     `rgba(0,0,0,0)` alors que la classe etait bien presente. --}}
+                <style>
+                  .bp-loop-ai-quick[aria-pressed="true"]{background:var(--bp-primary,#4f46e5);color:#fff}
+                </style>
+                <button
+                    type="button"
+                    wire:click="toggleComposerEngine('ia')"
+                    data-engine-quick="ia"
+                    aria-pressed="{{ $engineActive['ia'] ? 'true' : 'false' }}"
+                    class="bp-loop-ai-quick md:hidden flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition {{ $engineActive['ia'] ? '' : 'text-gray-400 hover:bg-gray-100 hover:text-indigo-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-indigo-300' }}"
+                    aria-label="{{ __('loops.ask_ai_button') }}"
+                    title="{{ __('loops.ask_ai_button') }}"
+                >
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/></svg>
+                </button>
+                @endif
                 <div class="md:hidden" x-data="{ sheetOpen: false }">
                     {{-- TASK-1329 : bouton INTEGRE au champ (composer.blade.php
                          le positionne en absolu dans le cadre du textarea) —
