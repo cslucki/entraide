@@ -33,7 +33,10 @@ return [
         'send' => 'Send',
         'sending' => 'Answering…',
         'privacy' => 'Public exchange without an account. Do not share personal data.',
-        'degraded_text' => 'The :name assistant is not available right now. You can create an account to join the community.',
+        // TASK-1467 (CDC 21h-23h §2.5) — see the French file for the reasoning:
+        // a degraded state always has a technical cause, so an account is never
+        // the remedy.
+        'degraded_text' => 'The :name assistant is temporarily unavailable. You can keep exploring :name and its workshops.',
         'network_error' => 'The connection failed. Try again in a moment.',
         'failed' => 'The answer could not be produced. You can try again.',
         'refused_generic' => 'Your message could not be handled right now.',

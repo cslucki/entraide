@@ -138,11 +138,57 @@ class TASK1442GuestShellPublicOverlayTest extends TestCase
 
         $degraded = $this->get($this->home($this->degraded))->assertOk()->assertCookieMissing(GuestVisitorResolver::COOKIE)->getContent();
         $this->assertStringContainsString('data-guest-shell-state="degraded"', $degraded);
-        $this->assertStringContainsString('data-guest-shell-reason="'.GuestShellDisplay::REASON_POLICY_NOT_READY.'"', $degraded);
         $this->assertStringContainsString('data-guest-shell-degraded>', $degraded, 'accueil non-IA honnete');
         $this->assertStringNotContainsString('data-guest-shell-welcome>', $degraded, 'aucune promesse d\'echange');
         $this->assertMatchesRegularExpression('/<textarea[^>]*data-guest-shell-input[^>]*disabled/', $degraded, 'saisie desactivee');
-        $this->assertStringContainsString('data-guest-shell-cta', $degraded);
+
+        // TASK-1467 : la RAISON ne sort plus dans le HTML public — elle reste
+        // mesurable la ou elle est autoritaire, dans le payload serveur.
+        $this->assertStringNotContainsString('data-guest-shell-reason', $degraded, 'aucun code interne cote public');
+        $this->assertStringNotContainsString(GuestShellDisplay::REASON_POLICY_NOT_READY, $degraded);
+        $this->assertSame(
+            GuestShellDisplay::REASON_POLICY_NOT_READY,
+            app(GuestShellSurface::class)->read($this->degraded, request())['display']['reason'],
+        );
+
+        // TASK-1467 : et surtout, aucun CTA « Creer un compte » dans un etat
+        // dont la cause est technique. Le CTA reste quand le Shell est vivant.
+        // On mesure le RENDU, pas la chaine : `data-guest-shell-cta` figure
+        // aussi dans le JS inline (`querySelector`), ou sa presence ne prouve
+        // rien. Ce qui compte est qu'aucune ancre ne soit rendue.
+        $this->assertDoesNotMatchRegularExpression('/<a[^>]*data-guest-shell-cta/', $degraded, 'un compte ne repare pas une panne');
+        // Pas d'assertion sur le libelle « Creer un compte » : l'accueil public
+        // porte legitimement ses propres liens d'inscription, hors du Shell.
+        // Une assertion sur cette chaine serait rouge pour une bonne raison.
+
+        // TASK-1467 : la BULLE degradee, mesuree pour elle-meme. Une assertion
+        // du type `assertStringContainsString(__('...degraded_text'))` ne peut
+        // pas echouer : elle relit le fichier de langue qu'elle est censee
+        // juger. Ce qui est verifie ici est le CONTRAT, pas la formulation —
+        // la bulle nomme l'Organization et ne propose pas de compte.
+        $this->assertSame(1, preg_match(
+            '/<div class="bpgs-msg bpgs-msg-assistant" data-guest-shell-degraded>(.*?)<\/div>/s',
+            $degraded,
+            $bubble,
+        ), 'la bulle degradee est rendue');
+
+        $this->assertStringContainsString($this->degraded->name, $bubble[1], 'la bulle nomme l\'Organization');
+        $this->assertStringNotContainsString(':name', $bubble[1], 'aucun placeholder non substitue');
+        $this->assertDoesNotMatchRegularExpression('/compte|account|inscri|sign ?up/i', $bubble[1],
+            'une panne technique ne se resout pas en creant un compte');
+
+        // Le MEME texte est aussi servi au JS (`labels.unavailable`), pour le
+        // cas ou le Shell devient indisponible en cours de conversation. Il
+        // etait passe sans parametre : le visiteur lisait « :name » en clair.
+        $this->assertSame(1, preg_match("/data-guest-shell-labels='([^']*)'/", $html, $labels));
+        $decoded = json_decode(html_entity_decode($labels[1], ENT_QUOTES), true);
+        $this->assertIsArray($decoded);
+        $this->assertArrayHasKey('unavailable', $decoded);
+        $this->assertStringNotContainsString(':name', $decoded['unavailable'], 'le libelle JS substitue le nom');
+        $this->assertStringContainsString($this->ready->name, $decoded['unavailable']);
+
+        // Le Shell VIVANT, lui, garde son CTA : la regle vise l'etat degrade.
+        $this->assertMatchesRegularExpression('/<a[^>]*data-guest-shell-cta/', $html);
 
         // Les deux autres templates d'accueil montent le meme partial.
         $this->ready->update(['homepage_template' => 'bouclepro_hero_v2']);
