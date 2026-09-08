@@ -43,7 +43,8 @@ class ShellCrmBridge
             'email' => $user->email,
             'first_name' => $user->first_name ?? $visitor->declared_first_name,
             'last_name' => $user->name,
-            'source' => CrmContact::SOURCE_SHELL_WELCOME,
+            // TASK-1464 : la source dit la verite — sans aucune conversation, le visiteur est ne au signup (lien court), pas au Shell.
+            'source' => $visitor->conversations()->exists() ? CrmContact::SOURCE_SHELL_WELCOME : CrmContact::SOURCE_SIGNUP,
             'source_ref' => (string) $visitor->getKey(),
         ]);
         // Un Contact deja lie a un AUTRE membre n'est pas le sien : rien n'y est ecrit, rien n'est vole.

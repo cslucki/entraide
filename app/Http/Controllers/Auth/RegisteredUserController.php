@@ -9,6 +9,8 @@ use App\Models\PointLedger;
 use App\Models\User;
 use App\Notifications\WelcomeNotification;
 use App\Services\Acquisition\AcquisitionEventRecorder;
+use App\Services\Acquisition\GuestAttribution;
+use App\Services\GuestShell\GuestIdentityThrottle;
 use App\Services\GuestShell\GuestVisitorResolver;
 use App\Services\InvitationResumption;
 use App\Services\ReferralService;
@@ -73,9 +75,14 @@ class RegisteredUserController extends Controller
      *
      * @throws ValidationException
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, GuestVisitorResolver $visitors, GuestAttribution $attribution, GuestIdentityThrottle $identities, AcquisitionEventRecorder $events): RedirectResponse
     {
         $request->validate([
+            'attribution' => ['sometimes', 'array:shortcut,utm_source,utm_medium,utm_campaign'],
+            'attribution.shortcut' => ['nullable', 'string', 'max:32'],
+            'attribution.utm_source' => ['nullable', 'string', 'max:200'],
+            'attribution.utm_medium' => ['nullable', 'string', 'max:200'],
+            'attribution.utm_campaign' => ['nullable', 'string', 'max:200'],
             'name' => ['required', 'string', 'max:255'],
             'first_name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
@@ -110,6 +117,29 @@ class RegisteredUserController extends Controller
             'organization_id' => $user->organization_id,
             'reason' => 'welcome_bonus',
         ]);
+
+        // TASK-1464 (audit OPUS final P1-2, Growth V3 §5) : le chemin « lien court → inscription » a un porteur.
+        // Au POST seulement (afficher le formulaire ne cree rien) : si aucun cookie Guest de CETTE Organization et
+        // si le formulaire porte une attribution valide (code de Shortcut relu en base et/ou UTM autorises), l'identite
+        // Guest nait ici — apres la garde de creation pre-identite (F1), attribution relue en base, jamais crue sur
+        // parole. Sans attribution : aucune identite (une inscription directe reste anonyme). Un echec ne casse
+        // jamais l'inscription. Ensuite `account_created`, le claim SW-11, `converted` et le CRM ont leur porteur.
+        rescue(function () use ($request, $organization, $visitors, $attribution, $identities, $events): void {
+            if ($visitors->find($request, $organization) !== null) {
+                return;
+            }
+            $claimed = (array) $request->input('attribution', []);
+            $resolved = $attribution->resolve($organization, $claimed);
+            if ($resolved['shortcut'] === null && $resolved['utm_source'] === null && $resolved['utm_medium'] === null && $resolved['utm_campaign'] === null) {
+                return;
+            }
+            if (! $identities->allowNewIdentity($organization)) {
+                return;
+            }
+            $visitor = $visitors->ensure($request, $organization, ['locale' => app()->getLocale(), 'referrer' => $request->headers->get('referer')] + $resolved);
+            $events->record($organization, AcquisitionEvent::GUEST_CREATED, $events->visitorDimensions($visitor), ['surface' => 'signup'], AcquisitionEvent::GUEST_CREATED.':visitor:'.$visitor->getKey());
+            $events->record($organization, AcquisitionEvent::SIGNUP_STARTED, $events->visitorDimensions($visitor), [], AcquisitionEvent::SIGNUP_STARTED.':visitor:'.$visitor->getKey());
+        });
 
         event(new Registered($user));
 

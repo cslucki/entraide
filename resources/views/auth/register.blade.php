@@ -14,6 +14,11 @@
         <form method="POST" action="{{ $registerAction }}">
             @csrf
             <input type="hidden" name="ref" value="{{ $ref ?? '' }}">
+            {{-- TASK-1464 (audit OPUS final P1-2) : l'attribution de la page d'atterrissage, relue en base au POST (jamais journey/campaign). --}}
+            <input type="hidden" name="attribution[shortcut]" value="{{ request()->query('shortcut') }}">
+            <input type="hidden" name="attribution[utm_source]" value="{{ request()->query('utm_source') }}">
+            <input type="hidden" name="attribution[utm_medium]" value="{{ request()->query('utm_medium') }}">
+            <input type="hidden" name="attribution[utm_campaign]" value="{{ request()->query('utm_campaign') }}">
 
             <div class="space-y-5">
                 <!-- Prénom -->
