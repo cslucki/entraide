@@ -246,31 +246,36 @@ class TASK1326AiShellPinnedContextTest extends TestCase
 
     public function test_pins_survive_navigation_and_the_pin_button_follows_the_page_object(): void
     {
+        // TASK-1466 : la navigation temoin ne passe plus par une Boucle — le
+        // Shell ne s'y monte plus. L'objet epingle et l'objet de la page
+        // courante sont donc un Dossier et un Article : deux objets gouvernes,
+        // sur deux surfaces qui portent encore le Shell. Le contrat mesure est
+        // inchange — la puce survit a la navigation, le bouton d'epingle suit
+        // l'objet de la page courante.
         Livewire::actingAs($this->memberA)
             ->test(AiShell::class)
-            ->call('pin', 'loop', (string) $this->loopA->id);
+            ->call('pin', 'dossier', (string) $this->dossierA->id);
 
-        // Page Boucle (l'objet epingle) : la puce est la, le bouton d'epingle
-        // n'est PAS propose pour un objet deja epingle.
-        $this->actingAs($this->memberA)->get($this->loopUrl($this->loopA))
+        // Page du Dossier epingle : la puce est la, aucun bouton d'ajout.
+        $this->actingAs($this->memberA)->get($this->dossierUrl($this->dossierA))
             ->assertOk()
-            ->assertSee('data-ai-shell-pin="loop:'.$this->loopA->id.'"', false)
-            ->assertSee('Boucle Pins A')
+            ->assertSee('data-ai-shell-pin="dossier:'.$this->dossierA->id.'"', false)
+            ->assertSee('Dossier Pins A')
             ->assertDontSee('data-ai-shell-pin-add', false);
 
         // Tableau de bord (aucun objet) : la puce survit, aucun bouton.
         $this->actingAs($this->memberA)->get(route('organization.dashboard', ['organization' => $this->organizationA->slug]))
             ->assertOk()
-            ->assertSee('data-ai-shell-pin="loop:'.$this->loopA->id.'"', false)
+            ->assertSee('data-ai-shell-pin="dossier:'.$this->dossierA->id.'"', false)
             ->assertDontSee('data-ai-shell-pin-add', false);
 
-        // Page d'une AUTRE Boucle, non epinglee : la puce survit ET le bouton
+        // Page d'un AUTRE objet, non epingle : la puce survit ET le bouton
         // propose d'epingler l'objet de la page courante — jamais un autre.
-        $this->actingAs($this->memberA)->get($this->loopUrl($this->loopA2))
+        $this->actingAs($this->memberA)->get($this->articleUrl($this->articleA))
             ->assertOk()
-            ->assertSee('data-ai-shell-pin="loop:'.$this->loopA->id.'"', false)
+            ->assertSee('data-ai-shell-pin="dossier:'.$this->dossierA->id.'"', false)
             ->assertSee('data-ai-shell-pin-add', false)
-            ->assertSee("pin('loop', '".$this->loopA2->id."')", false);
+            ->assertSee("pin('article', '".$this->articleA->id."')", false);
     }
 
     // =====================================================================
@@ -443,6 +448,17 @@ class TASK1326AiShellPinnedContextTest extends TestCase
     private function loopUrl(Loop $loop): string
     {
         return route('organization.loops.show', ['organization' => $this->organizationA->slug, 'loop' => $loop->id]);
+    }
+
+    /** TASK-1466 : deux surfaces qui portent encore le Shell. */
+    private function dossierUrl(Dossier $dossier): string
+    {
+        return route('organization.dossiers.show', ['organization' => $this->organizationA->slug, 'dossier' => $dossier->id]);
+    }
+
+    private function articleUrl(BlogPost $post): string
+    {
+        return route('organization.blog.show', ['organization' => $this->organizationA->slug, 'post' => $post->slug]);
     }
 
     private function fakeClarifier(): void

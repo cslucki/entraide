@@ -48,6 +48,15 @@ final class AiFabContext
 
     public const ACTION_DOSSIER_SEARCH = 'dossier_search';
 
+    /**
+     * TASK-1466 (CDC 21h-23h §2.3) — les routes ou la Boucle porte DEJA son
+     * IA : le ChatLoop. Ce sont exactement les deux noms que `actionsFor()`
+     * reconnait plus bas comme « page Boucle » — la meme liste, une seule
+     * fois, pour que la surface qui propose les actions et celle qui decide
+     * du montage ne puissent jamais diverger.
+     */
+    public const LOOP_SURFACE_ROUTES = ['loops.show', 'organization.loops.show'];
+
     /** Cle memo : id utilisateur -> contexte (une lecture par requete). */
     private array $memo = [];
 
@@ -83,6 +92,36 @@ final class AiFabContext
         }
 
         return $this->memo[$user->id] ??= $this->build($request, $user);
+    }
+
+    /**
+     * Le FAB doit-il etre RENDU sur cette page ?
+     *
+     * TASK-1466 (CDC 21h-23h §2.3) — sur une Boucle, l'IA est DEJA la : le
+     * ChatLoop, « Demander a l'IA », les Dossiers, la demande d'aide. Un FAB
+     * flottant y ouvrirait une SECONDE porte vers les MEMES actions. Deux
+     * portes pour une seule piece, c'est un doublon, pas une commodite.
+     *
+     * La distinction est deliberee : le CONTEXTE d'une Boucle reste calcule
+     * (`forRequest()` — credit, gardes, actions), parce que le Shell et
+     * `AiSelfKnowledge` s'en servent ailleurs. Ce qui s'arrete ici est le
+     * RENDU d'une seconde surface, pas la connaissance de la page.
+     */
+    public function shouldRenderFab(Request $request, ?User $user): bool
+    {
+        return ! $this->isLoopSurface($request) && $this->forRequest($request, $user) !== null;
+    }
+
+    /**
+     * La page en cours est-elle un ChatLoop ?
+     *
+     * Le nom de route seul, jamais l'URL : `loops.show` et
+     * `organization.loops.show` sont les deux formes (non prefixee et
+     * prefixee par l'Organization) de la MEME page.
+     */
+    public function isLoopSurface(Request $request): bool
+    {
+        return in_array((string) ($request->route()?->getName() ?? ''), self::LOOP_SURFACE_ROUTES, true);
     }
 
     /**
@@ -146,9 +185,19 @@ final class AiFabContext
      * offert sur une page dont l'objet a ete refuse a l'utilisateur.** Le
      * contexte le sait deja (`page_context.refused`) ; il suffit de ne pas
      * monter.
+     *
+     * TASK-1466 : seconde regle produit, meme mecanique et meme frontiere —
+     * **le Shell global ne se monte pas sur un ChatLoop**. La Boucle possede
+     * son IA native ; le Shell global y serait la meme piece par une autre
+     * porte. Comme pour le FAB, c'est le RENDU qui s'arrete : le contexte de
+     * la page continue d'exister pour ceux qui le lisent ailleurs.
      */
     public function shouldMountShell(Request $request, ?User $user): bool
     {
+        if ($this->isLoopSurface($request)) {
+            return false;
+        }
+
         $fab = $this->forRequest($request, $user);
 
         if ($fab === null || ! ($fab['shell_enabled'] ?? false)) {
@@ -175,7 +224,7 @@ final class AiFabContext
      */
     private function actionsFor(Request $request, string $routeName, User $user): array
     {
-        if (in_array($routeName, ['loops.show', 'organization.loops.show'], true)) {
+        if (in_array($routeName, self::LOOP_SURFACE_ROUTES, true)) {
             $loop = $request->route('loop');
 
             if ($loop instanceof Loop) {

@@ -6,7 +6,13 @@
     // lisant le DOM et n'appelle jamais un provider : il ouvre des surfaces
     // qui existent (evenements window) ou suit un lien. Rendu dans le seul
     // layout membre (`layouts.app`), jamais guest / admin / org-admin.
-    $fab = app(\App\Support\Ai\AiFabContext::class)->forRequest(request(), auth()->user());
+    // TASK-1466 : le rendu passe par `shouldRenderFab()` — sur un ChatLoop, la
+    // Boucle porte deja son IA et le FAB n'ouvre pas une seconde porte vers
+    // les memes actions. Le contexte, lui, reste calcule par la meme autorite.
+    $fabContext = app(\App\Support\Ai\AiFabContext::class);
+    $fab = $fabContext->shouldRenderFab(request(), auth()->user())
+        ? $fabContext->forRequest(request(), auth()->user())
+        : null;
 @endphp
 @if($fab)
 <div x-data="{

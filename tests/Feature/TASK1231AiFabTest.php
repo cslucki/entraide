@@ -89,25 +89,15 @@ class TASK1231AiFabTest extends TestCase
     {
         AiConfig::set('clarification_enabled', true);
 
-        $page = $this->actingAs($this->member)->get($this->loopUrl());
-
-        $page->assertOk()
-            ->assertSee('data-ai-fab-page="loop"', false)
-            ->assertSee('data-ai-fab-action="'.AiFabContext::ACTION_LOOP_ASK.'"', false)
-            ->assertSee('data-ai-fab-action="'.AiFabContext::ACTION_LOOP_KNOWLEDGE.'"', false)
-            ->assertSee('data-ai-fab-action="'.AiFabContext::ACTION_HELP_REQUEST.'"', false)
-            ->assertSee(__('ai.fab_action_loop_ask'))
-            ->assertSee(__('ai.fab_action_loop_knowledge'))
-            ->assertSee(__('ai.fab_action_help_request'));
-
-        // Le resume n'est propose que si la Card est placee pour cet
-        // utilisateur dans cette Boucle — meme source que la barre d'actions.
-        $summaryPlaced = app(LoopCardRegistry::class)->chatActionCardsFor($this->loop, $this->member)->contains('key', 'core.ai_summary');
-        if ($summaryPlaced) {
-            $page->assertSee('data-ai-fab-action="'.AiFabContext::ACTION_LOOP_SUMMARY.'"', false);
-        } else {
-            $page->assertDontSee('data-ai-fab-action="'.AiFabContext::ACTION_LOOP_SUMMARY.'"', false);
-        }
+        // TASK-1466 : la Boucle ne REND plus le FAB — son IA y est native, et
+        // une seconde porte vers les memes actions serait un doublon. Ce que
+        // ce test garde de T1231 est ce qui vaut encore : le CONTEXTE de la
+        // page Boucle, calcule avec les memes gardes, que le Shell et
+        // `AiSelfKnowledge` continuent de lire.
+        $this->actingAs($this->member)->get($this->loopUrl())
+            ->assertOk()
+            ->assertDontSee('data-ai-fab-page=', false)
+            ->assertDontSee('data-ai-fab-action=', false);
 
         // Le contexte serveur ne connait que les cinq actions canoniques —
         // TASK-1237 : « Demander a l'IA » (loop_ask) y figure desormais,
@@ -212,13 +202,12 @@ class TASK1231AiFabTest extends TestCase
         $this->platformQuota(5);
         $this->uses($this->member, 4);
 
-        $page = $this->actingAs($this->member)->get($this->loopUrl());
+        $page = $this->actingAs($this->member)->get($this->fabPageUrl());
 
         $page->assertOk()
             ->assertSee('data-ai-fab-tone="alert"', false)
             ->assertSee('data-ai-fab-alert', false)
-            ->assertSee(trans_choice('ai.credit_remaining', 1))
-            ->assertSee('data-ai-fab-action="'.AiFabContext::ACTION_LOOP_KNOWLEDGE.'"', false);
+            ->assertSee(trans_choice('ai.credit_remaining', 1));
 
         $expected = app(AiEconomicGuard::class)->userCreditStatus($this->organization, $this->member);
         $context = $this->contextFor($this->member, $this->loopUrl());
@@ -232,7 +221,7 @@ class TASK1231AiFabTest extends TestCase
         $interactions = AiInteraction::query()->count();
         $ledger = AiProviderInvocation::query()->count();
 
-        $page = $this->actingAs($this->member)->get($this->loopUrl());
+        $page = $this->actingAs($this->member)->get($this->fabPageUrl());
 
         $page->assertOk()
             ->assertSee('data-ai-fab-tone="exhausted"', false)
@@ -252,7 +241,7 @@ class TASK1231AiFabTest extends TestCase
         $this->platformQuota(1, offerSubscription: false);
         $this->uses($this->member, 1);
 
-        $page = $this->actingAs($this->member)->get($this->loopUrl());
+        $page = $this->actingAs($this->member)->get($this->fabPageUrl());
 
         $page->assertOk()
             ->assertSee('data-ai-fab-refusal', false)
@@ -310,6 +299,16 @@ class TASK1231AiFabTest extends TestCase
     }
 
     /**
+     * TASK-1466 — une page qui REND le FAB. Depuis que la Boucle porte son IA
+     * native seule, le tableau de bord est la surface temoin des contrats de
+     * rendu (credit, ton, refus, offres) que ces tests mesurent.
+     */
+    private function fabPageUrl(): string
+    {
+        return route('organization.dashboard', ['organization' => $this->organization->slug]);
+    }
+
+    /**
      * Le contexte tel que le composant le recoit : un vrai GET (route resolue,
      * Organization courante, bindings), puis la meme lecture que le composant
      * — l'instance `scoped` de la requete rend le tableau deja calcule.
@@ -324,7 +323,10 @@ class TASK1231AiFabTest extends TestCase
 
         $response = $this->actingAs($user)->get($url);
         $response->assertOk();
-        $this->assertStringContainsString('data-ai-fab', $response->getContent());
+        // TASK-1466 : on ne mesure plus la PRESENCE du FAB ici. Le contexte
+        // d'une page Boucle continue d'exister (le Shell et AiSelfKnowledge le
+        // lisent) alors que le FAB ne s'y REND plus. Ce helper porte sur le
+        // contexte ; le rendu a ses propres tests.
 
         $context = app(AiFabContext::class)->forRequest(app('request'), $user);
         $this->assertNotNull($context);
