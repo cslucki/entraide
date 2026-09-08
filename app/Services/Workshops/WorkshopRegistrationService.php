@@ -134,10 +134,23 @@ final class WorkshopRegistrationService
             ->all();
     }
 
-    /** Le visiteur Guest rattache a ce compte dans cette Organization (claim SW-11), s'il existe — jamais efface. */
+    /**
+     * Le visiteur Guest rattache a ce compte dans cette Organization (claim SW-11), s'il existe — jamais efface.
+     * TASK-1459 (audit F7, MASTER #52) : l'autorite de provenance d'une inscription est, dans l'ordre,
+     *  1. le visiteur rattache qui PORTE L'INTERET de cette session (la causalite la plus forte :
+     *     visiteur -> choisit la session -> cree/verifie son compte -> confirme la session) ;
+     *  2. sinon le PREMIER visiteur acquis par ce compte dans cette Organization (first touch :
+     *     `first_seen_at`, puis id — jamais `claimed_at`, qui date le rattachement, pas l'acquisition) ;
+     *  3. sinon aucune provenance. Jamais « le dernier visiteur rattache ».
+     */
     private function claimedVisitor(WorkshopSession $session, User $user): ?GuestVisitor
     {
-        return GuestVisitor::query()->where('organization_id', $session->organization_id)->where('claimed_user_id', $user->getKey())->orderByDesc('claimed_at')->first();
+        $claimed = GuestVisitor::query()->where('organization_id', $session->organization_id)->where('claimed_user_id', $user->getKey());
+        $holder = (clone $claimed)
+            ->whereIn('id', WorkshopSessionInterest::query()->where('workshop_session_id', $session->getKey())->select('guest_visitor_id'))
+            ->orderBy('first_seen_at')->orderBy('id')->first();
+
+        return $holder ?? (clone $claimed)->orderBy('first_seen_at')->orderBy('id')->first();
     }
 
     private function guard(WorkshopSession $session, User $user): void

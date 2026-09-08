@@ -8,6 +8,7 @@ use App\Models\CrmStatus;
 use App\Models\EmailLog;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Crm\CrmAttributionService;
 use App\Services\Crm\CrmContactPolicyService;
 use App\Services\Crm\CrmContactService;
 use App\Services\Crm\CrmDashboardService;
@@ -232,6 +233,7 @@ class OrgCrmController extends Controller
             'r' => $this->crmRouter($organization),
             'links' => $this->crmLinks($organization, $contact),
             'contact' => $contact->load(['status', 'user', 'createdBy']),
+            'attribution' => app(CrmAttributionService::class)->for($contact),
             'statuses' => CrmStatus::forOrganization($organization)->active()->ordered()->get(),
             'events' => $contact->events()->with('author')->chronological()->get()->reverse()->values(),
             'channels' => CrmTimelineService::CHANNELS,

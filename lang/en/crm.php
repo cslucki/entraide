@@ -120,6 +120,18 @@ return [
     ],
     'shell_conversations' => '{0} no conversation|{1} :count conversation|[2,*] :count conversations',
     'flash_contact_updated' => 'Details updated.',
+    // TASK-1459 — attribution read from the Journey / short link / visitor / workshop authorities.
+    'attribution' => [
+        'title' => 'Provenance',
+        'source_ref' => 'Reference',
+        'journey' => 'Journey',
+        'campaign' => 'Campaign',
+        'shortcut' => 'Short link',
+        'utm_source' => 'Source',
+        'first_touch' => 'First touch',
+        'claimed' => 'Linked to the account',
+        'workshop' => 'Workshop',
+    ],
     'flash_contact_unchanged' => 'No change.',
     'flash_update_conflict' => 'Another contact of your organization already has this email.',
     // TASK-1418 — CRM-6: the next action.

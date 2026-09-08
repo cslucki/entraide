@@ -119,6 +119,18 @@ return [
         'hint' => 'Chaque modification est tracée dans l\'historique.',
     ],
     'flash_contact_updated' => 'Coordonnées mises à jour.',
+    // TASK-1459 — attribution lue depuis les autorités Journey / lien court / visiteur / atelier.
+    'attribution' => [
+        'title' => 'Provenance',
+        'source_ref' => 'Référence',
+        'journey' => 'Parcours',
+        'campaign' => 'Campagne',
+        'shortcut' => 'Lien court',
+        'utm_source' => 'Source',
+        'first_touch' => 'Premier contact',
+        'claimed' => 'Rattaché au compte',
+        'workshop' => 'Atelier',
+    ],
     'shell_conversations' => '{0} aucune conversation|{1} :count conversation|[2,*] :count conversations',
     'flash_contact_unchanged' => 'Aucune modification.',
     'flash_update_conflict' => 'Un autre contact de votre organisation porte déjà cet email.',
