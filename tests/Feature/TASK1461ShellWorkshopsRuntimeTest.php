@@ -70,7 +70,7 @@ class TASK1461ShellWorkshopsRuntimeTest extends TestCase
         $adminB = User::factory()->create(['organization_id' => $this->b->id]);
         $this->b->update(['admin_id' => $adminB->id]);
 
-        $open = $workshops->create($this->a, ['title' => 'Découvrir l\'IA', 'slug' => 'ia-90', 'format' => 'online', 'locale' => 'fr'], $this->adminA);
+        $open = $workshops->create($this->a, ['title' => 'Découvrir l\'IA', 'slug' => 'ia-90', 'format' => 'online', 'locale' => 'fr', 'promise' => 'Comprendre l\'IA en 90 minutes', 'description' => 'DESCRIPTION LONGUE réservée à la page, jamais au contexte.'], $this->adminA);
         $workshops->publish($open, $this->adminA);
         $sessions->publish($sessions->create($open, ['starts_at' => '2026-10-01 18:30', 'timezone' => 'Europe/Paris', 'location' => 'https://meet.example.test/secret-room', 'capacity' => 12], $this->adminA), $this->adminA);
         $sessions->create($open, ['starts_at' => '2026-09-20 18:30', 'timezone' => 'Europe/Paris'], $this->adminA); // brouillon : ignoree, la prochaine reste le 1er octobre
@@ -92,7 +92,8 @@ class TASK1461ShellWorkshopsRuntimeTest extends TestCase
         $this->assertStringContainsString('jeudi 1 octobre 2026 18:30 (Europe/Paris)', $block['text'], 'la prochaine session PUBLIEE, en heure locale');
         $this->assertStringContainsString(route('organization.workshop.show', ['organization' => $this->a->slug, 'workshop' => 'ia-90']), $block['text'], 'URL publique reelle');
         $this->assertStringContainsString('En ligne', $block['text']);
-        foreach (['Brouillon secret', 'Atelier passé', 'Sans session', 'Atelier de B', 'secret-room', '12', '20 septembre'] as $never) {
+        $this->assertStringContainsString('Découvrir l\'IA — Comprendre l\'IA en 90 minutes — ', $block['text'], 'la promesse courte publique (MASTER #54)');
+        foreach (['Brouillon secret', 'Atelier passé', 'Sans session', 'Atelier de B', 'secret-room', '12', '20 septembre', 'DESCRIPTION LONGUE'] as $never) {
             $this->assertStringNotContainsString($never, $block['text'], "jamais : {$never}");
         }
         $this->assertTrue(app(CapabilityRegistry::class)->get(CapabilityRegistry::GUEST_SHELL_WELCOME)->allowsSource(CapabilityRegistry::SOURCE_WORKSHOPS_RUNTIME));
@@ -111,7 +112,7 @@ class TASK1461ShellWorkshopsRuntimeTest extends TestCase
         $workshops = app(WorkshopService::class);
         $sessions = app(WorkshopSessionService::class);
         for ($i = 1; $i <= GuestPublicContextBuilder::WORKSHOPS_RUNTIME_MAX + 2; $i++) {
-            $w = $workshops->create($this->a, ['title' => "Atelier n{$i}", 'slug' => "atelier-{$i}", 'format' => 'online', 'locale' => 'fr'], $this->adminA);
+            $w = $workshops->create($this->a, ['title' => "Atelier n{$i}", 'slug' => "atelier-{$i}", 'format' => 'online', 'locale' => 'fr', 'promise' => "Promesse n{$i}"], $this->adminA);
             $workshops->publish($w, $this->adminA);
             $sessions->publish($sessions->create($w, ['starts_at' => sprintf('2026-10-%02d 18:30', $i), 'timezone' => 'Europe/Paris'], $this->adminA), $this->adminA);
         }
@@ -128,7 +129,8 @@ class TASK1461ShellWorkshopsRuntimeTest extends TestCase
         GuestShellAgent::assertPrompted(function (AgentPrompt $p): bool {
             $instructions = (string) $p->agent->instructions();
 
-            return str_contains($instructions, 'Atelier n1')
+            // Titre, promesse et URL d'un atelier reel de CETTE Organization atteignent le modele ; jamais un atelier d'ailleurs (MASTER #54).
+            return str_contains($instructions, 'Atelier n1 — Promesse n1 — ')
                 && str_contains($instructions, route('organization.workshop.show', ['organization' => $this->a->slug, 'workshop' => 'atelier-1']))
                 && ! str_contains($instructions, 'Atelier de B');
         });

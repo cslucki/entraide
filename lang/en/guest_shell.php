@@ -13,7 +13,7 @@ return [
         // TASK-1461 — Growth V3 §17: what is really possible here, now.
         'workshops_runtime' => 'Workshops open right now',
         'workshops_intro' => 'Published workshops with an upcoming session (only offer these, with their link):',
-        'workshop_line' => '- :title — :when — :format — :url',
+        'workshop_line' => '- :title:promise — :when — :format — :url',
         'platform_constitution' => 'Platform AI Constitution (Mycelium)',
         'organization_constitution' => ':name AI Constitution (published)',
         'name' => 'Name',
