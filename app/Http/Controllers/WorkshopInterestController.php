@@ -6,6 +6,7 @@ use App\Models\Organization;
 use App\Models\Workshop;
 use App\Models\WorkshopSession;
 use App\Services\Acquisition\GuestAttribution;
+use App\Services\GuestShell\GuestIdentityThrottle;
 use App\Services\GuestShell\GuestVisitorResolver;
 use App\Services\Workshops\WorkshopInterestService;
 use Illuminate\Http\RedirectResponse;
@@ -28,6 +29,7 @@ class WorkshopInterestController extends Controller
         private readonly GuestVisitorResolver $visitors,
         private readonly WorkshopInterestService $interests,
         private readonly GuestAttribution $attribution,
+        private readonly GuestIdentityThrottle $identities,
     ) {}
 
     public function select(Request $request, string $organization, string $workshop, string $session): RedirectResponse
@@ -42,6 +44,9 @@ class WorkshopInterestController extends Controller
             'attribution.utm_medium' => ['nullable', 'string', 'max:200'],
             'attribution.utm_campaign' => ['nullable', 'string', 'max:200'],
         ]);
+
+        // TASK-1460 (V3 §3, audit F1) : anti-rafale PRE-IDENTITE par Organization — avant toute creation de visiteur.
+        abort_if($this->visitors->find($request, $target) === null && ! $this->identities->allowNewIdentity($target), 429);
 
         $visitor = $this->visitors->ensure($request, $target, [
             'locale' => app()->getLocale(),

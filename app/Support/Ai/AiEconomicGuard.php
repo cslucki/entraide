@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\Ai\AiUserCreditSettings;
 use App\Services\Ai\OrganizationAiEconomicUsage;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 
 final class AiEconomicGuard
@@ -409,6 +410,17 @@ final class AiEconomicGuard
      * groupe porte ses deux fenetres. La part EMBEDDING ne subit aucun
      * cutover : deja lue depuis le ledger sur tout le mois (TASK-1222).
      */
+    /**
+     * TASK-1460 (audit F2) — le cout IA connu de l'Organization sur le mois courant, toutes capabilities :
+     * la MEME lecture que authorize(), exposee pour que GuestShellPolicyService::state() dise la meme verite.
+     */
+    public function organizationMonthlyCostUsd(Organization $organization, ?CarbonInterface $now = null): float
+    {
+        $monthStart = ($now ?? now())->copy()->startOfMonth();
+
+        return $this->organizationMonthlyKnownCost($organization, $monthStart, $monthStart->copy()->addMonth());
+    }
+
     private function organizationMonthlyKnownCost(
         Organization $organization,
         Carbon $monthStart,

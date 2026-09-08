@@ -10,8 +10,10 @@ use App\Models\OrganizationGuestShellPolicy;
 use App\Services\Acquisition\AcquisitionEventRecorder;
 use App\Services\Acquisition\GuestAttribution;
 use App\Support\GuestShell\GuestPageContext;
+use App\Support\GuestShell\GuestShellClearance;
 use App\Support\GuestShell\GuestShellDisplay;
 use App\Support\GuestShell\GuestShellDisplayMode;
+use App\Support\GuestShell\GuestShellTurn;
 use Illuminate\Http\Request;
 
 /**
@@ -45,6 +47,7 @@ final class GuestShellSurface
         private readonly GuestShellResponder $responder,
         private readonly GuestAttribution $attribution,
         private readonly AcquisitionEventRecorder $events,
+        private readonly GuestIdentityThrottle $identities,
     ) {}
 
     /**
@@ -94,6 +97,24 @@ final class GuestShellSurface
                 'assistant' => null,
                 'conversation' => null,
                 'cta' => $page?->publicCta,
+            ];
+        }
+
+        // TASK-1460 (V3 §3, audit F1) : anti-rafale PRE-IDENTITE par Organization — avant toute creation de visiteur ;
+        // un visiteur deja porteur de son cookie n'est pas concerne (sa rafale est celle du gate).
+        if ($this->visitors->find($request, $organization) === null && ! $this->identities->allowNewIdentity($organization)) {
+            $refusal = GuestShellTurn::refused(GuestShellClearance::STEP_ORGANIZATION, GuestIdentityThrottle::REASON);
+
+            return [
+                'turn' => $refusal->status,
+                'reason' => $refusal->reason,
+                'step' => $refusal->step,
+                'display' => $this->displayPayload($decision, $policy),
+                'user' => null,
+                'assistant' => null,
+                'conversation' => null,
+                'cta' => $page->publicCta,
+                'retry_after_seconds' => $this->identities->retryAfterSeconds($organization),
             ];
         }
 
