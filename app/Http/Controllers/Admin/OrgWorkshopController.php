@@ -28,7 +28,7 @@ class OrgWorkshopController extends Controller
 
     public function index(Organization $organization): View
     {
-        $rows = Workshop::query()->forOrganization($organization)->with(['author', 'journey'])->orderByRaw("case status when 'published' then 0 when 'draft' then 1 else 2 end")->orderBy('title')->get();
+        $rows = Workshop::query()->forOrganization($organization)->with(['author', 'journey'])->withCount('sessions')->orderByRaw("case status when 'published' then 0 when 'draft' then 1 else 2 end")->orderBy('title')->get();
 
         return view('admin.org.workshops.index', ['organization' => $organization, 'rows' => $rows]);
     }

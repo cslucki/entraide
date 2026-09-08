@@ -15,7 +15,8 @@ use Illuminate\View\View;
  * Organization par son slug — sinon 404 (publiquement, la ressource n'existe
  * pas). Expose : titre, promesse, description, format, duree. Jamais :
  * meeting_url (n'existe pas ici), participants, notes internes, CRM,
- * credentials. Aucune session ni CTA d'inscription inventee avant B4.
+ * credentials. TASK-1451 (B4-A) : les sessions PUBLIEES a venir (date locale,
+ * fuseau, lieu, capacite informative) — aucune meeting_url, aucune inscription.
  *
  * Le Shell Welcome n'est PAS affiche sur cette page (MASTER Q76 : PageContext
  * `workshop_page` resolvable, Shell non eligible).
@@ -30,6 +31,10 @@ class WorkshopPageController extends Controller
         $workshop = Workshop::query()->forOrganization($organization)->published()->where('slug', $workshop)->first();
         abort_if($workshop === null, 404);
 
-        return view('organization.workshop', ['organization' => $organization, 'workshop' => $workshop]);
+        return view('organization.workshop', [
+            'organization' => $organization,
+            'workshop' => $workshop,
+            'sessions' => $workshop->publicUpcomingSessions()->get(),
+        ]);
     }
 }

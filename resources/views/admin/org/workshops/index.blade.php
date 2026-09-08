@@ -40,6 +40,7 @@
                         <td class="px-3 py-2">
                             <div class="flex flex-wrap items-center gap-2">
                                 <a href="{{ route('organization.admin.workshops.edit', [$organization, $row]) }}" class="text-indigo-600 dark:text-indigo-400 hover:underline text-xs">{{ __('workshops.edit') }}</a>
+                                <a href="{{ route('organization.admin.workshops.sessions', [$organization, $row]) }}" class="text-indigo-600 dark:text-indigo-400 hover:underline text-xs" data-workshop-sessions="{{ $row->id }}">{{ __('workshops.sessions_link', ['count' => $row->sessions_count ?? 0]) }}</a>
                                 @if($row->isPublished())
                                     <a href="{{ route('organization.workshop.show', ['organization' => $organization->slug, 'workshop' => $row->slug]) }}" class="text-xs text-gray-600 dark:text-gray-300 hover:underline" data-workshop-public="{{ $row->id }}">{{ __('workshops.view_public') }}</a>
                                     <form method="POST" action="{{ route('organization.admin.workshops.retire', [$organization, $row]) }}" onsubmit="return confirm(@js(__('workshops.retire_confirm')))">@csrf @method('DELETE')<button type="submit" class="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700" data-workshop-retire="{{ $row->id }}">{{ __('workshops.retire') }}</button></form>
