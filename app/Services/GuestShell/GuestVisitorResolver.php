@@ -55,6 +55,10 @@ final class GuestVisitorResolver
         $key = $this->key($request);
         if ($key === null) {
             $key = $this->issue();
+            // TASK-1464 (audit OPUS final P1-2) : l'identite nee dans CETTE requete est visible de tout lecteur de la
+            // meme requete (listeners de `Registered`, reprise), quel que soit l'instance du resolver — comme le
+            // navigateur la renverra a la requete suivante. Jamais au-dela de la requete.
+            $request->cookies->set(self::COOKIE, $key);
         }
 
         $now = now();
