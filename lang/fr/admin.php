@@ -783,6 +783,12 @@ return [
     // derive desormais de la RAISON, et chaque raison porte sa cause et son
     // geste. Zone SuperAdmin : nommer la variable d'environnement du plafond
     // est autorise et utile ; une cle ne l'est jamais.
+    // TASK-1470 : les cles `guest_shell_state_*` et `guest_shell_reason_*` ont ete
+    // retirees ici. Elles etaient devenues ORPHELINES — les trois surfaces admin
+    // lisent desormais `GuestShellDiagnosis` — et l'une d'elles nommait une
+    // personne (« tant que Cyril ne l'a pas fixe ») dans une chaine d'interface.
+    // Une chaine morte qui dit quelque chose de faux est pire qu'une chaine
+    // absente : elle attend d'etre reaffichee.
     'guest_shell_diag_ready_label' => 'Prêt',
     'guest_shell_diag_disabled_label' => 'Désactivé',
     'guest_shell_diag_organization_inactive_label' => 'Action requise',
@@ -819,20 +825,4 @@ return [
     'guest_shell_diag_unknown_cause' => 'L\'assistant public est arrêté pour une raison que cet écran ne sait pas encore nommer.',
     'guest_shell_diag_unknown_action' => 'Signaler le code technique ci-dessous à l\'équipe produit.',
     'guest_shell_diag_technical' => 'Code technique :',
-    'guest_shell_state_active' => 'Actif',
-    'guest_shell_state_disabled' => 'Désactivé',
-    'guest_shell_state_no_credential' => 'Sans credential',
-    'guest_shell_state_budget_blocked' => 'Budget atteint',
-    'guest_shell_state_misconfigured' => 'Mal configuré',
-    'guest_shell_reason_disabled' => 'Désactivé pour cette organisation.',
-    'guest_shell_reason_organization_inactive' => 'Organisation inactive.',
-    'guest_shell_reason_organization_not_public' => 'Organisation non publique : sa page /org redirige vers la connexion.',
-    'guest_shell_reason_no_ai_setting' => 'Aucune configuration IA pour cette organisation.',
-    'guest_shell_reason_ai_setting_unusable' => 'Configuration IA désactivée ou incomplète (provider / modèle).',
-    'guest_shell_reason_api_key_missing' => 'Clé API absente pour ce provider.',
-    'guest_shell_reason_guest_monthly_budget_reached' => 'Budget Guest du mois atteint.',
-    'guest_shell_reason_platform_ceiling_unset' => 'Plafond plateforme non configuré (AI_GUEST_SHELL_PLATFORM_CEILING_USD) : aucun appel payant tant que Cyril ne l\'a pas fixé.',
-    'guest_shell_reason_platform_ceiling_reached' => 'Plafond plateforme du mois atteint.',
-    'guest_shell_reason_organization_budget_reached' => 'Budget IA mensuel de l\'organisation atteint.',
-    'guest_shell_reason_process_budget_reached' => 'Plafond du process Guest atteint (aucun budget propre à l\'organisation).',
 ];

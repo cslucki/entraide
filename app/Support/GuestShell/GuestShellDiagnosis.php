@@ -82,11 +82,32 @@ final class GuestShellDiagnosis
      */
     public static function for(GuestShellState $state): array
     {
-        if ($state->isActive()) {
+        return self::fromStatusAndReasons($state->status, $state->reasons);
+    }
+
+    /**
+     * TASK-1470 — la MEME table, par une seconde porte.
+     *
+     * Le cockpit plateforme (`/admin/shell-welcome`) ne recoit pas d'objet
+     * `GuestShellState` : `GuestShellUsageService` n'expose qu'un statut et une
+     * liste de raisons, agreges par Organization. Plutot que de faire remonter
+     * l'objet entier dans un service d'agregation — ou, bien pire, de recopier
+     * la table ailleurs — on expose ici le couple brut que toute surface
+     * possede deja.
+     *
+     * `for()` delegue a cette methode : il n'y a qu'UNE table, qu'un repli,
+     * qu'une definition du mot « Pret ».
+     *
+     * @param  list<string>  $reasons
+     * @return array{key: string, tone: string, label: string, cause: ?string, action: ?string, technical: ?string}
+     */
+    public static function fromStatusAndReasons(string $status, array $reasons): array
+    {
+        if ($status === GuestShellState::ACTIVE) {
             return self::entry('ready', self::TONE_READY);
         }
 
-        $reason = $state->reasons[0] ?? null;
+        $reason = $reasons[0] ?? null;
 
         if ($reason === null || ! isset(self::REASON_MAP[$reason])) {
             // Un etat qui bloque sans raison nommee reste un etat qui bloque.
@@ -96,6 +117,21 @@ final class GuestShellDiagnosis
         [$key, $tone] = self::REASON_MAP[$reason];
 
         return self::entry($key, $tone);
+    }
+
+    /**
+     * La classe Tailwind du badge, pour que les trois surfaces admin colorent
+     * le meme etat de la meme facon. Le `match` etait recopie dans chaque vue,
+     * avec des nuances qui divergeaient deja.
+     */
+    public static function badgeClasses(string $tone): string
+    {
+        return match ($tone) {
+            self::TONE_READY => 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300',
+            self::TONE_NEUTRAL => 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
+            self::TONE_BUDGET => 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300',
+            default => 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300',
+        };
     }
 
     /**
