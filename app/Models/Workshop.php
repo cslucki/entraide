@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -158,5 +159,17 @@ class Workshop extends Model
     public function publisher(): BelongsTo
     {
         return $this->belongsTo(User::class, 'published_by');
+    }
+
+    /** TASK-1451 (B4-A) : les sessions de l'atelier. */
+    public function sessions(): HasMany
+    {
+        return $this->hasMany(WorkshopSession::class);
+    }
+
+    /** Les sessions publiees a venir, celles que la page publique montre (jamais un brouillon, jamais une annulee). */
+    public function publicUpcomingSessions(): HasMany
+    {
+        return $this->sessions()->published()->upcoming()->orderBy('starts_at');
     }
 }

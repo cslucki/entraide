@@ -16,7 +16,24 @@
             @if($workshop->description)
                 <div class="prose prose-sm mt-6 max-w-none whitespace-pre-line text-[var(--bp-text)]" data-workshop-description>{{ $workshop->description }}</div>
             @endif
-            <p class="mt-8 rounded-xl border border-dashed border-[var(--bp-border)] px-4 py-3 text-sm text-[var(--bp-muted)]" data-workshop-sessions-soon>{{ __('workshops.public_sessions_soon') }}</p>
+            {{-- TASK-1451 (B4-A) : les sessions publiees a venir — informatives ; l'inscription vient par son propre flux. --}}
+            @if($sessions->isNotEmpty())
+                <h2 class="mt-8 text-lg font-semibold" data-workshop-sessions-title>{{ __('workshops.public_sessions_title') }}</h2>
+                <ul class="mt-3 space-y-2">
+                    @foreach($sessions as $session)
+                    <li class="rounded-xl border border-[var(--bp-border)] px-4 py-3 text-sm" data-workshop-session="{{ $session->id }}">
+                        <time datetime="{{ $session->starts_at->toIso8601String() }}" class="font-semibold" data-workshop-session-start>{{ $session->localStartsAt()->translatedFormat(__('workshops.public_session_date_format')) }}</time>
+                        @if($session->localEndsAt())<span class="text-[var(--bp-muted)]" data-workshop-session-end> → {{ $session->localEndsAt()->translatedFormat(__('workshops.public_session_time_format')) }}</span>@endif
+                        <span class="text-[var(--bp-muted)]">({{ $session->timezone }})</span>
+                        @if($session->location)<span class="block text-[var(--bp-muted)]" data-workshop-session-location>{{ $session->location }}</span>@endif
+                        @if($session->capacity)<span class="block text-xs text-[var(--bp-muted)]" data-workshop-session-capacity>{{ __('workshops.public_session_capacity', ['count' => $session->capacity]) }}</span>@endif
+                    </li>
+                    @endforeach
+                </ul>
+                <p class="mt-3 text-xs text-[var(--bp-muted)]" data-workshop-registration-soon>{{ __('workshops.public_registration_soon') }}</p>
+            @else
+                <p class="mt-8 rounded-xl border border-dashed border-[var(--bp-border)] px-4 py-3 text-sm text-[var(--bp-muted)]" data-workshop-sessions-soon>{{ __('workshops.public_sessions_soon') }}</p>
+            @endif
             <p class="mt-6"><a href="{{ route('organization.home', ['organization' => $organization->slug]) }}" class="text-sm font-semibold text-[var(--bp-muted)] hover:underline">{{ __('workshops.public_back', ['name' => $organization->name]) }}</a></p>
         </article>
     </section>

@@ -45,6 +45,7 @@ use App\Http\Controllers\Admin\OrgAdminController;
 use App\Http\Controllers\Admin\OrgCrmController;
 use App\Http\Controllers\Admin\OrgCrmTemplateController;
 use App\Http\Controllers\Admin\OrgWorkshopController;
+use App\Http\Controllers\Admin\OrgWorkshopSessionController;
 use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\AiAgentLoopController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -1131,6 +1132,14 @@ Route::prefix('/org/{organization}')
                 Route::put('/ateliers/{workshop}', [OrgWorkshopController::class, 'update'])->name('workshops.update')->whereUuid('workshop');
                 Route::post('/ateliers/{workshop}/publish', [OrgWorkshopController::class, 'publish'])->name('workshops.publish')->whereUuid('workshop');
                 Route::delete('/ateliers/{workshop}', [OrgWorkshopController::class, 'retire'])->name('workshops.retire')->whereUuid('workshop');
+                // TASK-1451 (B4-A) : les sessions d'un atelier — {workshop} dans l'Organization, {session} dans le Workshop.
+                Route::get('/ateliers/{workshop}/sessions', [OrgWorkshopSessionController::class, 'index'])->name('workshops.sessions')->whereUuid('workshop');
+                Route::get('/ateliers/{workshop}/sessions/create', [OrgWorkshopSessionController::class, 'create'])->name('workshops.sessions.create')->whereUuid('workshop');
+                Route::post('/ateliers/{workshop}/sessions', [OrgWorkshopSessionController::class, 'store'])->name('workshops.sessions.store')->whereUuid('workshop');
+                Route::get('/ateliers/{workshop}/sessions/{session}/edit', [OrgWorkshopSessionController::class, 'edit'])->name('workshops.sessions.edit')->whereUuid('workshop')->whereUuid('session');
+                Route::put('/ateliers/{workshop}/sessions/{session}', [OrgWorkshopSessionController::class, 'update'])->name('workshops.sessions.update')->whereUuid('workshop')->whereUuid('session');
+                Route::post('/ateliers/{workshop}/sessions/{session}/publish', [OrgWorkshopSessionController::class, 'publish'])->name('workshops.sessions.publish')->whereUuid('workshop')->whereUuid('session');
+                Route::delete('/ateliers/{workshop}/sessions/{session}', [OrgWorkshopSessionController::class, 'cancel'])->name('workshops.sessions.cancel')->whereUuid('workshop')->whereUuid('session');
                 // TASK-1419 (CRM-4b) : gestion du pipeline. Declare AVANT /relations/{contact}
                 // pour que « statuts » ne soit jamais pris pour un id de Contact.
                 Route::get('/relations/statuts', [OrgCrmController::class, 'statuses'])->name('crm.statuses');
