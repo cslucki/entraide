@@ -91,7 +91,14 @@ class TASK1237FabAskAiInvarianceTest extends TestCase
         $this->assertSame(1, substr_count($html, 'action="'.$aiRoute.'"'), 'un seul formulaire vers la route canonique');
         $this->assertSame(1, substr_count($html, 'name="question"'), 'un seul champ question');
         $this->assertSame(1, substr_count($html, '@bp-open-ask-ai.window'), 'le FAB ouvre le formulaire existant, pas un nouveau');
-        $this->assertStringContainsString('data-ai-fab-action="'.AiFabContext::ACTION_LOOP_ASK.'"', $html);
+        // TASK-1466 : le FAB ne se rend plus SUR la Boucle — l'ecoute de son
+        // evenement reste, parce que le contrat « une seule ecoute, un seul
+        // formulaire » protege la page, pas le FAB. L'action reste calculee
+        // par la meme autorite, mesuree ci-dessous.
+        $this->assertStringNotContainsString('data-ai-fab-action="'.AiFabContext::ACTION_LOOP_ASK.'"', $html);
+        $askFromAuthority = collect(app(AiFabContext::class)->loopActions($this->loop, $this->member))->firstWhere('key', AiFabContext::ACTION_LOOP_ASK);
+        $this->assertNotNull($askFromAuthority, 'la Boucle propose toujours « Demander a l\'IA » — via son autorite');
+        $this->assertSame('bp-open-ask-ai', $askFromAuthority['event']);
     }
 
     // =====================================================================
@@ -141,7 +148,9 @@ class TASK1237FabAskAiInvarianceTest extends TestCase
         // refus au plafond — meme regle deja en vigueur depuis TASK-1231 pour
         // loop_knowledge/loop_summary/help_request, desormais verifiee pour
         // loop_ask aussi. Le refus est affiche avant toute soumission possible.
-        $page = $this->actingAs($this->member)->get($this->loopUrl());
+        // TASK-1466 : mesure sur une page qui rend encore le FAB — la Boucle
+        // n'en porte plus. Le verdict economique, lui, n'a pas bouge.
+        $page = $this->actingAs($this->member)->get(route('organization.dashboard', ['organization' => $this->organization->slug]));
         $page->assertOk()
             ->assertDontSee('data-ai-fab-action="'.AiFabContext::ACTION_LOOP_ASK.'"', false)
             ->assertSee('data-ai-fab-refusal', false);

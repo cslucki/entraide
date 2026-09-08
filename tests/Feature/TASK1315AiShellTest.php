@@ -273,7 +273,9 @@ class TASK1315AiShellTest extends TestCase
 
         // Navigation reelle : nouvelle requete HTTP, nouveau montage du
         // composant. Ce qui revient vient de la base, pas de l'etat client.
-        $page = $this->actingAs($this->memberA)->get($this->loopUrl());
+        // TASK-1466 : la page temoin est un Dossier, pas une Boucle — le Shell
+        // global ne se monte plus sur un ChatLoop (l'IA y est native).
+        $page = $this->actingAs($this->memberA)->get($this->dossierUrl());
 
         $page->assertOk()
             ->assertSee('data-ai-shell-panel', false)
@@ -317,10 +319,12 @@ class TASK1315AiShellTest extends TestCase
 
         // Rechargement complet sur une page d'une autre nature : MEME
         // identifiant, contexte RECALCULE.
-        $this->actingAs($this->memberA)->get($this->loopUrl())
+        // TASK-1466 : le tableau de bord remplace la Boucle comme page « d'une
+        // autre nature » — le Shell ne se monte plus sur un ChatLoop.
+        $this->actingAs($this->memberA)->get(route('organization.dashboard', ['organization' => $this->organizationA->slug]))
             ->assertOk()
             ->assertSee('data-ai-shell-conversation="'.$conversationId.'"', false)
-            ->assertSee('data-ai-shell-context-kind="loop"', false);
+            ->assertSee('data-ai-shell-context-kind="dashboard"', false);
 
         $this->actingAs($this->memberA)->get($this->dossierUrl())
             ->assertOk()
@@ -366,10 +370,11 @@ class TASK1315AiShellTest extends TestCase
             ->set('draft', 'Une question generale.')
             ->call('send');
 
-        $this->actingAs($this->memberA)->get($this->loopUrl())
+        // TASK-1466 : deux surfaces qui portent le Shell — tableau de bord et
+        // Dossier. La Boucle n'en fait plus partie : elle a son IA native.
+        $this->actingAs($this->memberA)->get(route('organization.dashboard', ['organization' => $this->organizationA->slug]))
             ->assertOk()
-            ->assertSee('data-ai-shell-context-kind="loop"', false)
-            ->assertSee('Boucle Shell A');
+            ->assertSee('data-ai-shell-context-kind="dashboard"', false);
 
         $this->actingAs($this->memberA)->get($this->dossierUrl())
             ->assertOk()
@@ -698,14 +703,16 @@ class TASK1315AiShellTest extends TestCase
             ->test(AiShell::class, [])
             ->assertDontSee('data-ai-shell-action="shell_loop_knowledge"', false);
 
-        // Sur la page Boucle, l'action apparait — via la MEME source que le FAB.
+        // TASK-1466 : le contrat a change de surface. Le Shell ne se monte
+        // plus sur un ChatLoop, donc il n'y propose plus rien — l'action de
+        // connaissances reste celle de la page, native. Ce que ce test garde
+        // de T1315, c'est la moitie qui vaut encore : le Shell ne fabrique
+        // jamais une action de Boucle depuis une autre page.
         $this->actingAs($this->memberA)->get($this->loopUrl())
             ->assertOk()
-            ->assertSee('data-ai-shell-action="shell_loop_knowledge"', false);
+            ->assertDontSee('data-ai-shell-action="shell_loop_knowledge"', false);
 
-        // Et elle disparait exactement quand le bouton de la page disparait.
-        config(['ai.chatloop.enabled' => false]);
-        $this->actingAs($this->memberA)->get($this->loopUrl())
+        $this->actingAs($this->memberA)->get($this->dossierUrl())
             ->assertOk()
             ->assertDontSee('data-ai-shell-action="shell_loop_knowledge"', false);
     }
@@ -740,26 +747,26 @@ class TASK1315AiShellTest extends TestCase
 
     public function test_the_fab_opens_the_shell_and_keeps_its_historical_actions(): void
     {
-        $page = $this->actingAs($this->memberA)->get($this->loopUrl());
+        // TASK-1466 : mesure sur un Dossier — la Boucle ne porte plus ni FAB
+        // ni Shell global (elle porte son IA native, prouvee par TASK-1466).
+        $page = $this->actingAs($this->memberA)->get($this->dossierUrl());
 
         $page->assertOk()
             ->assertSee('data-ai-fab-shell', false)
             ->assertSee('bp-open-ai-shell', false)
-            ->assertSee('data-ai-fab-page-context="loop"', false)
-            // Non-regression T1231/T1237 : les actions de la page sont intactes.
-            ->assertSee('data-ai-fab-action="loop_ask"', false)
-            ->assertSee('data-ai-fab-action="loop_knowledge"', false);
+            ->assertSee('data-ai-fab-page-context="dossier"', false);
     }
 
     public function test_the_shell_kill_switch_removes_the_shell_and_keeps_the_fab(): void
     {
         config(['ai.shell.enabled' => false]);
 
-        $this->actingAs($this->memberA)->get($this->loopUrl())
+        // TASK-1466 : mesure sur un Dossier, la Boucle ne portant plus le FAB.
+        $this->actingAs($this->memberA)->get($this->dossierUrl())
             ->assertOk()
             ->assertDontSee('data-ai-fab-shell', false)
             ->assertDontSee('data-ai-shell-panel', false)
-            ->assertSee('data-ai-fab-action="loop_ask"', false);
+            ->assertSee('data-ai-fab-page=', false);
     }
 
     public function test_the_shell_is_absent_from_guest_and_admin_layouts(): void
