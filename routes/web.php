@@ -104,6 +104,7 @@ use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserAiUsageController;
+use App\Http\Controllers\WorkshopInterestController;
 use App\Http\Controllers\WorkshopPageController;
 use App\Http\Middleware\OrgAdminMiddleware;
 use App\Livewire\BoundedMemberAgent;
@@ -775,6 +776,9 @@ Route::prefix('/org/{organization}')
         Route::get('/about', [OrganizationLandingController::class, 'about'])->name('about');
         // TASK-1450 — Workshop domain foundation : la page PUBLIQUE d'un atelier publie de CETTE Organization (404 sinon). Pas de Shell ici.
         Route::get('/ateliers/{workshop}', [WorkshopPageController::class, 'show'])->name('workshop.show')->where('workshop', '[a-z0-9][a-z0-9\-]{2,79}');
+        // TASK-1452 (B4-B) : « je choisis cette session » — geste Guest (interet != inscription), throttle anti-rafale.
+        Route::post('/ateliers/{workshop}/sessions/{session}/interest', [WorkshopInterestController::class, 'select'])->middleware('throttle:30,1')->name('workshop.session.interest')->where('workshop', '[a-z0-9][a-z0-9\-]{2,79}')->whereUuid('session');
+        Route::delete('/ateliers/{workshop}/sessions/{session}/interest', [WorkshopInterestController::class, 'withdraw'])->middleware('throttle:30,1')->name('workshop.session.interest.withdraw')->where('workshop', '[a-z0-9][a-z0-9\-]{2,79}')->whereUuid('session');
         // TASK-1349 — publique UNIQUEMENT sur opt-in explicite. Sans opt-in,
         // ou sans version active, la route rend 404 : publiquement, la
         // ressource n'existe pas.
