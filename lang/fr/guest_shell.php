@@ -33,7 +33,13 @@ return [
         'send' => 'Envoyer',
         'sending' => 'Réponse en cours…',
         'privacy' => 'Échange public sans compte. Ne partagez pas de données personnelles.',
-        'degraded_text' => 'L\'assistant de :name n\'est pas disponible pour le moment. Vous pouvez créer un compte pour rejoindre la communauté.',
+        // TASK-1467 (CDC 21h-23h §2.5) : l'etat degrade a TOUJOURS une cause
+        // technique — `displayPayload()` ne le pose que si l'Organization a
+        // active le Shell et que la politique n'est pas prete. Proposer un
+        // compte comme remede serait donc un mensonge : creer un compte ne
+        // pose pas un plafond plateforme et ne configure pas une cle. On dit
+        // ce qui est vrai, et on rend la page — qui, elle, reste entiere.
+        'degraded_text' => 'L\'assistant de :name est momentanément indisponible. Vous pouvez continuer à explorer :name et ses ateliers.',
         'network_error' => 'La connexion a échoué. Réessayez dans un instant.',
         'failed' => 'La réponse n\'a pas pu être produite. Vous pouvez réessayer.',
         'refused_generic' => 'Votre message n\'a pas pu être traité pour le moment.',

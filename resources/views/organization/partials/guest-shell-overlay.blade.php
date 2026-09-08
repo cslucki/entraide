@@ -8,7 +8,9 @@
     Autonome par construction (CSS + JS inline, aucun Alpine/Tailwind requis) : il se monte
     aussi bien dans les landings « hero » (HTML brut) que dans x-app-layout.
     Monte SEULEMENT si le Shell est reellement disponible, ou en etat DEGRADE honnete
-    (politique activee mais pas prete) : accueil non-IA + CTA, jamais un faux echange.
+    (politique activee mais pas prete) : accueil non-IA, jamais un faux echange.
+    TASK-1467 : dans l'etat degrade il n'y a plus de CTA « Creer un compte » — la
+    cause est toujours technique, et un compte n'y change rien.
     Jamais un cookie, jamais une identite Guest sur simple visite : tout part du premier message.
     Distinct du Shell membre : aucun composant membre touche, aucun @auth retire.
 --}}
@@ -35,7 +37,11 @@
         'refused_visitor_monthly_quota_reached' => __('guest_shell.ui.refused_visitor_monthly_quota_reached'),
         'refused_rate_limited' => __('guest_shell.ui.refused_rate_limited'),
         'refused_input_out_of_bounds' => __('guest_shell.ui.refused_input_out_of_bounds'),
-        'unavailable' => __('guest_shell.ui.degraded_text'),
+        // TASK-1467 : ce libelle porte `:name` — il etait passe SANS parametre,
+        // donc un Shell devenu indisponible en cours de conversation affichait
+        // « L'assistant de :name … » en clair. Meme chaine que le rendu
+        // serveur, meme substitution.
+        'unavailable' => __('guest_shell.ui.degraded_text', ['name' => $organization->name]),
         'remaining' => __('guest_shell.ui.remaining'),
         'limit_reached' => __('guest_shell.ui.limit_reached'),
     ];
@@ -74,7 +80,10 @@
      data-guest-shell
      data-guest-shell-layout="{{ $gsLayout }}"
      data-guest-shell-mode="{{ $gsDisplay['mode'] }}"
-     data-guest-shell-reason="{{ $gsDisplay['reason'] }}"
+     {{-- TASK-1467 (CDC §2.5) : la RAISON ne sort pas cote public. `policy_not_ready`
+          est un code interne ; il etait lisible dans la source de la page. L'etat
+          (`live` / `degraded`) suffit au navigateur, et la raison reste mesurable
+          la ou elle vit vraiment : dans le payload serveur. --}}
      data-guest-shell-state="{{ $gsLive ? 'live' : 'degraded' }}"
      data-guest-shell-endpoint="{{ route('organization.shell.message', ['organization' => $organization->slug]) }}"
      data-guest-shell-csrf="{{ csrf_token() }}"
@@ -105,7 +114,12 @@
       @else
         <div class="bpgs-msg bpgs-msg-assistant" data-guest-shell-degraded>{{ __('guest_shell.ui.degraded_text', ['name' => $organization->name]) }}</div>
       @endif
-      @if($gsCta !== null)
+      {{-- TASK-1467 : le CTA « Creer un compte » n'apparait PAS dans l'etat
+           degrade. Cet etat a toujours une cause technique (plafond plateforme
+           non pose, cle absente, politique non prete) : un compte n'y change
+           rien, et l'afficher la transformerait une panne en argument de
+           conversion. Quand le Shell est vivant, le CTA reste. --}}
+      @if($gsLive && $gsCta !== null)
         <a class="bpgs-cta" href="{{ $gsCta['url'] }}" data-guest-shell-cta>{{ $gsCta['label'] }}</a>
       @endif
     </div>
