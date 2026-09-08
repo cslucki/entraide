@@ -82,4 +82,13 @@ return [
     'public_interest_withdraw' => 'Withdraw my choice',
     'public_interest_flash' => 'Your choice is noted. It is not a registration yet.',
     'public_interest_account' => 'Create an account',
+    // TASK-1453 — member registration.
+    'public_register' => 'Confirm my participation',
+    'public_registered' => 'Participation confirmed',
+    'public_registration_cancel' => 'Cancel my participation',
+    'public_guest_choice' => 'Your choice',
+    'public_verify_first' => 'Verify your email address to confirm your participation.',
+    'public_verify_link' => 'Resend the link',
+    'public_registration_flash' => 'Your participation is confirmed.',
+    'public_registration_full' => 'This session is full: your participation could not be confirmed.',
 ];

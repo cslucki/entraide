@@ -83,4 +83,13 @@ return [
     'public_interest_withdraw' => 'Retirer mon choix',
     'public_interest_flash' => 'Votre choix est noté. Ce n\'est pas encore une inscription.',
     'public_interest_account' => 'Créer un compte',
+    // TASK-1453 — inscription membre.
+    'public_register' => 'Confirmer ma participation',
+    'public_registered' => 'Participation confirmée',
+    'public_registration_cancel' => 'Annuler ma participation',
+    'public_guest_choice' => 'Votre choix',
+    'public_verify_first' => 'Vérifiez votre adresse email pour confirmer votre participation.',
+    'public_verify_link' => 'Renvoyer le lien',
+    'public_registration_flash' => 'Votre participation est confirmée.',
+    'public_registration_full' => 'Cette session est complète : votre participation n\'a pas pu être confirmée.',
 ];

@@ -27,6 +27,24 @@
                         <span class="text-[var(--bp-muted)]">({{ $session->timezone }})</span>
                         @if($session->location)<span class="block text-[var(--bp-muted)]" data-workshop-session-location>{{ $session->location }}</span>@endif
                         @if($session->capacity)<span class="block text-xs text-[var(--bp-muted)]" data-workshop-session-capacity>{{ __('workshops.public_session_capacity', ['count' => $session->capacity]) }}</span>@endif
+                        {{-- TASK-1453 : le geste MEMBRE — confirmer / annuler sa participation ; verifie + meme Organization seulement. --}}
+                        @if($member['present'] && $member['sameOrganization'])
+                            @if(in_array($session->id, $member['registeredSessionIds'], true))
+                                <form method="POST" action="{{ route('organization.workshop.session.register.cancel', ['organization' => $organization->slug, 'workshop' => $workshop->slug, 'session' => $session->id]) }}" class="mt-2" data-workshop-registration-cancel="{{ $session->id }}">
+                                    @csrf @method('DELETE')
+                                    <span class="mr-2 inline-block rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white" data-workshop-registered>{{ __('workshops.public_registered') }}</span>
+                                    <button type="submit" class="text-xs text-[var(--bp-muted)] underline">{{ __('workshops.public_registration_cancel') }}</button>
+                                </form>
+                            @elseif($member['verified'])
+                                <form method="POST" action="{{ route('organization.workshop.session.register', ['organization' => $organization->slug, 'workshop' => $workshop->slug, 'session' => $session->id]) }}" class="mt-2" data-workshop-register="{{ $session->id }}">
+                                    @csrf
+                                    @if(in_array($session->id, $member['guestSelectedSessionIds'], true))<span class="mr-2 inline-block rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-800" data-workshop-guest-choice>{{ __('workshops.public_guest_choice') }}</span>@endif
+                                    <button type="submit" class="rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">{{ __('workshops.public_register') }}</button>
+                                </form>
+                            @else
+                                <p class="mt-2 text-xs text-[var(--bp-muted)]" data-workshop-verify-first>{{ __('workshops.public_verify_first') }} <a href="{{ route('verification.notice') }}" class="underline">{{ __('workshops.public_verify_link') }}</a></p>
+                            @endif
+                        @endif
                         {{-- TASK-1452 (B4-B) : « je choisis cette session » — un interet Guest, jamais une inscription. --}}
                         @if($canSelect)
                             @if(in_array($session->id, $selectedSessionIds, true))
@@ -50,6 +68,8 @@
                     @endforeach
                 </ul>
                 {{-- MASTER Q79 : le choix est memorise, aucune promesse « compte = participation confirmee » avant le flux Registration ; le lien « Creer un compte » existe car creer un compte est reellement possible. --}}
+                @if(session('workshop_registration'))<p class="mt-3 rounded-xl bg-emerald-50 px-4 py-2 text-sm text-emerald-800" data-workshop-registration-flash>{{ __('workshops.public_registration_flash') }}</p>@endif
+                @if(session('workshop_registration_full'))<p class="mt-3 rounded-xl bg-amber-50 px-4 py-2 text-sm text-amber-800" data-workshop-registration-full>{{ __('workshops.public_registration_full') }}</p>@endif
                 @if(session('workshop_interest'))<p class="mt-3 rounded-xl bg-emerald-50 px-4 py-2 text-sm text-emerald-800" data-workshop-interest-flash>{{ __('workshops.public_interest_flash') }} <a href="{{ route('organization.register', ['organization' => $organization->slug]) }}" class="font-semibold underline" data-workshop-interest-account>{{ __('workshops.public_interest_account') }}</a></p>@endif
                 <p class="mt-3 text-xs text-[var(--bp-muted)]" data-workshop-registration-soon>{{ __('workshops.public_registration_soon') }}</p>
             @else

@@ -139,9 +139,12 @@ class TASK1451WorkshopSessionsTest extends TestCase
         $this->assertStringNotContainsString('meeting', $html);
         $this->assertStringNotContainsString($this->adminA->email, $html);
         // Le layout porte ses propres formulaires (langue, deconnexion...) : la mesure porte sur l'article de l'atelier.
+        // TASK-1452/1453 ont livre les gestes : ici le lecteur est un MEMBRE verifie de l'Organization (actingAs adminA) —
+        // il voit le geste membre (confirmer sa participation), jamais le geste Guest.
         $article = substr($html, strpos($html, '<article'), strpos($html, '</article>') - strpos($html, '<article'));
-        $this->assertStringNotContainsString('<form', $article, 'aucun formulaire (ni interet, ni inscription) dans la page d\'atelier avant leur flux');
-        $this->assertStringNotContainsString('data-workshop-interest', $article);
+        $this->assertStringNotContainsString('data-workshop-interest', $article, 'un membre connecte n\'a pas le geste Guest');
+        $this->assertStringContainsString('data-workshop-register="'.$session->id.'"', $article, 'le geste membre (TASK-1453) est le seul formulaire de l\'article');
+        $this->assertSame(1, substr_count($article, '<form'), 'un seul formulaire dans l\'article : celui du membre');
 
         // Publier deux fois : 404 ; annuler : disparue de la page publique ; annulee non editable.
         $this->actingAs($this->adminA)->post(route('organization.admin.workshops.sessions.publish', [$this->a, $this->workshopA, $session]))->assertNotFound();
