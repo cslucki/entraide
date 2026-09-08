@@ -775,6 +775,12 @@ return [
     'guest_shell_avg_cost' => 'Average cost / answer',
     'guest_shell_unknown_cost' => 'with unknown cost',
         // TASK-1468 — see the French file for the reasoning behind these keys.
+    // TASK-1470 : les cles `guest_shell_state_*` et `guest_shell_reason_*` ont ete
+    // retirees ici. Elles etaient devenues ORPHELINES — les trois surfaces admin
+    // lisent desormais `GuestShellDiagnosis` — et l'une d'elles nommait une
+    // personne (« tant que Cyril ne l'a pas fixe ») dans une chaine d'interface.
+    // Une chaine morte qui dit quelque chose de faux est pire qu'une chaine
+    // absente : elle attend d'etre reaffichee.
     'guest_shell_diag_ready_label' => 'Ready',
     'guest_shell_diag_disabled_label' => 'Disabled',
     'guest_shell_diag_organization_inactive_label' => 'Action required',
@@ -811,20 +817,4 @@ return [
     'guest_shell_diag_unknown_cause' => 'The public assistant is stopped for a reason this screen cannot name yet.',
     'guest_shell_diag_unknown_action' => 'Report the technical code below to the product team.',
     'guest_shell_diag_technical' => 'Technical code:',
-    'guest_shell_state_active' => 'Active',
-    'guest_shell_state_disabled' => 'Disabled',
-    'guest_shell_state_no_credential' => 'No credential',
-    'guest_shell_state_budget_blocked' => 'Budget reached',
-    'guest_shell_state_misconfigured' => 'Misconfigured',
-    'guest_shell_reason_disabled' => 'Disabled for this organization.',
-    'guest_shell_reason_organization_inactive' => 'Organization inactive.',
-    'guest_shell_reason_organization_not_public' => 'Organization not public: its /org page redirects to login.',
-    'guest_shell_reason_no_ai_setting' => 'No AI configuration for this organization.',
-    'guest_shell_reason_ai_setting_unusable' => 'AI configuration disabled or incomplete (provider / model).',
-    'guest_shell_reason_api_key_missing' => 'API key missing for this provider.',
-    'guest_shell_reason_guest_monthly_budget_reached' => 'Monthly guest budget reached.',
-    'guest_shell_reason_platform_ceiling_unset' => 'Platform ceiling not configured (AI_GUEST_SHELL_PLATFORM_CEILING_USD): no paid call until Cyril sets it.',
-    'guest_shell_reason_platform_ceiling_reached' => 'Platform ceiling reached this month.',
-    'guest_shell_reason_organization_budget_reached' => 'Organization monthly AI budget reached.',
-    'guest_shell_reason_process_budget_reached' => 'Guest process ceiling reached (no organization-specific budget).',
 ];

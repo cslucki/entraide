@@ -96,13 +96,28 @@
             + $economics['embedding_undeclared']['invocation_count'];
     @endphp
     {{-- TASK-1438 — SW-10 : le Shell Welcome de CETTE Organization (Shell Welcome V3 §17/§18). Jamais un contenu de conversation. --}}
-    @php $guestState = strtolower($guestShell['state']->status); @endphp
+    @php
+        $guestState = strtolower($guestShell['state']->status);
+        // TASK-1470 : meme autorite de presentation que les deux cockpits SuperAdmin.
+        // Cet ecran est celui de l'admin d'UNE Organization : le diagnostic porte sur
+        // SON etat, calcule a partir de SON `GuestShellState`, jamais celui d'une autre.
+        $diag = \App\Support\GuestShell\GuestShellDiagnosis::for($guestShell['state']);
+    @endphp
     <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6" data-consumption-guest-block data-consumption-guest-state="{{ $guestState }}" data-consumption-guest-mode="{{ $guestShell['state']->policy->display_mode }}" data-consumption-guest-effective="{{ $guestShell['display']->mode }}" data-consumption-guest-effective-reason="{{ $guestShell['display']->reason }}">
         <div class="flex flex-wrap items-baseline justify-between gap-2 mb-1">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.consumption_guest_title') }}</h2>
-            <span class="px-2 py-0.5 rounded text-xs font-semibold {{ match($guestState) { 'active' => 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300', 'disabled' => 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300', default => 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300' } }}">{{ __('admin.guest_shell_state_'.$guestState) }}</span>
+            <span class="px-2 py-0.5 rounded text-xs font-semibold {{ \App\Support\GuestShell\GuestShellDiagnosis::badgeClasses($diag['tone']) }}" data-guest-shell-diag="{{ $diag['key'] }}">{{ $diag['label'] }}</span>
         </div>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ __('ai.consumption_guest_hint') }}@if($guestState !== 'active' && $guestShell['state']->reasons !== []) — {{ implode(', ', array_map(fn ($r) => __('admin.guest_shell_reason_'.$r), $guestShell['state']->reasons)) }}@endif</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('ai.consumption_guest_hint') }}</p>
+        @if($diag['cause'] !== null || $diag['action'] !== null)
+        <div class="text-xs mb-4 space-y-0.5">
+            @if($diag['cause'] !== null)<p class="text-gray-600 dark:text-gray-300" data-guest-shell-diag-cause>{{ $diag['cause'] }}</p>@endif
+            @if($diag['action'] !== null)<p class="font-medium text-gray-900 dark:text-gray-100" data-guest-shell-diag-action>&rarr; {{ $diag['action'] }}</p>@endif
+            @if($diag['technical'] !== null)<p class="font-mono text-[11px] text-gray-400" data-guest-shell-diag-technical>{{ __('admin.guest_shell_diag_technical') }} {{ $diag['technical'] }}</p>@endif
+        </div>
+        @else
+        <div class="mb-4"></div>
+        @endif
 
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
             @foreach(['visitor_messages', 'visitors', 'conversations', 'invocations', 'success', 'failed', 'known_cost_usd', 'cost_unknown'] as $key)

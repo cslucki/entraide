@@ -200,12 +200,9 @@
                         // des reason codes que `GuestShellPolicyService::state()` produit deja ;
                         // aucune seconde logique de politique ici.
                         $diag = \App\Support\GuestShell\GuestShellDiagnosis::for($state);
-                        $diagTone = match($diag['tone']) {
-                            \App\Support\GuestShell\GuestShellDiagnosis::TONE_READY => 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300',
-                            \App\Support\GuestShell\GuestShellDiagnosis::TONE_NEUTRAL => 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
-                            \App\Support\GuestShell\GuestShellDiagnosis::TONE_BUDGET => 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300',
-                            default => 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300',
-                        };
+                        // TASK-1470 : la couleur du badge vient elle aussi de l'autorite
+                        // partagee — le `match` etait recopie dans trois vues.
+                        $diagTone = \App\Support\GuestShell\GuestShellDiagnosis::badgeClasses($diag['tone']);
                     @endphp
                     <form method="POST" action="{{ route('admin.ai-config.guest-shell') }}" class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3" data-guest-shell-org="{{ $org->slug }}" data-guest-shell-status="{{ $state->status }}">
                         @csrf

@@ -47,12 +47,21 @@
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                 @forelse($organizations as $row)
-                @php $u = $row['usage']; $st = strtolower($row['state']); @endphp
+                @php
+                    $u = $row['usage'];
+                    $st = strtolower($row['state']);
+                    // TASK-1470 : le MEME diagnostic que /admin/ai-config, par la meme
+                    // autorite de presentation. Ce cockpit disait la cause sans jamais
+                    // dire le geste.
+                    $diag = \App\Support\GuestShell\GuestShellDiagnosis::fromStatusAndReasons($row['state'], $row['reasons']);
+                @endphp
                 <tr data-guest-shell-org="{{ $row['organization']->slug }}" data-guest-shell-state="{{ $st }}">
                     <td class="px-3 py-2 whitespace-nowrap font-medium text-gray-900 dark:text-gray-100">{{ $row['organization']->name }}</td>
                     <td class="px-3 py-2 whitespace-nowrap">
-                        <span class="px-2 py-0.5 rounded text-xs font-semibold {{ match($st) { 'active' => 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300', 'disabled' => 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300', default => 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300' } }}">{{ __('admin.guest_shell_state_'.$st) }}</span>
-                        @if($row['reasons'] !== [] && $st !== 'active')<div class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{{ implode(', ', array_map(fn ($r) => __('admin.guest_shell_reason_'.$r), $row['reasons'])) }}</div>@endif
+                        <span class="px-2 py-0.5 rounded text-xs font-semibold {{ \App\Support\GuestShell\GuestShellDiagnosis::badgeClasses($diag['tone']) }}" data-guest-shell-diag="{{ $diag['key'] }}">{{ $diag['label'] }}</span>
+                        @if($diag['cause'] !== null)<div class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5" data-guest-shell-diag-cause>{{ $diag['cause'] }}</div>@endif
+                        @if($diag['action'] !== null)<div class="text-[11px] font-medium text-gray-800 dark:text-gray-200 mt-0.5" data-guest-shell-diag-action>&rarr; {{ $diag['action'] }}</div>@endif
+                        @if($diag['technical'] !== null)<div class="text-[11px] font-mono text-gray-400 mt-0.5" data-guest-shell-diag-technical>{{ __('admin.guest_shell_diag_technical') }} {{ $diag['technical'] }}</div>@endif
                     </td>
                     <td class="px-3 py-2 tabular-nums" data-guest-shell-cell="visitors">{{ $u['visitors'] }}</td>
                     <td class="px-3 py-2 tabular-nums" data-guest-shell-cell="conversations">{{ $u['conversations'] }}</td>
