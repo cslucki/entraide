@@ -40,6 +40,7 @@ use App\Http\Controllers\Admin\AdminTagController;
 use App\Http\Controllers\Admin\AdminThemeController;
 use App\Http\Controllers\Admin\AdminTranslationController;
 use App\Http\Controllers\Admin\AdminUsageReferenceController;
+use App\Http\Controllers\Admin\AdminWorkshopController;
 use App\Http\Controllers\Admin\OrgAcquisitionController;
 use App\Http\Controllers\Admin\OrgAdminController;
 use App\Http\Controllers\Admin\OrgCrmController;
@@ -644,6 +645,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/shortcuts', [AdminShortcutController::class, 'index'])->name('shortcuts');
     Route::post('/shortcuts', [AdminShortcutController::class, 'store'])->name('shortcuts.store');
     Route::patch('/shortcuts/{shortcut}/toggle', [AdminShortcutController::class, 'toggle'])->name('shortcuts.toggle');
+    // TASK-1456 : SuperAdmin Workshops — cockpit transversal LECTURE SEULE (V3 §14, MASTER Q81).
+    Route::get('/workshops', [AdminWorkshopController::class, 'index'])->name('workshops');
     Route::post('/ai-supervision', [AdminAiSupervisionController::class, 'analyze'])->name('ai-supervision.analyze');
 
     // Historique des interactions IA (TASK-249)
