@@ -45,6 +45,7 @@ use App\Http\Controllers\Admin\OrgAdminController;
 use App\Http\Controllers\Admin\OrgCrmController;
 use App\Http\Controllers\Admin\OrgCrmTemplateController;
 use App\Http\Controllers\Admin\OrgWorkshopController;
+use App\Http\Controllers\Admin\OrgWorkshopRegistrantsController;
 use App\Http\Controllers\Admin\OrgWorkshopSessionController;
 use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\AiAgentLoopController;
@@ -1148,6 +1149,8 @@ Route::prefix('/org/{organization}')
                 Route::put('/ateliers/{workshop}/sessions/{session}', [OrgWorkshopSessionController::class, 'update'])->name('workshops.sessions.update')->whereUuid('workshop')->whereUuid('session');
                 Route::post('/ateliers/{workshop}/sessions/{session}/publish', [OrgWorkshopSessionController::class, 'publish'])->name('workshops.sessions.publish')->whereUuid('workshop')->whereUuid('session');
                 Route::delete('/ateliers/{workshop}/sessions/{session}', [OrgWorkshopSessionController::class, 'cancel'])->name('workshops.sessions.cancel')->whereUuid('workshop')->whereUuid('session');
+                // TASK-1455 : inscrits & interets d'un atelier — LECTURE SEULE (V3 §13, MASTER Q81).
+                Route::get('/ateliers/{workshop}/inscrits', [OrgWorkshopRegistrantsController::class, 'show'])->name('workshops.registrants')->whereUuid('workshop');
                 // TASK-1419 (CRM-4b) : gestion du pipeline. Declare AVANT /relations/{contact}
                 // pour que « statuts » ne soit jamais pris pour un id de Contact.
                 Route::get('/relations/statuts', [OrgCrmController::class, 'statuses'])->name('crm.statuses');
