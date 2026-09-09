@@ -144,10 +144,16 @@ Route::get('/demo', function () {
     return redirect()->away($url, 302);
 })->name('public.demo');
 Route::post('/locale/{locale}', [LocaleController::class, 'switch'])->name('locale.switch');
-Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
+// TASK-1479 (P0 privacy) — l'annuaire et les echanges sont des surfaces
+// INTERNES d'Organization. Mesure faite : elles etaient servies en HTTP 200 a
+// un visiteur ANONYME, sur des Organizations privees comprises, avec noms,
+// villes, biographies et affiliations. `auth` ferme l'acces anonyme,
+// `organization.member` ferme le cross-tenant authentifie — les deux sont
+// necessaires, et un sabotage le prouve.
+Route::get('/explorer', [ExplorerController::class, 'index'])->middleware(['auth', 'organization.member'])->name('explorer');
 Route::view('/about', 'about')->name('about');
-Route::get('/membres', [HomeController::class, 'members'])->name('members.index');
-Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');
+Route::get('/membres', [HomeController::class, 'members'])->middleware(['auth', 'organization.member'])->name('members.index');
+Route::get('/echanges', [HomeController::class, 'exchanges'])->middleware(['auth', 'organization.member'])->name('exchanges.index');
 Route::redirect('/partners', '/partenaires');
 Route::get('/partenaires', [HomeController::class, 'partners'])->name('partenaires.index');
 Route::get('/partenaires/demande', [OrganizationRequestController::class, 'create'])->name('partenaires.request.create');
@@ -1075,9 +1081,15 @@ Route::prefix('/org/{organization}')
             Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->middleware('consume.org')->name('agent-ia.profile.chat')->whereUuid('user');
         });
 
-        Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
-        Route::get('/membres', [HomeController::class, 'members'])->name('members.index');
-        Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');
+        // TASK-1479 (P0 privacy) — l'annuaire et les echanges sont des surfaces
+        // INTERNES d'Organization. Mesure faite : elles etaient servies en HTTP 200 a
+        // un visiteur ANONYME, sur des Organizations privees comprises, avec noms,
+        // villes, biographies et affiliations. `auth` ferme l'acces anonyme,
+        // `organization.member` ferme le cross-tenant authentifie — les deux sont
+        // necessaires, et un sabotage le prouve.
+        Route::get('/explorer', [ExplorerController::class, 'index'])->middleware(['auth', 'organization.member'])->name('explorer');
+        Route::get('/membres', [HomeController::class, 'members'])->middleware(['auth', 'organization.member'])->name('members.index');
+        Route::get('/echanges', [HomeController::class, 'exchanges'])->middleware(['auth', 'organization.member'])->name('exchanges.index');
 
         // Organization admin dashboard (org-scoped)
         Route::middleware(['auth', OrgAdminMiddleware::class])
