@@ -181,6 +181,20 @@ class TASK1231AiFabTest extends TestCase
     // Ailleurs : usages + credit, rien d'autre
     // =====================================================================
 
+    /*
+     * TASK-1478 — le credit, le refus et le lien d'usages ont change de
+     * DOMICILE, pas de nature.
+     *
+     * Le declencheur ouvre desormais la conversation en un clic ; le panneau
+     * intermediaire n'existe plus lorsqu'un Shell existe. Ce que ce panneau
+     * portait vit maintenant dans le Shell, calcule par la MEME autorite
+     * (`AiFabContext`) : les assertions ci-dessous suivent le deplacement, la
+     * verite produit ne bouge pas.
+     *
+     * `data-ai-fab-page` et `data-ai-fab-tone` restent sur le conteneur du
+     * declencheur et sont inchanges.
+     */
+
     public function test_elsewhere_the_fab_only_offers_usage_and_credit(): void
     {
         $page = $this->actingAs($this->member)->get(route('organization.profile.ai-usage', ['organization' => $this->organization->slug]));
@@ -188,7 +202,7 @@ class TASK1231AiFabTest extends TestCase
         $page->assertOk()
             ->assertSee('data-ai-fab-page="other"', false)
             ->assertDontSee('data-ai-fab-action=', false)
-            ->assertSee('data-ai-fab-usage', false)
+            ->assertSee('data-ai-shell-usage-link', false)
             ->assertSee(__('ai.fab_credit_included'))
             ->assertSee(route('organization.profile.ai-usage', ['organization' => $this->organization->slug]));
     }
@@ -206,7 +220,7 @@ class TASK1231AiFabTest extends TestCase
 
         $page->assertOk()
             ->assertSee('data-ai-fab-tone="alert"', false)
-            ->assertSee('data-ai-fab-alert', false)
+            ->assertSee('data-ai-shell-alert', false)
             ->assertSee(trans_choice('ai.credit_remaining', 1));
 
         $expected = app(AiEconomicGuard::class)->userCreditStatus($this->organization, $this->member);
@@ -225,8 +239,8 @@ class TASK1231AiFabTest extends TestCase
 
         $page->assertOk()
             ->assertSee('data-ai-fab-tone="exhausted"', false)
-            ->assertSee('data-ai-fab-refusal', false)
-            ->assertSee('data-ai-fab-offers', false)
+            ->assertSee('data-ai-shell-refusal', false)
+            ->assertSee('data-ai-shell-offers', false)
             ->assertSee(__('ai.credit_see_offers'))
             ->assertSee(e(trans_choice('ai.credit_refusal_user_exhausted', 2, ['used' => 2, 'quota' => 2, 'date' => now()->startOfMonth()->addMonth()->format('d/m/Y')])), false)
             ->assertDontSee('data-ai-fab-action=', false);
@@ -244,8 +258,8 @@ class TASK1231AiFabTest extends TestCase
         $page = $this->actingAs($this->member)->get($this->fabPageUrl());
 
         $page->assertOk()
-            ->assertSee('data-ai-fab-refusal', false)
-            ->assertDontSee('data-ai-fab-offers', false);
+            ->assertSee('data-ai-shell-refusal', false)
+            ->assertDontSee('data-ai-shell-offers', false);
     }
 
     public function test_the_credit_is_read_once_per_request(): void

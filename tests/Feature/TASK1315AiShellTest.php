@@ -745,6 +745,15 @@ class TASK1315AiShellTest extends TestCase
     // G. Le FAB : la porte du Shell s'ajoute, elle ne retire rien
     // =====================================================================
 
+    /**
+     * TASK-1478 : le declencheur ouvre la conversation en UN clic.
+     *
+     * Il ouvrait un panneau qui portait un bouton « Ouvrir BouclePro IA »
+     * (`data-ai-fab-shell`) : ce bouton n'existe plus, parce que l'etape
+     * qu'il justifiait n'existe plus. Ce que le test mesure est donc
+     * desormais que le declencheur LUI-MEME ouvre le Shell, et que le
+     * contexte de la page est bien connu — deux verites inchangees.
+     */
     public function test_the_fab_opens_the_shell_and_keeps_its_historical_actions(): void
     {
         // TASK-1466 : mesure sur un Dossier — la Boucle ne porte plus ni FAB
@@ -752,9 +761,12 @@ class TASK1315AiShellTest extends TestCase
         $page = $this->actingAs($this->memberA)->get($this->dossierUrl());
 
         $page->assertOk()
-            ->assertSee('data-ai-fab-shell', false)
+            ->assertSee('data-ai-fab-opens="shell"', false)
             ->assertSee('bp-open-ai-shell', false)
-            ->assertSee('data-ai-fab-page-context="dossier"', false);
+            ->assertSee('data-ai-shell-context-kind="dossier"', false)
+            // L'etape intermediaire a disparu : plus de bouton « Ouvrir ».
+            ->assertDontSee('data-ai-fab-shell', false)
+            ->assertDontSee('data-ai-fab-panel', false);
     }
 
     public function test_the_shell_kill_switch_removes_the_shell_and_keeps_the_fab(): void
@@ -766,7 +778,13 @@ class TASK1315AiShellTest extends TestCase
             ->assertOk()
             ->assertDontSee('data-ai-fab-shell', false)
             ->assertDontSee('data-ai-shell-panel', false)
-            ->assertSee('data-ai-fab-page=', false);
+            ->assertSee('data-ai-fab-page=', false)
+            // TASK-1478 : sans Shell, le panneau du FAB redevient la SEULE
+            // surface — il porte alors le credit et les actions, et le
+            // declencheur l'ouvre comme avant.
+            ->assertSee('data-ai-fab-opens="panel"', false)
+            ->assertSee('data-ai-fab-panel', false)
+            ->assertSee('data-ai-fab-credit', false);
     }
 
     public function test_the_shell_is_absent_from_guest_and_admin_layouts(): void

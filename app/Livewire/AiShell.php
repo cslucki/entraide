@@ -353,6 +353,11 @@ class AiShell extends Component
         // de page : le repli `unknown` ne dit rien de faux.
         $surface = (string) ($context['surface'] ?? AiShellPageContext::SURFACE_UNKNOWN);
 
+        // Une seule lecture du contexte FAB par rendu : `fab()` appelle
+        // `AiFabContext::forRequest()`, et l'appeler quatre fois recalculerait
+        // quatre fois le credit.
+        $fab = $this->fab();
+
         return view('livewire.ai-shell', [
             'shell' => [
                 'context' => $context,
@@ -372,8 +377,20 @@ class AiShell extends Component
                     : null,
                 'pin_limit' => $pinnedContext->limit(),
                 'actions' => $this->actions($context),
-                'refusal' => $this->creditRefusal(),
-                'offers_url' => $this->fab()['offers_url'] ?? null,
+                'refusal' => $fab['refusal_message'] ?? null,
+                'offers_url' => $fab['offers_url'] ?? null,
+                // TASK-1478 — le credit descend ici. Il vivait dans le panneau
+                // du FAB, qui etait l'etape intermediaire que ce lot supprime :
+                // le laisser la-bas l'aurait rendu invisible.
+                //
+                // Aucune seconde lecture : ces trois entrees viennent du MEME
+                // tableau `$fab` que le refus et le lien d'offres, calcule une
+                // fois par rendu. `AiFabContext` reste la seule autorite du
+                // credit, et ce panneau n'en montre que ce qu'elle a produit.
+                'credit' => $fab['credit'] ?? null,
+                'credit_label' => $fab['credit_label'] ?? null,
+                'credit_tone' => $fab['credit_tone'] ?? 'ok',
+                'usage_url' => $fab['usage_url'] ?? null,
                 // TASK-1350 (P0) : le nom de l'Organization DEJA resolue par
                 // `actor()` pour ce rendu — aucun resolver de plus, aucune
                 // requete de plus. Il n'est qu'affiche, sous le choix humain :
