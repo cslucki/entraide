@@ -270,7 +270,14 @@ Route::get('/loop-invitations/{token}', [LoopInvitationController::class, 'show'
 Route::post('/loop-invitations/{token}/prepare', [LoopInvitationController::class, 'prepare'])->middleware('throttle:20,1')->name('loop-invitations.prepare');
 
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
-Route::get('/search', [SearchController::class, 'index'])->name('search');
+// TASK-1488 (P0 privacy) — /search etait un CONTOURNEMENT vivant du correctif
+// deja merge par TASK-1479. Mesure : un anonyme obtenait 200 avec le nom
+// complet, la ville et la note de membres d'une Organization privee — les
+// memes champs pour lesquels /membres a ete ferme —, plus les titres des
+// Services et des Demandes, et des liens vers des fiches de profil desormais
+// fermees. Plus grave que les fiches : aucun UUID n'est necessaire, la donnee
+// est DECOUVRABLE par simple mot-cle.
+Route::get('/search', [SearchController::class, 'index'])->middleware(['auth', 'organization.member'])->name('search');
 Route::view('/aide', 'help')->name('help');
 Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');
 Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
@@ -442,8 +449,15 @@ Route::middleware('auth')->group(function () {
     });
 });
 
-Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
-Route::get('/requests/{request}', [RequestController::class, 'show'])->name('requests.show');
+// TASK-1488 (P0 privacy) — la fiche d'un Service et celle d'une Demande
+// rejoignent la frontiere posee par TASK-1479. Mesure faite au HEAD 497d934b,
+// sans aucun cookie, sur une Organization `is_public = false` : ces deux routes
+// rendaient 200 avec le NOM REEL de la personne, le titre et le contenu metier.
+// Le commentaire « Public ... used by Explorer » qui les couvrait ne suffisait
+// pas : l'Explorer lui-meme est member-only depuis TASK-1479, et « Public »
+// designe le tenant resolu, pas le lecteur autorise (docs/05, « Public != global »).
+Route::get('/services/{service}', [ServiceController::class, 'show'])->middleware(['auth', 'organization.member'])->name('services.show')->whereUuid('service');
+Route::get('/requests/{request}', [RequestController::class, 'show'])->middleware(['auth', 'organization.member'])->name('requests.show');
 // TASK-1479 (P0 privacy, extension arbitree par MASTER) — « profil public »
 // veut dire visible des AUTRES MEMBRES de l'Organization, pas ouvert au Web
 // anonyme. Mesure : sur une Organization is_public = false, cette page rendait
@@ -1099,9 +1113,19 @@ Route::prefix('/org/{organization}')
 
         });
 
-        // Public organization-scoped detail routes used by Explorer.
-        Route::get('/services/{service}', [ServiceController::class, 'orgShow'])->name('services.show')->whereUuid('service');
-        Route::get('/requests/{request}', [RequestController::class, 'orgShow'])->name('requests.show')->whereUuid('request');
+        // TASK-1488 (P0 privacy) — ce bloc s'annoncait « Public organization-scoped
+        // detail routes used by Explorer ». Les trois membres de la phrase sont
+        // faux depuis TASK-1479 : l'Explorer est member-only, la fiche de profil
+        // juste en dessous porte deja la garde, et « Public » n'a jamais voulu
+        // dire « ouvert au Web anonyme ».
+        //
+        // Mesure : `orgShow()` delegue a `show()`, qui ne verifiait que la
+        // coherence de tenant — donc l'Organization que l'URL designe. Resultat,
+        // un membre de l'Organization B obtenait 200 sur la fiche d'un Service de
+        // l'Organization A. Les deux gardes sont necessaires et un sabotage le
+        // prouve : `auth` seul laisserait ce cross-tenant AUTHENTIFIE ouvert.
+        Route::get('/services/{service}', [ServiceController::class, 'orgShow'])->middleware(['auth', 'organization.member'])->name('services.show')->whereUuid('service');
+        Route::get('/requests/{request}', [RequestController::class, 'orgShow'])->middleware(['auth', 'organization.member'])->name('requests.show')->whereUuid('request');
         Route::get('/profile/{user}', [ProfileController::class, 'show'])->middleware(['auth', 'organization.member'])->name('profile.show')->whereUuid('user');
         Route::middleware('ai-profiles.enabled')->group(function () {
             Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->middleware('consume.org')->name('agent-ia.profile.chat')->whereUuid('user');

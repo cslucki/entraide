@@ -120,8 +120,15 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
             'organization_id' => $organizationB->id,
         ]);
 
-        // Org A est résolue — service de Org B ne doit pas être accessible.
-        $this->get(route('services.show', $serviceInOrgB))
+        // TASK-1488 (P0 privacy) : la fiche n'est plus servie a un anonyme, donc
+        // un visiteur sans session mesurerait desormais la redirection de `auth`
+        // et non la frontiere de tenant. Le lecteur devient un membre REEL de
+        // l'Organization A — la resolue —, ce qui RENFORCE l'assertion : le refus
+        // cross-Organization se mesure sur quelqu'un qui possede une vraie session.
+        $reader = $this->createUser($organizationA);
+
+        $this->actingAs($reader)
+            ->get(route('services.show', $serviceInOrgB))
             ->assertNotFound();
     }
 
@@ -135,8 +142,13 @@ class T0755ServicesRequestsTenantSafetyTest extends TestCase
             'organization_id' => $organizationB->id,
         ]);
 
-        // Org A est résolue — request de Org B ne doit pas être accessible.
-        $this->get(route('requests.show', $requestInOrgB))
+        // TASK-1488 (P0 privacy) : meme raison que pour la fiche de Service —
+        // le refus cross-Organization se mesure sur un membre authentifie de
+        // l'Organization resolue, pas sur un anonyme que `auth` arreterait avant.
+        $reader = $this->createUser($organizationA);
+
+        $this->actingAs($reader)
+            ->get(route('requests.show', $requestInOrgB))
             ->assertNotFound();
     }
 

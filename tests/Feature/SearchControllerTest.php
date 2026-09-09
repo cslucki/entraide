@@ -15,10 +15,36 @@ class SearchControllerTest extends TestCase
     use RefreshDatabase;
     use WithTestOrganization;
 
+    /**
+     * TASK-1488 (P0 privacy) — `/search` etait un CONTOURNEMENT vivant du
+     * correctif deja merge par TASK-1479 : il rendait a un anonyme le nom
+     * complet, la ville et la note de membres d'une Organization privee — les
+     * memes champs pour lesquels `/membres` a ete ferme — sans exiger le
+     * moindre UUID. La recherche exige donc desormais une session de membre.
+     *
+     * Chaque test de ce fichier mesurait la recherche depuis un visiteur
+     * anonyme. Aucune de ses assertions ne portait sur l'anonymat lui-meme :
+     * elles portent sur ce que la recherche TROUVE et EXCLUT. Le lecteur
+     * devient donc un membre de l'Organization de test, et pas une assertion
+     * n'est affaiblie.
+     *
+     * Ce lecteur est deliberement INERTE : son nom, sa ville et sa biographie
+     * ne peuvent croiser aucun terme recherche ici (« Jean », « Alice »,
+     * « Paris », « Orchard »...), sans quoi il ferait basculer les assertions
+     * de comptage `count() === 1`.
+     */
     protected function setUp(): void
     {
         parent::setUp();
         $this->setUpOrganization();
+
+        $this->actingAs($this->orgUser([
+            'name' => 'Zzz Lecteur Inerte',
+            'first_name' => 'Zzz',
+            'city' => 'Zzzville',
+            'bio' => 'Zzz.',
+            'banned_at' => null,
+        ]));
     }
 
     public function test_empty_query_returns_empty_results(): void

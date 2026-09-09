@@ -192,7 +192,16 @@ class UserDeactivationTest extends TestCase
                 'status' => 'active',
             ]);
 
-        $this->get(route('organization.services.show', [$this->organization, $service]))
+        // TASK-1488 (P0 privacy) : la fiche n'est plus servie a un anonyme. Le
+        // lecteur devient un membre de la meme Organization — meme motif que
+        // `test_public_web_profile_returns_404_for_deactivated_user` (TASK-1479)
+        // juste au-dessus. Ce que le test MESURE ne change pas d'un mot : la
+        // fiche d'un proprietaire desactive reste introuvable, y compris pour
+        // quelqu'un qui a parfaitement le droit d'etre la.
+        $reader = $this->createUser(['banned_at' => null]);
+
+        $this->actingAs($reader)
+            ->get(route('organization.services.show', [$this->organization, $service]))
             ->assertNotFound();
     }
 
@@ -208,7 +217,12 @@ class UserDeactivationTest extends TestCase
                 'status' => 'open',
             ]);
 
-        $this->get(route('organization.requests.show', [$this->organization, $serviceRequest]))
+        // TASK-1488 (P0 privacy) : idem la fiche de Service — le lecteur est un
+        // membre, la demande d'un proprietaire desactive reste introuvable.
+        $reader = $this->createUser(['banned_at' => null]);
+
+        $this->actingAs($reader)
+            ->get(route('organization.requests.show', [$this->organization, $serviceRequest]))
             ->assertNotFound();
     }
 
@@ -217,9 +231,16 @@ class UserDeactivationTest extends TestCase
         $activeUser = $this->createUser(['banned_at' => null, 'name' => 'UniqueActiveName']);
         $deactivatedUser = $this->createUser(['banned_at' => now(), 'name' => 'UniqueBannedName']);
 
-        $response = $this->get('/search?q=Unique');
+        // TASK-1488 (P0 privacy) : /search etait un contournement du correctif
+        // TASK-1479 — il rendait nom, ville et note de membres a un anonyme. Il
+        // exige desormais une session de membre. L'assertion produit est
+        // inchangee : un compte desactive n'apparait pas dans les resultats.
+        $reader = $this->createUser(['banned_at' => null, 'name' => 'SearchReaderSentinel']);
+
+        $response = $this->actingAs($reader)->get('/search?q=Unique');
 
         $response->assertOk();
+        $response->assertSee('UniqueActiveName');
         $response->assertDontSee('UniqueBannedName');
     }
 
