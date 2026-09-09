@@ -289,6 +289,18 @@
                             $requestDraftBody = $isUserDraft && ! $awaitingClarification
                                 ? trim((string) ($meta['message_draft'] ?: $message->content))
                                 : '';
+
+                            // TASK-1486 — « cette reponse vous a-t-elle aide ? »
+                            //
+                            // Propose UNIQUEMENT si ce tour a produit une trace :
+                            // les statuts degrades n'ont appele aucun provider, et
+                            // un verdict y designerait le vide. Les tours ecrits
+                            // AVANT cette tranche n'ont pas la cle et gardent donc
+                            // exactement leur rendu — meme discipline que `intent`
+                            // (T1350) et `clarification_questions` (T1392).
+                            $judgeableId = $isAnswered ? ($meta['ai_interaction_id'] ?? null) : null;
+                            $judgeableId = is_string($judgeableId) && $judgeableId !== '' ? $judgeableId : null;
+                            $givenVerdict = $judgeableId !== null ? ($shell['verdicts'][$judgeableId] ?? null) : null;
                         @endphp
                         <li wire:key="ai-shell-msg-{{ $message->id }}"
                             data-ai-shell-message="{{ $message->role }}"
@@ -398,6 +410,54 @@
                                          aucun libelle sur mobile. --}}
                                     @if(filled($shell['organization_name'] ?? null))
                                         <p class="mt-1.5 text-[11px] leading-4 text-gray-500 dark:text-gray-400" data-ai-shell-request-tenant>{{ __('ai.shell_request_tenant', ['organization' => $shell['organization_name']]) }}</p>
+                                    @endif
+                                </div>
+                            @endif
+
+                            {{-- TASK-1486 — « Cette reponse vous a-t-elle aidee ? »
+
+                                 Deux pastilles minuscules sous la bulle. Ce n'est pas un
+                                 appel a l'action — c'est une porte ouverte pour qui a
+                                 quelque chose a dire.
+
+                                 La FORME n'est pas inventee : le blog explorer porte deja
+                                 ce geste exact depuis TASK-1256, en pastilles bordees de
+                                 12 px avec 5 px de padding vertical (`.bp-fb-btn`). Une
+                                 premiere version en liens soulignes mesurait 20 px de
+                                 haut — moins affordante, et un vocabulaire visuel de plus
+                                 pour la meme action. On reprend celui qui existe.
+
+                                 Pourquoi ici et pas ailleurs : `ai_interaction_feedbacks`
+                                 existe depuis TASK-1256 et n'etait branchee qu'au blog
+                                 explorer — 26 interactions sur 281, zero verdict jamais
+                                 recueilli. Le Shell en pese 87 et n'avait aucun moyen de
+                                 savoir si sa reponse avait servi.
+
+                                 Une fois le verdict donne, les boutons cedent la place a
+                                 un remerciement : redemander a quelqu'un qui vient de
+                                 repondre serait ne pas l'avoir ecoute. Le verdict reste
+                                 modifiable — `updateOrCreate` cote composant — mais
+                                 l'ecran n'insiste pas. --}}
+                            @if($judgeableId !== null)
+                                <div class="mt-1 flex flex-wrap items-center gap-2 text-[11px] leading-4 text-gray-500 dark:text-gray-400"
+                                     data-ai-shell-feedback="{{ $judgeableId }}"
+                                     @if($givenVerdict) data-ai-shell-feedback-given="{{ $givenVerdict }}" @endif>
+                                    @if($givenVerdict)
+                                        <span data-ai-shell-feedback-thanks>{{ __('ai.shell_feedback_thanks') }}</span>
+                                    @else
+                                        <span>{{ __('ai.shell_feedback_question') }}</span>
+                                        <button type="button"
+                                                wire:click="judge('{{ $message->id }}', 'helpful')"
+                                                data-ai-shell-feedback-helpful
+                                                class="rounded-full border border-gray-300 px-2.5 py-1 font-medium text-gray-600 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300 dark:hover:border-indigo-500 dark:hover:text-indigo-300">
+                                            {{ __('ai.shell_feedback_helpful') }}
+                                        </button>
+                                        <button type="button"
+                                                wire:click="judge('{{ $message->id }}', 'improve')"
+                                                data-ai-shell-feedback-improve
+                                                class="rounded-full border border-gray-300 px-2.5 py-1 font-medium text-gray-600 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300 dark:hover:border-indigo-500 dark:hover:text-indigo-300">
+                                            {{ __('ai.shell_feedback_improve') }}
+                                        </button>
                                     @endif
                                 </div>
                             @endif

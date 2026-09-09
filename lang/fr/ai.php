@@ -865,6 +865,13 @@ return [
     'surface_subscriptions' => 'les abonnements',
     'surface_organization_admin' => 'l\'administration de l\'organisation',
     'shell_prompt_language_guard' => 'IMPORTANT : Réponds en français. Quelle que soit la langue des instructions et du contexte ci-dessous, tu dois répondre au membre en français.',
+    // TASK-1486 — le verdict humain sur UNE reponse du Shell. Meme geste et
+    // memes deux valeurs que le blog explorer (TASK-1256) : on ne cree pas un
+    // second vocabulaire pour la meme chose.
+    'shell_feedback_question' => 'Cette réponse vous a-t-elle aidé ?',
+    'shell_feedback_helpful' => 'Utile',
+    'shell_feedback_improve' => 'À améliorer',
+    'shell_feedback_thanks' => 'Merci, c\'est noté.',
     'shell_prompt_usage_reference' => 'À propos de la page où se trouve l\'utilisateur, « :title » : :content',
     'shell_prompt_where_dashboard' => 'L\'utilisateur est sur son tableau de bord.',
     'shell_prompt_where_loop' => 'L\'utilisateur consulte la Boucle « :name ».',
