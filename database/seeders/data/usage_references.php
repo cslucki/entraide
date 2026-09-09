@@ -228,9 +228,9 @@ return [
             'title' => 'La fiche d\'un membre',
             'lines' => [
                 "Cette page est la fiche d'UN membre de l'organisation, telle que les autres membres la voient.",
-                "Ce qu'on y trouve : sa presentation, ses coordonnees declarees, sa disponibilite, ce qu'il propose et ce qu'il demande, ses echanges termines, les avis recus et, le cas echeant, ses articles.",
+                "Ce qu'on y trouve : sa presentation, ses coordonnees declarees, sa disponibilite, son solde de points, ce qu'il propose et ce qu'il demande, ses echanges termines, les avis recus et, le cas echeant, ses articles.",
                 "Ce qu'on peut y faire : lire sa fiche, revenir a l'annuaire, et — si ce membre a active son agent IA — lui poser une question par cet agent. Un contenu inapproprie peut etre signale.",
-                "Ce que cette page ne fait pas : elle n'affiche aucune conversation privee, aucun solde, et n'engage rien a la place de ce membre. Elle est reservee aux membres de la meme organisation.",
+                "Ce que cette page ne fait pas : elle n'affiche aucune conversation privee et n'engage rien a la place de ce membre. Elle est reservee aux membres de la meme organisation.",
                 "Pour modifier sa propre fiche, il faut passer par l'edition de son profil, pas par cette page.",
             ],
         ],
@@ -238,9 +238,9 @@ return [
             'title' => 'A member profile',
             'lines' => [
                 'This page is the profile of ONE member of the organization, as other members see it.',
-                'What you find here: their introduction, the details they chose to share, their availability, what they offer and what they request, their completed exchanges, the reviews they received and, where applicable, their articles.',
+                'What you find here: their introduction, the details they chose to share, their availability, their points balance, what they offer and what they request, their completed exchanges, the reviews they received and, where applicable, their articles.',
                 'What you can do here: read the profile, go back to the directory, and — if this member enabled their AI agent — ask that agent a question. Inappropriate content can be reported.',
-                'What this page does not do: it shows no private conversation, no balance, and commits to nothing on this member behalf. It is reserved for members of the same organization.',
+                'What this page does not do: it shows no private conversation and commits to nothing on this member behalf. It is reserved for members of the same organization.',
                 'To change your own profile, use the profile editing page, not this one.',
             ],
         ],
