@@ -47,7 +47,7 @@
     <style>
         /* Autonome comme le partial lui-meme : le Shell First ne doit dependre
            d'aucun composant marketing pour s'afficher. */
-        .bpsf-page { min-height: 100dvh; display: flex; flex-direction: column; background: var(--bp-page, #f7f7f5); color: var(--bp-text, #16181d); }
+        .bpsf-page { min-height: 100vh; min-height: 100dvh; height: 100dvh; overflow: hidden; display: flex; flex-direction: column; background: var(--bp-page, #f7f7f5); color: var(--bp-text, #16181d); }
         .bpsf-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem 1rem; border-bottom: 1px solid var(--bp-border, #e6e6e1); }
         .bpsf-brand { font-weight: 700; font-size: .95rem; letter-spacing: -.01em; text-decoration: none; color: inherit; }
         .bpsf-org { font-weight: 500; color: var(--bp-muted, #6b7280); }
@@ -55,14 +55,13 @@
         .bpsf-lang button { border: 0; background: none; font: inherit; font-size: .75rem; padding: .15rem .35rem; color: var(--bp-muted, #6b7280); cursor: pointer; border-radius: .35rem; }
         .bpsf-lang button[aria-current="true"] { background: var(--bp-panel, #edece7); color: var(--bp-text, #16181d); font-weight: 600; }
         .bpsf-login { font-size: .8rem; font-weight: 600; text-decoration: none; color: var(--bp-text, #16181d); border: 1px solid var(--bp-border, #e6e6e1); border-radius: 999px; padding: .4rem .85rem; }
-        /* TASK-1496 : la page utile appartient au Shell. Sur mobile la colonne
-           n'a plus de gouttiere du tout — le Shell va bord a bord — et sur
-           grand ecran elle garde juste ce qu'il faut pour ne pas coller aux
-           bords. */
+        /* TASK-1497 : la page utile appartient ENTIEREMENT au Shell. La
+           gouttiere de 32 px que TASK-1496 laissait sur grand ecran faisait
+           encore un cadre autour de l'application ; il n'y en a plus aucune,
+           a aucune taille. Seule la barre du haut garde son confort de lecture. */
         .bpsf-main { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 0; }
         @media (min-width: 641px) {
             .bpsf-bar { padding: 1rem 2rem; }
-            .bpsf-main { padding: 1rem 2rem 0; }
         }
     </style>
 </head>
