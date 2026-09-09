@@ -65,11 +65,27 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
         'organization.constitution' => 'Texte fondateur public.',
         'organization.subscriptions' => 'Grille d\'abonnements, surface commerciale.',
 
-        // Blog public, durci par l'audit T123 (tenant scope de la surface publique).
-        'organization.blog.index' => 'Blog public de l\'Organization (T123).',
-        'organization.blog.show' => 'Article public (T123).',
-        'organization.blog.category' => 'Liste publique par categorie (T123).',
-        'organization.blog.tag' => 'Liste publique par tag (T123).',
+        // Blog public. ATTENTION a ce que T123 a reellement decide : cet audit
+        // (2026-05-23) a durci le TENANT SCOPE — quels articles apparaissent —
+        // et ne dit pas un mot de `is_public`, des Organizations privees, ni
+        // des lecteurs anonymes. Verifie ligne a ligne avant d'ecrire ceci.
+        //
+        // Mesure TASK-1489 sur `test20260822` (`is_public = false`), article
+        // reellement publie : servi 200 avec son titre a un membre d'une AUTRE
+        // Organization ET a un anonyme complet. `BlogController@index` ne filtre
+        // que sur `organization_id` — ni appartenance, ni publicite.
+        //
+        // C'est la meme question que TASK-1479 et TASK-1488 ont tranchee
+        // ailleurs — sauf qu'ici l'article porte un opt-in EXPLICITE de son
+        // auteur (`status = published`), ce que ni l'annuaire ni la fiche
+        // Service n'avaient. Cette difference est reelle : elle fait du blog un
+        // arbitrage PRODUIT, pas un defaut evident, et c'est pourquoi il est
+        // escalade a MASTER plutot que decide ici.
+        // -> SECURITY_PRODUCT_DECISION_REQUIRED_BEFORE_STABILIZATION.
+        'organization.blog.index' => 'Blog public — ESCALADE : lisible par un anonyme sur une Organization privee (mesure TASK-1489).',
+        'organization.blog.show' => 'Article public — ESCALADE : opt-in auteur `published`, mais lu par un anonyme sur une Organization privee.',
+        'organization.blog.category' => 'Liste publique par categorie — meme escalade que blog.index.',
+        'organization.blog.tag' => 'Liste publique par tag — meme escalade que blog.index.',
 
         // Ateliers publics (TASK-1450 -> TASK-1461) : la vitrine ET le premier
         // geste d'interet, qui doit rester possible avant de creer un compte.
