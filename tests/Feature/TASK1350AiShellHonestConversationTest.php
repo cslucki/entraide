@@ -733,14 +733,32 @@ class TASK1350AiShellHonestConversationTest extends TestCase
     // I. Shell global
     // =====================================================================
 
-    /** 25. Une page sans action IA ne dit plus que l'IA n'y sert a rien. */
+    /**
+     * 25. Une page sans action IA ne dit plus que l'IA n'y sert a rien.
+     *
+     * TASK-1477 a change la PHRASE sans changer ce contrat. L'ancienne
+     * (`fab_no_page_action`) tenait la bonne distinction — « pas d'action ici »
+     * n'est pas « pas d'IA ici » — mais l'ouvrait par une negation, et c'etait
+     * la seule chose que le panneau savait dire sur l'agenda ou l'annuaire.
+     * Le repli neutre (`fab_page_help`) dit ce que le Shell PEUT faire.
+     *
+     * L'assertion est renforcee au passage : elle mesure desormais que la
+     * phrase n'ouvre sur aucune absence, plutot que de se contenter de
+     * reconnaitre une chaine donnee.
+     */
     public function test_a_page_without_ai_action_still_offers_the_conversation(): void
     {
         $response = $this->actingAs($this->member)->get(route('dashboard'));
 
         $response->assertOk();
-        $response->assertSee(__('ai.fab_no_page_action'));
+        $response->assertSee(__('ai.fab_page_help'));
         $response->assertDontSee('Ici, aucune action IA');
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/^(cette page n\'a pas|this page has no|il n\'y a (pas|aucune)|there is no)/iu',
+            __('ai.fab_page_help'),
+            'la conversation reste offerte, et on ne l\'annonce pas par ce qui manque',
+        );
     }
 
     // =====================================================================
@@ -909,7 +927,7 @@ class TASK1350AiShellHonestConversationTest extends TestCase
             'ai.shell_answer_request_preparation_unavailable',
             'ai.shell_answer_non_interaction',
             'ai.shell_answer_blocked',
-            'ai.fab_no_page_action',
+            'ai.fab_page_help',
             'ai.fab_subtitle_other',
             'ai.shell_empty_hint',
             'ai.self_knowledge_capabilities_intro',
@@ -968,7 +986,7 @@ class TASK1350AiShellHonestConversationTest extends TestCase
             'ai.shell_answer_request_preparation_unavailable',
             'ai.shell_answer_non_interaction',
             'ai.shell_card_offer_help',
-            'ai.fab_no_page_action',
+            'ai.fab_page_help',
             'ai.self_knowledge_capabilities_intro',
             'ai.self_knowledge_capability_assistant',
         ] as $key) {

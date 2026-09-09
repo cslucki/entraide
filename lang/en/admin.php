@@ -824,4 +824,13 @@ return [
     'guest_shell_diag_unknown_cause' => 'The public assistant is stopped for a reason this screen cannot name yet.',
     'guest_shell_diag_unknown_action' => 'Report the technical code below to the product team.',
     'guest_shell_diag_technical' => 'Technical code:',
+
+    // TASK-1477 — the MEMBER surfaces of the usage reference.
+    'usage_reference_surface_dashboard' => 'Dashboard (members)',
+    'usage_reference_surface_agenda' => 'Agenda (members)',
+    'usage_reference_surface_directory' => 'Directory (members)',
+    'usage_reference_surface_exchanges' => 'Exchanges (members)',
+    'usage_reference_surface_dossiers' => 'Folders (members)',
+    'usage_reference_surface_blog' => 'Blog (members)',
+    'usage_reference_surface_profile' => 'Profile (members)',
 ];

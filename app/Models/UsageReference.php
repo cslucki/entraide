@@ -45,13 +45,68 @@ class UsageReference extends Model
 
     public const SURFACE_SIGNUP = 'signup';
 
-    /** Les surfaces V1 (V3 §9). La table les accepte ; seule `shell_welcome` est semee aujourd'hui. */
-    public const SURFACES = [
+    // TASK-1477 — les surfaces MEMBRE. Leurs cles sont EXACTEMENT celles de
+    // `AiShellPageContext::SURFACE_ROUTES`, et un test le verifie : deux
+    // vocabulaires pour le meme lieu recreeraient l'homonymie que TASK-1473 a
+    // du defaire.
+    //
+    // `organization_home` n'y figure pas : depuis TASK-1473 ce mot designe
+    // l'ACCUEIL PUBLIC des deux cotes, et le tableau de bord porte `dashboard`.
+    //
+    // `dossier` et `article` n'y figurent pas non plus : une UsageReference
+    // explique un LIEU (« a quoi sert cet endroit »), pas un objet particulier.
+    // Un Dossier precis n'a pas de mode d'emploi propre — le rayon « Dossiers »
+    // en a un.
+
+    public const SURFACE_DASHBOARD = 'dashboard';
+
+    public const SURFACE_AGENDA = 'agenda';
+
+    public const SURFACE_DIRECTORY = 'directory';
+
+    public const SURFACE_EXCHANGES = 'exchanges';
+
+    public const SURFACE_DOSSIERS = 'dossiers';
+
+    public const SURFACE_BLOG = 'blog';
+
+    public const SURFACE_PROFILE = 'profile';
+
+    /**
+     * Les surfaces PUBLIQUES / Guest (V3 §9).
+     *
+     * Cette liste reste distincte parce qu'un parcours d'acquisition s'adresse
+     * a un VISITEUR : lui proposer « l'annuaire » ou « l'agenda » n'aurait pas
+     * de sens, et `OrgAcquisitionController` lit donc cette constante-ci et non
+     * `SURFACES`.
+     */
+    public const SURFACES_PUBLIC = [
         self::SURFACE_ORGANIZATION_HOME,
         self::SURFACE_SHELL_WELCOME,
         self::SURFACE_WORKSHOP,
         self::SURFACE_WORKSHOP_SESSION,
         self::SURFACE_SIGNUP,
+    ];
+
+    /** Les surfaces MEMBRE, celles que le Shell « BouclePro IA » peut nommer. */
+    public const SURFACES_MEMBER = [
+        self::SURFACE_DASHBOARD,
+        self::SURFACE_AGENDA,
+        self::SURFACE_DIRECTORY,
+        self::SURFACE_EXCHANGES,
+        self::SURFACE_DOSSIERS,
+        self::SURFACE_BLOG,
+        self::SURFACE_PROFILE,
+    ];
+
+    /**
+     * Toutes les surfaces adressables. Elargir cette liste n'ecrit AUCUN
+     * contenu et n'accorde AUCUN droit : elle dit seulement quelles cles la
+     * table accepte et lesquelles le resolver consent a chercher.
+     */
+    public const SURFACES = [
+        ...self::SURFACES_PUBLIC,
+        ...self::SURFACES_MEMBER,
     ];
 
     public const DEFAULT_MAX_CHARS = 4000;

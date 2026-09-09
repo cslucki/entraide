@@ -13,6 +13,13 @@
     $fab = $fabContext->shouldRenderFab(request(), auth()->user())
         ? $fabContext->forRequest(request(), auth()->user())
         : null;
+
+    // TASK-1477 : le repere d'usage de la surface courante, lu par la MEME
+    // classe que le Shell. Aucune seconde resolution, aucun droit accorde.
+    $fabSurface = (string) ($fab['page_context']['surface'] ?? \App\Support\Ai\AiShellPageContext::SURFACE_UNKNOWN);
+    $fabUsageReference = $fab
+        ? app(\App\Support\Ai\AiShellUsageReference::class)->forSurface($fabSurface, app()->getLocale())
+        : null;
 @endphp
 @if($fab)
 {{-- TASK-1472 : le declencheur « BouclePro IA » herite de la couleur « Action
@@ -191,14 +198,28 @@
                 @endforeach
             </ul>
         @elseif($fab['shell_enabled'])
-            {{-- TASK-1350 — l'honnetete du panneau, en une phrase.
-                 Cette page n'expose aucune action IA propre : on le DIT, et on
-                 dit dans la meme phrase que la conversation, elle, reste
-                 ouverte. C'est exactement la distinction que le produit doit
-                 tenir — « pas d'action ici » n'est pas « pas d'IA ici ». --}}
-            <p class="px-4 py-3 text-xs leading-5 text-gray-500 dark:text-gray-400" data-ai-fab-no-page-action>
-                {{ __('ai.fab_no_page_action') }}
-            </p>
+            {{-- TASK-1350 tenait deja la bonne distinction — « pas d'action ici »
+                 n'est pas « pas d'IA ici » — mais l'enonçait par une NEGATION,
+                 et c'etait la seule chose que le panneau savait dire sur
+                 l'agenda, l'annuaire ou les echanges.
+
+                 TASK-1477 : quand un repere publie existe pour cette surface, on
+                 dit A QUOI SERT le lieu. Sinon, une phrase neutre qui decrit ce
+                 que le Shell peut reellement faire — repondre sur ce que la
+                 personne consulte — plutot que d'ouvrir sur ce qu'il ne fait pas.
+
+                 Le repere n'ajoute AUCUNE capacite : les actions, au-dessus,
+                 restent calculees par la seule autorite qui les gouverne. --}}
+            @if($fabUsageReference !== null)
+                <div class="px-4 py-3" data-ai-fab-usage-reference="{{ $fabSurface }}">
+                    <p class="text-xs font-semibold text-gray-700 dark:text-gray-200">{{ $fabUsageReference['title'] }}</p>
+                    <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ $fabUsageReference['content'] }}</p>
+                </div>
+            @else
+                <p class="px-4 py-3 text-xs leading-5 text-gray-500 dark:text-gray-400" data-ai-fab-no-page-action>
+                    {{ __('ai.fab_page_help') }}
+                </p>
+            @endif
         @endif
 
         {{-- Credit utilisateur : la seule chose chiffree que le FAB montre.

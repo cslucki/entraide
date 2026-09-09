@@ -667,7 +667,6 @@ return [
     'fab_subtitle_dossier' => 'In this Folder',
     // TASK-1350: the subtitle locates you, it no longer devalues the page.
     'fab_subtitle_other' => 'Available everywhere on BouclePro',
-    'fab_no_page_action' => 'This page has no AI action of its own. You can still talk with BouclePro AI: ask your question, the conversation follows you from page to page.',
     'fab_credit_title' => 'AI credit this month',
     'fab_credit_included' => 'Included',
     'fab_credit_alert' => 'You are getting close to your monthly credit.',
@@ -894,4 +893,7 @@ return [
     'dossier_manifest_article' => 'Article: :title — Folder ":dossier"',
     'dossier_manifest_file' => ':type file: :name — Folder ":dossier"',
     'dossier_manifest_file_type_fallback' => 'file',
+
+    // TASK-1477 — the neutral panel fallback: what the Shell can do, not what it cannot.
+    'fab_page_help' => 'Ask your question about what you are looking at: the conversation follows you from page to page.',
 ];

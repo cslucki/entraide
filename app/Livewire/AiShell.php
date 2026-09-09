@@ -348,14 +348,20 @@ class AiShell extends Component
             }
         }
 
+        // TASK-1469 : « ou suis-je ? », resolu par la MEME autorite que le FAB.
+        // Un contexte reconstitue depuis une requete Livewire n'a pas de route
+        // de page : le repli `unknown` ne dit rien de faux.
+        $surface = (string) ($context['surface'] ?? AiShellPageContext::SURFACE_UNKNOWN);
+
         return view('livewire.ai-shell', [
             'shell' => [
                 'context' => $context,
-                // TASK-1469 : « ou suis-je ? », resolu par la MEME autorite que
-                // le FAB. Un contexte reconstitue depuis une requete Livewire
-                // n'a pas de route de page : le repli `unknown` ne dit rien de
-                // faux.
-                'surface' => $context['surface'] ?? \App\Support\Ai\AiShellPageContext::SURFACE_UNKNOWN,
+                'surface' => $surface,
+                // TASK-1477 : « a quoi sert cet endroit ». Une couche DISTINCTE
+                // de la surface (« ou suis-je ») et des actions (« que puis-je
+                // faire »). Elle n'accorde rien : c'est un texte publie par un
+                // humain, relu par l'autorite existante, ou `null`.
+                'usage_reference' => app(\App\Support\Ai\AiShellUsageReference::class)->forSurface($surface, app()->getLocale()),
                 'here' => $this->hereLabel($context),
                 'conversation_id' => $conversationId,
                 'messages' => $messages,
