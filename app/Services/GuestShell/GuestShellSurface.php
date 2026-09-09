@@ -203,8 +203,32 @@ final class GuestShellSurface
     /**
      * @return array{role: string, body: string, at: string}
      */
+    /**
+     * TASK-1499 — la charge utile d'un message porte desormais son rendu et son
+     * heure, en plus de son texte brut.
+     *
+     * `html` passe par le MEME `markdown()` que la bulle membre et la ChatLoop
+     * (`components/conversation/message-bubble`) : CommonMark + GFM, avec
+     * `html_input => 'escape'` et `allow_unsafe_links => false`. Aucun moteur
+     * parallele n'est introduit — c'est la condition posee par MASTER, et c'est
+     * aussi ce qui rend l'insertion cliente sure : le HTML brut d'un modele est
+     * ECHAPPE a la source, jamais interprete.
+     *
+     * Mesure qui a rendu ceci necessaire : le modele renvoyait
+     * `[Creer un compte](https://.../register)` et le Shell Guest l'affichait
+     * littéralement, en Markdown brut.
+     *
+     * `at_label` est l'heure telle que la ChatLoop canonique l'ecrit
+     * (`diffForHumans()`), pas un format invente ici.
+     */
     private function messagePayload(GuestMessage $message): array
     {
-        return ['role' => (string) $message->role, 'body' => (string) $message->body, 'at' => $message->created_at?->toIso8601String() ?? ''];
+        return [
+            'role' => (string) $message->role,
+            'body' => (string) $message->body,
+            'html' => markdown((string) $message->body),
+            'at' => $message->created_at?->toIso8601String() ?? '',
+            'at_label' => $message->created_at?->diffForHumans() ?? '',
+        ];
     }
 }

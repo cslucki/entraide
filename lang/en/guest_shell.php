@@ -5,6 +5,7 @@ return [
     // TASK-1437 — SW-7 : repli local (jamais un second appel) et instruction de langue.
     'fallback_unavailable' => 'The answer is temporarily unavailable. You can try again in a moment.',
     'fallback_empty' => 'I have no answer to offer right now. Could you rephrase?',
+    'instruction_continuing' => "This conversation is ALREADY UNDER WAY: the transcript below proves it. Do not introduce yourself and do not greet again — answer directly, in continuity. The message marked [MESSAGE ACTUEL] is the one you answer; resolve its references (\"it\", \"yes\", \"how much\") from the previous turns.",
     'instruction_locale' => 'Answer in this language: :locale.',
     'context' => [
         'identity' => ':name — public presentation',
