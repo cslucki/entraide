@@ -131,7 +131,11 @@ class TASK1405DirectoryRequestCounterTest extends TestCase
             'status' => 'open',
         ]);
 
-        $reponse = $this->get('/membres');
+        // TASK-1479 (P0 privacy) : l'annuaire n'est plus servi a un visiteur
+        // ANONYME — il rendait 200 sans aucun cookie, sur des Organizations
+        // privees comprises. Ce que cette sonde mesure — le libelle et le
+        // compteur rendus — ne change pas ; elle regarde depuis un membre.
+        $reponse = $this->actingAs($membre)->get('/membres');
         $reponse->assertOk();
 
         return $this->normalize($reponse->getContent());

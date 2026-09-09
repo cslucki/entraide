@@ -149,15 +149,33 @@ class TASK1411SideNavNotificationsBottomTest extends TestCase
 
     // ── Permissions ─────────────────────────────────────────────────────────
 
+    /**
+     * TASK-1479 (P0 privacy) — un invite n'obtient plus la page du tout.
+     *
+     * Ce test mesurait l'absence de l'entree dans un rail rendu a un invite sur
+     * `/membres`. Cette page rendait alors 200 sans aucun cookie ; elle rend
+     * desormais une redirection.
+     *
+     * La garantie est donc portee plus tot, et plus fort : il n'y a plus de rail
+     * a inspecter parce qu'il n'y a plus de page. Le test le dit ainsi.
+     *
+     * **Le temoin d'instrument de ce fichier reste indispensable et n'a pas
+     * bouge** : `test_the_probe_really_renders_the_rail_and_its_two_zones`
+     * prouve qu'un MEMBRE obtient bien un rail avec ses deux zones. Sans lui,
+     * cette garde negative serait satisfaite par une page vide — c'est
+     * exactement le piege que ce fichier documente depuis TASK-1411, et la
+     * raison pour laquelle on ne se contente pas ici d'un `assertDontSee` sur
+     * une reponse de redirection.
+     */
     public function test_a_guest_never_gets_the_entry(): void
     {
         app()->instance('current_organization', $this->orgMembre);
 
-        $html = $this->get('/membres')->assertOk()->getContent();
-        $rail = $this->rail($html);
+        $response = $this->get('/membres');
 
-        $this->assertStringNotContainsString('data-side-nav-notifications', $rail);
-        $this->assertStringNotContainsString('data-nav-badge-notifications', $rail);
+        $this->assertNotSame(200, $response->getStatusCode(), 'un invite n\'atteint plus l\'annuaire');
+        $this->assertStringNotContainsString('data-side-nav-notifications', (string) $response->getContent());
+        $this->assertStringNotContainsString('data-nav-badge-notifications', (string) $response->getContent());
     }
 
     // ── Temoin d'instrument ─────────────────────────────────────────────────

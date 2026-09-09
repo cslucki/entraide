@@ -199,7 +199,27 @@ class InlineMemberAgentTest extends TestCase
             ->assertDontSee(__('ai.ai_agent_of', ['name' => $this->member->name]));
     }
 
-    public function test_guest_sees_ai_agent_chat_entrypoint_on_profile(): void
+    /**
+     * TASK-1479 (P0 privacy) — ce test s'appelait
+     * `test_guest_sees_ai_agent_chat_entrypoint_on_profile`, et c'etait un
+     * contrat produit explicite : un INVITE voyait l'entree vers l'agent IA
+     * d'un membre depuis sa fiche.
+     *
+     * La fiche de profil n'est plus servie a un anonyme — elle rendait 200 sans
+     * aucun cookie sur des Organizations `is_public = false`, avec nom, ville,
+     * biographie et points. L'entree vers l'agent disparait donc du champ de
+     * vision d'un invite, par consequence et non par intention.
+     *
+     * **Consequence signalee a MASTER** : la route de l'agent elle-meme
+     * (`agent-ia.profile.chat`) reste, elle, accessible sans authentification.
+     * Fermer la fiche sans fermer l'agent laisse une asymetrie ; elle est hors
+     * du perimetre fixe pour cette TASK et a ete escaladee plutot que decidee
+     * ici.
+     *
+     * Ce que le test mesure — l'entree est rendue quand un profil IA est
+     * publie — n'a pas change.
+     */
+    public function test_the_ai_agent_chat_entrypoint_is_rendered_on_a_profile(): void
     {
         MemberAiProfile::factory()->published()->create([
             'organization_id' => $this->org->id,
@@ -207,11 +227,20 @@ class InlineMemberAgentTest extends TestCase
             'member_profile_summary' => 'Consultant SEO',
         ]);
 
-        $response = $this->get(route('profile.show', $this->member));
+        // Un AUTRE membre de la meme Organization : on ne propose pas a
+        // quelqu'un de discuter avec son propre agent, et la mesure l'a montre.
+        $reader = User::factory()->create(['organization_id' => $this->org->id]);
+
+        $response = $this->actingAs($reader)->get(route('profile.show', $this->member));
 
         $response->assertStatus(200)
             ->assertSee(__('profile.agent_cta_title'))
             ->assertSeeText(__('profile.agent_cta_hint'))
             ->assertSee(route('agent-ia.profile.chat', $this->member), false);
+
+        // Le blocage de l'invite n'est PAS re-mesure ici : `actingAs` persiste
+        // entre les requetes d'un meme test, et une preuve « sans session »
+        // ecrite a la suite serait fausse. Elle vit ou elle doit vivre, dans
+        // TASK1479OrganizationDirectoryAccessTest.
     }
 }
