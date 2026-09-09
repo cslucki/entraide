@@ -14,12 +14,26 @@
     ] as $cell)
         <div class="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800" data-ai-quality-cell="{{ $cell['key'] }}">
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('ai.'.$cell['label']) }}</p>
-            {{-- Les trois derniers comptes ne se rendent que s'ils ont un sens :
-                 sans aucun tour evaluable, « 0 juge utile » serait un faux zero. --}}
-            <p class="mt-1 text-xl font-semibold tabular-nums text-gray-900 dark:text-gray-100">
-                {{ in_array($cell['key'], ['evaluated', 'helpful', 'improve'], true) && $quality['evaluable'] === 0
-                    ? '—'
-                    : number_format($cell['value']) }}
+            {{-- Chaque compte ne se rend que s'il a un sens, et le seuil n'est
+                 pas le meme pour tous.
+
+                 « Evaluees » a besoin d'un denominateur : sans aucun tour
+                 evaluable, « 0 evaluee » ne dit rien. Avec 45 evaluables, en
+                 revanche, « 0 » est une information vraie et utile.
+
+                 « Jugees utiles » et « A ameliorer » ont besoin d'un VERDICT :
+                 tant que personne n'a juge, « 0 juge utile » se lit comme un
+                 verdict alors qu'il n'y en a aucun. C'est le faux zero que ce
+                 cockpit existe pour eviter, et il tenait a une ligne. --}}
+            <p class="mt-1 text-xl font-semibold tabular-nums text-gray-900 dark:text-gray-100" data-ai-quality-value="{{ $cell['key'] }}">
+                @php
+                    $qHidden = match ($cell['key']) {
+                        'evaluated' => $quality['evaluable'] === 0,
+                        'helpful', 'improve' => $quality['evaluated'] === 0,
+                        default => false,
+                    };
+                @endphp
+                {{ $qHidden ? '—' : number_format($cell['value']) }}
             </p>
         </div>
     @endforeach

@@ -173,6 +173,42 @@ class TASK1487AiQualityCockpitTest extends TestCase
     }
 
     /**
+     * « Jugees utiles : 0 » sans aucun verdict se lit comme un VERDICT. Tant
+     * que personne n'a juge, ces deux comptes se rendent « — » — meme si des
+     * tours evaluables existent.
+     *
+     * La nuance a failli passer : avec 45 tours evaluables et zero verdict, la
+     * premiere version affichait « Jugees utiles : 0 » a cote d'un bandeau
+     * disant qu'on ne peut pas mesurer la qualite. Deux affirmations
+     * contradictoires sur le meme ecran.
+     */
+    public function test_helpful_and_improve_stay_unknown_until_someone_judges(): void
+    {
+        $since = AiQualityInstrumentation::since('clarify_help_request');
+        $this->interaction($this->a, 'clarify_help_request', $since->addSecond());
+
+        $html = $this->actingAs($this->adminA)
+            ->get(route('organization.admin.ai-quality', ['organization' => $this->a->slug]))
+            ->assertOk()
+            ->getContent();
+
+        $report = app(AiQualityReport::class)->forOrganization($this->a, $this->from, $this->to);
+        $this->assertSame(1, $report['evaluable'], 'premisse : un tour EST evaluable');
+        $this->assertSame(0, $report['evaluated'], 'premisse : personne n\'a juge');
+
+        foreach (['helpful', 'improve'] as $key) {
+            $this->assertMatchesRegularExpression(
+                '/data-ai-quality-value="'.$key.'"[^>]*>\s*—\s*</u',
+                $html,
+                "[{$key}] doit rester inconnu tant qu'aucun verdict n'existe"
+            );
+        }
+
+        // « Evaluees », lui, a un denominateur : son 0 est vrai et utile.
+        $this->assertMatchesRegularExpression('/data-ai-quality-value="evaluated"[^>]*>\s*0\s*</u', $html);
+    }
+
+    /**
      * La fiabilite et les refus ne sont PAS journalises. Le dire vaut mieux
      * que d'afficher « 100 % de succes » ou « 0 refus », vrais par accident.
      */
