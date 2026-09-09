@@ -119,6 +119,35 @@ class TASK1494GuestShellFirstLayoutTest extends TestCase
     }
 
     /**
+     * TASK-1496 — le Shell prend la PAGE UTILE, il n'est pas une carte posee
+     * dessus.
+     *
+     * TASK-1494 avait retire la landing ; la mesure au navigateur a montre
+     * qu'il restait une carte : 67 % de large en 1440 avec 240 px de marge de
+     * chaque cote, et sur mobile une carte a coins arrondis flottant dans la
+     * page. « Une petite carte perdue », et c'etait juste.
+     *
+     * Ce test verrouille les trois marques de la correction, cote serveur :
+     * la largeur utile, le bord a bord mobile, et le fil qui defile sous un
+     * composeur fixe. Il ne remplace pas la recette navigateur — c'est elle
+     * qui a trouve le defaut —, il empeche la regression.
+     */
+    public function test_shell_first_takes_the_usable_page_and_is_not_a_card(): void
+    {
+        $body = $this->get(route('organization.home', $this->organization(GuestShellDisplayMode::SHELL_FIRST)))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('max-width:1100px', $body, 'la largeur utile du fil n\'est pas posee');
+        $this->assertStringContainsString('border-radius:0', $body, 'le bord a bord mobile n\'est pas pose');
+        $this->assertStringContainsString('.bpgs-log{flex:1;min-height:0;overflow-y:auto}', $body, 'le fil ne defile pas sous un composeur fixe');
+
+        // La mention de confidentialite de PAGE a ete retiree : le Shell porte
+        // deja la sienne, et les deux ensemble mangeaient 97 px de page utile.
+        $this->assertStringNotContainsString('bpsf-privacy', $body, 'la mention de confidentialite est dupliquee');
+    }
+
+    /**
      * L'AUTRE moitie du contrat : le mode OVERLAY ne change pas d'un pixel.
      * C'est ce test qui empeche cette TASK de devenir une refonte de la
      * page d'accueil.

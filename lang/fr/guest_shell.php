@@ -25,7 +25,6 @@ return [
     // TASK-1440 — Guest PageContext V1 : le bloc « où suis-je ? ».
     // TASK-1442 — SW-8a : l'overlay public (textes visibles par le visiteur).
     'ui' => [
-        'privacy_note' => 'Conversation publique, sans compte : aucune donnée personnelle n\'est demandée.',
         'open' => 'Une question ?',
         'open_unavailable' => 'BouclePro IA — indisponible',
         'title' => 'Assistant de :name',

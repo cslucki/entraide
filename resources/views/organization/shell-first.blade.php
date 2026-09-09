@@ -55,11 +55,14 @@
         .bpsf-lang button { border: 0; background: none; font: inherit; font-size: .75rem; padding: .15rem .35rem; color: var(--bp-muted, #6b7280); cursor: pointer; border-radius: .35rem; }
         .bpsf-lang button[aria-current="true"] { background: var(--bp-panel, #edece7); color: var(--bp-text, #16181d); font-weight: 600; }
         .bpsf-login { font-size: .8rem; font-weight: 600; text-decoration: none; color: var(--bp-text, #16181d); border: 1px solid var(--bp-border, #e6e6e1); border-radius: 999px; padding: .4rem .85rem; }
-        .bpsf-main { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 1rem; }
-        .bpsf-privacy { padding: .75rem 1rem 1.25rem; text-align: center; font-size: .7rem; color: var(--bp-muted, #6b7280); }
-        @media (min-width: 768px) {
+        /* TASK-1496 : la page utile appartient au Shell. Sur mobile la colonne
+           n'a plus de gouttiere du tout — le Shell va bord a bord — et sur
+           grand ecran elle garde juste ce qu'il faut pour ne pas coller aux
+           bords. */
+        .bpsf-main { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 0; }
+        @media (min-width: 641px) {
             .bpsf-bar { padding: 1rem 2rem; }
-            .bpsf-main { padding: 1.5rem 2rem 0; }
+            .bpsf-main { padding: 1rem 2rem 0; }
         }
     </style>
 </head>
@@ -93,6 +96,11 @@
         @include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'top'])
     </main>
 
-    <p class="bpsf-privacy">{{ __('guest_shell.ui.privacy_note') }}</p>
+    {{-- TASK-1496 : la mention de confidentialite de page est RETIREE.
+         Mesure au navigateur : elle occupait 54 px sous le composeur en 390,
+         juste sous `.bpgs-foot` qui dit deja « Echange public sans compte. Ne
+         partagez pas de donnees personnelles. » Deux phrases pour la meme
+         chose, et 97 px de page utile perdus. Le Shell porte deja sa mention :
+         c'est la bonne, elle est dans le cadre de la conversation. --}}
 </body>
 </html>
