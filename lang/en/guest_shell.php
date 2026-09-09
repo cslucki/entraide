@@ -25,7 +25,6 @@ return [
     // TASK-1440 — Guest PageContext V1: the "where am I?" block.
     // TASK-1442 — SW-8a: the public overlay (visitor-facing texts).
     'ui' => [
-        'privacy_note' => 'Public conversation, no account: no personal data is requested.',
         'open' => 'Any question?',
         'open_unavailable' => 'BouclePro AI — unavailable',
         'title' => ':name assistant',

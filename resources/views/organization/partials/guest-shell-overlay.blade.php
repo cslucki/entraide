@@ -77,15 +77,28 @@
 #bp-guest-shell .bpgs-form button[disabled],#bp-guest-shell .bpgs-form textarea[disabled]{opacity:.5;cursor:not-allowed}
 #bp-guest-shell .bpgs-foot{font-size:11px;color:#9ca3af;padding:0 12px 10px;text-align:center}
   @media (max-width:480px){#bp-guest-shell{right:12px;bottom:12px}#bp-guest-shell .bpgs-panel{position:fixed;left:0;right:0;bottom:0;width:100vw;max-width:100vw;height:82vh;max-height:82vh;border-radius:16px 16px 0 0}}
-  /* TASK-1494 : en shell_first le Shell EST l'experience, il occupe donc la
-     hauteur disponible. Avant, il etait borne a 480px / 70vh parce qu'une
-     landing marketing se deroulait dessous (TASK-1443) ; ce n'est plus le cas.
-     `flex:1` sur une colonne pleine hauteur plutot qu'une hauteur fixe : la
-     page hote (`organization/shell-first`) donne la colonne, le Shell la
-     remplit, et rien ne casse si le chrome change de taille. */
-  #bp-guest-shell.bpgs-first{position:static;right:auto;bottom:auto;display:flex;flex-direction:column;flex:1;width:100%;max-width:960px;margin:0 auto;padding:8px 0 0}
-  #bp-guest-shell.bpgs-first .bpgs-panel{position:static;width:100%;max-width:100%;height:auto;flex:1;min-height:0;max-height:none;bottom:auto;right:auto}
-  @media (max-width:480px){#bp-guest-shell.bpgs-first{padding:4px 0 0}#bp-guest-shell.bpgs-first .bpgs-panel{position:static;width:100%;border-radius:16px}}
+  /* TASK-1494 puis TASK-1496 : en shell_first le Shell EST l'experience.
+     TASK-1494 avait deja retire la landing marketing et rendu la hauteur ;
+     mesure au navigateur apres coup : le panneau restait une CARTE — 67 % de
+     large en 1440 avec 240 px de marge de chaque cote, et sur mobile une carte
+     a coins arrondis flottant dans la page. « Une petite carte perdue », et
+     c'etait juste.
+
+     TASK-1496 en fait une interface de conversation pleine page : la largeur
+     utile monte a 1100 px sur grand ecran (lisibilite d'un fil de discussion,
+     pas une pleine largeur de 1440 qui rendrait les lignes illisibles), et sur
+     mobile la carte disparait — bord a bord, sans rayon, sans marge. */
+  #bp-guest-shell.bpgs-first{position:static;right:auto;bottom:auto;display:flex;flex-direction:column;flex:1;width:100%;max-width:1100px;margin:0 auto;padding:0}
+  #bp-guest-shell.bpgs-first .bpgs-panel{position:static;width:100%;max-width:100%;height:auto;flex:1;min-height:0;max-height:none;bottom:auto;right:auto;display:flex;flex-direction:column}
+  /* Le fil defile, la saisie reste en bas : c'est ce qui distingue une
+     interface de conversation d'un bloc de texte. */
+  #bp-guest-shell.bpgs-first .bpgs-log{flex:1;min-height:0;overflow-y:auto}
+  #bp-guest-shell.bpgs-first .bpgs-form{flex:0 0 auto}
+  @media (max-width:640px){
+    /* Bord a bord : plus de carte, plus de rayon, plus d'ombre. */
+    #bp-guest-shell.bpgs-first{max-width:none;padding:0}
+    #bp-guest-shell.bpgs-first .bpgs-panel{border-radius:0;border-left:0;border-right:0;box-shadow:none}
+  }
 </style>
 <div id="bp-guest-shell"
      class="{{ $gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::SHELL_FIRST ? 'bpgs-first' : '' }}"
