@@ -649,6 +649,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/usage-references', [AdminUsageReferenceController::class, 'index'])->name('usage-references');
     Route::get('/usage-references/create', [AdminUsageReferenceController::class, 'create'])->name('usage-references.create');
     Route::post('/usage-references', [AdminUsageReferenceController::class, 'store'])->name('usage-references.store');
+    // TASK-1480 : LIRE une reference — le geste qui manquait. `edit` etait la
+    // seule vue du texte et rend 404 sur une version publiee : on ne pouvait
+    // donc pas relire ce qui etait en ligne. Declaree APRES `/create` pour que
+    // le segment litteral ne soit pas capture comme un identifiant.
+    Route::get('/usage-references/{usageReference}', [AdminUsageReferenceController::class, 'show'])->name('usage-references.show');
     Route::get('/usage-references/{usageReference}/edit', [AdminUsageReferenceController::class, 'edit'])->name('usage-references.edit');
     Route::put('/usage-references/{usageReference}', [AdminUsageReferenceController::class, 'update'])->name('usage-references.update');
     Route::post('/usage-references/{usageReference}/publish', [AdminUsageReferenceController::class, 'publish'])->name('usage-references.publish');

@@ -841,4 +841,18 @@ return [
     'usage_reference_surface_dossiers' => 'Dossiers (membres)',
     'usage_reference_surface_blog' => 'Blog (membres)',
     'usage_reference_surface_profile' => 'Profil (membres)',
+
+    // TASK-1480 — Admin UsageReference : voir, modifier, previsualiser, publier, historique.
+    'usage_reference_view' => 'Voir',
+    'usage_reference_preview' => 'Prévisualiser',
+    'usage_reference_amend' => 'Modifier',
+    'usage_reference_edit_draft' => 'Modifier le brouillon',
+    'usage_reference_create_for' => 'Créer un repère',
+    'usage_reference_draft_version' => 'Brouillon v:version',
+    'usage_reference_history' => '{0} Aucune version|{1} 1 version|[2,*] :count versions',
+    'usage_reference_show_title' => 'Repère v:version',
+    'usage_reference_draft_not_live' => 'Ce brouillon n\'est pas servi : le Shell continue d\'utiliser la version publiée, ou aucune. Il ne le sera qu\'après une publication humaine explicite.',
+    'usage_reference_from_hint' => 'Texte repris de la version publiée v:version. Elle reste en ligne : ce brouillon ne la remplacera qu\'après publication.',
+    'usage_reference_publisher' => 'Publié par',
+    'usage_reference_length' => 'Longueur',
 ];
