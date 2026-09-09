@@ -827,11 +827,23 @@ Route::prefix('/org/{organization}')
         Route::get('/boucles', [HomeController::class, 'boucles'])->name('boucles.index');
 
         Route::middleware('auth')->group(function () {
-            Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-            Route::get('/dashboard/requests', [DashboardController::class, 'requests'])->name('dashboard.requests');
-            Route::get('/dashboard/requests/{serviceRequest}', [DashboardController::class, 'requestDetail'])->name('dashboard.requests.detail')->middleware('consume.org')->whereUuid('serviceRequest');
-            Route::get('/dashboard/services', [DashboardController::class, 'services'])->name('dashboard.services');
-            Route::get('/dashboard/services/{service}', [DashboardController::class, 'serviceDetail'])->name('dashboard.services.detail')->middleware('consume.org')->whereUuid('service');
+            // TASK-1483 (P1 tenant) — le tableau de bord d'une Organization
+            // repondait 200 a un membre d'une AUTRE Organization. Rien du
+            // tenant vise n'y fuyait : la page ne montre que les donnees du
+            // visiteur. Le defaut est ailleurs — elle les montrait sous
+            // l'identite, le theme et le `header_javascript` d'un tenant dont
+            // il n'est pas membre, en laissant croire qu'il y avait sa place.
+            //
+            // `explain` plutot que le 404 par defaut : la personne est
+            // connectee et a tape ce slug elle-meme. Voir
+            // `EnsureOrganizationMember`.
+            Route::middleware('organization.member:explain')->group(function () {
+                Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+                Route::get('/dashboard/requests', [DashboardController::class, 'requests'])->name('dashboard.requests');
+                Route::get('/dashboard/requests/{serviceRequest}', [DashboardController::class, 'requestDetail'])->name('dashboard.requests.detail')->middleware('consume.org')->whereUuid('serviceRequest');
+                Route::get('/dashboard/services', [DashboardController::class, 'services'])->name('dashboard.services');
+                Route::get('/dashboard/services/{service}', [DashboardController::class, 'serviceDetail'])->name('dashboard.services.detail')->middleware('consume.org')->whereUuid('service');
+            });
             Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
             Route::middleware('profile.complete')->group(function () {
