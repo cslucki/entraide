@@ -103,16 +103,37 @@
      `align-self:flex-end` des messages visiteur, et CENTRAIT toutes les bulles.
      Recette de Cyril : les pastilles « Oui » se retrouvaient au milieu au lieu
      d'etre a droite. Centrer la colonne, jamais les bulles. */
-  #bp-guest-shell.bpgs-first .bpgs-log{width:100%;max-width:44rem;margin-left:auto;margin-right:auto}
-  #bp-guest-shell.bpgs-first .bpgs-form{width:100%;max-width:44rem;margin-left:auto;margin-right:auto}
-  #bp-guest-shell.bpgs-first .bpgs-foot{max-width:44rem;margin-left:auto;margin-right:auto}
+  /* WP-C / TASK-1498 : la LANE conversationnelle.
+
+     Mesure avec un fil peuple : la lane restait a 44rem = 704 px, soit 49 % du
+     viewport en 1440 et **37 % en 1920**. L'application occupait bien 100 %,
+     mais la conversation laissait un vide considerable — c'est ce que la
+     recette de Cyril rejetait, et la mesure lui donne raison.
+
+     `min(90vw, 1400px)` : la lane suit l'ecran jusqu'a un plafond de lecture.
+     Mesure attendue — 1440 -> 1296 px (90 %), 1920 -> 1400 px (plafond),
+     390 -> pleine largeur (la regle mobile plus bas neutralise le plafond).
+     Ce sont des criteres de RENDU : aucune valeur n'est figee par taille
+     d'ecran, une seule expression responsive les tient toutes. */
+  #bp-guest-shell.bpgs-first .bpgs-log{width:100%;max-width:min(90vw,1400px);margin-left:auto;margin-right:auto}
+  #bp-guest-shell.bpgs-first .bpgs-form{width:100%;max-width:min(90vw,1400px);margin-left:auto;margin-right:auto}
+  #bp-guest-shell.bpgs-first .bpgs-foot{max-width:min(90vw,1400px);margin-left:auto;margin-right:auto}
+  /* Les bulles, dans la lane. `88%` sur une lane de 1400 donnerait 1232 px —
+     au-dela de ce qui se lit confortablement : l'assistant est donc plafonne.
+     Le visiteur, lui, est borne a 70 % de la lane (WP-C §2) : ses messages sont
+     courts, et une pastille large casserait la lecture du fil. */
+  #bp-guest-shell.bpgs-first .bpgs-msg-assistant{max-width:min(88%,1100px)}
+  #bp-guest-shell.bpgs-first .bpgs-msg-user{max-width:70%}
   /* Une SEULE barre en shell_first : celle de la page. L'entete interne du
      Shell ferait une seconde barre de navigation, ce que le contrat interdit. */
   #bp-guest-shell.bpgs-first .bpgs-head{display:none}
   @media (max-width:640px){
+    /* Bord a bord : l'ecran EST la lane. */
     #bp-guest-shell.bpgs-first .bpgs-log,
     #bp-guest-shell.bpgs-first .bpgs-form,
     #bp-guest-shell.bpgs-first .bpgs-foot{max-width:none}
+    #bp-guest-shell.bpgs-first .bpgs-msg-assistant{max-width:88%}
+    #bp-guest-shell.bpgs-first .bpgs-msg-user{max-width:88%}
   }
 </style>
 <div id="bp-guest-shell"
