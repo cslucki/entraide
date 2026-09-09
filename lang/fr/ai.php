@@ -865,6 +865,7 @@ return [
     'surface_subscriptions' => 'les abonnements',
     'surface_organization_admin' => 'l\'administration de l\'organisation',
     'shell_prompt_language_guard' => 'IMPORTANT : Réponds en français. Quelle que soit la langue des instructions et du contexte ci-dessous, tu dois répondre au membre en français.',
+    'shell_prompt_usage_reference' => 'À propos de la page où se trouve l\'utilisateur, « :title » : :content',
     'shell_prompt_where_dashboard' => 'L\'utilisateur est sur son tableau de bord.',
     'shell_prompt_where_loop' => 'L\'utilisateur consulte la Boucle « :name ».',
     'shell_prompt_where_dossier' => 'L\'utilisateur consulte le Dossier « :name ».',

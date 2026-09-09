@@ -824,6 +824,7 @@ return [
     'surface_subscriptions' => 'subscriptions',
     'surface_organization_admin' => 'the organization administration',
     'shell_prompt_language_guard' => 'IMPORTANT: Answer in English. Whatever the language of the instructions and of the context below, you must reply to the member in English.',
+    'shell_prompt_usage_reference' => 'About the page the user is on, ":title": :content',
     'shell_prompt_where_dashboard' => 'The user is on their dashboard.',
     'shell_prompt_where_loop' => 'The user is viewing the Loop ":name".',
     'shell_prompt_where_dossier' => 'The user is viewing the Folder ":name".',
