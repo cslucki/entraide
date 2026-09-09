@@ -97,16 +97,22 @@
      interface de conversation d'un bloc de texte. UN SEUL conteneur defile. */
   #bp-guest-shell.bpgs-first .bpgs-log{flex:1;min-height:0;overflow-y:auto}
   #bp-guest-shell.bpgs-first .bpgs-form{flex:0 0 auto}
-  /* La largeur de LECTURE, sur les messages et la saisie — pas sur le cadre. */
-  #bp-guest-shell.bpgs-first .bpgs-msg,
-  #bp-guest-shell.bpgs-first .bpgs-note,
-  #bp-guest-shell.bpgs-first .bpgs-cta{max-width:44rem;margin-left:auto;margin-right:auto}
-  #bp-guest-shell.bpgs-first .bpgs-form{max-width:44rem;margin-left:auto;margin-right:auto;width:100%}
+  /* La largeur de LECTURE est portee par le CONTENEUR du fil, pas par chaque
+     bulle. Correctif d'une regression que je venais d'introduire : poser
+     `margin-left:auto;margin-right:auto` sur `.bpgs-msg` ecrasait le
+     `align-self:flex-end` des messages visiteur, et CENTRAIT toutes les bulles.
+     Recette de Cyril : les pastilles « Oui » se retrouvaient au milieu au lieu
+     d'etre a droite. Centrer la colonne, jamais les bulles. */
+  #bp-guest-shell.bpgs-first .bpgs-log{width:100%;max-width:44rem;margin-left:auto;margin-right:auto}
+  #bp-guest-shell.bpgs-first .bpgs-form{width:100%;max-width:44rem;margin-left:auto;margin-right:auto}
+  #bp-guest-shell.bpgs-first .bpgs-foot{max-width:44rem;margin-left:auto;margin-right:auto}
+  /* Une SEULE barre en shell_first : celle de la page. L'entete interne du
+     Shell ferait une seconde barre de navigation, ce que le contrat interdit. */
+  #bp-guest-shell.bpgs-first .bpgs-head{display:none}
   @media (max-width:640px){
-    #bp-guest-shell.bpgs-first .bpgs-msg,
-    #bp-guest-shell.bpgs-first .bpgs-note,
-    #bp-guest-shell.bpgs-first .bpgs-cta,
-    #bp-guest-shell.bpgs-first .bpgs-form{max-width:none}
+    #bp-guest-shell.bpgs-first .bpgs-log,
+    #bp-guest-shell.bpgs-first .bpgs-form,
+    #bp-guest-shell.bpgs-first .bpgs-foot{max-width:none}
   }
 </style>
 <div id="bp-guest-shell"

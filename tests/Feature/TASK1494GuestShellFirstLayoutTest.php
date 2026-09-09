@@ -155,13 +155,37 @@ class TASK1494GuestShellFirstLayoutTest extends TestCase
         // messages, ou elle appartient.
         $this->assertStringContainsString('max-width:none;margin:0;padding:0}', $body, 'le conteneur du Shell est encore borne en largeur');
         $this->assertStringContainsString('border:0;border-radius:0;box-shadow:none', $body, 'le Shell est encore rendu comme une carte');
-        $this->assertStringContainsString('.bpgs-msg,', $body, 'la largeur de lecture n\'est pas portee par les messages');
-        $this->assertStringContainsString('max-width:44rem', $body, 'la largeur de lecture des messages a disparu');
+        // La largeur de lecture est portee par le CONTENEUR du fil, jamais par
+        // chaque bulle : `margin:auto` sur `.bpgs-msg` ecraserait le
+        // `align-self:flex-end` des messages visiteur et centrerait tout.
+        // Recette de Cyril : les pastilles se retrouvaient au milieu.
+        $this->assertStringContainsString('.bpgs-log{width:100%;max-width:44rem;margin-left:auto;margin-right:auto}', $body, 'la colonne de lecture n\'est pas portee par le fil');
+        $this->assertStringNotContainsString('.bpgs-msg,\n  #bp-guest-shell.bpgs-first .bpgs-note', $body, 'la largeur de lecture est repassee sur les bulles');
         $this->assertStringContainsString('.bpgs-log{flex:1;min-height:0;overflow-y:auto}', $body, 'le fil ne defile pas sous un composeur fixe');
 
         // La mention de confidentialite de PAGE a ete retiree : le Shell porte
         // deja la sienne, et les deux ensemble mangeaient 97 px de page utile.
         $this->assertStringNotContainsString('bpsf-privacy', $body, 'la mention de confidentialite est dupliquee');
+    }
+
+    /**
+     * UNE SEULE barre de navigation, et le logo a gauche.
+     *
+     * Recette de Cyril : deux barres se superposaient — celle de la page
+     * (« BouclePro / FR EN / Connexion ») et l'entete interne du Shell
+     * (« Assistant de BouclePro »). L'entete du Shell est masque en
+     * shell_first ; il reste utile en overlay, ou le panneau flotte et a besoin
+     * de son propre titre et de son bouton de fermeture.
+     */
+    public function test_shell_first_has_a_single_top_bar_with_the_logo(): void
+    {
+        $body = $this->get(route('organization.home', $this->organization(GuestShellDisplayMode::SHELL_FIRST)))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('.bpgs-first .bpgs-head{display:none}', $body, 'l\'entete du Shell fait une seconde barre');
+        $this->assertStringContainsString('brand/bouclepro-symbol-64.png', $body, 'le logo manque dans la barre');
+        $this->assertStringContainsString('class="bpsf-logo"', $body);
     }
 
     /**
