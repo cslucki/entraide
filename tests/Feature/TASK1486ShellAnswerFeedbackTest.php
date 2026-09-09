@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\Ai\AiShellResponder;
 use App\Support\Ai\AiShellPageContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Ai\Responses\Data\Meta;
@@ -356,6 +357,52 @@ class TASK1486ShellAnswerFeedbackTest extends TestCase
             ->test(AiShell::class)
             ->assertDontSee('data-ai-shell-feedback', false)
             ->assertDontSee(e(__('ai.shell_feedback_question')), false);
+    }
+
+    /**
+     * Un fil sans aucun tour jugeable ne coute AUCUNE requete de plus.
+     *
+     * C'est le cas de tous les fils ecrits avant cette tranche : ils ne doivent
+     * rien payer pour une fonction qui ne les concerne pas. Mesure : on compte
+     * les requetes qui touchent `ai_interaction_feedbacks` pendant un rendu.
+     */
+    public function test_a_thread_without_judgeable_turns_costs_no_extra_query(): void
+    {
+        $this->fakeClarifier();
+        $answer = $this->answerATurn();
+
+        $metadata = $answer->metadata;
+        unset($metadata['ai_interaction_id']);
+        $answer->forceFill(['metadata' => $metadata])->save();
+
+        $touched = 0;
+        DB::listen(function ($query) use (&$touched): void {
+            if (str_contains($query->sql, 'ai_interaction_feedbacks')) {
+                $touched++;
+            }
+        });
+
+        Livewire::actingAs($this->member)->test(AiShell::class);
+
+        $this->assertSame(0, $touched, 'un fil sans tour jugeable ne doit pas interroger la table des verdicts');
+    }
+
+    /** Et un fil QUI en porte un l'interroge bien — la garde n'est pas un court-circuit permanent. */
+    public function test_a_thread_with_a_judgeable_turn_does_query(): void
+    {
+        $this->fakeClarifier();
+        $this->answerATurn();
+
+        $touched = 0;
+        DB::listen(function ($query) use (&$touched): void {
+            if (str_contains($query->sql, 'ai_interaction_feedbacks')) {
+                $touched++;
+            }
+        });
+
+        Livewire::actingAs($this->member)->test(AiShell::class);
+
+        $this->assertGreaterThan(0, $touched);
     }
 
     // =====================================================================

@@ -442,16 +442,23 @@ class AiShell extends Component
         // avis qui survivrait a son retrait, ou qui s'afficherait pour
         // quelqu'un d'autre, serait pire que pas d'avis du tout. Le scope part
         // de l'utilisateur — on ne lit jamais le verdict d'un tiers.
-        $verdicts = AiInteractionFeedback::query()
-            ->where('user_id', $user->id)
-            ->where('organization_id', $organization->id)
-            ->whereIn('ai_interaction_id', $messages
-                ->map(fn (AiShellMessage $m): ?string => is_array($m->metadata) ? ($m->metadata['ai_interaction_id'] ?? null) : null)
-                ->filter(fn ($id): bool => is_string($id) && $id !== '')
-                ->values()
-                ->all())
-            ->pluck('verdict', 'ai_interaction_id')
+        $judgeableIds = $messages
+            ->map(fn (AiShellMessage $m): ?string => is_array($m->metadata) ? ($m->metadata['ai_interaction_id'] ?? null) : null)
+            ->filter(fn ($id): bool => is_string($id) && $id !== '')
+            ->values()
             ->all();
+
+        // Aucun tour jugeable dans ce fil : aucune requete. Ce n'est pas une
+        // micro-optimisation gratuite — c'est le cas de TOUS les fils ecrits
+        // avant cette tranche, et ils ne doivent rien couter de plus qu'avant.
+        $verdicts = $judgeableIds === []
+            ? []
+            : AiInteractionFeedback::query()
+                ->where('user_id', $user->id)
+                ->where('organization_id', $organization->id)
+                ->whereIn('ai_interaction_id', $judgeableIds)
+                ->pluck('verdict', 'ai_interaction_id')
+                ->all();
 
         $cards = [];
 
