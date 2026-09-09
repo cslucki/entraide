@@ -416,10 +416,16 @@
 
                             {{-- TASK-1486 — « Cette reponse vous a-t-elle aidee ? »
 
-                                 Le geste le plus discret possible : deux mots, sous la
-                                 bulle, sans bordure ni fond. Ce n'est pas un appel a
-                                 l'action — c'est une porte ouverte pour qui a quelque
-                                 chose a dire.
+                                 Deux pastilles minuscules sous la bulle. Ce n'est pas un
+                                 appel a l'action — c'est une porte ouverte pour qui a
+                                 quelque chose a dire.
+
+                                 La FORME n'est pas inventee : le blog explorer porte deja
+                                 ce geste exact depuis TASK-1256, en pastilles bordees de
+                                 12 px avec 5 px de padding vertical (`.bp-fb-btn`). Une
+                                 premiere version en liens soulignes mesurait 20 px de
+                                 haut — moins affordante, et un vocabulaire visuel de plus
+                                 pour la meme action. On reprend celui qui existe.
 
                                  Pourquoi ici et pas ailleurs : `ai_interaction_feedbacks`
                                  existe depuis TASK-1256 et n'etait branchee qu'au blog
@@ -443,13 +449,13 @@
                                         <button type="button"
                                                 wire:click="judge('{{ $message->id }}', 'helpful')"
                                                 data-ai-shell-feedback-helpful
-                                                class="rounded-full px-2 py-0.5 font-medium text-gray-600 underline decoration-dotted underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100">
+                                                class="rounded-full border border-gray-300 px-2.5 py-1 font-medium text-gray-600 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300 dark:hover:border-indigo-500 dark:hover:text-indigo-300">
                                             {{ __('ai.shell_feedback_helpful') }}
                                         </button>
                                         <button type="button"
                                                 wire:click="judge('{{ $message->id }}', 'improve')"
                                                 data-ai-shell-feedback-improve
-                                                class="rounded-full px-2 py-0.5 font-medium text-gray-600 underline decoration-dotted underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100">
+                                                class="rounded-full border border-gray-300 px-2.5 py-1 font-medium text-gray-600 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300 dark:hover:border-indigo-500 dark:hover:text-indigo-300">
                                             {{ __('ai.shell_feedback_improve') }}
                                         </button>
                                     @endif
