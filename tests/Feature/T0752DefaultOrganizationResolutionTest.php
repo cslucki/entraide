@@ -86,7 +86,11 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_blog_index_returns_200_with_default_org(): void
     {
-        $org = Organization::factory()->create(['is_active' => true, 'is_default' => true]);
+        // TASK-1492 : le blog d'une Organization `is_public = false` n'est plus servi
+        // a un invite. Ce test mesure la RESOLUTION du tenant sur le blog public, et
+        // le lecteur anonyme fait partie de ce qu'il exerce — l'Organization est donc
+        // declaree publique, ce qu'elle etait implicitement (defaut de factory).
+        $org = Organization::factory()->create(['is_active' => true, 'is_default' => true, 'is_public' => true]);
 
         $this->get(route('blog.index'))
             ->assertOk();
@@ -94,8 +98,9 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_blog_index_filters_by_resolved_org(): void
     {
-        $orgA = Organization::factory()->create(['is_active' => true, 'is_default' => true]);
-        $orgB = Organization::factory()->create(['is_active' => true]);
+        // TASK-1492 : idem — le scope mesure ici est celui du blog PUBLIC.
+        $orgA = Organization::factory()->create(['is_active' => true, 'is_default' => true, 'is_public' => true]);
+        $orgB = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
 
         $userA = User::factory()->create(['organization_id' => $orgA->id]);
         $userB = User::factory()->create(['organization_id' => $orgB->id]);
