@@ -395,6 +395,18 @@ class ClarifyUserHelpRequestService implements AiProvider
             producer: 'laravel_ai_sdk',
             interactionFit: $this->authoritativeInteractionFit($structured, $clarifyPromptVersion),
             directReply: $this->authoritativeDirectReply($structured, $clarifyPromptVersion),
+            // TASK-1486 — l'identifiant de la trace que ce tour vient d'ecrire.
+            //
+            // La trace existait deja et etait deja recue ici ; ce qui manquait
+            // etait de la RENDRE. Sans elle, un verdict humain ne peut designer
+            // aucune reponse : c'est la seule raison pour laquelle le blog
+            // explorer etait la seule surface instrumentee du produit — son
+            // controleur cree l'`AiInteraction` lui-meme.
+            //
+            // `?->` et non `->` : les chemins qui n'ecrivent pas de trace
+            // (repli deterministe, provider indisponible, refus economique)
+            // rendent `null`, et l'appelant ne propose alors rien.
+            interactionId: $interaction?->id,
         );
     }
 

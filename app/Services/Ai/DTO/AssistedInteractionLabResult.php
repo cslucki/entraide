@@ -56,6 +56,33 @@ class AssistedInteractionLabResult
          * garantie.
          */
         public readonly ?string $directReply = null,
+        /**
+         * TASK-1486 — l'identifiant de la TRACE que ce tour a produite
+         * (`ai_interactions`).
+         *
+         * ## Pourquoi ce champ manquait, et ce que ce manque coutait
+         *
+         * `ai_interaction_feedbacks` existe depuis TASK-1256 : un verdict
+         * humain — « Utile » / « A ameliorer » — sur UNE reponse IA. Mais un
+         * verdict doit pouvoir designer la reponse qu'il juge, et seul le blog
+         * explorer y arrivait : son controleur cree l'`AiInteraction`
+         * lui-meme, donc il en a l'identifiant.
+         *
+         * Le Shell passe par ce service partage, qui ecrit la trace en interne
+         * et ne rendait rien qui permette de la retrouver. Resultat mesure au
+         * 2026-09-09 : 281 interactions, dix fonctions, et **une seule**
+         * instrumentee — 26 occasions sur 281, zero verdict jamais recueilli.
+         *
+         * ## Ce que ce champ n'est pas
+         *
+         * Ni un droit, ni un contenu, ni une garantie de presence. C'est un
+         * POINTEUR vers une ligne de trace deja ecrite, deja bornee au tenant
+         * et deja soumise a `UserDataLifecycleRegistry`. `null` quand aucune
+         * trace n'a ete produite — repli deterministe, provider indisponible,
+         * refus economique : l'appelant doit alors se comporter exactement
+         * comme avant TASK-1486, c'est-a-dire ne rien proposer.
+         */
+        public readonly ?string $interactionId = null,
     ) {}
 
     public function toArray(): array

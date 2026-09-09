@@ -417,6 +417,29 @@ final class AiShellResponder
                 $result->intent,
             ),
             'page_context' => $this->traceable($pageContext),
+            // TASK-1486 — le POINTEUR vers la trace de ce tour, pour qu'un
+            // verdict humain puisse designer CETTE reponse.
+            //
+            // `ai_interaction_feedbacks` existe depuis TASK-1256, avec ses deux
+            // verdicts et son ancrage tenant. Il n'etait branche qu'au blog
+            // explorer — 26 interactions sur 281 — parce que lui seul avait
+            // l'identifiant de sa trace : son controleur cree l'`AiInteraction`
+            // lui-meme. Le Shell, la surface la plus utilisee du produit
+            // (87 interactions), n'avait aucun moyen de savoir si sa reponse
+            // avait aide.
+            //
+            // Il n'est pose QUE sur le tour REPONDU. Les autres statuts —
+            // indisponible, bloque, hors Interaction — n'ont produit aucun
+            // appel provider, donc aucune trace : proposer un verdict y
+            // designerait le vide.
+            //
+            // Ce que cette cle N'EST PAS, et la borne de metadata documentee
+            // plus haut le dit deja : ni un titre, ni un brouillon, ni une
+            // carte, ni une intention. Une reponse conversationnelle n'est pas
+            // une demande, et n'en devient pas une parce qu'elle sait d'ou elle
+            // vient. C'est une reference de trace, deja bornee au tenant et
+            // deja soumise a `UserDataLifecycleRegistry`.
+            'ai_interaction_id' => $result->interactionId,
         ] + $this->pinnedTrace($pinnedContext)];
     }
 

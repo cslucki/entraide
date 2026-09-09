@@ -2,6 +2,8 @@
 
 namespace App\Livewire;
 
+use App\Models\AiInteraction;
+use App\Models\AiInteractionFeedback;
 use App\Models\AiShellMessage;
 use App\Models\Category;
 use App\Models\Dossier;
@@ -262,6 +264,101 @@ class AiShell extends Component
      * deja voir dans SA Organization. Epingler n'accorde rien : chaque usage
      * du pin rejoue la meme garde.
      */
+    /**
+     * TASK-1486 — « Cette reponse vous a-t-elle aide ? »
+     *
+     * ## Ce qui existait, et ce qui manquait
+     *
+     * `ai_interaction_feedbacks` est en place depuis TASK-1256 : deux verdicts
+     * — `helpful` / `improve` —, un commentaire libre, un ancrage tenant en FK
+     * CASCADE, et une politique de retention deja declaree dans
+     * `UserDataLifecycleRegistry`. Rien de tout cela n'est cree ici.
+     *
+     * Ce qui manquait etait le BRANCHEMENT. Mesure du 2026-09-09 : 281
+     * interactions IA, dix fonctions, **une seule** instrumentee — le blog
+     * explorer, 26 interactions, et zero verdict jamais recueilli. Le Shell,
+     * qui pese 87 interactions a lui seul, n'avait aucun moyen de dire si sa
+     * reponse avait servi a quelque chose.
+     *
+     * ## Les quatre gardes, et pourquoi chacune
+     *
+     * `$messageId` vient du CLIENT. Chaque garde est donc rejouee ici, comme
+     * dans `prepareRequest()` :
+     *
+     *  1. le message appartient a CE fil — `forThread()` scope d'abord par
+     *     (organization_id, user_id) ;
+     *  2. c'est une REPONSE, et une reponse effectivement REPONDUE : les
+     *     statuts degrades n'ont produit aucun appel provider, donc aucune
+     *     trace a juger ;
+     *  3. la trace pointee appartient a CETTE Organization **et a CET
+     *     utilisateur**. Cette seconde condition est la plus importante du
+     *     lot : sans elle, un membre pourrait poster l'identifiant d'une trace
+     *     d'un collegue et decouvrir, par la reponse, qu'elle existe. Un
+     *     verdict ne se donne que sur SA propre reponse ;
+     *  4. le verdict est l'une des deux valeurs admises par le modele.
+     *
+     * ## Ce que ce geste n'est pas
+     *
+     * Ni une notation d'utilisateur, ni une lecture de conversation, ni un
+     * consentement d'entrainement — le modele de TASK-1256 le dit deja : aucun
+     * champ export / training / consent n'existe sur cette table, par
+     * construction. C'est un humain qui juge UNE reponse qu'il a lui-meme
+     * provoquee.
+     *
+     * `updateOrCreate` sur (interaction, utilisateur) : un avis se change,
+     * il ne s'empile pas.
+     */
+    public function judge(string $messageId, string $verdict): void
+    {
+        [$user, $organization] = $this->actor();
+
+        if ($user === null || $organization === null) {
+            return;
+        }
+
+        if (! in_array($verdict, AiInteractionFeedback::VERDICTS, true)) {
+            return;
+        }
+
+        $answer = AiShellMessage::query()
+            ->forThread((string) $organization->id, (string) $user->id)
+            ->whereKey($messageId)
+            ->where('role', AiShellMessage::ROLE_ASSISTANT)
+            ->first();
+
+        if (! $answer instanceof AiShellMessage) {
+            return;
+        }
+
+        $metadata = is_array($answer->metadata) ? $answer->metadata : [];
+
+        if (($metadata['status'] ?? null) !== AiShellResponder::STATUS_ANSWERED) {
+            return;
+        }
+
+        $interactionId = $metadata['ai_interaction_id'] ?? null;
+
+        if (! is_string($interactionId) || $interactionId === '') {
+            return;
+        }
+
+        // La trace doit etre celle de CE tenant ET de CET utilisateur.
+        $interaction = AiInteraction::query()
+            ->whereKey($interactionId)
+            ->where('organization_id', $organization->id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (! $interaction instanceof AiInteraction) {
+            return;
+        }
+
+        AiInteractionFeedback::query()->updateOrCreate(
+            ['ai_interaction_id' => $interaction->id, 'user_id' => $user->id],
+            ['organization_id' => $interaction->organization_id, 'verdict' => $verdict],
+        );
+    }
+
     public function pin(AiShellPinnedContext $pins, string $kind, string $objectId): void
     {
         $this->notice = null;
@@ -338,6 +435,24 @@ class AiShell extends Component
         // plus. Une instance unique par rendu : son memo d'eligibilite tient
         // le cout constant.
         $turnCards = app(AiShellTurnCards::class);
+        // TASK-1486 — le verdict DEJA donne par cette personne sur chacune de
+        // ces reponses, en UNE requete.
+        //
+        // Il est relu en base a chaque rendu, jamais garde cote client : un
+        // avis qui survivrait a son retrait, ou qui s'afficherait pour
+        // quelqu'un d'autre, serait pire que pas d'avis du tout. Le scope part
+        // de l'utilisateur — on ne lit jamais le verdict d'un tiers.
+        $verdicts = AiInteractionFeedback::query()
+            ->where('user_id', $user->id)
+            ->where('organization_id', $organization->id)
+            ->whereIn('ai_interaction_id', $messages
+                ->map(fn (AiShellMessage $m): ?string => is_array($m->metadata) ? ($m->metadata['ai_interaction_id'] ?? null) : null)
+                ->filter(fn ($id): bool => is_string($id) && $id !== '')
+                ->values()
+                ->all())
+            ->pluck('verdict', 'ai_interaction_id')
+            ->all();
+
         $cards = [];
 
         foreach ($messages as $message) {
@@ -377,6 +492,9 @@ class AiShell extends Component
                 'conversation_id' => $conversationId,
                 'messages' => $messages,
                 'cards' => $cards,
+                // TASK-1486 : `ai_interaction_id` => verdict, pour CETTE
+                // personne uniquement.
+                'verdicts' => $verdicts,
                 'pins' => $pins,
                 'pinnable' => $pinnable
                     ? ['kind' => (string) $object['type'], 'id' => (string) $object['id'], 'label' => (string) $object['label']]

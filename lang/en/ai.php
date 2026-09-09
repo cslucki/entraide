@@ -824,6 +824,12 @@ return [
     'surface_subscriptions' => 'subscriptions',
     'surface_organization_admin' => 'the organization administration',
     'shell_prompt_language_guard' => 'IMPORTANT: Answer in English. Whatever the language of the instructions and of the context below, you must reply to the member in English.',
+    // TASK-1486 — the human verdict on ONE Shell answer. Same gesture and same
+    // two values as the blog explorer (TASK-1256).
+    'shell_feedback_question' => 'Did this answer help?',
+    'shell_feedback_helpful' => 'Helpful',
+    'shell_feedback_improve' => 'Could be better',
+    'shell_feedback_thanks' => 'Thanks, noted.',
     'shell_prompt_usage_reference' => 'About the page the user is on, ":title": :content',
     'shell_prompt_where_dashboard' => 'The user is on their dashboard.',
     'shell_prompt_where_loop' => 'The user is viewing the Loop ":name".',
