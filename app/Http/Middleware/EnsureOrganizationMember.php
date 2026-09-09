@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\Organization;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -48,14 +49,27 @@ use Symfony\Component\HttpFoundation\Response;
  * nouveau contournement a l'occasion d'un correctif de fuite serait le
  * contraire du but.
  *
- * ## 404 et non 403
+ * ## 404 par defaut, 403 explique sur demande
  *
- * Meme choix que `assertUserBelongsToOrganization()`, et pour la meme raison :
- * un 403 confirmerait a un tiers que cette Organization existe.
+ * Le refus par defaut est un 404, comme `assertUserBelongsToOrganization()` et
+ * pour la meme raison : sur l'annuaire, un 403 confirmerait a un tiers que
+ * cette Organization existe.
+ *
+ * TASK-1483 ajoute un second mode, `organization.member:explain`. Sur le
+ * tableau de bord, la personne est DEJA connectee et a tape le slug elle-meme :
+ * lui rendre un 404 generique la laisserait croire a une page cassee. Le refus
+ * explique donc ce qui se passe.
+ *
+ * **La regle d'appartenance ne change pas d'un mot** — seule la maniere de
+ * refuser change. Ecrire une seconde garde pour cela aurait cree une deuxieme
+ * autorite d'appartenance, c'est-a-dire exactement ce que TASK-1479 a evite.
  */
 final class EnsureOrganizationMember
 {
-    public function handle(Request $request, Closure $next): Response
+    /** Le mode de refus qui EXPLIQUE, au lieu de rendre un 404 generique. */
+    public const MODE_EXPLAIN = 'explain';
+
+    public function handle(Request $request, Closure $next, ?string $mode = null): Response
     {
         $user = $request->user();
 
@@ -82,6 +96,50 @@ final class EnsureOrganizationMember
             return $next($request);
         }
 
+        if ($mode === self::MODE_EXPLAIN) {
+            return $this->explain($organization);
+        }
+
         abort(404);
+    }
+
+    /**
+     * Le refus qui explique. Il ne montre RIEN du tenant vise, a une exception
+     * pres et elle est mesuree : le NOM, uniquement si l'Organization est
+     * publique.
+     *
+     * Pour une Organization privee, nommer la cible reviendrait a confirmer son
+     * existence a quelqu'un qui n'en fait pas partie — la meme raison qui fait
+     * du 404 le bon refus sur l'annuaire. Le texte devient alors neutre.
+     *
+     * Le second lien suit la meme discipline : « voir l'accueil de cette
+     * organisation » n'est propose que si cet accueil existe reellement.
+     * Mesure faite : `/org/artscilab-en` (privee) rend 302, pas une landing.
+     */
+    private function explain(Organization $organization): Response
+    {
+        $isPublic = (bool) $organization->is_public;
+
+        return response()->view('errors.organization-member-required', [
+            'organizationName' => $isPublic ? $organization->name : null,
+            'publicHomeUrl' => $isPublic && Route::has('organization.home')
+                ? route('organization.home', ['organization' => $organization->slug])
+                : null,
+            'ownSpaceUrl' => $this->ownSpaceUrl(),
+        ], 403);
+    }
+
+    /**
+     * « Retourner a mon espace » : le tableau de bord de SON Organization, pas
+     * une destination inventee. Si elle n'est pas resoluble, on retombe sur la
+     * racine plutot que de fabriquer une URL.
+     */
+    private function ownSpaceUrl(): string
+    {
+        $own = auth()->user()?->organization;
+
+        return $own instanceof Organization && Route::has('organization.dashboard')
+            ? route('organization.dashboard', ['organization' => $own->slug])
+            : url('/');
     }
 }

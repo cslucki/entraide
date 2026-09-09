@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\EnsureOrganizationMember;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
@@ -235,7 +237,23 @@ class TASK1479OrganizationDirectoryAccessTest extends TestCase
             ->assertOk();
     }
 
-    /** Le predicat n'est pas reecrit : c'est celui d'`OrgAdminMiddleware`. */
+    /**
+     * Le predicat n'est pas reecrit : c'est celui d'`OrgAdminMiddleware`.
+     *
+     * ## Pourquoi ce test lit `handle()` et non le fichier entier
+     *
+     * Il lisait le fichier entier, et TASK-1483 l'a fait rougir sur `is_public`
+     * — a bon droit : c'est exactement le mot qu'il surveille. Mais TASK-1483
+     * n'ouvre aucune porte avec : `is_public` n'y apparait que dans
+     * `explain()`, c'est-a-dire APRES que le refus est deja decide, et pour
+     * regler une seule chose — si l'on peut NOMMER l'Organization refusee.
+     *
+     * Elargir la garde a « nulle part dans le fichier » l'aurait rendue vraie
+     * mais aveugle ; la supprimer aurait rendu le fichier libre. On la resserre
+     * donc sur ce qu'elle protege reellement : **la methode qui decide**. Si
+     * `is_public`, `admin_id`, un `Gate::` ou une cle de config entre un jour
+     * dans le chemin de decision, ce test rougit toujours.
+     */
     public function test_the_transverse_predicate_is_the_existing_one(): void
     {
         $ours = php_strip_whitespace(app_path('Http/Middleware/EnsureOrganizationMember.php'));
@@ -244,10 +262,29 @@ class TASK1479OrganizationDirectoryAccessTest extends TestCase
         $this->assertStringContainsString('$user->is_admin', $ours);
         $this->assertStringContainsString('is_admin', $existing);
 
-        // Et aucune autre porte n'a ete ouverte au passage.
+        // Et aucune autre porte n'a ete ouverte au passage, DANS LE CHEMIN DE
+        // DECISION. La source vient de la reflexion, pas d'un decoupage de
+        // chaine : le jour ou la methode bouge, on lit toujours la bonne.
+        $decision = $this->sourceOfDecisionPath();
+
+        $this->assertStringContainsString('$user->is_admin', $decision, 'premisse : `handle()` est bien le chemin de decision');
+
         foreach (['is_public', 'admin_id', 'Gate::', 'config('] as $forbidden) {
-            $this->assertStringNotContainsString($forbidden, $ours, $forbidden.' : aucun critere de plus');
+            $this->assertStringNotContainsString($forbidden, $decision, $forbidden.' : aucun critere de plus');
         }
+    }
+
+    /** Le corps de `EnsureOrganizationMember::handle()`, tel qu'il est ecrit. */
+    private function sourceOfDecisionPath(): string
+    {
+        $method = new \ReflectionMethod(EnsureOrganizationMember::class, 'handle');
+        $lines = file($method->getFileName());
+
+        return implode('', array_slice(
+            $lines,
+            $method->getStartLine() - 1,
+            $method->getEndLine() - $method->getStartLine() + 1,
+        ));
     }
 
     // =====================================================================
@@ -257,7 +294,7 @@ class TASK1479OrganizationDirectoryAccessTest extends TestCase
     /** `/loops` etait deja protegee ; elle ne change pas. */
     public function test_loops_are_untouched(): void
     {
-        $route = \Illuminate\Support\Facades\Route::getRoutes()->getByName('organization.loops.index');
+        $route = Route::getRoutes()->getByName('organization.loops.index');
         $middleware = $route->gatherMiddleware();
 
         // `gatherMiddleware()` rend les ALIAS declares sur la route (`auth`,
@@ -272,23 +309,45 @@ class TASK1479OrganizationDirectoryAccessTest extends TestCase
     /** Le blog public reste public : il n'etait pas dans le finding. */
     public function test_the_public_blog_is_untouched(): void
     {
-        $route = \Illuminate\Support\Facades\Route::getRoutes()->getByName('organization.blog.index');
+        $route = Route::getRoutes()->getByName('organization.blog.index');
 
         $this->assertNotContains('organization.member', $route->gatherMiddleware());
     }
 
     /**
-     * `organization.dashboard` reste hors perimetre. Le finding le concernant
-     * a ete mesure : la route rend 200 pour un membre d'une autre
-     * Organization, mais AUCUNE donnee de l'Organization visitee n'apparait —
-     * le controleur ne lit que l'utilisateur connecte. Il n'est donc pas P0, et
-     * l'inclure ici aurait etendu le perimetre d'un correctif d'urgence.
+     * `organization.dashboard` etait HORS PERIMETRE de TASK-1479, et le
+     * disait : le finding avait ete mesure — la route rendait 200 pour un
+     * membre d'une autre Organization, mais aucune donnee de l'Organization
+     * visitee n'y apparaissait. Pas P0 ; l'inclure aurait etendu le perimetre
+     * d'un correctif d'urgence.
+     *
+     * **TASK-1483 l'a prise**, avec le mode `explain`. Cette methode s'appelait
+     * `test_the_dashboard_stays_out_of_scope` et affirmait l'inverse ; elle
+     * serait restee VERTE pour une mauvaise raison, `assertNotContains`
+     * comparant des chaines entieres et la route portant desormais
+     * `organization.member:explain`, qui n'est pas `organization.member`.
+     *
+     * Ce qu'elle mesure a la place est la distinction qui compte vraiment entre
+     * les deux TASK : **l'annuaire refuse en 404, le tableau de bord refuse en
+     * 403 explique**. Unifier les deux refus rendrait l'une des deux assertions
+     * rouge — et c'est exactement ce qu'on veut savoir.
      */
-    public function test_the_dashboard_stays_out_of_scope(): void
+    public function test_the_dashboard_refuses_differently_from_the_directory(): void
     {
-        $route = \Illuminate\Support\Facades\Route::getRoutes()->getByName('organization.dashboard');
+        $dashboard = Route::getRoutes()->getByName('organization.dashboard')->gatherMiddleware();
 
-        $this->assertNotContains('organization.member', $route->gatherMiddleware());
+        // Le tableau de bord : le mode qui EXPLIQUE (TASK-1483).
+        $this->assertContains('organization.member:explain', $dashboard);
+        $this->assertNotContains('organization.member', $dashboard, 'le tableau de bord ne doit pas retomber sur le 404 muet');
+
+        // L'annuaire : le refus par defaut, un 404 — un 403 y confirmerait a un
+        // tiers que cette Organization existe.
+        foreach (self::PREFIXED as $name) {
+            $middleware = Route::getRoutes()->getByName($name)->gatherMiddleware();
+
+            $this->assertContains('organization.member', $middleware, "[{$name}] : le refus muet");
+            $this->assertNotContains('organization.member:explain', $middleware, "[{$name}] : nommer l'Organization ici la confirmerait");
+        }
     }
 
     /** Aucune migration : la frontiere est une regle, pas une colonne. */
@@ -302,7 +361,7 @@ class TASK1479OrganizationDirectoryAccessTest extends TestCase
     public function test_all_six_routes_carry_both_guards(): void
     {
         foreach ([...self::PREFIXED, ...self::LEGACY] as $name) {
-            $middleware = \Illuminate\Support\Facades\Route::getRoutes()->getByName($name)->gatherMiddleware();
+            $middleware = Route::getRoutes()->getByName($name)->gatherMiddleware();
 
             $this->assertContains('auth', $middleware, "[{$name}] : l'acces anonyme");
             $this->assertContains('organization.member', $middleware, "[{$name}] : le cross-tenant");
@@ -355,7 +414,7 @@ class TASK1479OrganizationDirectoryAccessTest extends TestCase
     public function test_both_profile_route_forms_carry_both_guards(): void
     {
         foreach (self::PROFILE as $name) {
-            $middleware = \Illuminate\Support\Facades\Route::getRoutes()->getByName($name)->gatherMiddleware();
+            $middleware = Route::getRoutes()->getByName($name)->gatherMiddleware();
 
             $this->assertContains('auth', $middleware, "[{$name}]");
             $this->assertContains('organization.member', $middleware, "[{$name}]");
