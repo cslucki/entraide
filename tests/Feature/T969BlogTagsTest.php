@@ -101,7 +101,8 @@ class T969BlogTagsTest extends TestCase
 
     private function createOrganization(): Organization
     {
-        $organization = Organization::factory()->create(['is_active' => true]);
+        // TASK-1492 : surface publique du blog — l'Organization est declaree publique.
+        $organization = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
         $organization->update(['is_default' => true]);
 
         return $organization;
