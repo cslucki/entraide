@@ -198,7 +198,12 @@ class TASK1439UsageReferenceTest extends TestCase
         $html = $this->actingAs($this->superAdmin)->get($index)->assertOk()->getContent();
         $this->assertStringContainsString('data-usage-reference-surface="shell_welcome"', $html);
         $this->assertStringContainsString('data-usage-reference-live="shell_welcome:fr" data-usage-reference-live-version="1"', $html);
-        $this->assertStringContainsString('data-usage-reference-live="signup:fr" data-usage-reference-live-version=""', $html);
+        // TASK-1480 : l'absence de version publiee se dit desormais par un
+        // marqueur EXPLICITE plutot que par un attribut vide. C'est une
+        // assertion plus forte, pas plus faible : `live-version=""` etait aussi
+        // ce qu'aurait rendu un attribut oublie.
+        $this->assertStringContainsString('data-usage-reference-none="signup:fr"', $html);
+        $this->assertStringNotContainsString('data-usage-reference-live="signup:fr"', $html);
     }
 
     public function test_the_super_admin_publishes_through_the_admin_screens(): void

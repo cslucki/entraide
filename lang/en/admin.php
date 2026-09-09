@@ -833,4 +833,18 @@ return [
     'usage_reference_surface_dossiers' => 'Folders (members)',
     'usage_reference_surface_blog' => 'Blog (members)',
     'usage_reference_surface_profile' => 'Profile (members)',
+
+    // TASK-1480 — Admin UsageReference : voir, modifier, previsualiser, publier, historique.
+    'usage_reference_view' => 'View',
+    'usage_reference_preview' => 'Preview',
+    'usage_reference_amend' => 'Edit',
+    'usage_reference_edit_draft' => 'Edit draft',
+    'usage_reference_create_for' => 'Create a reference',
+    'usage_reference_draft_version' => 'Draft v:version',
+    'usage_reference_history' => '{0} No version|{1} 1 version|[2,*] :count versions',
+    'usage_reference_show_title' => 'Reference v:version',
+    'usage_reference_draft_not_live' => 'This draft is not served: the Shell keeps using the published version, or none. It will only go live after an explicit human publication.',
+    'usage_reference_from_hint' => 'Text taken from published version v:version. That version stays live: this draft will only replace it once published.',
+    'usage_reference_publisher' => 'Published by',
+    'usage_reference_length' => 'Length',
 ];
