@@ -76,6 +76,13 @@
 #bp-guest-shell .bpgs-form button:hover:not([disabled]){background:var(--bp-primary-deep,#4338ca)}
 #bp-guest-shell .bpgs-form button[disabled],#bp-guest-shell .bpgs-form textarea[disabled]{opacity:.5;cursor:not-allowed}
 #bp-guest-shell .bpgs-foot{font-size:11px;color:#9ca3af;padding:0 12px 10px;text-align:center}
+  /* TASK-1499 : l'heure, discrete, comme la bulle membre (10px, gris). */
+  #bp-guest-shell .bpgs-at{display:block;margin-top:4px;font-size:10px;line-height:1.2;color:#9ca3af}
+  #bp-guest-shell .bpgs-msg-user .bpgs-at{color:rgba(255,255,255,.75)}
+  #bp-guest-shell .bpgs-msg p{margin:0 0 .5em}
+  #bp-guest-shell .bpgs-msg p:last-of-type{margin-bottom:0}
+  #bp-guest-shell .bpgs-msg a{color:inherit;text-decoration:underline}
+  #bp-guest-shell .bpgs-msg ul,#bp-guest-shell .bpgs-msg ol{margin:.25em 0 .5em;padding-left:1.15em}
   @media (max-width:480px){#bp-guest-shell{right:12px;bottom:12px}#bp-guest-shell .bpgs-panel{position:fixed;left:0;right:0;bottom:0;width:100vw;max-width:100vw;height:82vh;max-height:82vh;border-radius:16px 16px 0 0}}
   /* TASK-1494 -> TASK-1496 -> TASK-1497 : en shell_first, LE SHELL EST LA PAGE.
      Pas un grand widget dans une page.
@@ -171,7 +178,10 @@
           <div class="bpgs-msg bpgs-msg-assistant" data-guest-shell-welcome>{{ __('guest_shell.ui.welcome', ['name' => $organization->name]) }}</div>
         @else
           @foreach($gsConversation['messages'] as $message)
-            <div class="bpgs-msg {{ $message['role'] === 'user' ? 'bpgs-msg-user' : 'bpgs-msg-assistant' }}" data-guest-shell-message="{{ $message['role'] }}">{{ $message['body'] }}</div>
+            {{-- TASK-1499 : le MEME rendu que la bulle membre. `html` vient de
+                 `markdown()` cote serveur (CommonMark, `html_input => escape`),
+                 jamais d'un moteur Markdown cote navigateur. --}}
+            <div class="bpgs-msg {{ $message['role'] === 'user' ? 'bpgs-msg-user' : 'bpgs-msg-assistant' }}" data-guest-shell-message="{{ $message['role'] }}">{!! $message['html'] ?? e($message['body']) !!}<span class="bpgs-at" data-guest-shell-at>{{ $message['at_label'] ?? '' }}</span></div>
           @endforeach
           @if($gsConversation['status'] !== \App\Models\GuestConversation::STATUS_ACTIVE)
             <div class="bpgs-note bpgs-note-warn" data-guest-shell-note>{{ __('guest_shell.ui.limit_reached') }}</div>
@@ -223,6 +233,19 @@
   if (close) close.addEventListener('click', shut);
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && floating && !panel.hidden) shut(); });
   function line(cls, text, attr) { var el = document.createElement('div'); el.className = cls; el.textContent = text; if (attr) el.setAttribute(attr[0], attr[1]); if (cta) log.insertBefore(el, cta); else log.appendChild(el); log.scrollTop = log.scrollHeight; return el; }
+  // TASK-1499 : une bulle RENDUE. `html` est produit par `markdown()` cote
+  // serveur — CommonMark avec `html_input => escape` et `allow_unsafe_links =>
+  // false` —, donc le HTML brut d'un modele y est deja echappe et `javascript:`
+  // deja neutralise. C'est ce qui rend `innerHTML` sur pour cette valeur, et
+  // pour elle seule : tout le reste du fichier reste en `textContent`.
+  function bubble(cls, msg, role) {
+    var el = document.createElement('div'); el.className = cls;
+    if (msg && msg.html) { el.innerHTML = msg.html; } else { el.textContent = (msg && msg.body) || ''; }
+    if (msg && msg.at_label) { var t = document.createElement('span'); t.className = 'bpgs-at'; t.setAttribute('data-guest-shell-at', ''); t.textContent = msg.at_label; el.appendChild(t); }
+    el.setAttribute('data-guest-shell-message', role);
+    if (cta) log.insertBefore(el, cta); else log.appendChild(el);
+    log.scrollTop = log.scrollHeight; return el;
+  }
   function lock(off) { input.disabled = off; send.disabled = off; }
   form.addEventListener('submit', function (e) {
     e.preventDefault();
@@ -241,7 +264,7 @@
       var j = res.json || {};
       var refusedUser = root.querySelectorAll('[data-guest-shell-message="user"]');
       if (j.turn === 'answered' || j.turn === 'failed') {
-        if (j.assistant && j.assistant.body) line('bpgs-msg bpgs-msg-assistant', j.assistant.body, ['data-guest-shell-message', 'assistant']);
+        if (j.assistant && j.assistant.body) bubble('bpgs-msg bpgs-msg-assistant', j.assistant, 'assistant');
         if (j.turn === 'failed') line('bpgs-note bpgs-note-warn', labels.failed, ['data-guest-shell-note', 'failed']);
         input.value = '';
       } else if (j.turn === 'refused') {

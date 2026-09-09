@@ -504,6 +504,11 @@ return [
         // TASK-1437 — SW-7 : temperature de l'accueil et fenetre d'historique (messages de CETTE conversation) montree au modele.
         'temperature' => (float) env('AI_GUEST_SHELL_TEMPERATURE', 0.4),
         'history_messages' => (int) env('AI_GUEST_SHELL_HISTORY_MESSAGES', 10),
+        // TASK-1499 (WP-D §2) : le budget CARACTERES de la fenetre, en plus du
+        // nombre de messages. Dix tours a `ai.shell.max_input_chars` plus les
+        // reponses, rien ne plafonnait la charge utile : un compteur de messages
+        // n'est pas un budget. Absent, nul ou negatif -> repli, jamais desactive.
+        'history_max_chars' => (int) env('AI_GUEST_SHELL_HISTORY_MAX_CHARS', 8000),
         'platform_monthly_ceiling_usd' => env('AI_GUEST_SHELL_PLATFORM_CEILING_USD') === null || env('AI_GUEST_SHELL_PLATFORM_CEILING_USD') === '' ? null : (float) env('AI_GUEST_SHELL_PLATFORM_CEILING_USD'),
     ],
 

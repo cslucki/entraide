@@ -5,6 +5,7 @@ return [
     // TASK-1437 — SW-7 : repli local (jamais un second appel) et instruction de langue.
     'fallback_unavailable' => 'La réponse est temporairement indisponible. Vous pouvez réessayer dans un instant.',
     'fallback_empty' => 'Je n\'ai pas de réponse à proposer pour l\'instant. Pouvez-vous reformuler ?',
+    'instruction_continuing' => "Cette conversation est DEJA ENGAGEE : le transcrit ci-dessous en fait foi. Ne te presente pas et ne salue pas a nouveau — reponds directement, dans la continuite. Le message marque [MESSAGE ACTUEL] est celui auquel tu reponds ; resous ses references (« ca », « oui », « et alors ? ») a partir des tours precedents.",
     'instruction_locale' => 'Réponds dans la langue : :locale.',
     'context' => [
         'identity' => ':name — présentation publique',

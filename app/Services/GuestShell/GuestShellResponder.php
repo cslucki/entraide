@@ -40,6 +40,9 @@ use Throwable;
  */
 final class GuestShellResponder
 {
+    /** Repli du budget caracteres de la fenetre d'historique (WP-D §2). */
+    private const HISTORY_MAX_CHARS_FALLBACK = 8000;
+
     public function __construct(
         private readonly GuestShellGate $gate,
         private readonly GuestPublicContextBuilder $context,
@@ -72,8 +75,10 @@ final class GuestShellResponder
             return GuestShellTurn::refused(GuestShellClearance::STEP_CONVERSATION_LIMIT, $exception->reason);
         }
 
+        $continuing = $this->history($conversation, $userMessage)->isNotEmpty();
+
         $agent = new GuestShellAgent(
-            $this->instructions($prompt->text, $context),
+            $this->instructions($prompt->text, $context, $continuing),
             $clearance->maxOutputTokens,
             (float) config('ai.guest_shell.temperature', 0.4),
         );
@@ -170,13 +175,41 @@ final class GuestShellResponder
         return GuestShellTurn::answered($userMessage, $answer, $invocation);
     }
 
-    /** Le prompt en base, verbatim, PUIS le contexte public, PUIS la langue — aucun templating. */
-    private function instructions(string $promptText, GuestPublicContext $context): string
+    /**
+     * Le prompt en base, verbatim, PUIS le contexte public, PUIS la langue, PUIS
+     * l'etat de la CONVERSATION — aucun templating.
+     *
+     * ## Pourquoi l'etat de conversation est une INSTRUCTION et pas du contexte
+     *
+     * Mesure sur la conversation reelle de Cyril (`01a0873b`) :
+     *
+     * | Tour | Message | Reponse |
+     * |---|---|---|
+     * | 1 | « Je m'appelle CYril... » | « **Bonjour Cyril !** Bienvenue... » |
+     * | 2 | « Oui » | « Super, Cyril ! L'atelier... » |
+     * | 3 | « Oui combien ca coute ? » | « **Bonjour Cyril !** Je ne peux pas... » |
+     * | 4 | « C'est quoi le mycelium ? » | « **Bonjour Cyril !** Le mycelium... » |
+     *
+     * Le tour 2 prouve que l'historique EST transmis et fonctionne : le modele
+     * y retrouve le prenom ET le sujet precedent. Les tours 3 et 4 connaissent
+     * encore « Cyril », que le visiteur n'a jamais repete.
+     *
+     * Le defaut n'etait donc PAS un historique manquant. Le prompt en base dit
+     * « Tu l'ACCUEILLES au nom de cette organisation » — une instruction juste
+     * au premier tour, fausse a tous les suivants. Rien ne disait au modele
+     * qu'il etait deja en conversation.
+     *
+     * On ne touche pas au prompt en base : c'est une donnee de plateforme, et
+     * le meme prompt doit rester correct pour un premier tour. L'etat, lui, est
+     * un fait de RUNTIME — sa place est ici, a cote de la langue et du contexte.
+     */
+    private function instructions(string $promptText, GuestPublicContext $context, bool $continuing): string
     {
         return implode("\n\n", array_filter([
             trim($promptText),
             $context->text(),
             __('guest_shell.instruction_locale', ['locale' => $context->locale], $context->locale),
+            $continuing ? __('guest_shell.instruction_continuing', [], $context->locale) : null,
         ]));
     }
 
@@ -185,18 +218,92 @@ final class GuestShellResponder
      * (les derniers messages, jamais ceux d'une autre conversation ni d'un
      * autre visiteur) — la conversation est persistante, le modele doit la voir.
      */
-    private function userPrompt(GuestConversation $conversation, GuestMessage $current, string $message): string
+    /**
+     * La fenetre bornee des messages precedents de CETTE conversation.
+     *
+     * @return \Illuminate\Support\Collection<int, GuestMessage>
+     */
+    private function history(GuestConversation $conversation, GuestMessage $current)
     {
         $limit = max(0, (int) config('ai.guest_shell.history_messages', 10));
-        $previous = $limit === 0 ? collect() : GuestMessage::query()
+
+        if ($limit === 0) {
+            return collect();
+        }
+
+        $window = GuestMessage::query()
             ->where('guest_conversation_id', $conversation->getKey())
             ->whereKeyNot($current->getKey())
             ->whereIn('role', [GuestMessage::ROLE_USER, GuestMessage::ROLE_ASSISTANT])
             ->orderByDesc('created_at')->orderByDesc('id')
             ->limit($limit)
-            ->get()
-            ->reverse()
-            ->values();
+            ->get();
+
+        return $this->withinCharacterBudget($window)->reverse()->values();
+    }
+
+    /**
+     * Le budget CARACTERES de la fenetre, en plus du nombre de messages.
+     *
+     * WP-D §2 : « la limite de conversation Guest et la fenetre envoyee au
+     * provider doivent etre coherentes, avec un budget caracteres/tokens
+     * explicite et fail-safe ».
+     *
+     * Sans lui, la borne n'existait qu'en NOMBRE de messages : dix tours a
+     * `ai.shell.max_input_chars` (2000) plus les reponses, c'est une charge
+     * utile que rien ne plafonnait. Un compteur de messages n'est pas un
+     * budget.
+     *
+     * On coupe par les messages les PLUS ANCIENS — la collection arrive
+     * ordonnee du plus recent au plus ancien —, parce que la continuite se joue
+     * sur les derniers tours : c'est « ca » et « oui » qu'il faut pouvoir
+     * resoudre, pas le tout premier message.
+     *
+     * Fail-safe : un budget absent, nul ou negatif ne desactive pas la borne,
+     * il retombe sur la valeur par defaut. Une garde qu'une configuration vide
+     * peut ouvrir n'est pas une garde.
+     *
+     * @param  \Illuminate\Support\Collection<int, GuestMessage>  $recentFirst
+     * @return \Illuminate\Support\Collection<int, GuestMessage>
+     */
+    private function withinCharacterBudget($recentFirst)
+    {
+        $budget = (int) config('ai.guest_shell.history_max_chars', self::HISTORY_MAX_CHARS_FALLBACK);
+
+        if ($budget <= 0) {
+            $budget = self::HISTORY_MAX_CHARS_FALLBACK;
+        }
+
+        $kept = collect();
+        $used = 0;
+
+        foreach ($recentFirst as $entry) {
+            $cost = mb_strlen(trim((string) $entry->body));
+
+            if ($used + $cost > $budget) {
+                break;
+            }
+
+            $used += $cost;
+            $kept->push($entry);
+        }
+
+        return $kept;
+    }
+
+    /**
+     * Le transcrit borne, puis le tour COURANT explicitement etiquete.
+     *
+     * L'etiquette n'est pas cosmetique. Le SDK envoie cette chaine comme UN
+     * SEUL message utilisateur : sans marqueur, le modele voit un bloc de texte
+     * ou son propre tour precedent et la question du jour se confondent. C'est
+     * ce qui faisait echouer l'anaphore — « Oui combien ca coute ? » repondu
+     * comme une question isolee sur les couts, au lieu de porter sur l'atelier
+     * du tour precedent.
+     */
+    private function userPrompt(GuestConversation $conversation, GuestMessage $current, string $message): string
+    {
+        $previous = $this->history($conversation, $current);
 
         if ($previous->isEmpty()) {
             return trim($message);
@@ -204,6 +311,6 @@ final class GuestShellResponder
 
         $lines = $previous->map(fn (GuestMessage $entry) => ($entry->role === GuestMessage::ROLE_USER ? 'Visiteur' : 'Assistant').' : '.trim((string) $entry->body))->all();
 
-        return implode("\n", $lines)."\n\nVisiteur : ".trim($message);
+        return "[CONVERSATION EN COURS]\n".implode("\n", $lines)."\n\n[MESSAGE ACTUEL]\nVisiteur : ".trim($message);
     }
 }
