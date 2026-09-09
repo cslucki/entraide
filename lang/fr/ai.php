@@ -937,4 +937,34 @@ return [
 
     // TASK-1477 — le repli neutre du panneau : ce que le Shell peut, pas ce qu'il ne peut pas.
     'fab_page_help' => 'Posez votre question sur ce que vous consultez : la conversation vous suit de page en page.',
+
+    // TASK-1481 — le plan de la gouvernance IA : lecture seule, chaque noeud
+    // nomme son autorite reelle, son niveau et l'ecran qui la gouverne.
+    'map_title' => 'Le plan de votre IA',
+    'map_intro' => 'Chaque règle qui gouverne le comportement de l\'IA de votre Organization, avec le niveau auquel elle se décide et l\'écran qui la règle. Cette page ne modifie rien : elle indique où aller.',
+    'map_level_platform' => 'Plateforme',
+    'map_level_organization' => 'Organization',
+    'map_level_user' => 'Membre',
+    'map_state_locked' => 'Se règle ailleurs',
+    'map_state_configurable' => 'Vous pouvez la régler',
+    'map_status_none' => 'aucune version active',
+    'map_status_seed' => 'texte de base',
+    'map_status_coverage' => ':covered sur :total suivent la doctrine',
+    'map_open_admin' => 'Ouvrir l\'écran qui la gouverne',
+    'map_platform_only' => 'Cette règle se gouverne au niveau de la plateforme : elle s\'applique à votre Organization, et n\'est pas modifiable ici.',
+    'map_footer' => 'Ce plan est en lecture seule. Il est construit à partir des autorités réelles du produit : si une règle n\'apparaît pas ici, c\'est qu\'aucune autorité ne la porte.',
+    'map_node_platform_constitution' => 'Constitution de BouclePro',
+    'map_node_platform_constitution_hint' => 'Le socle commun à toutes les Organizations : ce que l\'IA ne fait jamais, quelle que soit la configuration.',
+    'map_node_organization_constitution' => 'Constitution de votre Organization',
+    'map_node_organization_constitution_hint' => 'Vos propres règles, qui s\'ajoutent au socle sans jamais le contredire.',
+    'map_node_doctrine' => 'Doctrine',
+    'map_node_doctrine_hint' => 'Le ton et la manière : comment l\'IA s\'adresse à vos membres.',
+    'map_node_provider' => 'Fournisseur et modèle',
+    'map_node_provider_hint' => 'Le modèle qui répond, et la clé utilisée. La clé elle-même n\'est jamais affichée.',
+    'map_node_capabilities' => 'Fonctions IA',
+    'map_node_capabilities_hint' => 'Ce que l\'IA peut faire, fonction par fonction. Ce catalogue vit dans le code : il ne s\'invente pas depuis une interface.',
+    'map_node_knowledge' => 'Connaissance',
+    'map_node_knowledge_hint' => 'Les Dossiers que l\'IA peut consulter pour répondre.',
+    'map_node_consumption' => 'Consommation et budget',
+    'map_node_consumption_hint' => 'Ce qui a réellement été appelé, à quel coût, et la limite que vous avez posée.',
 ];
