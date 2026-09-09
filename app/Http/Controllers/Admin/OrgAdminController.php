@@ -1411,6 +1411,22 @@ class OrgAdminController extends Controller
      * le bac a sable « tester sans publier ». Tout est borne a CETTE
      * Organization ; aucune cle n'apparait.
      */
+    /**
+     * TASK-1481 — le plan de la gouvernance IA de cette Organization.
+     *
+     * READ ONLY, et volontairement mince : l'assemblage vit dans
+     * `NervousSystemMap`, qui ne fait que LIRE les autorites existantes.
+     * Aucune donnee n'est calculee ici, aucun secret n'y transite.
+     */
+    public function aiMap(Organization $organization, \App\Support\Ai\NervousSystemMap $map): View
+    {
+        return view('admin.org.ai-map', [
+            'organization' => $organization,
+            'nodes' => $map->forOrganization($organization),
+            'isPlatformAdmin' => (bool) auth()->user()?->is_admin,
+        ]);
+    }
+
     public function aiBehavior(Organization $organization, NervousSystemCoverage $coverage): View
     {
         return view('admin.org.ai-behavior', $this->aiBehaviorViewData($organization, $coverage));

@@ -896,4 +896,34 @@ return [
 
     // TASK-1477 — the neutral panel fallback: what the Shell can do, not what it cannot.
     'fab_page_help' => 'Ask your question about what you are looking at: the conversation follows you from page to page.',
+
+    // TASK-1481 — le plan de la gouvernance IA : lecture seule, chaque noeud
+    // nomme son autorite reelle, son niveau et l'ecran qui la gouverne.
+    'map_title' => 'Your AI at a glance',
+    'map_intro' => 'Every rule that governs how your Organization\'s AI behaves, with the level it is decided at and the screen that sets it. This page changes nothing: it tells you where to go.',
+    'map_level_platform' => 'Platform',
+    'map_level_organization' => 'Organization',
+    'map_level_user' => 'Member',
+    'map_state_locked' => 'Set elsewhere',
+    'map_state_configurable' => 'You can set it',
+    'map_status_none' => 'no active version',
+    'map_status_seed' => 'baseline text',
+    'map_status_coverage' => ':covered of :total follow the doctrine',
+    'map_open_admin' => 'Open the screen that governs it',
+    'map_platform_only' => 'This rule is governed at platform level: it applies to your Organization and cannot be changed here.',
+    'map_footer' => 'This map is read-only. It is built from the product\'s real authorities: if a rule does not appear here, no authority carries it.',
+    'map_node_platform_constitution' => 'BouclePro constitution',
+    'map_node_platform_constitution_hint' => 'The common ground for every Organization: what the AI never does, whatever the configuration.',
+    'map_node_organization_constitution' => 'Your Organization\'s constitution',
+    'map_node_organization_constitution_hint' => 'Your own rules, added to the common ground and never contradicting it.',
+    'map_node_doctrine' => 'Doctrine',
+    'map_node_doctrine_hint' => 'The tone and the manner: how the AI addresses your members.',
+    'map_node_provider' => 'Provider and model',
+    'map_node_provider_hint' => 'The model that answers, and the key in use. The key itself is never displayed.',
+    'map_node_capabilities' => 'AI functions',
+    'map_node_capabilities_hint' => 'What the AI can do, function by function. This catalogue lives in the code: it cannot be invented from an interface.',
+    'map_node_knowledge' => 'Knowledge',
+    'map_node_knowledge_hint' => 'The Folders the AI may consult in order to answer.',
+    'map_node_consumption' => 'Usage and budget',
+    'map_node_consumption_hint' => 'What was actually called, at what cost, and the limit you set.',
 ];

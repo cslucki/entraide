@@ -1260,6 +1260,11 @@ Route::prefix('/org/{organization}')
                 // TASK-1227 : « Comportement IA » — Constitution (lecture
                 // seule), doctrine de l'Organization (versionnee), couverture
                 // du systeme nerveux, bac a sable reel « tester sans publier ».
+                // TASK-1481 — le PLAN de la gouvernance IA : une page READ ONLY
+                // qui nomme chaque autorite, son niveau, si cet Admin peut la
+                // changer, et l'ecran qui la gouverne. Aucune ecriture, aucune
+                // autorite nouvelle — un plan de situation.
+                Route::get('/ai-map', [OrgAdminController::class, 'aiMap'])->name('ai-map');
                 Route::get('/ai-behavior', [OrgAdminController::class, 'aiBehavior'])->name('ai-behavior');
                 Route::put('/ai-behavior/doctrine', [OrgAdminController::class, 'updateAiDoctrine'])->name('ai-behavior.doctrine.update');
                 Route::delete('/ai-behavior/doctrine', [OrgAdminController::class, 'withdrawAiDoctrine'])->name('ai-behavior.doctrine.withdraw');
