@@ -77,27 +77,42 @@
 #bp-guest-shell .bpgs-form button[disabled],#bp-guest-shell .bpgs-form textarea[disabled]{opacity:.5;cursor:not-allowed}
 #bp-guest-shell .bpgs-foot{font-size:11px;color:#9ca3af;padding:0 12px 10px;text-align:center}
   @media (max-width:480px){#bp-guest-shell{right:12px;bottom:12px}#bp-guest-shell .bpgs-panel{position:fixed;left:0;right:0;bottom:0;width:100vw;max-width:100vw;height:82vh;max-height:82vh;border-radius:16px 16px 0 0}}
-  /* TASK-1494 puis TASK-1496 : en shell_first le Shell EST l'experience.
-     TASK-1494 avait deja retire la landing marketing et rendu la hauteur ;
-     mesure au navigateur apres coup : le panneau restait une CARTE — 67 % de
-     large en 1440 avec 240 px de marge de chaque cote, et sur mobile une carte
-     a coins arrondis flottant dans la page. « Une petite carte perdue », et
-     c'etait juste.
+  /* TASK-1494 -> TASK-1496 -> TASK-1497 : en shell_first, LE SHELL EST LA PAGE.
+     Pas un grand widget dans une page.
 
-     TASK-1496 en fait une interface de conversation pleine page : la largeur
-     utile monte a 1100 px sur grand ecran (lisibilite d'un fil de discussion,
-     pas une pleine largeur de 1440 qui rendrait les lignes illisibles), et sur
-     mobile la carte disparait — bord a bord, sans rayon, sans marge. */
-  #bp-guest-shell.bpgs-first{position:static;right:auto;bottom:auto;display:flex;flex-direction:column;flex:1;width:100%;max-width:1100px;margin:0 auto;padding:0}
-  #bp-guest-shell.bpgs-first .bpgs-panel{position:static;width:100%;max-width:100%;height:auto;flex:1;min-height:0;max-height:none;bottom:auto;right:auto;display:flex;flex-direction:column}
+     TASK-1494 avait retire la landing. TASK-1496 avait rendu la hauteur et le
+     bord a bord mobile, mais gardait `max-width:1100px` sur le conteneur : la
+     recette de Cyril a mesure 76 % de largeur en 1440, avec 170 px de marge de
+     chaque cote, un rayon de 16 px et une ombre. C'est une carte centree, pas
+     un plein ecran.
+
+     L'erreur etait de placer la contrainte de LECTURE sur le conteneur
+     d'application. Le souci etait juste — au-dela d'une certaine largeur, une
+     ligne de conversation devient illisible — mais il appartient aux MESSAGES,
+     pas au cadre. Le conteneur prend donc 100 % ; c'est `.bpgs-msg` qui porte
+     desormais la largeur de lecture, centree dans le fil. */
+  #bp-guest-shell.bpgs-first{position:static;right:auto;bottom:auto;display:flex;flex-direction:column;flex:1;width:100%;max-width:none;margin:0;padding:0}
+  #bp-guest-shell.bpgs-first .bpgs-panel{position:static;width:100%;max-width:100%;height:auto;flex:1;min-height:0;max-height:none;bottom:auto;right:auto;display:flex;flex-direction:column;border:0;border-radius:0;box-shadow:none}
   /* Le fil defile, la saisie reste en bas : c'est ce qui distingue une
-     interface de conversation d'un bloc de texte. */
+     interface de conversation d'un bloc de texte. UN SEUL conteneur defile. */
   #bp-guest-shell.bpgs-first .bpgs-log{flex:1;min-height:0;overflow-y:auto}
   #bp-guest-shell.bpgs-first .bpgs-form{flex:0 0 auto}
+  /* La largeur de LECTURE est portee par le CONTENEUR du fil, pas par chaque
+     bulle. Correctif d'une regression que je venais d'introduire : poser
+     `margin-left:auto;margin-right:auto` sur `.bpgs-msg` ecrasait le
+     `align-self:flex-end` des messages visiteur, et CENTRAIT toutes les bulles.
+     Recette de Cyril : les pastilles « Oui » se retrouvaient au milieu au lieu
+     d'etre a droite. Centrer la colonne, jamais les bulles. */
+  #bp-guest-shell.bpgs-first .bpgs-log{width:100%;max-width:44rem;margin-left:auto;margin-right:auto}
+  #bp-guest-shell.bpgs-first .bpgs-form{width:100%;max-width:44rem;margin-left:auto;margin-right:auto}
+  #bp-guest-shell.bpgs-first .bpgs-foot{max-width:44rem;margin-left:auto;margin-right:auto}
+  /* Une SEULE barre en shell_first : celle de la page. L'entete interne du
+     Shell ferait une seconde barre de navigation, ce que le contrat interdit. */
+  #bp-guest-shell.bpgs-first .bpgs-head{display:none}
   @media (max-width:640px){
-    /* Bord a bord : plus de carte, plus de rayon, plus d'ombre. */
-    #bp-guest-shell.bpgs-first{max-width:none;padding:0}
-    #bp-guest-shell.bpgs-first .bpgs-panel{border-radius:0;border-left:0;border-right:0;box-shadow:none}
+    #bp-guest-shell.bpgs-first .bpgs-log,
+    #bp-guest-shell.bpgs-first .bpgs-form,
+    #bp-guest-shell.bpgs-first .bpgs-foot{max-width:none}
   }
 </style>
 <div id="bp-guest-shell"

@@ -119,32 +119,73 @@ class TASK1494GuestShellFirstLayoutTest extends TestCase
     }
 
     /**
-     * TASK-1496 — le Shell prend la PAGE UTILE, il n'est pas une carte posee
-     * dessus.
+     * TASK-1496 puis TASK-1497 — le Shell EST la page, pas un widget dedans.
      *
      * TASK-1494 avait retire la landing ; la mesure au navigateur a montre
      * qu'il restait une carte : 67 % de large en 1440 avec 240 px de marge de
      * chaque cote, et sur mobile une carte a coins arrondis flottant dans la
      * page. « Une petite carte perdue », et c'etait juste.
      *
-     * Ce test verrouille les trois marques de la correction, cote serveur :
-     * la largeur utile, le bord a bord mobile, et le fil qui defile sous un
-     * composeur fixe. Il ne remplace pas la recette navigateur — c'est elle
-     * qui a trouve le defaut —, il empeche la regression.
+     * TASK-1496 avait rendu la hauteur et le bord a bord mobile, mais gardait
+     * `max-width:1100px` sur le conteneur. Recette de Cyril : **76 % de
+     * largeur** en 1440, 170 px de marge de chaque cote, rayon 16 px, ombre.
+     * Une carte centree, pas un plein ecran.
+     *
+     * L'erreur etait de placer la contrainte de LECTURE sur le conteneur
+     * d'application. Le souci etait juste — une ligne de conversation trop
+     * large devient illisible — mais il appartient aux MESSAGES. Le conteneur
+     * prend 100 %, `.bpgs-msg` porte la largeur de lecture.
+     *
+     * Mesure apres TASK-1497 : RATIO_W = 1.000 et RATIO_H = 1.000 aux deux
+     * tailles, rayon 0, ombre none, bordure 0, largeur de message 704 px
+     * centree en 1440.
+     *
+     * Ce test verrouille ces marques cote serveur. Il ne remplace pas la
+     * recette navigateur — c'est elle qui a trouve le defaut, deux fois —,
+     * il empeche la regression.
      */
-    public function test_shell_first_takes_the_usable_page_and_is_not_a_card(): void
+    public function test_shell_first_is_the_page_and_not_a_widget_inside_it(): void
     {
         $body = $this->get(route('organization.home', $this->organization(GuestShellDisplayMode::SHELL_FIRST)))
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('max-width:1100px', $body, 'la largeur utile du fil n\'est pas posee');
-        $this->assertStringContainsString('border-radius:0', $body, 'le bord a bord mobile n\'est pas pose');
+        // TASK-1497 : le CONTENEUR prend toute la largeur — plus de `max-width`
+        // sur le cadre. La contrainte de LECTURE a ete deplacee sur les
+        // messages, ou elle appartient.
+        $this->assertStringContainsString('max-width:none;margin:0;padding:0}', $body, 'le conteneur du Shell est encore borne en largeur');
+        $this->assertStringContainsString('border:0;border-radius:0;box-shadow:none', $body, 'le Shell est encore rendu comme une carte');
+        // La largeur de lecture est portee par le CONTENEUR du fil, jamais par
+        // chaque bulle : `margin:auto` sur `.bpgs-msg` ecraserait le
+        // `align-self:flex-end` des messages visiteur et centrerait tout.
+        // Recette de Cyril : les pastilles se retrouvaient au milieu.
+        $this->assertStringContainsString('.bpgs-log{width:100%;max-width:44rem;margin-left:auto;margin-right:auto}', $body, 'la colonne de lecture n\'est pas portee par le fil');
+        $this->assertStringNotContainsString('.bpgs-msg,\n  #bp-guest-shell.bpgs-first .bpgs-note', $body, 'la largeur de lecture est repassee sur les bulles');
         $this->assertStringContainsString('.bpgs-log{flex:1;min-height:0;overflow-y:auto}', $body, 'le fil ne defile pas sous un composeur fixe');
 
         // La mention de confidentialite de PAGE a ete retiree : le Shell porte
         // deja la sienne, et les deux ensemble mangeaient 97 px de page utile.
         $this->assertStringNotContainsString('bpsf-privacy', $body, 'la mention de confidentialite est dupliquee');
+    }
+
+    /**
+     * UNE SEULE barre de navigation, et le logo a gauche.
+     *
+     * Recette de Cyril : deux barres se superposaient — celle de la page
+     * (« BouclePro / FR EN / Connexion ») et l'entete interne du Shell
+     * (« Assistant de BouclePro »). L'entete du Shell est masque en
+     * shell_first ; il reste utile en overlay, ou le panneau flotte et a besoin
+     * de son propre titre et de son bouton de fermeture.
+     */
+    public function test_shell_first_has_a_single_top_bar_with_the_logo(): void
+    {
+        $body = $this->get(route('organization.home', $this->organization(GuestShellDisplayMode::SHELL_FIRST)))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('.bpgs-first .bpgs-head{display:none}', $body, 'l\'entete du Shell fait une seconde barre');
+        $this->assertStringContainsString('brand/bouclepro-symbol-64.png', $body, 'le logo manque dans la barre');
+        $this->assertStringContainsString('class="bpsf-logo"', $body);
     }
 
     /**

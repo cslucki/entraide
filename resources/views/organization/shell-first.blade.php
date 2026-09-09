@@ -43,36 +43,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $organization->name }}</title>
+    <link rel="icon" href="{{ asset('brand/bouclepro-symbol-64.png') }}">
     @vite(['resources/css/app.css'])
     <style>
         /* Autonome comme le partial lui-meme : le Shell First ne doit dependre
            d'aucun composant marketing pour s'afficher. */
-        .bpsf-page { min-height: 100dvh; display: flex; flex-direction: column; background: var(--bp-page, #f7f7f5); color: var(--bp-text, #16181d); }
+        .bpsf-page { min-height: 100vh; min-height: 100dvh; height: 100dvh; overflow: hidden; display: flex; flex-direction: column; background: var(--bp-page, #f7f7f5); color: var(--bp-text, #16181d); }
         .bpsf-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem 1rem; border-bottom: 1px solid var(--bp-border, #e6e6e1); }
-        .bpsf-brand { font-weight: 700; font-size: .95rem; letter-spacing: -.01em; text-decoration: none; color: inherit; }
+        .bpsf-brand { display: flex; align-items: center; gap: .55rem; font-weight: 700; font-size: .95rem; letter-spacing: -.01em; text-decoration: none; color: inherit; }
+        .bpsf-logo { display: block; width: 28px; height: 28px; border-radius: 6px; }
         .bpsf-org { font-weight: 500; color: var(--bp-muted, #6b7280); }
         .bpsf-right { display: flex; align-items: center; gap: .6rem; }
         .bpsf-lang button { border: 0; background: none; font: inherit; font-size: .75rem; padding: .15rem .35rem; color: var(--bp-muted, #6b7280); cursor: pointer; border-radius: .35rem; }
         .bpsf-lang button[aria-current="true"] { background: var(--bp-panel, #edece7); color: var(--bp-text, #16181d); font-weight: 600; }
         .bpsf-login { font-size: .8rem; font-weight: 600; text-decoration: none; color: var(--bp-text, #16181d); border: 1px solid var(--bp-border, #e6e6e1); border-radius: 999px; padding: .4rem .85rem; }
-        /* TASK-1496 : la page utile appartient au Shell. Sur mobile la colonne
-           n'a plus de gouttiere du tout — le Shell va bord a bord — et sur
-           grand ecran elle garde juste ce qu'il faut pour ne pas coller aux
-           bords. */
+        /* TASK-1497 : la page utile appartient ENTIEREMENT au Shell. La
+           gouttiere de 32 px que TASK-1496 laissait sur grand ecran faisait
+           encore un cadre autour de l'application ; il n'y en a plus aucune,
+           a aucune taille. Seule la barre du haut garde son confort de lecture. */
         .bpsf-main { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 0; }
         @media (min-width: 641px) {
             .bpsf-bar { padding: 1rem 2rem; }
-            .bpsf-main { padding: 1rem 2rem 0; }
         }
     </style>
 </head>
 <body class="bpsf-page">
     <header class="bpsf-bar">
-        {{-- L'Organization par defaut S'APPELLE BouclePro : afficher
-             « BouclePro · BouclePro » etait le rendu mesure au navigateur. Le
-             nom n'est repete que s'il apporte quelque chose. --}}
+        {{-- Le logo, puis le nom. L'Organization par defaut S'APPELLE BouclePro :
+             afficher « BouclePro · BouclePro » etait le rendu mesure au
+             navigateur, le nom n'est donc repete que s'il apporte quelque
+             chose. C'est la SEULE barre de la page : l'entete interne du Shell
+             est masque en shell_first. --}}
         <a class="bpsf-brand" href="{{ route('organization.home', $organization) }}">
-            BouclePro @if($organization->name !== 'BouclePro')<span class="bpsf-org">· {{ $organization->name }}</span>@endif
+            <img class="bpsf-logo" src="{{ asset('brand/bouclepro-symbol-64.png') }}" alt="" aria-hidden="true" width="28" height="28">
+            <span>BouclePro</span>
+            @if($organization->name !== 'BouclePro')<span class="bpsf-org">· {{ $organization->name }}</span>@endif
         </a>
         <div class="bpsf-right">
             <div class="bpsf-lang" aria-label="Langue / Language">
