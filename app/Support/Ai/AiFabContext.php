@@ -55,7 +55,13 @@ final class AiFabContext
      * fois, pour que la surface qui propose les actions et celle qui decide
      * du montage ne puissent jamais diverger.
      */
-    public const LOOP_SURFACE_ROUTES = ['loops.show', 'organization.loops.show'];
+    // TASK-1476 ajoute `organization.loops.catch-up` : « Rattrape-moi depuis… »
+    // est une surface de Boucle, atteinte DEPUIS la Boucle, dont l'IA native est
+    // a un clic. Y monter le Shell global rouvrirait la seconde porte que
+    // TASK-1466 a fermee — sur une surface que PageContext ne sait meme pas
+    // nommer. La liste reste EXACTE : on l'etend en nommant une route, jamais
+    // par un `str_contains` sur « loops ».
+    public const LOOP_SURFACE_ROUTES = ['loops.show', 'organization.loops.show', 'organization.loops.catch-up'];
 
     /** Cle memo : id utilisateur -> contexte (une lecture par requete). */
     private array $memo = [];

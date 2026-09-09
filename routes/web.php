@@ -81,6 +81,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LikeController;
 use App\Http\Controllers\LocaleController;
+use App\Http\Controllers\LoopCatchUpController;
 use App\Http\Controllers\LoopController;
 use App\Http\Controllers\LoopDossierArticleController;
 use App\Http\Controllers\LoopEventAgendaController;
@@ -928,6 +929,10 @@ Route::prefix('/org/{organization}')
                 // memes gardes ; seul le langage change. Contexte Organization
                 // seulement : la Boucle appartient a un tenant.
                 Route::get('/loops/{loop}/outils', [LoopToolsController::class, 'index'])->name('loops.tools');
+                // TASK-1476 — « Rattrape-moi depuis… » : lecture pure, periode explicite.
+                // L'acces est celui de l'espace de travail (LoopPolicy::viewWorkspace),
+                // demande dans le controleur : aucune seconde autorite ici.
+                Route::get('/loops/{loop}/rattrapage', LoopCatchUpController::class)->name('loops.catch-up');
                 Route::post('/loops/{loop}/outils', [LoopToolsController::class, 'update'])->middleware('throttle:30,1')->name('loops.tools.update');
             });
 

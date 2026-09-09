@@ -61,6 +61,20 @@
         </button>
     @endforeach
 
+    {{-- TASK-1476 — « Rattrape-moi depuis… ». Une LECTURE, pas un geste de
+         gestion : elle reste dans la rangée visible plutôt que sous « Gérer ».
+         La route n'existe que dans le contexte Organization, comme « Outils » :
+         la Boucle appartient à un tenant. --}}
+    @if($_org ?? null)
+        <a href="{{ route('organization.loops.catch-up', ['organization' => $_org, 'loop' => $currentLoop->id]) }}"
+           data-loop-catch-up-link
+           class="{{ $shape }} {{ $quiet }} px-2.5"
+           title="{{ __('loops.catch_up_title') }}">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+            <span class="hidden sm:inline">{{ __('loops.catch_up_open') }}</span>
+        </a>
+    @endif
+
     @php
         // Ce que cette personne peut réellement faire ici. Les quatre gardes
         // existaient déjà et sont calculées par le contrôleur ; on les lit,
