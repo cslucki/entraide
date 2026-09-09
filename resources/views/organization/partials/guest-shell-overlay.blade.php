@@ -77,10 +77,15 @@
 #bp-guest-shell .bpgs-form button[disabled],#bp-guest-shell .bpgs-form textarea[disabled]{opacity:.5;cursor:not-allowed}
 #bp-guest-shell .bpgs-foot{font-size:11px;color:#9ca3af;padding:0 12px 10px;text-align:center}
   @media (max-width:480px){#bp-guest-shell{right:12px;bottom:12px}#bp-guest-shell .bpgs-panel{position:fixed;left:0;right:0;bottom:0;width:100vw;max-width:100vw;height:82vh;max-height:82vh;border-radius:16px 16px 0 0}}
-  #bp-guest-shell.bpgs-first{position:static;right:auto;bottom:auto;display:block;width:100%;max-width:960px;margin:0 auto;padding:16px}
-  #bp-guest-shell.bpgs-first .bpgs-panel{position:static;width:100%;max-width:100%;height:480px;max-height:70vh;bottom:auto;right:auto}
-  #bp-guest-shell.bpgs-first .bpgs-after{display:block;text-align:center;font-size:13px;color:#4f46e5;margin-top:10px}
-  @media (max-width:480px){#bp-guest-shell.bpgs-first{padding:8px}#bp-guest-shell.bpgs-first .bpgs-panel{position:static;width:100%;height:70vh;max-height:70vh;border-radius:16px}}
+  /* TASK-1494 : en shell_first le Shell EST l'experience, il occupe donc la
+     hauteur disponible. Avant, il etait borne a 480px / 70vh parce qu'une
+     landing marketing se deroulait dessous (TASK-1443) ; ce n'est plus le cas.
+     `flex:1` sur une colonne pleine hauteur plutot qu'une hauteur fixe : la
+     page hote (`organization/shell-first`) donne la colonne, le Shell la
+     remplit, et rien ne casse si le chrome change de taille. */
+  #bp-guest-shell.bpgs-first{position:static;right:auto;bottom:auto;display:flex;flex-direction:column;flex:1;width:100%;max-width:960px;margin:0 auto;padding:8px 0 0}
+  #bp-guest-shell.bpgs-first .bpgs-panel{position:static;width:100%;max-width:100%;height:auto;flex:1;min-height:0;max-height:none;bottom:auto;right:auto}
+  @media (max-width:480px){#bp-guest-shell.bpgs-first{padding:4px 0 0}#bp-guest-shell.bpgs-first .bpgs-panel{position:static;width:100%;border-radius:16px}}
 </style>
 <div id="bp-guest-shell"
      class="{{ $gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::SHELL_FIRST ? 'bpgs-first' : '' }}"
@@ -141,7 +146,10 @@
     </form>
     <div class="bpgs-foot">{{ __('guest_shell.ui.privacy') }}</div>
   </section>
-  @if($gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::SHELL_FIRST)<a class="bpgs-after" href="#bpgs-after" data-guest-shell-after>{{ __('guest_shell.ui.first_after', ['name' => $organization->name]) }}</a><span id="bpgs-after"></span>@endif
+  {{-- TASK-1494 : l'ancre « Voir la page de :name ↓ » est RETIREE. Elle
+       pointait vers le contenu marketing que TASK-1443 rendait sous le Shell en
+       mode shell_first ; ce contenu n'existe plus dans ce mode, et un lien qui
+       promet un ailleurs inexistant est pire qu'une absence de lien. --}}
 </div>
 <script>
 (function () {

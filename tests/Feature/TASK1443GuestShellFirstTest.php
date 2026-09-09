@@ -57,37 +57,58 @@ class TASK1443GuestShellFirstTest extends TestCase
         return route('organization.home', ['organization' => $organization->slug]);
     }
 
-    private function assertShellFirstBefore(string $html, string $classicMarker): void
+    /**
+     * TASK-1494 — ce qui reste vrai du contrat de TASK-1443.
+     *
+     * Deux assertions seulement en ont ete retirees, et ce sont exactement
+     * celles que MASTER a superseedees : la presence de `data-guest-shell-after>`
+     * (« le contenu classique reste accessible ») et l'ordre du Shell AVANT ce
+     * contenu. Tout le reste — une seule instance, le bon layout, aucun widget
+     * flottant, le panneau ouvert d'emblee — decrit le mode Shell First
+     * independamment de ce qui l'entoure, et est donc conserve.
+     */
+    private function assertShellFirstShell(string $html, string $context): void
     {
-        $this->assertSame(1, substr_count($html, 'id="bp-guest-shell"'), 'une seule instance par page');
-        $this->assertStringContainsString('data-guest-shell-layout="shell_first"', $html);
-        $this->assertStringContainsString('class="bpgs-first"', $html);
-        $this->assertStringNotContainsString('data-guest-shell-toggle aria-expanded', $html, 'pas de widget flottant');
-        $this->assertDoesNotMatchRegularExpression('/class="bpgs-panel"\s+hidden/', $html, 'le panneau est ouvert d\'emblee');
-        $this->assertStringContainsString('data-guest-shell-after>', $html, 'le contenu classique reste accessible');
-        $shell = strpos($html, 'id="bp-guest-shell"');
-        $classic = strpos($html, $classicMarker);
-        $this->assertNotFalse($classic, 'le contenu public classique est toujours la');
-        $this->assertLessThan($classic, $shell, 'le Shell vient EN PREMIER');
+        $this->assertSame(1, substr_count($html, 'id="bp-guest-shell"'), "[$context] une seule instance par page");
+        $this->assertStringContainsString('data-guest-shell-layout="shell_first"', $html, "[$context] mauvais layout");
+        $this->assertStringContainsString('class="bpgs-first"', $html, "[$context] la classe du mode manque");
+        $this->assertStringNotContainsString('data-guest-shell-toggle aria-expanded', $html, "[$context] un widget flottant est rendu");
+        $this->assertDoesNotMatchRegularExpression('/class="bpgs-panel"\s+hidden/', $html, "[$context] le panneau n'est pas ouvert d'emblee");
     }
 
     // ── 1. Placement ───────────────────────────────────────────────────────
 
-    public function test_shell_first_puts_the_shell_before_the_classic_content_on_the_three_templates(): void
+    /**
+     * TASK-1494 — ce test s'appelait
+     * `test_shell_first_puts_the_shell_before_the_classic_content_on_the_three_templates`
+     * et il verrouillait le contrat de TASK-1443 : le Shell EN HAUT, « le
+     * contenu public classique reste entier juste en dessous ».
+     *
+     * MASTER a arbitre autrement, apres mesure de Cyril : en Shell First, rendre
+     * la landing complete derriere DEDOUBLE l'experience au lieu de la
+     * remplacer. Le contenu marketing n'est donc plus rendu dans ce mode, sur
+     * aucun des trois gabarits — et c'est ce que ce test mesure desormais.
+     *
+     * Ce qui NE change pas, et que ce fichier continue de proteger : une seule
+     * instance montee, l'etat `live`, le message d'accueil, aucun cookie et
+     * aucun appel provider sur simple visite.
+     */
+    public function test_shell_first_replaces_the_classic_content_on_the_three_templates(): void
     {
         GuestShellAgent::fake([]);
 
+        foreach (['home', 'bouclepro_hero_v2', 'artscilab_hero'] as $template) {
+            $this->first->update(['homepage_template' => $template]);
+            $html = $this->get($this->home($this->first))->assertOk()->getContent();
+
+            $this->assertStringContainsString('bpsf-page', $html, "[$template] la vue Shell First n'est pas rendue.");
+            $this->assertShellFirstShell($html, $template);
+            $this->assertStringNotContainsString('max-w-7xl', $html, "[$template] le pied de page de la landing classique est rendu derriere le Shell.");
+        }
+
         $html = $this->get($this->home($this->first))->assertOk()->assertCookieMissing(GuestVisitorResolver::COOKIE)->getContent();
-        // Le template `home` ne rend pas hero_title, et le layout porte deja un lien de connexion : le marqueur est l'en-tete PROPRE a la page.
-        $this->assertShellFirstBefore($html, 'class="flex items-center gap-4 mb-8"');
         $this->assertStringContainsString('data-guest-shell-state="live"', $html);
         $this->assertStringContainsString('data-guest-shell-welcome>', $html);
-
-        $this->first->update(['homepage_template' => 'bouclepro_hero_v2']);
-        $this->assertShellFirstBefore($this->get($this->home($this->first))->assertOk()->getContent(), '<h1');
-
-        $this->first->update(['homepage_template' => 'artscilab_hero']);
-        $this->assertShellFirstBefore($this->get($this->home($this->first))->assertOk()->getContent(), '<h1');
 
         $this->assertSame(0, GuestVisitor::count());
         GuestShellAgent::assertNeverPrompted();
