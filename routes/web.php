@@ -443,7 +443,12 @@ Route::middleware('auth')->group(function () {
 
 Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
 Route::get('/requests/{request}', [RequestController::class, 'show'])->name('requests.show');
-Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show');
+// TASK-1479 (P0 privacy, extension arbitree par MASTER) — « profil public »
+// veut dire visible des AUTRES MEMBRES de l'Organization, pas ouvert au Web
+// anonyme. Mesure : sur une Organization is_public = false, cette page rendait
+// 200 a un anonyme avec nom, ville, biographie, disponibilite et points.
+// Fermer l'annuaire en laissant chaque fiche accessible serait un demi-correctif.
+Route::get('/profile/{user}', [ProfileController::class, 'show'])->middleware(['auth', 'organization.member'])->name('profile.show');
 Route::middleware('ai-profiles.enabled')->group(function () {
     Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->name('agent-ia.profile.chat');
     Route::post('/profile/{user}/agent-ia/discuter', [AiAgentLoopController::class, 'startConversation'])->name('agent-ia.conversation.start');
@@ -1076,7 +1081,7 @@ Route::prefix('/org/{organization}')
         // Public organization-scoped detail routes used by Explorer.
         Route::get('/services/{service}', [ServiceController::class, 'orgShow'])->name('services.show')->whereUuid('service');
         Route::get('/requests/{request}', [RequestController::class, 'orgShow'])->name('requests.show')->whereUuid('request');
-        Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show')->whereUuid('user');
+        Route::get('/profile/{user}', [ProfileController::class, 'show'])->middleware(['auth', 'organization.member'])->name('profile.show')->whereUuid('user');
         Route::middleware('ai-profiles.enabled')->group(function () {
             Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->middleware('consume.org')->name('agent-ia.profile.chat')->whereUuid('user');
         });

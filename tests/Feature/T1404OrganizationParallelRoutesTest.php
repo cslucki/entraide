@@ -86,23 +86,35 @@ class T1404OrganizationParallelRoutesTest extends TestCase
         $response->assertOk();
     }
 
+    /*
+     * TASK-1479 (P0 privacy) — l'annuaire et les fiches de profil ne sont plus
+     * servis a un visiteur ANONYME.
+     *
+     * Mesure faite avant correctif : sur des Organizations `is_public = false`,
+     * ces pages rendaient HTTP 200 sans aucun cookie, avec noms reels, villes,
+     * biographies et affiliations.
+     *
+     * Ce que ces tests protegent n'a pas change d'un mot. Seul le VISITEUR
+     * devient un membre.
+     */
+
     public function test_org_route_explorer(): void
     {
-        $response = $this->get("/org/{$this->org->slug}/explorer");
+        $response = $this->actingAs($this->user)->get("/org/{$this->org->slug}/explorer");
 
         $response->assertOk();
     }
 
     public function test_org_route_members(): void
     {
-        $response = $this->get("/org/{$this->org->slug}/membres");
+        $response = $this->actingAs($this->user)->get("/org/{$this->org->slug}/membres");
 
         $response->assertOk();
     }
 
     public function test_org_route_exchanges(): void
     {
-        $response = $this->get("/org/{$this->org->slug}/echanges");
+        $response = $this->actingAs($this->user)->get("/org/{$this->org->slug}/echanges");
 
         $response->assertOk();
     }

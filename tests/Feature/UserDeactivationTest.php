@@ -51,12 +51,24 @@ class UserDeactivationTest extends TestCase
      * Des sentinelles uniques rendent l'assertion sans ambiguite, sans
      * toucher a la factory ni assouplir le test metier.
      */
+    /*
+     * TASK-1479 (P0 privacy) — l'annuaire et les fiches de profil ne sont plus
+     * servis a un visiteur ANONYME. Mesure faite : sur des Organizations
+     * `is_public = false`, ils rendaient 200 sans aucun cookie, avec noms
+     * reels, villes et biographies.
+     *
+     * Ce que ces tests protegent — un compte desactive disparait de l'annuaire
+     * et sa fiche rend 404 — n'a pas change d'un mot. Le lecteur est desormais
+     * un membre ACTIF de la meme Organization, ce qui est d'ailleurs le seul
+     * point de vue depuis lequel la question a un sens.
+     */
+
     public function test_deactivated_user_absent_from_members_page(): void
     {
         $activeUser = $this->createUser(['banned_at' => null, 'name' => 'MemberActiveSentinelXYZ']);
         $deactivatedUser = $this->createUser(['banned_at' => now(), 'name' => 'MemberDeactivatedSentinelXYZ']);
 
-        $response = $this->get('/membres');
+        $response = $this->actingAs($activeUser)->get('/membres');
 
         $response->assertOk();
         $response->assertSee($activeUser->name);
@@ -67,7 +79,7 @@ class UserDeactivationTest extends TestCase
     {
         $activeUser = $this->createUser(['banned_at' => null, 'name' => 'MemberPresentSentinelXYZ']);
 
-        $response = $this->get('/membres');
+        $response = $this->actingAs($activeUser)->get('/membres');
 
         $response->assertOk();
         $response->assertSee($activeUser->name);
@@ -152,8 +164,9 @@ class UserDeactivationTest extends TestCase
     public function test_public_web_profile_returns_404_for_deactivated_user(): void
     {
         $user = $this->createUser(['banned_at' => now()]);
+        $reader = $this->createUser(['banned_at' => null, 'name' => 'ProfileReaderSentinelXYZ']);
 
-        $response = $this->get(route('profile.show', $user));
+        $response = $this->actingAs($reader)->get(route('profile.show', $user));
 
         $response->assertNotFound();
     }
@@ -422,7 +435,7 @@ class UserDeactivationTest extends TestCase
 
         auth()->logout();
 
-        $membersResponse = $this->get('/membres');
+        $membersResponse = $this->actingAs($user->fresh())->get('/membres');
         $membersResponse->assertOk();
         $membersResponse->assertSee($user->name);
     }
@@ -452,9 +465,9 @@ class UserDeactivationTest extends TestCase
             'name' => 'OtherOrgUser',
         ]);
 
-        $this->createUser(['banned_at' => null, 'name' => 'MainOrgUser']);
+        $mainOrgUser = $this->createUser(['banned_at' => null, 'name' => 'MainOrgUser']);
 
-        $response = $this->get('/membres');
+        $response = $this->actingAs($mainOrgUser)->get('/membres');
 
         $response->assertOk();
         $response->assertSee('MainOrgUser');

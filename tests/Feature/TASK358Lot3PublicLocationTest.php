@@ -8,6 +8,17 @@ use Tests\TestCase;
 
 class TASK358Lot3PublicLocationTest extends TestCase
 {
+    /*
+     * TASK-1479 (P0 privacy) — la fiche de profil n'est plus servie a un
+     * visiteur ANONYME : sur une Organization `is_public = false`, elle rendait
+     * 200 sans aucun cookie.
+     *
+     * Ce fichier regit QUELS CHAMPS un profil montre — ville et pays oui,
+     * adresse et code postal non. TASK-1479 regit QUI peut le lire. Les deux
+     * decisions se completent et ne se contredisent pas : l'adresse reste
+     * masquee pour tout le monde, membre compris.
+     */
+
     public function test_public_profile_does_not_show_legacy_location_and_shows_city_country(): void
     {
         $organization = $this->createOrganization(['show_country' => true]);
@@ -17,7 +28,8 @@ class TASK358Lot3PublicLocationTest extends TestCase
             'location' => 'Legacy Secret Location',
         ]);
 
-        $this->get(route('profile.show', $user))
+        $this->actingAs($this->createStructuredUser($organization, ['city' => 'Lecteur']))
+            ->get(route('profile.show', $user))
             ->assertOk()
             ->assertSee('Paris, France')
             ->assertDontSee('Legacy Secret Location')
@@ -35,7 +47,8 @@ class TASK358Lot3PublicLocationTest extends TestCase
             'location' => 'Legacy Lyon',
         ]);
 
-        $this->get(route('profile.show', $user))
+        $this->actingAs($this->createStructuredUser($organization, ['city' => 'Lecteur']))
+            ->get(route('profile.show', $user))
             ->assertOk()
             ->assertSee('Lyon')
             ->assertDontSee('Lyon, France')
@@ -51,7 +64,8 @@ class TASK358Lot3PublicLocationTest extends TestCase
             'location' => 'Legacy Fallback Should Stay Hidden',
         ]);
 
-        $this->get(route('profile.show', $user))
+        $this->actingAs($this->createStructuredUser($organization, ['city' => 'Lecteur']))
+            ->get(route('profile.show', $user))
             ->assertOk()
             ->assertDontSee('Legacy Fallback Should Stay Hidden')
             ->assertDontSee('France');

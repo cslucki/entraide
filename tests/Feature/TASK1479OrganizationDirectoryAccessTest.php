@@ -53,6 +53,22 @@ class TASK1479OrganizationDirectoryAccessTest extends TestCase
 
     private const LEGACY = ['members.index', 'explorer', 'exchanges.index'];
 
+    /**
+     * TASK-1479, extension arbitree par MASTER : la fiche individuelle.
+     *
+     * « Profil public » veut dire visible des AUTRES MEMBRES de l'Organization,
+     * pas ouvert au Web anonyme. Le signal d'interface — la navigation nomme
+     * cette page « Mon profil public » — ne suffisait pas a autoriser une
+     * exposition Internet : sur une Organization `is_public = false`, la page
+     * rendait 200 a un anonyme avec nom, ville, biographie, disponibilite et
+     * points.
+     *
+     * Fermer l'annuaire en laissant chaque fiche accessible aurait ete un
+     * demi-correctif : connaitre l'UUID reduit la decouvrabilite, pas la
+     * gravite de l'autorisation manquante.
+     */
+    private const PROFILE = ['organization.profile.show', 'profile.show'];
+
     private Organization $private;
 
     private Organization $public;
@@ -290,6 +306,59 @@ class TASK1479OrganizationDirectoryAccessTest extends TestCase
 
             $this->assertContains('auth', $middleware, "[{$name}] : l'acces anonyme");
             $this->assertContains('organization.member', $middleware, "[{$name}] : le cross-tenant");
+        }
+    }
+
+    // =====================================================================
+    // F. La fiche individuelle suit la meme frontiere
+    // =====================================================================
+
+    public function test_an_anonymous_visitor_never_reaches_an_individual_profile(): void
+    {
+        $response = $this->get(route('organization.profile.show', [
+            'organization' => $this->private->slug,
+            'user' => $this->memberOfPrivate->id,
+        ]));
+
+        $this->assertNotSame(200, $response->getStatusCode());
+        $this->assertLeaksNothing($response->getContent(), 'profile.show');
+    }
+
+    public function test_a_member_of_another_organization_never_reaches_an_individual_profile(): void
+    {
+        $response = $this->actingAs($this->memberOfPublic)->get(route('organization.profile.show', [
+            'organization' => $this->private->slug,
+            'user' => $this->memberOfPrivate->id,
+        ]));
+
+        $this->assertSame(404, $response->getStatusCode());
+        $this->assertLeaksNothing($response->getContent(), 'profile.show');
+    }
+
+    /** Et le membre voit toujours la fiche de ses collegues : rien n'est masque. */
+    public function test_a_member_still_reaches_a_profile_of_their_own_organization(): void
+    {
+        $colleague = User::factory()->complete()->create([
+            'organization_id' => $this->private->id,
+            'name' => 'Yacine Bouazza',
+        ]);
+
+        $html = $this->actingAs($this->memberOfPrivate)->get(route('organization.profile.show', [
+            'organization' => $this->private->slug,
+            'user' => $colleague->id,
+        ]))->assertOk()->getContent();
+
+        $this->assertStringContainsString(e($colleague->name), $html);
+    }
+
+    /** Les deux formes de la route portent les deux gardes. */
+    public function test_both_profile_route_forms_carry_both_guards(): void
+    {
+        foreach (self::PROFILE as $name) {
+            $middleware = \Illuminate\Support\Facades\Route::getRoutes()->getByName($name)->gatherMiddleware();
+
+            $this->assertContains('auth', $middleware, "[{$name}]");
+            $this->assertContains('organization.member', $middleware, "[{$name}]");
         }
     }
 
