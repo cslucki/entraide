@@ -111,6 +111,13 @@ class TASK358Lot3PublicLocationTest extends TestCase
             'location' => 'Paris Legacy Only',
         ]);
 
+        // TASK-1488 (P0 privacy) : `/search` exige desormais une session de
+        // membre — il rendait a un anonyme les memes champs que `/membres`,
+        // ferme par TASK-1479. Ce que ce test regit est INCHANGE : quels CHAMPS
+        // une fiche montre (ville oui, `location` legacy non). Il regit les
+        // champs, TASK-1488 regit le lecteur.
+        $this->actingAs($this->inertReader($organization));
+
         $this->get(route('search', ['q' => 'Paris']))
             ->assertOk()
             ->assertSee($matchedByCity->name)
@@ -126,6 +133,9 @@ class TASK358Lot3PublicLocationTest extends TestCase
         $nameUser = $this->createStructuredUser($organization, ['name' => 'Alice Searchable']);
         $bioUser = $this->createStructuredUser($organization, ['name' => 'Bio Match', 'bio' => 'Expert comptable solidaire']);
         $cityUser = $this->createStructuredUser($organization, ['name' => 'City Match', 'city' => 'Nantes']);
+
+        // TASK-1488 (P0 privacy) : meme raison — le lecteur devient un membre.
+        $this->actingAs($this->inertReader($organization));
 
         $this->get(route('search', ['q' => 'Alice']))
             ->assertOk()
@@ -149,6 +159,30 @@ class TASK358Lot3PublicLocationTest extends TestCase
         app()->instance('current_organization', $organization);
 
         return $organization;
+    }
+
+    /**
+     * TASK-1488 — le membre qui LIT la recherche, deliberement inerte.
+     *
+     * Meme discipline que `createStructuredUser()` ci-dessous et pour la meme
+     * raison (TASK-1228) : aucun de ses champs ne doit croiser un terme
+     * recherche ici (« Paris », « Alice », « comptable », « Nantes ») ni une
+     * sentinelle `assertDontSee`. Son nom est rendu par la navigation une fois
+     * connecte — c'est precisement la ou un nom genere par Faker ferait
+     * echouer une assertion negative.
+     */
+    private function inertReader(Organization $organization): User
+    {
+        return User::factory()->create([
+            'organization_id' => $organization->id,
+            'name' => 'Zzz Inerte',
+            'first_name' => 'Zzz',
+            'city' => 'Zzzville',
+            'country_code' => 'FR',
+            'location' => null,
+            'bio' => 'Zzz.',
+            'banned_at' => null,
+        ]);
     }
 
     private function createStructuredUser(Organization $organization, array $attributes = []): User
