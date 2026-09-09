@@ -362,11 +362,17 @@ class AiShell extends Component
             'shell' => [
                 'context' => $context,
                 'surface' => $surface,
-                // TASK-1477 : « a quoi sert cet endroit ». Une couche DISTINCTE
-                // de la surface (« ou suis-je ») et des actions (« que puis-je
-                // faire »). Elle n'accorde rien : c'est un texte publie par un
-                // humain, relu par l'autorite existante, ou `null`.
-                'usage_reference' => app(\App\Support\Ai\AiShellUsageReference::class)->forSurface($surface, app()->getLocale()),
+                // TASK-1484 : `usage_reference` ne fait PLUS partie du rendu.
+                //
+                // TASK-1477 le calculait ici pour l'afficher en bloc. Mesure
+                // faite, c'etait son seul consommateur cote membre — le texte
+                // etait recite a l'ecran et n'atteignait jamais le modele. Il
+                // est desormais lu dans `AiShellResponder::situated()`, au
+                // moment du tour, et il ANCRE la reponse.
+                //
+                // Le laisser ici couterait une resolution de reference a
+                // CHAQUE rendu du composant — donc a chaque navigation — pour
+                // une valeur que plus personne ne lit.
                 'here' => $this->hereLabel($context),
                 'conversation_id' => $conversationId,
                 'messages' => $messages,

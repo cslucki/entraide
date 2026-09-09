@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\UsageReference;
 use App\Models\User;
+use App\Services\UsageReference\UsageReferenceService;
 use App\Support\Ai\AiShellPageContext;
 use App\Support\Ai\AiShellUsageReference;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -143,20 +145,39 @@ class TASK1477MemberShellUsageReferenceTest extends TestCase
     }
 
     // =====================================================================
-    // B. A l'ecran : la surface est EXPLIQUEE, plus niee
+    // B. A l'ecran : la surface est NOMMEE — elle n'est plus RECITEE
     // =====================================================================
 
-    public function test_the_agenda_is_explained_by_its_published_reference(): void
+    /**
+     * TASK-1484 a retourne cette section, et il faut dire pourquoi plutot que
+     * de la supprimer.
+     *
+     * TASK-1477 avait un objectif juste — « la surface est expliquee, plus
+     * niee » — et l'a atteint au mauvais endroit. Le texte etait affiche en
+     * bloc, en permanence, a quelqu'un qui n'avait rien demande, et il
+     * n'atteignait JAMAIS le modele : `usage_reference` n'avait qu'un seul
+     * consommateur cote membre, ce bloc.
+     *
+     * La question « ou suis-je ? » garde sa reponse a l'ecran — l'en-tete,
+     * `data-ai-shell-surface`, pose par TASK-1469. Ce qui disparait est la
+     * RECITATION du texte long ; ce texte va desormais au modele, borne, par
+     * `AiShellUsageReference::groundingFor()`. Les assertions d'ancrage vivent
+     * dans `TASK1484UsageReferenceGroundingTest`.
+     */
+    public function test_the_agenda_is_named_but_its_reference_is_no_longer_recited(): void
     {
         $this->publish('agenda', 'fr', 'L\'agenda', 'Vous retrouvez ici les rencontres de vos Boucles.');
 
         $html = $this->visit('organization.events.agenda');
 
+        // « Ou suis-je » : toujours la.
         $this->assertStringContainsString('data-ai-shell-surface="agenda"', $html);
-        $this->assertStringContainsString('data-ai-shell-usage-reference="agenda"', $html);
-        $this->assertStringContainsString(e('Vous retrouvez ici les rencontres de vos Boucles.'), $html);
 
-        // Et la negation a disparu du panneau.
+        // Le texte long : plus a l'ecran.
+        $this->assertStringNotContainsString('data-ai-shell-usage-reference', $html);
+        $this->assertStringNotContainsString(e('Vous retrouvez ici les rencontres de vos Boucles.'), $html);
+
+        // Et la negation n'est jamais revenue — c'est l'acquis de TASK-1477.
         $this->assertStringNotContainsString(e(__('ai.fab_no_page_action')), $html);
     }
 
@@ -166,12 +187,12 @@ class TASK1477MemberShellUsageReferenceTest extends TestCase
         $this->publish('exchanges', 'fr', 'Les echanges', 'Consultez les demandes et propositions d\'aide accessibles.');
 
         $directory = $this->visit('organization.members.index');
-        $this->assertStringContainsString('data-ai-shell-usage-reference="directory"', $directory);
-        $this->assertStringContainsString(e('Parcourez les membres de votre Organization.'), $directory);
+        $this->assertStringContainsString('data-ai-shell-surface="directory"', $directory);
+        $this->assertStringNotContainsString(e('Parcourez les membres de votre Organization.'), $directory);
 
         $exchanges = $this->visit('organization.explorer');
-        $this->assertStringContainsString('data-ai-shell-usage-reference="exchanges"', $exchanges);
-        $this->assertStringContainsString(e('Consultez les demandes et propositions d\'aide accessibles.'), $exchanges);
+        $this->assertStringContainsString('data-ai-shell-surface="exchanges"', $exchanges);
+        $this->assertStringNotContainsString(e('Consultez les demandes et propositions d\'aide accessibles.'), $exchanges);
     }
 
     /**
@@ -215,15 +236,26 @@ class TASK1477MemberShellUsageReferenceTest extends TestCase
         $this->assertStringContainsString(e(__('ai.fab_page_help')), $html);
     }
 
-    /** Et les deux ne coexistent jamais : un repere REMPLACE le repli. */
-    public function test_a_reference_replaces_the_fallback(): void
+    /**
+     * TASK-1477 faisait de ces deux blocs des exclusifs : un repere REMPLACAIT
+     * le repli. C'etait coherent tant que les deux parlaient du meme sujet.
+     *
+     * Ils n'en parlaient pas. Le repli dit ce que le SHELL peut faire — vrai
+     * partout, independamment de la page. Le repere disait a quoi sert la PAGE.
+     * Les opposer revenait a faire disparaitre la seule phrase qui annonce la
+     * capacite du Shell des qu'un texte editorial existait.
+     *
+     * Depuis TASK-1484 le repere n'est plus a l'ecran, et le repli devient ce
+     * qu'il aurait toujours du etre : inconditionnel.
+     */
+    public function test_the_shell_always_says_what_it_can_do(): void
     {
         $this->publish('agenda', 'fr', 'L\'agenda', 'Les rencontres de vos Boucles.');
 
         $html = $this->visit('organization.events.agenda');
 
-        $this->assertStringContainsString('data-ai-shell-usage-reference="agenda"', $html);
-        $this->assertStringNotContainsString('data-ai-shell-page-help', $html);
+        $this->assertStringContainsString('data-ai-shell-page-help', $html);
+        $this->assertStringNotContainsString('data-ai-shell-usage-reference', $html);
     }
 
     /** Et la phrase neutre n'ouvre par aucune negation, dans les deux langues. */
@@ -251,7 +283,7 @@ class TASK1477MemberShellUsageReferenceTest extends TestCase
     /** Sabotage : une reference en BROUILLON n'est pas publiee — elle ne sort pas. */
     public function test_a_draft_reference_never_reaches_the_shell(): void
     {
-        app(\App\Services\UsageReference\UsageReferenceService::class)
+        app(UsageReferenceService::class)
             ->createDraft('agenda', 'fr', 'Brouillon', 'Texte-non-publie-TASK1477', $this->platformAdmin);
 
         $html = $this->visit('organization.events.agenda');
@@ -264,7 +296,7 @@ class TASK1477MemberShellUsageReferenceTest extends TestCase
     public function test_a_retired_reference_never_comes_back(): void
     {
         $reference = $this->publish('agenda', 'fr', 'L\'agenda', 'Texte-retire-TASK1477');
-        app(\App\Services\UsageReference\UsageReferenceService::class)->retire($reference, $this->platformAdmin);
+        app(UsageReferenceService::class)->retire($reference, $this->platformAdmin);
 
         $html = $this->visit('organization.events.agenda');
 
@@ -405,7 +437,7 @@ class TASK1477MemberShellUsageReferenceTest extends TestCase
     /** L'invariant de TASK-1466 tient : toujours pas de Shell global sur une Boucle. */
     public function test_no_global_shell_on_loops(): void
     {
-        $loop = \App\Models\Loop::factory()->create(['organization_id' => $this->organization->id]);
+        $loop = Loop::factory()->create(['organization_id' => $this->organization->id]);
 
         $this->actingAs($this->member)
             ->get(route('organization.loops.show', ['organization' => $this->organization->slug, 'loop' => $loop->id]))
@@ -420,7 +452,7 @@ class TASK1477MemberShellUsageReferenceTest extends TestCase
 
     private function publish(string $surface, string $locale, string $title, string $content): UsageReference
     {
-        $service = app(\App\Services\UsageReference\UsageReferenceService::class);
+        $service = app(UsageReferenceService::class);
         $draft = $service->createDraft($surface, $locale, $title, $content, $this->platformAdmin);
 
         return $service->publish($draft, $this->platformAdmin);

@@ -157,34 +157,33 @@
             </div>
         @endif
 
-        {{-- TASK-1477 — « a quoi sert cet endroit ».
+        {{-- TASK-1484 — l'UsageReference N'EST PLUS RECITEE ICI.
 
-             Troisieme couche, distincte des deux autres et volontairement
-             placee entre elles : la surface dit OU l'on est (en-tete), ce bloc
-             dit A QUOI SERT le lieu, les actions disent ce qu'on peut y FAIRE.
-             Les confondre etait exactement le defaut : le Shell nommait la page
-             puis enchainait sur une negation, faute d'avoir quoi que ce soit a
-             en dire.
+             TASK-1477 l'avait posee en bloc a l'ouverture du Shell : titre et
+             texte integral, en permanence, a quelqu'un qui n'avait rien
+             demande. Mesure faite, le produit avait exactement l'inverse de ce
+             qu'il fallait — ce texte etait AFFICHE et n'atteignait JAMAIS le
+             modele. `usage_reference` n'avait qu'un seul consommateur cote
+             membre : ce bloc. Zero occurrence dans le chemin du prompt.
 
-             Ce texte est ecrit et PUBLIE par un humain. Il n'accorde aucun
-             droit et ne promet aucune fonction — le runtime reste seul juge de
-             ce qui est possible. --}}
-        @if($shell['usage_reference'] !== null)
-            <div class="border-b border-gray-100 px-4 py-3 dark:border-gray-700" data-ai-shell-usage-reference="{{ $shell['surface'] }}">
-                <p class="text-xs font-semibold text-gray-700 dark:text-gray-200" data-ai-shell-usage-reference-title>{{ $shell['usage_reference']['title'] }}</p>
-                <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400" data-ai-shell-usage-reference-content>{{ $shell['usage_reference']['content'] }}</p>
-            </div>
-        @else
-            {{-- TASK-1478 : le repli neutre de TASK-1477 suit le meme
-                 deplacement que le credit. Il vivait dans le panneau du FAB,
-                 qui n'existe plus des lors qu'un Shell existe.
+             Il est desormais donne au modele par `situated()`, borne, et il
+             ancre la reponse au lieu de meubler le panneau. Voir
+             `AiShellUsageReference::groundingFor()`.
 
-                 Il reste ce qu'il etait : une phrase qui dit ce que le Shell
-                 PEUT faire, jamais ce que la page n'a pas. --}}
-            <p class="border-b border-gray-100 px-4 py-3 text-xs leading-5 text-gray-500 dark:border-gray-700 dark:text-gray-400" data-ai-shell-page-help>
-                {{ __('ai.fab_page_help') }}
-            </p>
-        @endif
+             La question « ou suis-je ? » n'est pas perdue pour autant : elle a
+             deja sa reponse, une ligne plus haut dans l'en-tete
+             (`data-ai-shell-surface`). Les quatre couches restent distinctes —
+             l'en-tete dit OU, la phrase ci-dessous dit ce que le Shell PEUT
+             faire, les actions disent quoi FAIRE, la reference ancre le modele.
+
+             TASK-1478 : cette phrase de repli vivait dans le panneau du FAB,
+             qui n'existe plus des lors qu'un Shell existe. Elle etait le
+             `@else` du bloc supprime ; elle devient inconditionnelle, parce
+             qu'elle ne parle pas de la page — elle dit ce que le Shell peut
+             faire, ce qui est vrai partout. --}}
+        <p class="border-b border-gray-100 px-4 py-3 text-xs leading-5 text-gray-500 dark:border-gray-700 dark:text-gray-400" data-ai-shell-page-help>
+            {{ __('ai.fab_page_help') }}
+        </p>
 
         {{-- TASK-1326 — le contexte epingle : visible, retirable, borne. La
              liste rendue ici est EXACTEMENT celle que le prochain tour recevra

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\Ai\AiSelfKnowledge;
 use App\Support\Ai\AiShellThread;
 use App\Support\Ai\AiShellTurnCards;
+use App\Support\Ai\AiShellUsageReference;
 use App\Support\Ai\AiTurnLock;
 use DomainException;
 use Illuminate\Support\Str;
@@ -171,6 +172,7 @@ final class AiShellResponder
         private readonly AiShellThread $thread,
         private readonly AiShellTurnCards $cards,
         private readonly AiSelfKnowledge $selfKnowledge,
+        private readonly AiShellUsageReference $usageReference,
     ) {}
 
     /**
@@ -504,6 +506,34 @@ final class AiShellResponder
             // non garde n'a rien a faire dans un prompt, et c'est exactement ce
             // que toute cette architecture existe pour tenir dehors.
             $lines[] = __('ai.shell_prompt_where_dashboard');
+        }
+
+        // TASK-1484 — CE QUE CE LIEU EST, apres OU il est.
+        //
+        // La ligne de lieu ci-dessus nomme la surface ; elle ne l'explique pas.
+        // Hors Boucle / Dossier / Article / tableau de bord, elle ne dit meme
+        // rien du tout — et sur ces pages-la (agenda, annuaire, echanges,
+        // dossiers, blog, profil) le modele repondait depuis le seul prompt
+        // administrable generique. « C'est quoi cette page ? » sur l'agenda
+        // rendait une reponse sur les categories et les boucles.
+        //
+        // La couche qui explique un lieu EXISTAIT — UsageReference, ecrite et
+        // publiee par un humain — mais cote membre elle n'etait que RECITEE a
+        // l'ecran, jamais donnee au modele. Le produit avait exactement
+        // l'inverse de ce qu'il fallait ; cette ligne echange les deux.
+        //
+        // La surface vient de `$pageContext`, resolue par `AiShellPageContext`.
+        // Elle n'est PAS re-derivee ici : une seconde derivation serait une
+        // seconde autorite, et l'invariant de fil vide de TASK-1346 — dont le
+        // contexte ne porte aucune cle `surface` — cesserait de tenir.
+        $surface = $pageContext['surface'] ?? null;
+
+        if (is_string($surface) && $surface !== '') {
+            $grounding = $this->usageReference->groundingFor($surface, app()->getLocale());
+
+            if ($grounding !== null) {
+                $lines[] = $grounding;
+            }
         }
 
         // Le budget est double : `max_pins` borne la liste, et chaque libelle
