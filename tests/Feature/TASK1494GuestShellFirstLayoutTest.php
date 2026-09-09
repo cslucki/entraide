@@ -159,13 +159,46 @@ class TASK1494GuestShellFirstLayoutTest extends TestCase
         // chaque bulle : `margin:auto` sur `.bpgs-msg` ecraserait le
         // `align-self:flex-end` des messages visiteur et centrerait tout.
         // Recette de Cyril : les pastilles se retrouvaient au milieu.
-        $this->assertStringContainsString('.bpgs-log{width:100%;max-width:44rem;margin-left:auto;margin-right:auto}', $body, 'la colonne de lecture n\'est pas portee par le fil');
+        $this->assertStringContainsString('.bpgs-log{width:100%;max-width:min(90vw,1400px);margin-left:auto;margin-right:auto}', $body, 'la lane conversationnelle n\'est pas portee par le fil');
         $this->assertStringNotContainsString('.bpgs-msg,\n  #bp-guest-shell.bpgs-first .bpgs-note', $body, 'la largeur de lecture est repassee sur les bulles');
         $this->assertStringContainsString('.bpgs-log{flex:1;min-height:0;overflow-y:auto}', $body, 'le fil ne defile pas sous un composeur fixe');
 
         // La mention de confidentialite de PAGE a ete retiree : le Shell porte
         // deja la sienne, et les deux ensemble mangeaient 97 px de page utile.
         $this->assertStringNotContainsString('bpsf-privacy', $body, 'la mention de confidentialite est dupliquee');
+    }
+
+    /**
+     * WP-C / TASK-1498 — la LANE conversationnelle occupe l'espace desktop.
+     *
+     * Mesure avec un fil PEUPLE, avant correctif : la lane restait a 44rem =
+     * 704 px, soit **49 % du viewport en 1440 et 37 % en 1920**. L'application
+     * occupait bien 100 %, mais la conversation laissait un vide considerable.
+     * La recette de Cyril rejetait cela, et la mesure lui donnait raison.
+     *
+     * `min(90vw, 1400px)` tient les trois tailles avec UNE expression : 1440 ->
+     * 1296 px (90 %), 1920 -> 1400 px (plafond de lecture), 390 -> pleine
+     * largeur via la regle mobile.
+     *
+     * A 1920 la lane fait 73 % du viewport et non 80-90 % : c'est le plafond
+     * que WP-C §2 autorise explicitement (« un cap raisonnable vers 1400 px »),
+     * et le critere chiffre — lane >= 1280 — est tenu.
+     *
+     * Les bulles sont bornees DANS la lane : l'assistant a 1100 px (88 % d'une
+     * lane de 1400 ferait 1232 px, au-dela du confort de lecture), le visiteur
+     * a 70 % (WP-C §2 ; ses messages sont courts, une pastille large casserait
+     * le fil).
+     */
+    public function test_the_desktop_conversation_lane_uses_the_available_width(): void
+    {
+        $body = $this->get(route('organization.home', $this->organization(GuestShellDisplayMode::SHELL_FIRST)))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('max-width:min(90vw,1400px)', $body, 'la lane ne suit pas le viewport');
+        $this->assertStringContainsString('.bpgs-msg-assistant{max-width:min(88%,1100px)}', $body, 'la bulle assistant n\'est pas plafonnee');
+        $this->assertStringContainsString('.bpgs-msg-user{max-width:70%}', $body, 'la bulle visiteur n\'est pas bornee a 70% de la lane');
+        $this->assertStringNotContainsString('max-width:44rem', $body, 'la colonne etroite de TASK-1497 est encore la');
     }
 
     /**
