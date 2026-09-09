@@ -32,7 +32,52 @@
         toEnd() {
             this.$nextTick(() => { if (this.$refs.log) { this.$refs.log.scrollTop = this.$refs.log.scrollHeight; } });
         },
-        show() { this.open = true; this.$nextTick(() => this.$refs.composer?.focus()); },
+        /*
+         * TASK-1478 — le focus est DIFFERE, et ce n'est pas une precaution.
+         *
+         * `show()` faisait `$nextTick(() => $refs.composer?.focus())` depuis
+         * TASK-1315. Mesure au navigateur : la ref existe, le panneau est deja
+         * `display: flex` a cet instant, et le focus echoue quand meme — le
+         * navigateur refuse encore de le donner dans la meme tache. Un focus
+         * pose une tache plus tard reussit.
+         *
+         * Ce focus n'a donc JAMAIS fonctionne. Il ne se voyait pas tant qu'un
+         * second clic separait l'ouverture de la saisie ; il devient le coeur
+         * du sujet des lors qu'un seul clic doit suffire pour ecrire.
+         *
+         * `setTimeout` et non `requestAnimationFrame` : ce depot a deja paye le
+         * fait qu'une sequence rAF reste gelee tant que `document.hidden` est
+         * vrai (TASK-1244.BUG, quelques lignes plus bas).
+         */
+        /*
+         * Le focus attend que le composeur ait REELLEMENT une boite, et cette
+         * condition n'est pas une precaution de style.
+         *
+         * Mesure au navigateur, instrumentee : le callback de `$nextTick`
+         * s'execute bien, `$refs.composer` est bien le TEXTAREA, `focus()` est
+         * bien appele — et `document.activeElement` reste `BODY`. Le navigateur
+         * REFUSE le focus tant que l'element n'a pas de boite de layout, et
+         * `x-show` vient a peine de poser `display`. Deux cents millisecondes
+         * plus tard, le meme appel reussit.
+         *
+         * On attend donc le fait mesurable (une hauteur), pas un delai devine.
+         * Borne : 12 essais de 25 ms, soit 300 ms au pire, puis on abandonne
+         * silencieusement — un focus manque vaut mieux qu'une boucle.
+         *
+         * `setTimeout` et non `requestAnimationFrame` : une sequence rAF reste
+         * gelee tant que `document.hidden` est vrai, ce que ce depot a deja
+         * paye (TASK-1244.BUG, quelques lignes plus bas).
+         */
+        focusComposer(tries) {
+            const el = this.$refs.composer;
+            if (! el) { return; }
+            if (el.getBoundingClientRect().height > 0) { el.focus(); return; }
+            if (tries > 0) { setTimeout(() => this.focusComposer(tries - 1), 25); }
+        },
+        show() {
+            this.open = true;
+            this.$nextTick(() => this.focusComposer(12));
+        },
         close() { this.open = false; },
     }"
     @bp-open-ai-shell.window="show()"
@@ -76,6 +121,42 @@
             </button>
         </div>
 
+        {{-- TASK-1478 — le credit IA, descendu ici.
+
+             Il vivait dans le panneau du FAB, c'est-a-dire dans l'etape
+             intermediaire que ce lot supprime. Le laisser la-bas l'aurait rendu
+             invisible : le crédit est la seule chose CHIFFREE que le produit
+             montre a la personne, et elle doit la voir au moment ou elle
+             s'apprete a consommer.
+
+             Aucune seconde autorite : `AiFabContext` calcule ces valeurs, ce
+             panneau ne fait que les afficher. Jamais le budget de
+             l'Organization, jamais un cout. --}}
+        @if($shell['credit'] !== null)
+            <div class="border-b border-gray-100 px-4 py-2.5 dark:border-gray-700" data-ai-shell-credit data-ai-shell-tone="{{ $shell['credit_tone'] }}">
+                <div class="flex items-center justify-between gap-3">
+                    <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('ai.fab_credit_title') }}</span>
+                    <span class="text-xs font-semibold {{ $shell['credit_tone'] === 'exhausted' ? 'text-rose-700 dark:text-rose-300' : ($shell['credit_tone'] === 'alert' ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300') }}" data-ai-shell-credit-label>{{ $shell['credit_label'] }}</span>
+                </div>
+
+                @if(! ($shell['credit']['unlimited'] ?? false) && (int) ($shell['credit']['quota'] ?? 0) > 0)
+                    <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700" role="progressbar" aria-valuemin="0" aria-valuemax="{{ (int) $shell['credit']['quota'] }}" aria-valuenow="{{ (int) $shell['credit']['used'] }}">
+                        <div class="h-full rounded-full {{ $shell['credit_tone'] === 'exhausted' ? 'bg-rose-500' : ($shell['credit_tone'] === 'alert' ? 'bg-amber-400' : 'bg-emerald-500') }}" style="width: {{ min(100, (float) ($shell['credit']['percent'] ?? 0)) }}%"></div>
+                    </div>
+                @endif
+
+                @if($shell['credit_tone'] === 'alert')
+                    <p class="mt-1 text-[11px] text-amber-700 dark:text-amber-300" data-ai-shell-alert>{{ __('ai.fab_credit_alert') }}</p>
+                @endif
+
+                @if($shell['usage_url'])
+                    <a href="{{ $shell['usage_url'] }}" data-ai-shell-usage-link class="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 hover:underline dark:text-indigo-300">
+                        {{ __('ai.fab_usage_link') }}
+                    </a>
+                @endif
+            </div>
+        @endif
+
         {{-- TASK-1477 — « a quoi sert cet endroit ».
 
              Troisieme couche, distincte des deux autres et volontairement
@@ -93,6 +174,16 @@
                 <p class="text-xs font-semibold text-gray-700 dark:text-gray-200" data-ai-shell-usage-reference-title>{{ $shell['usage_reference']['title'] }}</p>
                 <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400" data-ai-shell-usage-reference-content>{{ $shell['usage_reference']['content'] }}</p>
             </div>
+        @else
+            {{-- TASK-1478 : le repli neutre de TASK-1477 suit le meme
+                 deplacement que le credit. Il vivait dans le panneau du FAB,
+                 qui n'existe plus des lors qu'un Shell existe.
+
+                 Il reste ce qu'il etait : une phrase qui dit ce que le Shell
+                 PEUT faire, jamais ce que la page n'a pas. --}}
+            <p class="border-b border-gray-100 px-4 py-3 text-xs leading-5 text-gray-500 dark:border-gray-700 dark:text-gray-400" data-ai-shell-page-help>
+                {{ __('ai.fab_page_help') }}
+            </p>
         @endif
 
         {{-- TASK-1326 — le contexte epingle : visible, retirable, borne. La

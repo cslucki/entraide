@@ -153,7 +153,8 @@ class TASK1237FabAskAiInvarianceTest extends TestCase
         $page = $this->actingAs($this->member)->get(route('organization.dashboard', ['organization' => $this->organization->slug]));
         $page->assertOk()
             ->assertDontSee('data-ai-fab-action="'.AiFabContext::ACTION_LOOP_ASK.'"', false)
-            ->assertSee('data-ai-fab-refusal', false);
+            // TASK-1478 : le refus est rendu par le Shell, meme autorite, nouveau domicile.
+            ->assertSee('data-ai-shell-refusal', false);
     }
 
     // =====================================================================

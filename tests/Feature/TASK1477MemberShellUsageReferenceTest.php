@@ -174,15 +174,22 @@ class TASK1477MemberShellUsageReferenceTest extends TestCase
         $this->assertStringContainsString(e('Consultez les demandes et propositions d\'aide accessibles.'), $exchanges);
     }
 
-    /** Le repere est rendu dans le panneau du FAB aussi, a la place de la negation. */
-    public function test_the_fab_panel_shows_the_reference_instead_of_the_negation(): void
+    /**
+     * Le repere est rendu dans le panneau du FAB aussi — surface qui, depuis
+     * TASK-1478, n'existe plus que lorsqu'aucun Shell n'est actif. Ce chemin
+     * doit rester juste : c'est la seule surface de cette configuration.
+     */
+    public function test_the_fab_panel_shows_the_reference_when_no_shell_exists(): void
     {
+        config(['ai.shell.enabled' => false]);
+
         $this->publish('agenda', 'fr', 'L\'agenda', 'Les rencontres de vos Boucles.');
 
         $html = $this->visit('organization.events.agenda');
 
+        $this->assertStringContainsString('data-ai-fab-panel', $html);
         $this->assertStringContainsString('data-ai-fab-usage-reference="agenda"', $html);
-        $this->assertStringNotContainsString('data-ai-fab-no-page-action', $html);
+        $this->assertStringContainsString(e('Les rencontres de vos Boucles.'), $html);
     }
 
     // =====================================================================
@@ -194,13 +201,29 @@ class TASK1477MemberShellUsageReferenceTest extends TestCase
      * ce que le Shell peut reellement faire — et il le peut : la conversation
      * suit la navigation, c'est le comportement mesure depuis TASK-1315.
      */
+    /**
+     * Sans repere publie, le repli neutre est rendu — dans le SHELL depuis
+     * TASK-1478, qui a supprime l'etape intermediaire ou il vivait. Meme
+     * phrase, meme verite, nouveau domicile.
+     */
     public function test_without_a_reference_the_fallback_is_neutral_and_true(): void
     {
         $html = $this->visit('organization.events.agenda');
 
         $this->assertStringNotContainsString('data-ai-shell-usage-reference=', $html, 'aucun bloc vide');
-        $this->assertStringContainsString('data-ai-fab-no-page-action', $html);
+        $this->assertStringContainsString('data-ai-shell-page-help', $html);
         $this->assertStringContainsString(e(__('ai.fab_page_help')), $html);
+    }
+
+    /** Et les deux ne coexistent jamais : un repere REMPLACE le repli. */
+    public function test_a_reference_replaces_the_fallback(): void
+    {
+        $this->publish('agenda', 'fr', 'L\'agenda', 'Les rencontres de vos Boucles.');
+
+        $html = $this->visit('organization.events.agenda');
+
+        $this->assertStringContainsString('data-ai-shell-usage-reference="agenda"', $html);
+        $this->assertStringNotContainsString('data-ai-shell-page-help', $html);
     }
 
     /** Et la phrase neutre n'ouvre par aucune negation, dans les deux langues. */
