@@ -357,6 +357,9 @@
                         $iaItems[] = ['route' => 'admin.workshops', 'label' => __('admin.workshops_nav'), 'icon' => 'M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z'];
                         // TASK-1229 : credit IA par utilisateur (plateforme).
                         $iaItems[] = ['route' => 'admin.ai-monetization', 'label' => __('admin.ai_monetization_nav'), 'icon' => 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z'];
+                        // TASK-1487 : « Qualite IA » cote plateforme. Sans cette
+                        // entree la console n'etait atteignable que par son URL.
+                        $iaItems[] = ['route' => 'admin.ai-quality', 'label' => __('ai.quality_title'), 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'];
                         $iaItems[] = ['route' => 'admin.ai-interactions', 'label' => 'Historique IA', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'];
                         $iaItems[] = ['route' => 'admin.ai-prompts', 'label' => 'Prompts IA', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'];
                         $iaItems[] = ['route' => 'admin.ai-benchmark', 'label' => 'Benchmark IA', 'icon' => 'M13 17h8m0 0V9m0 8l-8-8-4 4-6-6'];

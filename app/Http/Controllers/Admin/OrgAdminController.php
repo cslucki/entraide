@@ -53,6 +53,8 @@ use App\Services\LoopService;
 use App\Services\TranslationOverrideService;
 use App\Services\TranslationService;
 use App\Services\UserDataLifecycleRegistry;
+use App\Support\Ai\AiQualityReport;
+use App\Support\Ai\NervousSystemMap;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
@@ -1418,7 +1420,7 @@ class OrgAdminController extends Controller
      * `NervousSystemMap`, qui ne fait que LIRE les autorites existantes.
      * Aucune donnee n'est calculee ici, aucun secret n'y transite.
      */
-    public function aiMap(Organization $organization, \App\Support\Ai\NervousSystemMap $map): View
+    public function aiMap(Organization $organization, NervousSystemMap $map): View
     {
         return view('admin.org.ai-map', [
             'organization' => $organization,
@@ -1989,6 +1991,32 @@ class OrgAdminController extends Controller
      * Le budget mensuel eventuel est lu depuis `organization_ai_settings` pour
      * situer le cout connu — jamais pour completer un cout manquant.
      */
+    /**
+     * TASK-1487 (AI Quality Q2) — « Qualite IA » : la console SŒUR de la
+     * consommation.
+     *
+     * L'une dit COMBIEN l'IA a consomme. Celle-ci dit si l'on SAIT qu'elle
+     * aide — et, aujourd'hui, la reponse honnete est surtout « non, et voici
+     * pourquoi ».
+     *
+     * Elle applique a la qualite la regle que TASK-1219 avait posee pour le
+     * cout : « 0 » dit « ca n'a rien coute », « — » dit « on ne sait pas ». Un
+     * « 0 % utile » affiche sur zero retour dirait « l'IA n'aide personne »
+     * alors que la verite est « personne n'a jamais ete interroge ».
+     *
+     * Bornee a CETTE Organization par `OrgAdminMiddleware` et par le rapport
+     * lui-meme. Aucune conversation n'est lue.
+     */
+    public function aiQuality(Organization $organization, AiQualityReport $report): View
+    {
+        $to = CarbonImmutable::now();
+
+        return view('admin.org.ai-quality', [
+            'organization' => $organization,
+            'quality' => $report->forOrganization($organization, $to->subDays(30), $to),
+        ]);
+    }
+
     public function aiConsumption(
         Request $request,
         Organization $organization,
