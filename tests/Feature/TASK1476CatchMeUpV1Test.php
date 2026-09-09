@@ -561,11 +561,22 @@ class TASK1476CatchMeUpV1Test extends TestCase
         ], $attributes));
     }
 
+    /**
+     * Le Dossier d'une Boucle porte `loop_id` et **pas** `owner_id` : PostgreSQL
+     * impose `dossiers_holder_xor` — `(owner_id IS NULL) <> (loop_id IS NULL)`,
+     * exactement un porteur.
+     *
+     * La fabrique pose `owner_id` par defaut ; le laisser en place violait la
+     * contrainte. Invisible en local — la suite tourne sur SQLite in-memory
+     * (`phpunit.xml`) et la contrainte n'est ajoutee que sur `pgsql`. C'est la
+     * CI PostgreSQL qui l'a vue.
+     */
     private function file(array $attributes = []): DossierFile
     {
         $dossier = Dossier::factory()->create([
             'organization_id' => $this->organization->id,
             'loop_id' => $this->loop->id,
+            'owner_id' => null,
         ]);
 
         return DossierFile::factory()->create(array_merge([
