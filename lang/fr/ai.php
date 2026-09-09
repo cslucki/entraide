@@ -665,10 +665,10 @@ return [
     'fab_title' => 'BouclePro IA',
     'fab_subtitle_loop' => 'Sur cette Boucle',
     'fab_subtitle_dossier' => 'Dans ce Dossier',
-    // TASK-1350 : le sous-titre situe, il ne devalue plus la page. Voir
-    // `fab_no_page_action` pour la phrase qui dit l'absence d'action de page.
+    // TASK-1350 : le sous-titre situe, il ne devalue plus la page. TASK-1477 :
+    // voir `fab_page_help`, le repli neutre quand aucun repere d'usage n'est
+    // publie pour la surface — il dit ce que le Shell PEUT, non ce qui manque.
     'fab_subtitle_other' => 'Disponible partout sur BouclePro',
-    'fab_no_page_action' => "Cette page n'a pas d'action IA qui lui soit propre. Vous pouvez quand même discuter avec BouclePro IA : posez votre question, elle vous suit de page en page.",
     'fab_credit_title' => 'Crédit IA du mois',
     'fab_credit_included' => 'Inclus',
     'fab_credit_alert' => 'Vous approchez de votre crédit du mois.',
@@ -934,4 +934,7 @@ return [
     'dossier_manifest_article' => 'Article : :title — Dossier « :dossier »',
     'dossier_manifest_file' => 'Fichier :type : :name — Dossier « :dossier »',
     'dossier_manifest_file_type_fallback' => 'fichier',
+
+    // TASK-1477 — le repli neutre du panneau : ce que le Shell peut, pas ce qu'il ne peut pas.
+    'fab_page_help' => 'Posez votre question sur ce que vous consultez : la conversation vous suit de page en page.',
 ];

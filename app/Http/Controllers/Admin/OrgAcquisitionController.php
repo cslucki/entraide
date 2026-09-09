@@ -86,7 +86,9 @@ class OrgAcquisitionController extends Controller
             'journey' => $journey,
             'goals' => AcquisitionJourney::GOALS,
             'locales' => AcquisitionJourney::supportedLocales(),
-            'surfaces' => UsageReference::SURFACES,
+            // TASK-1477 : un parcours d'acquisition s'adresse a un VISITEUR.
+            // Les surfaces MEMBRE n'ont rien a y faire.
+            'surfaces' => UsageReference::SURFACES_PUBLIC,
         ]);
     }
 
@@ -98,7 +100,7 @@ class OrgAcquisitionController extends Controller
             'locale' => ['required', 'string', 'in:'.implode(',', AcquisitionJourney::supportedLocales())],
             'conversion_goal' => ['required', 'string', 'in:'.implode(',', AcquisitionJourney::GOALS)],
             'campaign' => ['nullable', 'string', 'max:'.AcquisitionJourney::MAX_CAMPAIGN_CHARS],
-            'usage_reference_surface_key' => ['nullable', 'string', 'in:'.implode(',', UsageReference::SURFACES)],
+            'usage_reference_surface_key' => ['nullable', 'string', 'in:'.implode(',', UsageReference::SURFACES_PUBLIC)],
         ];
         if ($withKey) {
             // La cle est normalisee en slug par le service (« Ateliers Septembre » -> ateliers-septembre) ; vide = derivee du nom.

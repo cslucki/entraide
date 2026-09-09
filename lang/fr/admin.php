@@ -832,4 +832,13 @@ return [
     'guest_shell_diag_unknown_cause' => 'L\'assistant public est arrêté pour une raison que cet écran ne sait pas encore nommer.',
     'guest_shell_diag_unknown_action' => 'Signaler le code technique ci-dessous à l\'équipe produit.',
     'guest_shell_diag_technical' => 'Code technique :',
+
+    // TASK-1477 — les surfaces MEMBRE du referentiel d'utilisation.
+    'usage_reference_surface_dashboard' => 'Tableau de bord (membres)',
+    'usage_reference_surface_agenda' => 'Agenda (membres)',
+    'usage_reference_surface_directory' => 'Annuaire (membres)',
+    'usage_reference_surface_exchanges' => 'Échanges (membres)',
+    'usage_reference_surface_dossiers' => 'Dossiers (membres)',
+    'usage_reference_surface_blog' => 'Blog (membres)',
+    'usage_reference_surface_profile' => 'Profil (membres)',
 ];

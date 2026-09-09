@@ -76,6 +76,25 @@
             </button>
         </div>
 
+        {{-- TASK-1477 — « a quoi sert cet endroit ».
+
+             Troisieme couche, distincte des deux autres et volontairement
+             placee entre elles : la surface dit OU l'on est (en-tete), ce bloc
+             dit A QUOI SERT le lieu, les actions disent ce qu'on peut y FAIRE.
+             Les confondre etait exactement le defaut : le Shell nommait la page
+             puis enchainait sur une negation, faute d'avoir quoi que ce soit a
+             en dire.
+
+             Ce texte est ecrit et PUBLIE par un humain. Il n'accorde aucun
+             droit et ne promet aucune fonction — le runtime reste seul juge de
+             ce qui est possible. --}}
+        @if($shell['usage_reference'] !== null)
+            <div class="border-b border-gray-100 px-4 py-3 dark:border-gray-700" data-ai-shell-usage-reference="{{ $shell['surface'] }}">
+                <p class="text-xs font-semibold text-gray-700 dark:text-gray-200" data-ai-shell-usage-reference-title>{{ $shell['usage_reference']['title'] }}</p>
+                <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400" data-ai-shell-usage-reference-content>{{ $shell['usage_reference']['content'] }}</p>
+            </div>
+        @endif
+
         {{-- TASK-1326 — le contexte epingle : visible, retirable, borne. La
              liste rendue ici est EXACTEMENT celle que le prochain tour recevra
              (memes pins, re-resolus par AiShellPinnedContext au meme rendu) —
