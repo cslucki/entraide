@@ -107,18 +107,18 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
 
         // ─── TOLEREES, explicitement PAS validees ───
 
-        // DEFAUT LATENT, signale a MASTER. La table `bug_reports` est VIDE
-        // aujourd'hui, et c'est la SEULE raison pour laquelle cette page ne
-        // fuit rien : le controleur filtre sur `whereIn('status', ['pending',
-        // 'fixed'])` borne au tenant, sans jamais demander qui regarde. Des
-        // qu'un rapport existera, il sera servi a un anonyme — y compris sur
-        // une Organization privee. C'est la forme EXACTE du defaut de
-        // TASK-1488, avant que la donnee n'arrive.
+        // Page publique de transparence produit — et l'intention est ECRITE,
+        // contrairement au commentaire de TASK-1488 : `bugs.empty` dit « Aucun
+        // bug PUBLIC pour le moment », `bugs.subtitle_org` parle des
+        // « corrections PUBLIEES », et la vue rend un bouton Connexion a
+        // l'invite. Elle le prevoit donc.
         //
-        // Le piege que cette ligne documente : « Aucun bug public pour le
-        // moment » se lit comme une garde de visibilite. Ce n'en est pas une.
-        // C'est une table vide, et une table vide n'est pas une frontiere.
-        'organization.bug-reports.index' => 'DEFAUT LATENT (TASK-1489) — ne fuit rien parce que la table est VIDE, pas parce qu\'une garde existe.',
+        // TASK-1489 l'avait inscrite DEFAUT LATENT : elle ne fuyait rien pour la
+        // seule raison que la table etait VIDE. **TASK-1493 a ferme cela** — la
+        // liste d'une Organization privee est desormais reservee a ses membres,
+        // par la meme regle que TASK-1492. La page publique, elle, est
+        // conservee telle quelle.
+        'organization.bug-reports.index' => 'Page publique de suivi des bugs — bornee a la publicite de l\'Organization depuis TASK-1493.',
 
         // Asymetrie ESCALADEE par TASK-1479 et jamais tranchee : la fiche de
         // profil humaine est fermee, l'agent IA du meme membre reste joignable
