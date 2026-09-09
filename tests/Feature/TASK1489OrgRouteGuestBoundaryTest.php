@@ -82,18 +82,33 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
         'organization.shell.show' => 'Shell Welcome public (TASK-1442).',
         'organization.shell.message' => 'Premier tour du Shell Welcome (TASK-1442).',
 
-        // ─── Les trois suivantes sont TOLEREES, pas validees ───
-        // Mesure TASK-1489, anonyme sur une Organization `is_public = false` :
-        // elles rendent 200. La sonde ne creait ni Boucle, ni rapport de bug,
-        // ni profil IA publie — ces 200 prouvent la JOIGNABILITE, pas l'absence
-        // de fuite. Elles sont inscrites ici pour que la garde soit verte sur
-        // l'existant sans rien blanchir, et signalees a MASTER comme
-        // UNCLASSIFIED a mesurer avec du contenu reel.
-        'organization.boucles.index' => 'UNCLASSIFIED (TASK-1489) — 200 anonyme sur Organization privee, contenu non mesure.',
-        'organization.bug-reports.index' => 'UNCLASSIFIED (TASK-1489) — 200 anonyme sur Organization privee, contenu non mesure.',
+        // Vitrine des Boucles. MESUREE, et pas seulement joignable : sur
+        // `org/main`, qui compte 19 Boucles reelles, la page rendue a un
+        // anonyme est une presentation avec un appel a se connecter — aucun
+        // nom de Boucle, aucun membre. C'est une surface marketing, pas la
+        // liste. Un 200 ne disait pas cela ; il a fallu lire le rendu.
+        'organization.boucles.index' => 'Vitrine publique des Boucles — rendu mesure : presentation + CTA connexion, jamais la liste.',
+
+        // ─── TOLEREES, explicitement PAS validees ───
+
+        // DEFAUT LATENT, signale a MASTER. La table `bug_reports` est VIDE
+        // aujourd'hui, et c'est la SEULE raison pour laquelle cette page ne
+        // fuit rien : le controleur filtre sur `whereIn('status', ['pending',
+        // 'fixed'])` borne au tenant, sans jamais demander qui regarde. Des
+        // qu'un rapport existera, il sera servi a un anonyme — y compris sur
+        // une Organization privee. C'est la forme EXACTE du defaut de
+        // TASK-1488, avant que la donnee n'arrive.
+        //
+        // Le piege que cette ligne documente : « Aucun bug public pour le
+        // moment » se lit comme une garde de visibilite. Ce n'en est pas une.
+        // C'est une table vide, et une table vide n'est pas une frontiere.
+        'organization.bug-reports.index' => 'DEFAUT LATENT (TASK-1489) — ne fuit rien parce que la table est VIDE, pas parce qu\'une garde existe.',
+
         // Asymetrie ESCALADEE par TASK-1479 et jamais tranchee : la fiche de
         // profil humaine est fermee, l'agent IA du meme membre reste joignable
-        // par URL directe. Il porte, lui, un opt-in explicite (STATUS_PUBLISHED).
+        // par URL directe. Il porte, lui, un opt-in explicite (STATUS_PUBLISHED)
+        // que le profil humain n'avait pas — c'est ce qui rend l'arbitrage non
+        // evident, et c'est pourquoi il revient a MASTER et pas a ce fichier.
         'organization.agent-ia.profile.chat' => 'UNCLASSIFIED (TASK-1479, escaladee) — opt-in STATUS_PUBLISHED, sans Authenticate.',
     ];
 
