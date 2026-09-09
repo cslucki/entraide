@@ -58,6 +58,13 @@ final class AiQualityInstrumentation
      */
     private const SINCE = [
         'blog_explorer' => '2026-08-19T16:23:07+02:00',
+        // Les cinq fonctions du ChatLoop, toutes branchees par le meme
+        // ecrivain (`AiResponseExplanationService::submitFeedback()`).
+        'loop_knowledge_answer' => '2026-08-29T05:19:35+02:00',
+        'loop_hybrid_answer' => '2026-08-29T05:19:35+02:00',
+        'chatloop_ai_ask' => '2026-08-29T05:19:35+02:00',
+        'chatloop_ai_answer' => '2026-08-29T05:19:35+02:00',
+        'chatloop_ai_summarize' => '2026-08-29T05:19:35+02:00',
         'clarify_help_request' => '2026-09-09T14:00:37+02:00',
     ];
 

@@ -140,11 +140,12 @@ class TASK1487AiQualityCockpitTest extends TestCase
     public function test_coverage_without_a_denominator_is_null_not_zero(): void
     {
         // Une fonction NON instrumentee : aucun tour evaluable, donc aucune
-        // couverture calculable.
-        $this->interaction($this->a, 'loop_knowledge_answer');
+        // couverture calculable. `blog_generate` n'a aucun ecrivain de verdict —
+        // contrairement a `loop_knowledge_answer`, branchee depuis TASK-1328.
+        $this->interaction($this->a, 'blog_generate');
 
         $report = app(AiQualityReport::class)->forOrganization($this->a, $this->from, $this->to);
-        $row = collect($report['rows'])->firstWhere('feature', 'loop_knowledge_answer');
+        $row = collect($report['rows'])->firstWhere('feature', 'blog_generate');
 
         $this->assertNull($row['coverage'], 'sans denominateur, la couverture n\'existe pas');
         $this->assertNotSame(0, $row['coverage']);
@@ -153,7 +154,7 @@ class TASK1487AiQualityCockpitTest extends TestCase
     /** Et l'ecran la rend « — », jamais « 0 % ». */
     public function test_the_screen_renders_a_dash_never_a_zero_percent(): void
     {
-        $this->interaction($this->a, 'loop_knowledge_answer');
+        $this->interaction($this->a, 'blog_generate');
 
         $html = $this->actingAs($this->adminA)
             ->get(route('organization.admin.ai-quality', ['organization' => $this->a->slug]))
@@ -191,11 +192,11 @@ class TASK1487AiQualityCockpitTest extends TestCase
 
     public function test_a_function_without_any_writer_is_not_instrumented(): void
     {
-        $this->interaction($this->a, 'loop_knowledge_answer');
+        $this->interaction($this->a, 'blog_generate');
 
         $this->assertSame(
             AiQualityInstrumentation::STATUS_NOT_INSTRUMENTED,
-            $this->rowFor('loop_knowledge_answer')['status'],
+            $this->rowFor('blog_generate')['status'],
         );
     }
 
@@ -318,9 +319,17 @@ class TASK1487AiQualityCockpitTest extends TestCase
      */
     public function test_the_declaration_matches_the_real_writers(): void
     {
+        $chatLoop = app_path('Services/ChatLoop/AiResponseExplanationService.php');
+
         $writers = [
-            'blog_explorer' => app_path('Http/Controllers/Admin/../BlogExplorerController.php'),
+            'blog_explorer' => app_path('Http/Controllers/BlogExplorerController.php'),
             'clarify_help_request' => app_path('Livewire/AiShell.php'),
+            // Les cinq du ChatLoop partagent UN ecrivain, `submitFeedback()`.
+            'loop_knowledge_answer' => $chatLoop,
+            'loop_hybrid_answer' => $chatLoop,
+            'chatloop_ai_ask' => $chatLoop,
+            'chatloop_ai_answer' => $chatLoop,
+            'chatloop_ai_summarize' => $chatLoop,
         ];
 
         $this->assertSame(
