@@ -975,4 +975,38 @@ return [
     'map_node_knowledge_hint' => 'Les Dossiers que l\'IA peut consulter pour répondre.',
     'map_node_consumption' => 'Consommation et budget',
     'map_node_consumption_hint' => 'Ce qui a réellement été appelé, à quel coût, et la limite que vous avez posée.',
+    // TASK-1487 (AI Quality Q2) — la console « Qualite IA ».
+    //
+    // La regle de TASK-1219 sur le cout, appliquee a la qualite : « 0 » dit
+    // « personne n'a trouve ca utile », « — » dit « on ne sait pas ». Les
+    // confondre serait le seul vrai danger de cet ecran.
+    'quality_title' => 'Qualité IA',
+    'quality_intro' => 'Ce que l\'on sait — et ce que l\'on ne sait pas — de l\'utilité de l\'IA sur les 30 derniers jours.',
+    'quality_period' => '30 derniers jours',
+    'quality_summary_interactions' => 'Réponses produites',
+    'quality_summary_evaluable' => 'Réponses évaluables',
+    'quality_summary_evaluated' => 'Réponses évaluées',
+    'quality_summary_helpful' => 'Jugées utiles',
+    'quality_summary_improve' => 'À améliorer',
+    'quality_no_feedback_title' => 'Pas encore assez de retours pour mesurer la qualité.',
+    'quality_no_feedback_body' => 'Aucun pourcentage n\'est affiché tant qu\'aucun avis n\'a été donné : un « 0 % utile » dirait que l\'IA n\'aide personne, alors que la vérité est que personne n\'a encore été interrogé.',
+    'quality_col_feature' => 'Fonction',
+    'quality_col_interactions' => 'Réponses',
+    'quality_col_evaluable' => 'Évaluables',
+    'quality_col_evaluated' => 'Évaluées',
+    'quality_col_coverage' => 'Couverture',
+    'quality_col_status' => 'Qualité',
+    'quality_status_measured' => 'Mesuré',
+    'quality_status_no_feedback_yet' => 'Pas encore de retour',
+    'quality_status_not_yet_measurable' => 'Pas encore évaluable',
+    'quality_status_not_instrumented' => 'Non instrumenté',
+    'quality_status_not_instrumented_hint' => 'Aucun moyen de recueillir un avis sur cette fonction.',
+    'quality_status_not_yet_measurable_hint' => 'Les réponses de cette période sont antérieures à l\'instrumentation : personne n\'a jamais pu les juger.',
+    'quality_since' => 'Évaluable depuis le :date',
+    'quality_not_measured' => 'Non mesuré',
+    'quality_footer' => 'Cette console compte des réponses, jamais des personnes. Aucun classement d\'utilisateur, aucune conversation lue.',
+    'quality_platform_title' => 'Qualité IA — plateforme',
+    'quality_platform_all' => 'Toutes les organisations',
+    'quality_platform_filter' => 'Organisation',
+    'quality_reliability_unavailable' => 'Fiabilité et refus : non mesurés. Aucun échec ni refus n\'est journalisé aujourd\'hui — afficher « 0 » serait un faux zéro.',
 ];

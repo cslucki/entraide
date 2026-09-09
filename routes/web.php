@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\AdminAiInteractionController;
 use App\Http\Controllers\Admin\AdminAiMonetizationController;
 use App\Http\Controllers\Admin\AdminAiOrganizationsController;
 use App\Http\Controllers\Admin\AdminAiPromptController;
+use App\Http\Controllers\Admin\AdminAiQualityController;
 use App\Http\Controllers\Admin\AdminAiReviewQueueController;
 use App\Http\Controllers\Admin\AdminAiSupervisionController;
 use App\Http\Controllers\Admin\AdminAiUsageController;
@@ -719,6 +720,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // TASK-1223 : cockpit IA/RAG plateforme — metadonnees par Organization,
     // jamais un contenu tenant ni une cle.
     Route::get('/ai-organizations', [AdminAiOrganizationsController::class, 'index'])->name('ai-organizations');
+    // TASK-1487 (AI Quality Q2) : la MEME lecture, agregee plateforme, avec un
+    // filtre Organization. Aucune conversation, aucune cle, aucun secret.
+    Route::get('/ai-quality', [AdminAiQualityController::class, 'index'])->name('ai-quality');
     // TASK-1229 : « Monetisation IA » — credit IA par utilisateur (plateforme) :
     // IA gratuite, quota mensuel en utilisations, seuil d'alerte, offre.
     Route::get('/ai-monetization', [AdminAiMonetizationController::class, 'index'])->name('ai-monetization');
@@ -1316,6 +1320,11 @@ Route::prefix('/org/{organization}')
                 // TASK-1219 : console de consommation IA read-only — ce que la
                 // garde economique compte deja pour cette Organization.
                 Route::get('/ai-consumption', [OrgAdminController::class, 'aiConsumption'])->name('ai-consumption');
+                // TASK-1487 (AI Quality Q2) : « Qualite IA » — la console
+                // SŒUR de la consommation. L'une dit COMBIEN, l'autre dit si
+                // l'on SAIT que ca aide. Read-only, borne a cette
+                // Organization, jamais une conversation.
+                Route::get('/ai-quality', [OrgAdminController::class, 'aiQuality'])->name('ai-quality');
 
                 // Stats
                 Route::get('/stats/login-history', [OrgAdminController::class, 'loginHistory'])->name('stats.login-history');
