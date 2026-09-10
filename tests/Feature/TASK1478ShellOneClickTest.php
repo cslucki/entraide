@@ -141,7 +141,11 @@ class TASK1478ShellOneClickTest extends TestCase
     {
         $html = $this->page();
 
-        $this->assertStringContainsString('@bp-open-ai-shell.window="show()"', $html);
+        // TASK-1516 : l'evenement transporte desormais un `detail` optionnel
+        // (une question a preremplir). L'intention gardee ici est inchangee —
+        // l'ouverture passe par `show()` — et l'assertion suit la forme reelle
+        // plutot que de figer une signature sans argument.
+        $this->assertStringContainsString('@bp-open-ai-shell.window="show($event.detail)"', $html);
 
         $this->assertStringContainsString('this.$nextTick(() => this.focusComposer(12))', $html,
             'l\'ouverture demande le focus');

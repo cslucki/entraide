@@ -78,6 +78,14 @@ class TASK1516DossierAnswerTest extends TestCase
         ]);
 
         config([
+            // La famille d'embeddings fait autorite pour
+            // `resolveEmbeddingInstance()` : sans elle, le resolveur cherche un
+            // credential tenant dans la famille par defaut (`openai`), n'en
+            // trouve pas, et `answer()` refuse. Ce test la POSE au lieu de
+            // l'emprunter au `.env` de la machine — sans quoi il passe en local
+            // (AI_EMBEDDING_PROVIDER=openrouter) et rougit en CI, ce qui est
+            // exactement ce qui s'est produit.
+            'ai.default_for_embeddings' => 'openrouter',
             'ai.providers.openrouter.driver' => 'openrouter',
             'ai.providers.openrouter.key' => 'platform-key',
             'ai_pricing.overrides' => [],
