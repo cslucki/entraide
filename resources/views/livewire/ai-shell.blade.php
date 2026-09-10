@@ -74,13 +74,30 @@
             if (el.getBoundingClientRect().height > 0) { el.focus(); return; }
             if (tries > 0) { setTimeout(() => this.focusComposer(tries - 1), 25); }
         },
-        show() {
+        /*
+         * TASK-1516 — `detail.question` preremplit le composeur.
+         *
+         * `$wire.set()` et non une ecriture dans le DOM : le composeur est lie
+         * par `wire:model`, et une valeur posee cote client serait ecrasee au
+         * premier rafraichissement Livewire — le champ se viderait tout seul.
+         *
+         * Rien n'est ENVOYE : la question est preparee, l'humain decide. Et
+         * elle rejoint le fil existant, jamais une seconde conversation.
+         */
+        show(detail) {
             this.open = true;
+
+            const question = (detail && typeof detail.question === 'string') ? detail.question.trim() : '';
+
+            if (question !== '') {
+                this.$wire.set('draft', question);
+            }
+
             this.$nextTick(() => this.focusComposer(12));
         },
         close() { this.open = false; },
     }"
-    @bp-open-ai-shell.window="show()"
+    @bp-open-ai-shell.window="show($event.detail)"
     @ai-shell-updated.window="toEnd()"
     @keydown.escape.window="close()"
     data-ai-shell

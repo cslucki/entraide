@@ -588,4 +588,48 @@ Votre contenu Markdown ici...',
     'drive_article_badge' => 'Article',
     'drive_empty_title' => 'Rien ici pour le moment',
     'drive_empty_desc' => 'Créez un dossier, importez un fichier ou écrivez un Article : tout se retrouvera ici.',
+
+    // ── TASK-1516 — Le Dossier repond ───────────────────────────────────────
+    'answer_label' => "Interroger ce Dossier",
+    'answer_title' => "Posez une question à ce Dossier",
+    'answer_help' => "La réponse s'appuie uniquement sur les documents de ce Dossier auxquels vous avez accès.",
+    'answer_placeholder' => "Votre question…",
+    'answer_button' => "Demander",
+    'answer_loading' => "Recherche dans les documents…",
+    'answer_sources_heading' => "Sources utilisées",
+    'answer_passages_show' => "Voir les passages utilisés",
+    'answer_passages_hide' => "Masquer les passages",
+    'answer_follow_ups_heading' => "Pour approfondir",
+    'answer_open_document' => "Ouvrir",
+    'answer_not_grounded' => "Cette réponse ne cite aucune source : traitez-la avec prudence.",
+    'answer_question_required' => "Posez une question avant de lancer la recherche.",
+    'answer_embedding_unavailable' => "La recherche documentaire n'est pas disponible pour cette organisation.",
+    'answer_no_source' => "Je n'ai pas trouvé suffisamment d'éléments dans ce Dossier pour répondre de façon fiable. Vous pouvez reformuler votre question, consulter les documents, ou nommer un document précis.",
+    'answer_no_source_in_file' => "Je n'ai rien trouvé sur ce sujet dans le document demandé. Vous pouvez reformuler, ou poser la question sur l'ensemble du Dossier.",
+    'answer_preset_instruction' => <<<'TEXT'
+Question du membre :
+:question
+
+Réponds à cette question en t'appuyant UNIQUEMENT sur les sources
+documentaires ci-dessus.
+
+Règles :
+
+1. Commence par le fait demandé, jamais par une reformulation de la
+   question. Si l'on demande ce qu'est un sigle, la première phrase
+   donne ce que le sigle signifie.
+2. Ajoute au plus quatre phrases de contexte. Sois bref.
+3. Cite tes sources avec leur numéro, par exemple « ... [S2] ».
+   N'invente JAMAIS une référence absente de la liste ci-dessus.
+4. Si les sources ne suffisent pas à répondre de façon fiable, dis-le
+   franchement en une phrase et n'invente rien. N'utilise aucune
+   connaissance extérieure à ces sources.
+5. Termine par cette rubrique, et par elle seule :
+
+## :questions_heading
+Une liste à puces d'au plus TROIS questions courtes qu'un lecteur
+pourrait poser ensuite pour approfondir, répondables à partir de ce
+Dossier. Texte seul, sans citation.
+
+TEXT,
 ];

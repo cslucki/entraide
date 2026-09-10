@@ -2989,6 +2989,111 @@ function registerDossierSemanticArticleSearch() {
     }));
 }
 
+// TASK-1516 — « Interroger ce Dossier ». Meme discipline que Smart Dossier :
+// un POST explicite, un fragment HTML rendu SERVEUR insere par x-html, aucun
+// rendu metier ici. Les boutons du fragment (approfondissements, repli des
+// passages) sont traites par DELEGATION : Alpine n'initialise pas le contenu
+// injecte par x-html, une directive posee dedans serait inerte et silencieuse.
+function registerDossierAnswer() {
+    if (typeof Alpine === 'undefined') return;
+
+    Alpine.data('dossierAnswer', (config) => ({
+        endpoint: config.endpoint,
+        i18n: config.i18n || {},
+        question: '',
+        loading: false,
+        asked: false,
+        resultHtml: '',
+        error: '',
+        errorCode: '',
+        offersUrl: '',
+
+        async ask() {
+            const question = (this.question || '').trim();
+
+            if (this.loading) return;
+
+            if (question.length < 2) {
+                this.error = this.i18n.questionRequired || '';
+                this.errorCode = '';
+                return;
+            }
+
+            this.loading = true;
+            this.error = '';
+            this.errorCode = '';
+            this.offersUrl = '';
+
+            try {
+                const response = await fetch(this.endpoint, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    },
+                    body: JSON.stringify({ question }),
+                });
+
+                if (response.ok) {
+                    const payload = await response.json();
+                    this.resultHtml = payload.html || '';
+                    this.asked = true;
+                    return;
+                }
+
+                // Refus economique : il se dit avec son code, jamais deguise
+                // en « aucun resultat » (meme discipline que TASK-1229).
+                if (response.status === 429) {
+                    let payload = null;
+                    try { payload = await response.json(); } catch (e) { payload = null; }
+                    this.error = (payload && payload.message) || this.i18n.unavailable;
+                    this.errorCode = (payload && payload.code) || '';
+                    this.offersUrl = (payload && payload.offers_url) || '';
+                    return;
+                }
+
+                if (response.status === 422) {
+                    this.error = this.i18n.questionRequired;
+                    return;
+                }
+
+                this.error = this.i18n.unavailable;
+            } catch (e) {
+                this.error = this.i18n.unavailable;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        handleClick(event) {
+            const followUp = event.target.closest('[data-dossier-answer-follow-up]');
+
+            if (followUp) {
+                // On n'y repond pas ici : la conversation se poursuit dans
+                // l'UNIQUE fil du Shell, jamais dans un second magasin.
+                window.dispatchEvent(new CustomEvent('bp-open-ai-shell', {
+                    detail: { question: followUp.dataset.dossierAnswerFollowUp || '' },
+                }));
+                return;
+            }
+
+            const toggle = event.target.closest('[data-dossier-answer-passages-toggle]');
+
+            if (toggle) {
+                const passages = this.$el.querySelector('[data-dossier-answer-passages]');
+                if (! passages) return;
+                passages.hidden = ! passages.hidden;
+                toggle.textContent = passages.hidden
+                    ? (toggle.dataset.labelShow || '')
+                    : (toggle.dataset.labelHide || '');
+            }
+        },
+    }));
+}
+
 // TASK-1341 — Smart Dossier V1. Alpine MINIMAL : un POST explicite, un
 // fragment HTML rendu SERVEUR insere par x-html. Aucun rendu metier ici.
 function registerDossierInsights() {
@@ -7735,6 +7840,7 @@ document.addEventListener('alpine:init', () => {
     registerBlogDossierCard();
     registerDossierSemanticArticleSearch();
     registerDossierInsights();
+    registerDossierAnswer();
     registerDossierArticlesCard();
     registerDossierMembersCard();
     registerDossierFilesCard();
@@ -7758,6 +7864,7 @@ registerBlogInviteByEmail();
     registerDossierContentsCard();
     registerDossierSemanticArticleSearch();
     registerDossierInsights();
+    registerDossierAnswer();
     registerDossierMembersCard();
     registerDossierFilesCard();
     registerBlogLoopCard();

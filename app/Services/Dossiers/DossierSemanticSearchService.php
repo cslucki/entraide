@@ -242,6 +242,17 @@ class DossierSemanticSearchService
      * change. `$candidateLimit` est lui-meme borne (<=20) pour rester un
      * bassin de reclassement, jamais un contournement de `top_k`.
      *
+     * TASK-1516 : `$onlyDossierFileId`, optionnel, restreint la recherche a UN
+     * fichier. Le CDC exige que « cherche dans tel document » soit resolu
+     * SERVEUR et DETERMINISTE. Filtrer le top-K apres coup ne le serait pas :
+     * si aucun chunk du fichier nomme n'entre dans les 5 meilleurs du Dossier,
+     * la restriction rendrait vide alors que le fichier a bien du contenu. La
+     * borne appartient donc a la clause SQL. NULL (defaut, tous les appelants
+     * existants) = aucune restriction, comportement inchange.
+     *
+     * L'identifiant vient TOUJOURS d'une resolution serveur sur le Dossier
+     * deja autorise — jamais d'un identifiant produit par le modele.
+     *
      * @param  list<string>  $dossierIds
      * @return array<int, array{chunk_id: string, dossier_id: string, dossier_name: string, source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, mime_type: ?string, chunk_index: int, content: string, distance: float}>
      */
@@ -253,6 +264,7 @@ class DossierSemanticSearchService
         int $limit = 5,
         array $traceMetadata = [],
         ?int $candidateLimit = null,
+        ?string $onlyDossierFileId = null,
     ): array {
         $query = trim($query);
 
@@ -328,6 +340,10 @@ class DossierSemanticSearchService
             })
             ->where('dossier_chunks.organization_id', $organizationId)
             ->whereIn('dossier_chunks.dossier_id', $dossierIds)
+            // TASK-1516 : restriction a un fichier nomme par l'utilisateur et
+            // resolu serveur. Le tenant reste borne par les clauses ci-dessus :
+            // cette ligne retrecit, elle n'ouvre rien.
+            ->when($onlyDossierFileId !== null, fn ($q) => $q->where('dossier_chunks.dossier_file_id', $onlyDossierFileId))
             ->where('dossier_chunks.embedding_provider', $embeddingResult['provider'])
             ->where('dossier_chunks.embedding_model', $embeddingResult['model'])
             ->where(function ($outer) use ($organizationId) {

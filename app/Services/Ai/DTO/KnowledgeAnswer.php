@@ -28,6 +28,21 @@ final class KnowledgeAnswer
          * qu'il lui reste, alerte de seuil) — jamais un chiffre d'Organization.
          */
         public readonly ?AiUserCreditStatus $credit = null,
+        /**
+         * TASK-1516 : 0 a 3 questions d'approfondissement, produites DANS le
+         * meme tour provider que la reponse — jamais un second appel.
+         *
+         * Texte inerte et suggestif : aucune citation n'est exigee d'elles, et
+         * elles n'autorisent rien. Une question proposee ne devient une vraie
+         * question que si un humain la choisit, et elle repasse alors par la
+         * meme porte que n'importe quelle autre.
+         *
+         * Defaut vide : `generate()` (Smart Dossier) et LoopChat construisent
+         * ce DTO sans ce parametre et gardent exactement leur forme.
+         *
+         * @var list<string>
+         */
+        public readonly array $followUps = [],
     ) {}
 
     /**
@@ -75,6 +90,7 @@ final class KnowledgeAnswer
             'sources' => array_map(self::publicSource(...), $this->sources),
             'consulted' => array_map(self::publicSource(...), $this->consulted),
             'credit' => $this->credit?->toArray(),
+            'follow_up_questions' => $this->followUps,
         ];
     }
 }
