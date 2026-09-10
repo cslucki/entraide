@@ -605,14 +605,22 @@ Rules:
 
 1. Start with the fact being asked for, never with a restatement of the
    question. If asked what an acronym means, the first sentence gives
-   what it stands for.
+   what THE SOURCES say about it.
 2. Add at most four sentences of context. Be brief.
 3. Cite your sources by their number, for example "... [S2]". NEVER
    invent a reference that is not in the list above.
-4. If the sources are not enough to answer reliably, say so plainly in
+4. Only expand an acronym when the sources themselves carry that
+   expansion, word for word. If you cannot find it there, the words of
+   that expansion must not appear in your answer IN ANY FORM: not in
+   parentheses, not in quotes, not introduced by "stands for", "means",
+   "i.e." or any other turn of phrase. Use the acronym as it stands and
+   report only what the sources say about it. A well-known acronym is
+   no exception: this Dossier is the authority, not your general
+   knowledge.
+5. If the sources are not enough to answer reliably, say so plainly in
    one sentence and invent nothing. Use no knowledge outside these
    sources.
-5. End with this section, and this section only:
+6. End with this section, and this section only:
 
 ## :questions_heading
 A bullet list of at most THREE short questions a reader could ask next
