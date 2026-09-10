@@ -3,6 +3,7 @@
 namespace App\Services\Ai;
 
 use App\Models\AiShellMessage;
+use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\Organization;
 use App\Models\User;
@@ -15,6 +16,7 @@ use App\Support\Ai\AiShellTurnCards;
 use App\Support\Ai\AiShellUsageReference;
 use App\Support\Ai\AiTurnLock;
 use DomainException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -260,6 +262,7 @@ final class AiShellResponder
                 // consomme aucun credit.
                 [$content, $metadata] = $this->selfKnowledgeTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
                     ?? $this->dossierAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $memory)
+                    ?? $this->articleAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $memory)
                     ?? $this->generate($organization, $user, $prompt, $pageContext, $pinnedContext, $memory);
 
                 $answer = $this->thread->appendAssistant($organization, $user, $content, $trigger, $metadata);
@@ -909,6 +912,144 @@ final class AiShellResponder
             'follow_up_questions' => $answer->followUps,
             // TASK-1486 : le MEME pointeur que le chemin habituel — ce tour est
             // un tour REPONDU, et un verdict humain doit pouvoir le designer.
+            'ai_interaction_id' => $answer->interactionId,
+        ] + $this->pinnedTrace($pinnedContext)];
+    }
+
+    /**
+     * TASK-1520 — l'ARTICLE courant devient lisible par le moteur documentaire.
+     *
+     * Meme patron que `dossierAnswerTurn()`, et volontairement pas le meme
+     * code : ce qui se replique ici est la FORME — branche pre-provider,
+     * conditionnee au `PageContext`, policy rejouee, delegation au moteur
+     * existant — pas une copie.
+     *
+     * ## Ce qui differe d'un Dossier, et pourquoi
+     *
+     * Un Article n'a pas de corpus a fouiller : il EST le document. Aucune
+     * recherche vectorielle, aucun embedding, aucun appel de retrieval — le
+     * texte deja autorise devient l'unique source, et le moteur repond dessus.
+     * C'est le sens de `answerOverSources()` : l'appelant choisit les sources
+     * et repond de leur perimetre.
+     *
+     * ## La garde des Articles prives de Boucle
+     *
+     * `AiShellPageContext::articleSubject()` la joue deja — Organization,
+     * publication ou qualite d'auteur, et appartenance a la Boucle quand
+     * l'Article est le manifeste d'une Boucle PRIVEE. Elle est REJOUEE ici par
+     * le meme chemin, parce qu'un contexte de page est une trace de tour et
+     * peut venir d'un etat anterieur.
+     *
+     * ## Aucune capability elargie
+     *
+     * `blog.post` n'est ajoute a rien. Le tour emprunte la capability
+     * documentaire deja utilisee par le Dossier, avec l'Article pour seule
+     * source.
+     *
+     * @param  array<string, mixed>  $pageContext
+     * @param  list<array<string, mixed>>  $pinnedContext
+     * @return array{0: string, 1: array<string, mixed>}|null
+     */
+    private function articleAnswerTurn(
+        Organization $organization,
+        User $user,
+        string $prompt,
+        array $pageContext,
+        array $pinnedContext,
+        string $memory,
+    ): ?array {
+        if (($pageContext['kind'] ?? null) !== AiShellPageContext::KIND_ARTICLE) {
+            return null;
+        }
+
+        $objectId = $pageContext['object']['id'] ?? null;
+
+        if (! is_string($objectId) || $objectId === '') {
+            return null;
+        }
+
+        // La MEME garde que la resolution de page, rejouee — jamais un
+        // `BlogPost::find()` nu sur un identifiant persistant.
+        $sujet = app(AiShellPageContext::class)->resolve(
+            $user,
+            $organization,
+            AiShellPageContext::KIND_ARTICLE,
+            $objectId,
+        );
+
+        if (($sujet['object']['id'] ?? null) !== $objectId) {
+            return null;
+        }
+
+        $post = BlogPost::query()->find($objectId);
+
+        if (! $post instanceof BlogPost) {
+            return null;
+        }
+
+        $texte = trim(strip_tags((string) $post->content));
+
+        if ($texte === '') {
+            return null;
+        }
+
+        // Le Dossier de rattachement sert de porte-trace, pas de perimetre :
+        // les sources sont donnees, pas cherchees. Sans Dossier lie, la branche
+        // s'efface plutot que d'inventer un rattachement.
+        $dossierId = DB::table('dossier_blog_posts')
+            ->where('organization_id', $organization->getKey())
+            ->where('blog_post_id', $post->getKey())
+            ->value('dossier_id');
+
+        $dossier = is_string($dossierId) ? Dossier::query()->find($dossierId) : null;
+
+        if (! $dossier instanceof Dossier) {
+            return null;
+        }
+
+        try {
+            $answer = $this->dossierAnswers->answerOverSources(
+                $organization,
+                $dossier,
+                $user,
+                $prompt,
+                [[
+                    'chunk_id' => (string) $post->getKey(),
+                    'dossier_id' => (string) $dossier->getKey(),
+                    'dossier_name' => (string) $dossier->name,
+                    'source_type' => 'article',
+                    'blog_post_id' => (string) $post->getKey(),
+                    'title' => (string) $post->title,
+                    'slug' => (string) $post->slug,
+                    'dossier_file_id' => null,
+                    'filename' => null,
+                    'mime_type' => null,
+                    'chunk_index' => 0,
+                    'content' => $texte,
+                    'distance' => null,
+                ]],
+                $memory,
+            );
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return null;
+        }
+
+        $content = trim($answer->answer);
+
+        if ($content === '') {
+            return null;
+        }
+
+        return [$content, [
+            'status' => self::STATUS_NON_INTERACTION,
+            'producer' => 'article.answer',
+            'page_context' => $this->traceable($pageContext),
+            'cards' => $this->cards->forAnsweredTurn($organization, $user, null, $pageContext, $prompt),
+            'grounded' => $answer->grounded,
+            'sources' => array_map(KnowledgeAnswer::publicSource(...), $answer->sources),
+            'follow_up_questions' => $answer->followUps,
             'ai_interaction_id' => $answer->interactionId,
         ] + $this->pinnedTrace($pinnedContext)];
     }
