@@ -548,6 +548,66 @@ class PgvectorDossierRetrievalSourceTest extends TestCase
         $this->assertCount(0, $resultsAcrossA);
     }
 
+    /**
+     * TASK-1525 — preuve SQL du scope multi-fichiers. Les trois chunks sont
+     * egalement proches ; seul le `whereIn` sur les deux IDs Part B peut
+     * empecher le PDF 60k d'entrer dans le bassin candidat. Retirer ce filtre
+     * fait immediatement passer le resultat de 2 a 3 et rougit ce test.
+     */
+    public function test_a_multi_file_scope_excludes_an_equally_relevant_budget_pdf_from_the_candidate_pool(): void
+    {
+        $organization = Organization::factory()->create();
+        $owner = User::factory()->create(['organization_id' => $organization->id]);
+        app()->instance('current_organization', $organization);
+
+        OrganizationAiSetting::factory()->create([
+            'organization_id' => $organization->id,
+            'provider' => 'openrouter',
+            'api_key' => 'sk-tenant-multi-file',
+        ]);
+        config([
+            'ai.providers.openrouter.driver' => 'openrouter',
+            'ai.providers.openrouter.key' => 'platform-should-not-be-used',
+            'ai.default_for_embeddings' => 'openrouter',
+            'ai.caching.embeddings.cache' => false,
+            'ai.providers.openrouter.models.embeddings.default' => 'openai/text-embedding-3-small',
+            'ai.providers.openrouter.models.embeddings.dimensions' => 1536,
+            'ai.dossiers.semantic_search.enabled' => true,
+            'ai.dossiers.semantic_search.organization_ids' => [$organization->id],
+            'ai.knowledge.max_distance' => 2.0,
+        ]);
+        Embeddings::fake(fn (EmbeddingsPrompt $prompt): array => array_map(fn (): array => $this->vector(0.0), $prompt->inputs))
+            ->preventStrayEmbeddings();
+
+        $dossier = $this->dossier($organization, $owner, Dossier::VISIBILITY_PRIVATE, 'ARIA');
+        $partB1 = $this->dossierFile($organization, $dossier, $owner, '260908-ARIA Part B_EU.docx');
+        $partB2 = $this->dossierFile($organization, $dossier, $owner, '260909-ARIA Part B_EU revised.docx');
+        $budgetPdf = $this->dossierFile($organization, $dossier, $owner, 'BouclePro OLATS budget.pdf', 'application/pdf');
+
+        $this->fileChunk($organization, $dossier, $partB1, $this->vector(0.0), 'Part B initiale : aucun budget global indique.');
+        $this->fileChunk($organization, $dossier, $partB2, $this->vector(0.0), 'Part B revisee : aucun budget global indique.');
+        $this->fileChunk($organization, $dossier, $budgetPdf, $this->vector(0.0), 'Budget total : 60 000 EUR.');
+
+        $results = app(DossierSemanticSearchService::class)->searchAcrossDossiers(
+            $organization->id,
+            [$dossier->id],
+            'Quel est le budget global de Part B ?',
+            'openrouter',
+            5,
+            ['dossier_answer' => true],
+            null,
+            [(string) $partB1->id, (string) $partB2->id],
+        );
+
+        $this->assertCount(2, $results);
+        $this->assertEqualsCanonicalizing(
+            [(string) $partB1->id, (string) $partB2->id],
+            array_column($results, 'dossier_file_id'),
+        );
+        $this->assertNotContains((string) $budgetPdf->id, array_column($results, 'dossier_file_id'));
+        $this->assertStringNotContainsString('60 000 EUR', implode("\n", array_column($results, 'content')));
+    }
+
     private function dossier(Organization $organization, User $owner, string $visibility, string $name, ?string $sharedWithLoopId = null): Dossier
     {
         return Dossier::create([
@@ -627,6 +687,50 @@ class PgvectorDossierRetrievalSourceTest extends TestCase
             'content' => $content,
             'content_hash' => hash('sha256', $content.Str::uuid()),
             'token_count' => 3,
+            'embedding' => $vector,
+            'embedding_provider' => 'openrouter',
+            'embedding_model' => 'openai/text-embedding-3-small',
+            'indexed_at' => now(),
+        ]);
+    }
+
+    private function dossierFile(
+        Organization $organization,
+        Dossier $dossier,
+        User $owner,
+        string $name,
+        string $mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ): DossierFile {
+        return DossierFile::create([
+            'organization_id' => $organization->id,
+            'dossier_id' => $dossier->id,
+            'uploaded_by' => $owner->id,
+            'disk' => 'dossier_files',
+            'path' => 'dossier-files/'.Str::uuid(),
+            'original_name' => $name,
+            'display_name' => $name,
+            'mime_type' => $mimeType,
+            'size_bytes' => 1024,
+            'checksum_sha256' => hash('sha256', $name.Str::uuid()),
+            'source' => 'upload',
+        ]);
+    }
+
+    private function fileChunk(
+        Organization $organization,
+        Dossier $dossier,
+        DossierFile $file,
+        array $vector,
+        string $content,
+    ): DossierChunk {
+        return DossierChunk::create([
+            'organization_id' => $organization->id,
+            'dossier_id' => $dossier->id,
+            'dossier_file_id' => $file->id,
+            'chunk_index' => 0,
+            'content' => $content,
+            'content_hash' => hash('sha256', $content.Str::uuid()),
+            'token_count' => 8,
             'embedding' => $vector,
             'embedding_provider' => 'openrouter',
             'embedding_model' => 'openai/text-embedding-3-small',

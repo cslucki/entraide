@@ -242,18 +242,21 @@ class DossierSemanticSearchService
      * change. `$candidateLimit` est lui-meme borne (<=20) pour rester un
      * bassin de reclassement, jamais un contournement de `top_k`.
      *
-     * TASK-1516 : `$onlyDossierFileId`, optionnel, restreint la recherche a UN
-     * fichier. Le CDC exige que « cherche dans tel document » soit resolu
+     * TASK-1516 / TASK-1525 : `$onlyDossierFileIds`, optionnel, restreint la
+     * recherche a 0..N fichiers. Le CDC exige que « cherche dans tel document » soit resolu
      * SERVEUR et DETERMINISTE. Filtrer le top-K apres coup ne le serait pas :
      * si aucun chunk du fichier nomme n'entre dans les 5 meilleurs du Dossier,
      * la restriction rendrait vide alors que le fichier a bien du contenu. La
      * borne appartient donc a la clause SQL. NULL (defaut, tous les appelants
-     * existants) = aucune restriction, comportement inchange.
+     * existants) = aucune restriction, comportement inchange. Une liste vide
+     * est une restriction reconnue mais non resolue : elle rend zero resultat,
+     * jamais le Dossier entier.
      *
      * L'identifiant vient TOUJOURS d'une resolution serveur sur le Dossier
      * deja autorise — jamais d'un identifiant produit par le modele.
      *
      * @param  list<string>  $dossierIds
+     * @param  list<string>|null  $onlyDossierFileIds
      * @return array<int, array{chunk_id: string, dossier_id: string, dossier_name: string, source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, mime_type: ?string, chunk_index: int, content: string, distance: float}>
      */
     public function searchAcrossDossiers(
@@ -264,7 +267,7 @@ class DossierSemanticSearchService
         int $limit = 5,
         array $traceMetadata = [],
         ?int $candidateLimit = null,
-        ?string $onlyDossierFileId = null,
+        ?array $onlyDossierFileIds = null,
     ): array {
         $query = trim($query);
 
@@ -283,8 +286,11 @@ class DossierSemanticSearchService
         $fetchLimit = $candidateLimit ?? $limit;
 
         $dossierIds = array_values(array_unique(array_filter(array_map('strval', $dossierIds))));
+        $onlyDossierFileIds = $onlyDossierFileIds === null
+            ? null
+            : array_values(array_unique(array_filter(array_map('strval', $onlyDossierFileIds))));
 
-        if ($dossierIds === [] || ! $this->gate->isEnabledFor($organizationId)) {
+        if ($dossierIds === [] || $onlyDossierFileIds === [] || ! $this->gate->isEnabledFor($organizationId)) {
             return [];
         }
 
@@ -340,10 +346,10 @@ class DossierSemanticSearchService
             })
             ->where('dossier_chunks.organization_id', $organizationId)
             ->whereIn('dossier_chunks.dossier_id', $dossierIds)
-            // TASK-1516 : restriction a un fichier nomme par l'utilisateur et
-            // resolu serveur. Le tenant reste borne par les clauses ci-dessus :
-            // cette ligne retrecit, elle n'ouvre rien.
-            ->when($onlyDossierFileId !== null, fn ($q) => $q->where('dossier_chunks.dossier_file_id', $onlyDossierFileId))
+            // TASK-1525 : restriction a tous les fichiers d'une famille
+            // reconnue et resolue serveur. Le tenant reste borne par les
+            // clauses ci-dessus : ce whereIn retrecit, il n'ouvre rien.
+            ->when($onlyDossierFileIds !== null, fn ($q) => $q->whereIn('dossier_chunks.dossier_file_id', $onlyDossierFileIds))
             ->where('dossier_chunks.embedding_provider', $embeddingResult['provider'])
             ->where('dossier_chunks.embedding_model', $embeddingResult['model'])
             ->where(function ($outer) use ($organizationId) {
