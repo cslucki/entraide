@@ -35,4 +35,9 @@ return [
     'count_indexed' => "indexé(s)",
     'count_not_indexed' => "non indexé(s)",
     'count_not_ingestible' => "non indexable(s)",
+    'platform_title' => "Fichiers de la plateforme",
+    'platform_subtitle' => "Tous les documents déposés dans les Dossiers, toutes organisations confondues.",
+    'filter_organization' => "Organisation",
+    'filter_organization_all' => "Toutes les organisations",
+    'unknown_organization' => "L'organisation « :slug » n'existe pas : aucun filtre n'a été appliqué, la liste porte donc sur toutes les organisations.",
 ];
