@@ -107,6 +107,10 @@
                             ['route' => 'organization.admin.transactions', 'label' => __('navigation.org_admin_transactions'), 'icon' => 'M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z'],
                         ];
                         $contentItems = [
+                            // TASK-1513 : l'inventaire des fichiers de l'Organization. Dans « Contenu »,
+                            // et non dans « IA » : c'est un inventaire de contenu, et cette page existe
+                            // justement pour ne plus etre une sous-partie de la console IA.
+                            ['route' => 'organization.admin.drives', 'label' => __('drives.nav'), 'icon' => 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z'],
                             ['route' => 'organization.admin.blog', 'label' => __('navigation.org_admin_blog'), 'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z'],
                             ['route' => 'organization.admin.categories', 'label' => __('navigation.org_admin_categories'), 'icon' => 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z'],
                         ];

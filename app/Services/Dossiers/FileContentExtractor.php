@@ -196,7 +196,13 @@ class FileContentExtractor
         return null;
     }
 
-    private function isSupported(string $mimeType, string $originalName): bool
+    /**
+     * TASK-1513 : desormais `public`. C'est LA regle de verite du pipeline
+     * (« ce fichier peut-il produire du texte ? ») ; les ecrans qui affichent
+     * un etat « non indexable » doivent repondre par la MEME regle, sinon deux
+     * surfaces du produit se contrediraient.
+     */
+    public function isSupported(string $mimeType, string $originalName): bool
     {
         if (in_array($mimeType, self::SUPPORTED_MIME_TYPES, true)) {
             return true;

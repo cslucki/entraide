@@ -1154,6 +1154,16 @@ Route::prefix('/org/{organization}')
             ->name('admin.')
             ->group(function () {
                 Route::get('/', [OrgAdminController::class, 'dashboard'])->name('dashboard');
+                // TASK-1513 — la supervision des fichiers d'une Organization.
+                // Elle vit dans la CONSOLE et non sous `/org/{org}/drives` : la
+                // page liste le NOM de tous les fichiers de tous les Dossiers,
+                // prives compris. Hors console, elle tomberait sous
+                // `organization.member` et tout membre y verrait les titres des
+                // documents prives des autres — une fuite.
+                Route::get('/drives', [OrgAdminController::class, 'drives'])->name('drives');
+                Route::post('/drives/{file}/reindex', [OrgAdminController::class, 'reindexDriveFile'])
+                    ->middleware('throttle:20,1')
+                    ->name('drives.reindex');
 
                 // Exchanges
                 Route::get('/services', [OrgAdminController::class, 'services'])->name('services');
