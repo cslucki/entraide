@@ -3,9 +3,13 @@
 namespace App\Services\Ai;
 
 use App\Models\AiShellMessage;
+use App\Models\Dossier;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Ai\DTO\KnowledgeAnswer;
+use App\Services\Dossiers\DossierInsightsService;
 use App\Support\Ai\AiSelfKnowledge;
+use App\Support\Ai\AiShellPageContext;
 use App\Support\Ai\AiShellThread;
 use App\Support\Ai\AiShellTurnCards;
 use App\Support\Ai\AiShellUsageReference;
@@ -173,6 +177,9 @@ final class AiShellResponder
         private readonly AiShellTurnCards $cards,
         private readonly AiSelfKnowledge $selfKnowledge,
         private readonly AiShellUsageReference $usageReference,
+        // TASK-1519 : la MEME primitive que la page Dossier, jamais un second
+        // moteur documentaire.
+        private readonly DossierInsightsService $dossierAnswers,
     ) {}
 
     /**
@@ -252,6 +259,7 @@ final class AiShellResponder
                 // n'ecrit ni `AiInteraction`, ni ligne de ledger, et ne
                 // consomme aucun credit.
                 [$content, $metadata] = $this->selfKnowledgeTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
+                    ?? $this->dossierAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $memory)
                     ?? $this->generate($organization, $user, $prompt, $pageContext, $pinnedContext, $memory);
 
                 $answer = $this->thread->appendAssistant($organization, $user, $content, $trigger, $metadata);
@@ -793,6 +801,96 @@ final class AiShellResponder
             'status' => self::STATUS_NON_INTERACTION,
             'producer' => AiSelfKnowledge::PRODUCER,
             'page_context' => $this->traceable($pageContext),
+        ] + $this->pinnedTrace($pinnedContext)];
+    }
+
+    /**
+     * TASK-1519 — le Dossier COURANT devient le perimetre documentaire.
+     *
+     * Branche PRE-PROVIDER, au meme endroit et sur le meme patron que
+     * `selfKnowledgeTurn()` : elle s'intercale avant `generate()`, donc avant
+     * `clarify_help_request`. C'est tout le sujet du CDC — le Shell cessait de
+     * router chaque question vers la clarification d'entraide, et repondait
+     * « je ne peux pas lire les fichiers » sur un Dossier qu'il avait sous les
+     * yeux.
+     *
+     * ## Aucune capability elargie
+     *
+     * `dossier.retrieval` n'est PAS ajoute aux `allowedSources` de
+     * `clarify_help_request` — ce serait ouvrir le corpus a toutes les
+     * questions du produit. Cette branche delegue a la primitive deja validee
+     * en Phase 1, `DossierInsightsService::answer()`, qui porte ses propres
+     * gardes.
+     *
+     * ## Le contexte de page n'est pas un droit
+     *
+     * `AiShellPageContext` a deja joue la policy pour construire ce contexte.
+     * Elle est REJOUEE ici quand meme, et ce n'est pas une redondance : le
+     * contexte est une trace de tour, il peut venir d'un etat anterieur, et
+     * `answer()` sera appelee avec un Dossier. Un identifiant persistant ne
+     * doit jamais devenir une autorite d'acces. `answer()` revalide une
+     * troisieme fois, cote service — c'est ce que TASK-1516 a rendu testable.
+     *
+     * ## Les pins restent dehors
+     *
+     * Aucun union automatique entre Dossier courant et contextes epingles : le
+     * CDC place `AiShellPinnedContext` hors du P0, et un elargissement
+     * silencieux du perimetre documentaire serait exactement ce qu'un Shell ne
+     * doit pas faire. Ils restent traces, comme pour tout autre tour.
+     *
+     * Un echec quelconque rend `null` : le tour retombe sur le chemin
+     * habituel, jamais sur une erreur affichee.
+     *
+     * @param  array<string, mixed>  $pageContext
+     * @param  list<array<string, mixed>>  $pinnedContext
+     * @return array{0: string, 1: array<string, mixed>}|null
+     */
+    private function dossierAnswerTurn(
+        Organization $organization,
+        User $user,
+        string $prompt,
+        array $pageContext,
+        array $pinnedContext,
+        string $memory,
+    ): ?array {
+        if (($pageContext['kind'] ?? null) !== AiShellPageContext::KIND_DOSSIER) {
+            return null;
+        }
+
+        $objectId = $pageContext['object']['id'] ?? null;
+
+        if (! is_string($objectId) || $objectId === '') {
+            return null;
+        }
+
+        $dossier = Dossier::query()->find($objectId);
+
+        if (! $dossier instanceof Dossier || $user->cannot('view', $dossier)) {
+            return null;
+        }
+
+        try {
+            $answer = $this->dossierAnswers->answer($organization, $dossier, $user, $prompt, null, $memory);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return null;
+        }
+
+        $content = trim($answer->answer);
+
+        if ($content === '') {
+            return null;
+        }
+
+        return [$content, [
+            'status' => self::STATUS_NON_INTERACTION,
+            'producer' => 'dossier.answer',
+            'page_context' => $this->traceable($pageContext),
+            'grounded' => $answer->grounded,
+            'sources' => array_map(KnowledgeAnswer::publicSource(...), $answer->sources),
+            'follow_up_questions' => $answer->followUps,
+            'ai_interaction_id' => $answer->interactionId,
         ] + $this->pinnedTrace($pinnedContext)];
     }
 
