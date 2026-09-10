@@ -411,9 +411,15 @@ class TASK1519ShellDossierScopeTest extends TestCase
         // ce test de la serialisation des tours, alors que ce qu'il mesure est
         // « un fil existant entre-t-il dans le prompt, et jamais dans la
         // requete ? ».
+        // TASK-1523 : le tour seme porte la page que le serveur ecrit lui-meme
+        // a chaque tour (`traceable()`). Sans elle, la memoire DOCUMENTAIRE —
+        // bornee au meme objet de page — l'ecarte a juste titre : un tour
+        // d'origine inconnue n'est pas « le meme Dossier ». En base reelle,
+        // aucun message n'est sans page_context.
+        $page = ['page_context' => ['kind' => AiShellPageContext::KIND_DOSSIER, 'object_type' => 'dossier', 'object_id' => (string) $this->dossier->id]];
         $thread = app(AiShellThread::class);
-        $declencheur = $thread->appendUser($this->organization, $this->member, "C'est quoi ARIA ?");
-        $thread->appendAssistant($this->organization, $this->member, 'ARIA est une alliance.', $declencheur);
+        $declencheur = $thread->appendUser($this->organization, $this->member, "C'est quoi ARIA ?", $page);
+        $thread->appendAssistant($this->organization, $this->member, 'ARIA est une alliance.', $declencheur, $page);
 
         $requetes = [];
         $search = $this->mockSearch();
