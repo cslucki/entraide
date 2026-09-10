@@ -302,6 +302,7 @@ final class DossierInsightsService
         User $requester,
         string $question,
         ?string $fileHint = null,
+        ?string $conversationMemory = null,
     ): KnowledgeAnswer {
         $question = trim($question);
 
@@ -439,7 +440,22 @@ final class DossierInsightsService
             (float) config('ai.knowledge.temperature', 0.2),
         );
 
-        $prompt = $sourcesBlock."\n\n".$this->answerInstruction($locale, $question);
+        // TASK-1519 — ordre canonique du CDC : SOURCES -> THREAD -> QUESTION.
+        //
+        // Le fil aide le modele a COMPRENDRE une question elliptique (« Et les
+        // participants ? »). Il n'est JAMAIS une source documentaire : il n'est
+        // pas cite, il ne porte aucune reference [Sn], et il n'entre pas dans
+        // la requete de recherche.
+        //
+        // Pourquoi il n'entre pas dans la requete, alors que le CDC l'autorisait :
+        // mesure sur corpus reel. Prefixer la question precedente DEGRADE le
+        // classement dans 3 cas sur 5 — « Et les participants ? » passe du rang
+        // 1 a hors du top 20, et une question autonome de rang 1 tombe aussi
+        // hors du top 20. Les questions elliptiques se classent deja tres bien
+        // seules, parce que leur embedding porte le mot qui compte.
+        $prompt = $sourcesBlock
+            .$this->conversationBlock($conversationMemory)
+            ."\n\n".$this->answerInstruction($locale, $question);
 
         $startedAt = microtime(true);
 
@@ -679,6 +695,23 @@ final class DossierInsightsService
         }
 
         return $rows;
+    }
+
+    /**
+     * TASK-1519 — le fil de conversation, entre les sources et la question.
+     *
+     * Bloc VIDE quand il n'y a pas de fil : la page Dossier appelle sans
+     * memoire, et son prompt doit rester exactement celui d'avant.
+     */
+    private function conversationBlock(?string $conversationMemory): string
+    {
+        $memory = trim((string) $conversationMemory);
+
+        if ($memory === '') {
+            return '';
+        }
+
+        return "\n\n--- CONVERSATION EN COURS (contexte, jamais une source : ne la cite pas) ---\n".$memory;
     }
 
     /**

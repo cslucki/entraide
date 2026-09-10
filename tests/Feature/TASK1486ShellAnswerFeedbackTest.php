@@ -442,13 +442,30 @@ class TASK1486ShellAnswerFeedbackTest extends TestCase
     {
         $source = php_strip_whitespace(app_path('Services/Ai/AiShellResponder.php'));
 
-        $this->assertSame(
-            1,
-            substr_count($source, "'ai_interaction_id' =>"),
-            'le pointeur doit etre pose sur le tour REPONDU et nulle part ailleurs'
-        );
+        // TASK-1519 : il existe desormais DEUX chemins qui repondent — la
+        // clarification d'entraide et la branche documentaire du Dossier
+        // courant. Les deux sont des tours REPONDUS, les deux doivent porter le
+        // pointeur, et aucun autre.
+        //
+        // Ce test garde donc l'intention, pas un compte fige : le pointeur ne
+        // se pose QUE sur une valeur d'interaction produite par un chemin de
+        // reponse, jamais sur un identifiant reconstruit ou devine.
+        preg_match_all("/'ai_interaction_id' => ([^,\n]+)/", $source, $m);
 
-        $this->assertStringContainsString("'ai_interaction_id' => \$result->interactionId", $source);
+        $this->assertNotEmpty($m[1], 'le pointeur doit exister');
+
+        foreach ($m[1] as $valeur) {
+            $this->assertMatchesRegularExpression(
+                '/^\$(result->interactionId|answer->interactionId)$/',
+                trim($valeur),
+                'le pointeur ne peut venir que de la trace produite par le tour lui-meme'
+            );
+        }
+
+        $this->assertContains('$result->interactionId', array_map('trim', $m[1]),
+            'le chemin de clarification doit toujours poser le sien');
+        $this->assertContains('$answer->interactionId', array_map('trim', $m[1]),
+            'le chemin documentaire doit poser le sien aussi (TASK-1519)');
     }
 
     /** Le Shell n'invente aucune table ni aucun verdict : il branche l'existant. */
