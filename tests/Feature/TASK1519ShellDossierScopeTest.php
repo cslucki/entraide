@@ -85,6 +85,7 @@ class TASK1519ShellDossierScopeTest extends TestCase
         ]);
 
         config([
+            'ai.clarify.enabled' => true,
             'ai.default_for_embeddings' => 'openrouter',
             'ai.providers.openrouter.driver' => 'openrouter',
             'ai.providers.openrouter.key' => 'platform-key',

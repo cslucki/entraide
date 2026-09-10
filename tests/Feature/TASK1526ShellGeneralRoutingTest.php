@@ -101,6 +101,7 @@ class TASK1526ShellGeneralRoutingTest extends TestCase
 
         $questions = [
             "Qui peut m'aider à trouver un relecteur ?",
+            'Qui peut relire mon dossier Erasmus ?',
             "Quelqu'un peut m'aider à trouver un expert ARIA ?",
             'Pouvez-vous me mettre en relation avec un expert ?',
             'Can someone help me find a partner?',

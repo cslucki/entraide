@@ -1162,6 +1162,7 @@ final class AiShellResponder
         $interactionIntent = preg_match(
             '/\b('
             .'qui peut m aider|qui pourrait m aider|who can help|which member|quel membre|quelle personne|'
+            .'qui (?:peut|pourrait) (?:m |nous )?(?:accompagner|conseiller|relire|revoir|traduire)|'
             .'quelqu un peut m aider|quelqu un pourrait m aider|can someone help|could someone help|'
             .'je cherche (?:quelqu un|un |une |de l aide)|nous cherchons (?:quelqu un|un |une )|'
             .'j ai besoin (?:d aide|d un |d une )|nous avons besoin (?:d aide|d un |d une )|'
