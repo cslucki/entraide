@@ -877,6 +877,18 @@ final class AiShellResponder
             return null;
         }
 
+        // La branche documentaire ne parle QUE si elle a des documents.
+        //
+        // Sur un Dossier sans contenu indexe, `answer()` rend un refus honnete
+        // — parfaitement juste SUR LA PAGE, ou la question est forcement
+        // documentaire. Dans le Shell, la question peut porter sur tout autre
+        // chose (« comment je partage ce Dossier ? ») : repondre « je n'ai rien
+        // trouve dans ce Dossier » serait moins utile que le chemin habituel.
+        // On s'efface donc, et le tour suit son cours normal.
+        if ($answer->consulted === []) {
+            return null;
+        }
+
         $content = trim($answer->answer);
 
         if ($content === '') {
@@ -887,9 +899,16 @@ final class AiShellResponder
             'status' => self::STATUS_NON_INTERACTION,
             'producer' => 'dossier.answer',
             'page_context' => $this->traceable($pageContext),
+            // TASK-1325 : un tour repondu porte ses cartes, quel que soit le
+            // chemin qui l'a produit. Sans cette ligne, une reponse
+            // documentaire perdait la reference de document que TOUT autre tour
+            // sur cette page portait — la CI l'a vu, pas moi.
+            'cards' => $this->cards->forAnsweredTurn($organization, $user, null, $pageContext, $prompt),
             'grounded' => $answer->grounded,
             'sources' => array_map(KnowledgeAnswer::publicSource(...), $answer->sources),
             'follow_up_questions' => $answer->followUps,
+            // TASK-1486 : le MEME pointeur que le chemin habituel — ce tour est
+            // un tour REPONDU, et un verdict humain doit pouvoir le designer.
             'ai_interaction_id' => $answer->interactionId,
         ] + $this->pinnedTrace($pinnedContext)];
     }

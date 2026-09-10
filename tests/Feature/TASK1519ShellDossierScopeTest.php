@@ -356,6 +356,46 @@ class TASK1519ShellDossierScopeTest extends TestCase
             'un Article n est pas un Dossier, meme si son identifiant en designe un');
     }
 
+    /**
+     * La branche documentaire ne parle QUE si elle a des documents.
+     *
+     * Sur un Dossier sans contenu indexe, une question peut porter sur tout
+     * autre chose que le corpus (« comment je partage ce Dossier ? »).
+     * Repondre « je n'ai rien trouve dans ce Dossier » serait moins utile que
+     * le chemin habituel. Regression trouvee par la CI, pas par moi.
+     */
+    public function test_a_dossier_without_any_document_falls_back_to_the_ordinary_path(): void
+    {
+        $this->mockSearch()->shouldReceive('searchAcrossDossiers')->once()->andReturn([]);
+        $this->fakeClarifier();
+
+        $this->send('Comment je partage ce Dossier ?');
+
+        $this->assertNotSame('dossier.answer', $this->lastAssistant()->metadata['producer'] ?? null,
+            'sans document, la branche documentaire doit s effacer');
+    }
+
+    /**
+     * Un tour repondu porte ses cartes, quel que soit le chemin qui l'a
+     * produit. Sans cela, une reponse documentaire perdait la reference de
+     * document que TOUT autre tour sur cette page portait.
+     */
+    public function test_a_documentary_turn_carries_its_cards_like_any_other(): void
+    {
+        $this->mockSearch()->shouldReceive('searchAcrossDossiers')->once()
+            ->andReturn([$this->row('Un contenu documentaire.')]);
+        $this->fakeDossierAgent('Une reponse. [S1]');
+        HelpRequestClarifierAgent::fake([]);
+
+        $this->send('Que contient ce Dossier ?');
+
+        $meta = $this->lastAssistant()->metadata;
+
+        $this->assertArrayHasKey('cards', $meta, 'un tour documentaire doit porter ses cartes');
+        $this->assertNotNull($meta['ai_interaction_id'] ?? null,
+            'un tour repondu doit pouvoir recevoir un verdict humain');
+    }
+
     // ── 4. Le fil entre dans le prompt, jamais dans la recherche ────────────
 
     /**
