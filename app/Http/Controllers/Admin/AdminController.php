@@ -34,22 +34,23 @@ use Illuminate\View\View;
 
 class AdminController extends Controller
 {
-    public function dashboard(): View
+    /**
+     * TASK-1507 — le tableau de bord SuperAdmin, toutes Organizations
+     * confondues. Les indicateurs demandes par Cyril (depense IA, Shell
+     * Welcome, connexions jour/semaine/mois, comptes qui se connectent le
+     * plus, interactions IA) viennent d'un service unique, miroir plateforme
+     * de `OrganizationDashboardMetrics` (TASK-1504).
+     */
+    public function dashboard(\App\Services\Admin\PlatformDashboardMetrics $metrics): View
     {
-        $stats = [
-            'users' => User::count(),
-            'banned' => User::whereNotNull('banned_at')->count(),
-            'services' => Service::withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'active')->count(),
-            'transactions' => Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)->count(),
-            'completed' => Transaction::withoutGlobalScope(BelongsToOrganizationScope::class)->where('status', 'completed')->count(),
-            'points' => User::sum('points_balance'),
-            'reports' => Report::where('status', 'pending')->count(),
-        ];
-
-        $recentUsers = User::latest()->limit(5)->get();
+        $recentUsers = User::with('organization')->latest()->limit(5)->get();
         $pendingReports = Report::with('reporter')->where('status', 'pending')->latest('created_at')->limit(10)->get();
 
-        return view('admin.dashboard', compact('stats', 'recentUsers', 'pendingReports'));
+        return view('admin.dashboard', [
+            'metrics' => $metrics->get(),
+            'recentUsers' => $recentUsers,
+            'pendingReports' => $pendingReports,
+        ]);
     }
 
     // ── Users ────────────────────────────────────────────────────────────────
