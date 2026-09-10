@@ -37,11 +37,26 @@
     $bp = bp_themes();
     $bpThemes = $bp['themes'];
     $bpDefaultTheme = $bp['default'];
+
+    // TASK-1505 : la barre laterale de l'admin d'Organisation est TOUJOURS
+    // sombre, texte blanc, quel que soit le mode clair/sombre — mais elle
+    // suit le theme choisi. Ses jetons sont donc pris dans la palette SOMBRE
+    // du theme, et emis hors de `.dark` : ils ne changent pas avec le mode.
+    $bpSidebar = fn (array $theme): array => [
+        'bg' => $theme['dark']['panel'],
+        'soft' => $theme['dark']['surface-soft'],
+        'border' => $theme['dark']['border'],
+        'accent' => $theme['dark']['primary'],
+        'text' => '#FFFFFF',
+    ];
 @endphp
 <style>
     :root {
         @foreach($bpThemes[$bpDefaultTheme]['tokens'] as $token => $value)
         --bp-{{ $token }}: {{ $value }};
+        @endforeach
+        @foreach($bpSidebar($bpThemes[$bpDefaultTheme]) as $token => $value)
+        --bp-sidebar-{{ $token }}: {{ $value }};
         @endforeach
     }
 
@@ -49,6 +64,9 @@
     [data-bp-theme="{{ $key }}"] {
         @foreach($theme['tokens'] as $token => $value)
         --bp-{{ $token }}: {{ $value }};
+        @endforeach
+        @foreach($bpSidebar($theme) as $token => $value)
+        --bp-sidebar-{{ $token }}: {{ $value }};
         @endforeach
     }
     @endforeach

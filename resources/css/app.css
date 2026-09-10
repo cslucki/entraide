@@ -316,3 +316,34 @@
         display: none;
     }
 }
+
+/* TASK-1505 — barre laterale de l'admin d'Organisation : toujours sombre,
+   texte blanc, aux couleurs du theme choisi. Les jetons `--bp-sidebar-*`
+   viennent de la palette SOMBRE du theme et ne bougent pas avec `.dark`
+   (voir `x-theme-tokens`). Les replis hexa ne servent qu'a un document
+   sans emetteur de jetons. */
+.bp-org-sidebar {
+    background-color: var(--bp-sidebar-bg, #111827);
+    color: var(--bp-sidebar-text, #FFFFFF);
+}
+.bp-org-sidebar .bp-sb-border { border-color: var(--bp-sidebar-border, #374151); }
+.bp-org-sidebar .bp-sb-muted { color: rgba(255, 255, 255, 0.72); }
+.bp-org-sidebar .bp-sb-pill { background-color: var(--bp-sidebar-soft, #1F2937); }
+.bp-org-sidebar .bp-sb-link { color: rgba(255, 255, 255, 0.92); }
+.bp-org-sidebar .bp-sb-link:hover {
+    color: var(--bp-sidebar-text, #FFFFFF);
+    background-color: var(--bp-sidebar-soft, #1F2937);
+}
+/* L'entree ACTIVE ne peint PAS l'accent en fond : ecrire en blanc sur l'accent
+   d'un theme donne 1,92:1 sur `sable` (#34D399) — mesure, illisible — et aucune
+   variante d'accent ne passe l'AA sur les 6 themes. Elle porte donc un fond
+   sombre doux, une barre d'accent, et le meme texte blanc que le reste. */
+.bp-org-sidebar .bp-sb-active {
+    color: var(--bp-sidebar-text, #FFFFFF);
+    font-weight: 600;
+    background-color: var(--bp-sidebar-soft, #1F2937);
+    box-shadow: inset 3px 0 0 var(--bp-sidebar-accent, #6366F1);
+}
+.bp-org-sidebar .bp-sb-group { color: rgba(255, 255, 255, 0.74); }
+.bp-org-sidebar .bp-sb-group:hover { color: var(--bp-sidebar-text, #FFFFFF); }
+.bp-org-sidebar .bp-sb-group-active { color: var(--bp-sidebar-accent, #A5B4FC); }
