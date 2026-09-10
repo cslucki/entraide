@@ -314,6 +314,12 @@ class TASK1499GuestShellConversationParityTest extends TestCase
     /** §8 — chaque message porte son heure, au format de la ChatLoop canonique. */
     public function test_every_message_carries_a_timestamp_label(): void
     {
+        // TASK-1504 : le libelle est produit au RENDU, la reference est calculee
+        // a l'ASSERTION. Sans horloge figee, franchir une frontiere de seconde
+        // entre les deux suffit a rougir (« il y a 1 seconde » / « il y a 0
+        // seconde ») — vu sur le shard SQLite 1/4, sans rapport avec le code.
+        $this->freezeTime();
+
         $payload = $this->payloadFor('Bonjour.');
 
         $this->assertNotSame('', $payload['at'], 'l\'horodatage ISO manque');
