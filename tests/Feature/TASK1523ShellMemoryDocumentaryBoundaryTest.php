@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\Ai\AiShellResponder;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Support\Ai\AiShellPageContext;
+use App\Support\Ai\AiShellThread;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -154,14 +155,62 @@ class TASK1523ShellMemoryDocumentaryBoundaryTest extends TestCase
     public function test_a_turn_on_dossier_a_never_enters_the_documentary_prompt_of_dossier_b(): void
     {
         $this->sendOn($this->a, 'Combien de boucles principales dans A ?');
+
+        // Premisse, prouvee et non supposee (audit OPUS, garde-fou 4) : le
+        // fait est bien PRESENT dans le prompt du tour A ...
+        $promptA = $this->lastDocumentaryPrompt();
+        $this->assertStringContainsString('Contenu du Dossier A.', $promptA);
+
         $this->sendOn($this->b, 'Et dans ce Dossier-ci ?');
 
+        // ... et ABSENT — fait, question et reponse de A — de celui du tour B,
+        // dont les sources sont B.
         $prompt = $this->lastDocumentaryPrompt();
 
+        $this->assertStringContainsString('Contenu du Dossier B.', $prompt, 'les sources de B sont bien la');
+        $this->assertStringNotContainsString('Contenu du Dossier A.', $prompt, 'le fait de A ne vient pas des sources de B');
         $this->assertStringNotContainsString('Combien de boucles principales dans A', $prompt,
             'la question posee sur A ne doit pas devenir du contexte sur B');
+        $this->assertStringNotContainsString('Assistant : Une reponse.', $prompt,
+            'la reponse donnee sur A ne doit pas devenir du contexte sur B');
         $this->assertStringNotContainsString('CONVERSATION EN COURS', $prompt,
             'aucun tour de B avant celui-ci : le bloc conversation doit etre absent, pas rempli avec A');
+    }
+
+    /**
+     * Audit OPUS, garde-fou 1 : la cle est le COUPLE (object_type, object_id).
+     * Un tour tenu sur un ARTICLE portant le meme identifiant que le Dossier
+     * n'est pas « le meme objet » — il n'entre pas dans la memoire documentaire
+     * du Dossier.
+     *
+     * Sabotage : comparer l'identifiant seul → rouge.
+     */
+    public function test_the_same_id_under_another_object_type_is_not_the_same_object(): void
+    {
+        $thread = app(AiShellThread::class);
+        $page = ['page_context' => ['kind' => AiShellPageContext::KIND_ARTICLE, 'object_type' => 'article', 'object_id' => (string) $this->a->id]];
+        $trigger = $thread->appendUser($this->organization, $this->member, 'Question posee sur un article homonyme.', $page);
+        $thread->appendAssistant($this->organization, $this->member, 'Reponse article.', $trigger, $page + ['status' => AiShellResponder::STATUS_ANSWERED]);
+
+        $this->sendOn($this->a, 'Et sur ce Dossier ?');
+
+        $this->assertStringNotContainsString('Question posee sur un article homonyme', $this->lastDocumentaryPrompt(),
+            'meme id, autre type : pas le meme objet');
+    }
+
+    /**
+     * Audit OPUS, garde-fou 2 : un message dont la page ne PROUVE pas l'objet
+     * (type absent) n'entre pas — dans le doute, dehors.
+     */
+    public function test_a_turn_whose_page_does_not_prove_its_object_is_excluded(): void
+    {
+        $thread = app(AiShellThread::class);
+        $page = ['page_context' => ['kind' => AiShellPageContext::KIND_DOSSIER, 'object_id' => (string) $this->a->id]];
+        $thread->appendUser($this->organization, $this->member, 'Tour sans type d objet.', $page);
+
+        $this->sendOn($this->a, 'Et maintenant ?');
+
+        $this->assertStringNotContainsString('Tour sans type d objet', $this->lastDocumentaryPrompt());
     }
 
     /**

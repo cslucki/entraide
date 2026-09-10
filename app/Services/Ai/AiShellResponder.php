@@ -251,7 +251,7 @@ final class AiShellResponder
                 // structurelle : chaque message porte deja
                 // `metadata.page_context.object_id`, il suffit de filtrer.
                 // Aucun second store, aucune migration.
-                $documentaryMemory = $this->conversationMemory($organization, $user, $this->pageObjectId($pageContext));
+                $documentaryMemory = $this->conversationMemory($organization, $user, $this->pageObjectKey($pageContext));
 
                 // Le message humain est ecrit AVANT l'appel : meme si la generation
                 // echoue, l'utilisateur retrouve ce qu'il a demande dans son fil.
@@ -667,7 +667,7 @@ final class AiShellResponder
      * de {@see AiConversationContextBuilder}, prefixes compris : les deux blocs
      * de memoire du produit se lisent de la meme facon pour le modele.
      */
-    private function conversationMemory(Organization $organization, User $user, ?string $onlyObjectId = null): string
+    private function conversationMemory(Organization $organization, User $user, ?string $onlyObjectKey = null): string
     {
         $conversationId = $this->thread->persistedConversationId($organization, $user);
 
@@ -696,8 +696,11 @@ final class AiShellResponder
             // TASK-1523 : en memoire documentaire, un tour tenu sur un AUTRE
             // objet (ou sur aucun) n'entre pas. Le filtre lit ce que le
             // serveur a ecrit lui-meme a l'aller (`traceable()`), jamais une
-            // donnee venue du client.
-            if ($onlyObjectId !== null && $this->pageObjectIdOf($message) !== $onlyObjectId) {
+            // donnee venue du client. TASK-1524 (audit OPUS) : la cle est le
+            // COUPLE (object_type, object_id) — un Dossier et un Article ne
+            // sont jamais « le meme objet », quel que soit leur identifiant —
+            // et un message dont la page ne prouve pas l'objet est exclu.
+            if ($onlyObjectKey !== null && $this->pageObjectKeyOf($message) !== $onlyObjectKey) {
                 continue;
             }
 
@@ -1107,25 +1110,36 @@ final class AiShellResponder
      * @return array<string, mixed>
      */
     /**
-     * L'identifiant de l'objet de page (Dossier, Article...). Sans objet
-     * courant, la cle est la chaine vide : aucun tour stocke ne la porte,
-     * la memoire documentaire est donc VIDE — sans objet, aucun tour n'est
-     * « le meme ».
+     * La cle de l'objet de page : le COUPLE « type:id » (Dossier, Article...).
+     * Sans objet courant — type ou id manquant — la cle est la chaine vide :
+     * aucun tour stocke ne la porte, la memoire documentaire est donc VIDE.
+     * Sans objet, aucun tour n'est « le meme ».
      */
-    private function pageObjectId(array $pageContext): string
+    private function pageObjectKey(array $pageContext): string
     {
         $object = $pageContext['object'] ?? null;
-        $id = is_array($object) ? ($object['id'] ?? null) : null;
 
-        return is_string($id) ? $id : '';
+        return $this->objectKey(
+            is_array($object) ? ($object['type'] ?? null) : null,
+            is_array($object) ? ($object['id'] ?? null) : null,
+        );
     }
 
-    private function pageObjectIdOf(AiShellMessage $message): ?string
+    /**
+     * La cle portee par un message stocke, ou `null` quand sa page ne PROUVE
+     * pas l'objet (type ou id absent) : dans le doute, il n'entre pas.
+     */
+    private function pageObjectKeyOf(AiShellMessage $message): ?string
     {
         $metadata = is_array($message->metadata) ? $message->metadata : [];
-        $id = $metadata['page_context']['object_id'] ?? null;
+        $key = $this->objectKey($metadata['page_context']['object_type'] ?? null, $metadata['page_context']['object_id'] ?? null);
 
-        return is_string($id) && $id !== '' ? $id : null;
+        return $key === '' ? null : $key;
+    }
+
+    private function objectKey(mixed $type, mixed $id): string
+    {
+        return is_string($type) && $type !== '' && is_string($id) && $id !== '' ? $type.':'.$id : '';
     }
 
     private function traceable(array $pageContext): array
