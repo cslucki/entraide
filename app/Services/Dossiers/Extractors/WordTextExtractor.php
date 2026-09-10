@@ -13,6 +13,7 @@ use PhpOffice\PhpWord\Element\TextBreak;
 use PhpOffice\PhpWord\Element\TextRun;
 use PhpOffice\PhpWord\Element\Title;
 use PhpOffice\PhpWord\IOFactory;
+use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\Settings;
 
 /**
@@ -20,10 +21,26 @@ use PhpOffice\PhpWord\Settings;
  * pas d'ecrivain « texte brut » : on parcourt son MODELE d'elements
  * (sections, paragraphes, tableaux, listes, titres) — jamais le XML du
  * conteneur, interdit par la TASK.
+ *
+ * TASK-1510 — un DOCX porteur de COMMENTAIRES Word faisait lever PHPWord 1.4.0
+ * (`TypeError` dans `Reader\Word2007\AbstractPart::setCommentReference()`), et
+ * l'extraction rendait `null` : `DossierFileIndexer` supprimait alors les
+ * chunks au lieu d'en creer. Un document relu par un humain — donc commente —
+ * est justement celui qui a le plus de valeur pour le RAG, et c'etait celui qui
+ * ne s'indexait jamais.
+ *
+ * Le repli est ci-dessous : UNE seconde tentative, sur une COPIE dont les
+ * declarations de commentaires ont ete retirees (`DocxCommentNeutralizer`).
+ * Le chemin nominal, lui, ne change pas d'un octet : un DOCX normal ne produit
+ * aucune copie.
  */
 class WordTextExtractor implements DocumentTextExtractor
 {
     public const MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+    public function __construct(
+        private readonly DocxCommentNeutralizer $neutralizer = new DocxCommentNeutralizer,
+    ) {}
 
     public function supports(string $mimeType): bool
     {
@@ -32,13 +49,18 @@ class WordTextExtractor implements DocumentTextExtractor
 
     public function extract(string $absolutePath): ?string
     {
-        try {
-            // Aucun rendu, aucune image decodee : seuls les objets texte
-            // nous interessent. Le dossier temporaire sert aux lecteurs
-            // PHPWord qui decompressent certaines parties.
-            Settings::setTempDir(sys_get_temp_dir());
-            $document = IOFactory::load($absolutePath, 'Word2007');
-        } catch (\Throwable) {
+        // Aucun rendu, aucune image decodee : seuls les objets texte nous
+        // interessent. Le dossier temporaire sert aux lecteurs PHPWord qui
+        // decompressent certaines parties.
+        Settings::setTempDir(sys_get_temp_dir());
+
+        $document = $this->load($absolutePath);
+
+        if ($document === null) {
+            $document = $this->loadWithoutComments($absolutePath);
+        }
+
+        if ($document === null) {
             return null;
         }
 
@@ -54,6 +76,44 @@ class WordTextExtractor implements DocumentTextExtractor
         $text = trim(html_entity_decode(implode("\n", $lines), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 
         return $text === '' ? null : $text;
+    }
+
+    /**
+     * La seconde et DERNIERE tentative : sur une copie sans commentaires.
+     *
+     * Le declencheur n'est jamais le message de l'exception — une
+     * correspondance de chaine sur un texte d'erreur de dependance casse au
+     * premier changement de version, et ne dit rien du document. On interroge
+     * le DOCUMENT : porte-t-il des commentaires ? Sinon, l'echec est un vrai
+     * echec et l'on rend `null`, exactement comme avant cette TASK.
+     */
+    private function loadWithoutComments(string $absolutePath): ?PhpWord
+    {
+        if (! $this->neutralizer->hasComments($absolutePath)) {
+            return null;
+        }
+
+        $copy = $this->neutralizer->copyWithoutComments($absolutePath);
+
+        if ($copy === null) {
+            return null;
+        }
+
+        try {
+            return $this->load($copy);
+        } finally {
+            @unlink($copy);
+        }
+    }
+
+    /** Un chargement PHPWord, ou `null`. Aucune autre relance ailleurs. */
+    private function load(string $path): ?PhpWord
+    {
+        try {
+            return IOFactory::load($path, 'Word2007');
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
