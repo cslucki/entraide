@@ -320,11 +320,9 @@ final class DossierInsightsService
             throw new RuntimeException(__('dossiers.insights_not_authorized'));
         }
 
+        // La langue sert ici au seul message de non-reponse ; le coeur la
+        // recalcule pour le tour lui-meme.
         $locale = $this->readerLocale();
-
-        $capability = CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER;
-        $definition = $this->capabilities->get($capability);
-        $this->capabilities->assertScopeAllowed($capability, CapabilityRegistry::SCOPE_ORGANIZATION);
 
         // Le credential d'embedding est celui de l'ORGANIZATION, comme
         // l'ingestion et le retrieval. NULL = pas d'embedding tenant : refus
@@ -375,6 +373,42 @@ final class DossierInsightsService
                 credit: $this->economicGuard->userCreditStatus($organization, $requester),
             );
         }
+
+        return $this->answerOverSources($organization, $dossier, $requester, $question, $rows, $conversationMemory);
+    }
+
+    /**
+     * TASK-1520 — repondre a partir de sources DEJA choisies.
+     *
+     * Ce service est le moteur documentaire du produit ; le Dossier en est la
+     * premiere surface, pas la seule. Cette methode en expose le coeur —
+     * capability, garde economique, bloc de sources, revalidation des
+     * references, ledger, DTO — pour qu'une seconde surface s'y branche SANS
+     * qu'un second moteur apparaisse.
+     *
+     * Ce qu'elle ne fait PAS : choisir les sources. L'appelant les a deja
+     * choisies et deja autorisees. C'est lui, et lui seul, qui repond de leur
+     * perimetre.
+     *
+     * `$dossier` sert de rattachement de TRACE (`AiInteraction.metadata`), pas
+     * de perimetre : les sources sont donnees.
+     *
+     * @param  list<array<string, mixed>>  $rows  sources deja retrouvees et autorisees
+     *
+     * @throws RuntimeException reponse vide
+     */
+    public function answerOverSources(
+        Organization $organization,
+        Dossier $dossier,
+        User $requester,
+        string $question,
+        array $rows,
+        ?string $conversationMemory = null,
+    ): KnowledgeAnswer {
+        $locale = $this->readerLocale();
+        $capability = CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER;
+        $definition = $this->capabilities->get($capability);
+        $this->capabilities->assertScopeAllowed($capability, CapabilityRegistry::SCOPE_ORGANIZATION);
 
         $contexte = new ContexteIa(
             organizationId: (string) $organization->id,
