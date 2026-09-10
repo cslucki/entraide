@@ -13,6 +13,7 @@ use App\Ai\ResolvedModel;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
 use App\Models\Dossier;
+use App\Models\DossierFile;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\AiProviderInvocationLedger;
@@ -81,6 +82,18 @@ final class DossierInsightsService
      * la vue d'ensemble documentaire (TASK-1309).
      */
     private const DOCUMENT_LIMIT = 6;
+
+    /**
+     * TASK-1516 : combien d'extraits une REPONSE cite au plus. Meme borne que
+     * la recherche semantique de la page (`search()` la valide entre 1 et 5) :
+     * la reponse et les passages affiches dessous doivent reposer sur le meme
+     * nombre de sources, sinon l'ecran montrerait autre chose que ce qui a
+     * servi.
+     */
+    private const ANSWER_SOURCE_LIMIT = 5;
+
+    /** Au plus trois approfondissements — le CDC en demande trois. */
+    private const FOLLOW_UP_LIMIT = 3;
 
     public function __construct(
         private readonly DossierSemanticSearchService $search,
@@ -229,6 +242,364 @@ final class DossierInsightsService
             interactionId: $interaction->id,
             credit: $this->economicGuard->userCreditStatus($organization, $requester),
         );
+    }
+
+    /**
+     * TASK-1516 — LE DOSSIER REPOND : une question libre, une reponse sourcee,
+     * trois approfondissements. Methode SOEUR de `generate()`, jamais un second
+     * moteur RAG.
+     *
+     * Ce qu'elle partage avec `generate()`, ligne pour ligne : la revalidation
+     * de tenant et de policy, la capability `loop_knowledge_answer`, le meme
+     * `AdminAiPrompt`, le meme `LoopKnowledgeAgent`, le meme garde economique,
+     * le meme `buildSourcesBlock()`, la meme revalidation des references, le
+     * meme ledger, le meme DTO. `generate()` n'est pas touchee.
+     *
+     * Ce qui differe, et pourquoi :
+     *
+     * - **le retrieval**. `generate()` prend un extrait representatif par
+     *   document, sans recherche : elle repond a « qu'est-ce qui ressort de ce
+     *   Dossier ». Ici, la question de l'utilisateur pilote la recherche
+     *   vectorielle, bornee au SEUL Dossier courant.
+     * - **la langue**. `generate()` suit la langue de l'ORGANIZATION : un
+     *   Insight est relu par tout le cercle. Une reponse est lue par la
+     *   personne qui vient de poser la question, et par elle seule ; elle suit
+     *   donc la langue du LECTEUR. Repondre en anglais a une question posee en
+     *   francais parce que l'Organization est anglophone serait absurde — et
+     *   le CDC demande explicitement « FR sur documents EN ».
+     * - **la structure**. Pas de cinq rubriques : une reponse directe, puis au
+     *   plus trois questions d'approfondissement. Le contrat est dicte DANS le
+     *   tour, comme `presetQuestion()`, sans jamais toucher au prompt partage.
+     *
+     * `$fileHint` est le texte brut d'un nom de fichier tel que l'utilisateur
+     * l'a ecrit. Il est resolu SERVEUR sur le Dossier deja autorise ; aucun
+     * identifiant produit par un modele n'entre ici.
+     *
+     * @throws RuntimeException aucune source exploitable, ou reponse vide
+     */
+    public function answer(
+        Organization $organization,
+        Dossier $dossier,
+        User $requester,
+        string $question,
+        ?string $fileHint = null,
+    ): KnowledgeAnswer {
+        $question = trim($question);
+
+        if ($question === '') {
+            throw new RuntimeException(__('dossiers.answer_question_required'));
+        }
+
+        if ((string) $dossier->organization_id !== (string) $organization->id) {
+            throw new RuntimeException(__('dossiers.insights_cross_organization'));
+        }
+
+        // Revalidation serveur, a chaque tour — jamais une confiance sur « la
+        // page est deja ouverte ».
+        if (Gate::forUser($requester)->denies('view', $dossier)) {
+            throw new RuntimeException(__('dossiers.insights_not_authorized'));
+        }
+
+        $locale = $this->readerLocale();
+
+        $capability = CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER;
+        $definition = $this->capabilities->get($capability);
+        $this->capabilities->assertScopeAllowed($capability, CapabilityRegistry::SCOPE_ORGANIZATION);
+
+        // Le credential d'embedding est celui de l'ORGANIZATION, comme
+        // l'ingestion et le retrieval. NULL = pas d'embedding tenant : refus
+        // explicite, JAMAIS un repli sur la cle plateforme.
+        $embeddingInstance = $this->providers->resolveEmbeddingInstance((string) $organization->id);
+
+        if ($embeddingInstance === null) {
+            throw new RuntimeException(__('dossiers.answer_embedding_unavailable'));
+        }
+
+        // Le CDC §7 decrit une phrase naturelle — « Cherche dans
+        // 260908-20h12-ARIA template Part B_EU.docx » — et non un champ a part.
+        // A defaut d'indication explicite, on cherche donc un nom de fichier
+        // DANS la question. Dans les deux cas la resolution est serveur, bornee
+        // au Dossier courant, et deterministe.
+        $scopedFile = $fileHint !== null
+            ? $this->resolveFileScope($organization, $dossier, $fileHint)
+            : $this->detectFileScope($organization, $dossier, $question);
+
+        $rows = $this->search->searchAcrossDossiers(
+            (string) $organization->id,
+            [(string) $dossier->id],
+            $question,
+            $embeddingInstance,
+            self::ANSWER_SOURCE_LIMIT,
+            ['dossier_answer' => true],
+            null,
+            $scopedFile,
+        );
+
+        if ($rows === []) {
+            // « Je n'ai pas trouve » est une REPONSE, pas une panne (CDC §10).
+            // La rendre par une exception l'afficherait en rouge, comme un
+            // incident technique, alors que c'est le comportement honnete et
+            // attendu. Aucun appel provider : il n'y a rien a fonder.
+            return new KnowledgeAnswer(
+                answer: __($scopedFile !== null ? 'dossiers.answer_no_source_in_file' : 'dossiers.answer_no_source', [], $locale),
+                sources: [],
+                consulted: [],
+                grounded: false,
+                interactionId: null,
+                credit: $this->economicGuard->userCreditStatus($organization, $requester),
+            );
+        }
+
+        $contexte = new ContexteIa(
+            organizationId: (string) $organization->id,
+            userId: (string) $requester->id,
+            loopId: null,
+            locale: $locale,
+            capability: $capability,
+            correlationId: AiCorrelation::id(),
+            source: CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL,
+            query: $question,
+        );
+
+        try {
+            $resolved = $this->providers->resolve($capability, $contexte);
+        } catch (DomainException $exception) {
+            throw AiRefusedException::notConfigured($exception);
+        }
+
+        $verdict = $this->economicGuard->authorize(
+            $organization,
+            $definition->process,
+            $resolved->provider,
+            $resolved->model,
+            (float) config('ai.knowledge.economic_guard.monthly_budget_usd', 2.00),
+            (int) config('ai.knowledge.economic_guard.monthly_unknown_limit', 10),
+            $requester,
+        );
+
+        if (! $verdict->allowed) {
+            throw AiRefusedException::fromVerdict($verdict);
+        }
+
+        $instructions = $this->prompts->compose($capability, $this->capabilityInstructions($definition->promptKey), (string) $organization->id);
+        $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
+
+        [$sourcesBlock, $consulted] = $this->buildSourcesBlock($organization, $rows);
+
+        $agent = new LoopKnowledgeAgent(
+            $instructions,
+            (int) config('ai.knowledge.max_tokens', 700),
+            (float) config('ai.knowledge.temperature', 0.2),
+        );
+
+        $prompt = $sourcesBlock."\n\n".$this->answerInstruction($locale, $question);
+
+        $startedAt = microtime(true);
+
+        try {
+            $response = $agent->prompt($prompt, provider: $resolved->instance, model: $resolved->model);
+        } catch (\Throwable $exception) {
+            $this->recordInteraction($dossier, $requester, $contexte, $definition, $resolved, $prompt, null,
+                AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null, 'failed', $startedAt, null,
+                $exception::class, $consulted, [], $doctrineVersion);
+
+            throw new RuntimeException(__('dossiers.insights_ai_error'), 0, $exception);
+        }
+
+        $rawAnswer = AiMarkdownSanitizer::sanitize(
+            (string) $response->text,
+            (int) config('ai.knowledge.max_answer_chars', 3000),
+        );
+
+        [$body, $followUps] = $this->splitAnswer($rawAnswer, $locale);
+
+        // Revalidation serveur : toute reference [Sn] que le retrieval n'a pas
+        // offerte disparait du texte. Un lecteur ne doit jamais voir une
+        // citation qu'il ne peut pas ouvrir.
+        $validRefs = array_column($consulted, 'ref');
+        $answer = trim($this->stripInventedRefs($body, $validRefs));
+
+        if ($answer === '') {
+            throw new RuntimeException(__('dossiers.insights_empty_response'));
+        }
+
+        $usage = AiUsage::fromSdkTextTokens($response->usage->promptTokens, $response->usage->completionTokens);
+        $cost = $this->economicGuard->finalize($resolved->provider, $resolved->model, $usage);
+
+        $cited = $this->citedSources($answer, $consulted);
+
+        $interaction = $this->recordInteraction($dossier, $requester, $contexte, $definition, $resolved, $prompt,
+            $answer, $usage, $cost->traceAttributes(), $cost, 'success', $startedAt, $response->invocationId, null,
+            $consulted, $cited, $doctrineVersion);
+
+        return new KnowledgeAnswer(
+            answer: $answer,
+            // Ce qui est CITE, jamais ce qui a ete consulte : la nuance a deja
+            // ete payee une fois par ce depot (TASK-1391).
+            sources: $cited,
+            consulted: $consulted,
+            grounded: $cited !== [],
+            interactionId: $interaction->id,
+            credit: $this->economicGuard->userCreditStatus($organization, $requester),
+            followUps: $followUps,
+        );
+    }
+
+    /**
+     * TASK-1516 — « Cherche dans 260908-20h12-ARIA template Part B_EU.docx ».
+     *
+     * Resolution SERVEUR, bornee au Dossier deja autorise, sur `display_name`
+     * puis `original_name`. Renvoie l'identifiant du fichier si UNE seule
+     * correspondance existe ; `null` si aucune — auquel cas l'appelant reste
+     * sur le Dossier courant et le dit, plutot que de feindre d'avoir trouve.
+     *
+     * Plusieurs correspondances : on ne devine pas. La plus specifique gagne
+     * seulement si elle est strictement unique ; sinon on rend `null` et la
+     * recherche porte sur tout le Dossier, ou les noms distingueront les
+     * sources entre elles.
+     */
+    private function resolveFileScope(Organization $organization, Dossier $dossier, string $hint): ?string
+    {
+        $needle = mb_strtolower(trim($hint));
+
+        if ($needle === '') {
+            return null;
+        }
+
+        $matches = DossierFile::query()
+            ->where('organization_id', $organization->getKey())
+            ->where('dossier_id', $dossier->getKey())
+            ->whereNull('deleted_at')
+            ->get(['id', 'display_name', 'original_name'])
+            ->filter(function (DossierFile $file) use ($needle): bool {
+                foreach ([$file->display_name, $file->original_name] as $name) {
+                    $name = mb_strtolower(trim((string) $name));
+
+                    if ($name !== '' && ($name === $needle || str_contains($name, $needle) || str_contains($needle, $name))) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })
+            ->values();
+
+        return $matches->count() === 1 ? (string) $matches->first()->id : null;
+    }
+
+    /**
+     * TASK-1516 — un nom de fichier repere DANS une question libre.
+     *
+     * Deliberement plus severe que `resolveFileScope()`, et pour une raison
+     * precise : ici, personne n'a demande de restreindre quoi que ce soit. Une
+     * correspondance trop genereuse retrecirait le corpus EN SILENCE — un
+     * Dossier contenant un fichier nomme « ARIA » ferait de « C'est quoi
+     * ARIA ? » une question portant sur ce seul fichier, sans que rien ne le
+     * dise. Le retrecissement muet est pire que l'absence de fonction.
+     *
+     * Deux conditions, donc : le nom doit RESSEMBLER a un nom de fichier (une
+     * extension), et il doit apparaitre EN ENTIER dans la question.
+     */
+    private function detectFileScope(Organization $organization, Dossier $dossier, string $question): ?string
+    {
+        $haystack = mb_strtolower($question);
+
+        $matches = DossierFile::query()
+            ->where('organization_id', $organization->getKey())
+            ->where('dossier_id', $dossier->getKey())
+            ->whereNull('deleted_at')
+            ->get(['id', 'display_name', 'original_name'])
+            ->filter(function (DossierFile $file) use ($haystack): bool {
+                foreach ([$file->display_name, $file->original_name] as $name) {
+                    $name = mb_strtolower(trim((string) $name));
+
+                    if ($name !== '' && str_contains($name, '.') && mb_strlen($name) >= 5 && str_contains($haystack, $name)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })
+            ->values();
+
+        return $matches->count() === 1 ? (string) $matches->first()->id : null;
+    }
+
+    /**
+     * TASK-1516 — le corps de la reponse d'un cote, les approfondissements de
+     * l'autre.
+     *
+     * Le titre de rubrique n'est pas ecrit ici : il vient de `heading()`,
+     * exactement comme pour Smart Dossier. Le prompt le dicte, le parseur le
+     * relit, l'ecran ne le rend jamais — une seule autorite, traduisible, et
+     * aucune branche de code ne connait une langue.
+     *
+     * @return array{0: string, 1: list<string>}
+     */
+    private function splitAnswer(string $markdown, string $locale): array
+    {
+        $heading = preg_quote($this->heading('questions', $locale), '/');
+
+        if (! preg_match('/^##\s*'.$heading.'\s*$/mu', $markdown, $match, PREG_OFFSET_CAPTURE)) {
+            return [trim($markdown), []];
+        }
+
+        $offset = $match[0][1];
+        $body = trim(substr($markdown, 0, $offset));
+        $tail = substr($markdown, $offset + strlen($match[0][0]));
+
+        $followUps = [];
+
+        foreach (preg_split('/\r?\n/', $tail) ?: [] as $line) {
+            $line = trim($line);
+
+            if ($line === '' || ! str_starts_with($line, '-')) {
+                continue;
+            }
+
+            // Texte inerte : les references y sont retirees sans exception,
+            // une question suggeree ne cite rien et n'autorise rien.
+            $question = trim(preg_replace('/\[S\d+\]/', '', ltrim($line, "- \t")) ?? '');
+
+            if ($question === '') {
+                continue;
+            }
+
+            $followUps[] = $question;
+
+            if (count($followUps) >= self::FOLLOW_UP_LIMIT) {
+                break;
+            }
+        }
+
+        return [$body, $followUps];
+    }
+
+    /**
+     * Le contrat de structure d'une REPONSE, dicte dans le tour — jamais dans
+     * l'`AdminAiPrompt` `loop_knowledge_answer`, partage avec le Q&A de Boucle
+     * et avec Smart Dossier. Meme precedent que `presetQuestion()`.
+     */
+    private function answerInstruction(string $locale, string $question): string
+    {
+        return (string) trans('dossiers.answer_preset_instruction', [
+            'question' => $question,
+            'questions_heading' => $this->heading('questions', $locale),
+        ], $locale);
+    }
+
+    /**
+     * La langue de qui LIT la reponse.
+     *
+     * Volontairement different de `localeDeReference()`, qui sert Smart
+     * Dossier : un Insight est un contenu d'Organization relu par tout le
+     * cercle, une reponse est un echange avec une personne.
+     */
+    private function readerLocale(): string
+    {
+        $locale = trim((string) app()->getLocale());
+
+        return $locale !== '' ? $locale : (string) config('app.fallback_locale', 'fr');
     }
 
     /**

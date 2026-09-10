@@ -72,6 +72,7 @@ use App\Http\Controllers\BugReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DossierArticleController;
 use App\Http\Controllers\DossierController;
+use App\Http\Controllers\DossierAnswerController;
 use App\Http\Controllers\DossierFileController;
 use App\Http\Controllers\DossierInsightsController;
 use App\Http\Controllers\DossierMemberController;
@@ -1019,6 +1020,11 @@ Route::prefix('/org/{organization}')
                 Route::get('/dossiers/{dossier}', [DossierController::class, 'show'])->name('dossiers.show');
                 Route::get('/dossiers/{dossier}/semantic-search', DossierSemanticSearchController::class)->name('dossiers.semantic-search');
                 Route::post('/dossiers/{dossier}/insights', DossierInsightsController::class)->middleware('throttle:5,1')->name('dossiers.insights');
+                // TASK-1516 — « Interroger ce Dossier » : question libre,
+                // reponse sourcee. POST parce qu'une question est une donnee
+                // d'entree et un appel provider facture, jamais une URL a
+                // partager ou a rejouer par un cache.
+                Route::post('/dossiers/{dossier}/answer', DossierAnswerController::class)->middleware('throttle:10,1')->name('dossiers.answer');
                 Route::post('/dossiers/{dossier}/articles', [DossierArticleController::class, 'store'])->name('dossiers.articles.store');
                 Route::post('/dossiers/{dossier}/articles/create-and-attach', [DossierArticleController::class, 'createAndAttach'])->name('dossiers.articles.create-and-attach');
                 Route::patch('/dossiers/{dossier}/articles/{post}/move', [DossierArticleController::class, 'move'])->name('dossiers.articles.move');

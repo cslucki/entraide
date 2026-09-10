@@ -577,6 +577,64 @@
                          d'origine inchange. --}}
                     <div x-show="vue === 'documents'">
                     @if($canUseSemanticArticleSearch)
+                    {{-- TASK-1516 — « Interroger ce Dossier ». La REPONSE est le
+                         premier resultat visible ; les passages bruts vivent
+                         sous elle, replies (CDC §9). Le bloc « Recherche par
+                         passages » qui suit reste la surface de transparence et
+                         de debug, il n'est plus le produit principal.
+
+                         La racine porte la delegation de clic : Alpine
+                         n'initialise pas le contenu injecte par x-html, une
+                         directive posee dans le fragment serait inerte et
+                         SILENCIEUSE (mesure de TASK-1509). --}}
+                    <section class="mt-6 rounded-3xl border border-indigo-100 bg-white p-5 shadow-sm dark:border-indigo-900/50 dark:bg-gray-800 sm:p-6"
+                             x-data="dossierAnswer(@js([
+                                 'endpoint' => route('organization.dossiers.answer', ['organization' => $organizationRouteParam, 'dossier' => $dossier->getKey()]),
+                                 'i18n' => [
+                                     'questionRequired' => __('dossiers.answer_question_required'),
+                                     'unavailable' => __('dossiers.answer_embedding_unavailable'),
+                                 ],
+                             ]))"
+                             @click="handleClick($event)"
+                             :aria-busy="loading ? 'true' : 'false'"
+                             data-dossier-answer>
+                        <div class="flex flex-col gap-2">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">{{ __('dossiers.answer_label') }}</p>
+                            <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('dossiers.answer_title') }}</h2>
+                            <p class="text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.answer_help') }}</p>
+                        </div>
+
+                        <form class="mt-5 flex flex-col gap-3 sm:flex-row" @submit.prevent="ask">
+                            <label class="sr-only" for="dossier-answer-question">{{ __('dossiers.answer_title') }}</label>
+                            <input id="dossier-answer-question"
+                                   type="text"
+                                   x-model="question"
+                                   minlength="2"
+                                   maxlength="500"
+                                   autocomplete="off"
+                                   placeholder="{{ __('dossiers.answer_placeholder') }}"
+                                   class="block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500 sm:flex-1"
+                                   data-dossier-answer-input>
+                            <button type="submit"
+                                    class="inline-flex min-h-[40px] items-center justify-center rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-gray-800"
+                                    :disabled="loading"
+                                    data-dossier-answer-submit>
+                                <span x-show="!loading">{{ __('dossiers.answer_button') }}</span>
+                                <span x-show="loading" x-cloak>{{ __('dossiers.answer_loading') }}</span>
+                            </button>
+                        </form>
+
+                        <div class="mt-4" aria-live="polite">
+                            <div x-show="error" x-cloak class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200" data-dossier-answer-error :data-ai-refusal-code="errorCode || null">
+                                <span x-text="error"></span>
+                                <a x-show="errorCode === 'user_credit_exhausted' && offersUrl" x-cloak :href="offersUrl" class="ml-2 font-semibold underline underline-offset-2 hover:no-underline" data-ai-credit-offers-link>{{ __('ai.credit_see_offers') }}</a>
+                            </div>
+                            <p x-show="loading" x-cloak class="text-sm text-gray-600 dark:text-gray-300">{{ __('dossiers.answer_loading') }}</p>
+                        </div>
+
+                        <div class="mt-4" x-show="asked && !loading" x-cloak x-html="resultHtml" data-dossier-answer-container></div>
+                    </section>
+
                     <section class="mt-6 rounded-3xl border border-indigo-100 bg-white p-5 shadow-sm dark:border-indigo-900/50 dark:bg-gray-800 sm:p-6"
                              x-data="dossierSemanticArticleSearch(@js([
                                  'endpoint' => route('organization.dossiers.semantic-search', ['organization' => $organizationRouteParam, 'dossier' => $dossier->getKey()]),

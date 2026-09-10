@@ -577,4 +577,46 @@ Your Markdown content here...',
     'drive_article_badge' => 'Article',
     'drive_empty_title' => 'Nothing here yet',
     'drive_empty_desc' => 'Create a folder, upload a file or write an Article: everything lands here.',
+
+    // ── TASK-1516 — The Dossier answers ─────────────────────────────────────
+    'answer_label' => "Ask this Dossier",
+    'answer_title' => "Ask a question about this Dossier",
+    'answer_help' => "The answer draws only on the documents in this Dossier that you may access.",
+    'answer_placeholder' => "Your question…",
+    'answer_button' => "Ask",
+    'answer_loading' => "Searching the documents…",
+    'answer_sources_heading' => "Sources used",
+    'answer_passages_show' => "Show the passages used",
+    'answer_passages_hide' => "Hide the passages",
+    'answer_follow_ups_heading' => "Go further",
+    'answer_open_document' => "Open",
+    'answer_not_grounded' => "This answer cites no source: treat it with caution.",
+    'answer_question_required' => "Ask a question before running the search.",
+    'answer_embedding_unavailable' => "Document search is not available for this organization.",
+    'answer_no_source' => "I did not find enough in this Dossier to answer reliably. You can rephrase your question, browse the documents, or name a specific document.",
+    'answer_no_source_in_file' => "I found nothing on this topic in the requested document. You can rephrase, or ask about the whole Dossier.",
+    'answer_preset_instruction' => <<<'TEXT'
+Member question:
+:question
+
+Answer this question using ONLY the document sources above.
+
+Rules:
+
+1. Start with the fact being asked for, never with a restatement of the
+   question. If asked what an acronym means, the first sentence gives
+   what it stands for.
+2. Add at most four sentences of context. Be brief.
+3. Cite your sources by their number, for example "... [S2]". NEVER
+   invent a reference that is not in the list above.
+4. If the sources are not enough to answer reliably, say so plainly in
+   one sentence and invent nothing. Use no knowledge outside these
+   sources.
+5. End with this section, and this section only:
+
+## :questions_heading
+A bullet list of at most THREE short questions a reader could ask next
+to go deeper, answerable from this Dossier. Plain text, no citations.
+
+TEXT,
 ];
