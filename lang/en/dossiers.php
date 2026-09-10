@@ -617,10 +617,22 @@ Rules:
    report only what the sources say about it. A well-known acronym is
    no exception: this Dossier is the authority, not your general
    knowledge.
-5. If the sources are not enough to answer reliably, say so plainly in
+5. A quantity answers the question only in the unit the question asks
+   for. If a sum of money is asked and no source gives a value carrying
+   a currency, say that the sources do not establish that amount: never
+   present a total of another nature (hours, person-months, headcount,
+   percentages) as a budget, and never add a currency or a unit that
+   the source does not carry for that value. A table total is a budget
+   only if its header or caption says so: a total whose column is
+   named "PMs", "hours", "headcount" or "%" is NOT the budget, even if
+   it is the only total available. A question may presuppose that a
+   value exists ("what is the total budget?"): never confirm that
+   presupposition with a value of another nature — answer that the
+   sources do not establish it.
+6. If the sources are not enough to answer reliably, say so plainly in
    one sentence and invent nothing. Use no knowledge outside these
    sources.
-6. End with this section, and this section only:
+7. End with this section, and this section only:
 
 ## :questions_heading
 A bullet list of at most THREE short questions a reader could ask next
