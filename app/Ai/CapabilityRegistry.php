@@ -11,6 +11,9 @@ final class CapabilityRegistry
 
     public const CLARIFY_HELP_REQUEST = 'clarify_help_request';
 
+    /** TASK-1526 : reponse generale du Shell membre, distincte de la clarification d'entraide. */
+    public const SHELL_GENERAL_ANSWER = 'shell_general_answer';
+
     public const SCOPE_ORGANIZATION = 'organization';
 
     public const SCOPE_LOOP = 'loop';
@@ -204,6 +207,24 @@ final class CapabilityRegistry
             contextCharBudget: self::clarifyContextBudget(),
         );
 
+        // TASK-1526 : le Shell ne demande plus au clarificateur de demandes
+        // d'aide de repondre aux questions generales. La capability reste
+        // strictement Organization-scoped et ne gagne aucune source
+        // documentaire. Elle reutilise le process economique historique du
+        // Shell : meme appel texte, meme budget, mais capability distincte et
+        // donc routage/trace observables sans nouveau cutover.
+        $shellGeneralAnswer = new CapabilityDefinition(
+            id: self::SHELL_GENERAL_ANSWER,
+            process: AiProcess::fromScenarioId('clarify_help_request'),
+            requiresHumanConfirmation: false,
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION],
+            allowedSources: [self::SOURCE_PRODUCT_SURFACES],
+            maxOutput: 2000,
+            promptKey: 'shell_general_answer',
+            contextCharBudget: self::clarifyContextBudget(),
+        );
+
         $loopKnowledgeAnswer = new CapabilityDefinition(
             id: self::LOOP_KNOWLEDGE_ANSWER,
             process: AiProcess::fromScenarioId('loop_knowledge_answer'),
@@ -385,6 +406,7 @@ final class CapabilityRegistry
         $this->definitions = [
             $loopSummary->id => $loopSummary,
             $clarifyHelpRequest->id => $clarifyHelpRequest,
+            $shellGeneralAnswer->id => $shellGeneralAnswer,
             $loopKnowledgeAnswer->id => $loopKnowledgeAnswer,
             $loopHybridAnswer->id => $loopHybridAnswer,
             $loopAnswer->id => $loopAnswer,

@@ -377,8 +377,9 @@ class TASK1284BlogDoctrineCanonicalTest extends TestCase
         // TASK-1309 : + `loop_hybrid_answer` (mode IA + Dossiers) = 10.
         // TASK-1327 : + `loop_decision_suggestion` (Decision Memory) = 11.
         // TASK-1435 : + `guest_shell_welcome` (accueil du visiteur, SW-5) = 12.
-        $this->assertSame(12, $coverage->coveredCount());
-        $this->assertSame(16, $coverage->totalCount());
+        // TASK-1526 : + `shell_general_answer` (Shell membre) = 13.
+        $this->assertSame(13, $coverage->coveredCount());
+        $this->assertSame(17, $coverage->totalCount());
     }
 
     public function test_the_constitution_is_actually_the_head_of_the_composed_prompt(): void

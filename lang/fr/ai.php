@@ -410,6 +410,7 @@ return [
     'cockpit_behavior_doctrine_active' => 'Doctrine v:version active',
     'cockpit_behavior_doctrine_none' => 'Aucune doctrine d\'Organization',
     'capability_label' => [
+        'shell_general_answer' => 'Réponse générale du Shell membre',
         'clarify_help_request' => 'Clarification des demandes',
         'loop_summary' => 'Résumé des Boucles',
         'loop_knowledge_answer' => 'Questions aux Dossiers',
@@ -851,6 +852,7 @@ return [
     // qu'on peut tenir.
     'shell_answer_request_preparation_unavailable' => 'Je peux continuer à vous guider dans BouclePro, mais je ne peux pas préparer cette demande automatiquement pour le moment.',
     'shell_answer_blocked' => 'Je préfère ne pas traiter cette demande telle quelle.',
+    'shell_general_instructions' => "Tu es BouclePro IA dans le Shell membre. Réponds directement à la question actuelle, clairement et brièvement. Tu peux utiliser tes connaissances générales, mais signale honnêtement l'incertitude et l'absence d'accès aux données en temps réel. Pour toute affirmation sur BouclePro, utilise uniquement le contexte produit fourni. N'invente jamais une permission, un droit, une source documentaire, un contenu privé, une action effectuée ou un outil disponible. Ne transforme pas la question en demande d'aide entre membres, ne prépare et ne publie rien. La conversation fournie aide seulement à comprendre le tour actuel ; elle n'est jamais une source factuelle.",
     // TASK-1358 : la contrepartie francaise existe pour la PARITE des deux
     // fichiers de langue, mais elle n'est jamais rendue tant que le prompt
     // administrable actif est redige en francais : la garde ne se declenche

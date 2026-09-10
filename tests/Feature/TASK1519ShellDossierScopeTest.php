@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Ai\Agents\HelpRequestClarifierAgent;
 use App\Ai\Agents\LoopKnowledgeAgent;
+use App\Ai\Agents\ShellGeneralAnswerAgent;
 use App\Ai\CapabilityRegistry;
 use App\Models\AiInteraction;
 use App\Models\AiShellMessage;
@@ -84,6 +85,7 @@ class TASK1519ShellDossierScopeTest extends TestCase
         ]);
 
         config([
+            'ai.clarify.enabled' => true,
             'ai.default_for_embeddings' => 'openrouter',
             'ai.providers.openrouter.driver' => 'openrouter',
             'ai.providers.openrouter.key' => 'platform-key',
@@ -144,6 +146,17 @@ class TASK1519ShellDossierScopeTest extends TestCase
             new Usage(120, 80),
             new Meta('openrouter', 'openai/gpt-4o-mini'),
         ));
+    }
+
+    private function fakeGeneral(): void
+    {
+        ShellGeneralAnswerAgent::fake([
+            new TextResponse(
+                'Je ne dispose d aucune source documentaire pour cette question.',
+                new Usage(20, 10),
+                new Meta('openrouter', 'openai/gpt-4o-mini'),
+            ),
+        ]);
     }
 
     /**
@@ -257,7 +270,7 @@ class TASK1519ShellDossierScopeTest extends TestCase
     public function test_a_dossier_the_actor_cannot_view_leaks_nothing_and_falls_back(): void
     {
         $this->mockSearch()->shouldNotReceive('searchAcrossDossiers');
-        $this->fakeClarifier();
+        $this->fakeGeneral();
 
         $this->send("C'est quoi ARIA ?", AiShellPageContext::KIND_DOSSIER, $this->dossier->id, $this->outsider);
 
@@ -278,7 +291,7 @@ class TASK1519ShellDossierScopeTest extends TestCase
         ]);
 
         $this->mockSearch()->shouldNotReceive('searchAcrossDossiers');
-        $this->fakeClarifier();
+        $this->fakeGeneral();
 
         $this->send('Que contient ce Dossier ?', AiShellPageContext::KIND_DOSSIER, $etranger->id);
 
@@ -297,7 +310,7 @@ class TASK1519ShellDossierScopeTest extends TestCase
     public function test_a_hand_built_page_context_never_becomes_an_access_right(): void
     {
         $this->mockSearch()->shouldNotReceive('searchAcrossDossiers');
-        $this->fakeClarifier();
+        $this->fakeGeneral();
 
         // Exactement la forme que produit le resolveur, mais SANS son refus :
         // un identifiant que l'acteur n'a pas le droit de lire.

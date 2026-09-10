@@ -215,6 +215,9 @@ class TASK1253CanonicalAttributionTest extends TestCase
             [
                 CapabilityRegistry::LOOP_SUMMARY,
                 CapabilityRegistry::CLARIFY_HELP_REQUEST,
+                // TASK-1526 : le Shell membre repond aux questions generales
+                // via sa capability read-only, distincte de la clarification.
+                CapabilityRegistry::SHELL_GENERAL_ANSWER,
                 CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER,
                 // TASK-1309 : le mode « IA + Dossiers » est une capability
                 // CANONIQUE de plus — declaree juste apres sa soeur
@@ -239,7 +242,7 @@ class TASK1253CanonicalAttributionTest extends TestCase
                 CapabilityRegistry::GUEST_SHELL_WELCOME,
             ],
             array_map(static fn ($definition): string => $definition->id, $registry->all()),
-            'Les douze capabilities canoniques (TASK-1285 : + les deux reponses de l\'agent de profil ; TASK-1309 : + IA + Dossiers ; TASK-1327 : + la suggestion de Decision ; TASK-1435 : + l\'accueil du visiteur) — aucune pour la suggestion sur selection, la configuration conversationnelle du profil, l\'Explorer, l\'offre, les bancs.',
+            'Les treize capabilities canoniques (TASK-1526 : + la reponse generale du Shell membre) — aucune pour la suggestion sur selection, la configuration conversationnelle du profil, l\'Explorer, l\'offre, les bancs.',
         );
     }
 
@@ -251,7 +254,7 @@ class TASK1253CanonicalAttributionTest extends TestCase
         $this->assertSame(BlogExplorerController::class, NervousSystemCoverage::INHERITED['blog_explorer']);
         $this->assertNotSame('ai.inherited_label.blog_explorer', __('ai.inherited_label.blog_explorer', [], 'fr'));
         $this->assertNotSame('ai.inherited_label.blog_explorer', __('ai.inherited_label.blog_explorer', [], 'en'));
-        $this->assertSame(12 + 4, $coverage->totalCount(), 'Douze canoniques (TASK-1285 : + les deux reponses de l\'agent de profil ; TASK-1309 : + IA + Dossiers ; TASK-1327 : + la suggestion de Decision ; TASK-1435 : + l\'accueil du visiteur) + quatre heritees (configuration conversationnelle du profil, suggestion sur selection Blog, Explorer, offre de service).');
+        $this->assertSame(13 + 4, $coverage->totalCount(), 'Treize canoniques (TASK-1526 : + la reponse generale du Shell membre) + quatre heritees (configuration conversationnelle du profil, suggestion sur selection Blog, Explorer, offre de service).');
     }
 
     // =====================================================================
