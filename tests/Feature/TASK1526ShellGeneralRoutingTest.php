@@ -101,11 +101,9 @@ class TASK1526ShellGeneralRoutingTest extends TestCase
 
         $questions = [
             "Qui peut m'aider à trouver un relecteur ?",
-            "Quelqu'un peut m'aider à relire ce dossier ?",
-            "Peux-tu m'aider à structurer ma demande ?",
+            "Quelqu'un peut m'aider à trouver un expert ARIA ?",
             'Pouvez-vous me mettre en relation avec un expert ?',
-            'Can someone help me review this file?',
-            'Can you help me find a reviewer?',
+            'Can someone help me find a partner?',
         ];
 
         foreach ($questions as $question) {
@@ -120,8 +118,36 @@ class TASK1526ShellGeneralRoutingTest extends TestCase
             AiInteraction::query()->orderBy('created_at')->orderBy('id')->pluck('feature')->all(),
         );
         ShellGeneralAnswerAgent::assertNeverPrompted();
-        HelpRequestClarifierAgent::assertPrompted(fn (AgentPrompt $prompt): bool => str_contains($prompt->prompt, 'Can someone help me review this file?')
+        HelpRequestClarifierAgent::assertPrompted(fn (AgentPrompt $prompt): bool => str_contains($prompt->prompt, 'Can someone help me find a partner?')
         );
+    }
+
+    public function test_help_addressed_to_the_ai_stays_on_the_general_capability(): void
+    {
+        $this->fakeGeneral(
+            'ARIA est un projet structure.',
+            'Voici une reformulation.',
+            'Voici une comparaison des approches.',
+        );
+        HelpRequestClarifierAgent::fake([]);
+
+        $questions = [
+            "Peux-tu m'aider à comprendre ARIA ?",
+            "Peux-tu m'aider à reformuler ce texte ?",
+            'Can you help me compare these approaches?',
+        ];
+
+        foreach ($questions as $question) {
+            $this->send($question);
+        }
+
+        $this->assertSame(
+            array_fill(0, count($questions), CapabilityRegistry::SHELL_GENERAL_ANSWER),
+            AiInteraction::query()->orderBy('created_at')->orderBy('id')->pluck('feature')->all(),
+        );
+        ShellGeneralAnswerAgent::assertPrompted(fn (AgentPrompt $prompt): bool => str_contains($prompt->prompt, 'Can you help me compare these approaches?')
+        );
+        HelpRequestClarifierAgent::assertNeverPrompted();
     }
 
     public function test_a_non_question_keeps_the_historical_clarification_path(): void

@@ -1163,7 +1163,6 @@ final class AiShellResponder
             '/\b('
             .'qui peut m aider|qui pourrait m aider|who can help|which member|quel membre|quelle personne|'
             .'quelqu un peut m aider|quelqu un pourrait m aider|can someone help|could someone help|'
-            .'(?:peux tu|pouvez vous|pourrais tu|pourriez vous) m aider|(?:can|could|would) you help (?:me|us)|'
             .'je cherche (?:quelqu un|un |une |de l aide)|nous cherchons (?:quelqu un|un |une )|'
             .'j ai besoin (?:d aide|d un |d une )|nous avons besoin (?:d aide|d un |d une )|'
             .'i (?:am|m) looking for (?:someone|a |an )|we (?:are|re) looking for (?:someone|a |an )|'
