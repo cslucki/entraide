@@ -122,10 +122,46 @@
             </div>
         </div>
     @else
-        <p class="mb-6 flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300" data-knowledge-infra="available">
-            <span class="inline-block h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true"></span>
-            {{ __('ai.observatory_infra_ok') }}
-        </p>
+        @php
+            // TASK-1512 — ce bandeau ne parlait QUE de la configuration
+            // (activation, credential, budget). Il s'affichait donc en vert,
+            // « l'indexation IA est disponible », sur une Organization ou ZERO
+            // document etait indexe. C'est ce qui a coute une heure a Cyril : la
+            // phrase etait vraie, et pourtant elle induisait en erreur.
+            //
+            // Il enonce desormais AUSSI ce qui est indexe. Deux faits comptes
+            // par le meme read model, aucune deduction : `indexed_sources` et le
+            // nombre de sources eligibles.
+            //
+            // Ce qu'il ne dira JAMAIS, c'est « en attente » : la table `jobs` ne
+            // porte ni `organization_id` ni identifiant de source, et un job
+            // consomme ne laisse aucune ligne. Deduire l'attente de « eligible
+            // et 0 chunk » remplacerait un vert trompeur par un orange
+            // trompeur. Quand rien n'est indexe, on le dit — sans en inventer
+            // la cause.
+            $eligibleSources = (int) $summary['articles'] + (int) $summary['files'];
+            $indexedSources = (int) $summary['indexed_sources'];
+            $infraState = match (true) {
+                $eligibleSources === 0 => 'no_source',
+                $indexedSources === 0 => 'nothing_indexed',
+                default => 'indexed',
+            };
+        @endphp
+        @if($infraState === 'indexed')
+            <p class="mb-6 flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300" data-knowledge-infra="available">
+                <span class="inline-block h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true"></span>
+                {{ __('ai.observatory_infra_ok_indexed', ['indexed' => number_format($indexedSources), 'total' => number_format($eligibleSources)]) }}
+            </p>
+        @else
+            {{-- Ton NEUTRE, jamais l'alarme : rien n'est en panne, et la
+                 configuration est bien complete. C'est un constat. --}}
+            <p class="mb-6 flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300" data-knowledge-infra="{{ $infraState }}">
+                <span class="mt-1.5 inline-block h-2 w-2 flex-shrink-0 rounded-full bg-gray-400" aria-hidden="true"></span>
+                <span>{{ $infraState === 'no_source'
+                    ? __('ai.observatory_infra_ok_no_source')
+                    : __('ai.observatory_infra_ok_nothing_indexed', ['total' => number_format($eligibleSources)]) }}</span>
+            </p>
+        @endif
     @endif
 
     {{-- Perimetres — uniquement les espaces reellement determinables. --}}
