@@ -145,7 +145,14 @@
          qu'on veut offrir. --}}
     <x-app-side-nav />
 @endif
-    <header class="bpsf-bar">
+    {{-- TASK-1509 — `x-data` n'est pas decoratif ici : Alpine n'initialise que
+         les arbres qui partent d'une racine `x-data`, et cette page n'en avait
+         AUCUNE. Le `@click="$store.darkMode.toggle()"` de la bascule n'etait
+         donc jamais cable — sans la moindre erreur console, ce qui l'a rendu
+         invisible. En mode « avec rail », le rail (`<aside x-data>`) portait sa
+         propre bascule et masquait le probleme ; en mode SANS rail, celle-ci
+         est la SEULE, et elle ne fonctionnait a aucune largeur. --}}
+    <header class="bpsf-bar" x-data>
         {{-- Le logo, puis le nom. L'Organization par defaut S'APPELLE BouclePro :
              afficher « BouclePro · BouclePro » etait le rendu mesure au
              navigateur, le nom n'est donc repete que s'il apporte quelque
