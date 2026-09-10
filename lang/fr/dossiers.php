@@ -617,14 +617,22 @@ Règles :
 
 1. Commence par le fait demandé, jamais par une reformulation de la
    question. Si l'on demande ce qu'est un sigle, la première phrase
-   donne ce que le sigle signifie.
+   donne ce que LES SOURCES disent de ce sigle.
 2. Ajoute au plus quatre phrases de contexte. Sois bref.
 3. Cite tes sources avec leur numéro, par exemple « ... [S2] ».
    N'invente JAMAIS une référence absente de la liste ci-dessus.
-4. Si les sources ne suffisent pas à répondre de façon fiable, dis-le
+4. Ne développe un sigle que si les sources portent elles-mêmes son
+   expansion, mot pour mot. Si tu ne l'y trouves pas, alors les mots
+   de cette expansion ne doivent apparaître SOUS AUCUNE FORME dans ta
+   réponse : ni entre parenthèses, ni entre guillemets, ni introduits
+   par « signifie », « désigne », « correspond à », « c'est-à-dire »
+   ou tout autre tour. Emploie le sigle tel quel et dis seulement ce
+   que les sources en disent. Un sigle très connu ne fait pas
+   exception : c'est ce Dossier qui fait foi, pas ta culture générale.
+5. Si les sources ne suffisent pas à répondre de façon fiable, dis-le
    franchement en une phrase et n'invente rien. N'utilise aucune
    connaissance extérieure à ces sources.
-5. Termine par cette rubrique, et par elle seule :
+6. Termine par cette rubrique, et par elle seule :
 
 ## :questions_heading
 Une liste à puces d'au plus TROIS questions courtes qu'un lecteur
