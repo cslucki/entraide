@@ -13,12 +13,15 @@ use App\Models\BlogPost;
 use App\Models\BugReport;
 use App\Models\Category;
 use App\Models\Dossier;
+use App\Models\DossierFile;
 use App\Models\LoginLog;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopMember;
 use App\Models\Message;
 use App\Models\Organization;
+use App\Services\Dossiers\DossierFileIndexingDispatcher;
+use App\Services\Dossiers\OrganizationFileInventory;
 use App\Models\OrganizationAiConstitution;
 use App\Models\OrganizationAiDoctrine;
 use App\Models\OrganizationAiSetting;
@@ -157,6 +160,60 @@ class OrgAdminController extends Controller
         $serviceRequest->update(['status' => 'closed']);
 
         return back()->with('success', 'Demande clôturée.');
+    }
+
+    /**
+     * TASK-1513 — « Fichiers » : l'inventaire des documents de l'Organization
+     * et l'etat de leur indexation.
+     *
+     * Cette page existe parce que la liste vivait jusqu'ici DANS la console
+     * « IA & connaissances », ou elle n'est qu'un sous-produit : cette console
+     * repond a « qu'est-ce que l'IA connait », donc elle ne montre que les
+     * formats ingerables. Un `.zip` ou un `.png` y est invisible — alors que
+     * savoir qu'un document ne sera JAMAIS indexe est une reponse, pas un
+     * silence.
+     */
+    public function drives(Request $request, Organization $organization, OrganizationFileInventory $inventory): View
+    {
+        $filters = [
+            'search' => (string) $request->query('search', ''),
+            'dossier' => (string) $request->query('dossier', ''),
+            'state' => (string) $request->query('state', ''),
+            'sort' => (string) $request->query('sort', 'created_at'),
+            'direction' => (string) $request->query('direction', 'desc'),
+        ];
+
+        return view('admin.org.drives', [
+            'organization' => $organization,
+            'files' => $inventory->forOrganization($organization, $filters),
+            'options' => $inventory->filterOptions($organization),
+            'filters' => $filters,
+        ]);
+    }
+
+    /**
+     * Remettre un fichier dans la file d'indexation. La SEULE ecriture de cet
+     * ecran.
+     *
+     * Trois verifications, toutes cote serveur, et la premiere n'est pas
+     * decorative : `DossierFile` ne porte AUCUN scope global de tenant, donc
+     * le route-model-binding accepterait volontiers l'UUID d'un fichier d'une
+     * autre Organization.
+     */
+    public function reindexDriveFile(Organization $organization, DossierFile $file, DossierFileIndexingDispatcher $dispatcher, OrganizationFileInventory $inventory): RedirectResponse
+    {
+        abort_unless((string) $file->organization_id === (string) $organization->getKey(), 404);
+        abort_if($file->dossier_id === null, 404);
+        abort_if(
+            $inventory->stateOf((string) $file->mime_type, (string) $file->original_name, 0) === OrganizationFileInventory::STATE_NOT_INGESTIBLE,
+            422,
+        );
+
+        $dispatcher->dispatchForFile($file);
+
+        // « Mis en file », jamais « reindexe » : la queue est asynchrone, et on
+        // n'affiche pas un etat qu'on n'a pas prouve.
+        return back()->with('success', __('drives.reindex_queued', ['name' => $file->display_name ?: $file->original_name]));
     }
 
     public function loops(Request $request, Organization $organization): View
