@@ -31,6 +31,7 @@ use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminNotificationCockpitController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
+use App\Http\Controllers\Admin\AdminDrivesController;
 use App\Http\Controllers\Admin\AdminRootDestinationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
@@ -578,6 +579,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // TASK-1506 — ce que sert la RACINE (`/`) : accueil, Shell Welcome, blog,
     // annuaire ou boucles. Aucun nom de domaine n'entre dans ce choix.
     Route::get('/homepage', [AdminRootDestinationController::class, 'edit'])->name('homepage');
+
+    // TASK-1514 — les fichiers de TOUTES les Organizations, avec filtre.
+    // L'ecriture porte l'Organization DANS l'URL : `DossierFile` n'a aucun
+    // scope global, le binding accepterait sinon un fichier d'un autre tenant.
+    Route::get('/drives', [AdminDrivesController::class, 'index'])->name('drives');
+    Route::post('/drives/{organization}/{file}/reindex', [AdminDrivesController::class, 'reindex'])
+        ->middleware('throttle:20,1')
+        ->name('drives.reindex');
     Route::put('/homepage', [AdminRootDestinationController::class, 'update'])->name('homepage.update');
     Route::get('/organization-requests', [AdminOrganizationRequestController::class, 'index'])->name('organization-requests');
 

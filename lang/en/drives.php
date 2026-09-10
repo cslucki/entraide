@@ -35,4 +35,9 @@ return [
     'count_indexed' => "indexed",
     'count_not_indexed' => "not indexed",
     'count_not_ingestible' => "not indexable",
+    'platform_title' => "Platform files",
+    'platform_subtitle' => "Every document uploaded to Dossiers, across all organizations.",
+    'filter_organization' => "Organization",
+    'filter_organization_all' => "All organizations",
+    'unknown_organization' => "Organization \":slug\" does not exist: no filter was applied, so the list covers every organization.",
 ];
