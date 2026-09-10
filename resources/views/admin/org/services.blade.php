@@ -20,6 +20,7 @@
     </form>
 
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <x-admin-table>
         <table class="w-full text-sm">
             <thead class="bg-gray-50 dark:bg-gray-700">
                 <tr>
@@ -34,26 +35,26 @@
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                 @forelse($services as $service)
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 {{ $service->deleted_at ? 'opacity-50' : '' }}">
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_service') }}" data-title class="px-4 py-3">
                         <p class="font-medium text-gray-900 dark:text-gray-100">{{ $service->title }}</p>
                         <p class="text-xs text-gray-500 capitalize">{{ $service->delivery_mode }}</p>
                     </td>
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_author') }}" class="px-4 py-3">
                         @if($service->user)
                         <a href="{{ route('profile.show', $service->user) }}" class="text-indigo-600 hover:underline text-xs">{{ $service->user->fullName }}</a>
                         @else
                         <span class="text-xs text-gray-400">{{ __('navigation.org_admin_deleted') }}</span>
                         @endif
                     </td>
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_category') }}" class="px-4 py-3">
                         @if($service->category)
                         <span class="px-2 py-0.5 rounded-full text-xs text-white" style="background-color:{{ $service->category->color }}">
                             {{ $service->category->displayName('transactions') }}
                         </span>
                         @endif
                     </td>
-                    <td class="px-4 py-3 font-medium text-indigo-600 dark:text-indigo-400">{{ $service->points_cost }}</td>
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_points') }}" class="px-4 py-3 font-medium text-indigo-600 dark:text-indigo-400">{{ $service->points_cost }}</td>
+                    <td data-label="{{ __('navigation.org_admin_table_status') }}" class="px-4 py-3">
                         @php
                             $s = $service->deleted_at ? 'deleted' : $service->status;
                             $sc = ['active' => 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
@@ -62,15 +63,16 @@
                         @endphp
                         <span class="px-2 py-0.5 rounded text-xs {{ $sc[$s] ?? '' }}">{{ __("navigation.org_admin_status_label_{$s}") }}</span>
                     </td>
-                    <td class="px-4 py-3 text-xs text-gray-500">{{ $service->created_at->format('d/m/Y') }}</td>
+                    <td data-label="{{ __('navigation.org_admin_table_date') }}" class="px-4 py-3 text-xs text-gray-500">{{ $service->created_at->format('d/m/Y') }}</td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-400">{{ __('navigation.org_admin_no_services') }}</td>
+                    <td data-empty colspan="6" class="px-4 py-8 text-center text-sm text-gray-400">{{ __('navigation.org_admin_no_services') }}</td>
                 </tr>
                 @endforelse
             </tbody>
         </table>
+        </x-admin-table>
     </div>
 
     @if($services->hasPages())

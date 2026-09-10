@@ -215,3 +215,104 @@
 .dark .bp-questioning-empty {
     color: #9ca3af;
 }
+
+/* ── TASK-1503 — tableaux d'administration responsives ─────────────────────
+   Audit TASK-1501 : treize pages admin d'Organisation faisaient défiler
+   latéralement un tableau de 400 à 1 000 px sur un écran de 390. Sous `md`
+   (767 px), chaque ligne devient une carte et chaque cellule une ligne
+   « libellé : valeur » — le libellé vient de `data-label`, posé par la page
+   avec la MÊME clé de traduction que son <th>. Au-dessus, le tableau est
+   inchangé (défilement horizontal conservé si la place manque). Les actions
+   (`data-actions`) deviennent un pied de carte à cibles de 40 px : l'audit
+   comptait jusqu'à 52 liens de 20 px sur une page. */
+.bp-admin-table {
+    overflow-x: auto;
+}
+
+@media (max-width: 767px) {
+    .bp-admin-table table,
+    .bp-admin-table tbody,
+    .bp-admin-table tr,
+    .bp-admin-table td {
+        display: block;
+        width: 100%;
+    }
+    .bp-admin-table thead {
+        display: none;
+    }
+    .bp-admin-table tr {
+        padding: 0.35rem 0;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    .dark .bp-admin-table tr {
+        border-bottom-color: #374151;
+    }
+    .bp-admin-table td {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.45rem 1rem !important;
+        text-align: right;
+    }
+    .bp-admin-table td[data-label]::before {
+        content: attr(data-label);
+        flex: 0 0 38%;
+        text-align: left;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #6b7280;
+    }
+    .dark .bp-admin-table td[data-label]::before {
+        color: #9ca3af;
+    }
+    /* La première cellule porte le titre de la ligne : pleine largeur, sans libellé. */
+    .bp-admin-table td[data-title] {
+        display: block;
+        text-align: left;
+        padding-top: 0.75rem !important;
+        font-size: 0.95rem;
+    }
+    .bp-admin-table td[data-title]::before {
+        display: none;
+    }
+    .bp-admin-table td[data-actions] {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem 0.85rem !important;
+    }
+    .bp-admin-table td[data-actions]::before {
+        display: none;
+    }
+    .bp-admin-table td[data-actions] > * {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .bp-admin-table td[data-actions] a,
+    .bp-admin-table td[data-actions] button {
+        display: inline-flex;
+        align-items: center;
+        min-height: 40px;
+        padding: 0 0.85rem;
+        border-radius: 0.5rem;
+        border: 1px solid #e5e7eb;
+        font-size: 0.8rem;
+        text-decoration: none;
+    }
+    .dark .bp-admin-table td[data-actions] a,
+    .dark .bp-admin-table td[data-actions] button {
+        border-color: #374151;
+    }
+    .bp-admin-table td[data-empty] {
+        display: block;
+        text-align: center;
+    }
+    .bp-admin-table td[data-empty]::before {
+        display: none;
+    }
+}

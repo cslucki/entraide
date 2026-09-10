@@ -19,6 +19,7 @@
     </form>
 
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <x-admin-table>
         <table class="w-full text-sm">
             <thead class="bg-gray-50 dark:bg-gray-700">
                 <tr>
@@ -64,28 +65,28 @@
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                 @forelse($users as $user)
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 {{ $user->banned_at ? 'opacity-50' : '' }}">
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_name') }}" data-title class="px-4 py-3">
                         <div class="flex items-center gap-2">
                             <img src="{{ $user->avatar_url }}" class="w-7 h-7 rounded-full" alt="">
                             <span class="font-medium text-gray-900 dark:text-gray-100">{{ $user->fullName }}</span>
                         </div>
                     </td>
-                    <td class="px-4 py-3 text-xs text-gray-500">{{ $user->email }}</td>
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_email') }}" class="px-4 py-3 text-xs text-gray-500">{{ $user->email }}</td>
+                    <td data-label="{{ __('navigation.org_admin_table_role') }}" class="px-4 py-3">
                         <span class="px-2 py-0.5 rounded text-xs {{ $user->is_admin ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400' }}">
                             {{ $user->is_admin ? __('navigation.org_admin_role_admin') : __('navigation.org_admin_role_member') }}
                         </span>
                     </td>
-                    <td class="px-4 py-3 text-xs text-gray-500">{{ $user->points_balance ?? 0 }}</td>
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_points') }}" class="px-4 py-3 text-xs text-gray-500">{{ $user->points_balance ?? 0 }}</td>
+                    <td data-label="{{ __('navigation.org_admin_table_status') }}" class="px-4 py-3">
                         @if($user->banned_at)
                         <span class="px-2 py-0.5 rounded text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">{{ __('navigation.org_admin_user_status_banned') }}</span>
                         @else
                         <span class="px-2 py-0.5 rounded text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">{{ __('navigation.org_admin_user_status_active') }}</span>
                         @endif
                     </td>
-                    <td class="px-4 py-3 text-xs text-gray-500">{{ $user->created_at?->format('d/m/Y') ?? '—' }}</td>
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_joined') }}" class="px-4 py-3 text-xs text-gray-500">{{ $user->created_at?->format('d/m/Y') ?? '—' }}</td>
+                    <td data-label="{{ __('navigation.org_admin_table_actions') }}" data-actions class="px-4 py-3">
                         {{-- TASK-1416 (CRM-4) : un membre n'entre dans Relations que par decision explicite. --}}
                         <form method="POST" action="{{ route('organization.admin.crm.members.follow', [$organization, $user]) }}" class="inline">
                             @csrf
@@ -106,11 +107,12 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-400">{{ __('navigation.org_admin_no_users') }}</td>
+                    <td data-empty colspan="7" class="px-4 py-8 text-center text-sm text-gray-400">{{ __('navigation.org_admin_no_users') }}</td>
                 </tr>
                 @endforelse
             </tbody>
         </table>
+        </x-admin-table>
     </div>
 
     @if($users->hasPages())
