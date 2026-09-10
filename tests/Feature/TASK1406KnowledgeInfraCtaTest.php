@@ -167,11 +167,24 @@ class TASK1406KnowledgeInfraCtaTest extends TestCase
         // Et quand tout est reuni, le bandeau d'alerte disparait entierement :
         // la garde « aucun bouton » du test 1 doit distinguer « pas de bouton »
         // de « pas de bandeau ».
+        //
+        // TASK-1512 : ce temoin exigeait `data-knowledge-infra="available"`.
+        // C'etait un PROXY — « available » signifiait alors « pas d'alerte ».
+        // Depuis, l'etat sain se decline en trois valeurs comptees
+        // (`available`, `nothing_indexed`, `no_source`), et cette Organization
+        // de fixture n'a aucune source eligible : elle rend `no_source`.
+        // L'intention du temoin est inchangee, on la dit maintenant
+        // directement — l'ALERTE a disparu — au lieu de nommer une valeur qui
+        // ne veut plus dire la meme chose.
         $this->usableCredential($organization);
         $htmlOk = $this->fragment($organization, $admin);
 
-        $this->assertStringContainsString('data-knowledge-infra="available"', $htmlOk);
+        $this->assertStringNotContainsString('data-knowledge-infra="unavailable"', $htmlOk, 'le bandeau d alerte doit disparaitre quand tout est reuni');
+        $this->assertStringNotContainsString(__('ai.observatory_infra_title'), $this->normalize($htmlOk));
         $this->assertStringNotContainsString($this->ctaLabel(), $htmlOk);
+
+        // Et le bandeau se rend bien : sans cette ligne, une page vide passerait.
+        $this->assertMatchesRegularExpression('/data-knowledge-infra="(available|nothing_indexed|no_source)"/', $htmlOk);
     }
 
     // ── Fixtures ────────────────────────────────────────────────────────────

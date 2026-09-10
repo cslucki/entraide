@@ -136,11 +136,12 @@ class TASK1512KnowledgeBannerTest extends TestCase
             'content' => 'contenu indexe',
             'content_hash' => hash('sha256', 'contenu indexe'),
             'token_count' => 2,
-            // `embedding` est NOT NULL : en SQLite la colonne est du texte, en
-            // pgsql un `vector(1536)`. Ce test ne mesure pas la recherche, il
-            // mesure le COMPTAGE des sources indexees — une valeur de forme
-            // suffit, et elle doit exister.
-            'embedding' => '[]',
+            // `embedding` est NOT NULL, et en pgsql c'est un `vector(1536)` :
+            // une chaine `'[]'` passe en SQLite (colonne texte) et ECHOUE en
+            // PostgreSQL (« invalid input syntax for type vector »). Ce test
+            // ne mesure pas la recherche, mais sa fixture doit etre valide sur
+            // les DEUX moteurs — sinon elle est verte pour une mauvaise raison.
+            'embedding' => array_fill(0, 1536, 0.0),
             'embedding_provider' => 'openrouter',
             'embedding_model' => 'openai/text-embedding-3-small',
             'indexed_at' => now(),
