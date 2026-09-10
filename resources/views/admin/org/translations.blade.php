@@ -124,10 +124,10 @@
             <template x-if="!showEntries">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </template>
-            <span x-text="showEntries ? '{{ __('navigation.org_admin_translation_hide_entries', ['count' => $entries->count()]) }}' : '{{ __('navigation.org_admin_translation_show_entries', ['count' => $entries->count()]) }}'"></span>
+            <span x-text="showEntries ? '{{ __('navigation.org_admin_translation_hide_entries', ['count' => $entries->total()]) }}' : '{{ __('navigation.org_admin_translation_show_entries', ['count' => $entries->total()]) }}'"></span>
         </button>
 
-        <div x-show="showEntries" x-cloak>
+        <div x-show="showEntries" x-cloak data-translations-entries data-translations-total="{{ $entries->total() }}" data-translations-per-page="{{ $entries->perPage() }}" data-translations-page="{{ $entries->currentPage() }}">
             <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
@@ -309,6 +309,12 @@
                         </tbody>
                     </table>
                 </div>
+                {{-- TASK-1502 : 100 entrees par page ; les filtres restent dans les liens. --}}
+                @if($entries->hasPages())
+                <div class="border-t border-gray-100 dark:border-gray-700 px-4 py-3" data-translations-pagination>
+                    {{ $entries->links() }}
+                </div>
+                @endif
             </div>
 
             <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">

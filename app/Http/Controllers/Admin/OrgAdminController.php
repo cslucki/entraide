@@ -971,6 +971,21 @@ class OrgAdminController extends Controller
             'remaining' => $remainingCount,
         ];
 
+        // TASK-1502 (P0 audit 1501) : la page rendait les 6 123 entrees d'un coup,
+        // chacune avec sa modale et son formulaire — 128 Mo epuises, HTTP 500 pour
+        // tout admin d'organisation. Les statistiques restent calculees sur
+        // l'ensemble FILTRE (au-dessus) ; seul le RENDU est decoupe. Les filtres
+        // (groupe, statut, recherche) survivent au changement de page.
+        $perPage = 100;
+        $currentPage = max(1, (int) $request->input('page', 1));
+        $entries = new \Illuminate\Pagination\LengthAwarePaginator(
+            $entries->slice(($currentPage - 1) * $perPage, $perPage)->values(),
+            $entries->count(),
+            $perPage,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()],
+        );
+
         return view('admin.org.translations', [
             'organization' => $organization,
             'groups' => $groups,
