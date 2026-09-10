@@ -44,23 +44,25 @@
                  x-transition.opacity>
             </div>
 
-            <!-- Sidebar -->
+            <!-- Sidebar — TASK-1505 : toujours sombre, texte blanc, aux couleurs du
+                 theme choisi (jetons `--bp-sidebar-*`, palette SOMBRE du theme, emis
+                 hors de `.dark` par `x-theme-tokens`). Aucune couleur figee ici. -->
             <aside :class="sidebarOpen ? '!flex !flex-col' : 'hidden'"
-                   class="lg:flex lg:flex-col fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-gray-200
+                   class="lg:flex lg:flex-col fixed inset-y-0 left-0 z-50 w-64 bp-org-sidebar
                           transition-transform duration-300 ease-in-out
                           lg:translate-x-0 lg:static lg:w-60 lg:z-auto">
                 <!-- Brand header -->
-                <div class="px-5 py-5 border-b border-gray-700">
+                <div class="px-5 py-5 border-b bp-sb-border">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
                             <span class="text-lg font-bold text-white">{{ $organization->name }}</span>
-                            <span class="text-xs px-1.5 py-0.5 rounded font-medium text-white" style="background-color: var(--bp-primary)">{{ __('navigation.org_admin_badge') }}</span>
+                            <span class="text-xs px-1.5 py-0.5 rounded font-medium text-white" style="background-color: var(--bp-sidebar-accent)">{{ __('navigation.org_admin_badge') }}</span>
                         </div>
                         <button @click="togglePin()"
                                 :title="pinned ? 'Dépingler le menu' : 'Épingler le menu'"
-                                class="p-1.5 rounded-lg transition hover:bg-gray-700 text-gray-400 hover:text-white"
+                                class="p-1.5 rounded-lg transition bp-sb-link"
                                 :class="pinned ? '' : ''"
-                                :style="pinned ? 'color: var(--bp-primary)' : ''">
+                                :style="pinned ? 'color: var(--bp-sidebar-accent)' : ''">
                             <svg x-show="pinned" x-cloak class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                             </svg>
@@ -69,14 +71,14 @@
                             </svg>
                         </button>
                     </div>
-                    <p class="text-xs text-gray-500 mt-1 truncate">{{ auth()->user()->full_name }}</p>
-                    <div class="mt-2 flex items-center gap-0.5 rounded-full bg-gray-800 px-1 py-0.5 text-[10px] font-bold uppercase tracking-wide" aria-label="{{ __('navigation.language_switcher') }}">
+                    <p class="text-xs bp-sb-muted mt-1 truncate">{{ auth()->user()->full_name }}</p>
+                    <div class="mt-2 flex items-center gap-0.5 rounded-full bp-sb-pill px-1 py-0.5 text-[10px] font-bold uppercase tracking-wide" aria-label="{{ __('navigation.language_switcher') }}">
                         @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
                             <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" class="inline">
                                 @csrf
                                 <button type="submit"
-                                    class="rounded-full px-1.5 py-0.5 transition {{ app()->getLocale() === $locale ? 'text-white shadow-sm' : 'text-gray-500 hover:text-white' }}"
-                                    @if(app()->getLocale() === $locale) style="background-color: var(--bp-primary)" @endif
+                                    class="rounded-full px-1.5 py-0.5 transition {{ app()->getLocale() === $locale ? 'bp-sb-active shadow-sm' : 'bp-sb-muted hover:text-white' }}"
+                                    
                                     aria-current="{{ app()->getLocale() === $locale ? 'true' : 'false' }}">
                                     {{ $label }}
                                 </button>
@@ -89,7 +91,7 @@
                     <!-- Voir l'organisation -->
                     <a href="{{ route('organization.home', ['organization' => $organization->slug]) }}"
                        class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition mb-3
-                              text-gray-400 hover:text-white hover:bg-gray-800 border border-gray-700">
+                              bp-sb-link border bp-sb-border">
                         <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                         </svg>
@@ -170,7 +172,7 @@
                     @php $active = $isActive('organization.admin.dashboard'); @endphp
                     <a href="{{ route('organization.admin.dashboard', ['organization' => $organization->slug]) }}"
                        class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition mb-2
-                               {{ $active ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($active) style="background-color: var(--bp-primary)"@endif">
+                               {{ $active ? 'bp-sb-active' : 'bp-sb-link' }}">
                         <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
                         </svg>
@@ -182,7 +184,7 @@
                     <div x-data="{ open: {{ $exchangesGroupActive ? 'true' : "localStorage.getItem('org_admin_sidebar_exchanges_open') !== 'false'" }} }">
                         <button @click.stop="open = !open; localStorage.setItem('org_admin_sidebar_exchanges_open', open)"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
-                                       {{ $exchangesGroupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
+                                       {{ $exchangesGroupActive ? 'bp-sb-group-active' : 'bp-sb-group' }}">
                             <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
                                  :class="{'rotate-180': !open}"
                                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -202,7 +204,7 @@
                             @php $itemActive = $isActive($item['route']); @endphp
                             <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
-                                       {{ $itemActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($itemActive) style="background-color: var(--bp-primary)"@endif">
+                                       {{ $itemActive ? 'bp-sb-active' : 'bp-sb-link' }}">
                                 <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
                                 </svg>
@@ -217,7 +219,7 @@
                     <div x-data="{ open: {{ $contentGroupActive ? 'true' : "localStorage.getItem('org_admin_sidebar_content_open') !== 'false'" }} }">
                         <button @click.stop="open = !open; localStorage.setItem('org_admin_sidebar_content_open', open)"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
-                                       {{ $contentGroupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
+                                       {{ $contentGroupActive ? 'bp-sb-group-active' : 'bp-sb-group' }}">
                             <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
                                  :class="{'rotate-180': !open}"
                                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -237,7 +239,7 @@
                             @php $itemActive = $isActive($item['route']); @endphp
                             <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
-                                       {{ $itemActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($itemActive) style="background-color: var(--bp-primary)"@endif">
+                                       {{ $itemActive ? 'bp-sb-active' : 'bp-sb-link' }}">
                                 <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
                                 </svg>
@@ -252,7 +254,7 @@
                     <div x-data="{ open: {{ $relationsGroupActive ? 'true' : "localStorage.getItem('org_admin_sidebar_relations_open') !== 'false'" }} }">
                         <button @click.stop="open = !open; localStorage.setItem('org_admin_sidebar_relations_open', open)"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
-                                       {{ $relationsGroupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
+                                       {{ $relationsGroupActive ? 'bp-sb-group-active' : 'bp-sb-group' }}">
                             <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
                                  :class="{'rotate-180': !open}"
                                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -272,7 +274,7 @@
                             @php $itemActive = $isActive($item['route']); @endphp
                             <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
-                                       {{ $itemActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($itemActive) style="background-color: var(--bp-primary)"@endif">
+                                       {{ $itemActive ? 'bp-sb-active' : 'bp-sb-link' }}">
                                 <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
                                 </svg>
@@ -287,7 +289,7 @@
                     <div x-data="{ open: {{ $communityGroupActive ? 'true' : "localStorage.getItem('org_admin_sidebar_community_open') !== 'false'" }} }">
                         <button @click.stop="open = !open; localStorage.setItem('org_admin_sidebar_community_open', open)"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
-                                       {{ $communityGroupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
+                                       {{ $communityGroupActive ? 'bp-sb-group-active' : 'bp-sb-group' }}">
                             <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
                                  :class="{'rotate-180': !open}"
                                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -307,7 +309,7 @@
                             @php $itemActive = $isActive($item['route']); @endphp
                             <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
-                                       {{ $itemActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($itemActive) style="background-color: var(--bp-primary)"@endif">
+                                       {{ $itemActive ? 'bp-sb-active' : 'bp-sb-link' }}">
                                 <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
                                 </svg>
@@ -322,7 +324,7 @@
                     <div x-data="{ open: {{ $adminGroupActive ? 'true' : "localStorage.getItem('org_admin_sidebar_admin_open') !== 'false'" }} }">
                         <button @click.stop="open = !open; localStorage.setItem('org_admin_sidebar_admin_open', open)"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
-                                       {{ $adminGroupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
+                                       {{ $adminGroupActive ? 'bp-sb-group-active' : 'bp-sb-group' }}">
                             <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
                                  :class="{'rotate-180': !open}"
                                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -342,7 +344,7 @@
                             @php $itemActive = $isActive($item['route']); @endphp
                             <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
-                                       {{ $itemActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($itemActive) style="background-color: var(--bp-primary)"@endif">
+                                       {{ $itemActive ? 'bp-sb-active' : 'bp-sb-link' }}">
                                 <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
                                 </svg>
@@ -363,7 +365,7 @@
                     <div x-data="{ open: {{ $designGroupActive ? 'true' : "localStorage.getItem('org_admin_sidebar_design_open') !== 'false'" }} }">
                         <button @click.stop="open = !open; localStorage.setItem('org_admin_sidebar_design_open', open)"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
-                                       {{ $designGroupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
+                                       {{ $designGroupActive ? 'bp-sb-group-active' : 'bp-sb-group' }}">
                             <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
                                  :class="{'rotate-180': !open}"
                                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -383,7 +385,7 @@
                             @php $itemActive = $isActive($item['route']); @endphp
                             <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
-                                       {{ $itemActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($itemActive) style="background-color: var(--bp-primary)"@endif">
+                                       {{ $itemActive ? 'bp-sb-active' : 'bp-sb-link' }}">
                                 <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
                                 </svg>
@@ -398,7 +400,7 @@
                     <div x-data="{ open: {{ $iaGroupActive ? 'true' : "localStorage.getItem('org_admin_sidebar_ia_open') !== 'false'" }} }">
                         <button @click.stop="open = !open; localStorage.setItem('org_admin_sidebar_ia_open', open)"
                                 class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm transition text-left
-                                       {{ $iaGroupActive ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300' }}">
+                                       {{ $iaGroupActive ? 'bp-sb-group-active' : 'bp-sb-group' }}">
                             <svg class="w-3 h-3 transition-transform duration-200 flex-shrink-0"
                                  :class="{'rotate-180': !open}"
                                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -418,7 +420,7 @@
                             @php $itemActive = $isActive($item['route']); @endphp
                             <a href="{{ route($item['route'], ['organization' => $organization->slug]) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
-                                       {{ $itemActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}@if($itemActive) style="background-color: var(--bp-primary)"@endif">
+                                       {{ $itemActive ? 'bp-sb-active' : 'bp-sb-link' }}">
                                 <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $item['icon'] }}"/>
                                 </svg>
@@ -430,9 +432,9 @@
                 </nav>
 
                 <!-- Retour à l'organisation -->
-                <div class="px-3 pb-4 border-t border-gray-700 pt-3 space-y-1">
+                <div class="px-3 pb-4 border-t bp-sb-border pt-3 space-y-1">
                     <a href="{{ route('organization.home', ['organization' => $organization->slug]) }}"
-                       class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition">
+                       class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm bp-sb-link transition">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
                         {{ __('navigation.org_admin_back_to_org') }}
                     </a>
