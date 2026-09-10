@@ -70,21 +70,13 @@ use Illuminate\View\View;
 
 class OrgAdminController extends Controller
 {
-    public function dashboard(Organization $organization): View
+    public function dashboard(Organization $organization, \App\Services\Admin\OrganizationDashboardMetrics $metrics): View
     {
-        $orgId = $organization->id;
-        $stats = [
-            'users' => User::where('organization_id', $orgId)->count(),
-            'loops' => Loop::where('organization_id', $orgId)->count(),
-            'services' => Service::where('organization_id', $orgId)->where('status', 'active')->count(),
-            'requests' => ServiceRequest::where('organization_id', $orgId)->count(),
-        ];
-        $recentUsers = User::where('organization_id', $orgId)->latest()->limit(5)->get();
-
+        // TASK-1504 : tout ce que la page affiche vient d'UNE autorite ; la vue
+        // ne calcule rien. Les quatre compteurs d'origine y sont, inchanges.
         return view('admin.org.dashboard', [
             'organization' => $organization,
-            'stats' => $stats,
-            'recentUsers' => $recentUsers,
+            'metrics' => $metrics->for($organization),
         ]);
     }
 
