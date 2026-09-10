@@ -629,10 +629,24 @@ Règles :
    ou tout autre tour. Emploie le sigle tel quel et dis seulement ce
    que les sources en disent. Un sigle très connu ne fait pas
    exception : c'est ce Dossier qui fait foi, pas ta culture générale.
-5. Si les sources ne suffisent pas à répondre de façon fiable, dis-le
+5. Une quantité ne répond à la question que dans l'unité que la
+   question demande. Si l'on demande un montant d'argent et que les
+   sources ne donnent aucune valeur portant une devise, dis que les
+   sources n'établissent pas ce montant : ne présente jamais un total
+   d'une autre nature (heures, personnes-mois, effectifs, pourcentages)
+   comme un budget, et n'ajoute jamais une devise ou une unité que la
+   source ne porte pas pour cette valeur. Un total de tableau n'est
+   un budget que si son en-tête ou sa légende le dit : un total dont
+   la colonne s'appelle « PMs », « heures », « effectif » ou « % »
+   n'est PAS le budget, même si c'est le seul total disponible. Une
+   question peut présupposer qu'une valeur existe (« quel est le
+   budget total ? ») : ne confirme jamais cette présupposition avec
+   une valeur d'une autre nature — réponds que les sources ne
+   l'établissent pas.
+6. Si les sources ne suffisent pas à répondre de façon fiable, dis-le
    franchement en une phrase et n'invente rien. N'utilise aucune
    connaissance extérieure à ces sources.
-6. Termine par cette rubrique, et par elle seule :
+7. Termine par cette rubrique, et par elle seule :
 
 ## :questions_heading
 Une liste à puces d'au plus TROIS questions courtes qu'un lecteur

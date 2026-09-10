@@ -36,6 +36,12 @@ use PhpOffice\PhpWord\Settings;
  */
 class WordTextExtractor implements DocumentTextExtractor
 {
+    /**
+     * Longueur maximale d'une cellule qui recoit son en-tete de colonne
+     * (TASK-1522). Au-dela, c'est du texte qui se suffit a lui-meme.
+     */
+    private const KEYED_CELL_MAX_CHARS = 24;
+
     public const MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
     public function __construct(
@@ -117,20 +123,135 @@ class WordTextExtractor implements DocumentTextExtractor
     }
 
     /**
+     * Un tableau, ligne par ligne, chaque ligne AUTONOME.
+     *
+     * TASK-1522. Trois pertes cumulees, mesurees etage par etage sur le
+     * tableau « Table 3.1f: Summary of staff effort » du dossier ARIA :
+     *
+     *   1. `implode(' ', ...)` rendait une cellule indiscernable d'un mot ;
+     *   2. `array_filter(...)` retirait les cellules VIDES, decalant chaque
+     *      ligne d'un nombre different de colonnes (8 a 14 jetons pour un
+     *      en-tete de 12) ;
+     *   3. ArticleChunker ecrase tout blanc, donc un retour a la ligne ne
+     *      survit pas, ET sa fenetre de 500 mots coupe le tableau : la ligne
+     *      « Total » arrivait au modele dans un chunk sans sa legende ni son
+     *      en-tete `PMs`, colle a la legende du tableau SUIVANT
+     *      (« Subcontracting costs »). Mesure : « 489.95 » person-months
+     *      rendu comme un budget en euros, 3 tirages sur 3, meme apres le
+     *      correctif des cellules et des lignes.
+     *
+     * D'ou la forme retenue, deterministe et lisible :
+     *
+     *   |WP1|WP2|PMs¶
+     *   1/ UNIVE|WP1: 5|WP2: 6|PMs: 88¶
+     *   Total|WP1: 30.25|WP2: 76|PMs: 489.95¶
+     *
+     * - la barre separe les cellules ; une cellule vide garde sa place ;
+     * - barre et pilcrow sont COLLES aux cellules, jamais entoures
+     *   d'espaces : le chunker compte un mot par suite de non-blancs, et
+     *   « a | b | c ¶ » coutait neuf mots par ligne. Mesure sur ARIA : la
+     *   liste des 19 participants, qui tenait dans un chunk, debordait sa
+     *   fenetre et le modele n'en comptait plus que 14 ;
+     * - le pilcrow termine la ligne : signe typographique de la fin de
+     *   ligne, absent des cellules, il survit a l'ecrasement des blancs
+     *   (« | | » ne pouvait pas jouer ce role : c'est aussi une cellule vide) ;
+     * - chaque cellule de donnees porte son EN-TETE de colonne : la ligne se
+     *   suffit a elle-meme, ou que la coupe le chunker. Le chunker n'a pas a
+     *   connaitre les tableaux, et la prose n'est pas touchee.
+     *
+     * La premiere ligne est l'en-tete si le tableau a au moins deux lignes et
+     * deux colonnes et si cette ligne n'est pas faite de nombres — sinon les
+     * lignes restent positionnelles (barres et pilcrow, sans cles). Une ligne
+     * d'une seule cellule est un paragraphe de mise en page : elle reste nue.
+     *
+     * @param  list<string>  $lines
+     */
+    private function collectTable(Table $table, array &$lines): void
+    {
+        $rows = [];
+
+        foreach ($table->getRows() as $row) {
+            $cells = [];
+            foreach ($row->getCells() as $cell) {
+                $cellLines = [];
+                $this->collect($cell, $cellLines);
+                $cells[] = trim(implode(' ', $cellLines));
+            }
+
+            // Une ligne ENTIEREMENT vide n'apporte rien : c'est la seule chose
+            // que l'ancien filtre faisait de juste.
+            if (array_filter($cells, static fn (string $cell): bool => $cell !== '') === []) {
+                continue;
+            }
+
+            $rows[] = $cells;
+        }
+
+        if ($rows === []) {
+            return;
+        }
+
+        $width = max(array_map('count', $rows));
+        $headers = $width >= 2 && count($rows) >= 2 && $this->looksLikeHeader($rows[0]) ? $rows[0] : null;
+
+        foreach ($rows as $index => $cells) {
+            if (count($cells) < 2) {
+                $lines[] = $cells[0];
+
+                continue;
+            }
+
+            if ($headers === null || $index === 0) {
+                $lines[] = implode('|', $cells).'¶';
+
+                continue;
+            }
+
+            $keyed = [];
+            foreach ($cells as $position => $cell) {
+                $key = trim((string) ($headers[$position] ?? ''));
+                // Un en-tete vide (colonne des libelles) ou un en-tete de la
+                // longueur d'un paragraphe ne fait pas une cle utile. Et seule
+                // une cellule COURTE — un nombre, un code, une date — recoit la
+                // sienne : une phrase porte deja son sens. Mesure sur ARIA
+                // quand toute cellule etait prefixee : les chunks du tableau
+                // des risques (jusqu'a 103 cles) passaient en tete du
+                // retrieval pour « budget total du FSTP » et le fait en prose
+                // « €720,000 » tombait du rang 1 au rang 20.
+                $courte = mb_strlen($cell) <= self::KEYED_CELL_MAX_CHARS;
+                $keyed[] = $key === '' || mb_strlen($key) > 60 || ! $courte ? $cell : $key.': '.$cell;
+            }
+
+            $lines[] = implode('|', $keyed).'¶';
+        }
+    }
+
+    /**
+     * Une ligne faite de nombres n'est pas un en-tete : la nommer cle
+     * fabriquerait des libelles absurdes (« 5: 6 »).
+     *
+     * @param  list<string>  $cells
+     */
+    private function looksLikeHeader(array $cells): bool
+    {
+        $filled = array_values(array_filter($cells, static fn (string $c): bool => $c !== ''));
+
+        if ($filled === []) {
+            return false;
+        }
+
+        $numeric = count(array_filter($filled, static fn (string $c): bool => is_numeric(str_replace([',', ' '], ['.', ''], $c))));
+
+        return $numeric * 2 < count($filled);
+    }
+
+    /**
      * @param  list<string>  $lines
      */
     private function collect(AbstractElement $element, array &$lines): void
     {
         if ($element instanceof Table) {
-            foreach ($element->getRows() as $row) {
-                $cells = [];
-                foreach ($row->getCells() as $cell) {
-                    $cellLines = [];
-                    $this->collect($cell, $cellLines);
-                    $cells[] = trim(implode(' ', $cellLines));
-                }
-                $lines[] = implode(' ', array_filter($cells, static fn (string $cell): bool => $cell !== ''));
-            }
+            $this->collectTable($element, $lines);
 
             return;
         }
