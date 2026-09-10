@@ -239,6 +239,20 @@ final class AiShellResponder
                 //    lire un fil qu'un tour concurrent peut encore ecrire.
                 $memory = $this->conversationMemory($organization, $user);
 
+                // TASK-1523 : la memoire DOCUMENTAIRE ne retient que les tours
+                // tenus sur le MEME objet de page. Le fil est (organization,
+                // user) : il suit la personne de page en page, et c'est voulu.
+                // Mais mesure sur deux Dossiers reels d'un meme membre : un
+                // fait repondu sur le Dossier A (« une boucle principale par
+                // organisation ») etait restitue sur le Dossier B AVEC des
+                // citations [S1][S2] dont les sources etaient B — une fausse
+                // attribution, malgre l'etiquette « contexte, jamais une
+                // source ». L'instruction ne tient pas ; la frontiere est donc
+                // structurelle : chaque message porte deja
+                // `metadata.page_context.object_id`, il suffit de filtrer.
+                // Aucun second store, aucune migration.
+                $documentaryMemory = $this->conversationMemory($organization, $user, $this->pageObjectId($pageContext));
+
                 // Le message humain est ecrit AVANT l'appel : meme si la generation
                 // echoue, l'utilisateur retrouve ce qu'il a demande dans son fil.
                 $trigger = $this->thread->appendUser($organization, $user, $prompt, [
@@ -261,8 +275,8 @@ final class AiShellResponder
                 // n'ecrit ni `AiInteraction`, ni ligne de ledger, et ne
                 // consomme aucun credit.
                 [$content, $metadata] = $this->selfKnowledgeTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
-                    ?? $this->dossierAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $memory)
-                    ?? $this->articleAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $memory)
+                    ?? $this->dossierAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory)
+                    ?? $this->articleAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory)
                     ?? $this->generate($organization, $user, $prompt, $pageContext, $pinnedContext, $memory);
 
                 $answer = $this->thread->appendAssistant($organization, $user, $content, $trigger, $metadata);
@@ -653,7 +667,7 @@ final class AiShellResponder
      * de {@see AiConversationContextBuilder}, prefixes compris : les deux blocs
      * de memoire du produit se lisent de la meme facon pour le modele.
      */
-    private function conversationMemory(Organization $organization, User $user): string
+    private function conversationMemory(Organization $organization, User $user, ?string $onlyObjectId = null): string
     {
         $conversationId = $this->thread->persistedConversationId($organization, $user);
 
@@ -676,6 +690,14 @@ final class AiShellResponder
         // qui tombe quand le budget est atteint.
         foreach ($messages->reverse() as $message) {
             if (! $this->remembered($message)) {
+                continue;
+            }
+
+            // TASK-1523 : en memoire documentaire, un tour tenu sur un AUTRE
+            // objet (ou sur aucun) n'entre pas. Le filtre lit ce que le
+            // serveur a ecrit lui-meme a l'aller (`traceable()`), jamais une
+            // donnee venue du client.
+            if ($onlyObjectId !== null && $this->pageObjectIdOf($message) !== $onlyObjectId) {
                 continue;
             }
 
@@ -1084,6 +1106,28 @@ final class AiShellResponder
      * @param  array<string, mixed>  $pageContext
      * @return array<string, mixed>
      */
+    /**
+     * L'identifiant de l'objet de page (Dossier, Article...). Sans objet
+     * courant, la cle est la chaine vide : aucun tour stocke ne la porte,
+     * la memoire documentaire est donc VIDE — sans objet, aucun tour n'est
+     * « le meme ».
+     */
+    private function pageObjectId(array $pageContext): string
+    {
+        $object = $pageContext['object'] ?? null;
+        $id = is_array($object) ? ($object['id'] ?? null) : null;
+
+        return is_string($id) ? $id : '';
+    }
+
+    private function pageObjectIdOf(AiShellMessage $message): ?string
+    {
+        $metadata = is_array($message->metadata) ? $message->metadata : [];
+        $id = $metadata['page_context']['object_id'] ?? null;
+
+        return is_string($id) && $id !== '' ? $id : null;
+    }
+
     private function traceable(array $pageContext): array
     {
         $object = $pageContext['object'] ?? null;
