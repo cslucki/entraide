@@ -31,6 +31,7 @@ use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminNotificationCockpitController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
+use App\Http\Controllers\Admin\AdminRootDestinationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
@@ -574,6 +575,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/organizations/{organization}/homepage', [AdminOrganizationController::class, 'homepage'])->name('organizations.homepage');
     Route::put('/organizations/{organization}/homepage', [AdminOrganizationController::class, 'updateHomepage'])->name('organizations.homepage.update');
     Route::get('/homepages', [AdminOrganizationController::class, 'homepages'])->name('homepages');
+    // TASK-1506 — ce que sert la RACINE (`/`) : accueil, Shell Welcome, blog,
+    // annuaire ou boucles. Aucun nom de domaine n'entre dans ce choix.
+    Route::get('/homepage', [AdminRootDestinationController::class, 'edit'])->name('homepage');
+    Route::put('/homepage', [AdminRootDestinationController::class, 'update'])->name('homepage.update');
     Route::get('/organization-requests', [AdminOrganizationRequestController::class, 'index'])->name('organization-requests');
 
     // Messages moderation
