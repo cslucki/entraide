@@ -53,7 +53,7 @@ class OrganizationLandingController extends Controller
         // economique doit continuer de rendre la landing normale, sans quoi une
         // Organization mal configuree n'aurait plus d'accueil du tout.
         if (($guestShell['display']['visible'] ?? false)
-            && ($guestShell['display']['mode'] ?? null) === GuestShellDisplayMode::SHELL_FIRST) {
+            && GuestShellDisplayMode::isShellFirst($guestShell['display']['mode'] ?? null)) {
             return view('organization.shell-first', compact('organization', 'guestShell'));
         }
 

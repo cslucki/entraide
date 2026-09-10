@@ -196,127 +196,16 @@
             </div>
         </div>
 
-        {{-- TASK-1429 — SW-1 : Shell Welcome par Organization (politique seulement ; provider/modele/cle = autorite IA existante). --}}
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5" data-guest-shell-config>
-            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">{{ __('admin.guest_shell_config') }}</h3>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">{{ __('admin.guest_shell_config_hint') }}</p>
-
-            @php
-                // TASK-1474 : le RESUME de tete. Aucune logique economique nouvelle —
-                // on compte les diagnostics que `GuestShellDiagnosis` produit deja,
-                // organisation par organisation. Le plafond plateforme est lu par
-                // l'autorite qui le detient, jamais reinterprete ici.
-                $diagnoses = collect($organizations)->map(fn ($o) => \App\Support\GuestShell\GuestShellDiagnosis::for($guestShellStates[$o->id]));
-                $summary = [
-                    'ready' => $diagnoses->where('tone', \App\Support\GuestShell\GuestShellDiagnosis::TONE_READY)->count(),
-                    'disabled' => $diagnoses->where('tone', \App\Support\GuestShell\GuestShellDiagnosis::TONE_NEUTRAL)->count(),
-                    'action' => $diagnoses->where('tone', \App\Support\GuestShell\GuestShellDiagnosis::TONE_ACTION)->count(),
-                    'budget' => $diagnoses->where('tone', \App\Support\GuestShell\GuestShellDiagnosis::TONE_BUDGET)->count(),
-                ];
-                $platformCeiling = \App\Services\GuestShell\GuestShellPolicyService::platformCeilingUsd();
-            @endphp
-
-            <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5" data-guest-shell-summary>
-                @foreach($summary as $key => $count)
-                <div class="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2" data-guest-shell-summary-item="{{ $key }}" data-guest-shell-summary-value="{{ $count }}">
-                    <div class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('admin.guest_shell_summary_'.$key) }}</div>
-                    <div class="text-xl font-bold tabular-nums text-gray-900 dark:text-gray-100">{{ $count }}</div>
-                </div>
-                @endforeach
-                <div class="rounded-lg border px-3 py-2 {{ $platformCeiling === null ? 'border-amber-300 dark:border-amber-700' : 'border-gray-200 dark:border-gray-700' }}" data-guest-shell-summary-item="platform_ceiling" data-guest-shell-summary-value="{{ $platformCeiling === null ? 'unset' : 'set' }}">
-                    <div class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('admin.guest_shell_summary_platform_ceiling') }}</div>
-                    <div class="text-sm font-semibold {{ $platformCeiling === null ? 'text-amber-700 dark:text-amber-300' : 'text-gray-900 dark:text-gray-100' }}">{{ $platformCeiling === null ? __('admin.guest_shell_summary_ceiling_unset') : number_format($platformCeiling, 2).' USD' }}</div>
-                </div>
-            </div>
-
-            {{-- TASK-1474 : chaque Organization se replie. L'ecran empilait neuf
-                 formulaires deplies — mesure : 3453 px pour cette seule section,
-                 45 % d'une page de 8119 px. Le diagnostic, le provider et le mode
-                 restent lisibles SANS deplier ; l'edition est a un clic, et n'a
-                 pas bouge d'une ligne. `<details>` : aucun JavaScript, aucun
-                 composant nouveau, l'etat ouvert survit a l'impression. --}}
-            <div class="space-y-2">
-                @forelse($organizations as $org)
-                    @php
-                        $state = $guestShellStates[$org->id];
-                        $policy = $state->policy;
-                        // TASK-1468 : le diagnostic actionnable — libelle, cause, geste. Derive
-                        // des reason codes que `GuestShellPolicyService::state()` produit deja ;
-                        // aucune seconde logique de politique ici.
-                        $diag = \App\Support\GuestShell\GuestShellDiagnosis::for($state);
-                        // TASK-1470 : la couleur du badge vient elle aussi de l'autorite
-                        // partagee — le `match` etait recopie dans trois vues.
-                        $diagTone = \App\Support\GuestShell\GuestShellDiagnosis::badgeClasses($diag['tone']);
-                    @endphp
-                    <details class="border border-gray-200 dark:border-gray-700 rounded-lg" data-guest-shell-row="{{ $org->slug }}" @if($diag['tone'] === \App\Support\GuestShell\GuestShellDiagnosis::TONE_ACTION) open @endif>
-                        <summary class="flex flex-wrap items-center gap-2 px-4 py-2.5 cursor-pointer select-none">
-                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $org->name }}</span>
-                            <span class="text-gray-400 font-mono text-xs">{{ $org->slug }}</span>
-                            <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $diagTone }}" data-guest-shell-diag="{{ $diag['key'] }}">{{ $diag['label'] }}</span>
-                            <span class="ml-auto flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-                                <span data-guest-shell-summary-provider>{{ $state->providerLabel() ?? '—' }}</span>
-                                <span data-guest-shell-summary-mode>{{ __('admin.guest_shell_display_mode_'.$policy->display_mode) }}</span>
-                                <span class="tabular-nums" data-guest-shell-summary-cost>{{ number_format($state->monthlyUsage['cost_usd'], 4) }} USD</span>
-                            </span>
-                        </summary>
-                    <form method="POST" action="{{ route('admin.ai-config.guest-shell') }}" class="border-t border-gray-200 dark:border-gray-700 p-4 space-y-3" data-guest-shell-org="{{ $org->slug }}" data-guest-shell-status="{{ $state->status }}">
-                        @csrf
-                        <input type="hidden" name="organization_id" value="{{ $org->id }}">
-
-
-                        {{-- TASK-1468 : la cause, puis le geste. Un SuperAdmin ne doit pas
-                             avoir a traduire un code pour savoir quoi faire. --}}
-                        @if($diag['cause'] !== null || $diag['action'] !== null)
-                        <div class="text-xs space-y-0.5" data-guest-shell-reasons>
-                            @if($diag['cause'] !== null)<p class="text-gray-600 dark:text-gray-300" data-guest-shell-diag-cause>{{ $diag['cause'] }}</p>@endif
-                            @if($diag['action'] !== null)<p class="font-medium text-gray-900 dark:text-gray-100" data-guest-shell-diag-action>→ {{ $diag['action'] }}</p>@endif
-                            @if($diag['technical'] !== null)<p class="font-mono text-[11px] text-gray-400" data-guest-shell-diag-technical>{{ __('admin.guest_shell_diag_technical') }} {{ $diag['technical'] }}</p>@endif
-                        </div>
-                        @endif
-
-                        <dl class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs" data-guest-shell-usage>
-                            <div><dt class="text-gray-500 dark:text-gray-400">{{ __('admin.guest_shell_provider') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $state->providerLabel() ?? '—' }}@if($state->setting) <span class="text-gray-400">· {{ $state->setting->credential_management_mode }}</span>@endif</dd></div>
-                            <div><dt class="text-gray-500 dark:text-gray-400">{{ __('admin.guest_shell_month_messages') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $state->monthlyUsage['messages'] }}</dd></div>
-                            <div><dt class="text-gray-500 dark:text-gray-400">{{ __('admin.guest_shell_month_cost') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ number_format($state->monthlyUsage['cost_usd'], 4) }} USD @if($state->monthlyUsage['cost_unknown'] > 0) <span class="text-amber-600">(+{{ $state->monthlyUsage['cost_unknown'] }} {{ __('admin.guest_shell_unknown_cost') }})</span>@endif</dd></div>
-                            <div><dt class="text-gray-500 dark:text-gray-400">{{ __('admin.guest_shell_avg_cost') }}</dt><dd class="text-gray-900 dark:text-gray-100">{{ $state->averageCostPerMessage() === null ? '—' : number_format($state->averageCostPerMessage(), 4).' USD' }}</dd></div>
-                        </dl>
-
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-4">
-                                <input type="hidden" name="enabled" value="0">
-                                <input type="checkbox" name="enabled" value="1" @checked($policy->enabled) class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
-                                {{ __('admin.guest_shell_enabled') }}
-                            </label>
-                            <div data-guest-shell-display-mode="{{ $policy->display_mode }}">
-                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('admin.guest_shell_display_mode') }}</label>
-                                <select name="display_mode" class="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
-                                    @foreach(\App\Support\GuestShell\GuestShellDisplayMode::MODES as $mode)<option value="{{ $mode }}" @selected(old('display_mode', $policy->display_mode) === $mode)>{{ __('admin.guest_shell_display_mode_'.$mode) }}</option>@endforeach
-                                </select>
-                                <p class="text-[11px] text-gray-400 mt-1">{{ __('admin.guest_shell_display_mode_hint') }}</p>
-                            </div>
-                            <div>
-                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('admin.guest_shell_max_messages') }}</label>
-                                <input type="number" name="max_messages" min="1" max="{{ \App\Models\OrganizationGuestShellPolicy::MAX_MESSAGES_LIMIT }}" value="{{ old('max_messages', $policy->max_messages) }}" class="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
-                            </div>
-                            <div>
-                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('admin.guest_shell_retention_days') }}</label>
-                                <input type="number" name="retention_days" min="1" max="{{ \App\Models\OrganizationGuestShellPolicy::RETENTION_DAYS_LIMIT }}" value="{{ old('retention_days', $policy->retention_days) }}" class="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
-                            </div>
-                            <div>
-                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('admin.guest_shell_budget') }}</label>
-                                <input type="number" step="0.01" min="0" name="guest_monthly_budget_usd" value="{{ old('guest_monthly_budget_usd', $policy->guest_monthly_budget_usd) }}" placeholder="{{ __('admin.guest_shell_budget_placeholder') }}" class="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
-                            </div>
-                            <div class="flex items-end justify-end">
-                                <button type="submit" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">{{ __('admin.ai_save_for', ['name' => $org->name]) }}</button>
-                            </div>
-                        </div>
-                    </form>
-                    </details>
-                @empty
-                    <div class="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-3">{{ __('admin.ai_no_profiles_config') }}</div>
-                @endforelse
-            </div>
-        </div>
+        {{-- TASK-1500 : la configuration Shell Welcome par Organization a quitte
+             cette page pour /admin/shell-welcome-config (decision Cyril 10/09).
+             Il reste un renvoi, pour qui arrive ici par habitude. --}}
+        <a href="{{ route('admin.shell-welcome-config') }}" class="flex items-center justify-between gap-4 rounded-2xl border border-dashed border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/40 dark:bg-indigo-500/5 px-5 py-4 transition hover:bg-indigo-50 dark:hover:bg-indigo-500/10" data-guest-shell-config-pointer>
+            <span>
+                <span class="block text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('admin.guest_shell_config') }}</span>
+                <span class="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('admin.guest_shell_config_moved_hint') }}</span>
+            </span>
+            <span class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">{{ __('admin.guest_shell_config_open') }} →</span>
+        </a>
 
         {{-- Providers disponibles --}}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">

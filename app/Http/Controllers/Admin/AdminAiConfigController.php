@@ -35,13 +35,6 @@ class AdminAiConfigController extends Controller
 
         $clarificationEnabled = AiConfig::get('clarification_enabled', false);
 
-        // TASK-1429 — SW-1 : l'etat Shell Welcome calcule de chaque Organization (jamais persiste).
-        $guestShellStates = [];
-        $guestShell = app(GuestShellPolicyService::class);
-        foreach (Organization::orderBy('name')->get() as $organization) {
-            $guestShellStates[$organization->id] = $guestShell->state($organization);
-        }
-
         return view('admin.ai-config.index', [
             'providers' => $providers,
             'defaultProvider' => $defaultProvider,
@@ -51,6 +44,32 @@ class AdminAiConfigController extends Controller
             'organizations' => $organizations,
             'blogConfigs' => $blogConfigs,
             'clarificationEnabled' => $clarificationEnabled,
+        ]);
+    }
+
+    /**
+     * TASK-1500 — la page de configuration Shell Welcome par Organization.
+     *
+     * La section vivait dans /admin/ai-config, quatrieme bloc d'une page deja
+     * longue. Decision Cyril (10/09/2026) : une page a elle, dans « IA », vers
+     * laquelle /admin/ai-organizations pointe depuis sa colonne Actions.
+     * L'etat de chaque politique est CALCULE ici, jamais persiste (TASK-1429).
+     */
+    public function guestShellConfig(): View
+    {
+        // Modeles COMPLETS : `state()` lit la locale, l'activation, la visibilite…
+        // Une selection de colonnes avait rendu chaque diagnostic faux (mesure :
+        // « platform_ceiling_unset » et « api_key_missing » disparus des tests).
+        $organizations = Organization::orderBy('name')->get();
+
+        $guestShellStates = [];
+        $guestShell = app(GuestShellPolicyService::class);
+        foreach ($organizations as $organization) {
+            $guestShellStates[$organization->id] = $guestShell->state($organization);
+        }
+
+        return view('admin.shell-welcome-config.index', [
+            'organizations' => $organizations,
             'guestShellStates' => $guestShellStates,
         ]);
     }
@@ -145,7 +164,15 @@ class AdminAiConfigController extends Controller
             'guest_monthly_budget_usd' => $validated['guest_monthly_budget_usd'] ?? null,
         ]);
 
-        return redirect()->route('admin.ai-config')
+        // TASK-1500 : le formulaire vit sur deux pages. On revient a celle
+        // d'origine si elle est INTERNE (meme verification que LocaleController),
+        // sinon a /admin/ai-config comme avant.
+        $redirectTo = $request->string('redirect_to')->toString();
+        $target = ($redirectTo === url('/') || str_starts_with($redirectTo, url('/').'/'))
+            ? $redirectTo
+            : route('admin.shell-welcome-config');
+
+        return redirect()->to($target)
             ->with('success', __('admin.guest_shell_saved', ['name' => $organization->name]));
     }
 }

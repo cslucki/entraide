@@ -34,6 +34,8 @@ final class GuestShellDisplay
         self::REASON_AUTHENTICATED,
         GuestShellDisplayMode::OVERLAY,
         GuestShellDisplayMode::SHELL_FIRST,
+        // TASK-1500 : le rail est une variante shell-first, donc une raison valide.
+        GuestShellDisplayMode::SHELL_FIRST_RAIL,
     ];
 
     private function __construct(

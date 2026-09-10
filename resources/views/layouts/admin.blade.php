@@ -69,15 +69,22 @@
                             ['route' => 'admin.blog', 'label' => 'Blog', 'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z'],
                             ['route' => 'admin.todo', 'label' => __('blog.admin_todo_menu'), 'icon' => 'M9 12l2 2 4-4M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z'],
                             ['route' => 'admin.tags', 'label' => 'Tags', 'icon' => 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z'],
+                            // TASK-1456 : ateliers, vue transversale (icone a coordonnees entieres :
+                            // aucune sequence de montant, cf. T1450/T1228).
+                            // TASK-1500 : les Ateliers quittent « IA » pour « Echanges ». Un atelier
+                            // est une rencontre entre membres, pas une fonction d'intelligence
+                            // artificielle : il n'etait dans IA que parce que la campagne Growth qui
+                            // l'a cree y vivait.
+                            ['route' => 'admin.workshops', 'label' => __('admin.workshops_nav'), 'icon' => 'M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z'],
                         ];
 
                         // Platform-level tools: an Organization administrator
-                        // reaches this layout too, and both screens answer 403.
+                        // reaches this layout too, and these screens answer 403.
                         // A link that can only refuse is worse than no link.
                         if (! auth()->user()?->is_admin) {
                             $echangesItems = array_values(array_filter(
                                 $echangesItems,
-                                fn ($item) => ! in_array($item['route'], ['admin.loop-types', 'admin.loop-permissions'], true),
+                                fn ($item) => ! in_array($item['route'], ['admin.loop-types', 'admin.loop-permissions', 'admin.workshops'], true),
                             ));
                         }
 
@@ -306,6 +313,17 @@
                     @php
                         $statsItems = [
                             ['route' => 'admin.stats.login-history', 'label' => 'Connexions', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
+                            // TASK-1500 : ce qui MESURE rejoint « Stats, Logs et compta ». Ces cinq
+                            // ecrans ne reglent rien — ils rendent compte : consommation par
+                            // utilisateur, consommation globale, couts/performances, historique des
+                            // interactions, et l'observabilite Shell Welcome toutes organisations.
+                            // Ils vivaient dans « IA » parce qu'ils parlent d'IA, pas parce qu'on
+                            // s'en sert pour la configurer.
+                            ['route' => 'admin.ia-usage-by-user', 'label' => 'Utilisation par user', 'icon' => 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
+                            ['route' => 'admin.ia-usage', 'label' => 'Utilisation IA', 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
+                            ['route' => 'admin.ai-benchmark', 'label' => 'Benchmark IA', 'icon' => 'M13 17h8m0 0V9m0 8l-8-8-4 4-6-6'],
+                            ['route' => 'admin.ai-interactions', 'label' => 'Historique IA', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
+                            ['route' => 'admin.guest-shell', 'label' => __('admin.guest_shell_observability_nav'), 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'],
                         ];
                         $statsGroupActive = $isGroupActive($statsItems);
                     @endphp
@@ -318,7 +336,7 @@
                                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                             </svg>
-                            <span class="text-xs font-semibold uppercase tracking-wider">Stats</span>
+                            <span class="text-xs font-semibold uppercase tracking-wider">Stats, Logs et compta</span>
                         </button>
                         <div x-show="open" x-cloak
                              x-transition:enter="transition ease-out duration-200"
@@ -350,22 +368,17 @@
                         // y compris `main`, avec un lien vers sa surface canonique.
                         $iaItems[] = ['route' => 'admin.ai-organizations', 'label' => 'Organizations & IA', 'icon' => 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z'];
                         $iaItems[] = ['route' => 'admin.ai-config', 'label' => __('admin.ai_config_title'), 'icon' => 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z'];
-                        $iaItems[] = ['route' => 'admin.guest-shell', 'label' => __('admin.guest_shell_observability_nav'), 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'];
+                        // TASK-1500 : la configuration Shell Welcome par Organization, page dediee (icone a coordonnees entieres, cf. T1450/T1228).
+                        $iaItems[] = ['route' => 'admin.shell-welcome-config', 'label' => __('admin.guest_shell_config_nav'), 'icon' => 'M8 10h1M12 10h1M16 10h1M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z'];
                         $iaItems[] = ['route' => 'admin.usage-references', 'label' => __('admin.usage_reference_nav'), 'icon' => 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253'];
                         $iaItems[] = ['route' => 'admin.shortcuts', 'label' => __('admin.shortcut_nav'), 'icon' => 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1'];
-                        // TASK-1456 : ateliers, vue transversale (icone a coordonnees entieres : aucune sequence de montant, cf. T1450/T1228).
-                        $iaItems[] = ['route' => 'admin.workshops', 'label' => __('admin.workshops_nav'), 'icon' => 'M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z'];
                         // TASK-1229 : credit IA par utilisateur (plateforme).
                         $iaItems[] = ['route' => 'admin.ai-monetization', 'label' => __('admin.ai_monetization_nav'), 'icon' => 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z'];
                         // TASK-1487 : « Qualite IA » cote plateforme. Sans cette
                         // entree la console n'etait atteignable que par son URL.
                         $iaItems[] = ['route' => 'admin.ai-quality', 'label' => __('ai.quality_title'), 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'];
-                        $iaItems[] = ['route' => 'admin.ai-interactions', 'label' => 'Historique IA', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'];
                         $iaItems[] = ['route' => 'admin.ai-prompts', 'label' => 'Prompts IA', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'];
-                        $iaItems[] = ['route' => 'admin.ai-benchmark', 'label' => 'Benchmark IA', 'icon' => 'M13 17h8m0 0V9m0 8l-8-8-4 4-6-6'];
                         $iaItems[] = ['route' => 'admin.ai-review-queue', 'label' => 'File modération', 'icon' => 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4'];
-                        $iaItems[] = ['route' => 'admin.ia-usage', 'label' => 'Utilisation IA', 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'];
-                        $iaItems[] = ['route' => 'admin.ia-usage-by-user', 'label' => 'Utilisation par user', 'icon' => 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'];
                         // Autres outils IA existants.
                         $iaItems[] = ['route' => 'admin.member-ai-profiles', 'label' => 'Agents profil IA', 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'];
                         $iaItems[] = ['route' => 'admin.ai-supervision', 'label' => 'Supervision IA', 'icon' => 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'];

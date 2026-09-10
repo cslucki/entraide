@@ -96,7 +96,8 @@ class TASK1474AiConfigPremiumTest extends TestCase
         $off = Organization::factory()->create(['is_active' => true, 'is_public' => true, 'slug' => 'org-premium-off']);
         OrganizationGuestShellPolicy::query()->updateOrCreate(['organization_id' => $off->id], ['enabled' => false]);
 
-        $html = $this->actingAs($this->superAdmin)->get(route('admin.ai-config'))->assertOk()->getContent();
+        // TASK-1500 : la configuration Shell Welcome a sa page — la mesure suit.
+        $html = $this->actingAs($this->superAdmin)->get(route('admin.shell-welcome-config'))->assertOk()->getContent();
 
         // Le CONTENEUR, pas ses enfants : `data-guest-shell-summary` est un
         // prefixe de `data-guest-shell-summary-item`, et une assertion sur la
@@ -120,7 +121,8 @@ class TASK1474AiConfigPremiumTest extends TestCase
     {
         config(['ai.guest_shell.platform_monthly_ceiling_usd' => 12.5]);
 
-        $html = $this->actingAs($this->superAdmin)->get(route('admin.ai-config'))->assertOk()->getContent();
+        // TASK-1500 : la configuration Shell Welcome a sa page — la mesure suit.
+        $html = $this->actingAs($this->superAdmin)->get(route('admin.shell-welcome-config'))->assertOk()->getContent();
 
         $this->assertStringContainsString('data-guest-shell-summary-value="set"', $html);
         $this->assertStringNotContainsString('data-guest-shell-summary-value="unset"', $html);
@@ -133,9 +135,11 @@ class TASK1474AiConfigPremiumTest extends TestCase
     public function test_every_per_organization_block_folds(): void
     {
         $html = $this->actingAs($this->superAdmin)->get(route('admin.ai-config'))->assertOk()->getContent();
+        // TASK-1500 : la section Shell Welcome a sa page ; les deux autres restent ici.
+        $shell = $this->actingAs($this->superAdmin)->get(route('admin.shell-welcome-config'))->assertOk()->getContent();
 
         // Les trois sections qui empilaient un bloc par Organization.
-        $this->assertMatchesRegularExpression('/<details[^>]*data-guest-shell-row=/', $html, 'Shell Welcome');
+        $this->assertMatchesRegularExpression('/<details[^>]*data-guest-shell-row=/', $shell, 'Shell Welcome');
         $this->assertMatchesRegularExpression('/<details[^>]*data-ai-config-row="blog:/', $html, 'Blog');
         $this->assertMatchesRegularExpression('/<details[^>]*data-ai-config-row="profile:/', $html, 'Agents profil');
     }
@@ -149,7 +153,8 @@ class TASK1474AiConfigPremiumTest extends TestCase
         $off = Organization::factory()->create(['is_active' => true, 'is_public' => true, 'slug' => 'org-premium-off']);
         OrganizationGuestShellPolicy::query()->updateOrCreate(['organization_id' => $off->id], ['enabled' => false]);
 
-        $html = $this->actingAs($this->superAdmin)->get(route('admin.ai-config'))->assertOk()->getContent();
+        // TASK-1500 : la configuration Shell Welcome a sa page — la mesure suit.
+        $html = $this->actingAs($this->superAdmin)->get(route('admin.shell-welcome-config'))->assertOk()->getContent();
 
         preg_match_all('/<details[^>]*data-guest-shell-row="([a-z0-9-]+)"([^>]*)>/', $html, $rows, PREG_SET_ORDER);
         $this->assertCount(2, $rows);
@@ -165,7 +170,8 @@ class TASK1474AiConfigPremiumTest extends TestCase
     /** La ligne repliee dit deja l'essentiel : diagnostic, provider, mode, cout. */
     public function test_the_folded_line_already_says_what_matters(): void
     {
-        $html = $this->actingAs($this->superAdmin)->get(route('admin.ai-config'))->assertOk()->getContent();
+        // TASK-1500 : la configuration Shell Welcome a sa page — la mesure suit.
+        $html = $this->actingAs($this->superAdmin)->get(route('admin.shell-welcome-config'))->assertOk()->getContent();
 
         $this->assertSame(1, preg_match('/<summary[^>]*>(.*?)<\/summary>/s', $html, $summary));
 
@@ -185,20 +191,24 @@ class TASK1474AiConfigPremiumTest extends TestCase
     public function test_editing_is_untouched(): void
     {
         $html = $this->actingAs($this->superAdmin)->get(route('admin.ai-config'))->assertOk()->getContent();
+        // TASK-1500 : le formulaire Shell Welcome vit sur sa page ; blog et profils restent ici.
+        $shell = $this->actingAs($this->superAdmin)->get(route('admin.shell-welcome-config'))->assertOk()->getContent();
 
-        foreach (['admin.ai-config.guest-shell', 'admin.ai-config.blog', 'admin.ai-config.profile'] as $route) {
+        $this->assertStringContainsString('action="'.route('admin.ai-config.guest-shell').'"', $shell, 'admin.ai-config.guest-shell');
+        foreach (['admin.ai-config.blog', 'admin.ai-config.profile'] as $route) {
             $this->assertStringContainsString('action="'.route($route).'"', $html, $route);
         }
 
         foreach (['name="enabled"', 'name="display_mode"', 'name="max_messages"', 'name="retention_days"', 'name="guest_monthly_budget_usd"', 'name="organization_id"'] as $field) {
-            $this->assertStringContainsString($field, $html, $field.' : le reglage doit rester possible');
+            $this->assertStringContainsString($field, $shell, $field.' : le reglage doit rester possible');
         }
     }
 
     /** Et le formulaire vit DANS le bloc replie, pas a cote — sinon il serait toujours deplie. */
     public function test_each_form_lives_inside_its_folding_block(): void
     {
-        $html = $this->actingAs($this->superAdmin)->get(route('admin.ai-config'))->assertOk()->getContent();
+        // TASK-1500 : la configuration Shell Welcome a sa page — la mesure suit.
+        $html = $this->actingAs($this->superAdmin)->get(route('admin.shell-welcome-config'))->assertOk()->getContent();
 
         $this->assertSame(
             1,
@@ -219,7 +229,7 @@ class TASK1474AiConfigPremiumTest extends TestCase
      */
     public function test_the_view_does_not_reach_for_an_economic_authority(): void
     {
-        $view = (string) file_get_contents(resource_path('views/admin/ai-config/index.blade.php'));
+        $view = (string) file_get_contents(resource_path('views/admin/shell-welcome-config/index.blade.php'));
 
         foreach (['AiEconomicGuard', 'ProviderResolver', 'AiProviderInvocation::'] as $forbidden) {
             $this->assertStringNotContainsString($forbidden, $view, $forbidden.' n\'a rien a faire dans cette vue');

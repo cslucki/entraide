@@ -81,14 +81,31 @@
         ],
     ] : [];
 
-    $items = auth()->check() ? [
+    // TASK-1500 — UNE seule liste, connecte ou non.
+    //
+    // Le rail portait deux listes : huit entrees pour un membre, quatre pour un
+    // visiteur. Or un visiteur ne rencontre ce composant qu'a un seul endroit,
+    // le Shell Welcome (`layouts/app` ne le monte que sous `@auth`), et
+    // l'arbitrage du 10/09 veut que ce rail soit LE MEME que celui de
+    // l'application — au pixel. Mesure sur l'Organization publique `main`,
+    // visiteur sans cookie : sept des huit destinations redirigent vers
+    // `/login`. C'est voulu : la redirection est l'entonnoir d'inscription
+    // construit par TASK-1453/TASK-1464, et un rail a moitie vide se lisait
+    // comme une page cassee. Ce qui depend d'une session (compteurs, avatar,
+    // « Cooperer ») reste garde par `@auth` plus bas ; la LISTE, elle, ne
+    // depend plus de rien.
+    $items = [
         [
             'url' => $organizationRouteParam && Route::has('organization.flux') ? route('organization.flux', ['organization' => $organizationRouteParam]) : route('dashboard'),
             'active' => ['flux', 'organization.flux'],
             'label' => __('navigation.feed'),
             'hint' => __('navigation.announcements'),
             'icon' => 'M4 5h16M4 12h10M4 19h16M18 9l3 3-3 3',
-            'visible' => $canSeeFlux,
+            // Arbitrage Cyril 10/09 : l'entree se montre TOUJOURS, connecte ou non.
+            // C'est la page qui applique les droits (policy `create FeedPost`),
+            // pas le rail — un rail qui cache ce qu'on n'a pas le droit de faire
+            // cache aussi ce qui existe. `$canSeeFlux` reste pour le menu avatar.
+            'visible' => true,
             'tone' => 'flux',
         ],
         [
@@ -146,35 +163,6 @@
             'hint' => __('navigation.my_dossiers'),
             'icon' => 'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z',
             'visible' => (bool) $organizationRouteParam && Route::has('organization.dossiers.index'),
-        ],
-    ] : [
-        [
-            'url' => $routeUrl('boucles.index', 'organization.boucles.index'),
-            'active' => ['boucles'],
-            'label' => __('navigation.loops'),
-            'hint' => __('navigation.groups'),
-            'icon' => 'M8 10h8M8 14h5m8-2a9 9 0 11-18 0 9 9 0 0118 0z',
-        ],
-        [
-            'url' => $routeUrl('explorer', 'organization.explorer'),
-            'active' => ['explorer'],
-            'label' => __('navigation.exchanges'),
-            'hint' => __('navigation.services'),
-            'icon' => 'M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4',
-        ],
-        [
-            'url' => $routeUrl('members.index', 'organization.members.index'),
-            'active' => ['members', 'organization.members', 'profile.show'],
-            'label' => __('navigation.directory'),
-            'hint' => __('navigation.members'),
-            'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm6 0V9a2 2 0 00-2-2h-2a2 2 0 00-2 2v10m6 0h2a2 2 0 002-2V5a2 2 0 00-2-2h-2a2 2 0 00-2 2v14z',
-        ],
-        [
-            'url' => $routeUrl('blog.index', 'organization.blog.index'),
-            'active' => ['blog', 'organization.blog'],
-            'label' => __('navigation.blog'),
-            'hint' => __('navigation.articles'),
-            'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 00-2-2h-2M7 8h6M7 12h6M7 16h4',
         ],
     ];
 

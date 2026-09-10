@@ -21,7 +21,7 @@
     $gsLayout = $gsDisplay === null ? null : ($gsDisplay['visible'] ? $gsDisplay['mode'] : ($gsDisplay['degraded'] ? $gsDisplay['preference'] : null));
     $gsMount = $gsLayout !== null
         && (($gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::OVERLAY && $gsPosition === 'bottom')
-            || ($gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::SHELL_FIRST && $gsPosition === 'top'));
+            || (\App\Support\GuestShell\GuestShellDisplayMode::isShellFirst($gsLayout) && $gsPosition === 'top'));
 @endphp
 @if($gsMount)
 @php
@@ -98,7 +98,12 @@
      ligne de conversation devient illisible — mais il appartient aux MESSAGES,
      pas au cadre. Le conteneur prend donc 100 % ; c'est `.bpgs-msg` qui porte
      desormais la largeur de lecture, centree dans le fil. */
-  #bp-guest-shell.bpgs-first{position:static;right:auto;bottom:auto;display:flex;flex-direction:column;flex:1;width:100%;max-width:none;margin:0;padding:0}
+  /* TASK-1500 : `min-height:0` — sans lui ce conteneur flex refuse de descendre
+     sous la hauteur de son contenu. Mesure a 1440x900 : le panneau faisait
+     887 px dans un parent de 833 px, et le composeur passait 28 px sous le
+     bord. Les enfants (`.bpgs-panel`, `.bpgs-log`) le portaient deja ; c'est
+     le maillon du haut qui manquait, donc toute la chaine restait bloquee. */
+  #bp-guest-shell.bpgs-first{position:static;right:auto;bottom:auto;display:flex;flex-direction:column;flex:1;min-height:0;width:100%;max-width:none;margin:0;padding:0}
   #bp-guest-shell.bpgs-first .bpgs-panel{position:static;width:100%;max-width:100%;height:auto;flex:1;min-height:0;max-height:none;bottom:auto;right:auto;display:flex;flex-direction:column;border:0;border-radius:0;box-shadow:none}
   /* Le fil defile, la saisie reste en bas : c'est ce qui distingue une
      interface de conversation d'un bloc de texte. UN SEUL conteneur defile. */
@@ -134,6 +139,26 @@
   /* Une SEULE barre en shell_first : celle de la page. L'entete interne du
      Shell ferait une seconde barre de navigation, ce que le contrat interdit. */
   #bp-guest-shell.bpgs-first .bpgs-head{display:none}
+  /* TASK-1500 : la mention « Echange public sans compte » quitte le mode
+     shell-first. Sur telephone elle mangeait deux lignes sous le composeur ;
+     sur desktop elle cede la place au pied de page BouclePro (mentions
+     legales, gouvernance, depot, version). En OVERLAY elle reste : la bulle
+     flottante n'a pas de pied de page autour d'elle pour la porter. */
+  #bp-guest-shell.bpgs-first .bpgs-foot{display:none}
+  /* TASK-1500 : le panneau suit le theme sombre en shell-first. Ses couleurs
+     etaient toutes ecrites en dur (#fff, #f3f4f6, #111827…) : sous `html.dark`
+     la page s'assombrissait autour d'une conversation restee blanche. Les
+     jetons `--bp-*` existent desormais sur cette page (`x-theme-tokens`), et
+     c'est eux qu'on lit — pas une seconde palette. L'overlay n'est pas
+     touche : il vit dans des pages qui ont deja leur propre traitement. */
+  html.dark #bp-guest-shell.bpgs-first .bpgs-panel{background:var(--bp-page)}
+  html.dark #bp-guest-shell.bpgs-first .bpgs-msg-assistant{background:var(--bp-panel);color:var(--bp-text)}
+  html.dark #bp-guest-shell.bpgs-first .bpgs-msg-user{background:var(--bp-primary);color:#fff}
+  html.dark #bp-guest-shell.bpgs-first .bpgs-note{color:var(--bp-muted)}
+  html.dark #bp-guest-shell.bpgs-first .bpgs-at{color:var(--bp-muted)}
+  html.dark #bp-guest-shell.bpgs-first .bpgs-form{background:var(--bp-page);border-top-color:var(--bp-border)}
+  html.dark #bp-guest-shell.bpgs-first .bpgs-form textarea{background:var(--bp-panel);color:var(--bp-text);border-color:var(--bp-border)}
+  html.dark #bp-guest-shell.bpgs-first .bpgs-form textarea::placeholder{color:var(--bp-muted)}
   @media (max-width:640px){
     /* Bord a bord : l'ecran EST la lane. */
     #bp-guest-shell.bpgs-first .bpgs-log,
@@ -144,7 +169,7 @@
   }
 </style>
 <div id="bp-guest-shell"
-     class="{{ $gsLayout === \App\Support\GuestShell\GuestShellDisplayMode::SHELL_FIRST ? 'bpgs-first' : '' }}"
+     class="{{ \App\Support\GuestShell\GuestShellDisplayMode::isShellFirst($gsLayout) ? 'bpgs-first' : '' }}"
      data-guest-shell
      data-guest-shell-layout="{{ $gsLayout }}"
      data-guest-shell-mode="{{ $gsDisplay['mode'] }}"
@@ -195,7 +220,13 @@
            non pose, cle absente, politique non prete) : un compte n'y change
            rien, et l'afficher la transformerait une panne en argument de
            conversion. Quand le Shell est vivant, le CTA reste. --}}
-      @if($gsLive && $gsCta !== null)
+      {{-- TASK-1500 : et il disparait AUSSI en shell-first. Mesure du 10/09 sur
+           la copie d'ecran de Cyril : la barre du haut porte deja « Connexion »,
+           et « Creer un compte » se retrouvait seul au milieu d'une page vide,
+           juste sous le message d'accueil. Deux portes pour la meme piece.
+           En overlay le CTA reste : la page publique classique n'a pas cette
+           barre, et TASK-1442 mesure sa presence la. --}}
+      @if($gsLive && $gsCta !== null && ! \App\Support\GuestShell\GuestShellDisplayMode::isShellFirst($gsLayout))
         <a class="bpgs-cta" href="{{ $gsCta['url'] }}" data-guest-shell-cta>{{ $gsCta['label'] }}</a>
       @endif
     </div>

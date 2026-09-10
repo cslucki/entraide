@@ -79,7 +79,11 @@ class TASK1441GuestShellDisplayModeTest extends TestCase
     public function test_display_mode_is_bounded_to_overlay_or_shell_first_and_defaults_to_overlay_without_making_anything_public(): void
     {
         $this->assertTrue(Schema::hasColumn('organization_guest_shell_policies', 'display_mode'));
-        $this->assertSame(['overlay', 'shell_first'], GuestShellDisplayMode::MODES);
+        // TASK-1500 : la liste s'ouvre a `shell_first_rail`. Cette assertion
+        // reste EXHAUSTIVE a dessein — c'est elle qui a rougi quand le mode a
+        // ete ajoute, et c'est ce qu'on lui demande : aucun mode n'entre dans
+        // le produit sans passer ici, donc sans libelle FR/EN ni decision.
+        $this->assertSame(['overlay', 'shell_first', 'shell_first_rail'], GuestShellDisplayMode::MODES);
 
         $policy = $this->policies->update($this->org, ['max_messages' => 5]);
         $this->assertSame(GuestShellDisplayMode::OVERLAY, $policy->fresh()->display_mode, 'defaut technique');
@@ -189,12 +193,13 @@ class TASK1441GuestShellDisplayModeTest extends TestCase
         $this->actingAs($this->orgAdmin)->post(route('admin.ai-config.guest-shell'), $payload)->assertForbidden();
         $this->assertSame(GuestShellDisplayMode::OVERLAY, OrganizationGuestShellPolicy::forOrganization($this->org)->display_mode);
 
-        $this->actingAs($this->superAdmin)->post(route('admin.ai-config.guest-shell'), $payload)->assertRedirect(route('admin.ai-config'))->assertSessionHasNoErrors();
+        $this->actingAs($this->superAdmin)->post(route('admin.ai-config.guest-shell'), $payload)->assertRedirect(route('admin.shell-welcome-config'))->assertSessionHasNoErrors();
         $this->assertSame(GuestShellDisplayMode::SHELL_FIRST, OrganizationGuestShellPolicy::forOrganization($this->org)->display_mode);
         $this->actingAs($this->superAdmin)->post(route('admin.ai-config.guest-shell'), array_merge($payload, ['display_mode' => 'off']))->assertSessionHasErrors('display_mode');
         $this->assertSame(GuestShellDisplayMode::SHELL_FIRST, OrganizationGuestShellPolicy::forOrganization($this->org)->display_mode);
 
-        $html = $this->actingAs($this->superAdmin)->get(route('admin.ai-config'))->assertOk()->getContent();
+        // TASK-1500 : la configuration Shell Welcome a sa page — la mesure suit.
+        $html = $this->actingAs($this->superAdmin)->get(route('admin.shell-welcome-config'))->assertOk()->getContent();
         $block = substr($html, strpos($html, 'data-guest-shell-org="org-a-14xx"'));
         $block = substr($block, 0, strpos($block, '</form>'));
         $this->assertStringContainsString('name="display_mode"', $block);
