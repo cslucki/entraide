@@ -1809,7 +1809,12 @@ class OrgAdminController extends Controller
             'source' => $data,
         ])->render();
 
-        return response($html)->header('Content-Type', 'text/html; charset=UTF-8');
+        // TASK-1515 : contenu de document d'un tenant — il n'a rien a faire
+        // dans un cache, ni chez un intermediaire, ni dans l'historique. Le
+        // meme entete est pose sur la porte plateforme (`admin.drives.chunks`).
+        return response($html)
+            ->header('Content-Type', 'text/html; charset=UTF-8')
+            ->header('Cache-Control', 'no-store, no-cache, private, max-age=0');
     }
 
     /**

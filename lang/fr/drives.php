@@ -40,4 +40,17 @@ return [
     'filter_organization' => "Organisation",
     'filter_organization_all' => "Toutes les organisations",
     'unknown_organization' => "L'organisation « :slug » n'existe pas : aucun filtre n'a été appliqué, la liste porte donc sur toutes les organisations.",
+    // TASK-1515 — deux actions de plus dans la console de plateforme.
+    'action_view_chunks' => "Voir extraits",
+    'inspect_title' => "Extraits indexés",
+    'inspect_close' => "Fermer",
+    'inspect_loading' => "Chargement…",
+    'action_delete' => "Supprimer",
+    'delete_title' => "Supprimer ce fichier ?",
+    // Nommer le fichier dans la confirmation : c'est la seule chose qui
+    // distingue une suppression voulue d'une suppression de la mauvaise ligne.
+    'delete_body' => "« :name » sera retiré de son Dossier et effacé du stockage. Ses extraits indexés seront supprimés à la passe d'indexation suivante. Cette suppression n'est pas annulable depuis l'interface.",
+    'delete_cancel' => "Annuler",
+    'delete_submit' => "Supprimer définitivement",
+    'delete_done' => "« :name » a été supprimé. Ses extraits indexés seront retirés à la passe d'indexation suivante.",
 ];

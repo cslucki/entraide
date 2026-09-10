@@ -235,6 +235,7 @@ return [
     'knowledge_console_close' => 'Close',
     'knowledge_console_loading' => 'Loading…',
     'knowledge_console_chunk_label' => 'Chunk :index',
+    'knowledge_console_chunks_truncated' => 'Showing the first :shown excerpts out of :total.',
     'knowledge_console_filter_placeholder' => 'Filter by name…',
     'knowledge_console_filter_clear' => 'Clear the Loop filter',
     'knowledge_console_filter_count' => ':count row visible|:count rows visible',

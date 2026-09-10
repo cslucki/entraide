@@ -235,6 +235,9 @@ return [
     'knowledge_console_close' => 'Fermer',
     'knowledge_console_loading' => 'Chargement…',
     'knowledge_console_chunk_label' => 'Extrait :index',
+    // TASK-1515 : la console de plateforme borne l'affichage. Le dire, sinon
+    // l'operateur croit avoir vu tout le document.
+    'knowledge_console_chunks_truncated' => "Les :shown premiers extraits sur :total sont affichés ici.",
     'knowledge_console_filter_placeholder' => 'Filtrer par nom…',
     'knowledge_console_filter_clear' => 'Retirer le filtre Boucle',
     'knowledge_console_filter_count' => ':count ligne visible|:count lignes visibles',

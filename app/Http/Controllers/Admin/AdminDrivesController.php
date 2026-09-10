@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\DossierFile;
 use App\Models\Organization;
 use App\Services\Dossiers\DossierFileIndexingDispatcher;
+use App\Services\Dossiers\DossierFileRemover;
 use App\Services\Dossiers\OrganizationFileInventory;
+use App\Services\Dossiers\OrganizationRagOverview;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 
 /**
@@ -40,6 +43,13 @@ use Illuminate\View\View;
  */
 class AdminDrivesController extends Controller
 {
+    /**
+     * Combien d'extraits le tiroir rend, au plus. Un document de plusieurs
+     * milliers d'extraits ne doit ni saturer la memoire ni produire une page
+     * illisible : on montre le debut, et on DIT combien il y en a en tout.
+     */
+    private const CHUNK_PREVIEW = 20;
+
     public function index(Request $request, OrganizationFileInventory $inventory): View
     {
         $slug = trim((string) $request->query('organization', ''));
@@ -77,5 +87,72 @@ class AdminDrivesController extends Controller
 
         // « Mis en file », jamais « reindexe » : la queue est asynchrone.
         return back()->with('success', __('drives.reindex_queued', ['name' => $file->display_name ?: $file->original_name]));
+    }
+
+    /**
+     * TASK-1515 — « Voir extraits » : ce que l'IA a REELLEMENT retenu d'un
+     * fichier. Lecture seule, zero appel provider, zero vecteur.
+     *
+     * La primitive est celle de TASK-1307, `OrganizationRagOverview::chunksFor()`,
+     * exactement celle qu'utilise la console d'Organization : la plateforme
+     * et le tenant doivent dire la meme chose du meme document. Seule la
+     * BORNE differe — ici on ne connait pas la taille des documents des
+     * autres.
+     *
+     * Le fragment sort en `no-store` : c'est du contenu de document d'un
+     * tenant, rendu dans une console partagee. Il n'a rien a faire dans un
+     * cache, ni chez un intermediaire, ni dans l'historique du navigateur.
+     */
+    public function chunks(Organization $organization, DossierFile $file, OrganizationRagOverview $overview): Response
+    {
+        abort_unless((string) $file->organization_id === (string) $organization->getKey(), 404);
+
+        $source = $overview->chunksFor(
+            (string) $organization->getKey(),
+            'file',
+            (string) $file->getKey(),
+            self::CHUNK_PREVIEW,
+        );
+
+        abort_if($source === null, 404);
+
+        // Le partiel est celui de la console d'Organization, tel quel : il ne
+        // depend d'aucun contexte org-admin et n'ecrit aucun `var(--bp-*)`,
+        // que `layouts/admin` n'emet pas.
+        $html = view('admin.org.partials.ai-knowledge-source', ['source' => $source])->render();
+
+        return response($html)
+            ->header('Content-Type', 'text/html; charset=UTF-8')
+            ->header('Cache-Control', 'no-store, no-cache, private, max-age=0');
+    }
+
+    /**
+     * TASK-1515 — suppression. Le geste n'est pas invente ici : il vit dans
+     * `DossierFileRemover`, extrait de `DossierFileController::destroy()`,
+     * et c'est le meme pour le membre et pour la plateforme.
+     *
+     * Ce qui est propre a cette porte, c'est le DROIT et le PERIMETRE :
+     *
+     *  - le droit vient du middleware `admin` (la `DossierPolicy` parle de
+     *    proprietaire de Dossier ou d'admin de Boucle, ce qu'un superadmin
+     *    n'est ni l'un ni l'autre) ;
+     *  - le perimetre est re-verifie ici et pas ailleurs : `DossierFile` ne
+     *    porte AUCUN scope global de tenant, le route-model-binding accepterait
+     *    l'UUID d'un fichier d'une autre Organization. Une URL forgee doit
+     *    rendre 404, jamais supprimer.
+     *
+     * Le verbe est DELETE : aucune suppression n'est atteignable en GET.
+     */
+    public function destroy(Organization $organization, DossierFile $file, DossierFileRemover $remover): RedirectResponse
+    {
+        abort_unless((string) $file->organization_id === (string) $organization->getKey(), 404);
+
+        // Lu AVANT la suppression : apres, l'operateur n'a plus aucun moyen
+        // de savoir ce qu'il vient d'effacer.
+        $name = (string) ($file->display_name ?: $file->original_name);
+
+        $remover->remove($file);
+
+        return back()->with('success', __('drives.delete_done', ['name' => $name]));
     }
 }
