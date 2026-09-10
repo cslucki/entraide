@@ -151,14 +151,18 @@
      jetons `--bp-*` existent desormais sur cette page (`x-theme-tokens`), et
      c'est eux qu'on lit — pas une seconde palette. L'overlay n'est pas
      touche : il vit dans des pages qui ont deja leur propre traitement. */
-  html.dark #bp-guest-shell.bpgs-first .bpgs-panel{background:var(--bp-page)}
-  html.dark #bp-guest-shell.bpgs-first .bpgs-msg-assistant{background:var(--bp-panel);color:var(--bp-text)}
-  html.dark #bp-guest-shell.bpgs-first .bpgs-msg-user{background:var(--bp-primary);color:#fff}
-  html.dark #bp-guest-shell.bpgs-first .bpgs-note{color:var(--bp-muted)}
-  html.dark #bp-guest-shell.bpgs-first .bpgs-at{color:var(--bp-muted)}
-  html.dark #bp-guest-shell.bpgs-first .bpgs-form{background:var(--bp-page);border-top-color:var(--bp-border)}
-  html.dark #bp-guest-shell.bpgs-first .bpgs-form textarea{background:var(--bp-panel);color:var(--bp-text);border-color:var(--bp-border)}
-  html.dark #bp-guest-shell.bpgs-first .bpgs-form textarea::placeholder{color:var(--bp-muted)}
+  /* Chaque lecture porte son repli — TASK-1472 l'exige pour --bp-primary et
+     la CI l'a rappele ; les autres suivent la meme discipline. Valeurs = zen
+     sombre (config/bouclepro_themes.php), puisque ces regles ne vivent que
+     sous html.dark. */
+  html.dark #bp-guest-shell.bpgs-first .bpgs-panel{background:var(--bp-page,#06143A)}
+  html.dark #bp-guest-shell.bpgs-first .bpgs-msg-assistant{background:var(--bp-panel,#050F2C);color:var(--bp-text,#F8FAFC)}
+  html.dark #bp-guest-shell.bpgs-first .bpgs-msg-user{background:var(--bp-primary,#527DFF);color:#fff}
+  html.dark #bp-guest-shell.bpgs-first .bpgs-note{color:var(--bp-muted,#C7D2FE)}
+  html.dark #bp-guest-shell.bpgs-first .bpgs-at{color:var(--bp-muted,#C7D2FE)}
+  html.dark #bp-guest-shell.bpgs-first .bpgs-form{background:var(--bp-page,#06143A);border-top-color:var(--bp-border,#24427F)}
+  html.dark #bp-guest-shell.bpgs-first .bpgs-form textarea{background:var(--bp-panel,#050F2C);color:var(--bp-text,#F8FAFC);border-color:var(--bp-border,#24427F)}
+  html.dark #bp-guest-shell.bpgs-first .bpgs-form textarea::placeholder{color:var(--bp-muted,#C7D2FE)}
   @media (max-width:640px){
     /* Bord a bord : l'ecran EST la lane. */
     #bp-guest-shell.bpgs-first .bpgs-log,
