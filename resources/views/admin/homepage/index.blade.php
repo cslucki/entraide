@@ -71,18 +71,38 @@
                         $isCurrent = $current === $mode;
                         $needsAuth = \App\Support\Homepage\RootDestination::requiresAuthentication($mode);
                     @endphp
-                    <label class="relative flex cursor-pointer flex-col gap-2 rounded-2xl border-2 bg-white dark:bg-gray-800 p-5 transition min-h-[160px]
-                                  {{ $isCurrent ? 'border-indigo-600 dark:border-indigo-500 shadow-sm' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600' }}"
+                    {{-- TASK-1508 — l'etat COCHE doit se voir. La selection etait
+                         calculee cote serveur seulement : la radio se cochait bien,
+                         mais rien ne changeait a l'ecran (mesure : la seule bordure
+                         qui bougeait venait du SURVOL), et le badge restait sur
+                         l'ancienne carte. Cliquer semblait sans effet.
+
+                         `has-[:checked]:` (Tailwind 3.4, deja utilise dans
+                         `requests/edit`) fait reagir la carte elle-meme, et
+                         `group-has-[:checked]:` ses descendants. Pas de JavaScript.
+                         `peer-*` ne conviendrait pas : il compile en `~`, un
+                         combinateur de FRERES — l'icone et le badge sont des
+                         descendants d'un frere, il ne les atteindrait jamais. --}}
+                    <label class="group relative flex cursor-pointer flex-col gap-2 rounded-2xl border-2 bg-white dark:bg-gray-800 p-5 transition min-h-[160px]
+                                  border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600
+                                  has-[:checked]:border-indigo-600 dark:has-[:checked]:border-indigo-500
+                                  has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/20 has-[:checked]:shadow-sm"
                            data-root-destination-option="{{ $mode }}" @if($isCurrent) data-current="true" @endif>
                         <input type="radio" name="root_destination" value="{{ $mode }}" class="sr-only peer" @checked($isCurrent)>
 
                         <div class="flex items-start justify-between gap-2">
-                            <svg class="w-5 h-5 flex-shrink-0 {{ $isCurrent ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg class="w-5 h-5 flex-shrink-0 text-gray-400 dark:text-gray-500 group-has-[:checked]:text-indigo-600 dark:group-has-[:checked]:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $meta['icon'] }}"/>
                             </svg>
-                            @if($isCurrent)
-                                <span class="rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white" data-root-destination-current>{{ __('admin.root_destination_current') }}</span>
-                            @endif
+                            <div class="flex flex-col items-end gap-1">
+                                {{-- « Selectionne » suit le clic ; « Actuellement servi » dit
+                                     ce que la racine sert VRAIMENT, tant que rien n'est
+                                     enregistre. Les deux ne disent pas la meme chose. --}}
+                                <span class="hidden group-has-[:checked]:inline-flex rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white" data-root-destination-selected>{{ __('admin.root_destination_selected') }}</span>
+                                @if($isCurrent)
+                                    <span class="rounded-full bg-gray-200 dark:bg-gray-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-700 dark:text-gray-200" data-root-destination-current>{{ __('admin.root_destination_current') }}</span>
+                                @endif
+                            </div>
                         </div>
 
                         <div>

@@ -870,6 +870,7 @@ return [
     'root_destination_private_org' => 'L\'organisation par defaut est privee : ses contenus publics (blog) repondent 404 a un visiteur sans compte. Rendez-la publique, ou choisissez une modalite qui ne depend pas de cette ouverture.',
     'root_destination_saved' => 'Page d\'accueil de la plateforme mise a jour.',
     'root_destination_save' => 'Enregistrer',
+    'root_destination_selected' => 'Sélectionné',
     'root_destination_current' => 'Actuellement servi',
     'root_destination_public' => 'Public',
     'root_destination_authenticated' => 'Connexion requise',

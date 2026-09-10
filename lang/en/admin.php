@@ -862,6 +862,7 @@ return [
     'root_destination_private_org' => 'The default organization is private: its public content (blog) returns 404 to a visitor without an account. Make it public, or choose a mode that does not depend on that openness.',
     'root_destination_saved' => 'Platform landing page updated.',
     'root_destination_save' => 'Save',
+    'root_destination_selected' => 'Selected',
     'root_destination_current' => 'Currently served',
     'root_destination_public' => 'Public',
     'root_destination_authenticated' => 'Sign-in required',
