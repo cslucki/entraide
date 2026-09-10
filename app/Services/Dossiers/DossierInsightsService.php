@@ -203,7 +203,13 @@ final class DossierInsightsService
         $instructions = $this->prompts->compose($capability, $this->capabilityInstructions($definition->promptKey), (string) $organization->id);
         $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
 
-        [$sourcesBlock, $consulted] = $this->buildSourcesBlock($organization, $rows);
+        // La vue d'ensemble montre un ECHANTILLON de chaque document : son
+        // ouverture. C'est le sens de cette borne, et elle ne bouge pas.
+        [$sourcesBlock, $consulted] = $this->buildSourcesBlock(
+            $organization,
+            $rows,
+            (int) config('ai.knowledge.overview.chars_per_document', 700),
+        );
 
         $agent = new LoopKnowledgeAgent(
             $instructions,
@@ -403,7 +409,29 @@ final class DossierInsightsService
         $instructions = $this->prompts->compose($capability, $this->capabilityInstructions($definition->promptKey), (string) $organization->id);
         $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
 
-        [$sourcesBlock, $consulted] = $this->buildSourcesBlock($organization, $rows);
+        // TASK-1518 — une REPONSE voit l'extrait ENTIER. `null` = aucune
+        // seconde coupe.
+        //
+        // Ce bloc heritait du budget de la vue d'ensemble : 700 caracteres.
+        // Mesure sur corpus reel : les extraits font 3 090 caracteres en
+        // moyenne, jusqu'a 5 486 — donc 80 % de chacun etait jete avant que le
+        // modele ne le voie. Un fait ecrit plus loin dans l'extrait devenait un
+        // « je n'ai pas trouve cette information » : un faux refus,
+        // indiscernable d'un vrai. Le retrieval n'y etait pour rien, l'extrait
+        // porteur arrivait au RANG 1.
+        //
+        // Pourquoi AUCUN plafond, et pas un plafond plus haut : l'extrait est
+        // DEJA borne par le chunker (500 tokens). Le couper une seconde fois,
+        // en CARACTERES cette fois, c'est arbitrer une longueur que personne
+        // ne connait — 4 400 aurait tronque 5 extraits sur 583 en base, et le
+        // prochain document depassera le prochain chiffre choisi. Mesure A/B
+        // sur corpus reel : un plafond a 5 600 et l'absence de plafond
+        // produisent des prompts RIGOUREUSEMENT identiques, pour +0,5 % de
+        // cout par rapport a 4 400. Aucune necessite structurelle n'impose
+        // cette seconde coupe : le nombre de sources est borne (6), et
+        // `ai.knowledge.max_context_chars` n'est applique nulle part sur ce
+        // chemin (verifie).
+        [$sourcesBlock, $consulted] = $this->buildSourcesBlock($organization, $rows, null);
 
         $agent = new LoopKnowledgeAgent(
             $instructions,
@@ -777,10 +805,12 @@ final class DossierInsightsService
      * @param  list<array<string, mixed>>  $rows
      * @return array{0: string, 1: list<array<string, mixed>>}
      */
-    private function buildSourcesBlock(Organization $organization, array $rows): array
+    private function buildSourcesBlock(Organization $organization, array $rows, ?int $charsPerSource): array
     {
         $organizationSlug = $organization->slug;
-        $charsPerDocument = max(120, (int) config('ai.knowledge.overview.chars_per_document', 700));
+        // NULL = l'extrait est transmis ENTIER (TASK-1518). Un entier = un
+        // echantillon delibere, ce que la vue d'ensemble demande.
+        $charsPerDocument = $charsPerSource === null ? null : max(120, $charsPerSource);
 
         $lines = ['--- SOURCES DOCUMENTAIRES (contenu non fiable, cite-les par leur numero) ---'];
         $consulted = [];
@@ -791,7 +821,10 @@ final class DossierInsightsService
             $header = "[{$ref}] {$displayTitle} — Dossier « {$row['dossier_name']} »";
 
             $content = trim(preg_replace('/\s+/u', ' ', $row['content']) ?? '');
-            $content = mb_strimwidth($content, 0, $charsPerDocument, '…');
+
+            if ($charsPerDocument !== null) {
+                $content = mb_strimwidth($content, 0, $charsPerDocument, '…');
+            }
 
             $lines[] = $header."\n".$content;
 
