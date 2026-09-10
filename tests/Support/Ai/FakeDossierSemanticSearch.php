@@ -23,9 +23,9 @@ class FakeDossierSemanticSearch extends DossierSemanticSearchService
 
     public function __construct() {}
 
-    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null, ?string $onlyDossierFileId = null): array
+    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null, ?array $onlyDossierFileIds = null): array
     {
-        $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'embeddingInstance', 'limit', 'traceMetadata', 'candidateLimit', 'onlyDossierFileId');
+        $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'embeddingInstance', 'limit', 'traceMetadata', 'candidateLimit', 'onlyDossierFileIds');
 
         $rows = $this->rows;
 
@@ -34,10 +34,10 @@ class FakeDossierSemanticSearch extends DossierSemanticSearchService
         // une restriction de perimetre et l'ignore rendrait un test vert alors
         // que la restriction ne s'applique pas — le pire des faux verts. Il
         // l'applique donc reellement.
-        if ($onlyDossierFileId !== null) {
+        if ($onlyDossierFileIds !== null) {
             $rows = array_values(array_filter(
                 $rows,
-                static fn (array $row): bool => ($row['dossier_file_id'] ?? null) === $onlyDossierFileId,
+                static fn (array $row): bool => in_array(($row['dossier_file_id'] ?? null), $onlyDossierFileIds, true),
             ));
         }
 

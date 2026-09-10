@@ -338,7 +338,7 @@ final class DossierInsightsService
         // A defaut d'indication explicite, on cherche donc un nom de fichier
         // DANS la question. Dans les deux cas la resolution est serveur, bornee
         // au Dossier courant, et deterministe.
-        $scopedFile = $fileHint !== null
+        $scopedFiles = $fileHint !== null
             ? $this->resolveFileScope($organization, $dossier, $fileHint)
             : $this->detectFileScope($organization, $dossier, $question);
 
@@ -350,7 +350,7 @@ final class DossierInsightsService
             self::ANSWER_SOURCE_LIMIT,
             ['dossier_answer' => true],
             self::ANSWER_CANDIDATE_LIMIT,
-            $scopedFile,
+            $scopedFiles,
         );
 
         // TASK-1517 : replier les quasi-doublons, puis ancrer l'ouverture du
@@ -365,7 +365,7 @@ final class DossierInsightsService
             // incident technique, alors que c'est le comportement honnete et
             // attendu. Aucun appel provider : il n'y a rien a fonder.
             return new KnowledgeAnswer(
-                answer: __($scopedFile !== null ? 'dossiers.answer_no_source_in_file' : 'dossiers.answer_no_source', [], $locale),
+                answer: __($scopedFiles !== null ? 'dossiers.answer_no_source_in_file' : 'dossiers.answer_no_source', [], $locale),
                 sources: [],
                 consulted: [],
                 grounded: false,
@@ -546,21 +546,23 @@ final class DossierInsightsService
      * TASK-1516 — « Cherche dans 260908-20h12-ARIA template Part B_EU.docx ».
      *
      * Resolution SERVEUR, bornee au Dossier deja autorise, sur `display_name`
-     * puis `original_name`. Renvoie l'identifiant du fichier si UNE seule
-     * correspondance existe ; `null` si aucune — auquel cas l'appelant reste
-     * sur le Dossier courant et le dit, plutot que de feindre d'avoir trouve.
+     * puis `original_name`. Une restriction explicite est toujours reconnue :
+     * elle rend la liste des 0..N identifiants correspondants. Une liste vide
+     * signifie « rien de resoluble » et doit produire une non-reponse sure ;
+     * elle ne signifie jamais « rechercher dans tout le Dossier ».
      *
-     * Plusieurs correspondances : on ne devine pas. La plus specifique gagne
-     * seulement si elle est strictement unique ; sinon on rend `null` et la
-     * recherche porte sur tout le Dossier, ou les noms distingueront les
-     * sources entre elles.
+     * TASK-1525 : toutes les correspondances legitimes d'une famille restent
+     * dans le scope. Le filtre SQL recoit ces identifiants serveur ; aucun ID
+     * client et aucun arbitrage du modele n'entrent dans cette autorite.
+     *
+     * @return list<string>
      */
-    private function resolveFileScope(Organization $organization, Dossier $dossier, string $hint): ?string
+    private function resolveFileScope(Organization $organization, Dossier $dossier, string $hint): array
     {
         $needle = mb_strtolower(trim($hint));
 
         if ($needle === '') {
-            return null;
+            return [];
         }
 
         $matches = DossierFile::query()
@@ -581,7 +583,12 @@ final class DossierInsightsService
             })
             ->values();
 
-        return $matches->count() === 1 ? (string) $matches->first()->id : null;
+        return $matches
+            ->pluck('id')
+            ->map(static fn ($id): string => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**
@@ -681,10 +688,10 @@ final class DossierInsightsService
      * l'extrait le plus proche de la question, sinon le rang cesserait de dire
      * la pertinence.
      *
-     * Une question restreinte a un fichier ne demande AUCUNE garde
-     * supplementaire, et c'est mesure : quand `$scopedFile` est pose, la
-     * recherche est deja bornee a ce fichier EN SQL, donc le document le mieux
-     * classe EST ce fichier, donc l'ouverture ancree en vient forcement. Un
+     * Une question restreinte a des fichiers ne demande AUCUNE garde
+     * supplementaire, et c'est mesure : quand `$scopedFiles` est pose, la
+     * recherche est deja bornee a ces fichiers EN SQL, donc le document le mieux
+     * classe appartient a ce scope, donc l'ouverture ancree en vient forcement. Un
      * `if` de plus aurait ete du code mort pretendant proteger — un sabotage
      * l'a laisse vert, ce qui l'a revele.
      *
@@ -761,7 +768,7 @@ final class DossierInsightsService
      * Deux conditions, donc : le nom doit RESSEMBLER a un nom de fichier (une
      * extension), et il doit apparaitre EN ENTIER dans la question.
      */
-    private function detectFileScope(Organization $organization, Dossier $dossier, string $question): ?string
+    private function detectFileScope(Organization $organization, Dossier $dossier, string $question): ?array
     {
         $haystack = mb_strtolower($question);
 
@@ -783,7 +790,16 @@ final class DossierInsightsService
             })
             ->values();
 
-        return $matches->count() === 1 ? (string) $matches->first()->id : null;
+        if ($matches->isEmpty()) {
+            return null;
+        }
+
+        return $matches
+            ->pluck('id')
+            ->map(static fn ($id): string => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**

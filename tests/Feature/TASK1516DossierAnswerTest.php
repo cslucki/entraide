@@ -135,6 +135,25 @@ class TASK1516DossierAnswerTest extends TestCase
         ];
     }
 
+    private function fileRow(DossierFile $file, string $content): array
+    {
+        return [
+            'chunk_id' => (string) Str::uuid(),
+            'dossier_id' => $this->dossier->id,
+            'dossier_name' => $this->dossier->name,
+            'source_type' => 'file',
+            'blog_post_id' => null,
+            'title' => null,
+            'slug' => null,
+            'dossier_file_id' => (string) $file->id,
+            'filename' => $file->display_name,
+            'mime_type' => $file->mime_type,
+            'chunk_index' => 0,
+            'content' => $content,
+            'distance' => 0.12,
+        ];
+    }
+
     private function url(?Organization $organization = null, ?Dossier $dossier = null): string
     {
         return route('organization.dossiers.answer', [
@@ -393,7 +412,7 @@ class TASK1516DossierAnswerTest extends TestCase
         $this->mockSearch()
             ->shouldReceive('searchAcrossDossiers')
             ->once()
-            ->withArgs(fn (...$args): bool => ($args[7] ?? null) === (string) $target->id)
+            ->withArgs(fn (...$args): bool => ($args[7] ?? null) === [(string) $target->id])
             ->andReturn([$this->row('A')]);
 
         $this->fakeAgent('ARIA est une alliance. [S1]');
@@ -423,32 +442,63 @@ class TASK1516DossierAnswerTest extends TestCase
         $this->mockSearch()
             ->shouldReceive('searchAcrossDossiers')
             ->once()
-            ->withArgs(fn (...$args): bool => ($args[7] ?? null) === null)
-            ->andReturn([$this->row('A')]);
+            ->withArgs(fn (...$args): bool => ($args[7] ?? null) === [])
+            ->andReturn([]);
 
-        $this->fakeAgent('Rien de particulier. [S1]');
+        LoopKnowledgeAgent::fake([]);
 
-        $this->actingAs($this->owner)
+        $response = $this->actingAs($this->owner)
             ->postJson($this->url(), ['question' => 'Que dit ce document ?', 'file' => 'secret-ailleurs.docx'])
             ->assertOk();
+
+        $this->assertSame(trans('dossiers.answer_no_source_in_file', [], 'en'), $response->json('data.answer'));
+        $this->assertSame([], $response->json('data.consulted'));
     }
 
-    public function test_an_ambiguous_file_name_does_not_restrict_anything(): void
+    public function test_a_multi_part_b_family_stays_strictly_scoped_and_abstains_without_a_global_budget(): void
     {
-        $this->file('ARIA version 1.docx');
-        $this->file('ARIA version 2.docx');
+        $partB1 = $this->file('260908-ARIA template Part B_EU.docx');
+        $partB2 = $this->file('260909-ARIA template Part B_EU revised.docx');
+        $budgetPdf = $this->file('BouclePro OLATS budget total 60000 EUR.pdf');
+        $expectedIds = [(string) $partB1->id, (string) $partB2->id];
 
         $this->mockSearch()
             ->shouldReceive('searchAcrossDossiers')
             ->once()
-            ->withArgs(fn (...$args): bool => ($args[7] ?? null) === null)
-            ->andReturn([$this->row('A')]);
+            ->withArgs(function (...$args) use ($expectedIds, $budgetPdf): bool {
+                $actualIds = $args[7] ?? null;
 
-        $this->fakeAgent('Deux versions existent. [S1]');
+                if (! is_array($actualIds)) {
+                    return false;
+                }
 
-        $this->actingAs($this->owner)
-            ->postJson($this->url(), ['question' => 'Que disent-ils ?', 'file' => 'ARIA'])
+                sort($actualIds);
+                sort($expectedIds);
+
+                return $actualIds === $expectedIds
+                    && ! in_array((string) $budgetPdf->id, $actualIds, true);
+            })
+            ->andReturn([
+                $this->fileRow($partB1, 'Part B version initiale : aucun budget global n est indique.'),
+                $this->fileRow($partB2, 'Part B revisee : aucun budget global n est indique.'),
+            ]);
+
+        $this->fakeAgent('Les versions Part B ne permettent pas d etablir un budget global. [S1] [S2]');
+
+        $response = $this->actingAs($this->owner)
+            ->postJson($this->url(), ['question' => 'Quel est le budget global de Part B ?', 'file' => 'Part B'])
             ->assertOk();
+
+        $this->assertSame(
+            'Les versions Part B ne permettent pas d etablir un budget global. [S1] [S2]',
+            $response->json('data.answer'),
+        );
+        $this->assertEqualsCanonicalizing(
+            [$partB1->display_name, $partB2->display_name],
+            array_column($response->json('data.consulted'), 'title'),
+        );
+        $this->assertNotContains($budgetPdf->display_name, array_column($response->json('data.consulted'), 'title'));
+        $this->assertStringNotContainsString('60 000', $response->json('data.answer'));
     }
 
     /**
@@ -462,7 +512,7 @@ class TASK1516DossierAnswerTest extends TestCase
         $this->mockSearch()
             ->shouldReceive('searchAcrossDossiers')
             ->once()
-            ->withArgs(fn (...$args): bool => ($args[7] ?? null) === (string) $target->id)
+            ->withArgs(fn (...$args): bool => ($args[7] ?? null) === [(string) $target->id])
             ->andReturn([$this->row('A')]);
 
         $this->fakeAgent('Le document decrit le projet. [S1]');
