@@ -98,7 +98,14 @@ class TASK1516DossierAnswerTest extends TestCase
 
     private function mockSearch(): MockInterface
     {
-        return $this->mock(DossierSemanticSearchService::class);
+        $mock = $this->mock(DossierSemanticSearchService::class);
+
+        // TASK-1517 : `answer()` demande aussi l'extrait d'OUVERTURE du
+        // document le mieux classe. Attente par defaut a vide — les tests qui
+        // mesurent l'ancrage la remplacent, les autres n'ont pas a la connaitre.
+        $mock->shouldReceive('representativeChunksAcrossDossiers')->andReturn([])->byDefault();
+
+        return $mock;
     }
 
     private function fakeAgent(string $text): void

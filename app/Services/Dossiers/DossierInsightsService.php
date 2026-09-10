@@ -95,6 +95,19 @@ final class DossierInsightsService
     /** Au plus trois approfondissements — le CDC en demande trois. */
     private const FOLLOW_UP_LIMIT = 3;
 
+    /**
+     * TASK-1517 : le bassin de candidats dans lequel la selection puise, avant
+     * repli des quasi-doublons. Un seul embedding de requete, quelle que soit
+     * sa taille — seule la clause SQL `LIMIT` change.
+     */
+    private const ANSWER_CANDIDATE_LIMIT = 12;
+
+    /**
+     * TASK-1517 : la borne TOTALE, ancrage compris. Cinq extraits choisis par
+     * proximite, plus au plus un extrait d'OUVERTURE de document.
+     */
+    private const ANSWER_TOTAL_LIMIT = 6;
+
     public function __construct(
         private readonly DossierSemanticSearchService $search,
         private readonly CapabilityRegistry $capabilities,
@@ -331,9 +344,15 @@ final class DossierInsightsService
             $embeddingInstance,
             self::ANSWER_SOURCE_LIMIT,
             ['dossier_answer' => true],
-            null,
+            self::ANSWER_CANDIDATE_LIMIT,
             $scopedFile,
         );
+
+        // TASK-1517 : replier les quasi-doublons, puis ancrer l'ouverture du
+        // document le mieux classe. Dans cet ordre, et jamais l'inverse — voir
+        // `foldNearDuplicates()` et `withOpeningAnchor()`.
+        $rows = $this->foldNearDuplicates($rows, self::ANSWER_SOURCE_LIMIT);
+        $rows = $this->withOpeningAnchor($organization, $dossier, $rows);
 
         if ($rows === []) {
             // « Je n'ai pas trouve » est une REPONSE, pas une panne (CDC §10).
@@ -485,6 +504,153 @@ final class DossierInsightsService
             ->values();
 
         return $matches->count() === 1 ? (string) $matches->first()->id : null;
+    }
+
+    /**
+     * TASK-1517 — replier les quasi-doublons, en gardant le mieux classe.
+     *
+     * ## Pourquoi pas `content_hash`, que le CDC recommandait
+     *
+     * Mesure sur le Dossier ARIA reel, avant d'ecrire une ligne : **265
+     * chunks, 265 `content_hash` DISTINCTS, zero doublon exact**. Les quatre
+     * versions du document sont quasi identiques mais jamais a l'octet — les
+     * frontieres de chunk se decalent (67/68/65/65 chunks). Le hash exact ne
+     * replie rien du tout.
+     *
+     * ## Ce que replie une cle NORMALISEE
+     *
+     * Minuscules, ponctuation retiree, espaces normalises, prefixe de 120
+     * caracteres : 5 chunks sur 265. Un gain modeste — mais la famille la plus
+     * peuplee est decisive : les QUATRE extraits d'ouverture, qui portent tous
+     * « ARIA ARtistic Intelligence Alliance ». Sans ce repli, l'ancrage
+     * ci-dessous injecterait quatre fois la meme phrase et gaspillerait le
+     * budget de sources.
+     *
+     * La deduplication n'est donc pas ici pour elle-meme : elle existe PARCE
+     * QUE l'ancrage la rend necessaire.
+     *
+     * @param  list<array<string, mixed>>  $rows  deja tries par distance croissante
+     * @return list<array<string, mixed>>
+     */
+    private function foldNearDuplicates(array $rows, int $limit): array
+    {
+        $kept = [];
+        $seen = [];
+
+        foreach ($rows as $row) {
+            if (count($kept) >= $limit) {
+                break;
+            }
+
+            $key = self::nearDuplicateKey((string) $row['content']);
+
+            if ($key !== '' && isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $kept[] = $row;
+        }
+
+        return $kept;
+    }
+
+    /**
+     * L'identite APPROCHEE d'un extrait : ce qu'il dit, debarrasse de ce qui
+     * change d'une version a l'autre d'un meme document (casse, ponctuation,
+     * espaces, numerotation collee au texte).
+     *
+     * Le prefixe est borne : deux extraits qui commencent par la meme page
+     * entiere disent la meme chose, et comparer leur totalite ferait echouer le
+     * repli sur la moindre virgule ajoutee en fin de chunk.
+     */
+    private static function nearDuplicateKey(string $content): string
+    {
+        $normalized = mb_strtolower($content);
+        $normalized = preg_replace('/[^\p{L}\p{N} ]+/u', ' ', $normalized) ?? $normalized;
+        $normalized = trim(preg_replace('/\s+/u', ' ', $normalized) ?? $normalized);
+
+        return mb_substr($normalized, 0, 120);
+    }
+
+    /**
+     * TASK-1517 — ancrer l'OUVERTURE du document le mieux classe.
+     *
+     * ## Le cas rouge que cette methode corrige, mesure sur le corpus reel
+     *
+     * « Que signifie ARIA ? » repondait « ARIA signifie "Artist-Professional
+     * Interplay and Responsible Research and Innovation" » — une invention :
+     * cette chaine n'apparait dans AUCUN des 265 chunks du Dossier, quand
+     * « ARtistic Intelligence Alliance » en occupe douze. Et la reponse se
+     * declarait GROUNDED, parce que le modele citait `[Sn]` ailleurs : une
+     * citation vraie couvrait une phrase fausse.
+     *
+     * La definition vit au `chunk_index` 0 de chaque version — la premiere
+     * ligne du document. La recherche vectorielle ne l'y trouve pas : une
+     * question de trois mots ressemble mal a une page d'ouverture entiere.
+     * Aucun reglage de `top_k` n'y change quoi que ce soit.
+     *
+     * ## La primitive n'est pas neuve
+     *
+     * `representativeChunksAcrossDossiers()` (TASK-1309) rend deja exactement
+     * cela : l'extrait d'index minimal de chaque document, meme forme de ligne,
+     * memes jointures tenant-safe, aucun embedding, aucun appel provider,
+     * aucune ligne de ledger. Une lecture SQL bornee, rien de plus.
+     *
+     * ## Deux precautions
+     *
+     * L'ancrage est AJOUTE EN FIN, jamais en tete : `[S1]` doit rester
+     * l'extrait le plus proche de la question, sinon le rang cesserait de dire
+     * la pertinence.
+     *
+     * Une question restreinte a un fichier ne demande AUCUNE garde
+     * supplementaire, et c'est mesure : quand `$scopedFile` est pose, la
+     * recherche est deja bornee a ce fichier EN SQL, donc le document le mieux
+     * classe EST ce fichier, donc l'ouverture ancree en vient forcement. Un
+     * `if` de plus aurait ete du code mort pretendant proteger — un sabotage
+     * l'a laisse vert, ce qui l'a revele.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array<string, mixed>>
+     */
+    private function withOpeningAnchor(Organization $organization, Dossier $dossier, array $rows): array
+    {
+        if ($rows === []) {
+            return $rows;
+        }
+
+        $documentKey = static fn (array $row): string => $row['source_type'].':'.($row['dossier_file_id'] ?? $row['blog_post_id']);
+        $bestDocument = $documentKey($rows[0]);
+
+        $alreadyPresent = [];
+
+        foreach ($rows as $row) {
+            $alreadyPresent[self::nearDuplicateKey((string) $row['content'])] = true;
+        }
+
+        $openings = $this->search->representativeChunksAcrossDossiers(
+            (string) $organization->id,
+            [(string) $dossier->id],
+            self::ANSWER_CANDIDATE_LIMIT,
+        );
+
+        foreach ($openings as $opening) {
+            if ($documentKey($opening) !== $bestDocument) {
+                continue;
+            }
+
+            // Deja dit : l'ouverture figure parmi les extraits retrouves, ou
+            // un quasi-doublon d'une autre version l'a deja apportee.
+            if (isset($alreadyPresent[self::nearDuplicateKey((string) $opening['content'])])) {
+                return $rows;
+            }
+
+            $rows[] = $opening;
+
+            return array_slice($rows, 0, self::ANSWER_TOTAL_LIMIT);
+        }
+
+        return $rows;
     }
 
     /**
