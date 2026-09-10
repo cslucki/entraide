@@ -63,6 +63,7 @@ class Organization extends Model
         'membership_label_fr',
         'membership_label_en',
         'homepage_template',
+        'root_destination',
         'homepage_settings',
         'dossier_storage_quota_bytes',
         'loop_composition_policy',
