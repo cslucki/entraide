@@ -221,7 +221,8 @@ class TASK1468GuestShellDiagnosisTest extends TestCase
             'preferred_locale' => 'fr',
         ]);
 
-        $html = $this->actingAs($superAdmin)->get(route('admin.ai-config'))->assertOk()->getContent();
+        // TASK-1500 : la configuration Shell Welcome a sa page — la mesure suit.
+        $html = $this->actingAs($superAdmin)->get(route('admin.shell-welcome-config'))->assertOk()->getContent();
 
         app()->setLocale('fr');
         preg_match_all('/data-guest-shell-diag="([a-z_]+)"/', $html, $found);

@@ -716,6 +716,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/ai-config/profile', [AdminAiConfigController::class, 'updateProfileConfig'])->name('ai-config.profile');
     // TASK-1429 (SW-1) : politique Shell Welcome par Organization (SuperAdmin).
     Route::post('/ai-config/guest-shell', [AdminAiConfigController::class, 'updateGuestShellConfig'])->name('ai-config.guest-shell');
+    // TASK-1500 : la configuration Shell Welcome par Organization a SA page (decision Cyril 10/09) ; le POST ci-dessus reste l'unique ecriture.
+    Route::get('/shell-welcome-config', [AdminAiConfigController::class, 'guestShellConfig'])->name('shell-welcome-config');
 
     // Scenario packs (TASK-1240/TASK-1241) : un seul couple (pack, Organization)
     // a la fois, jamais d'action globale non bornee.

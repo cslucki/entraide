@@ -131,7 +131,8 @@ class TASK1470AdminDiagnosisConsistencyTest extends TestCase
         $expected = GuestShellDiagnosis::fromStatusAndReasons(GuestShellState::MISCONFIGURED, ['platform_ceiling_unset']);
 
         $htmls = [
-            'ai-config' => $this->actingAs($this->superAdmin)->get(route('admin.ai-config'))->assertOk()->getContent(),
+            // TASK-1500 : la configuration Shell Welcome a sa page — la mesure suit.
+            'ai-config' => $this->actingAs($this->superAdmin)->get(route('admin.shell-welcome-config'))->assertOk()->getContent(),
             'shell-welcome' => $this->actingAs($this->superAdmin)->get(route('admin.guest-shell'))->assertOk()->getContent(),
             'org-consumption' => $this->actingAs($this->orgAdminA)
                 ->get(route('organization.admin.ai-consumption', ['organization' => $this->organizationA->slug]))
@@ -151,7 +152,7 @@ class TASK1470AdminDiagnosisConsistencyTest extends TestCase
     {
         $expected = GuestShellDiagnosis::fromStatusAndReasons(GuestShellState::DISABLED, ['disabled']);
 
-        foreach (['admin.ai-config', 'admin.guest-shell'] as $route) {
+        foreach (['admin.shell-welcome-config', 'admin.guest-shell'] as $route) {
             $html = $this->actingAs($this->superAdmin)->get(route($route))->assertOk()->getContent();
 
             $this->assertStringContainsString('data-guest-shell-diag="disabled"', $html, $route);
@@ -171,7 +172,7 @@ class TASK1470AdminDiagnosisConsistencyTest extends TestCase
         $setting->save();
         $expected = GuestShellDiagnosis::fromStatusAndReasons(GuestShellState::NO_CREDENTIAL, ['api_key_missing']);
 
-        foreach (['admin.ai-config', 'admin.guest-shell'] as $route) {
+        foreach (['admin.shell-welcome-config', 'admin.guest-shell'] as $route) {
             $html = $this->actingAs($this->superAdmin)->get(route($route))->assertOk()->getContent();
 
             $this->assertStringContainsString('data-guest-shell-diag="api_key_missing"', $html, $route);
@@ -196,7 +197,8 @@ class TASK1470AdminDiagnosisConsistencyTest extends TestCase
         $setting->save();
 
         $htmls = [
-            'ai-config' => $this->actingAs($this->superAdmin)->get(route('admin.ai-config'))->assertOk()->getContent(),
+            // TASK-1500 : la configuration Shell Welcome a sa page — la mesure suit.
+            'ai-config' => $this->actingAs($this->superAdmin)->get(route('admin.shell-welcome-config'))->assertOk()->getContent(),
             'shell-welcome' => $this->actingAs($this->superAdmin)->get(route('admin.guest-shell'))->assertOk()->getContent(),
             'org-consumption' => $this->actingAs($this->orgAdminA)
                 ->get(route('organization.admin.ai-consumption', ['organization' => $this->organizationA->slug]))

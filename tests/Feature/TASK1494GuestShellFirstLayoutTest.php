@@ -92,9 +92,17 @@ class TASK1494GuestShellFirstLayoutTest extends TestCase
         $this->assertStringContainsString('bpsf-page', $body, 'La vue Shell First n\'est pas rendue.');
         $this->assertStringContainsString('bpgs-form', $body, 'Le Shell n\'est pas monte en mode shell_first.');
 
-        // La landing classique passe par `x-app-layout` et son pied de page ;
-        // aucune de ses marques ne doit apparaitre.
-        $this->assertStringNotContainsString('max-w-7xl', $body, 'Le pied de page de la landing classique est rendu derriere le Shell.');
+        // La landing classique a un titre ; la page Shell n'en a aucun. C'est
+        // ce repere-la qui dit « rien n'est rendu derriere ». TASK-1500 a
+        // retire l'ancien temoin `max-w-7xl` : le pied de page BouclePro, voulu
+        // sur desktop, le porte legitimement.
+        $this->assertStringNotContainsString('<h1', $body, 'La landing classique est rendue derriere le Shell.');
+
+        // TASK-1500 : sur desktop, la mention « Echange public sans compte »
+        // cede la place au pied de page BouclePro — mentions legales,
+        // gouvernance, depot, version. Le CSS le masque sous 768 px ; ici on
+        // mesure qu'il est bien MONTE, par sa marque structurelle.
+        $this->assertStringContainsString('data-footer-mycelium', $body, 'Le pied de page BouclePro n\'est pas monte en shell-first.');
     }
 
     /**

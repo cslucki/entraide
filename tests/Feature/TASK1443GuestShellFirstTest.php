@@ -103,7 +103,13 @@ class TASK1443GuestShellFirstTest extends TestCase
 
             $this->assertStringContainsString('bpsf-page', $html, "[$template] la vue Shell First n'est pas rendue.");
             $this->assertShellFirstShell($html, $template);
-            $this->assertStringNotContainsString('max-w-7xl', $html, "[$template] le pied de page de la landing classique est rendu derriere le Shell.");
+            // TASK-1500 : `max-w-7xl` servait de temoin « la landing est rendue
+            // derriere ». Le pied de page BouclePro, voulu sur desktop depuis
+            // TASK-1500, porte lui aussi cette classe : le temoin sonnait sur un
+            // contenu legitime. Le repere devient le TITRE de la landing — chacun
+            // des trois gabarits en a exactement un, la page Shell n'en a aucun.
+            // Sabote (landing rendue derriere) : un <h1> apparait, le test rougit.
+            $this->assertStringNotContainsString('<h1', $html, "[$template] la landing classique est rendue derriere le Shell.");
         }
 
         $html = $this->get($this->home($this->first))->assertOk()->assertCookieMissing(GuestVisitorResolver::COOKIE)->getContent();

@@ -79,4 +79,23 @@
             </tbody>
         </table>
     </div>
+
+    {{-- TASK-1500 — regler depuis le cockpit. Le MEME partial que
+         /admin/ai-config, le MEME endpoint ; `redirect_to` ramene ici. --}}
+    <section class="mt-8" data-guest-shell-settings>
+        <div class="mb-3 flex flex-wrap items-end justify-between gap-2">
+            <div>
+                <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('admin.guest_shell_config') }}</h2>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('admin.guest_shell_config_hint') }}</p>
+            </div>
+        </div>
+        @if(session('success'))
+            <div class="mb-3 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200" data-guest-shell-saved>{{ session('success') }}</div>
+        @endif
+        <div class="space-y-2">
+            @foreach($organizations as $row)
+                @include('admin.partials.guest-shell-policy-row', ['org' => $row['organization'], 'state' => $guestShellStates[$row['organization']->id], 'redirectTo' => url()->full()])
+            @endforeach
+        </div>
+    </section>
 </x-admin-layout>

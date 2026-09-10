@@ -90,7 +90,8 @@ class TASK1429GuestShellPolicyTest extends TestCase
         $this->assertSame(OrganizationGuestShellPolicy::DEFAULT_RETENTION_DAYS, $state->policy->retention_days);
         $this->assertDatabaseCount('organization_guest_shell_policies', 0);
 
-        $this->actingAs($this->superAdmin)->get(route('admin.ai-config'))->assertOk()
+        // TASK-1500 : la configuration Shell Welcome a sa page — la mesure suit.
+        $this->actingAs($this->superAdmin)->get(route('admin.shell-welcome-config'))->assertOk()
             ->assertSee('data-guest-shell-org="org-a-1429" data-guest-shell-status="DISABLED"', false);
         $this->assertDatabaseCount('organization_guest_shell_policies', 0);
     }
@@ -205,7 +206,8 @@ class TASK1429GuestShellPolicyTest extends TestCase
         $this->assertDatabaseCount('organization_guest_shell_policies', 0);
 
         $this->actingAs($this->superAdmin)->post(route('admin.ai-config.guest-shell'), $payload)
-            ->assertRedirectToRoute('admin.ai-config')
+            // TASK-1500 : le formulaire revient sur la page dediee de configuration.
+            ->assertRedirectToRoute('admin.shell-welcome-config')
             ->assertSessionHas('success');
 
         $this->assertDatabaseHas('organization_guest_shell_policies', ['organization_id' => $this->org->id, 'enabled' => true, 'max_messages' => 25, 'retention_days' => 30, 'guest_monthly_budget_usd' => 3.50]);
@@ -230,7 +232,8 @@ class TASK1429GuestShellPolicyTest extends TestCase
         $this->usableSetting(['api_key' => 'sk-live-SECRET-should-never-render']);
         $this->invocation($this->org, 0.25);
 
-        $html = $this->actingAs($this->superAdmin)->get(route('admin.ai-config'))->assertOk()->getContent();
+        // TASK-1500 : la configuration Shell Welcome a sa page — la mesure suit.
+        $html = $this->actingAs($this->superAdmin)->get(route('admin.shell-welcome-config'))->assertOk()->getContent();
         preg_match('/<form[^>]*data-guest-shell-org="org-a-1429"[^>]*>.*?<\/form>/s', $html, $m);
         $this->assertNotEmpty($m, 'bloc Shell Welcome de l Organization absent');
         $block = $m[0];
