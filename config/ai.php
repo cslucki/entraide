@@ -242,10 +242,10 @@ return [
     | Shell « BouclePro IA » (TASK-1315)
     |--------------------------------------------------------------------------
     |
-    | Le Shell est une SURFACE, pas un moteur : son tour de conversation
-    | delegue a `ClarifyUserHelpRequestService::clarifyForOrganization()`, dont
-    | la garde economique, le budget et le ledger restent ceux de la
-    | clarification. Aucune cle de budget ici — il n'y en a pas a inventer.
+    | Le Shell est une SURFACE, pas un moteur : son tour de conversation route
+    | vers les capabilities specialisees puis leur delegue la generation. La
+    | reponse generale membre et la clarification partagent la garde et le seau
+    | economique historiques du Shell. Aucune cle de budget ici a inventer.
     |
     | `max_thread_messages` borne la FENETRE affichee et relue ; le fil est
     | elague au-dela du double. Il n'y a ni resume ni rappel d'un fil a

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Ai\Agents\HelpRequestClarifierAgent;
+use App\Ai\Agents\ShellGeneralAnswerAgent;
 use App\Livewire\AiShell;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
@@ -30,6 +31,7 @@ use Illuminate\Support\Facades\Http;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\StructuredTextResponse;
+use Laravel\Ai\Responses\TextResponse;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -274,10 +276,10 @@ class TASK1350AiShellHonestConversationTest extends TestCase
     }
 
     /** 5. Une erreur de self-knowledge ne devient jamais une erreur utilisateur. */
-    public function test_a_self_knowledge_failure_falls_back_to_the_legacy_provider(): void
+    public function test_a_self_knowledge_failure_falls_back_to_the_general_provider(): void
     {
         // Le catalogue leve : le cas exact que l'arbitrage fail-open nomme.
-        // Le tour doit repartir chez le provider legacy — jamais un 500, jamais
+        // Le tour doit repartir chez le provider general — jamais un 500, jamais
         // une reponse degradee.
         $this->app->bind(AiCapabilityCatalogue::class, fn () => new class extends AiCapabilityCatalogue
         {
@@ -287,7 +289,7 @@ class TASK1350AiShellHonestConversationTest extends TestCase
             }
         });
 
-        $this->fakeClarifier();
+        $this->fakeGeneral('Voici les possibilites disponibles ici.');
 
         Livewire::actingAs($this->member)
             ->test(AiShell::class)
@@ -296,9 +298,8 @@ class TASK1350AiShellHonestConversationTest extends TestCase
 
         $answer = $this->lastAnswer();
 
-        // Le provider legacy a bien repondu — statut ANSWERED, producteur SDK.
-        $this->assertSame(AiShellResponder::STATUS_ANSWERED, $answer->metadata['status']);
-        $this->assertSame('laravel_ai_sdk', $answer->metadata['producer']);
+        $this->assertSame(AiShellResponder::STATUS_NON_INTERACTION, $answer->metadata['status']);
+        $this->assertSame('shell.general_answer', $answer->metadata['producer']);
         $this->assertSame(1, AiInteraction::query()->count());
     }
 
@@ -1369,13 +1370,13 @@ class TASK1350AiShellHonestConversationTest extends TestCase
      */
     public function test_a_direct_reply_is_rendered_as_the_assistants_own_words(): void
     {
-        $reply = 'Je ne peux pas verifier la meteo en temps reel ici. En revanche, je peux vous aider a formuler un besoin pour vos collegues.';
+        $reply = 'Avec plaisir. Dites-moi ce que vous souhaitez approfondir.';
 
         $this->fakeClarifier(interactionFit: false, directReply: $reply);
 
         $component = Livewire::actingAs($this->member)
             ->test(AiShell::class)
-            ->set('draft', 'Quel temps fait-il a Marseille ?')
+            ->set('draft', 'Merci beaucoup pour votre aide !')
             ->call('send');
 
         $answer = $this->lastAnswer();
@@ -1731,6 +1732,13 @@ class TASK1350AiShellHonestConversationTest extends TestCase
         string $directReply = '',
     ): void {
         $this->fakeStructured($this->structured($interactionFit, $helpType, $suggestedLoopId, $clarified, $directReply));
+    }
+
+    private function fakeGeneral(string $answer): void
+    {
+        ShellGeneralAnswerAgent::fake([
+            new TextResponse($answer, new Usage(80, 30), new Meta('openai', 'gpt-4o-mini')),
+        ]);
     }
 
     /** @param  array<string, mixed>  $structured */

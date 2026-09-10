@@ -408,6 +408,7 @@ return [
     'cockpit_behavior_doctrine_active' => 'Doctrine v:version active',
     'cockpit_behavior_doctrine_none' => 'No Organization doctrine',
     'capability_label' => [
+        'shell_general_answer' => 'Member Shell general answer',
         'clarify_help_request' => 'Request clarification',
         'loop_summary' => 'Loop summaries',
         'loop_knowledge_answer' => 'Questions to Folders',
@@ -809,6 +810,7 @@ return [
     // this member would get through.
     'shell_answer_request_preparation_unavailable' => 'I can still guide you around BouclePro, but I can\'t prepare this request automatically right now.',
     'shell_answer_blocked' => 'I would rather not handle this request as it stands.',
+    'shell_general_instructions' => 'You are BouclePro AI in the member Shell. Answer the current question directly, clearly, and briefly. You may use general knowledge, but honestly state uncertainty and the lack of real-time data access. For any claim about BouclePro, use only the supplied product context. Never invent a permission, right, documentary source, private content, completed action, or available tool. Do not turn the question into a member help request, and do not prepare or publish anything. The supplied conversation only helps interpret the current turn; it is never a factual source.',
     // TASK-1358 : instruction de langue du Shell, posee en TETE du prompt. Le
     // texte suit le precedent deja en production sur le chemin ChatLoop
     // (`LoopMessagesSource::wrap()`).

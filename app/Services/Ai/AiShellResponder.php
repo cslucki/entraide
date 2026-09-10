@@ -25,13 +25,13 @@ use Illuminate\Support\Str;
  * ## Ce service n'est PAS un moteur de conversation
  *
  * Il n'appelle aucun provider, ne compose aucun prompt, ne resout aucun modele,
- * n'ecrit pas le ledger et ne declare aucune capability. Il DELEGUE a une
- * autorite qui existe deja et qui est deja en production :
- * `ClarifyUserHelpRequestService::clarifyForOrganization()` — le meme chemin
- * que `RequestController::formulate()`.
+ * n'ecrit pas le ledger et ne declare aucune capability. Il route puis DELEGUE
+ * aux autorites specialisees : clarification d'entraide, reponse generale
+ * membre et moteur documentaire existant. Le fil reste ici et n'est jamais
+ * reconstruit dans ces services.
  *
- * Ce que cette delegation apporte, sans qu'on le reconstruise :
- *  - capability `CLARIFY_HELP_REQUEST`, scope `ORGANIZATION` deja autorise ;
+ * Ce que ces delegations apportent, sans qu'on le reconstruise :
+ *  - capabilities bornees a leur intention et a leurs sources ;
  *  - contexte borne par `ContextBuilder`, doctrine d'Organization (T1227) ;
  *  - provider / modele / credential resolus par l'Organization (T1212) ;
  *  - `AiEconomicGuard::authorize()` AVANT tout appel, et le ledger
@@ -182,6 +182,7 @@ final class AiShellResponder
         // TASK-1519 : la MEME primitive que la page Dossier, jamais un second
         // moteur documentaire.
         private readonly DossierInsightsService $dossierAnswers,
+        private readonly ShellGeneralAnswerService $generalAnswers,
     ) {}
 
     /**
@@ -277,6 +278,7 @@ final class AiShellResponder
                 [$content, $metadata] = $this->selfKnowledgeTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
                     ?? $this->dossierAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory)
                     ?? $this->articleAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory)
+                    ?? $this->generalAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $memory)
                     ?? $this->generate($organization, $user, $prompt, $pageContext, $pinnedContext, $memory);
 
                 $answer = $this->thread->appendAssistant($organization, $user, $content, $trigger, $metadata);
@@ -1077,6 +1079,103 @@ final class AiShellResponder
             'follow_up_questions' => $answer->followUps,
             'ai_interaction_id' => $answer->interactionId,
         ] + $this->pinnedTrace($pinnedContext)];
+    }
+
+    /**
+     * TASK-1526 — une QUESTION generale precise ne passe plus par la
+     * capability qui prepare une demande d'entraide.
+     *
+     * La coupe est volontairement etroite : question explicite seulement,
+     * hors branches Dossier/Article deja traitees, et jamais quand le texte
+     * nomme une recherche de membre, une demande d'aide collective ou une
+     * offre. Les enonces non interrogatifs gardent le chemin historique ; un
+     * routeur abstrait ou un second appel LLM de classification serait hors
+     * scope.
+     *
+     * @param  array<string, mixed>  $pageContext
+     * @param  list<array<string, mixed>>  $pinnedContext
+     * @return array{0: string, 1: array<string, mixed>}|null
+     */
+    private function generalAnswerTurn(
+        Organization $organization,
+        User $user,
+        string $prompt,
+        array $pageContext,
+        array $pinnedContext,
+        string $memory,
+    ): ?array {
+        if (! $this->isGeneralQuestion($prompt)) {
+            return null;
+        }
+
+        try {
+            $result = $this->generalAnswers->answer(
+                $organization,
+                $user,
+                $this->situated($prompt, $pageContext, $pinnedContext, $memory),
+            );
+        } catch (DomainException $exception) {
+            report($exception);
+
+            return [__('ai.shell_answer_unavailable'), [
+                'status' => self::STATUS_UNAVAILABLE,
+                'producer' => ShellGeneralAnswerService::PRODUCER,
+                'page_context' => $this->traceable($pageContext),
+            ] + $this->pinnedTrace($pinnedContext)];
+        }
+
+        return [$result->answer, [
+            // Une reponse generale n'est jamais un brouillon d'Interaction :
+            // ce statut interdit structurellement cartes et preparation.
+            'status' => self::STATUS_NON_INTERACTION,
+            'producer' => ShellGeneralAnswerService::PRODUCER,
+            'page_context' => $this->traceable($pageContext),
+            'ai_interaction_id' => $result->interactionId,
+        ] + $this->pinnedTrace($pinnedContext)];
+    }
+
+    /**
+     * Coupe deterministe locale, testable et sans cout provider.
+     *
+     * Un faux positif ferait perdre le parcours d'entraide : les marqueurs
+     * interpersonnels sont donc exclus avant le routage general. Un texte qui
+     * n'est pas clairement une question reste au clarificateur historique.
+     */
+    private function isGeneralQuestion(string $prompt): bool
+    {
+        $normalized = trim((string) preg_replace(
+            '/[^a-z0-9]+/',
+            ' ',
+            Str::lower(Str::ascii($prompt)),
+        ));
+
+        $isQuestion = str_contains($prompt, '?')
+            || preg_match(
+                '/^(qui|que|quoi|quel|quelle|quels|quelles|comment|pourquoi|ou|quand|combien|est ce que|peux tu|pouvez vous|what|who|which|how|why|where|when|is|are|do|does|can|could|would)\b/',
+                $normalized,
+            ) === 1;
+
+        if (! $isQuestion) {
+            return false;
+        }
+
+        $interactionIntent = preg_match(
+            '/\b('
+            .'qui peut m aider|qui pourrait m aider|who can help|which member|quel membre|quelle personne|'
+            .'quelqu un peut m aider|quelqu un pourrait m aider|can someone help|could someone help|'
+            .'(?:peux tu|pouvez vous|pourrais tu|pourriez vous) m aider|(?:can|could|would) you help (?:me|us)|'
+            .'je cherche (?:quelqu un|un |une |de l aide)|nous cherchons (?:quelqu un|un |une )|'
+            .'j ai besoin (?:d aide|d un |d une )|nous avons besoin (?:d aide|d un |d une )|'
+            .'i (?:am|m) looking for (?:someone|a |an )|we (?:are|re) looking for (?:someone|a |an )|'
+            .'i need (?:help|a |an )|we need (?:help|a |an )|'
+            .'demander de l aide|trouver (?:quelqu un|un membre|une personne)|find (?:someone|a member)|'
+            .'mettre en relation|connect me with|'
+            .'puis je aider|je peux aider|je propose mon aide|can i help|i can help|i offer my help'
+            .')\b/',
+            $normalized,
+        ) === 1;
+
+        return ! $interactionIntent;
     }
 
     /**
