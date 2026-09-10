@@ -587,6 +587,17 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/drives/{organization}/{file}/reindex', [AdminDrivesController::class, 'reindex'])
         ->middleware('throttle:20,1')
         ->name('drives.reindex');
+    // TASK-1515 — lire les extraits indexes d'un fichier, et supprimer un
+    // fichier. Meme regle de perimetre que la reindexation : l'Organization
+    // est DANS l'URL et le controleur la compare, faute de scope global sur
+    // `DossierFile`. La suppression est en DELETE, jamais en GET : aucune
+    // destruction ne doit etre atteignable par une simple navigation.
+    Route::get('/drives/{organization}/{file}/chunks', [AdminDrivesController::class, 'chunks'])
+        ->middleware('throttle:60,1')
+        ->name('drives.chunks');
+    Route::delete('/drives/{organization}/{file}', [AdminDrivesController::class, 'destroy'])
+        ->middleware('throttle:20,1')
+        ->name('drives.destroy');
     Route::put('/homepage', [AdminRootDestinationController::class, 'update'])->name('homepage.update');
     Route::get('/organization-requests', [AdminOrganizationRequestController::class, 'index'])->name('organization-requests');
 
