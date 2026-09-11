@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Ai\CapabilityRegistry;
 use App\Ai\Constitution;
 use App\Ai\NervousSystemCoverage;
+use App\Ai\Context\DossierAccessScope;
 use App\Ai\ProviderResolver;
 use App\Http\Controllers\Controller;
 use App\Models\AdminAiPrompt;
@@ -1832,6 +1833,7 @@ class OrgAdminController extends Controller
         DossierSemanticSearchService $search,
         DossierSemanticSearchGate $gate,
         ProviderResolver $providers,
+        DossierAccessScope $accessScope,
     ): View {
         $query = trim((string) $request->query('q', ''));
         $loopId = $request->query('loop_id');
@@ -1845,7 +1847,7 @@ class OrgAdminController extends Controller
         $result = ['ran' => false, 'reason' => null, 'rows' => []];
 
         if ($query !== '') {
-            $result = $this->runRawKnowledgeSearch($organization, $query, $loopId, $search, $gate, $providers);
+            $result = $this->runRawKnowledgeSearch($organization, $query, $loopId, $search, $gate, $providers, $accessScope);
         }
 
         return view('admin.org.partials.ai-knowledge-search-result', [
@@ -1867,6 +1869,7 @@ class OrgAdminController extends Controller
         DossierSemanticSearchService $search,
         DossierSemanticSearchGate $gate,
         ProviderResolver $providers,
+        DossierAccessScope $accessScope,
     ): array {
         if (! $gate->isEnabledFor((string) $organization->id)) {
             return ['ran' => false, 'reason' => 'semantic_search_disabled', 'rows' => []];
@@ -1878,7 +1881,7 @@ class OrgAdminController extends Controller
             return ['ran' => false, 'reason' => 'provider_not_configured', 'rows' => []];
         }
 
-        $dossierIds = $this->searchableDossierIds($organization, $loopId);
+        $dossierIds = $this->searchableDossierIds($organization, $loopId, $accessScope);
 
         if ($dossierIds === []) {
             return ['ran' => false, 'reason' => 'no_dossier_in_scope', 'rows' => []];
@@ -1920,30 +1923,47 @@ class OrgAdminController extends Controller
     }
 
     /**
-     * Dossiers de l'Organization sur lesquels le diagnostic admin peut
-     * porter — meme perimetre que la table de l'Observatoire (TOUS les
-     * Dossiers ; l'admin voit l'ETAT de l'index sans que ce soit un droit
-     * de lecture sur le contenu original, doctrine TASK-1217), resserre a
-     * une Boucle si demande (racine + Dossiers qui lui sont partages —
-     * v1 : sans descente dans les enfants, absents du cas reel valide ici).
+     * Dossiers sur lesquels la recherche documentaire admin peut porter.
+     *
+     * ## Ce que cette methode faisait, et pourquoi c'etait une fuite
+     *
+     * Elle rendait TOUS les Dossiers de l'Organization, sans policy — le
+     * perimetre de la TABLE de l'Observatoire. Ce perimetre-la est correct
+     * pour ce qu'il sert : l'admin voit l'ETAT de l'index (combien de
+     * sources, quand indexees) sans que ce soit un droit de lecture sur le
+     * contenu (doctrine TASK-1217). Mais la recherche BRUTE, elle, rend
+     * `dossier_name`, le titre du document, la distance et 240 caracteres
+     * d'EXTRAIT : c'est du contenu. Un admin pouvait donc lire, par la
+     * recherche, l'interieur d'un Dossier prive qu'il ne peut pas ouvrir —
+     * et `knowledgeObservatory()`, juste en dessous, applique justement la
+     * policy a son lien « Ouvrir » pour cette raison exacte.
+     *
+     * Etre admin ne donne pas acces au contenu d'un Dossier prive. Le
+     * perimetre d'un ETAT d'index et celui d'une LECTURE de contenu ne sont
+     * pas le meme perimetre.
+     *
+     * ## La correction
+     *
+     * La politique du produit, et elle seule : `DossierAccessScope` applique
+     * `DossierPolicy::view` pour l'utilisateur REELLEMENT authentifie, AVANT
+     * tout embedding et toute requete pgvector. Aucune regle ACL n'est
+     * recopiee ici — le resserrement par Boucle y est deja, sur le meme SQL
+     * qu'avant (racine + partages `visibility = loop`), et va plus loin en
+     * descendant dans les enfants.
+     *
+     * Sans utilisateur authentifie : aucun Dossier. Fail-closed.
      *
      * @return list<string>
      */
-    private function searchableDossierIds(Organization $organization, ?string $loopId): array
+    private function searchableDossierIds(Organization $organization, ?string $loopId, DossierAccessScope $accessScope): array
     {
-        $query = Dossier::query()
-            ->where('organization_id', $organization->id)
-            ->whereNull('deleted_at');
+        $user = auth()->user();
 
-        if ($loopId !== null) {
-            $query->where(fn ($scope) => $scope
-                ->where('loop_id', $loopId)
-                ->orWhere(fn ($shared) => $shared
-                    ->where('shared_with_loop_id', $loopId)
-                    ->where('visibility', Dossier::VISIBILITY_LOOP)));
+        if (! $user instanceof User) {
+            return [];
         }
 
-        return $query->pluck('id')->map(fn ($id): string => (string) $id)->all();
+        return $accessScope->accessibleDossierIds((string) $organization->id, $user, $loopId);
     }
 
     /**
