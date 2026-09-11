@@ -239,6 +239,9 @@ final class AiShellResponder
                 //    couple (organization, user). Capturer avant lui, ce serait
                 //    lire un fil qu'un tour concurrent peut encore ecrire.
                 $memory = $this->conversationMemory($organization, $user);
+                // Capture before appendUser, under the same turn lock. Old
+                // general answers can encode a superseded capability contract.
+                $generalMemory = $this->conversationMemory($organization, $user, generalContractHash: ShellGeneralAnswerService::contractHash());
 
                 // TASK-1523 : la memoire DOCUMENTAIRE ne retient que les tours
                 // tenus sur le MEME objet de page. Le fil est (organization,
@@ -278,7 +281,7 @@ final class AiShellResponder
                 [$content, $metadata] = $this->selfKnowledgeTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
                     ?? $this->dossierAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory)
                     ?? $this->articleAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory)
-                    ?? $this->generalAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $memory)
+                    ?? $this->generalAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $generalMemory)
                     ?? $this->generate($organization, $user, $prompt, $pageContext, $pinnedContext, $memory);
 
                 $answer = $this->thread->appendAssistant($organization, $user, $content, $trigger, $metadata);
@@ -669,7 +672,7 @@ final class AiShellResponder
      * de {@see AiConversationContextBuilder}, prefixes compris : les deux blocs
      * de memoire du produit se lisent de la meme facon pour le modele.
      */
-    private function conversationMemory(Organization $organization, User $user, ?string $onlyObjectKey = null): string
+    private function conversationMemory(Organization $organization, User $user, ?string $onlyObjectKey = null, ?string $generalContractHash = null): string
     {
         $conversationId = $this->thread->persistedConversationId($organization, $user);
 
@@ -703,6 +706,17 @@ final class AiShellResponder
             // sont jamais « le meme objet », quel que soit leur identifiant —
             // et un message dont la page ne prouve pas l'objet est exclu.
             if ($onlyObjectKey !== null && $this->pageObjectKeyOf($message) !== $onlyObjectKey) {
+                continue;
+            }
+
+            // TASK-1528: a past general answer is dialogue data, not an
+            // authority on the current capability. Do not teach the provider
+            // obsolete refusals after a contract change. Keep all member input
+            // and current-contract answers; the stored conversation is intact.
+            if ($generalContractHash !== null
+                && $message->role === AiShellMessage::ROLE_ASSISTANT
+                && ($message->metadata['producer'] ?? null) === ShellGeneralAnswerService::PRODUCER
+                && ($message->metadata['general_contract_hash'] ?? null) !== $generalContractHash) {
                 continue;
             }
 
@@ -1133,6 +1147,7 @@ final class AiShellResponder
             'producer' => ShellGeneralAnswerService::PRODUCER,
             'page_context' => $this->traceable($pageContext),
             'ai_interaction_id' => $result->interactionId,
+            'general_contract_hash' => ShellGeneralAnswerService::contractHash(),
         ] + $this->pinnedTrace($pinnedContext)];
     }
 

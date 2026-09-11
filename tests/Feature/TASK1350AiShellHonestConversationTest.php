@@ -443,13 +443,18 @@ class TASK1350AiShellHonestConversationTest extends TestCase
     {
         $this->fakeClarifier(interactionFit: false);
 
-        Livewire::actingAs($this->member)
+        $html = Livewire::actingAs($this->member)
             ->test(AiShell::class)
             ->set('draft', 'Bonjour !')
             ->call('send')
             ->assertDontSee('data-ai-shell-answer-title', false)
             ->assertDontSee('data-ai-shell-cards', false)
-            ->assertSee(__('ai.shell_answer_non_interaction'));
+            ->html();
+
+        $this->assertStringContainsString(
+            __('ai.shell_answer_non_interaction'),
+            html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+        );
     }
 
     /** 13. `forDisplay()` rend un tableau vide sur un tour NON_INTERACTION. */
