@@ -556,11 +556,69 @@ class DossierSemanticSearchService
     {
         return match ($row['source_type'] ?? '') {
             'file' => (string) ($row['filename'] ?? ''),
-            'derived_knowledge' => trim((string) ($row['derived_loop_name'] ?? '')) === ''
-                ? __('dossiers.derived_source_generic')
-                : __('dossiers.derived_source_named', ['loop' => (string) $row['derived_loop_name']]),
+            'derived_knowledge' => self::derivedTitle($row),
             default => (string) ($row['title'] ?? ''),
         };
+    }
+
+    /**
+     * Le nom d'une source derivee — la Boucle, et QUAND le propos a ete tenu.
+     *
+     * TASK-1536 : la date ne decore pas, elle qualifie. « Le chantier demarre
+     * le 14 octobre » ne se lit pas pareil selon qu'il a ete dit il y a trois
+     * jours ou il y a huit mois, et c'est exactement la question que le
+     * produit vise — « le projet dont Roger parlait MARDI ». Sans elle, un
+     * extrait de conversation se presentait au modele et au lecteur comme un
+     * Article : hors du temps.
+     *
+     * C'est `observed_at` — le moment ou des humains l'ont dit — jamais
+     * `derived_at`, qui ne dit que l'instant ou la machine s'est reveillee et
+     * n'apprend rien a personne. Une correction humaine posterieure produit
+     * une nouvelle version avec SA date : le couple (contenu, date) reste
+     * donc toujours coherent.
+     *
+     * Aucune interpretation : la date est rendue lisible, jamais comparee ni
+     * utilisee pour arbitrer. Un Temporal Resolver est hors mandat.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private static function derivedTitle(array $row): string
+    {
+        $loop = trim((string) ($row['derived_loop_name'] ?? ''));
+        $observedAt = self::observedAt($row['derived_observed_at'] ?? null);
+
+        if ($observedAt === null) {
+            return $loop === ''
+                ? __('dossiers.derived_source_generic')
+                : __('dossiers.derived_source_named', ['loop' => $loop]);
+        }
+
+        return $loop === ''
+            ? __('dossiers.derived_source_generic_at', ['date' => $observedAt])
+            : __('dossiers.derived_source_named_at', ['loop' => $loop, 'date' => $observedAt]);
+    }
+
+    /**
+     * `derived_observed_at` arrive d'une requete BRUTE : c'est une chaine sous
+     * PostgreSQL, un `CarbonInterface` si la ligne a transite par Eloquent.
+     * Les deux formes sont acceptees, et une valeur illisible ne fait rien
+     * tomber — elle rend simplement un nom sans date.
+     */
+    private static function observedAt(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        try {
+            $date = $value instanceof \DateTimeInterface
+                ? \Illuminate\Support\Carbon::instance($value)
+                : \Illuminate\Support\Carbon::parse((string) $value);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $date->locale(app()->getLocale())->translatedFormat('j F Y');
     }
 
     /**
