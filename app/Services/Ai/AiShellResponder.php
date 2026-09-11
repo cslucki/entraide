@@ -1084,6 +1084,8 @@ final class AiShellResponder
     /**
      * TASK-1526 — une QUESTION generale precise ne passe plus par la
      * capability qui prepare une demande d'entraide.
+     * TASK-1527 — une tache conversationnelle ordinaire adressee a l'IA suit
+     * le meme chemin, meme sans point d'interrogation.
      *
      * La coupe est volontairement etroite : question explicite seulement,
      * hors branches Dossier/Article deja traitees, et jamais quand le texte
@@ -1138,8 +1140,7 @@ final class AiShellResponder
      * Coupe deterministe locale, testable et sans cout provider.
      *
      * Un faux positif ferait perdre le parcours d'entraide : les marqueurs
-     * interpersonnels sont donc exclus avant le routage general. Un texte qui
-     * n'est pas clairement une question reste au clarificateur historique.
+     * interpersonnels sont donc exclus avant le routage general.
      */
     private function isGeneralQuestion(string $prompt): bool
     {
@@ -1148,16 +1149,6 @@ final class AiShellResponder
             ' ',
             Str::lower(Str::ascii($prompt)),
         ));
-
-        $isQuestion = str_contains($prompt, '?')
-            || preg_match(
-                '/^(qui|que|quoi|quel|quelle|quels|quelles|comment|pourquoi|ou|quand|combien|est ce que|peux tu|pouvez vous|what|who|which|how|why|where|when|is|are|do|does|can|could|would)\b/',
-                $normalized,
-            ) === 1;
-
-        if (! $isQuestion) {
-            return false;
-        }
 
         $interactionIntent = preg_match(
             '/\b('
@@ -1175,7 +1166,23 @@ final class AiShellResponder
             $normalized,
         ) === 1;
 
-        return ! $interactionIntent;
+        if ($interactionIntent) {
+            return false;
+        }
+
+        $isQuestion = str_contains($prompt, '?')
+            || preg_match(
+                '/^(qui|que|quoi|quel|quelle|quels|quelles|comment|pourquoi|ou|quand|combien|est ce que|peux tu|pouvez vous|what|who|which|how|why|where|when|is|are|do|does|can|could|would)\b/',
+                $normalized,
+            ) === 1;
+
+        $isConversationalTask = preg_match(
+            '/^(reformule|resume|explique|compare|brainstorme|structure|ameliore|conseille|donne moi|aide moi|'
+            .'summarize|explain|compare|brainstorm|structure|improve|advise|give me|help me)\b/',
+            $normalized,
+        ) === 1;
+
+        return $isQuestion || $isConversationalTask;
     }
 
     /**

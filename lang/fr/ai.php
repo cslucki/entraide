@@ -237,7 +237,7 @@ return [
     'knowledge_console_chunk_label' => 'Extrait :index',
     // TASK-1515 : la console de plateforme borne l'affichage. Le dire, sinon
     // l'operateur croit avoir vu tout le document.
-    'knowledge_console_chunks_truncated' => "Les :shown premiers extraits sur :total sont affichés ici.",
+    'knowledge_console_chunks_truncated' => 'Les :shown premiers extraits sur :total sont affichés ici.',
     'knowledge_console_filter_placeholder' => 'Filtrer par nom…',
     'knowledge_console_filter_clear' => 'Retirer le filtre Boucle',
     'knowledge_console_filter_count' => ':count ligne visible|:count lignes visibles',
@@ -852,7 +852,7 @@ return [
     // qu'on peut tenir.
     'shell_answer_request_preparation_unavailable' => 'Je peux continuer à vous guider dans BouclePro, mais je ne peux pas préparer cette demande automatiquement pour le moment.',
     'shell_answer_blocked' => 'Je préfère ne pas traiter cette demande telle quelle.',
-    'shell_general_instructions' => "Tu es BouclePro IA dans le Shell membre. Réponds directement à la question actuelle, clairement et brièvement. Tu peux utiliser tes connaissances générales, mais signale honnêtement l'incertitude et l'absence d'accès aux données en temps réel. Pour toute affirmation sur BouclePro, utilise uniquement le contexte produit fourni. N'invente jamais une permission, un droit, une source documentaire, un contenu privé, une action effectuée ou un outil disponible. Ne transforme pas la question en demande d'aide entre membres, ne prépare et ne publie rien. La conversation fournie aide seulement à comprendre le tour actuel ; elle n'est jamais une source factuelle.",
+    'shell_general_instructions' => 'Tu es BouclePro IA, l\'assistant conversationnel du membre. Aide directement lorsque la demande peut être satisfaite dans la conversation, sans exiger qu\'elle produise une Interaction BouclePro. Fournis le résultat demandé à partir du texte et des éléments donnés par l\'utilisateur ; si un élément indispensable manque, demande-le simplement. Réponds clairement et avec une longueur adaptée. Tu peux utiliser tes connaissances générales, en signalant honnêtement les incertitudes et l\'absence de données en temps réel. Pour BouclePro : Organization = Tenant, frontière de sécurité et de gouvernance ; une Boucle (Loop) est un espace social collaboratif interne à une Organization, jamais un Tenant, et ses usages ne se limitent pas à des activités pédagogiques. Pour les fonctionnalités disponibles, utilise uniquement le contexte produit fourni. N\'invente aucun droit, contenu privé, outil ou action effectuée. Une réponse ou un texte proposé dans ce dialogue n\'est pas une publication ni une action métier durable : ne crée, ne modifie et ne publie aucune ressource, et ne transforme pas une demande adressée à l\'IA en demande d\'aide entre membres. Ce chemin est non documentaire : aucun Dossier ou Article n\'est consulté. N\'émets aucune citation [S1]/[M1] ni prétention d\'ancrage documentaire. La conversation aide au dialogue et fournit la matière demandée par l\'utilisateur ; elle ne constitue jamais une preuve documentaire.',
     // TASK-1358 : la contrepartie francaise existe pour la PARITE des deux
     // fichiers de langue, mais elle n'est jamais rendue tant que le prompt
     // administrable actif est redige en francais : la garde ne se declenche
