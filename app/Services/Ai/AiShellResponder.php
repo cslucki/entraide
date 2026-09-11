@@ -134,6 +134,15 @@ final class AiShellResponder
     public const STATUS_NON_INTERACTION = 'non_interaction';
 
     /**
+     * TASK-1530 — le producteur d'un tour documentaire REPRIS apres navigation.
+     *
+     * Distinct de `dossier.answer` a dessein : le tour n'a pas ete tenu sur la
+     * page du Dossier, et un verdict humain comme une mesure doivent pouvoir
+     * separer « repondu sur la page » de « repris depuis le fil ».
+     */
+    public const PRODUCER_DOSSIER_CONTINUATION = 'dossier.answer.continuation';
+
+    /**
      * TASK-1358 — la langue dans laquelle le prompt administrable actif est
      * REDIGE, et donc celle que le modele adopte spontanement.
      *
@@ -257,6 +266,31 @@ final class AiShellResponder
                 // Aucun second store, aucune migration.
                 $documentaryMemory = $this->conversationMemory($organization, $user, $this->pageObjectKey($pageContext));
 
+                // TASK-1530 : le candidat de CONTINUITE et sa memoire se
+                // prennent ici, sous le meme verrou et pour les memes raisons
+                // que ci-dessus (TASK-1346) — apres `appendUser()`, le fil
+                // contiendrait deja le message courant et aurait ete elague.
+                //
+                // Les deux lectures ne se font que si la branche peut
+                // reellement s'ouvrir : la coupe est locale, deterministe et
+                // sans cout, autant ne pas payer deux requetes par tour pour
+                // une branche qui ne s'executera pas.
+                $continuationDossierId = null;
+                $continuationMemory = '';
+
+                if (! in_array($pageContext['kind'] ?? null, [AiShellPageContext::KIND_DOSSIER, AiShellPageContext::KIND_ARTICLE], true)
+                    && $this->isDocumentaryContinuation($prompt)) {
+                    $continuationDossierId = $this->recentDossierObjectId($organization, $user);
+
+                    if ($continuationDossierId !== null) {
+                        $continuationMemory = $this->conversationMemory(
+                            $organization,
+                            $user,
+                            $this->objectKey(AiShellPageContext::KIND_DOSSIER, $continuationDossierId),
+                        );
+                    }
+                }
+
                 // Le message humain est ecrit AVANT l'appel : meme si la generation
                 // echoue, l'utilisateur retrouve ce qu'il a demande dans son fil.
                 $trigger = $this->thread->appendUser($organization, $user, $prompt, [
@@ -281,6 +315,9 @@ final class AiShellResponder
                 [$content, $metadata] = $this->selfKnowledgeTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
                     ?? $this->dossierAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory)
                     ?? $this->articleAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory)
+                    // TASK-1530 : entre l'objet COURANT et le chemin general.
+                    // Voir le docblock de la branche pour l'ordre des roles.
+                    ?? $this->dossierContinuationTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $continuationDossierId, $continuationMemory)
                     ?? $this->generalAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $generalMemory)
                     ?? $this->generate($organization, $user, $prompt, $pageContext, $pinnedContext, $memory);
 
@@ -1096,6 +1133,134 @@ final class AiShellResponder
     }
 
     /**
+     * TASK-1530 — la continuite documentaire survit a la navigation.
+     *
+     * Mesure du defaut ferme ici : sur la page du Dossier ARIA, « c'est quoi
+     * ARIA ? » repondait avec des sources. L'utilisateur changeait de page, et
+     * « qui sont les partenaires ? » tombait sur `shell_general_answer` — le
+     * Shell se souvenait SEMANTIQUEMENT d'ARIA (le fil suit la personne de page
+     * en page, T1523) mais avait perdu son AUTORITE documentaire : plus aucun
+     * retrieval, donc une reponse de culture generale sur un sujet interne.
+     *
+     * ## La regle canonique, et l'ordre des roles
+     *
+     * La MEMOIRE aide a retrouver l'objet — elle ne prouve rien. La POLICY
+     * decide s'il est encore accessible. Le RETRIEVAL FRAIS fournit les faits.
+     * Les SOURCES FRAICHES prouvent la reponse. Aucune de ces quatre etapes
+     * n'est facultative, et aucune ne peut en remplacer une autre : c'est
+     * exactement pourquoi cette branche ne se contente pas de relire ce que le
+     * fil contient deja.
+     *
+     * ## Pourquoi ICI dans la chaine
+     *
+     * Ni plus haut, ni plus bas, et ce n'est pas une commodite :
+     *
+     *  - APRES `dossierAnswerTurn()` / `articleAnswerTurn()` : un objet
+     *    REELLEMENT sous les yeux reste l'autorite prioritaire. Cette branche
+     *    exige donc que la page courante ne soit ni un Dossier ni un Article ;
+     *  - AVANT `generalAnswerTurn()` : « qui sont les partenaires ? » EST une
+     *    question, donc `isGeneralQuestion()` la capturerait la premiere et la
+     *    branche ne s'executerait jamais. Ce placement est ce qui ferme le cas
+     *    reel ;
+     *  - l'intention d'ENTRAIDE reste protegee en amont de tout cela, par la
+     *    meme table de marqueurs que le chemin general
+     *    (`mentionsInteractionIntent()`, consultee par
+     *    `isDocumentaryContinuation()`) : une ancienne page Dossier ne vole
+     *    jamais « quelqu'un peut m'aider ? ».
+     *
+     * ## Un identifiant retrouve n'est jamais un droit
+     *
+     * L'identifiant vient des metadata SERVEUR du fil, jamais du client. Il est
+     * ensuite revalide integralement, au tour courant : tenant d'abord, puis
+     * `DossierPolicy::view` — et `answer()` revalide une troisieme fois. Un
+     * Dossier devenu inaccessible, supprime, ou appartenant a une autre
+     * Organization s'efface SILENCIEUSEMENT : `null`, le tour suit son cours,
+     * aucun titre prive, aucun contenu, aucun appel provider documentaire.
+     *
+     * @param  array<string, mixed>  $pageContext
+     * @param  list<array<string, mixed>>  $pinnedContext
+     * @param  string  $memory  memoire documentaire du Dossier RETROUVE, captee
+     *                          avant l'ecriture du declencheur (TASK-1346)
+     * @return array{0: string, 1: array<string, mixed>}|null
+     */
+    private function dossierContinuationTurn(
+        Organization $organization,
+        User $user,
+        string $prompt,
+        array $pageContext,
+        array $pinnedContext,
+        ?string $dossierId,
+        string $memory,
+    ): ?array {
+        if ($dossierId === null) {
+            return null;
+        }
+
+        // Un objet courant garde la main : on ne reprend un Dossier ancien que
+        // depuis une page qui n'est elle-meme aucune autorite documentaire.
+        if (in_array($pageContext['kind'] ?? null, [AiShellPageContext::KIND_DOSSIER, AiShellPageContext::KIND_ARTICLE], true)) {
+            return null;
+        }
+
+        if (! $this->isDocumentaryContinuation($prompt)) {
+            return null;
+        }
+
+        $dossier = Dossier::query()->find($dossierId);
+
+        // Tenant d'abord, explicitement : `Dossier` ne porte pas de global
+        // scope d'Organization, et un fil ne doit jamais pouvoir designer un
+        // objet d'une autre Organization — meme devenu etranger apres coup.
+        if (! $dossier instanceof Dossier
+            || (string) $dossier->organization_id !== (string) $organization->id
+            || $user->cannot('view', $dossier)) {
+            return null;
+        }
+
+        try {
+            $answer = $this->dossierAnswers->answer($organization, $dossier, $user, $prompt, null, $memory);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return null;
+        }
+
+        // Meme effacement que la branche courante : sans document consulte, la
+        // branche documentaire se tait et laisse le chemin general repondre
+        // honnetement. Rien n'est fabrique depuis la memoire.
+        if ($answer->consulted === []) {
+            return null;
+        }
+
+        $content = trim($answer->answer);
+
+        if ($content === '') {
+            return null;
+        }
+
+        return [$content, [
+            'status' => self::STATUS_NON_INTERACTION,
+            'producer' => self::PRODUCER_DOSSIER_CONTINUATION,
+            // La route reste celle ou la personne se trouve VRAIMENT ; l'objet
+            // trace est le Dossier repris, parce que ce tour porte bien sur lui
+            // — c'est ce qui permet au tour suivant de le retrouver, et a la
+            // memoire documentaire (T1523) de le rattacher au bon objet.
+            'page_context' => [
+                'route' => (string) ($pageContext['route'] ?? ''),
+                'kind' => (string) ($pageContext['kind'] ?? 'other'),
+                'object_type' => AiShellPageContext::KIND_DOSSIER,
+                'object_id' => (string) $dossier->id,
+            ],
+            'continuation' => true,
+            'cards' => $this->cards->forAnsweredTurn($organization, $user, null, $pageContext, $prompt),
+            'grounded' => $answer->grounded,
+            'sources' => array_map(KnowledgeAnswer::publicSource(...), $answer->sources),
+            'follow_up_questions' => $answer->followUps,
+            'ai_interaction_id' => $answer->interactionId,
+        ] + $this->pinnedTrace($pinnedContext)];
+    }
+
+    /**
      * TASK-1526 — une QUESTION generale precise ne passe plus par la
      * capability qui prepare une demande d'entraide.
      * TASK-1527 — une tache conversationnelle ordinaire adressee a l'IA suit
@@ -1159,29 +1324,9 @@ final class AiShellResponder
      */
     private function isGeneralQuestion(string $prompt): bool
     {
-        $normalized = trim((string) preg_replace(
-            '/[^a-z0-9]+/',
-            ' ',
-            Str::lower(Str::ascii($prompt)),
-        ));
+        $normalized = $this->normalizedPrompt($prompt);
 
-        $interactionIntent = preg_match(
-            '/\b('
-            .'qui peut m aider|qui pourrait m aider|who can help|which member|quel membre|quelle personne|'
-            .'qui (?:peut|pourrait) (?:m |nous )?(?:accompagner|conseiller|relire|revoir|traduire)|'
-            .'quelqu un peut m aider|quelqu un pourrait m aider|can someone help|could someone help|'
-            .'je cherche (?:quelqu un|un |une |de l aide)|nous cherchons (?:quelqu un|un |une )|'
-            .'j ai besoin (?:d aide|d un |d une )|nous avons besoin (?:d aide|d un |d une )|'
-            .'i (?:am|m) looking for (?:someone|a |an )|we (?:are|re) looking for (?:someone|a |an )|'
-            .'i need (?:help|a |an )|we need (?:help|a |an )|'
-            .'demander de l aide|trouver (?:quelqu un|un membre|une personne)|find (?:someone|a member)|'
-            .'mettre en relation|connect me with|'
-            .'puis je aider|je peux aider|je propose mon aide|can i help|i can help|i offer my help'
-            .')\b/',
-            $normalized,
-        ) === 1;
-
-        if ($interactionIntent) {
+        if ($this->mentionsInteractionIntent($normalized)) {
             return false;
         }
 
@@ -1198,6 +1343,150 @@ final class AiShellResponder
         ) === 1;
 
         return $isQuestion || $isConversationalTask;
+    }
+
+    /**
+     * La forme normalisee sur laquelle TOUTES les coupes deterministes
+     * travaillent : minuscules, sans accent, ponctuation reduite a l'espace.
+     * Une seule normalisation pour une seule famille de decisions.
+     */
+    private function normalizedPrompt(string $prompt): string
+    {
+        return trim((string) preg_replace(
+            '/[^a-z0-9]+/',
+            ' ',
+            Str::lower(Str::ascii($prompt)),
+        ));
+    }
+
+    /**
+     * Les marqueurs d'entraide, en UN seul endroit.
+     *
+     * TASK-1530 : cette table etait interne a `isGeneralQuestion()`. La
+     * continuite documentaire doit s'effacer devant EXACTEMENT les memes
+     * enonces — deux copies auraient diverge au premier ajout, et c'est la
+     * protection de l'intention d'aide humaine qui aurait glisse. Extraction
+     * a l'identique, aucun terme ajoute ni retire.
+     */
+    private function mentionsInteractionIntent(string $normalized): bool
+    {
+        return preg_match(
+            '/\b('
+            .'qui peut m aider|qui pourrait m aider|who can help|which member|quel membre|quelle personne|'
+            .'qui (?:peut|pourrait) (?:m |nous )?(?:accompagner|conseiller|relire|revoir|traduire)|'
+            .'quelqu un peut m aider|quelqu un pourrait m aider|can someone help|could someone help|'
+            .'je cherche (?:quelqu un|un |une |de l aide)|nous cherchons (?:quelqu un|un |une )|'
+            .'j ai besoin (?:d aide|d un |d une )|nous avons besoin (?:d aide|d un |d une )|'
+            .'i (?:am|m) looking for (?:someone|a |an )|we (?:are|re) looking for (?:someone|a |an )|'
+            .'i need (?:help|a |an )|we need (?:help|a |an )|'
+            .'demander de l aide|trouver (?:quelqu un|un membre|une personne)|find (?:someone|a member)|'
+            .'mettre en relation|connect me with|'
+            .'puis je aider|je peux aider|je propose mon aide|can i help|i can help|i offer my help'
+            .')\b/',
+            $normalized,
+        ) === 1;
+    }
+
+    /**
+     * TASK-1530 — l'enonce est-il une CONTINUATION documentaire plausible ?
+     *
+     * Coupe deterministe locale, dans l'esprit exact de `isGeneralQuestion()` :
+     * testable, sans cout provider, et volontairement ETROITE. Le CDC est
+     * explicite — le but n'est pas un classifieur universel, c'est d'empecher
+     * les captures evidentes tout en fermant le cas reel. En cas de doute, on
+     * retombe sur le chemin general : une reponse generale honnete vaut mieux
+     * qu'un mauvais retrieval.
+     *
+     * Une continuation est un enonce REFERENTIELLEMENT INCOMPLET : il parle
+     * d'un sujet qu'il ne nomme pas. Trois conditions cumulatives :
+     *
+     *  1. c'est une question (meme test que le chemin general) ;
+     *  2. elle ne nomme AUCUN sujet a elle — un article indefini (« une
+     *     Boucle », « un expert ») introduit un sujet neuf, donc autonome ;
+     *  3. elle ne nomme aucun concept PRODUIT : « quelle est la difference
+     *     entre une Boucle et une Organization ? » est une question sur
+     *     BouclePro, jamais une question sur le Dossier qu'on regardait.
+     *
+     * Mesure sur les enonces du CDC :
+     *   « Qui sont les partenaires ? »        -> continuation
+     *   « Et son budget ? »                   -> continuation
+     *   « Qui le coordonne ? »                -> continuation
+     *   « Quelle est la difference entre une Boucle et une Organization ? »
+     *                                         -> general (indefini + produit)
+     *   « Quelqu'un peut m'aider... ? »       -> entraide, ecarte plus haut
+     */
+    private function isDocumentaryContinuation(string $prompt): bool
+    {
+        $normalized = $this->normalizedPrompt($prompt);
+
+        if ($normalized === '') {
+            return false;
+        }
+
+        // L'intention d'aide humaine n'est jamais capturee par un ancien
+        // Dossier. Meme table que le chemin general, meme verdict.
+        if ($this->mentionsInteractionIntent($normalized)) {
+            return false;
+        }
+
+        $isQuestion = str_contains($prompt, '?')
+            || preg_match(
+                '/^(et |qui|que|quoi|quel|quelle|quels|quelles|comment|pourquoi|ou|quand|combien|what|who|which|how|why|where|when)\b/',
+                $normalized,
+            ) === 1;
+
+        if (! $isQuestion) {
+            return false;
+        }
+
+        // Un article indefini introduit un sujet que la question porte
+        // elle-meme : elle se suffit, elle ne continue rien.
+        if (preg_match('/\b(un|une|des|a|an)\b/', $normalized) === 1) {
+            return false;
+        }
+
+        // Le vocabulaire du produit appartient au chemin general et a la
+        // self-knowledge, jamais au corpus d'un Dossier.
+        return preg_match(
+            '/\b(boucle|boucles|organization|organizations|organisation|organisations|'
+            .'bouclepro|dossier|dossiers|plateforme|platform|shell|interaction|interactions|'
+            .'article|articles|profil|profils|membre|membres|member|members)\b/',
+            $normalized,
+        ) !== 1;
+    }
+
+    /**
+     * TASK-1530 — le dernier Dossier dont CE fil a REELLEMENT parle.
+     *
+     * Lu sur les metadata que le SERVEUR a ecrites lui-meme a l'aller
+     * (`traceable()`), jamais sur un identifiant fourni par le client : un
+     * object_id venu du navigateur ferait de la trace de tour une cle d'acces.
+     * `AiShellThread::messages()` borne deja la lecture au couple
+     * (organization, user) — Organization = Tenant.
+     *
+     * Du plus RECENT au plus ancien : apres un Dossier A puis un Dossier B, la
+     * continuation repart de B. Rendre un identifiant n'accorde aucun droit —
+     * l'appelant revalide, systematiquement.
+     */
+    private function recentDossierObjectId(Organization $organization, User $user): ?string
+    {
+        $conversationId = $this->thread->persistedConversationId($organization, $user);
+
+        if ($conversationId === null) {
+            return null;
+        }
+
+        foreach ($this->thread->messages($organization, $user, $conversationId)->reverse() as $message) {
+            $metadata = is_array($message->metadata) ? $message->metadata : [];
+            $type = $metadata['page_context']['object_type'] ?? null;
+            $id = $metadata['page_context']['object_id'] ?? null;
+
+            if ($type === AiShellPageContext::KIND_DOSSIER && is_string($id) && $id !== '') {
+                return $id;
+            }
+        }
+
+        return null;
     }
 
     /**
