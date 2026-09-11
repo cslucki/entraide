@@ -169,6 +169,11 @@
                             // n'etait atteignable que par son URL — exactement le defaut
                             // constate le meme jour sur le libelle des consommateurs.
                             ['route' => 'organization.admin.ai-quality', 'label' => __('navigation.org_admin_ai_quality'), 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'],
+                            // TASK-1533 : l'Inspector ferme le parcours. Les entrees
+                            // au-dessus REGLENT (credential, doctrine, Constitution) ou
+                            // COMPTENT (connaissances, consommation, qualite) ; celle-ci
+                            // ne fait ni l'un ni l'autre — elle regarde un tour passer.
+                            ['route' => 'organization.admin.ai-context-inspector', 'label' => __('navigation.org_admin_ai_context_inspector'), 'icon' => 'M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z'],
                         ];
                     @endphp
 

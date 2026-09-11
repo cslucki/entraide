@@ -84,6 +84,9 @@ final class OrganizationDoctrineSandbox
 
     /**
      * @param  string  $draftBody  la doctrine candidate (texte du formulaire, non enregistre) ; vide = sans doctrine
+     * @param  bool  $asInspector  executer en tant qu'AI Context Inspector (TASK-1533) :
+     *                            la doctrine ACTIVE est composee, et le tour se nomme
+     *                            comme tel dans le ledger
      */
     public function run(
         Organization $organization,
@@ -92,6 +95,7 @@ final class OrganizationDoctrineSandbox
         string $draftBody,
         string $question,
         ?string $draftConstitutionBody = null,
+        bool $asInspector = false,
     ): DoctrineSandboxResult {
         $question = trim($question);
 
@@ -101,7 +105,35 @@ final class OrganizationDoctrineSandbox
 
         $scope = CapabilityRegistry::SCOPE_ORGANIZATION;
         $draft = OrganizationAiDoctrine::normalize($draftBody);
-        $doctrineLabel = $draft === '' ? null : 'draft';
+
+        // TASK-1533 — deux questions differentes, un seul chemin.
+        //
+        // « Que ferait CE texte avant publication ? » (bac a sable de doctrine,
+        // T1227) compose la doctrine CANDIDATE, et un brouillon vide veut dire
+        // SANS doctrine. C'est juste pour ce qu'il sert.
+        //
+        // « Pourquoi BouclePro a-t-il repondu CELA ? » (Inspector) est l'autre
+        // question, et la meme composition y serait un piege : le chemin reel
+        // (`PromptRepository::compose()`) lit `OrganizationAiDoctrine::activeFor()`
+        // et l'injecte. Un Inspector compose sans elle montrerait un prompt que
+        // PERSONNE ne recoit — l'ecran a moitie vrai que cette surface existe
+        // precisement pour supprimer.
+        //
+        // La doctrine active est donc resolue ici, par la meme primitive que la
+        // production, et l'etiquette dit laquelle a ete composee : `draft`,
+        // `active`, ou aucune. Aucun second mecanisme de prompt.
+        $activeDoctrine = $asInspector && $draft === ''
+            ? OrganizationAiDoctrine::activeFor((string) $organization->id)
+            : null;
+
+        $doctrineBody = $draft !== '' ? $draft : $activeDoctrine?->body;
+        $doctrineVersion = $draft !== '' ? null : $activeDoctrine?->version;
+
+        $doctrineLabel = match (true) {
+            $draft !== '' => 'draft',
+            $activeDoctrine !== null => 'active',
+            default => null,
+        };
 
         if (! in_array($capability, self::SUPPORTED, true)) {
             return $this->refused($organization, $capability, $scope, $doctrineLabel, self::REASON_UNSUPPORTED_CAPABILITY);
@@ -172,8 +204,8 @@ final class OrganizationDoctrineSandbox
         $instructions = $this->prompts->composeWithDoctrine(
             $capability,
             $baseInstructions,
-            $draft,
-            null,
+            $doctrineBody,
+            $doctrineVersion,
             (string) $organization->id,
             null,
             null,
@@ -208,6 +240,7 @@ final class OrganizationDoctrineSandbox
                 ledgered: $entries > 0,
                 ledgerEntries: $entries,
                 interactionId: null,
+                correlationId: $contexte->correlationId,
             );
         }
 
@@ -223,7 +256,7 @@ final class OrganizationDoctrineSandbox
                 : $this->promptClarifier($instructions, $prompt, $resolved);
         } catch (\Throwable $exception) {
             $this->record($organization, $admin, $contexte, $definition, $resolved, $prompt, null,
-                AiUsage::notObserved(), null, 'failed', $startedAt, null, $exception::class, $doctrineLabel);
+                AiUsage::notObserved(), null, 'failed', $startedAt, null, $exception::class, $doctrineLabel, $asInspector);
 
             return new DoctrineSandboxResult(
                 status: DoctrineSandboxResult::STATUS_FAILED,
@@ -240,13 +273,14 @@ final class OrganizationDoctrineSandbox
                 ledgered: true,
                 ledgerEntries: $this->ledgerEntries($contexte),
                 interactionId: null,
+                correlationId: $contexte->correlationId,
             );
         }
 
         $cost = $this->economicGuard->finalize($resolved->provider, $resolved->model, $usage);
 
         $interaction = $this->record($organization, $admin, $contexte, $definition, $resolved, $prompt, $answer,
-            $usage, $cost, 'success', $startedAt, $invocationId, null, $doctrineLabel);
+            $usage, $cost, 'success', $startedAt, $invocationId, null, $doctrineLabel, $asInspector);
 
         return new DoctrineSandboxResult(
             status: DoctrineSandboxResult::STATUS_ANSWERED,
@@ -263,6 +297,12 @@ final class OrganizationDoctrineSandbox
             ledgered: true,
             ledgerEntries: $this->ledgerEntries($contexte),
             interactionId: $interaction->id,
+            correlationId: $contexte->correlationId,
+            // TASK-1533 : ce sur quoi la reponse s'appuie, tel que le builder
+            // l'a collecte — donc uniquement les sources UTILISEES, apres leurs
+            // gardes d'acces. Le bac a sable la jetait ; l'Inspector en a besoin
+            // pour montrer la preuve sans relire les documents une seconde fois.
+            provenance: $borne->provenance,
         );
     }
 
@@ -435,6 +475,7 @@ final class OrganizationDoctrineSandbox
         ?string $sdkInvocationId,
         ?string $failure,
         ?string $doctrineLabel,
+        bool $asInspector,
     ): AiInteraction {
         $this->ledger->recordGeneration(
             organizationId: (string) $organization->id,
@@ -466,6 +507,12 @@ final class OrganizationDoctrineSandbox
             ...($cost?->traceAttributes() ?? ['cost_usd' => null, 'cost_unknown' => null]),
             'metadata' => array_filter([
                 'sandbox' => true,
+                // TASK-1533 : les deux surfaces empruntent CE chemin, et la
+                // trace doit dire laquelle a pose la question. Sans cela, un
+                // tour d'Inspector ne se distinguerait d'un essai de doctrine
+                // que par `doctrine === 'active'` — vrai aujourd'hui, mais par
+                // accident : un essai sans brouillon dirait 'none' lui aussi.
+                'inspector' => $asInspector ?: null,
                 'doctrine' => $doctrineLabel ?? 'none',
                 'requested_by' => $admin->id,
                 'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
