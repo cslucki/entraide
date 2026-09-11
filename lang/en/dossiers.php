@@ -287,6 +287,11 @@ return [
     // be checked.
     'derived_source_named' => 'Conversation in the “:loop” Loop',
     'derived_source_generic' => 'Conversation in a Loop',
+    // TASK-1536 — the date QUALIFIES what was said, it does not decorate it.
+    // It is `observed_at` (when humans said it), never `derived_at` (when the
+    // machine compiled it), which would teach the reader nothing.
+    'derived_source_named_at' => 'Conversation in the “:loop” Loop, said on :date',
+    'derived_source_generic_at' => 'Conversation in a Loop, said on :date',
     // Smart Dossier Insights headings. These are NOT screen chrome: they are
     // dictated to the model in the preset question, read back by the response
     // parser, then re-emitted into the rendered markdown. All three uses must

@@ -292,6 +292,11 @@ return [
     // sont dit, et de quelle Boucle. Sans les deux, la citation est invérifiable.
     'derived_source_named' => 'Conversation de la Boucle « :loop »',
     'derived_source_generic' => 'Conversation d\'une Boucle',
+    // TASK-1536 — la date QUALIFIE le propos, elle ne le decore pas. C'est
+    // `observed_at` (quand des humains l'ont dit), jamais `derived_at` (quand
+    // la machine a compile), qui n'apprendrait rien a personne.
+    'derived_source_named_at' => 'Conversation de la Boucle « :loop », propos du :date',
+    'derived_source_generic_at' => 'Conversation d\'une Boucle, propos du :date',
     // Rubriques de Smart Dossier Insights. Elles ne sont PAS de la chrome
     // d'ecran : elles sont dictees au modele dans la question preetablie,
     // relues par le parseur de la reponse, puis reemises dans le markdown

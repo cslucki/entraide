@@ -730,9 +730,25 @@ class TASK1533AiContextInspectorTest extends TestCase
         // La latence est rendue A LA PRECISION DU LEDGER. Ces deux colonnes
         // s'horodatent a la seconde : la calculer en millisecondes affichait
         // « 9000 ms », une precision au millier pres jamais mesuree.
-        $run->assertSee('data-inspector-latency="9"', false);
-        $run->assertSee('9 s');
-        $run->assertDontSee('9000 ms');
+        //
+        // TASK-1536 — la valeur attendue se LIT sur la ligne, elle ne se
+        // reecrit pas en dur. `completed_at` suit l'horloge applicative (donc
+        // le voyage de 9 secondes) tandis que `started_at` vient de
+        // `microtime()`, qu'aucun voyage n'affecte : l'ecart vaut 9 secondes
+        // PLUS la duree reelle de la requete. Sous charge, cette duree
+        // depassait la demi-seconde et l'arrondi rendait 10 — un rouge
+        // intermittent qui n'a jamais rien dit du produit.
+        //
+        // Deriver l'attendu du ledger sert d'ailleurs mieux ce que ce test
+        // affirme : l'ecran montre EXACTEMENT ce que le ledger a ecrit.
+        $latence = (int) round($invocation->started_at->diffInSeconds($invocation->completed_at));
+
+        $this->assertGreaterThanOrEqual(9, $latence,
+            'le voyage de 9 secondes doit bien se retrouver dans l ecart du ledger');
+
+        $run->assertSee('data-inspector-latency="'.$latence.'"', false);
+        $run->assertSee($latence.' s');
+        $run->assertDontSee(($latence * 1000).' ms');
     }
 
     /**
