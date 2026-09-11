@@ -287,6 +287,11 @@ return [
     'insights_no_content' => 'Aucun document indexé n\'a été trouvé dans ce Dossier.',
     'insights_ai_error' => 'La génération de la synthèse a échoué.',
     'insights_empty_response' => 'Aucune synthèse fondée n\'a pu être produite à partir de ce Dossier.',
+    // TASK-1534 — le nom d'une source dérivée d'une conversation. Il doit dire
+    // DEUX choses au lecteur : que l'extrait vient de ce que des humains se
+    // sont dit, et de quelle Boucle. Sans les deux, la citation est invérifiable.
+    'derived_source_named' => 'Conversation de la Boucle « :loop »',
+    'derived_source_generic' => 'Conversation d\'une Boucle',
     // Rubriques de Smart Dossier Insights. Elles ne sont PAS de la chrome
     // d'ecran : elles sont dictees au modele dans la question preetablie,
     // relues par le parseur de la reponse, puis reemises dans le markdown

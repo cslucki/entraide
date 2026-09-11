@@ -214,6 +214,10 @@ class TASK1253CanonicalAttributionTest extends TestCase
         $this->assertSame(
             [
                 CapabilityRegistry::LOOP_SUMMARY,
+                // TASK-1534 : la premiere capability du cote WRITE — elle ne
+                // repond a personne, elle compile ce que des humains se sont
+                // dit en connaissance durable.
+                CapabilityRegistry::LOOP_CONVERSATION_KNOWLEDGE,
                 CapabilityRegistry::CLARIFY_HELP_REQUEST,
                 // TASK-1526 : le Shell membre repond aux questions generales
                 // via sa capability read-only, distincte de la clarification.
@@ -242,7 +246,7 @@ class TASK1253CanonicalAttributionTest extends TestCase
                 CapabilityRegistry::GUEST_SHELL_WELCOME,
             ],
             array_map(static fn ($definition): string => $definition->id, $registry->all()),
-            'Les treize capabilities canoniques (TASK-1526 : + la reponse generale du Shell membre) — aucune pour la suggestion sur selection, la configuration conversationnelle du profil, l\'Explorer, l\'offre, les bancs.',
+            'Les quatorze capabilities canoniques (TASK-1534 : + la compilation des conversations de Boucle) — aucune pour la suggestion sur selection, la configuration conversationnelle du profil, l\'Explorer, l\'offre, les bancs.',
         );
     }
 
@@ -254,7 +258,7 @@ class TASK1253CanonicalAttributionTest extends TestCase
         $this->assertSame(BlogExplorerController::class, NervousSystemCoverage::INHERITED['blog_explorer']);
         $this->assertNotSame('ai.inherited_label.blog_explorer', __('ai.inherited_label.blog_explorer', [], 'fr'));
         $this->assertNotSame('ai.inherited_label.blog_explorer', __('ai.inherited_label.blog_explorer', [], 'en'));
-        $this->assertSame(13 + 4, $coverage->totalCount(), 'Treize canoniques (TASK-1526 : + la reponse generale du Shell membre) + quatre heritees (configuration conversationnelle du profil, suggestion sur selection Blog, Explorer, offre de service).');
+        $this->assertSame(14 + 4, $coverage->totalCount(), 'Quatorze canoniques (TASK-1534 : + la compilation des conversations de Boucle en connaissance derivee) + quatre heritees (configuration conversationnelle du profil, suggestion sur selection Blog, Explorer, offre de service).');
     }
 
     // =====================================================================

@@ -410,6 +410,7 @@ return [
     'cockpit_behavior_doctrine_active' => 'Doctrine v:version active',
     'cockpit_behavior_doctrine_none' => 'Aucune doctrine d\'Organization',
     'capability_label' => [
+        'loop_conversation_knowledge' => 'Connaissance dérivée des conversations de Boucle',
         'shell_general_answer' => 'Réponse générale du Shell membre',
         'clarify_help_request' => 'Clarification des demandes',
         'loop_summary' => 'Résumé des Boucles',

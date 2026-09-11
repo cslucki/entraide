@@ -378,8 +378,10 @@ class TASK1284BlogDoctrineCanonicalTest extends TestCase
         // TASK-1327 : + `loop_decision_suggestion` (Decision Memory) = 11.
         // TASK-1435 : + `guest_shell_welcome` (accueil du visiteur, SW-5) = 12.
         // TASK-1526 : + `shell_general_answer` (Shell membre) = 13.
-        $this->assertSame(13, $coverage->coveredCount());
-        $this->assertSame(17, $coverage->totalCount());
+        // TASK-1534 : + `loop_conversation_knowledge` (cote WRITE : compiler ce
+        // que des humains se sont dit en connaissance durable) = 14.
+        $this->assertSame(14, $coverage->coveredCount());
+        $this->assertSame(18, $coverage->totalCount());
     }
 
     public function test_the_constitution_is_actually_the_head_of_the_composed_prompt(): void

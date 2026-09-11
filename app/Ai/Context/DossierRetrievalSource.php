@@ -7,6 +7,7 @@ use App\Ai\ProviderResolver;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Dossiers\DossierChunkEmbeddingService;
+use App\Services\Dossiers\DerivedChunkEligibility;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use DomainException;
@@ -113,6 +114,9 @@ final class DossierRetrievalSource implements ContextSource
         private readonly DossierChunkEmbeddingService $embeddings,
         private readonly ProviderResolver $providers,
         private readonly DossierAccessScope $scope,
+        // TASK-1534 : l'autorite qui borne la connaissance derivee aux Boucles
+        // lisibles par cet utilisateur.
+        private readonly DerivedChunkEligibility $derivedEligibility,
     ) {}
 
     public function name(): string
@@ -186,6 +190,11 @@ final class DossierRetrievalSource implements ContextSource
             // recherche jusqu'au ledger.
             ['capability' => $contexte->capability, 'loop_id' => $contexte->loopId, 'feature' => $contexte->feature],
             max($topK, self::CANDIDATE_POOL_SIZE),
+            null,
+            // TASK-1534 — la troisieme famille de chunk est bornee par les
+            // Boucles que CET utilisateur peut lire. `$user` a deja ete
+            // recharge et reverifie tenant plus haut.
+            $this->derivedEligibility->authorizedLoopIds($contexte->organizationId, $user),
         );
 
         $maxDistance = (float) config('ai.knowledge.max_distance', 1.0);
@@ -226,7 +235,7 @@ final class DossierRetrievalSource implements ContextSource
 
         foreach ($rows as $index => $row) {
             $ref = 'S'.($index + 1);
-            $displayTitle = $row['source_type'] === 'file' ? $row['filename'] : $row['title'];
+            $displayTitle = DossierSemanticSearchService::displayTitle($row);
             $header = "[{$ref}] {$displayTitle} — Dossier « {$row['dossier_name']} »";
             $available = $charBudget - $used - mb_strlen($header) - 4;
 
@@ -273,9 +282,12 @@ final class DossierRetrievalSource implements ContextSource
                 // jamais, ni au JSON, ni a la metadata du message.
                 'selection' => $row['distance'] === null ? 'overview' : 'semantic',
                 'extrait' => mb_strimwidth($content, 0, 240, '…'),
-                'url' => $row['source_type'] === 'file'
-                    ? DossierSourceUrl::forFile($organizationSlug, $row['dossier_id'], $row['dossier_file_id'], $row['mime_type'] ?? null)
-                    : DossierSourceUrl::forArticle($organizationSlug, $row['slug']),
+                'url' => match ($row['source_type']) {
+                    'file' => DossierSourceUrl::forFile($organizationSlug, $row['dossier_id'], $row['dossier_file_id'], $row['mime_type'] ?? null),
+                    // TASK-1534 — vers la conversation, jamais vers la note.
+                    'derived_knowledge' => DossierSourceUrl::forDerivedNote($row['derived_source_loop_id'] ?? null),
+                    default => DossierSourceUrl::forArticle($organizationSlug, $row['slug']),
+                },
             ];
         }
 
@@ -309,7 +321,7 @@ final class DossierRetrievalSource implements ContextSource
                 break;
             }
 
-            $documentKey = $row['source_type'].':'.($row['dossier_file_id'] ?? $row['blog_post_id']);
+            $documentKey = self::documentKey($row);
 
             if (($countByDocument[$documentKey] ?? 0) < self::PER_DOCUMENT_CAP) {
                 $selected[] = $row;
@@ -394,15 +406,21 @@ final class DossierRetrievalSource implements ContextSource
     }
 
     /**
-     * Identite d'un DOCUMENT (Article ou fichier), jamais d'un chunk — la
-     * meme cle que `diversify()`, pour que « deja represente » veuille dire
-     * la meme chose des deux cotes.
+     * Identite d'un DOCUMENT (Article, fichier ou note derivee), jamais d'un
+     * chunk — pour que « deja represente » veuille dire la meme chose partout.
+     *
+     * TASK-1534 : `diversify()` portait une copie de cette expression, et le
+     * commentaire d'origine disait deja l'intention — « la meme cle que
+     * `diversify()` ». Une troisieme famille sans `blog_post_id` ni
+     * `dossier_file_id` aurait donne `derived_knowledge:` a TOUTES les notes :
+     * le plafond par document les aurait confondues en une seule, et la
+     * diversite aurait tu tout sauf la premiere. La copie est supprimee.
      *
      * @param  array<string, mixed>  $row
      */
     private static function documentKey(array $row): string
     {
-        return $row['source_type'].':'.($row['dossier_file_id'] ?? $row['blog_post_id']);
+        return DossierSemanticSearchService::documentKey($row);
     }
 
     private function overviewMaxDocuments(): int

@@ -408,6 +408,7 @@ return [
     'cockpit_behavior_doctrine_active' => 'Doctrine v:version active',
     'cockpit_behavior_doctrine_none' => 'No Organization doctrine',
     'capability_label' => [
+        'loop_conversation_knowledge' => 'Derived knowledge from Loop conversations',
         'shell_general_answer' => 'Member Shell general answer',
         'clarify_help_request' => 'Request clarification',
         'loop_summary' => 'Loop summaries',

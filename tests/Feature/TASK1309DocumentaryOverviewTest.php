@@ -824,14 +824,14 @@ class FakeOverviewSearch extends DossierSemanticSearchService
 
     public function __construct() {}
 
-    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null, ?array $onlyDossierFileIds = null): array
+    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null, ?array $onlyDossierFileIds = null, ?array $authorizedLoopIds = null): array
     {
         $this->calls++;
 
         return array_slice($this->rows, 0, $candidateLimit ?? $limit);
     }
 
-    public function representativeChunksAcrossDossiers(string $organizationId, array $dossierIds, int $documentLimit = 6): array
+    public function representativeChunksAcrossDossiers(string $organizationId, array $dossierIds, int $documentLimit = 6, ?array $authorizedLoopIds = null): array
     {
         $this->representativeCalls++;
 

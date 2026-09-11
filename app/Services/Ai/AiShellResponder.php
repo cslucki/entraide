@@ -10,6 +10,7 @@ use App\Models\Dossier;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\DTO\KnowledgeAnswer;
+use App\Services\Dossiers\DerivedChunkEligibility;
 use App\Services\Dossiers\DossierInsightsService;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
@@ -259,6 +260,9 @@ final class AiShellResponder
         private readonly DossierAccessScope $dossierAccessScope,
         private readonly DossierSemanticSearchService $dossierSearch,
         private readonly ProviderResolver $providers,
+        // TASK-1534 : l'autorite qui dit quelles Boucles ce membre peut lire.
+        // Elle borne la troisieme famille de chunk — la connaissance derivee.
+        private readonly DerivedChunkEligibility $derivedEligibility,
     ) {}
 
     /**
@@ -1472,6 +1476,14 @@ final class AiShellResponder
                 self::DISCOVERY_SOURCE_LIMIT,
                 ['shell_dossier_discovery' => true],
                 self::DISCOVERY_CANDIDATE_LIMIT,
+                null,
+                // TASK-1534 — les Boucles dont CE membre peut lire l'espace de
+                // travail. C'est par ici que la connaissance derivee d'une
+                // conversation devient retrouvable depuis n'importe quelle
+                // page, et c'est aussi par ici qu'elle cesse de l'etre le jour
+                // ou il quitte la Boucle : la garde est evaluee a la LECTURE,
+                // jamais copiee.
+                $this->derivedEligibility->authorizedLoopIds((string) $organization->id, $user),
             );
         } catch (\Throwable $exception) {
             report($exception);

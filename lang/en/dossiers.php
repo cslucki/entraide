@@ -281,6 +281,12 @@ return [
     'insights_no_content' => 'No indexed document was found in this Folder.',
     'insights_ai_error' => 'Generating the summary failed.',
     'insights_empty_response' => 'No grounded summary could be produced from this Folder.',
+    // TASK-1534 — the name of a source derived from a conversation. It must
+    // tell the reader TWO things: that the excerpt comes from what humans said
+    // to each other, and from which Loop. Without both, the citation cannot
+    // be checked.
+    'derived_source_named' => 'Conversation in the “:loop” Loop',
+    'derived_source_generic' => 'Conversation in a Loop',
     // Smart Dossier Insights headings. These are NOT screen chrome: they are
     // dictated to the model in the preset question, read back by the response
     // parser, then re-emitted into the rendered markdown. All three uses must

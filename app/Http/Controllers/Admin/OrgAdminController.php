@@ -43,6 +43,7 @@ use App\Services\Ai\DTO\AiConsumptionFilters;
 use App\Services\Ai\OrganizationAiConsumption;
 use App\Services\Ai\OrganizationAiEconomicUsage;
 use App\Services\Ai\OrganizationDoctrineSandbox;
+use App\Services\Dossiers\DerivedChunkEligibility;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Services\Dossiers\OrganizationRagOverview;
@@ -2075,6 +2076,7 @@ class OrgAdminController extends Controller
         DossierSemanticSearchGate $gate,
         ProviderResolver $providers,
         DossierAccessScope $accessScope,
+        DerivedChunkEligibility $derivedEligibility,
     ): View {
         $query = trim((string) $request->query('q', ''));
         $loopId = $request->query('loop_id');
@@ -2088,7 +2090,20 @@ class OrgAdminController extends Controller
         $result = ['ran' => false, 'reason' => null, 'rows' => []];
 
         if ($query !== '') {
-            $result = $this->runRawKnowledgeSearch($organization, $query, $loopId, $search, $gate, $providers, $accessScope);
+            $result = $this->runRawKnowledgeSearch(
+                $organization,
+                $query,
+                $loopId,
+                $search,
+                $gate,
+                $providers,
+                $accessScope,
+                // TASK-1534 — l'outil de diagnostic montre ce que CET admin
+                // obtiendrait, pas ce que le moteur contient. Un admin qui
+                // n'est pas membre d'une Boucle privee ne doit pas y lire ce
+                // qui s'y est dit, fut-ce par une page d'administration.
+                $derivedEligibility->authorizedLoopIds((string) $organization->id, $request->user()),
+            );
         }
 
         return view('admin.org.partials.ai-knowledge-search-result', [
@@ -2111,6 +2126,7 @@ class OrgAdminController extends Controller
         DossierSemanticSearchGate $gate,
         ProviderResolver $providers,
         DossierAccessScope $accessScope,
+        array $authorizedLoopIds,
     ): array {
         if (! $gate->isEnabledFor((string) $organization->id)) {
             return ['ran' => false, 'reason' => 'semantic_search_disabled', 'rows' => []];
@@ -2144,6 +2160,8 @@ class OrgAdminController extends Controller
             // l'identite du diagnostic.
             ['capability' => null, 'loop_id' => $loopId, 'feature' => 'admin_ai_knowledge_search'],
             20,
+            null,
+            $authorizedLoopIds,
         );
 
         $mapped = [];
@@ -2153,7 +2171,7 @@ class OrgAdminController extends Controller
                 'rank' => $index + 1,
                 'distance' => round($row['distance'], 4),
                 'source_type' => $row['source_type'],
-                'title' => $row['source_type'] === 'file' ? $row['filename'] : $row['title'],
+                'title' => DossierSemanticSearchService::displayTitle($row),
                 'dossier_name' => $row['dossier_name'],
                 'chunk_index' => $row['chunk_index'],
                 'extrait' => Str::limit(trim(preg_replace('/\s+/u', ' ', $row['content']) ?? ''), 240),
