@@ -977,10 +977,10 @@ return [
     // Shell: the Inspector runs ONE isolated capability on the canonical
     // pipeline, which is not a member's full journey.
     'inspector_title' => 'AI context inspector',
-    'inspector_intro' => 'Ask your Organization\'s AI pipeline a question, then see what it actually drew on to answer.',
+    'inspector_intro' => 'Run ONE AI capability, on its own, on your Organization\'s canonical pipeline — then see what it actually drew on to answer.',
     'inspector_help' => 'A real AI call, with your Organization\'s key, counted in your consumption. The active doctrine is composed. Nothing is published, no action is created.',
     'inspector_mode' => 'Mode',
-    'inspector_mode_help' => 'ISOLATED: a single capability runs, on its own, on the Organization\'s canonical pipeline. It is the only execution mode available today.',
+    'inspector_mode_help' => 'ISOLATED: a single capability runs, with its allowed sources and nothing else. This is not a member\'s journey through the product — no Shell routing, no page context, no conversation. It is the only execution mode available today.',
 
     'inspector_capability' => 'Capability',
     'inspector_question' => 'Question',
@@ -1009,6 +1009,7 @@ return [
         'active' => 'Active',
         'available' => 'Available',
         'not_requested' => 'Not requested',
+        'not_reached' => 'Step not reached',
         'used' => 'Used',
         'denied' => 'Denied',
         'empty' => 'Empty',
@@ -1050,6 +1051,7 @@ return [
         'issue' => 'Issue',
     ],
     'inspector_trace_pending' => 'Waiting for a run',
+    'inspector_trace_running' => 'Run in progress',
     'inspector_trace_not_reached' => 'Step not reached: the run stopped before it.',
     'inspector_trace_provider_not_reached' => 'No ledger row: nothing was sent to the provider.',
     'inspector_trace_context_counts' => ':used used · :denied denied · :empty empty',
@@ -1057,6 +1059,7 @@ return [
     'inspector_sources_title' => 'Sources',
     'inspector_sources_help' => 'The sources this capability was allowed to draw on, and what each one returned. A denied source is named by its reason, never by its content.',
     'inspector_sources_idle' => 'The next run\'s sources will appear here.',
+    'inspector_sources_not_reached' => 'The context was not built: none of these sources was queried. They are what the capability declares, not a result of this run.',
     'inspector_sources_none' => 'This capability declares no context source.',
     'inspector_source_used' => 'Used',
     'inspector_source_empty' => 'Empty',

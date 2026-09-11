@@ -20,6 +20,8 @@
       - aucune cle, aucun credential, aucun prompt compose.
 --}}
 @php
+    use App\Services\Ai\OrganizationDoctrineSandbox;
+
     // Le libelle d'une source, avec repli sur son identifiant technique : cet
     // ecran est un outil de diagnostic, un nom brut y est plus honnete qu'un
     // libelle invente.
@@ -44,13 +46,20 @@
 
     // Un refus intervient TOUJOURS avant `ContextBuilder::build()` : capability
     // non testable, fonction desactivee, Organization sans credential, budget
-    // atteint, instruction absente. Aucune source n'a donc ete interrogee.
+    // atteint, instruction absente. L'etape n'a pas ete ATTEINTE, et c'est un
+    // etat a part entiere.
     //
-    // Sans cette distinction, l'ecart « autorisee moins utilisee moins refusee »
-    // valait la totalite des sources et les affichait VIDES — soit exactement la
-    // confusion que le CDC interdit : « source non demandee n'est pas source
-    // vide ». La trace disait « etape non atteinte » pendant que les cartes
-    // disaient « consultee, rien trouve ».
+    // Trois formulations fausses ont ete ecartees ici, dans cet ordre :
+    //   - « vide » : l'ecart « autorisee moins utilisee moins refusee » vaut la
+    //     totalite des sources, et les dire vides revient a affirmer qu'elles
+    //     ont ete consultees sans rien rendre ;
+    //   - « non demandee » : c'est deja une mesure — elle veut dire que la
+    //     fonction ne declare pas cette source. Or ces sources-la, la fonction
+    //     les declare ; c'est le tour qui s'est arrete avant ;
+    //   - un silence : omettre les cartes laisserait croire que la fonction ne
+    //     mobilise rien.
+    //
+    // Reste le seul enonce vrai : l'etape n'a pas ete atteinte.
     $contextReached = $status !== 'refused';
 
     // Autorisee, ni utilisee ni refusee = consultee, sans rien a dire. Le
@@ -59,7 +68,7 @@
     $emptySources = $contextReached
         ? array_values(array_diff($allowedSources, $usedSources, array_keys($deniedSources)))
         : [];
-    $notRequestedSources = $contextReached ? [] : array_values($allowedSources);
+    $notReachedSources = $contextReached ? [] : array_values($allowedSources);
 
     // L'etat de RUN, decide par le serveur. `no_sources` est une reussite : un
     // pipeline qui constate « rien a dire » a fait son travail, et la trace le
@@ -83,8 +92,13 @@
     foreach (array_keys($deniedSources) as $name) {
         $sourceStates[$name] = 'denied';
     }
-    foreach ($notRequestedSources as $name) {
-        $sourceStates[$name] = 'not_requested';
+
+    // Etape non atteinte = AUCUNE projection. La carte conserve ses etats
+    // POSSIBLES d'avant le tour, parce que ce tour n'a rien mesure a leur
+    // sujet. Projeter quoi que ce soit ici — meme « non demandee » — serait
+    // presenter une absence de mesure comme une mesure.
+    if (! $contextReached) {
+        $sourceStates = [];
     }
 
     // Provenance regroupee par source. Elle ne decrit que des sources UTILISEES
@@ -117,7 +131,7 @@
      data-inspector-run-state="{{ $runState }}"
      data-inspector-capability="{{ $capability }}"
      data-inspector-generated-at="{{ $generatedAt }}"
-     data-inspector-source-states="{{ json_encode($sourceStates, JSON_UNESCAPED_UNICODE) }}">
+     data-inspector-source-states="{{ json_encode((object) $sourceStates, JSON_UNESCAPED_UNICODE) }}">
 
     {{-- ============================ REPONSE ============================ --}}
     <div data-inspector-pane="answer">
@@ -128,9 +142,26 @@
             <p class="text-[11px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">{{ __('ai.inspector_answer_title') }}</p>
             <p class="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300" data-inspector-no-sources>{{ __('ai.inspector_no_sources') }}</p>
         @elseif($status === 'refused')
-            {{-- Refus AVANT l'appel : rien n'est parti chez le fournisseur. --}}
+            {{-- Refus AVANT l'appel : rien n'est parti chez le fournisseur.
+                 Deux raisons se CORRIGENT quelque part, et l'ecran dit ou —
+                 par un lien vers l'autorite canonique, jamais par un controle
+                 d'edition ici. Les autres raisons ne se corrigent pas depuis
+                 une surface Organization : aucun lien invente pour elles. --}}
+            @php
+                $refusalReason = (string) ($result['refusal_reason'] ?? 'temporarily_unavailable');
+                $refusalAuthority = match ($refusalReason) {
+                    OrganizationDoctrineSandbox::REASON_NOT_CONFIGURED => ['organization.admin.ai', 'navigation.org_admin_ai'],
+                    OrganizationDoctrineSandbox::REASON_BUDGET_REACHED => ['organization.admin.ai-consumption', 'navigation.org_admin_ai_consumption'],
+                    default => null,
+                };
+            @endphp
             <p class="text-[11px] font-medium uppercase tracking-wider text-amber-600 dark:text-amber-400">{{ __('ai.inspector_state.refused') }}</p>
-            <p class="mt-2 text-sm leading-relaxed text-amber-800 dark:text-amber-300" data-inspector-refusal="{{ $result['refusal_reason'] ?? '' }}">{{ __('ai.behavior_sandbox_refused.'.($result['refusal_reason'] ?? 'temporarily_unavailable')) }}</p>
+            <p class="mt-2 text-sm leading-relaxed text-amber-800 dark:text-amber-300" data-inspector-refusal="{{ $refusalReason }}">{{ __('ai.behavior_sandbox_refused.'.$refusalReason) }}</p>
+            @if($refusalAuthority !== null && \Illuminate\Support\Facades\Route::has($refusalAuthority[0]))
+                <a href="{{ route($refusalAuthority[0], ['organization' => $organization->slug]) }}"
+                   class="mt-2 inline-block text-xs text-sky-700 hover:underline dark:text-sky-400"
+                   data-inspector-refusal-authority="{{ $refusalAuthority[0] }}">{{ __('ai.inspector_map_authority_link') }} — {{ __($refusalAuthority[1]) }} →</a>
+            @endif
         @else
             <p class="text-[11px] font-medium uppercase tracking-wider text-red-600 dark:text-red-400">{{ __('ai.inspector_state.error') }}</p>
             <p class="mt-2 text-sm leading-relaxed text-red-700 dark:text-red-300" data-inspector-failed>{{ __('ai.behavior_sandbox_failed') }}</p>
@@ -213,6 +244,10 @@
 
     {{-- ============================ SOURCES ============================ --}}
     <div data-inspector-pane="sources">
+        @if($notReachedSources !== [])
+            <p class="mb-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400" data-inspector-sources-not-reached>{{ __('ai.inspector_sources_not_reached') }}</p>
+        @endif
+
         <ul class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 
             @foreach($usedSources as $sourceName)
@@ -262,21 +297,21 @@
                 </li>
             @endforeach
 
-            {{-- Le tour s'est arrete avant la construction du contexte : ces
-                 sources n'ont pas ete consultees, et surtout elles ne sont pas
-                 vides. --}}
-            @foreach($notRequestedSources as $sourceName)
+            {{-- Le tour s'est arrete avant la construction du contexte. Ces
+                 sources sont bien celles que la fonction declare — mais rien
+                 n'a ete mesure a leur sujet. --}}
+            @foreach($notReachedSources as $sourceName)
                 <li class="rounded-lg border border-dashed border-gray-200 p-3 dark:border-gray-700"
-                    data-inspector-source="{{ $sourceName }}" data-inspector-source-state="not_requested">
+                    data-inspector-source="{{ $sourceName }}" data-inspector-source-state="not_reached">
                     <div class="flex items-start justify-between gap-2">
                         <span class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ $sourceLabel((string) $sourceName) }}</span>
-                        <span class="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset {{ $stateChip('neutral') }}">{{ __('ai.inspector_component_state.not_requested') }}</span>
+                        <span class="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset {{ $stateChip('neutral') }}">{{ __('ai.inspector_component_state.not_reached') }}</span>
                     </div>
                     <p class="mt-1 font-mono text-[11px] text-gray-400 dark:text-gray-500">{{ $sourceName }}</p>
                 </li>
             @endforeach
 
-            @if($usedSources === [] && $emptySources === [] && $deniedSources === [] && $notRequestedSources === [])
+            @if($usedSources === [] && $emptySources === [] && $deniedSources === [] && $notReachedSources === [])
                 <li class="text-sm text-gray-500 dark:text-gray-400" data-inspector-sources-none>{{ __('ai.inspector_sources_none') }}</li>
             @endif
         </ul>

@@ -294,7 +294,7 @@
                 </template>
 
                 <div class="px-5 py-4">
-                    <div x-show="!hasRun" class="py-8 text-center" data-inspector-answer-idle>
+                    <div x-show="!hasRun && status !== 'running'" class="py-8 text-center" data-inspector-answer-idle>
                         <p class="text-sm text-gray-400 dark:text-gray-500">{{ __('ai.inspector_answer_idle') }}</p>
                     </div>
                     <div x-show="status === 'running'" x-cloak class="py-8" data-inspector-answer-running>
@@ -322,7 +322,8 @@
                             <li class="relative pl-6 {{ $index < 3 ? 'pb-4 before:absolute before:left-[5px] before:top-4 before:bottom-0 before:w-px before:bg-gray-200 dark:before:bg-gray-700' : '' }}">
                                 <span class="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full border border-dashed border-gray-400 dark:border-gray-500" aria-hidden="true"></span>
                                 <p class="font-mono text-[11px] uppercase tracking-wider text-gray-400 dark:text-gray-500">{{ __('ai.inspector_trace_step.'.$step) }}</p>
-                                <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{{ __('ai.inspector_trace_pending') }}</p>
+                                <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500"
+                                   x-text="status === 'running' ? @js(__('ai.inspector_trace_running')) : @js(__('ai.inspector_trace_pending'))">{{ __('ai.inspector_trace_pending') }}</p>
                             </li>
                         @endforeach
                     </ol>

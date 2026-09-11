@@ -1025,10 +1025,10 @@ return [
     // avec le Shell membre : l'Inspector execute UNE fonction isolee sur le
     // pipeline canonique, ce qui n'est pas le parcours complet d'un membre.
     'inspector_title' => 'Inspecteur de contexte IA',
-    'inspector_intro' => 'Poser une question au pipeline IA de votre Organization, puis voir ce qu\'il a réellement mobilisé pour répondre.',
+    'inspector_intro' => 'Exécuter UNE fonction IA, seule, sur le pipeline canonique de votre Organization — puis voir ce qu\'elle a réellement mobilisé pour répondre.',
     'inspector_help' => 'Un appel IA réel, avec la clé de votre Organization, comptabilisé dans votre consommation. La doctrine active est composée. Rien n\'est publié, aucune action n\'est créée.',
     'inspector_mode' => 'Mode',
-    'inspector_mode_help' => 'ISOLATED : une seule fonction est exécutée, seule, sur le pipeline canonique de l\'Organization. C\'est le seul mode d\'exécution disponible aujourd\'hui.',
+    'inspector_mode_help' => 'ISOLATED : une seule fonction est exécutée, avec ses sources autorisées et rien d\'autre. Ce n\'est pas le parcours d\'un membre dans le produit — ni routage du Shell, ni contexte de page, ni conversation. C\'est le seul mode d\'exécution disponible aujourd\'hui.',
 
     'inspector_capability' => 'Fonction',
     'inspector_question' => 'Question',
@@ -1057,6 +1057,7 @@ return [
         'active' => 'Active',
         'available' => 'Disponible',
         'not_requested' => 'Non demandée',
+        'not_reached' => 'Étape non atteinte',
         'used' => 'Utilisée',
         'denied' => 'Refusée',
         'empty' => 'Vide',
@@ -1098,6 +1099,7 @@ return [
         'issue' => 'Issue',
     ],
     'inspector_trace_pending' => 'En attente d\'un tour',
+    'inspector_trace_running' => 'Tour en cours',
     'inspector_trace_not_reached' => 'Étape non atteinte : le tour s\'est arrêté avant.',
     'inspector_trace_provider_not_reached' => 'Aucune ligne au registre : rien n\'est parti chez le fournisseur.',
     'inspector_trace_context_counts' => ':used utilisée(s) · :denied refusée(s) · :empty vide(s)',
@@ -1105,6 +1107,7 @@ return [
     'inspector_sources_title' => 'Sources',
     'inspector_sources_help' => 'Les sources que la fonction avait le droit de mobiliser, et ce que chacune a donné. Une source refusée est nommée par sa raison, jamais par son contenu.',
     'inspector_sources_idle' => 'Les sources du prochain tour apparaîtront ici.',
+    'inspector_sources_not_reached' => 'Le contexte n\'a pas été construit : aucune de ces sources n\'a été interrogée. Ce sont celles que la fonction déclare, pas un résultat de ce tour.',
     'inspector_sources_none' => 'Cette fonction ne déclare aucune source de contexte.',
     'inspector_source_used' => 'Utilisée',
     'inspector_source_empty' => 'Vide',

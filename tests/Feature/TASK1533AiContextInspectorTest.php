@@ -637,15 +637,23 @@ class TASK1533AiContextInspectorTest extends TestCase
     }
 
     /**
-     * « Source non demandee » n'est pas « source vide ».
+     * Etape non atteinte : ni « vide », ni « non demandee », ni silence.
      *
-     * Un refus intervient avant `ContextBuilder::build()`. L'ecart « autorisee
-     * moins utilisee moins refusee » vaut alors la TOTALITE des sources, et les
-     * afficher vides ferait dire a l'ecran qu'elles ont ete consultees sans
-     * rien trouver — pendant que sa propre trace annonce que l'etape n'a pas
-     * ete atteinte. Deux affirmations contradictoires, dont une fausse.
+     * Un refus intervient avant `ContextBuilder::build()`. Trois formulations
+     * fausses etaient possibles, et l'ecran les a toutes portees a un moment :
+     *
+     *  - « vide » : l'ecart « autorisee moins utilisee moins refusee » vaut la
+     *    totalite des sources ; les dire vides affirme qu'elles ont ete
+     *    consultees sans rien rendre, pendant que la trace annonce l'inverse ;
+     *  - « non demandee » : c'est deja une MESURE — elle veut dire que la
+     *    fonction ne declare pas cette source. Or la fonction les declare ;
+     *    c'est le tour qui s'est arrete avant ;
+     *  - le silence : omettre les cartes laisserait croire que la fonction ne
+     *    mobilise rien.
+     *
+     * Reste le seul enonce vrai, et c'est lui qu'on mesure ici.
      */
-    public function test_a_refused_run_never_shows_its_sources_as_empty(): void
+    public function test_a_refused_run_reports_its_sources_as_not_reached_and_projects_nothing(): void
     {
         config(['ai.clarify.enabled' => false]);
 
@@ -658,13 +666,21 @@ class TASK1533AiContextInspectorTest extends TestCase
         $run->assertSee('data-inspector-run-state="refused"', false);
 
         foreach (app(CapabilityRegistry::class)->get(CapabilityRegistry::CLARIFY_HELP_REQUEST)->allowedSources as $source) {
-            $run->assertSee('data-inspector-source="'.$source.'" data-inspector-source-state="not_requested"', false);
-            $run->assertDontSee('data-inspector-source="'.$source.'" data-inspector-source-state="empty"', false);
-            $run->assertDontSee('data-inspector-source="'.$source.'" data-inspector-source-state="used"', false);
+            $run->assertSee('data-inspector-source="'.$source.'" data-inspector-source-state="not_reached"', false);
+
+            foreach (['empty', 'used', 'denied', 'not_requested'] as $forbidden) {
+                $run->assertDontSee('data-inspector-source="'.$source.'" data-inspector-source-state="'.$forbidden.'"', false);
+            }
         }
 
-        // La carte recoit le meme etat : elle ne peut pas contredire le tour.
-        $run->assertDontSee('&quot;:&quot;empty', false);
+        // Et l'ecran DIT pourquoi, au lieu de laisser deviner.
+        $run->assertSee('data-inspector-sources-not-reached', false);
+
+        // La carte de contexte ne recoit AUCUNE projection : ce tour n'a rien
+        // mesure a propos des sources, elle garde donc ses etats POSSIBLES
+        // d'avant le tour. Une projection, meme « non demandee », presenterait
+        // une absence de mesure comme une mesure.
+        $run->assertSee('data-inspector-source-states="{}"', false);
     }
 
     // =====================================================================
