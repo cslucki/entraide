@@ -44,6 +44,21 @@ final class DoctrineSandboxResult
          */
         public readonly int $ledgerEntries,
         public readonly ?string $interactionId,
+        /**
+         * TASK-1533 — la cle de correlation du tour.
+         *
+         * Le DTO portait `interactionId` seul, ce qui suffit a relire UNE ligne
+         * `ai_interactions`. L'Inspector a besoin du LEDGER canonique
+         * (`ai_provider_invocations`), qui peut porter DEUX lignes pour un meme
+         * tour — la generation et la requete d'embedding — et qui, lui, dit
+         * NULL quand un compteur n'a pas ete observe.
+         *
+         * Rendre la correlation, c'est donc rendre lisible ce que le ledger a
+         * reellement ecrit, sans deuxieme mecanisme de mesure. Presente meme
+         * sur un refus AVANT appel : rien n'y est ledger, et le dire est une
+         * information.
+         */
+        public readonly ?string $correlationId = null,
     ) {}
 
     /**
@@ -66,6 +81,7 @@ final class DoctrineSandboxResult
             'ledgered' => $this->ledgered,
             'ledger_entries' => $this->ledgerEntries,
             'interaction_id' => $this->interactionId,
+            'correlation_id' => $this->correlationId,
         ];
     }
 }

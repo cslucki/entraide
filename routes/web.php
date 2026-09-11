@@ -1363,6 +1363,13 @@ Route::prefix('/org/{organization}')
                 Route::get('/constitution', [OrgAdminController::class, 'aiConstitution'])->name('constitution');
                 Route::put('/constitution/publication', [OrgAdminController::class, 'updateAiConstitutionPublication'])->name('constitution.publication');
                 Route::post('/ai-behavior/sandbox', [OrgAdminController::class, 'sandboxAiDoctrine'])->middleware('throttle:ai-doctrine-sandbox')->name('ai-behavior.sandbox');
+                // TASK-1533 — AI Context Inspector V0 : voir la plomberie
+                // reelle pendant qu'elle fonctionne. Meme surface pour l'Admin
+                // Organization et le SuperAdmin (OrgAdminMiddleware), jamais un
+                // second ecran plateforme. Meme limiteur que le bac a sable :
+                // une question posee ici est un VRAI appel IA.
+                Route::get('/ai-context-inspector', [OrgAdminController::class, 'aiContextInspector'])->name('ai-context-inspector');
+                Route::post('/ai-context-inspector', [OrgAdminController::class, 'runAiContextInspector'])->middleware('throttle:ai-doctrine-sandbox')->name('ai-context-inspector.run');
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
                 Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');
                 Route::get('/ai-interactions', [OrgAdminController::class, 'aiInteractions'])->name('ai-interactions');

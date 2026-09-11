@@ -114,6 +114,7 @@ return [
     'org_admin_ai_knowledge' => 'Mes connaissances IA',
     'org_admin_ai_constitution' => 'Constitution',
     'org_admin_ai_quality' => 'Qualité IA',
+    'org_admin_ai_context_inspector' => 'Inspecteur de contexte',
     'org_admin_ai_consumption' => 'Consommation IA',
     'org_admin_section_exchanges' => 'Échanges',
     'org_admin_section_content' => 'Contenu',

@@ -10,6 +10,7 @@ use App\Ai\ProviderResolver;
 use App\Http\Controllers\Controller;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
+use App\Models\AiProviderInvocation;
 use App\Models\BlogPost;
 use App\Models\BugReport;
 use App\Models\Category;
@@ -1760,6 +1761,174 @@ class OrgAdminController extends Controller
             ->route('organization.admin.ai-behavior', ['organization' => $organization->slug])
             ->withInput($request->only(['body', 'constitution_body', 'capability', 'question']))
             ->with('doctrine_sandbox', $result->toArray());
+    }
+
+    /**
+     * TASK-1533 — AI Context Inspector V0.
+     *
+     * Repondre a « pourquoi BouclePro a-t-il produit CETTE reponse ? » en
+     * observant le pipeline REEL pendant qu'il fonctionne, et sans construire
+     * un second moteur : la question emprunte `OrganizationDoctrineSandbox`,
+     * donc le chemin canonique (registre -> ContexteIa -> ContextBuilder ->
+     * ProviderResolver -> garde economique -> PromptRepository -> agent SDK
+     * -> ledger), avec le credential de l'Organization.
+     *
+     * Ce que l'Inspector ajoute au bac a sable, ce n'est pas un calcul : c'est
+     * la LECTURE de ce que le ledger a deja ecrit.
+     *
+     * Une seule surface canonique, Organization-scoped : l'Admin Organization
+     * y entre depuis son cockpit, le SuperAdmin par le meme chemin
+     * (`OrgAdminMiddleware` autorise deja `is_admin`). Aucun ecran plateforme
+     * parallele, donc aucune seconde autorite.
+     */
+    public function aiContextInspector(Organization $organization, CapabilityRegistry $registry): View
+    {
+        $result = $this->inspectorResultFor($organization);
+
+        return view('admin.org.ai-context-inspector', [
+            'organization' => $organization,
+            'capabilities' => OrganizationDoctrineSandbox::SUPPORTED,
+            'result' => $result,
+            'telemetry' => $this->inspectorTelemetryFor($organization),
+            'allowedSources' => $this->inspectorAllowedSources($result, $registry),
+        ]);
+    }
+
+    /**
+     * Les sources que la capability executee AVAIT le droit de mobiliser.
+     *
+     * Sans elle, l'ecran mentirait par omission : le `ContextBuilder` ne
+     * comptabilise une source ni dans `used` ni dans `denied` quand elle rend
+     * un fragment VIDE (`$fragment->isEmpty()` -> `continue`). Une source
+     * autorisee qui n'a simplement rien trouve disparaitrait donc de la page,
+     * et « rien a dire » se lirait comme « jamais consultee ».
+     *
+     * Lecture seule du registre canonique — aucune source n'est executee ici.
+     *
+     * @param  array<string, mixed>|null  $result
+     * @return list<string>
+     */
+    private function inspectorAllowedSources(?array $result, CapabilityRegistry $registry): array
+    {
+        $capability = is_array($result) ? ($result['capability'] ?? null) : null;
+
+        if (! is_string($capability) || ! in_array($capability, OrganizationDoctrineSandbox::SUPPORTED, true)) {
+            return [];
+        }
+
+        return $registry->get($capability)->allowedSources;
+    }
+
+    /**
+     * Execute la question sur le pipeline reel, puis rend la main a la page.
+     *
+     * La doctrine ACTIVE est composee (`asInspector`), pas un brouillon :
+     * l'Inspector montre ce qu'un membre recevrait, pas ce que produirait un
+     * texte non publie. C'est toute la difference avec le bac a sable.
+     */
+    public function runAiContextInspector(
+        Request $request,
+        Organization $organization,
+        OrganizationDoctrineSandbox $sandbox,
+    ): RedirectResponse {
+        $data = $request->validate([
+            'capability' => ['required', 'string', Rule::in(OrganizationDoctrineSandbox::SUPPORTED)],
+            'question' => ['required', 'string', 'min:3', 'max:1000'],
+        ]);
+
+        $result = $sandbox->run(
+            $organization,
+            $request->user(),
+            $data['capability'],
+            '',
+            $data['question'],
+            null,
+            asInspector: true,
+        );
+
+        return redirect()
+            ->route('organization.admin.ai-context-inspector', ['organization' => $organization->slug])
+            ->withInput($request->only(['capability', 'question']))
+            ->with('context_inspector', $result->toArray());
+    }
+
+    /**
+     * Le resultat flashe, et SEULEMENT s'il appartient a cette Organization.
+     *
+     * Meme garde que `sandboxResultFor()` : un resultat produit pour une
+     * Organization ne doit jamais se rendre sous une autre, fut-ce par une
+     * session partagee entre deux onglets d'un SuperAdmin.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function inspectorResultFor(Organization $organization): ?array
+    {
+        $result = session('context_inspector');
+
+        if (! is_array($result) || ($result['organization_id'] ?? null) !== (string) $organization->id) {
+            return null;
+        }
+
+        return $result;
+    }
+
+    /**
+     * La telemetrie REELLE du dernier tour, relue sur le ledger canonique.
+     *
+     * Autorite : `ai_provider_invocations`, et pas `ai_interactions`. Les deux
+     * existent, et ils ne disent pas la meme chose — le premier laisse ses
+     * compteurs a NULL quand le fournisseur n'a rien rapporte, la ou le second
+     * ecrit 0. Afficher ce 0 comme un nombre de jetons serait affirmer une
+     * mesure qui n'a pas eu lieu, dans l'ecran meme dont le role est de ne
+     * jamais faire cela.
+     *
+     * Un tour de connaissance ecrit jusqu'a DEUX lignes (la generation et la
+     * requete d'embedding de la recherche documentaire) : elles sont rendues
+     * separement, comme le fait deja la console de consommation.
+     *
+     * La latence est DERIVEE (`completed_at - started_at`) : aucune colonne de
+     * duree n'existe sur cette table. Elle mesure le segment du fournisseur,
+     * pas le temps de construction du contexte — la vue le dit.
+     *
+     * Elle est rendue en SECONDES, parce que c'est la precision que ces deux
+     * colonnes portent reellement (mesure en base : des ecarts de 9.000000 et
+     * 1.000000 seconde exactement). La calculer en millisecondes affichait
+     * « 9000 ms » — une precision au millier pres qui n'a jamais ete mesuree,
+     * dans l'ecran meme dont le role est de ne jamais affirmer cela.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function inspectorTelemetryFor(Organization $organization): array
+    {
+        $result = $this->inspectorResultFor($organization);
+        $correlationId = is_array($result) ? ($result['correlation_id'] ?? null) : null;
+
+        if (! is_string($correlationId) || $correlationId === '') {
+            return [];
+        }
+
+        return AiProviderInvocation::query()
+            ->where('organization_id', $organization->id)
+            ->where('correlation_id', $correlationId)
+            ->orderBy('started_at')
+            ->get()
+            ->map(fn (AiProviderInvocation $invocation): array => [
+                'operation' => $invocation->operation,
+                'provider' => $invocation->provider,
+                'model' => $invocation->model,
+                'status' => $invocation->status,
+                'input_tokens' => $invocation->input_tokens,
+                'output_tokens' => $invocation->output_tokens,
+                'total_tokens' => $invocation->total_tokens,
+                'cost' => $invocation->cost_status === AiProviderInvocation::COST_KNOWN ? $invocation->provider_cost : null,
+                'cost_status' => $invocation->cost_status,
+                'cost_source' => $invocation->cost_source,
+                'currency' => $invocation->currency,
+                'latency_seconds' => $invocation->started_at !== null && $invocation->completed_at !== null
+                    ? (int) round($invocation->started_at->diffInSeconds($invocation->completed_at))
+                    : null,
+            ])
+            ->all();
     }
 
     /**
