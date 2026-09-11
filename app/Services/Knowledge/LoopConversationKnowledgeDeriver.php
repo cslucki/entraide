@@ -364,7 +364,20 @@ final class LoopConversationKnowledgeDeriver
                 ],
                 'observed_at' => $observedAt ?? now(),
                 'derived_at' => now(),
-                'version' => $current === null ? 1 : $current->version + 1,
+                // TASK-1537 : le numero se derive de TOUT l'historique du
+                // sujet, pas de la seule note active. `$current === null ? 1`
+                // repartait a 1 des qu'aucune note n'etait active — et
+                // heurtait alors l'unicite (organization, source_type,
+                // source_loop_id, subject_key, version) sur la v1 archivee.
+                // Le chemin nominal ne produit jamais cet etat, puisque
+                // supersede et creation vivent dans la meme transaction ; mais
+                // toute purge ou reprise future y tombait.
+                'version' => 1 + (int) DerivedKnowledgeNote::query()
+                    ->where('organization_id', $organization->id)
+                    ->where('source_type', DerivedKnowledgeNote::SOURCE_LOOP_CONVERSATION)
+                    ->where('source_loop_id', $loop->id)
+                    ->where('subject_key', self::SUBJECT_CONVERSATION_DIGEST)
+                    ->max('version'),
                 'status' => DerivedKnowledgeNote::STATUS_ACTIVE,
             ]);
 

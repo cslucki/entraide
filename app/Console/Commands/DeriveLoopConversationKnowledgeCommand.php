@@ -6,6 +6,7 @@ use App\Models\Loop;
 use App\Models\Organization;
 use App\Services\Knowledge\LoopConversationKnowledgeDeriver;
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 
 /**
  * TASK-1534 — declencher la derivation, explicitement et de facon bornee.
@@ -84,9 +85,23 @@ class DeriveLoopConversationKnowledgeCommand extends Command
         }
 
         if (is_string($organization = $this->option('organization')) && $organization !== '') {
+            // TASK-1537 : l'identifiant n'est compare QUE s'il en a la forme.
+            //
+            // PostgreSQL refuse `where id = 'ai-validation-org-a'` sur une
+            // colonne `uuid` — « invalid input syntax for type uuid » — et
+            // fait tomber toute la requete, y compris la branche `slug` qui,
+            // elle, aurait trouve. L'option annoncait « slug ou identifiant »
+            // et ne supportait en realite que l'identifiant : le defaut n'est
+            // apparu qu'a la premiere utilisation reelle, SQLite acceptant
+            // sans broncher cette comparaison sur son typage lache.
             $resolved = Organization::query()
-                ->where('slug', $organization)
-                ->orWhere('id', $organization)
+                ->where(function ($q) use ($organization): void {
+                    $q->where('slug', $organization);
+
+                    if (Str::isUuid($organization)) {
+                        $q->orWhere('id', $organization);
+                    }
+                })
                 ->first();
 
             if ($resolved === null) {
