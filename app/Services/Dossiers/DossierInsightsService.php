@@ -50,25 +50,33 @@ use RuntimeException;
  * `AiInteraction`) : le resultat est ephemere, relu a chaque generation,
  * exactement comme la recherche semantique existante.
  *
- * ## TASK-1534 — pourquoi Smart Dossier ne lit PAS la connaissance derivee
+ * ## La connaissance derivee (T1534/T1535) : deux regimes dans cette classe
  *
- * Les recherches lancees ICI ne transmettent aucun `authorizedLoopIds` :
- * `DerivedChunkEligibility` etant ferme par defaut, les notes derivees d'une
- * conversation sont donc exclues de ce chemin. C'est un choix, pas un oubli.
+ * L'invariant du systeme nerveux est une intersection :
  *
- * Un Insight n'est pas une reponse a quelqu'un : c'est un artefact dont
- * l'audience est celle du DOSSIER. L'invariant du systeme nerveux est une
- * intersection — `visibilite(derive) ⊆ visibilite(Boucle) ∩ visibilite(Dossier)`
- * — et cette intersection ne se laisse pas porter par un artefact partage :
- * une synthese nourrie d'une Boucle privee puis relue par tout le cercle
- * blanchirait exactement ce que la garde interdit.
+ *     visibilite(derive) ⊆ visibilite(Boucle source) ∩ visibilite(Dossier)
  *
- * La connaissance derivee se lit donc la ou la reponse est rendue A UNE
- * PERSONNE, et bornee par ce que CETTE personne peut lire : le Shell
- * (`AiShellResponder`) et `DossierRetrievalSource`. `answerOverSources()` en
- * fait partie — le Shell lui transmet des lignes deja bornees a la lecture —
- * ce qui explique que `buildSourcesBlock()` sache nommer et lier une source
- * derivee alors que `answer()` n'en produira jamais.
+ * Une intersection se porte par une reponse adressee a QUELQU'UN. Elle ne se
+ * porte pas par un artefact partage. D'ou la ligne de partage, qui n'est pas
+ * une commodite mais la regle elle-meme :
+ *
+ * - **`answer()` et `answerOverSources()` LISENT la connaissance derivee.**
+ *   Elles rendent une reponse a UNE personne, bornee par ce que CETTE personne
+ *   peut lire, et ne publient rien. `answer()` transmet donc
+ *   `authorizedLoopIds` (T1535) ; `answerOverSources()` recoit du Shell des
+ *   lignes deja bornees a la lecture (T1534).
+ *
+ * - **`generate()` et `hasIndexedContent()` ne la lisent PAS**, et ne
+ *   transmettent rien : `DerivedChunkEligibility` etant ferme par defaut, les
+ *   notes en sont exclues. Un Insight est un artefact dont l'audience est
+ *   celle du DOSSIER : une synthese nourrie d'une Boucle privee, puis relue
+ *   par tout le cercle, blanchirait exactement ce que la garde interdit.
+ *
+ * T1534 avait ferme les QUATRE, en donnant la raison de `generate()` pour
+ * tout le monde. La consequence etait produit, pas seulement theorique : sur
+ * la page du Dossier de sa propre Boucle — la surface la plus LIEE au sujet —
+ * le Shell passe par `answer()`, et ne retrouvait donc pas ce que la meme
+ * personne retrouvait depuis n'importe quelle autre page.
  */
 final class DossierInsightsService
 {
@@ -135,6 +143,9 @@ final class DossierInsightsService
         private readonly ProviderResolver $providers,
         private readonly AiEconomicGuard $economicGuard,
         private readonly AiProviderInvocationLedger $ledger,
+        // TASK-1535 : l'autorite qui dit quelles Boucles un lecteur peut lire.
+        // Utilisee par `answer()` SEULEMENT — voir le bloc de tete.
+        private readonly DerivedChunkEligibility $derivedEligibility,
     ) {}
 
     /**
@@ -371,6 +382,13 @@ final class DossierInsightsService
             ['dossier_answer' => true],
             self::ANSWER_CANDIDATE_LIMIT,
             $scopedFiles,
+            // TASK-1535 — les Boucles que CE lecteur peut lire.
+            //
+            // C'est la SEULE methode de cette classe qui les transmet, et la
+            // difference tient en une phrase : `answer()` rend une reponse a
+            // UNE personne, `generate()` fabrique un artefact relu par tout le
+            // cercle du Dossier. Voir le bloc de tete.
+            $this->derivedEligibility->authorizedLoopIds((string) $organization->id, $requester),
         );
 
         // TASK-1517 : replier les quasi-doublons, puis ancrer l'ouverture du
