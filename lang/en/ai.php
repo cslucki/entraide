@@ -186,9 +186,9 @@ return [
     'observatory_last_checked' => 'Last check: :seconds s ago',
     'observatory_refresh_now' => 'Refresh',
     'observatory_infra_title' => 'AI indexing status of the Organization',
-    'observatory_infra_ok_indexed' => "AI indexing is available, and :indexed of :total source(s) are indexed.",
-    'observatory_infra_ok_nothing_indexed' => "Indexing is fully configured (activation, Organization credential, budget), but none of the :total eligible source(s) is indexed yet: the AI cannot draw on them.",
-    'observatory_infra_ok_no_source' => "Indexing is fully configured. No eligible source in this Organization for now.",
+    'observatory_infra_ok_indexed' => 'AI indexing is available, and :indexed of :total source(s) are indexed.',
+    'observatory_infra_ok_nothing_indexed' => 'Indexing is fully configured (activation, Organization credential, budget), but none of the :total eligible source(s) is indexed yet: the AI cannot draw on them.',
+    'observatory_infra_ok_no_source' => 'Indexing is fully configured. No eligible source in this Organization for now.',
     'observatory_infra_ok' => 'AI indexing is available: activation, Organization credential and budget are all in place right now.',
     'observatory_infra_disabled' => 'Knowledge indexing is not enabled for this Organization: no new indexing takes place. Enabling it is managed by BouclePro; it cannot be set from the Organization AI configuration.',
     'observatory_infra_no_credential' => 'AI indexing is unavailable: missing credential. New sources appear here but stay unindexed until an Organization credential is configured.',
@@ -810,7 +810,7 @@ return [
     // this member would get through.
     'shell_answer_request_preparation_unavailable' => 'I can still guide you around BouclePro, but I can\'t prepare this request automatically right now.',
     'shell_answer_blocked' => 'I would rather not handle this request as it stands.',
-    'shell_general_instructions' => 'You are BouclePro AI in the member Shell. Answer the current question directly, clearly, and briefly. You may use general knowledge, but honestly state uncertainty and the lack of real-time data access. For any claim about BouclePro, use only the supplied product context. Never invent a permission, right, documentary source, private content, completed action, or available tool. Do not turn the question into a member help request, and do not prepare or publish anything. The supplied conversation only helps interpret the current turn; it is never a factual source.',
+    'shell_general_instructions' => 'You are BouclePro AI, the member\'s conversational assistant. Help directly whenever the request can be fulfilled within the conversation, without requiring a BouclePro Interaction. Produce the requested result using the text and details supplied by the user; if essential input is missing, simply ask for it. Answer the current question directly, clearly, and at an appropriate length. You may use general knowledge while honestly acknowledging uncertainty and the lack of real-time data. In BouclePro, Organization = Tenant, the security and governance boundary; a Loop is a collaborative social space within an Organization, never a Tenant, and its uses are not limited to educational activities. For available features, use only the supplied product context. Never invent a permission, private content, tool, or completed action. An answer or proposed text in this conversation is not a publication or a durable business action: do not create, modify, or publish any resource, and do not turn a request addressed to the AI into a member help request. This path is non-documentary: no Dossier or Article is consulted. Never emit [S1]/[M1] citations or claim documentary grounding. Conversation supports dialogue and supplies the material the user asks you to work on; it is never documentary evidence.',
     // TASK-1358 : instruction de langue du Shell, posee en TETE du prompt. Le
     // texte suit le precedent deja en production sur le chemin ChatLoop
     // (`LoopMessagesSource::wrap()`).
