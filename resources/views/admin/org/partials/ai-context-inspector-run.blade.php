@@ -17,11 +17,12 @@
         titre, ni identifiant, et AUCUN bloc de provenance ni declencheur de
         tiroir — pas meme vide, qui se lirait comme « il y a quelque chose » ;
       - une source autorisee restee vide est dite vide, pas « non consultee » ;
+      - quand le tour s'arrete AVANT la construction du contexte, ses sources ne
+        sont ni vides ni « non demandees » : l'etape n'a pas ete atteinte, et la
+        carte ne recoit alors aucune projection ;
       - aucune cle, aucun credential, aucun prompt compose.
 --}}
 @php
-    use App\Services\Ai\OrganizationDoctrineSandbox;
-
     // Le libelle d'une source, avec repli sur son identifiant technique : cet
     // ecran est un outil de diagnostic, un nom brut y est plus honnete qu'un
     // libelle invente.
@@ -81,24 +82,23 @@
     };
 
     // Projection de la carte de contexte : la carte n'invente aucun etat, elle
-    // recoit celui que le tour a mesure.
+    // recoit celui que le tour a MESURE.
+    //
+    // Etape non atteinte = projection VIDE, et la carte conserve donc ses etats
+    // possibles d'avant le tour. Y projeter quoi que ce soit — meme « non
+    // demandee » — presenterait une absence de mesure comme une mesure.
     $sourceStates = [];
-    foreach ($usedSources as $name) {
-        $sourceStates[$name] = 'used';
-    }
-    foreach ($emptySources as $name) {
-        $sourceStates[$name] = 'empty';
-    }
-    foreach (array_keys($deniedSources) as $name) {
-        $sourceStates[$name] = 'denied';
-    }
 
-    // Etape non atteinte = AUCUNE projection. La carte conserve ses etats
-    // POSSIBLES d'avant le tour, parce que ce tour n'a rien mesure a leur
-    // sujet. Projeter quoi que ce soit ici — meme « non demandee » — serait
-    // presenter une absence de mesure comme une mesure.
-    if (! $contextReached) {
-        $sourceStates = [];
+    if ($contextReached) {
+        foreach ($usedSources as $name) {
+            $sourceStates[$name] = 'used';
+        }
+        foreach ($emptySources as $name) {
+            $sourceStates[$name] = 'empty';
+        }
+        foreach (array_keys($deniedSources) as $name) {
+            $sourceStates[$name] = 'denied';
+        }
     }
 
     // Provenance regroupee par source. Elle ne decrit que des sources UTILISEES
@@ -150,8 +150,8 @@
             @php
                 $refusalReason = (string) ($result['refusal_reason'] ?? 'temporarily_unavailable');
                 $refusalAuthority = match ($refusalReason) {
-                    OrganizationDoctrineSandbox::REASON_NOT_CONFIGURED => ['organization.admin.ai', 'navigation.org_admin_ai'],
-                    OrganizationDoctrineSandbox::REASON_BUDGET_REACHED => ['organization.admin.ai-consumption', 'navigation.org_admin_ai_consumption'],
+                    \App\Services\Ai\OrganizationDoctrineSandbox::REASON_NOT_CONFIGURED => ['organization.admin.ai', 'navigation.org_admin_ai'],
+                    \App\Services\Ai\OrganizationDoctrineSandbox::REASON_BUDGET_REACHED => ['organization.admin.ai-consumption', 'navigation.org_admin_ai_consumption'],
                     default => null,
                 };
             @endphp
