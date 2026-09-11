@@ -99,6 +99,11 @@ final class AiProcess
         'dossier_embeddings_index' => self::DOSSIER_EMBEDDINGS_INDEX,
         'dossier_embeddings_search' => self::DOSSIER_EMBEDDINGS_SEARCH,
         'guest_shell_welcome' => self::GUEST_SHELL,
+        // TASK-1534 — la compilation d'une conversation humaine en
+        // connaissance derivee. Process distinct : cette depense n'est ni
+        // une reponse a un membre ni une indexation, et la confondre avec
+        // l'une des deux rendrait la releve economique illisible.
+        'loop_conversation_knowledge' => 'loop_conversation.knowledge',
     ];
 
     private function __construct() {}

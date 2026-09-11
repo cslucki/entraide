@@ -27,6 +27,26 @@ class DossierSemanticSearchService
     ) {}
 
     /**
+     * TASK-1534 — l'UNIQUE autorite d'eligibilite des chunks, partagee par les
+     * deux chemins de ce fichier. Deux clauses jumelles ecrites a la main
+     * divergeraient au premier ajout de famille — et celle-ci porte desormais
+     * une garde de confidentialite.
+     *
+     * Resolue ici plutot qu'injectee au constructeur : les doubles de test de
+     * ce service redefinissent `__construct()` a vide (c'est leur raison
+     * d'etre), et une propriete promue ne serait alors jamais initialisee.
+     * Mesure faite : trois tests de T1227 rougissaient sur
+     * « must not be accessed before initialization ». L'autorite etant sans
+     * etat, la construire a la demande ne coute rien et ne peut pas casser.
+     */
+    private function eligibility(): DerivedChunkEligibility
+    {
+        return $this->eligibility ??= new DerivedChunkEligibility;
+    }
+
+    private ?DerivedChunkEligibility $eligibility = null;
+
+    /**
      * TASK-1222 : garde economique AVANT l'embedding de requete. Sans elle, le
      * plafond mensuel compterait les query embeddings sans jamais pouvoir les
      * arreter — la recherche serait le seul chemin restant ouvert une fois le
@@ -268,6 +288,12 @@ class DossierSemanticSearchService
         array $traceMetadata = [],
         ?int $candidateLimit = null,
         ?array $onlyDossierFileIds = null,
+        // TASK-1534 — les Boucles dont CET utilisateur peut lire l'espace de
+        // travail. `null` signifie « l'appelant ne sait pas au nom de qui il
+        // cherche » : aucune note derivee n'est alors eligible. Ferme par
+        // defaut, parce qu'un appelant qui oublie doit obtenir moins de
+        // resultats, jamais une fuite.
+        ?array $authorizedLoopIds = null,
     ): array {
         $query = trim($query);
 
@@ -339,6 +365,7 @@ class DossierSemanticSearchService
                 $join->on('dossier_files.id', '=', 'dossier_chunks.dossier_file_id')
                     ->on('dossier_files.dossier_id', '=', 'dossier_chunks.dossier_id');
             })
+            ->tap(fn ($q) => $this->eligibility()->joinTo($q))
             ->join('dossiers', function ($join) use ($organizationId) {
                 $join->on('dossiers.id', '=', 'dossier_chunks.dossier_id')
                     ->where('dossiers.organization_id', '=', $organizationId)
@@ -352,22 +379,8 @@ class DossierSemanticSearchService
             ->when($onlyDossierFileIds !== null, fn ($q) => $q->whereIn('dossier_chunks.dossier_file_id', $onlyDossierFileIds))
             ->where('dossier_chunks.embedding_provider', $embeddingResult['provider'])
             ->where('dossier_chunks.embedding_model', $embeddingResult['model'])
-            ->where(function ($outer) use ($organizationId) {
-                $outer->where(function ($article) use ($organizationId) {
-                    $article->whereNotNull('dossier_chunks.blog_post_id')
-                        ->whereNotNull('dossier_blog_posts.id')
-                        ->where('blog_posts.organization_id', $organizationId)
-                        ->where('blog_posts.status', 'published')
-                        ->whereNotNull('blog_posts.published_at')
-                        ->where('blog_posts.published_at', '<=', now())
-                        ->whereNull('blog_posts.deleted_at');
-                })->orWhere(function ($file) use ($organizationId) {
-                    $file->whereNotNull('dossier_chunks.dossier_file_id')
-                        ->where('dossier_files.organization_id', $organizationId)
-                        ->whereNull('dossier_files.deleted_at');
-                });
-            })
-            ->select([
+            ->tap(fn ($q) => $this->eligibility()->applyTo($q, $organizationId, $authorizedLoopIds))
+            ->select(array_merge([
                 'dossier_chunks.id as chunk_id',
                 'dossier_chunks.dossier_id',
                 'dossiers.name as dossier_name',
@@ -380,7 +393,7 @@ class DossierSemanticSearchService
                 'dossier_files.mime_type as file_mime_type',
                 'dossier_chunks.chunk_index',
                 'dossier_chunks.content',
-            ])
+            ], $this->eligibility()->selectColumns()))
             ->selectVectorDistance('dossier_chunks.embedding', $embedding, as: 'distance')
             ->orderByVectorDistance('dossier_chunks.embedding', $embedding)
             ->limit($fetchLimit)
@@ -421,8 +434,16 @@ class DossierSemanticSearchService
      * @param  list<string>  $dossierIds  Dossiers DEJA autorises par l'appelant (DossierAccessScope)
      * @return array<int, array{chunk_id: string, dossier_id: string, dossier_name: string, source_type: string, blog_post_id: ?string, title: ?string, slug: ?string, dossier_file_id: ?string, filename: ?string, mime_type: ?string, chunk_index: int, content: string, distance: null}>
      */
-    public function representativeChunksAcrossDossiers(string $organizationId, array $dossierIds, int $documentLimit = 6): array
-    {
+    public function representativeChunksAcrossDossiers(
+        string $organizationId,
+        array $dossierIds,
+        int $documentLimit = 6,
+        // TASK-1534 — meme contrat que `searchAcrossDossiers()`, et pour la
+        // meme raison : ce chemin lit les MEMES chunks. Lui laisser une
+        // eligibilite differente reviendrait a publier par la vue
+        // d'ensemble ce que la recherche refuse.
+        ?array $authorizedLoopIds = null,
+    ): array {
         $dossierIds = array_values(array_unique(array_filter(array_map('strval', $dossierIds))));
 
         if ($dossierIds === [] || $documentLimit < 1) {
@@ -446,6 +467,7 @@ class DossierSemanticSearchService
                 $join->on('dossier_files.id', '=', 'dossier_chunks.dossier_file_id')
                     ->on('dossier_files.dossier_id', '=', 'dossier_chunks.dossier_id');
             })
+            ->tap(fn ($q) => $this->eligibility()->joinTo($q))
             ->join('dossiers', function ($join) use ($organizationId) {
                 $join->on('dossiers.id', '=', 'dossier_chunks.dossier_id')
                     ->where('dossiers.organization_id', '=', $organizationId)
@@ -453,21 +475,7 @@ class DossierSemanticSearchService
             })
             ->where('dossier_chunks.organization_id', $organizationId)
             ->whereIn('dossier_chunks.dossier_id', $dossierIds)
-            ->where(function ($outer) use ($organizationId) {
-                $outer->where(function ($article) use ($organizationId) {
-                    $article->whereNotNull('dossier_chunks.blog_post_id')
-                        ->whereNotNull('dossier_blog_posts.id')
-                        ->where('blog_posts.organization_id', $organizationId)
-                        ->where('blog_posts.status', 'published')
-                        ->whereNotNull('blog_posts.published_at')
-                        ->where('blog_posts.published_at', '<=', now())
-                        ->whereNull('blog_posts.deleted_at');
-                })->orWhere(function ($file) use ($organizationId) {
-                    $file->whereNotNull('dossier_chunks.dossier_file_id')
-                        ->where('dossier_files.organization_id', $organizationId)
-                        ->whereNull('dossier_files.deleted_at');
-                });
-            })
+            ->tap(fn ($q) => $this->eligibility()->applyTo($q, $organizationId, $authorizedLoopIds))
             // Un seul chunk par DOCUMENT : celui d'index minimal. Sous-requete
             // correlee plutot que fonction de fenetrage — PostgreSQL et SQLite
             // l'executent tous deux, et la CI joue les deux moteurs.
@@ -476,7 +484,8 @@ class DossierSemanticSearchService
                 .' where inner_chunks.organization_id = ?'
                 .' and inner_chunks.dossier_id = dossier_chunks.dossier_id'
                 .' and ((inner_chunks.blog_post_id is not null and inner_chunks.blog_post_id = dossier_chunks.blog_post_id)'
-                .' or (inner_chunks.dossier_file_id is not null and inner_chunks.dossier_file_id = dossier_chunks.dossier_file_id)))',
+                .' or (inner_chunks.dossier_file_id is not null and inner_chunks.dossier_file_id = dossier_chunks.dossier_file_id)'
+                .$this->eligibility()->representativeIdentitySql().'))',
                 [$organizationId],
             )
             // Ordre DETERMINISTE : le meme corpus rend toujours la meme vue
@@ -504,6 +513,7 @@ class DossierSemanticSearchService
                 // exister meme si aucune distance n'a de sens ici. Elle est
                 // remise a NULL juste apres, la ou la valeur est lue.
                 DB::raw('null as distance'),
+                ...$this->eligibility()->selectColumns(),
             ])
             ->get()
             ->map(fn (object $row): array => array_merge(
@@ -527,6 +537,49 @@ class DossierSemanticSearchService
     }
 
     /**
+     * Le nom sous lequel une source se presente au lecteur, et au modele.
+     *
+     * TASK-1534 : cette expression vivait en double — `DossierRetrievalSource`
+     * et `DossierInsightsService` ecrivaient chacun
+     * `source_type === 'file' ? filename : title`. Les deux auraient rendu une
+     * chaine VIDE pour une note derivee, qui n'a ni titre d'article ni nom de
+     * fichier : « [S1]  — Dossier X », une source anonyme. Un extrait qu'on ne
+     * peut pas nommer, on ne peut pas le verifier.
+     *
+     * Une note se nomme donc par la conversation dont elle vient. Le nom de la
+     * Boucle est deja sorti de la requete (`DerivedChunkEligibility`), il n'y a
+     * aucune lecture supplementaire ici.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    public static function displayTitle(array $row): string
+    {
+        return match ($row['source_type'] ?? '') {
+            'file' => (string) ($row['filename'] ?? ''),
+            'derived_knowledge' => trim((string) ($row['derived_loop_name'] ?? '')) === ''
+                ? __('dossiers.derived_source_generic')
+                : __('dossiers.derived_source_named', ['loop' => (string) $row['derived_loop_name']]),
+            default => (string) ($row['title'] ?? ''),
+        };
+    }
+
+    /**
+     * Identite d'un DOCUMENT, pour les trois familles. Deux extraits de la
+     * meme note derivee ne comptent pas plus comme deux documents que deux
+     * extraits du meme fichier.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    public static function documentKey(array $row): string
+    {
+        $identity = $row['derived_knowledge_note_id']
+            ?? $row['dossier_file_id']
+            ?? $row['blog_post_id'];
+
+        return ($row['source_type'] ?? '').':'.$identity;
+    }
+
+    /**
      * Traduit une ligne `dossier_chunks` (jointe Article + fichier) en
      * tableau source-agnostique. Partagee par `search()` et
      * `searchAcrossDossiers()` pour ne jamais laisser diverger la regle
@@ -536,6 +589,29 @@ class DossierSemanticSearchService
      */
     private static function mapSourceRow(object $row): array
     {
+        // TASK-1534 — la troisieme famille se reconnait a sa FK, jamais a une
+        // heuristique sur le contenu. Elle n'a ni titre d'article ni nom de
+        // fichier : son identite est son SUJET, et la Boucle dont elle vient.
+        if (($row->derived_knowledge_note_id ?? null) !== null) {
+            return [
+                'source_type' => 'derived_knowledge',
+                'blog_post_id' => null,
+                'title' => null,
+                'slug' => null,
+                'dossier_file_id' => null,
+                'filename' => null,
+                'mime_type' => null,
+                'derived_knowledge_note_id' => (string) $row->derived_knowledge_note_id,
+                'derived_subject_key' => (string) ($row->derived_subject_key ?? ''),
+                'derived_source_loop_id' => (string) ($row->derived_source_loop_id ?? ''),
+                'derived_loop_name' => (string) ($row->derived_loop_name ?? ''),
+                'derived_observed_at' => $row->derived_observed_at ?? null,
+                'chunk_index' => (int) $row->chunk_index,
+                'content' => (string) $row->content,
+                'distance' => (float) $row->distance,
+            ];
+        }
+
         $isArticle = $row->blog_post_id !== null;
 
         return [

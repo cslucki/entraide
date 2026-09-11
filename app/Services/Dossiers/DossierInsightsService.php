@@ -49,6 +49,26 @@ use RuntimeException;
  * Rien n'est persiste au-dela de la trace habituelle (ledger +
  * `AiInteraction`) : le resultat est ephemere, relu a chaque generation,
  * exactement comme la recherche semantique existante.
+ *
+ * ## TASK-1534 — pourquoi Smart Dossier ne lit PAS la connaissance derivee
+ *
+ * Les recherches lancees ICI ne transmettent aucun `authorizedLoopIds` :
+ * `DerivedChunkEligibility` etant ferme par defaut, les notes derivees d'une
+ * conversation sont donc exclues de ce chemin. C'est un choix, pas un oubli.
+ *
+ * Un Insight n'est pas une reponse a quelqu'un : c'est un artefact dont
+ * l'audience est celle du DOSSIER. L'invariant du systeme nerveux est une
+ * intersection — `visibilite(derive) ⊆ visibilite(Boucle) ∩ visibilite(Dossier)`
+ * — et cette intersection ne se laisse pas porter par un artefact partage :
+ * une synthese nourrie d'une Boucle privee puis relue par tout le cercle
+ * blanchirait exactement ce que la garde interdit.
+ *
+ * La connaissance derivee se lit donc la ou la reponse est rendue A UNE
+ * PERSONNE, et bornee par ce que CETTE personne peut lire : le Shell
+ * (`AiShellResponder`) et `DossierRetrievalSource`. `answerOverSources()` en
+ * fait partie — le Shell lui transmet des lignes deja bornees a la lecture —
+ * ce qui explique que `buildSourcesBlock()` sache nommer et lier une source
+ * derivee alors que `answer()` n'en produira jamais.
  */
 final class DossierInsightsService
 {
@@ -704,7 +724,7 @@ final class DossierInsightsService
             return $rows;
         }
 
-        $documentKey = static fn (array $row): string => $row['source_type'].':'.($row['dossier_file_id'] ?? $row['blog_post_id']);
+        $documentKey = static fn (array $row): string => DossierSemanticSearchService::documentKey($row);
         $bestDocument = $documentKey($rows[0]);
 
         $alreadyPresent = [];
@@ -900,7 +920,7 @@ final class DossierInsightsService
 
         foreach (array_values($rows) as $index => $row) {
             $ref = 'S'.($index + 1);
-            $displayTitle = $row['source_type'] === 'file' ? $row['filename'] : $row['title'];
+            $displayTitle = DossierSemanticSearchService::displayTitle($row);
             $header = "[{$ref}] {$displayTitle} — Dossier « {$row['dossier_name']} »";
 
             $content = trim(preg_replace('/\s+/u', ' ', $row['content']) ?? '');
@@ -927,11 +947,16 @@ final class DossierInsightsService
                 // meme document_key ne comptent jamais comme une convergence
                 // (mandat §7). Jamais expose au public — absent de
                 // `KnowledgeAnswer::publicSource()`.
-                'document_key' => $row['source_type'].':'.($row['dossier_file_id'] ?? $row['blog_post_id']),
+                'document_key' => DossierSemanticSearchService::documentKey($row),
                 'extrait' => mb_strimwidth($content, 0, 240, '…'),
-                'url' => $row['source_type'] === 'file'
-                    ? DossierSourceUrl::forFile($organizationSlug, $row['dossier_id'], $row['dossier_file_id'], $row['mime_type'] ?? null)
-                    : DossierSourceUrl::forArticle($organizationSlug, $row['slug']),
+                'url' => match ($row['source_type']) {
+                    'file' => DossierSourceUrl::forFile($organizationSlug, $row['dossier_id'], $row['dossier_file_id'], $row['mime_type'] ?? null),
+                    // TASK-1534 — verifier un resume suppose de pouvoir lire la
+                    // conversation resumee. Le lien va donc a la Boucle, pas a
+                    // la note : la note n'a pas d'ecran, et n'en aura pas.
+                    'derived_knowledge' => DossierSourceUrl::forDerivedNote($row['derived_source_loop_id'] ?? null),
+                    default => DossierSourceUrl::forArticle($organizationSlug, $row['slug']),
+                },
             ];
         }
 

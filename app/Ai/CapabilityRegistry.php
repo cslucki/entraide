@@ -14,6 +14,16 @@ final class CapabilityRegistry
     /** TASK-1526 : reponse generale du Shell membre, distincte de la clarification d'entraide. */
     public const SHELL_GENERAL_ANSWER = 'shell_general_answer';
 
+    /**
+     * TASK-1534 — compiler ce que des HUMAINS se sont dit dans une Boucle en
+     * connaissance durable et retrouvable.
+     *
+     * C'est la premiere capability du cote WRITE : elle ne repond a personne.
+     * Sa sortie n'est lue par aucun humain au moment ou elle est produite ;
+     * elle est rangee, indexee, et retrouvee plus tard.
+     */
+    public const LOOP_CONVERSATION_KNOWLEDGE = 'loop_conversation_knowledge';
+
     public const SCOPE_ORGANIZATION = 'organization';
 
     public const SCOPE_LOOP = 'loop';
@@ -403,8 +413,34 @@ final class CapabilityRegistry
             contextCharBudget: self::guestShellContextBudget(),
         );
 
+        // TASK-1534 — la compilation d'une conversation humaine.
+        //
+        // `allowedSources` : AUCUNE source du builder. Le materiau de cette
+        // capability n'est pas un contexte a assembler, c'est la conversation
+        // elle-meme, transmise par le service appelant qui seul a verifie les
+        // droits de la Boucle. Le registre exige neanmoins une source non
+        // vide ; `loop.messages` est donc declaree parce que c'est exactement
+        // ce que la capability lit — et le service la fournit deja bornee.
+        $loopConversationKnowledge = new CapabilityDefinition(
+            id: self::LOOP_CONVERSATION_KNOWLEDGE,
+            process: AiProcess::fromScenarioId('loop_conversation_knowledge'),
+            // Rien a confirmer : une note derivee n'est pas une publication
+            // humaine. Elle est revisable, et elle ne parait nulle part comme
+            // l'oeuvre de quelqu'un.
+            requiresHumanConfirmation: false,
+            // Elle n'ecrit aucun objet METIER. La note derivee qu'elle nourrit
+            // est de la memoire, pas une Interaction.
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
+            allowedSources: [self::SOURCE_LOOP_MESSAGES],
+            maxOutput: 1200,
+            promptKey: 'loop_conversation_knowledge',
+            contextCharBudget: self::loopSummaryContextBudget(),
+        );
+
         $this->definitions = [
             $loopSummary->id => $loopSummary,
+            $loopConversationKnowledge->id => $loopConversationKnowledge,
             $clarifyHelpRequest->id => $clarifyHelpRequest,
             $shellGeneralAnswer->id => $shellGeneralAnswer,
             $loopKnowledgeAnswer->id => $loopKnowledgeAnswer,

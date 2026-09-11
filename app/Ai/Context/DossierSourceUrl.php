@@ -46,4 +46,22 @@ final class DossierSourceUrl
             'file' => $fileId,
         ]);
     }
+
+    /**
+     * TASK-1534 — une note derivee renvoie vers la CONVERSATION dont elle vient,
+     * jamais vers elle-meme.
+     *
+     * La note est un resume : la verifier suppose de lire ce qui a reellement
+     * ete dit. Et le lecteur y a acces par construction — l'eligibilite ne lui
+     * a propose cette source que parce qu'il est membre actif de la Boucle.
+     * `loops.show` reapplique de toute facon sa propre policy.
+     */
+    public static function forDerivedNote(?string $loopId): ?string
+    {
+        if ($loopId === null || $loopId === '' || ! Route::has('loops.show')) {
+            return null;
+        }
+
+        return route('loops.show', ['loop' => $loopId]);
+    }
 }

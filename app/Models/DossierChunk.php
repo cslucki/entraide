@@ -19,6 +19,9 @@ class DossierChunk extends Model
         'dossier_id',
         'blog_post_id',
         'dossier_file_id',
+        // TASK-1534 : la troisieme famille de chunk — une connaissance
+        // DERIVEE de l'activite humaine, indexee par le meme moteur.
+        'derived_knowledge_note_id',
         'chunk_index',
         'content',
         'content_hash',
