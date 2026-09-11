@@ -75,8 +75,15 @@ final class LoopConversationKnowledgeDeriver
 
     private const MAX_SOURCE_CHARS = 12000;
 
-    /** Un fait humain trop court ne porte pas de connaissance. */
-    private const MIN_MESSAGE_CHARS = 20;
+    /**
+     * Un fait humain trop court ne porte pas de connaissance.
+     *
+     * PUBLIQUE depuis T1539 : le balayeur doit selectionner EXACTEMENT la
+     * population que ce service lira. Deux seuils qui divergeraient feraient
+     * promettre au balayeur un travail que le deriver refuserait — une Boucle
+     * eternellement « due », redispatchee tous les quarts d'heure sans fin.
+     */
+    public const MIN_MESSAGE_CHARS = 20;
 
     public function __construct(
         private readonly CapabilityRegistry $capabilities,

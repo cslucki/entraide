@@ -3,6 +3,7 @@
 use App\Console\Commands\CheckAiBudgets;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use App\Services\Dossiers\DossierFileIndexingDispatcher;
+use App\Services\Knowledge\LoopConversationKnowledgeDispatcher;
 use App\Console\Commands\FeedPublishScheduled;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -44,7 +45,13 @@ Schedule::command('feed:publish-scheduled')->everyMinute();
 // `TASK1511SchedulerIndexingTest` lit la ligne effectivement planifiee et
 // rougit si l'une de ces deux regles est rompue.
 Schedule::command('queue:work', [
-    '--queue' => DossierFileIndexingDispatcher::DEDICATED_QUEUE.','.DossierArticleIndexingDispatcher::DEDICATED_QUEUE,
+    '--queue' => DossierFileIndexingDispatcher::DEDICATED_QUEUE
+        .','.DossierArticleIndexingDispatcher::DEDICATED_QUEUE
+        // TASK-1539 : la compilation des conversations rejoint l'allowlist.
+        // Sans cette ligne, ses jobs seraient dispatches et jamais consommes —
+        // exactement le defaut silencieux que T1511 avait corrige pour
+        // l'indexation.
+        .','.LoopConversationKnowledgeDispatcher::DEDICATED_QUEUE,
     // Sans valeur, et sans cle : `'--stop-when-empty' => true` rendrait
     // `--stop-when-empty='1'`, que Symfony REFUSE (« does not accept a
     // value »). La commande planifiee aurait echoue chaque minute, en
@@ -52,6 +59,16 @@ Schedule::command('queue:work', [
     '--stop-when-empty',
     '--max-time' => 55,
 ])->everyMinute()->withoutOverlapping(5)->runInBackground();
+
+// TASK-1539 — BouclePro apprend en travaillant.
+//
+// Toutes les dix minutes, et non chaque minute : la fenetre d'inactivite qui
+// decide qu'une conversation est posee vaut dix minutes par defaut, balayer
+// plus souvent ne ferait que relire la meme absence de travail.
+//
+// Le balayeur ne compile rien : il met en file. Le cout reel se decide en aval,
+// ou le deriver compare l'empreinte de la source avant toute depense.
+Schedule::command('knowledge:derive-due')->everyTenMinutes()->withoutOverlapping(10);
 
 // TASK-1433 — SW-3 : la retention des visiteurs du Shell Welcome est une promesse.
 Schedule::command('guest:purge-expired')->daily();

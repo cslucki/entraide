@@ -322,6 +322,15 @@ return [
     'knowledge' => [
         'top_k' => (int) env('AI_KNOWLEDGE_TOP_K', 5),
         'max_distance' => (float) env('AI_KNOWLEDGE_MAX_DISTANCE', 0.60),
+
+        // TASK-1539 — la fenetre d'INACTIVITE apres laquelle une conversation
+        // est consideree posee, et donc compilable. Ce n'est pas un reglage de
+        // frequence d'appel : c'est la duree au bout de laquelle on admet que
+        // les gens ont fini de se parler. Trop court, on compile un echange en
+        // cours ; trop long, la memoire est en retard sur le travail.
+        'conversation' => [
+            'quiet_minutes' => (int) env('AI_KNOWLEDGE_CONVERSATION_QUIET_MINUTES', 10),
+        ],
         'max_context_chars' => (int) env('AI_KNOWLEDGE_MAX_CONTEXT_CHARS', 6000),
         'max_tokens' => (int) env('AI_KNOWLEDGE_MAX_TOKENS', 700),
         'temperature' => (float) env('AI_KNOWLEDGE_TEMPERATURE', 0.2),

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use App\Services\Dossiers\DossierFileIndexingDispatcher;
+use App\Services\Knowledge\LoopConversationKnowledgeDispatcher;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
 use Tests\TestCase;
@@ -71,7 +72,15 @@ class TASK1511SchedulerIndexingTest extends TestCase
 
         $this->assertNotContains('default', $queues, 'la queue `default` est en quarantaine depuis le 23/08/2026');
         $this->assertSame(
-            [DossierFileIndexingDispatcher::DEDICATED_QUEUE, DossierArticleIndexingDispatcher::DEDICATED_QUEUE],
+            [
+                DossierFileIndexingDispatcher::DEDICATED_QUEUE,
+                DossierArticleIndexingDispatcher::DEDICATED_QUEUE,
+                // TASK-1539 : la compilation des conversations rejoint
+                // l'allowlist. Decision assumee — sans elle, ses jobs seraient
+                // dispatches par l'ordonnanceur et jamais consommes, ce qui est
+                // exactement le defaut silencieux que cette suite garde.
+                LoopConversationKnowledgeDispatcher::DEDICATED_QUEUE,
+            ],
             $queues,
             'la liste est une allowlist fermee : y ajouter une queue est une decision, pas un detail'
         );
