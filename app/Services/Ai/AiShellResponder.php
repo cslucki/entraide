@@ -143,6 +143,19 @@ final class AiShellResponder
     public const PRODUCER_DOSSIER_CONTINUATION = 'dossier.answer.continuation';
 
     /**
+     * TASK-1530 — les producteurs dont la reponse contient du CONTENU de
+     * document : ce qui a ete lu dans un Dossier ou un Article, soumis a une
+     * ACL et a une fraicheur. La liste sert a une seule chose — tenir ce
+     * contenu hors de la memoire remise a une capability qui n'a pas droit aux
+     * sources documentaires.
+     */
+    private const DOCUMENTARY_PRODUCERS = [
+        'dossier.answer',
+        'article.answer',
+        self::PRODUCER_DOSSIER_CONTINUATION,
+    ];
+
+    /**
      * TASK-1358 — la langue dans laquelle le prompt administrable actif est
      * REDIGE, et donc celle que le modele adopte spontanement.
      *
@@ -288,6 +301,7 @@ final class AiShellResponder
                             $user,
                             $this->objectKey(AiShellPageContext::KIND_DOSSIER, $continuationDossierId),
                         );
+
                     }
                 }
 
@@ -727,6 +741,9 @@ final class AiShellResponder
 
         $lines = [];
         $total = 0;
+        // Un seul controle de droits par objet distinct du fil, pas un par
+        // message : la fenetre est bornee, les objets y sont peu nombreux.
+        $visibilityMemo = [];
 
         // A rebours : le plus recent d'abord, pour que ce soit le plus ANCIEN
         // qui tombe quand le budget est atteint.
@@ -743,6 +760,50 @@ final class AiShellResponder
             // sont jamais « le meme objet », quel que soit leur identifiant —
             // et un message dont la page ne prouve pas l'objet est exclu.
             if ($onlyObjectKey !== null && $this->pageObjectKeyOf($message) !== $onlyObjectKey) {
+                continue;
+            }
+
+            // TASK-1530 — un tour documentaire dont l'objet n'est PLUS visible
+            // ne repart vers aucun fournisseur.
+            //
+            // Mesure qui a impose cette garde : un Dossier repond « les
+            // partenaires sont X et Y », l'acces au Dossier est retire, la
+            // continuation est correctement refusee — et le repli general
+            // recevait quand meme X et Y dans son bloc conversation. Le filtre
+            // de contrat T1528 ne pouvait rien y faire : il ne retire que les
+            // anciennes reponses GENERALES, et un tour `dossier.answer` n'en
+            // est pas une. La memoire cessait d'etre un signal pour devenir un
+            // canal de fuite APRES revocation.
+            //
+            // La relecture des droits se fait donc au tour COURANT, comme
+            // partout ailleurs : ce qui n'est plus lisible n'est plus racontable.
+            if (! $this->documentaryTurnStillVisible($user, $message, $visibilityMemo)) {
+                continue;
+            }
+
+            // TASK-1530 — aucune reponse DOCUMENTAIRE n'entre dans la memoire
+            // remise a la capability generale.
+            //
+            // `shell_general_answer` declare `allowedSources:
+            // [SOURCE_PRODUCT_SURFACES]` : aucune source documentaire. Le
+            // contrat etait pourtant contourne sans qu'aucune garde ne le voie
+            // passer — pas par les sources, par la MEMOIRE. Mesure : un Dossier
+            // repond « les partenaires sont X et Y » ; la question suivante,
+            // generale, partait au fournisseur general avec X et Y dans son
+            // bloc conversation. Le filtre de contrat T1528 ne pouvait rien y
+            // faire : il ne retire que les anciennes reponses GENERALES.
+            //
+            // Trois situations, une seule cause, donc une seule garde : acces
+            // revoque, retrieval frais vide, ou simple question generale — dans
+            // les trois cas un fait documentaire servait de contexte a une
+            // reponse sans source ni retrieval.
+            //
+            // Seules les reponses de l'ASSISTANT sont concernees. Les messages
+            // de la personne restent : c'est sa conversation, ce sont ses mots,
+            // et la continuite du dialogue general n'est pas entamee.
+            if ($generalContractHash !== null
+                && $message->role === AiShellMessage::ROLE_ASSISTANT
+                && in_array($message->metadata['producer'] ?? null, self::DOCUMENTARY_PRODUCERS, true)) {
                 continue;
             }
 
@@ -1453,6 +1514,50 @@ final class AiShellResponder
             .'article|articles|profil|profils|membre|membres|member|members)\b/',
             $normalized,
         ) !== 1;
+    }
+
+    /**
+     * TASK-1530 — ce tour documentaire peut-il ENCORE etre raconte ?
+     *
+     * Seuls les tours d'ASSISTANT portant un Dossier sont concernes : c'est la
+     * ou du contenu de Dossier a pu etre restitue. Les messages de la personne
+     * lui appartiennent et restent son fil ; un tour sans objet documentaire
+     * n'a rien a revalider.
+     *
+     * Le droit est relu au tour COURANT — un identifiant vu hier ne prouve
+     * rien aujourd'hui —, avec le meme couple de gardes que partout ailleurs :
+     * tenant puis `DossierPolicy::view`. Un Dossier supprime disparait par la
+     * meme porte (`find()` rend `null`).
+     *
+     * @param  array<string, bool>  $memo  un controle par objet distinct, pas un par message
+     */
+    private function documentaryTurnStillVisible(User $user, AiShellMessage $message, array &$memo): bool
+    {
+        if ($message->role !== AiShellMessage::ROLE_ASSISTANT) {
+            return true;
+        }
+
+        $metadata = is_array($message->metadata) ? $message->metadata : [];
+
+        if (($metadata['page_context']['object_type'] ?? null) !== AiShellPageContext::KIND_DOSSIER) {
+            return true;
+        }
+
+        $id = $metadata['page_context']['object_id'] ?? null;
+
+        if (! is_string($id) || $id === '') {
+            return true;
+        }
+
+        if (! array_key_exists($id, $memo)) {
+            $dossier = Dossier::query()->find($id);
+
+            $memo[$id] = $dossier instanceof Dossier
+                && (string) $dossier->organization_id === (string) $user->organization_id
+                && $user->can('view', $dossier);
+        }
+
+        return $memo[$id];
     }
 
     /**

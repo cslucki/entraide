@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Ai\Agents\HelpRequestClarifierAgent;
 use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Ai\Agents\ShellGeneralAnswerAgent;
+use App\Ai\CapabilityRegistry;
 use App\Models\AiInteraction;
 use App\Models\AiShellMessage;
 use App\Models\Dossier;
@@ -407,6 +408,223 @@ class TASK1530ShellDossierContinuationTest extends TestCase
             'sans source consultee, la branche documentaire s efface');
         $this->assertArrayNotHasKey('sources', $reponse->metadata,
             'aucune source inventee depuis la memoire');
+    }
+
+    // ── Le repli general ne transporte pas le Dossier revoque ───────────────
+
+    /**
+     * Le prompt REELLEMENT envoye au fournisseur general de ce tour.
+     */
+    private function lastGeneralPrompt(): string
+    {
+        $interaction = AiInteraction::query()->where('feature', CapabilityRegistry::SHELL_GENERAL_ANSWER)
+            ->orderByDesc('created_at')->orderByDesc('id')->first();
+
+        $this->assertNotNull($interaction, 'aucun appel general trace');
+
+        return (string) $interaction->prompt;
+    }
+
+    /**
+     * LA preuve manquante, relevee en review du diff.
+     *
+     * Refuser la continuation ne suffit pas. Quand la branche s'efface, le tour
+     * retombe sur `generalAnswerTurn()`, qui recoit `$generalMemory` — et cette
+     * memoire-la n'est filtree NI par objet (`$onlyObjectKey` vaut null) ni par
+     * producteur : le filtre de contrat T1528 ne retire que les anciennes
+     * reponses GENERALES. Un tour `dossier.answer` (STATUS_NON_INTERACTION) y
+     * entre donc intact.
+     *
+     * Consequence si rien n'est fait : le contenu d'un Dossier dont l'acces
+     * vient d'etre RETIRE repart vers le fournisseur general, en clair, dans le
+     * bloc conversation. La memoire cesse d'etre un signal pour devenir un
+     * canal de fuite apres revocation.
+     *
+     * Sabotage : reintroduire la memoire documentaire dans ce repli → rouge.
+     */
+    public function test_a_revoked_dossier_never_reaches_the_general_provider_through_memory(): void
+    {
+        LoopKnowledgeAgent::fake(fn (): TextResponse => new TextResponse(
+            'Les partenaires sont ACMEPRIVE et ZORGLUBPRIVE. [S1]',
+            new Usage(20, 10), new Meta('openrouter', 'openai/gpt-4o-mini'),
+        ));
+
+        $tour1 = $this->sendOnDossier($this->aria, 'C\'est quoi ARIA ?');
+        $this->assertStringContainsString('ACMEPRIVE', $tour1->content, 'premisse : le fait prive est bien dans le tour 1');
+
+        // L'acces est retire entre les deux tours.
+        $etranger = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->aria->forceFill(['owner_id' => $etranger->id, 'visibility' => 'private'])->save();
+        $this->assertTrue($this->member->cannot('view', $this->aria->fresh()), 'premisse : l acces est bien retire');
+
+        $reponse = $this->sendOnNeutralPage('Qui sont les partenaires ?');
+
+        // La continuation est bien refusee ...
+        $this->assertNotSame(AiShellResponder::PRODUCER_DOSSIER_CONTINUATION, $reponse->metadata['producer']);
+
+        // ... et surtout : rien du Dossier revoque n'atteint le fournisseur.
+        $prompt = $this->lastGeneralPrompt();
+
+        $this->assertStringNotContainsString('ACMEPRIVE', $prompt,
+            'un fait du Dossier revoque ne doit pas repartir vers le fournisseur general');
+        $this->assertStringNotContainsString('ZORGLUBPRIVE', $prompt);
+        $this->assertStringNotContainsString('Les partenaires sont', $prompt,
+            'la phrase de l ancienne reponse documentaire ne subsiste pas');
+        $this->assertStringNotContainsString('ACMEPRIVE', $reponse->content);
+
+        // Le titre « ARIA » subsiste par un SEUL chemin : la question que la
+        // personne a tapee elle-meme. Mesure faite, et c'est la frontiere
+        // voulue — ce qui est retire, c'est ce que l'ASSISTANT a restitue du
+        // Dossier ; ce que la personne a ecrit lui appartient, elle le connait
+        // deja, et l'effacer casserait sa conversation sans rien proteger.
+        $this->assertStringContainsString('C\'est quoi ARIA', $prompt,
+            'les messages de la personne restent');
+    }
+
+    /**
+     * CAS 3 du MASTER — une question GENERALE posee apres un tour documentaire,
+     * l'acces au Dossier etant toujours INTACT.
+     *
+     * Rien n'est revoque, rien n'est refuse : c'est le canal lui-meme qui est
+     * mesure. La capability `shell_general_answer` declare
+     * `allowedSources: [SOURCE_PRODUCT_SURFACES]` — aucune source documentaire.
+     * Un ancien tour `dossier.answer` qui entre dans son prompt par la memoire
+     * contourne ce contrat sans qu'aucune garde ne le voie passer.
+     */
+    public function test_a_general_question_never_carries_previous_documentary_facts(): void
+    {
+        LoopKnowledgeAgent::fake(fn (): TextResponse => new TextResponse(
+            'Les partenaires sont ACMEPRIVE et ZORGLUBPRIVE. [S1]',
+            new Usage(20, 10), new Meta('openrouter', 'openai/gpt-4o-mini'),
+        ));
+
+        $this->sendOnDossier($this->aria, 'C\'est quoi ARIA ?');
+
+        $reponse = $this->sendOnNeutralPage('Quelle est la difference entre une Boucle et une Organization ?');
+
+        $this->assertSame(ShellGeneralAnswerService::PRODUCER, $reponse->metadata['producer']);
+
+        $prompt = $this->lastGeneralPrompt();
+
+        $this->assertStringNotContainsString('ACMEPRIVE', $prompt,
+            'un fait documentaire ne devient jamais le contexte d une reponse generale');
+        $this->assertStringNotContainsString('ZORGLUBPRIVE', $prompt);
+        $this->assertStringNotContainsString('Les partenaires sont', $prompt);
+
+        // La continuite du dialogue humain, elle, est preservee.
+        $this->assertStringContainsString('C\'est quoi ARIA', $prompt,
+            'les messages de la personne restent : c est sa conversation');
+    }
+
+    /**
+     * La revocation ne depend pas du ROUTAGE.
+     *
+     * Ici la question suivante n'est PAS une continuation — c'est une question
+     * produit, qui part directement sur le chemin general sans que la branche
+     * de continuite soit seulement tentee. L'exclusion de l'objet d'une
+     * continuation refusee ne joue donc pas : seule la relecture des droits
+     * dans la memoire empeche le contenu du Dossier revoque de repartir.
+     *
+     * Sabotage : retirer `documentaryTurnStillVisible()` → rouge.
+     */
+    public function test_a_revoked_dossier_does_not_leak_through_a_plain_general_question(): void
+    {
+        LoopKnowledgeAgent::fake(fn (): TextResponse => new TextResponse(
+            'Les partenaires sont ACMEPRIVE et ZORGLUBPRIVE. [S1]',
+            new Usage(20, 10), new Meta('openrouter', 'openai/gpt-4o-mini'),
+        ));
+
+        $this->sendOnDossier($this->aria, 'C\'est quoi ARIA ?');
+
+        $etranger = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->aria->forceFill(['owner_id' => $etranger->id, 'visibility' => 'private'])->save();
+        $this->assertTrue($this->member->cannot('view', $this->aria->fresh()), 'premisse : l acces est bien retire');
+
+        $reponse = $this->sendOnNeutralPage('Quelle est la difference entre une Boucle et une Organization ?');
+
+        $this->assertSame(ShellGeneralAnswerService::PRODUCER, $reponse->metadata['producer'],
+            'premisse : ce tour part bien sur le chemin general, sans tentative de continuation');
+
+        $prompt = $this->lastGeneralPrompt();
+
+        $this->assertStringNotContainsString('ACMEPRIVE', $prompt,
+            'le contenu d un Dossier revoque ne repart vers aucun fournisseur, quel que soit le routage');
+        $this->assertStringNotContainsString('ZORGLUBPRIVE', $prompt);
+        $this->assertStringNotContainsString('Les partenaires sont', $prompt,
+            'la phrase de l ancienne reponse documentaire ne subsiste pas davantage');
+
+        // Ce qui RESTE, et c'est voulu : la question que la personne a tapee
+        // elle-meme. Mesure faite — le nom « ARIA » subsiste par ce seul
+        // chemin. Ce n'est pas une divulgation : elle l'a ecrit, elle le
+        // connait deja. Retirer ses propres mots de son propre fil ne
+        // protegerait rien et casserait la conversation. Seul ce que
+        // l'ASSISTANT a restitue du Dossier est retire.
+        $this->assertStringContainsString('C\'est quoi ARIA', $prompt,
+            'la personne garde ses propres messages');
+    }
+
+    /**
+     * L'autre porte : `clarify_help_request`.
+     *
+     * La garde de producteur ci-dessus ne protege QUE la capability generale.
+     * Or le chemin historique — `generate()`, la clarification d'entraide —
+     * est le repli par defaut de la majorite des tours, et il recoit la
+     * memoire NON filtree. Sans relecture des droits, le contenu d'un Dossier
+     * revoque y repartait aussi : fermer la porte de devant en laissant celle
+     * de derriere ouverte n'aurait rien ferme du tout.
+     *
+     * Sabotage : retirer `documentaryTurnStillVisible()` → rouge.
+     */
+    public function test_a_revoked_dossier_does_not_leak_through_the_help_request_path(): void
+    {
+        LoopKnowledgeAgent::fake(fn (): TextResponse => new TextResponse(
+            'Les partenaires sont ACMEPRIVE et ZORGLUBPRIVE. [S1]',
+            new Usage(20, 10), new Meta('openrouter', 'openai/gpt-4o-mini'),
+        ));
+
+        $this->sendOnDossier($this->aria, 'C\'est quoi ARIA ?');
+
+        $etranger = User::factory()->create(['organization_id' => $this->organization->id]);
+        $this->aria->forceFill(['owner_id' => $etranger->id, 'visibility' => 'private'])->save();
+        $this->assertTrue($this->member->cannot('view', $this->aria->fresh()), 'premisse : l acces est bien retire');
+
+        // Enonce d'entraide : il part sur `clarify_help_request`, pas sur le
+        // chemin general — c'est tout l'interet de ce test.
+        $this->sendOnNeutralPage('Quelqu\'un peut m\'aider a trouver un expert ?');
+
+        $interaction = AiInteraction::query()->where('feature', 'clarify_help_request')
+            ->orderByDesc('created_at')->orderByDesc('id')->first();
+
+        $this->assertNotNull($interaction, 'premisse : ce tour passe bien par la clarification d entraide');
+
+        $this->assertStringNotContainsString('ACMEPRIVE', (string) $interaction->prompt,
+            'le contenu d un Dossier revoque ne repart pas davantage par le chemin d entraide');
+        $this->assertStringNotContainsString('ZORGLUBPRIVE', (string) $interaction->prompt);
+    }
+
+    /**
+     * Le pendant du cas 8 : sans source fraiche, le repli general ne doit pas
+     * pouvoir repondre a la question documentaire depuis l'ancienne reponse.
+     * Ici l'acces n'est PAS retire — ce n'est donc pas une fuite, c'est la
+     * regle « la memoire n'est jamais une preuve » qui est mesuree.
+     */
+    public function test_the_general_fallback_cannot_answer_from_a_previous_documentary_answer(): void
+    {
+        LoopKnowledgeAgent::fake(fn (): TextResponse => new TextResponse(
+            'Les partenaires sont ACMEPRIVE et ZORGLUBPRIVE. [S1]',
+            new Usage(20, 10), new Meta('openrouter', 'openai/gpt-4o-mini'),
+        ));
+
+        $this->sendOnDossier($this->aria, 'C\'est quoi ARIA ?');
+
+        // Plus aucune source fraiche : la branche documentaire s'efface.
+        $this->searchReturnsNothing();
+
+        $reponse = $this->sendOnNeutralPage('Qui sont les partenaires ?');
+
+        $this->assertNotSame(AiShellResponder::PRODUCER_DOSSIER_CONTINUATION, $reponse->metadata['producer']);
+        $this->assertStringNotContainsString('ACMEPRIVE', $this->lastGeneralPrompt(),
+            'les faits d une ancienne reponse documentaire ne sont pas un contexte pour repondre a nouveau');
     }
 
     // ── La page courante garde la main ──────────────────────────────────────
