@@ -47,6 +47,14 @@ final class ShellGeneralAnswerService
         private readonly AiProviderInvocationLedger $ledger,
     ) {}
 
+    /** The conversational contract that produced a reusable general answer. */
+    public static function contractHash(): string
+    {
+        $locale = str_starts_with((string) app()->getLocale(), 'en') ? 'en' : 'fr';
+
+        return hash('sha256', trans('ai.shell_general_instructions', [], $locale));
+    }
+
     public function answer(Organization $organization, User $requester, string $question): ShellGeneralAnswer
     {
         if ($requester->organization_id !== $organization->id) {
@@ -272,6 +280,7 @@ final class ShellGeneralAnswerService
                 'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
                 'provider' => $resolved->provider,
                 'capability' => $definition->id,
+                'general_contract_hash' => self::contractHash(),
                 'status' => $status,
                 'sdk_invocation_id' => $sdkInvocationId,
                 'failure' => $failure,

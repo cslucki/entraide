@@ -346,7 +346,14 @@
                                      que l'assistant dit vraiment : il a compris, et il
                                      propose. Le texte a la premiere personne, lui, quitte
                                      cette bulle. --}}
-                                <span class="block whitespace-pre-line">{{ $isUserDraft ? ($isOfferDraft ? __('ai.shell_offer_framing') : __('ai.shell_request_framing')) : $message->content }}</span>
+                                @if($message->role === \App\Models\AiShellMessage::ROLE_ASSISTANT && ! $isUserDraft)
+                                    <div data-ai-shell-markdown
+                                         class="prose prose-sm max-w-none break-words text-current dark:prose-invert prose-p:my-0 prose-ol:my-2 prose-ul:my-2 prose-li:my-1 prose-strong:text-inherit">
+                                        {!! markdown($message->content) !!}
+                                    </div>
+                                @else
+                                    <span class="block whitespace-pre-line">{{ $isUserDraft ? ($isOfferDraft ? __('ai.shell_offer_framing') : __('ai.shell_request_framing')) : $message->content }}</span>
+                                @endif
                             </div>
 
                             {{-- TASK-1350 (P0) — la carte du brouillon, visuellement
