@@ -298,6 +298,11 @@ final class OrganizationDoctrineSandbox
             ledgerEntries: $this->ledgerEntries($contexte),
             interactionId: $interaction->id,
             correlationId: $contexte->correlationId,
+            // TASK-1533 : ce sur quoi la reponse s'appuie, tel que le builder
+            // l'a collecte — donc uniquement les sources UTILISEES, apres leurs
+            // gardes d'acces. Le bac a sable la jetait ; l'Inspector en a besoin
+            // pour montrer la preuve sans relire les documents une seconde fois.
+            provenance: $borne->provenance,
         );
     }
 

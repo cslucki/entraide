@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Ai\CapabilityRegistry;
 use App\Ai\Constitution;
 use App\Ai\NervousSystemCoverage;
+use App\Ai\Context\ContextBuilder;
 use App\Ai\Context\DossierAccessScope;
 use App\Ai\ProviderResolver;
 use App\Http\Controllers\Controller;
@@ -1764,7 +1765,7 @@ class OrgAdminController extends Controller
     }
 
     /**
-     * TASK-1533 — AI Context Inspector V0.
+     * TASK-1533 — AI Context Inspector.
      *
      * Repondre a « pourquoi BouclePro a-t-il produit CETTE reponse ? » en
      * observant le pipeline REEL pendant qu'il fonctionne, et sans construire
@@ -1774,63 +1775,147 @@ class OrgAdminController extends Controller
      * -> ledger), avec le credential de l'Organization.
      *
      * Ce que l'Inspector ajoute au bac a sable, ce n'est pas un calcul : c'est
-     * la LECTURE de ce que le ledger a deja ecrit.
+     * la LECTURE de ce que le pipeline et le ledger ont deja ecrit.
+     *
+     * Le GET ne rend JAMAIS de resultat : il rend l'instrument a vide, mais
+     * deja renseigne. La carte de contexte est construite ici, avant toute
+     * question — c'est elle qui repond a « quelles autorites et quelles sources
+     * cette fonction PEUT-ELLE mobiliser ? », question qui n'a pas besoin d'un
+     * appel IA pour avoir une reponse vraie.
      *
      * Une seule surface canonique, Organization-scoped : l'Admin Organization
      * y entre depuis son cockpit, le SuperAdmin par le meme chemin
      * (`OrgAdminMiddleware` autorise deja `is_admin`). Aucun ecran plateforme
      * parallele, donc aucune seconde autorite.
      */
-    public function aiContextInspector(Organization $organization, CapabilityRegistry $registry): View
-    {
-        $result = $this->inspectorResultFor($organization);
-
+    public function aiContextInspector(
+        Organization $organization,
+        CapabilityRegistry $registry,
+        ContextBuilder $contextBuilder,
+        NervousSystemMap $map,
+    ): View {
         return view('admin.org.ai-context-inspector', [
             'organization' => $organization,
             'capabilities' => OrganizationDoctrineSandbox::SUPPORTED,
-            'result' => $result,
-            'telemetry' => $this->inspectorTelemetryFor($organization),
-            'allowedSources' => $this->inspectorAllowedSources($result, $registry),
+            'contextMap' => $this->inspectorContextMap($organization, $registry, $contextBuilder, $map),
         ]);
     }
 
     /**
-     * Les sources que la capability executee AVAIT le droit de mobiliser.
+     * La carte de contexte, AVANT toute question. Zero appel IA, zero embedding.
      *
-     * Sans elle, l'ecran mentirait par omission : le `ContextBuilder` ne
-     * comptabilise une source ni dans `used` ni dans `denied` quand elle rend
-     * un fragment VIDE (`$fragment->isEmpty()` -> `continue`). Une source
-     * autorisee qui n'a simplement rien trouve disparaitrait donc de la page,
-     * et « rien a dire » se lirait comme « jamais consultee ».
+     * Trois familles, et elles ne se confondent pas (CDC 01 section 5) :
      *
-     * Lecture seule du registre canonique — aucune source n'est executee ici.
+     *  - `governance` : les autorites qui DICTENT. Elles viennent de
+     *    `NervousSystemMap`, qui mesure deja `locked`/`configurable` a partir de
+     *    l'existence d'une route d'ecriture — une verite qui se maintient seule.
+     *    Filtrees aux quatre noeuds qui gouvernent reellement une reponse ;
+     *    `provider`, `knowledge` et `consumption` decrivent l'execution et la
+     *    depense, ils appartiennent au bandeau, pas a la gouvernance. Les y
+     *    laisser aurait fait de cette colonne une copie de `ai-map`.
      *
-     * @param  array<string, mixed>|null  $result
-     * @return list<string>
+     *  - `sources` : ce que la fonction a le droit de LIRE. L'union des
+     *    `allowedSources` des capabilities executables ici, chacune sachant a
+     *    quelles capabilities elle appartient — c'est ce qui permet a la carte
+     *    de se re-eclairer au changement de fonction sans une seule requete.
+     *    `implemented` est mesure sur `ContextBuilder::availableSources()` : une
+     *    source declaree que ce builder ne sait pas produire est UNAVAILABLE,
+     *    pas disponible-mais-vide.
+     *
+     *  - `deferred` : les briques du MASTER qui n'existent pas. Elles sont
+     *    nommees parce qu'une absence declaree vaut mieux qu'un trou, jamais
+     *    presentees comme actives (CDC 01 section 36.2).
+     *
+     * @return array<string, mixed>
      */
-    private function inspectorAllowedSources(?array $result, CapabilityRegistry $registry): array
-    {
-        $capability = is_array($result) ? ($result['capability'] ?? null) : null;
+    private function inspectorContextMap(
+        Organization $organization,
+        CapabilityRegistry $registry,
+        ContextBuilder $contextBuilder,
+        NervousSystemMap $map,
+    ): array {
+        $governanceKeys = ['platform_constitution', 'organization_constitution', 'doctrine', 'capabilities'];
 
-        if (! is_string($capability) || ! in_array($capability, OrganizationDoctrineSandbox::SUPPORTED, true)) {
-            return [];
+        $governance = array_values(array_filter(
+            $map->forOrganization($organization),
+            static fn (array $node): bool => in_array($node['key'], $governanceKeys, true),
+        ));
+
+        $available = $contextBuilder->availableSources();
+
+        $capabilities = [];
+        $sources = [];
+
+        foreach (OrganizationDoctrineSandbox::SUPPORTED as $capability) {
+            $allowed = $registry->get($capability)->allowedSources;
+            $capabilities[$capability] = [
+                'label' => __('ai.capability_label.'.$capability),
+                'sources' => $allowed,
+            ];
+
+            foreach ($allowed as $source) {
+                $sources[$source] ??= [
+                    'key' => $source,
+                    'implemented' => in_array($source, $available, true),
+                    'capabilities' => [],
+                ];
+                $sources[$source]['capabilities'][] = $capability;
+            }
         }
 
-        return $registry->get($capability)->allowedSources;
+        return [
+            'governance' => $governance,
+            'capabilities' => $capabilities,
+            'sources' => array_values($sources),
+            // Etat RUNTIME : ce que le mode ISOLATED construit reellement. Le
+            // membre existe (`ContexteIa` porte son identifiant et ses droits) ;
+            // la Boucle n'est pas demandee (`loopId: null`) ; la page et la
+            // conversation n'ont aucune source dans CE builder — c'est mesure
+            // ci-dessous, pas decrete.
+            'runtime' => [
+                ['key' => 'member', 'state' => 'active'],
+                ['key' => 'loop', 'state' => 'not_requested'],
+                ['key' => 'page_context', 'state' => in_array(CapabilityRegistry::SOURCE_PAGE_CONTEXT, $available, true) ? 'not_requested' : 'unavailable'],
+            ],
+            // Uniquement des briques REELLEMENT absentes du repo : compilateur
+            // de memoire (MASTER section 11), resolution d'entites (section 10),
+            // verificateur d'affirmations (CDC section 18). La mise en relation
+            // humaine, elle, EXISTE (`EligiblePeopleService`) : la nommer ici
+            // serait un faux manque, aussi trompeur qu'une fausse branche
+            // active.
+            'deferred' => [
+                ['key' => 'memory_compiler'],
+                ['key' => 'entity_resolution'],
+                ['key' => 'claim_verifier'],
+            ],
+        ];
     }
 
     /**
-     * Execute la question sur le pipeline reel, puis rend la main a la page.
+     * Execute la question sur le pipeline reel et rend le resultat INLINE.
      *
-     * La doctrine ACTIVE est composee (`asInspector`), pas un brouillon :
-     * l'Inspector montre ce qu'un membre recevrait, pas ce que produirait un
-     * texte non publie. C'est toute la difference avec le bac a sable.
+     * Pas de redirection, pas de flash. Le tour observe ne vit que dans la
+     * reponse HTTP de la requete qui l'a demande : meme administrateur, meme
+     * Organization, meme instant. Le cycle redirect/flash precedent obligeait a
+     * garder un resultat en session — donc a le proteger d'un rendu sous une
+     * autre Organization — et surtout il interdisait d'y faire transiter la
+     * provenance, qui porte des extraits de documents du tenant. Rendre inline
+     * supprime la classe de probleme au lieu de la garder.
+     *
+     * `no-store` pour la meme raison que `aiKnowledgeSourceChunks()` : ce
+     * fragment contient du contenu documentaire, il n'a rien a faire dans un
+     * cache ni dans un historique.
+     *
+     * La doctrine ACTIVE est composee (`asInspector`), pas un brouillon : c'est
+     * la doctrine que le chemin de production injecte. Le bac a sable T1227,
+     * lui, repond a l'autre question et garde son comportement.
      */
     public function runAiContextInspector(
         Request $request,
         Organization $organization,
         OrganizationDoctrineSandbox $sandbox,
-    ): RedirectResponse {
+        CapabilityRegistry $registry,
+    ): Response {
         $data = $request->validate([
             'capability' => ['required', 'string', Rule::in(OrganizationDoctrineSandbox::SUPPORTED)],
             'question' => ['required', 'string', 'min:3', 'max:1000'],
@@ -1844,36 +1929,23 @@ class OrgAdminController extends Controller
             $data['question'],
             null,
             asInspector: true,
-        );
+        )->toArray();
 
-        return redirect()
-            ->route('organization.admin.ai-context-inspector', ['organization' => $organization->slug])
-            ->withInput($request->only(['capability', 'question']))
-            ->with('context_inspector', $result->toArray());
+        $html = view('admin.org.partials.ai-context-inspector-run', [
+            'organization' => $organization,
+            'result' => $result,
+            'allowedSources' => $registry->get($data['capability'])->allowedSources,
+            'telemetry' => $this->inspectorTelemetryFor($organization, $result['correlation_id'] ?? null),
+            'generatedAt' => now()->toIso8601String(),
+        ])->render();
+
+        return response($html)
+            ->header('Content-Type', 'text/html; charset=UTF-8')
+            ->header('Cache-Control', 'no-store, no-cache, private, max-age=0');
     }
 
     /**
-     * Le resultat flashe, et SEULEMENT s'il appartient a cette Organization.
-     *
-     * Meme garde que `sandboxResultFor()` : un resultat produit pour une
-     * Organization ne doit jamais se rendre sous une autre, fut-ce par une
-     * session partagee entre deux onglets d'un SuperAdmin.
-     *
-     * @return array<string, mixed>|null
-     */
-    private function inspectorResultFor(Organization $organization): ?array
-    {
-        $result = session('context_inspector');
-
-        if (! is_array($result) || ($result['organization_id'] ?? null) !== (string) $organization->id) {
-            return null;
-        }
-
-        return $result;
-    }
-
-    /**
-     * La telemetrie REELLE du dernier tour, relue sur le ledger canonique.
+     * La telemetrie REELLE du tour, relue sur le ledger canonique.
      *
      * Autorite : `ai_provider_invocations`, et pas `ai_interactions`. Les deux
      * existent, et ils ne disent pas la meme chose — le premier laisse ses
@@ -1896,13 +1968,13 @@ class OrgAdminController extends Controller
      * « 9000 ms » — une precision au millier pres qui n'a jamais ete mesuree,
      * dans l'ecran meme dont le role est de ne jamais affirmer cela.
      *
+     * L'`organization_id` est reexige dans la requete alors que la correlation
+     * est deja unique : une cle etrangere n'est pas une garde de tenant.
+     *
      * @return list<array<string, mixed>>
      */
-    private function inspectorTelemetryFor(Organization $organization): array
+    private function inspectorTelemetryFor(Organization $organization, ?string $correlationId): array
     {
-        $result = $this->inspectorResultFor($organization);
-        $correlationId = is_array($result) ? ($result['correlation_id'] ?? null) : null;
-
         if (! is_string($correlationId) || $correlationId === '') {
             return [];
         }

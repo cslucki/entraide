@@ -23,6 +23,7 @@ final class DoctrineSandboxResult
     /**
      * @param  list<string>  $sourcesUsed
      * @param  array<string, string>  $sourcesDenied
+     * @param  list<array{source: string, id: string, type: string, extrait: string}>  $provenance
      */
     public function __construct(
         public readonly string $status,
@@ -59,6 +60,21 @@ final class DoctrineSandboxResult
          * information.
          */
         public readonly ?string $correlationId = null,
+        /**
+         * TASK-1533 — la provenance des sources REELLEMENT utilisees.
+         *
+         * `ContexteBorne` la porte deja (source, type, id, extrait borne a 240
+         * caracteres, collectee APRES les gardes d'acces de chaque source) et le
+         * bac a sable la jetait. La rendre, c'est repondre a « sur quoi cette
+         * reponse s'appuie-t-elle ? » sans deuxieme lecture documentaire, donc
+         * sans deuxieme chemin d'acces a revalider.
+         *
+         * Invariant : elle ne decrit QUE des sources utilisees. Une source
+         * refusee n'en produit aucune entree — le builder l'ecarte avant
+         * collecte — et rien ici ne doit jamais en fabriquer une, sous peine de
+         * transformer un refus en oracle.
+         */
+        public readonly array $provenance = [],
     ) {}
 
     /**
@@ -82,6 +98,7 @@ final class DoctrineSandboxResult
             'ledger_entries' => $this->ledgerEntries,
             'interaction_id' => $this->interactionId,
             'correlation_id' => $this->correlationId,
+            'provenance' => $this->provenance,
         ];
     }
 }
