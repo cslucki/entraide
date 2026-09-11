@@ -168,7 +168,7 @@ final class LoopConversationKnowledgeDeriver
         }
 
         $instructions = $this->prompts->compose($capability, $baseInstructions, (string) $organization->id);
-        $transcript = $this->transcript($messages);
+        $transcript = $this->transcript($messages, $current);
 
         $startedAt = microtime(true);
 
@@ -195,7 +195,8 @@ final class LoopConversationKnowledgeDeriver
             return null;
         }
 
-        $note = $this->persist($organization, $loop, $dossierId, $messages, $fingerprint, $content, $contexte->correlationId);
+        $note = $this->persist($organization, $loop, $dossierId, $messages, $fingerprint, $content,
+            $contexte->correlationId, $current?->id === null ? null : (string) $current->id);
 
         if ($note !== null) {
             $this->indexer->synchronize($note);
@@ -257,7 +258,7 @@ final class LoopConversationKnowledgeDeriver
     /**
      * @param  list<LoopMessage>  $messages
      */
-    private function transcript(array $messages): string
+    private function transcript(array $messages, ?DerivedKnowledgeNote $memoire = null): string
     {
         $lines = [];
         $used = 0;
@@ -274,7 +275,39 @@ final class LoopConversationKnowledgeDeriver
             $used += mb_strlen($line);
         }
 
-        return implode("\n", $lines);
+        $conversation = implode("\n", $lines);
+
+        if ($memoire === null || trim((string) $memoire->content) === '') {
+            return $conversation;
+        }
+
+        // TASK-1538 — la memoire deja compilee entre dans le tour.
+        //
+        // La derivation ne lit qu'une FENETRE des derniers messages. Sans ce
+        // bloc, un fait dit il y a six mois sortait de la fenetre, disparaissait
+        // de la source, et la recompilation produisait une note qui ne le
+        // contenait plus — laquelle supersedait celle qui le contenait. Le fait
+        // n'etait ni corrige ni contredit : il etait oublie, en silence.
+        //
+        // Agrandir la fenetre ne repare rien : une fenetre de LECTURE n'est pas
+        // une duree de vie de MEMOIRE. La compilation devient donc additive —
+        // elle repart de ce qui est deja su et l'amende.
+        //
+        // Le contrat est dicte DANS le tour, jamais dans le prompt partage.
+        // C'est l'idiome du depot (`DossierInsightsService::answerInstruction()`)
+        // et il a ici une raison de plus : la mesure de T1537 a montre qu'une
+        // retouche du prompt canonique degrade l'ensemble pour corriger un point.
+        return implode("\n", [
+            '--- CONNAISSANCE DEJA COMPILEE SUR CETTE BOUCLE ---',
+            trim((string) $memoire->content),
+            '',
+            '--- ECHANGES LES PLUS RECENTS ---',
+            $conversation,
+            '',
+            'Rends la connaissance a jour de cette Boucle, pas seulement le resume des echanges ci-dessus.',
+            'Reprends tels quels les faits de la connaissance deja compilee qui restent vrais : ils ne sont PAS repetes dans les echanges recents, et les oublier reviendrait a effacer la memoire.',
+            'Ne garde pas un fait que les echanges recents corrigent, invalident ou rendent caduc : dans ce cas, ecris seulement sa version a jour.',
+        ]);
     }
 
     private function currentNote(Organization $organization, Loop $loop): ?DerivedKnowledgeNote
@@ -305,8 +338,9 @@ final class LoopConversationKnowledgeDeriver
         string $fingerprint,
         string $content,
         ?string $correlationId,
+        ?string $basisNoteId,
     ): ?DerivedKnowledgeNote {
-        return DB::transaction(function () use ($organization, $loop, $dossierId, $messages, $fingerprint, $content, $correlationId): ?DerivedKnowledgeNote {
+        return DB::transaction(function () use ($organization, $loop, $dossierId, $messages, $fingerprint, $content, $correlationId, $basisNoteId): ?DerivedKnowledgeNote {
             $current = DerivedKnowledgeNote::query()
                 ->where('organization_id', $organization->id)
                 ->where('source_type', DerivedKnowledgeNote::SOURCE_LOOP_CONVERSATION)
@@ -320,6 +354,26 @@ final class LoopConversationKnowledgeDeriver
             // appelait le provider, et elle a produit la MEME lecture de la
             // source. Rien a faire : la note en base est deja celle-la.
             if ($current !== null && hash_equals($current->source_fingerprint, $fingerprint)) {
+                return $current;
+            }
+
+            // TASK-1538 — LA garde de course, et l'empreinte ne la donne pas.
+            //
+            // Comparer les empreintes protege le REJEU IDENTIQUE : deux workers
+            // partis du meme etat. Elle ne protege rien d'autre, parce que deux
+            // etats DIFFERENTS ont par construction des empreintes differentes.
+            // Une derivation partie de S0 voyait donc une note nee de S1 comme
+            // « autre chose » et la supersedait tranquillement.
+            //
+            // Ce qu'il faut comparer, c'est le POINT DE DEPART : la note active
+            // au moment ou cette derivation a lu sa source. Si ce n'est plus
+            // elle qui est active, quelqu'un a ecrit entre-temps et cette
+            // derivation est perimee. Elle ne gagne pas — un compare-and-swap
+            // sur le pointeur de version, sous le meme verrou, sans rien de
+            // neuf a introduire.
+            $courantId = $current?->id === null ? null : (string) $current->id;
+
+            if ($courantId !== $basisNoteId) {
                 return $current;
             }
 
