@@ -2,6 +2,8 @@
 
 namespace App\Services\Ai;
 
+use App\Ai\Context\DossierAccessScope;
+use App\Ai\ProviderResolver;
 use App\Models\AiShellMessage;
 use App\Models\BlogPost;
 use App\Models\Dossier;
@@ -9,6 +11,8 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\DTO\KnowledgeAnswer;
 use App\Services\Dossiers\DossierInsightsService;
+use App\Services\Dossiers\DossierSemanticSearchGate;
+use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Support\Ai\AiSelfKnowledge;
 use App\Support\Ai\AiShellPageContext;
 use App\Support\Ai\AiShellThread;
@@ -149,10 +153,52 @@ final class AiShellResponder
      * contenu hors de la memoire remise a une capability qui n'a pas droit aux
      * sources documentaires.
      */
+    /**
+     * TASK-1531 — le producteur d'un tour documentaire DECOUVERT, sans objet
+     * courant ni objet deja discute. Distinct des deux autres : ni la page ni
+     * le fil ne designaient ce Dossier, c'est la recherche qui l'a trouve.
+     */
+    public const PRODUCER_DOSSIER_DISCOVERY = 'dossier.answer.discovery';
+
     private const DOCUMENTARY_PRODUCERS = [
         'dossier.answer',
         'article.answer',
         self::PRODUCER_DOSSIER_CONTINUATION,
+        self::PRODUCER_DOSSIER_DISCOVERY,
+    ];
+
+    /**
+     * TASK-1531 — bornes de la decouverte, alignees sur celles du moteur
+     * documentaire (`DossierInsightsService::ANSWER_SOURCE_LIMIT` /
+     * `ANSWER_CANDIDATE_LIMIT`) : ce qui est CITE, et le bassin de candidats
+     * lu en SQL. Un seul embedding de requete est calcule quel que soit le
+     * nombre de candidats.
+     */
+    private const DISCOVERY_SOURCE_LIMIT = 5;
+
+    private const DISCOVERY_CANDIDATE_LIMIT = 12;
+
+    /**
+     * TASK-1531 — mots de >= 4 lettres qui ne constituent PAS un sujet. Sans
+     * cette courte liste, « comment allez vous ? » porterait « allez » et
+     * « vous » comme sujets et declencherait le balayage de perimetre.
+     *
+     * Volontairement minuscule : elle n'a pas vocation a devenir une liste de
+     * stopwords: chaque ajout doit venir d'un enonce reellement observe.
+     *
+     * @var list<string>
+     */
+    private const SUBJECTLESS_TOKENS = [
+        // Les interrogatifs eux-memes : ils ouvrent la question, ils n'en sont
+        // pas le sujet. Sans eux, « comment allez vous ? » porterait
+        // « comment » comme sujet et declencherait le balayage.
+        'comment', 'pourquoi', 'quand', 'combien', 'quel', 'quelle', 'quels', 'quelles',
+        'quoi', 'what', 'which', 'when', 'where', 'whose', 'whom',
+        // Pronoms, auxiliaires et mots-outils de >= 4 lettres.
+        'allez', 'vous', 'nous', 'elle', 'elles', 'ils', 'cela', 'ceci', 'cette',
+        'etes', 'etre', 'avez', 'avoir', 'faire', 'fait', 'peux', 'peut', 'pouvez',
+        'this', 'that', 'these', 'those', 'your', 'you', 'they', 'there', 'here',
+        'have', 'does', 'doing', 'been', 'being', 'were', 'will', 'would', 'could',
     ];
 
     /**
@@ -205,6 +251,14 @@ final class AiShellResponder
         // moteur documentaire.
         private readonly DossierInsightsService $dossierAnswers,
         private readonly ShellGeneralAnswerService $generalAnswers,
+        // TASK-1531 : les trois primitives de la decouverte, dans l'ordre ou
+        // elles doivent s'executer — le perimetre AUTORISE d'abord, la
+        // recherche ensuite. Aucune n'est nouvelle : ce sont celles que
+        // `DossierRetrievalSource` compose deja pour le chat de Boucle.
+        private readonly DossierSemanticSearchGate $semanticSearchGate,
+        private readonly DossierAccessScope $dossierAccessScope,
+        private readonly DossierSemanticSearchService $dossierSearch,
+        private readonly ProviderResolver $providers,
     ) {}
 
     /**
@@ -332,6 +386,10 @@ final class AiShellResponder
                     // TASK-1530 : entre l'objet COURANT et le chemin general.
                     // Voir le docblock de la branche pour l'ordre des roles.
                     ?? $this->dossierContinuationTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $continuationDossierId, $continuationMemory)
+                    // TASK-1531 : en dernier recours documentaire — ni objet
+                    // courant, ni objet deja discute. Sa garde de declenchement
+                    // s'execute avant tout balayage de perimetre.
+                    ?? $this->dossierDiscoveryTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
                     ?? $this->generalAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $generalMemory)
                     ?? $this->generate($organization, $user, $prompt, $pageContext, $pinnedContext, $memory);
 
@@ -1322,6 +1380,166 @@ final class AiShellResponder
     }
 
     /**
+     * TASK-1531 — le Shell retrouve un Dossier autorise SANS contexte prealable.
+     *
+     * Dernier cas du parcours ARIA : depuis le dashboard, sans avoir ouvert le
+     * Dossier, sans pin, sans historique, « qui sont les partenaires ARIA ? »
+     * n'avait aucun chemin documentaire. T1519/T1520 exigent un objet SOUS LES
+     * YEUX, T1530 un objet DEJA discute. Ici il n'y a ni l'un ni l'autre.
+     *
+     * ## Ce que cette branche ne fait PAS : chercher un NOM
+     *
+     * Aucun `like` sur `dossiers.name`, aucun slug — et ce n'est pas une
+     * economie, c'est la garde principale. Chercher un nom inverserait l'ordre :
+     * il faudrait lire le `name` de Dossiers avant de savoir si le membre y a
+     * droit, et toute reponse d'ambiguite (« plusieurs Dossiers correspondent »,
+     * « vouliez-vous dire X ? ») serait un ORACLE DE NOMS — le nombre autant que
+     * le libelle. Le perimetre autorise est donc etabli EN PREMIER, et la
+     * recherche n'existe qu'a l'interieur.
+     *
+     * Le nom n'est d'ailleurs pas necessaire : « ARIA » vit dans le CONTENU des
+     * chunks, pas seulement dans le titre du Dossier. Un Dossier nomme « Projet
+     * europeen 2026 » dont tous les documents parlent d'ARIA repond ici, la ou
+     * un appariement de titre l'aurait manque en silence.
+     *
+     * ## L'ordre des etapes est la garde, pas une optimisation
+     *
+     * La coupe de declenchement s'execute AVANT toute autre chose. En dessous
+     * d'elle, chaque tour paierait un embedding et, surtout, le balayage de
+     * `accessibleDossierIds()` — une evaluation de policy par Dossier candidat,
+     * qui peut remonter `governingDossier()`. C'est le vrai cout de cette
+     * branche, bien plus que l'appel d'embedding.
+     *
+     * Puis : perimetre autorise -> recherche BORNEE a ce perimetre -> reponse
+     * sur les sources effectivement rendues. `searchAcrossDossiers()` reborne
+     * le tenant dans son SQL, et `answerOverSources()` porte capability, garde
+     * economique, revalidation des references et ledger — aucun second moteur.
+     *
+     * Un echec quelconque rend `null` : le tour suit son cours vers le chemin
+     * general, jamais vers une erreur affichee, et jamais vers une reponse
+     * fabriquee depuis la memoire.
+     *
+     * @param  array<string, mixed>  $pageContext
+     * @param  list<array<string, mixed>>  $pinnedContext
+     * @return array{0: string, 1: array<string, mixed>}|null
+     */
+    private function dossierDiscoveryTurn(
+        Organization $organization,
+        User $user,
+        string $prompt,
+        array $pageContext,
+        array $pinnedContext,
+    ): ?array {
+        // Un objet documentaire COURANT garde la main : ses branches sont
+        // passees avant, et une page Dossier/Article n'a pas a declencher une
+        // recherche a l'echelle de l'Organization.
+        if (in_array($pageContext['kind'] ?? null, [AiShellPageContext::KIND_DOSSIER, AiShellPageContext::KIND_ARTICLE], true)) {
+            return null;
+        }
+
+        // LA garde de cout, et elle est la PREMIERE. Rien de ce qui suit ne
+        // doit s'executer pour un « comment ca va ? » ou une demande d'aide.
+        if (! $this->isDocumentarySearch($prompt)) {
+            return null;
+        }
+
+        if (! $this->semanticSearchGate->isEnabledFor((string) $organization->id)) {
+            return null;
+        }
+
+        // Le credential d'embedding est celui de l'ORGANIZATION. NULL = pas
+        // d'embedding tenant : refus, JAMAIS un repli sur la cle plateforme.
+        $embeddingInstance = $this->providers->resolveEmbeddingInstance((string) $organization->id);
+
+        if ($embeddingInstance === null) {
+            return null;
+        }
+
+        // Le perimetre AUTORISE, etabli avant toute recherche. `null` en
+        // troisieme argument : toute l'Organization, jamais une Boucle.
+        $dossierIds = $this->dossierAccessScope->accessibleDossierIds((string) $organization->id, $user, null);
+
+        if ($dossierIds === []) {
+            return null;
+        }
+
+        try {
+            $rows = $this->dossierSearch->searchAcrossDossiers(
+                (string) $organization->id,
+                $dossierIds,
+                $prompt,
+                $embeddingInstance,
+                self::DISCOVERY_SOURCE_LIMIT,
+                ['shell_dossier_discovery' => true],
+                self::DISCOVERY_CANDIDATE_LIMIT,
+            );
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return null;
+        }
+
+        $maxDistance = (float) config('ai.knowledge.max_distance', 1.0);
+        $rows = array_values(array_filter(
+            $rows,
+            fn (array $row): bool => (float) ($row['distance'] ?? 1.0) <= $maxDistance,
+        ));
+
+        if ($rows === []) {
+            return null;
+        }
+
+        // Le Dossier de rattachement de TRACE : celui du meilleur extrait. Il
+        // sort du perimetre autorise par construction ; on le relit quand meme
+        // (tenant, puis policy), parce qu'une branche ne se repose pas sur ce
+        // qu'un collaborateur a deja verifie.
+        $traceDossier = Dossier::query()->find($rows[0]['dossier_id'] ?? null);
+
+        if (! $traceDossier instanceof Dossier
+            || (string) $traceDossier->organization_id !== (string) $organization->id
+            || $user->cannot('view', $traceDossier)) {
+            return null;
+        }
+
+        try {
+            $answer = $this->dossierAnswers->answerOverSources($organization, $traceDossier, $user, $prompt, $rows);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return null;
+        }
+
+        // Meme effacement que les autres branches documentaires : sans source
+        // consultee, elle se tait et laisse le chemin general repondre.
+        if ($answer->consulted === []) {
+            return null;
+        }
+
+        $content = trim($answer->answer);
+
+        if ($content === '') {
+            return null;
+        }
+
+        return [$content, [
+            'status' => self::STATUS_NON_INTERACTION,
+            'producer' => self::PRODUCER_DOSSIER_DISCOVERY,
+            'page_context' => [
+                'route' => (string) ($pageContext['route'] ?? ''),
+                'kind' => (string) ($pageContext['kind'] ?? 'other'),
+                'object_type' => AiShellPageContext::KIND_DOSSIER,
+                'object_id' => (string) $traceDossier->id,
+            ],
+            'discovery' => true,
+            'cards' => $this->cards->forAnsweredTurn($organization, $user, null, $pageContext, $prompt),
+            'grounded' => $answer->grounded,
+            'sources' => array_map(KnowledgeAnswer::publicSource(...), $answer->sources),
+            'follow_up_questions' => $answer->followUps,
+            'ai_interaction_id' => $answer->interactionId,
+        ] + $this->pinnedTrace($pinnedContext)];
+    }
+
+    /**
      * TASK-1526 — une QUESTION generale precise ne passe plus par la
      * capability qui prepare une demande d'entraide.
      * TASK-1527 — une tache conversationnelle ordinaire adressee a l'IA suit
@@ -1508,12 +1726,91 @@ final class AiShellResponder
 
         // Le vocabulaire du produit appartient au chemin general et a la
         // self-knowledge, jamais au corpus d'un Dossier.
+        return ! $this->mentionsProductVocabulary($normalized);
+    }
+
+    /**
+     * Le vocabulaire du PRODUIT, en UN seul endroit.
+     *
+     * TASK-1531 : cette table etait interne a `isDocumentaryContinuation()`.
+     * La decouverte doit s'effacer devant exactement les memes enonces — deux
+     * copies auraient diverge au premier ajout, et c'est le partage entre
+     * « question sur BouclePro » et « question sur vos documents » qui aurait
+     * glisse. Extraction a l'identique, aucun terme ajoute ni retire.
+     */
+    private function mentionsProductVocabulary(string $normalized): bool
+    {
         return preg_match(
             '/\b(boucle|boucles|organization|organizations|organisation|organisations|'
             .'bouclepro|dossier|dossiers|plateforme|platform|shell|interaction|interactions|'
             .'article|articles|profil|profils|membre|membres|member|members)\b/',
             $normalized,
-        ) !== 1;
+        ) === 1;
+    }
+
+    /**
+     * TASK-1531 — cet enonce merite-t-il une recherche dans les Dossiers ?
+     *
+     * Coupe deterministe locale, dans l'esprit de `isGeneralQuestion()` et de
+     * `isDocumentaryContinuation()` : testable, sans cout provider, et
+     * volontairement ETROITE. Elle s'execute AVANT le balayage du perimetre
+     * autorise et avant tout embedding — c'est elle qui decide si le tour paie
+     * quoi que ce soit.
+     *
+     * Trois refus, cumulatifs :
+     *
+     *  1. l'intention d'ENTRAIDE, avec la meme table que partout ailleurs — un
+     *     « quelqu'un peut m'aider ? » n'est pas une recherche documentaire ;
+     *  2. le vocabulaire du PRODUIT — « quelle est la difference entre une
+     *     Boucle et une Organization ? » releve de la self-knowledge et du
+     *     chemin general, jamais du corpus d'un Dossier ;
+     *  3. l'absence de SUJET. Une question doit porter au moins un mot porteur
+     *     (>= 4 lettres, hors interrogatifs et mots-outils) pour qu'il y ait
+     *     quelque chose a chercher. Sans cela « comment ca va ? » declencherait
+     *     un balayage de policy sur tous les Dossiers de l'Organization pour
+     *     n'y rien trouver.
+     *
+     * Ce qu'elle n'essaie PAS de faire : reconnaitre un nom de Dossier. Elle
+     * ne sait pas si « ARIA » designe un Dossier, et n'a pas a le savoir — la
+     * recherche semantique, bornee au perimetre autorise, le decouvre ou ne le
+     * decouvre pas. En cas de doute la branche s'efface : une reponse generale
+     * honnete vaut mieux qu'un mauvais retrieval.
+     */
+    private function isDocumentarySearch(string $prompt): bool
+    {
+        $normalized = $this->normalizedPrompt($prompt);
+
+        if ($normalized === '') {
+            return false;
+        }
+
+        if ($this->mentionsInteractionIntent($normalized)) {
+            return false;
+        }
+
+        $isQuestion = str_contains($prompt, '?')
+            || preg_match(
+                '/^(qui|que|quoi|quel|quelle|quels|quelles|comment|pourquoi|ou|quand|combien|'
+                .'what|who|which|how|why|where|when)\b/',
+                $normalized,
+            ) === 1;
+
+        if (! $isQuestion) {
+            return false;
+        }
+
+        if ($this->mentionsProductVocabulary($normalized)) {
+            return false;
+        }
+
+        // Un sujet, au moins un. Les mots-outils ne sont pas un sujet.
+        foreach (explode(' ', $normalized) as $token) {
+            if (mb_strlen($token) >= 4 && ! in_array($token, self::SUBJECTLESS_TOKENS, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
