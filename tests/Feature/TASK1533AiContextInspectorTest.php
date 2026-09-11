@@ -532,6 +532,15 @@ class TASK1533AiContextInspectorTest extends TestCase
         // carte : deux affirmations contradictoires sur le meme tour.
         $run->assertSee(DossierRetrievalSource::NAME.'&quot;:&quot;denied', false);
         $run->assertDontSee(DossierRetrievalSource::NAME.'&quot;:&quot;used', false);
+
+        // Aucune source n'a rien fourni, et pourtant le tour a REUSSI : le
+        // contexte a bien ete construit, il s'est avere vide, et le pipeline a
+        // fait son travail en constatant qu'il n'avait rien a dire. C'est la
+        // difference avec l'etape non atteinte d'un refus — ici l'etape a eu
+        // lieu, et son resultat est « vide ».
+        $run->assertSee('data-inspector-run-state="success"', false);
+        $run->assertSee('data-inspector-step="context" data-inspector-step-state="done_empty"', false);
+        $run->assertSee(__('ai.inspector_no_sources'));
     }
 
     public function test_the_provenance_of_used_sources_travels_in_the_response_and_never_in_the_session(): void
