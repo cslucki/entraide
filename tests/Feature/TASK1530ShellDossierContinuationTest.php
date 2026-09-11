@@ -111,6 +111,22 @@ class TASK1530ShellDossierContinuationTest extends TestCase
             'ai.providers.openrouter.driver' => 'openrouter',
             'ai.providers.openrouter.key' => 'platform-key',
             'ai_pricing.overrides' => [],
+            // Le test CONSTRUIT son environnement au lieu de l'EMPRUNTER.
+            //
+            // Sans ces deux lignes, les cinq tests qui lisent un prompt reel
+            // passaient en local et rougissaient en CI. Cause mesuree, pas
+            // supposee : en local ces commutateurs viennent de `.env` ; la CI
+            // n'a pas de `.env` et retombe sur les defauts de `config/ai.php`,
+            // qui eteignent le Shell et la clarification. Le tour se termine
+            // alors sans appel fournisseur, donc sans `AiInteraction` — et les
+            // assertions de prompt n'avaient plus rien a lire.
+            //
+            // Reproduction : un worktree SANS `.env`, meme configuration
+            // `phpunit.ci-sqlite.xml`. Ni le shard 2 reconstitue a l'identique
+            // (1838 tests, comme la CI) ni l'execution isolee ne montraient
+            // quoi que ce soit tant que `.env` etait la.
+            'ai.shell.enabled' => true,
+            'ai.clarify.enabled' => true,
         ]);
 
         Http::preventStrayRequests();
