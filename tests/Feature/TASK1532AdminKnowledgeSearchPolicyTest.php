@@ -94,11 +94,20 @@ class TASK1532AdminKnowledgeSearchPolicyTest extends TestCase
         ]));
     }
 
+    /**
+     * Un Dossier, avec le bon PORTEUR.
+     *
+     * PostgreSQL porte la contrainte `dossiers_holder_xor` :
+     * `(owner_id IS NULL) <> (loop_id IS NULL)` — un Dossier est tenu par un
+     * membre OU par une Boucle, jamais par les deux. SQLite ne sait pas
+     * l'exprimer (la migration le dit explicitement), d'ou un faux vert local
+     * tant que la fixture renseignait les deux colonnes.
+     */
     private function dossier(Organization $organization, User $owner, string $name, string $visibility, ?string $loopId = null, ?string $sharedWithLoopId = null): Dossier
     {
         return Dossier::create([
             'organization_id' => $organization->id,
-            'owner_id' => $owner->id,
+            'owner_id' => $loopId === null ? $owner->id : null,
             'name' => $name,
             'visibility' => $visibility,
             'loop_id' => $loopId,
