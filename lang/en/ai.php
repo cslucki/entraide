@@ -938,7 +938,10 @@ return [
      * branch that chooses.
      */
     'reference_resolved' => 'You mean the ":loop" Loop.',
-    'reference_ambiguous' => 'Two projects could match what :personne said. Which one do you mean?',
+    // TASK-1547 — the count is the one of the candidates ACTUALLY rendered.
+    // The resolver offers up to four: hard-coding "Two" lied as soon as three
+    // projects answered, and the list right below it showed the lie.
+    'reference_ambiguous' => ':nombre projects could match what :personne said. Which one do you mean?',
     'reference_correction_ambiguous' => 'Your correction names several of those projects. Which one do you mean?',
     'reference_candidate' => '- **:loop** — ":enonce" (on :date)',
     'reference_corrected_note' => 'Referent corrected at your request.',
