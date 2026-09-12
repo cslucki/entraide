@@ -153,7 +153,9 @@ class TASK1540ClaimMemoryTest extends TestCase
 
     public function test_une_correction_ne_touche_qu_un_seul_claim(): void
     {
-        [$budgetClaim, $autres] = $this->troisClaims();
+        $c = $this->troisClaims();
+        $budgetClaim = $c['budget'];
+        $autres = [$c['date'], $c['fournisseur']];
 
         $correction = $this->message('Correction : le budget travaux passe a 531 000 euros.');
 
@@ -198,8 +200,8 @@ class TASK1540ClaimMemoryTest extends TestCase
 
     public function test_un_retrait_ne_fabrique_aucun_remplacant(): void
     {
-        [$budgetClaim, $autres] = $this->troisClaims();
-        $dateClaim = $autres[0];
+        $c = $this->troisClaims();
+        $dateClaim = $c['date'];
 
         $retrait = $this->message('La date du 15 novembre n est plus valable, et aucune nouvelle date n est confirmee.');
 
@@ -253,7 +255,7 @@ class TASK1540ClaimMemoryTest extends TestCase
 
     public function test_une_identite_inventee_ne_detruit_rien(): void
     {
-        [$budgetClaim] = $this->troisClaims();
+        $this->troisClaims();
         $m = $this->message('On fait le point sur l avancement general du chantier cette semaine.');
 
         $this->fakePatch([
@@ -272,7 +274,7 @@ class TASK1540ClaimMemoryTest extends TestCase
 
     public function test_un_patch_parti_d_une_memoire_perimee_ne_gagne_pas(): void
     {
-        [$budgetClaim] = $this->troisClaims();
+        $budgetClaim = $this->troisClaims()['budget'];
         $correction = $this->message('Correction : le budget travaux passe a 531 000 euros.');
 
         $compiler = app(LoopClaimCompiler::class);
@@ -315,7 +317,7 @@ class TASK1540ClaimMemoryTest extends TestCase
     public function test_l_empreinte_de_memoire_suit_identites_et_versions(): void
     {
         $memory = app(ClaimMemory::class);
-        [$budgetClaim] = $this->troisClaims();
+        $budgetClaim = $this->troisClaims()['budget'];
 
         $avant = $memory->empreinte($memory->actifs($this->organization, $this->loop));
 
@@ -362,7 +364,17 @@ class TASK1540ClaimMemoryTest extends TestCase
 
     // ───────────────────────────────────────────────── helpers
 
-    /** @return array{0: DerivedKnowledgeNote, 1: list<DerivedKnowledgeNote>} */
+    /**
+     * Trois claims, designes par leur CONTENU et jamais par leur position.
+     *
+     * Les trois naissent dans la meme transaction : a la seconde pres, leurs
+     * `created_at` sont identiques et l'ordre rendu par la base n'est pas
+     * deterministe. Une premiere version prenait « le premier des autres »
+     * comme claim de date — verte en local, rouge sur un shard CI qui avait
+     * retracte le fournisseur a la place.
+     *
+     * @return array{budget: DerivedKnowledgeNote, date: DerivedKnowledgeNote, fournisseur: DerivedKnowledgeNote}
+     */
     private function troisClaims(): array
     {
         $budget = $this->message('Le budget travaux vote pour Belleville est de 486 000 euros.');
@@ -377,10 +389,23 @@ class TASK1540ClaimMemoryTest extends TestCase
 
         app(LoopClaimCompiler::class)->compile($this->loop->fresh());
 
-        $claims = DerivedKnowledgeNote::query()->claims()->active()->orderBy('created_at')->get();
-        $budgetClaim = $claims->first(fn (DerivedKnowledgeNote $c): bool => str_contains((string) $c->content, '486 000'));
+        $claims = DerivedKnowledgeNote::query()->claims()->active()->get();
 
-        return [$budgetClaim, $claims->reject(fn ($c) => $c->is($budgetClaim))->values()->all()];
+        $par = static function (string $jeton) use ($claims): DerivedKnowledgeNote {
+            $trouve = $claims->first(fn (DerivedKnowledgeNote $c): bool => str_contains((string) $c->content, $jeton));
+
+            if ($trouve === null) {
+                throw new \RuntimeException("Claim introuvable pour « {$jeton} »");
+            }
+
+            return $trouve;
+        };
+
+        return [
+            'budget' => $par('486 000'),
+            'date' => $par('15 novembre'),
+            'fournisseur' => $par('Vaucanson'),
+        ];
     }
 
     private function message(string $body): LoopMessage
