@@ -912,6 +912,24 @@ return [
     'dossier_manifest_file' => ':type file: :name — Folder ":dossier"',
     'dossier_manifest_file_type_fallback' => 'file',
 
+    /*
+     * TASK-1543 — the [Hn] citation space: HISTORY.
+     *
+     * Distinct from [Mn] (existence) and [Sn] (content), and it must stay that
+     * way: a historical statement does not come from a document, it comes from
+     * a chain of versions whose two ends each carry their own evidence.
+     *
+     * The dates rendered here are HUMAN times — when the statement was made —
+     * never the moment the machine compiled.
+     */
+    'knowledge_delta_header' => '--- WHAT CHANGED IN THE MEMORY OF THE ":loop" LOOP SINCE :depuis ---',
+    'knowledge_delta_since_always' => 'the beginning',
+    'knowledge_delta_added' => 'ADDED on :date: :nouveau',
+    'knowledge_delta_updated' => 'CORRECTED on :date: previously ":ancien"; now ":nouveau"',
+    'knowledge_delta_retracted' => 'WITHDRAWN on :date: ":ancien" no longer holds (:raison). No replacement was stated.',
+    'knowledge_delta_no_reason' => 'no reason stated',
+    'knowledge_delta_source_title' => 'History of the ":loop" Loop, change on :date',
+
     // TASK-1477 — the neutral panel fallback: what the Shell can do, not what it cannot.
     'fab_page_help' => 'Ask your question about what you are looking at: the conversation follows you from page to page.',
 

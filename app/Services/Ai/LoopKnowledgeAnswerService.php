@@ -8,6 +8,7 @@ use App\Ai\CapabilityRegistry;
 use App\Ai\Context\ContextBuilder;
 use App\Ai\Context\DossierManifestSource;
 use App\Ai\Context\DossierRetrievalSource;
+use App\Ai\Context\KnowledgeDeltaSource;
 use App\Ai\ContexteIa;
 use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
@@ -277,7 +278,15 @@ class LoopKnowledgeAnswerService
         // seul a une question de contenu, les deux ensemble a une question
         // mixte. Le refus ci-dessous ne se declenche que si AUCUNE des deux
         // n'a fourni quoi que ce soit.
+        //
+        // TASK-1543 : l'histoire ([Hn]) en fait partie, au meme titre. Une
+        // question de changement peut n'avoir AUCUNE reponse documentaire et
+        // une reponse historique complete — refuser parce que les Dossiers
+        // n'ont rien dit reviendrait a repondre « je n'ai pas trouve » en
+        // tenant la reponse. C'est exactement le defaut que T1307 avait corrige
+        // pour le manifest, et cette liste est l'endroit ou il se reproduit.
         $consulted = [
+            ...$borne->provenanceFor(KnowledgeDeltaSource::NAME),
             ...$borne->provenanceFor(DossierManifestSource::NAME),
             ...$borne->provenanceFor(DossierRetrievalSource::NAME),
         ];
@@ -573,13 +582,13 @@ class LoopKnowledgeAnswerService
     {
         // `[S1](cible)` -> `[S1]`. La cible est jetee : la provenance
         // affichee vient du registre, jamais d'une URL ecrite par le modele.
-        $texte = (string) preg_replace('/\[([SM]\d+)\]\([^)]*\)/', '[$1]', $texte);
+        $texte = (string) preg_replace('/\[([SMH]\d+)\]\([^)]*\)/', '[$1]', $texte);
 
         // `[S1, S2]`, `[S1,S2]`, `[S1 et S2]`, `[S1; S2]` -> `[S1][S2]`.
         return (string) preg_replace_callback(
-            '/\[([SM]\d+(?:\s*(?:,|;|et|and)\s*[SM]\d+)+)\]/i',
+            '/\[([SMH]\d+(?:\s*(?:,|;|et|and)\s*[SMH]\d+)+)\]/i',
             static function (array $groupe): string {
-                preg_match_all('/[SM]\d+/i', $groupe[1], $refs);
+                preg_match_all('/[SMH]\d+/i', $groupe[1], $refs);
 
                 return implode('', array_map(static fn (string $ref): string => '['.$ref.']', $refs[0]));
             },
@@ -607,7 +616,7 @@ class LoopKnowledgeAnswerService
         $connues = array_filter(array_column($consulted, 'ref'));
 
         return trim((string) preg_replace_callback(
-            '/\s*\[([SM]\d+)\]/',
+            '/\s*\[([SMH]\d+)\]/',
             static fn (array $marqueur): string => in_array($marqueur[1], $connues, true) ? $marqueur[0] : '',
             $texte,
         ));
