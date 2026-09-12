@@ -49,7 +49,7 @@ use Tests\TestCase;
  * comme un Article. Or les deux ne se lisent pas pareil. « Le chantier demarre
  * le 14 octobre » n'a pas le meme statut selon qu'il a ete dit il y a trois
  * jours ou il y a huit mois — et c'est precisement la question que le produit
- * vise : « le projet dont Roger parlait MARDI ».
+ * vise : « le projet dont un collegue parlait MARDI ».
  *
  * ## Ce que cette TASK ne construit pas
  *
@@ -318,10 +318,10 @@ class PgvectorTASK1536TemporalDerivedKnowledgeTest extends TestCase
     {
         $message = LoopMessage::query()->where('loop_id', $this->loop->id)->orderBy('created_at')->first();
         $texte = str_contains((string) $message?->body, 'septembre')
-            ? "L entreprise retenue pour la toiture du chantier Belleville est ".self::FAIT_RARE
-                .", avec une pose prevue en septembre 2027."
-            : "L entreprise retenue pour la toiture du chantier Belleville est ".self::FAIT_RARE
-                .", avec une pose prevue en fevrier 2027.";
+            ? 'L entreprise retenue pour la toiture du chantier Belleville est '.self::FAIT_RARE
+                .', avec une pose prevue en septembre 2027.'
+            : 'L entreprise retenue pour la toiture du chantier Belleville est '.self::FAIT_RARE
+                .', avec une pose prevue en fevrier 2027.';
 
         LoopConversationKnowledgeAgent::fake(fn (): TextResponse => new TextResponse(
             $texte, new Usage(50, 20), new Meta('openrouter', 'openai/gpt-4o-mini'),

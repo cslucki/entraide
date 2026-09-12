@@ -732,19 +732,30 @@ class TASK1533AiContextInspectorTest extends TestCase
         // « 9000 ms », une precision au millier pres jamais mesuree.
         //
         // TASK-1536 — la valeur attendue se LIT sur la ligne, elle ne se
-        // reecrit pas en dur. `completed_at` suit l'horloge applicative (donc
-        // le voyage de 9 secondes) tandis que `started_at` vient de
-        // `microtime()`, qu'aucun voyage n'affecte : l'ecart vaut 9 secondes
-        // PLUS la duree reelle de la requete. Sous charge, cette duree
-        // depassait la demi-seconde et l'arrondi rendait 10 — un rouge
-        // intermittent qui n'a jamais rien dit du produit.
+        // reecrit pas en dur : l'ecran doit montrer EXACTEMENT ce que le ledger
+        // a ecrit.
         //
-        // Deriver l'attendu du ledger sert d'ailleurs mieux ce que ce test
-        // affirme : l'ecran montre EXACTEMENT ce que le ledger a ecrit.
+        // TASK-1544 — l'ecart RETRECIT sous charge, il n'augmente pas.
+        //
+        // `travelTo()` FIGE l'horloge applicative sur un instant : `completed_at`
+        // vaut donc T+9 s quelle que soit la duree de la requete. `started_at`,
+        // lui, vient de `microtime()` reel et tombe a T+δ, ou δ est le temps de
+        // demarrage de la requete. L'ecart vaut donc 9 − δ.
+        //
+        // Une premiere lecture du flake avait conclu l'inverse — « 9 PLUS la
+        // duree reelle » — et borne le test par le bas a 9. Sur un runner
+        // charge, δ a depasse la demi-seconde et le ledger a rendu 8 : rouge
+        // intermittent, et toujours rien dit du produit.
+        //
+        // La borne exprime desormais le mecanisme : le voyage doit se voir —
+        // sans lui l'ecart vaudrait zero — sans dependre de la vitesse du
+        // runner.
         $latence = (int) round($invocation->started_at->diffInSeconds($invocation->completed_at));
 
-        $this->assertGreaterThanOrEqual(9, $latence,
-            'le voyage de 9 secondes doit bien se retrouver dans l ecart du ledger');
+        $this->assertGreaterThanOrEqual(5, $latence,
+            'le voyage de 9 secondes doit se voir dans l ecart du ledger : sans lui, il vaudrait zero');
+        $this->assertLessThanOrEqual(9, $latence,
+            'l horloge etant figee, l ecart ne peut pas DEPASSER le voyage');
 
         $run->assertSee('data-inspector-latency="'.$latence.'"', false);
         $run->assertSee($latence.' s');
