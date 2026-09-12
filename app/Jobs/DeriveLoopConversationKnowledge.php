@@ -2,8 +2,10 @@
 
 namespace App\Jobs;
 
+use App\Models\DerivedKnowledgeNote;
 use App\Models\Loop;
-use App\Services\Knowledge\LoopConversationKnowledgeDeriver;
+use App\Services\Knowledge\DerivedKnowledgeNoteIndexer;
+use App\Services\Knowledge\LoopClaimCompiler;
 use App\Support\Ai\AiCorrelation;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -37,7 +39,7 @@ class DeriveLoopConversationKnowledge implements ShouldQueue
         $this->correlationId = $correlationId ?? AiCorrelation::id();
     }
 
-    public function handle(LoopConversationKnowledgeDeriver $deriver): void
+    public function handle(LoopClaimCompiler $compiler, DerivedKnowledgeNoteIndexer $indexer): void
     {
         AiCorrelation::bind($this->correlationId);
 
@@ -47,7 +49,38 @@ class DeriveLoopConversationKnowledge implements ShouldQueue
             return;
         }
 
-        $deriver->derive($loop);
+        // TASK-1541 — le chemin automatique compile desormais des ENONCES.
+        //
+        // Un seul appel, comme avant : le patch remplace le paragraphe, il ne
+        // s'y ajoute pas. Le cout par compilation ne bouge donc pas, et
+        // `knowledge:derive-loop-conversations` reste disponible pour produire
+        // un digest a la demande (compatibilite, CDC §9).
+        $bilan = $compiler->compile($loop);
+
+        if (! ($bilan['applique'] ?? false)) {
+            return;
+        }
+
+        // Le digest de cette Boucle n'est plus servi des lors qu'elle a des
+        // enonces : ses vecteurs partent, sa ligne reste. Sans ce nettoyage, la
+        // bascule laisserait derriere elle un doublon de chaque fait —
+        // l'indexeur refuse deja d'en produire de nouveaux, mais il faut encore
+        // retirer ceux qui existent.
+        //
+        // `synchronize()` plutot que `forget()` : c'est l'indexeur qui sait si
+        // une ligne merite ses vecteurs. Lui passer la decision evite d'ecrire
+        // ici une seconde regle d'eclipse, qui divergerait de la premiere au
+        // premier changement.
+        $digest = DerivedKnowledgeNote::query()
+            ->where('organization_id', $loop->organization_id)
+            ->where('source_loop_id', $loop->id)
+            ->where('kind', DerivedKnowledgeNote::KIND_DIGEST)
+            ->active()
+            ->first();
+
+        if ($digest !== null) {
+            $indexer->synchronize($digest);
+        }
     }
 
     /**

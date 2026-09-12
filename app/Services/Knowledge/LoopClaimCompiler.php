@@ -3,10 +3,12 @@
 namespace App\Services\Knowledge;
 
 use App\Ai\Agents\LoopClaimPatchAgent;
+use App\Ai\CapabilityDefinition;
 use App\Ai\CapabilityRegistry;
 use App\Ai\ContexteIa;
 use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
+use App\Ai\ResolvedModel;
 use App\Models\AdminAiPrompt;
 use App\Models\DerivedKnowledgeNote;
 use App\Models\Loop;
@@ -16,6 +18,7 @@ use App\Services\Ai\AiProviderInvocationLedger;
 use App\Services\Ai\JsonResponseParser;
 use App\Services\Dossiers\DerivedChunkEligibility;
 use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiUsage;
 use DomainException;
@@ -87,6 +90,23 @@ final class LoopClaimCompiler
 
         if ($dossierId === null) {
             return $vide('aucun_dossier_racine');
+        }
+
+        // TASK-1541 — LA garde de cout, et elle vient AVANT le provider.
+        //
+        // Le conteneur de la Boucle porte l'empreinte de la source deja
+        // compilee. Si la source n'a pas bouge, il n'y a rien a apprendre et
+        // rien a depenser : c'est ce qui permet au declencheur automatique de
+        // balayer toutes les dix minutes sans facturer le silence.
+        // `empreinteCompilee` et non l'empreinte de n'importe quel digest : un
+        // paragraphe historique porte la MEME empreinte sur les MEMES messages,
+        // et la lire ici empecherait toute Boucle deja derivee de basculer.
+        $empreinteSource = $this->empreinteSource($messages);
+        $dejaCompilee = $this->memory->empreinteCompilee($organization, $loop);
+
+        if ($dejaCompilee !== null && hash_equals($dejaCompilee, $empreinteSource)) {
+            return ['applique' => true, 'raison' => 'source_inchangee',
+                'ajoutes' => 0, 'modifies' => 0, 'retractes' => 0, 'conserves' => 0, 'rejetees' => []];
         }
 
         // L'etat de depart : ce que la memoire sait AVANT l'appel. Son
@@ -165,6 +185,12 @@ final class LoopClaimCompiler
         );
 
         if (! $patch->aTravaille()) {
+            // Rien ne change, mais la SOURCE a bouge : le conteneur enregistre
+            // qu'elle a ete lue, sinon le prochain balayage rappellerait le
+            // modele pour la meme absence de nouveaute.
+            $this->memory->rafraichirConteneur($organization, $loop, $dossierId,
+                $this->memory->actifs($organization, $loop), $messages, $empreinteSource);
+
             return ['applique' => true, 'raison' => 'rien_a_changer',
                 'ajoutes' => 0, 'modifies' => 0, 'retractes' => 0,
                 'conserves' => count($patch->operationsDe(ClaimPatch::OP_KEEP)),
@@ -173,6 +199,11 @@ final class LoopClaimCompiler
 
         $bilan = $this->memory->appliquer($organization, $loop, $dossierId, $patch, $messages,
             $empreinteDeDepart, $contexte->correlationId);
+
+        if ($bilan['applique']) {
+            $this->memory->rafraichirConteneur($organization, $loop, $dossierId,
+                $this->memory->actifs($organization, $loop), $messages, $empreinteSource);
+        }
 
         return $bilan + ['rejetees' => $patch->rejetees];
     }
@@ -236,6 +267,24 @@ final class LoopClaimCompiler
     }
 
     /**
+     * L'empreinte de l'etat SOURCE — identifiants et dernieres editions.
+     *
+     * Meme idiome que `LoopConversationKnowledgeDeriver` : un message corrige
+     * change l'empreinte, donc redonne lieu a compilation.
+     *
+     * @param  list<LoopMessage>  $messages
+     */
+    private function empreinteSource(array $messages): string
+    {
+        $parts = array_map(
+            static fn (LoopMessage $m): string => $m->id.':'.($m->edited_at?->toIso8601String() ?? $m->created_at?->toIso8601String() ?? ''),
+            $messages,
+        );
+
+        return hash('sha256', implode('|', $parts));
+    }
+
+    /**
      * @return list<LoopMessage>
      */
     private function sourceMessages(Loop $loop): array
@@ -271,10 +320,10 @@ final class LoopClaimCompiler
     private function recordLedger(
         Organization $organization,
         ContexteIa $contexte,
-        \App\Ai\CapabilityDefinition $definition,
-        \App\Ai\ResolvedModel $resolved,
+        CapabilityDefinition $definition,
+        ResolvedModel $resolved,
         AiUsage $usage,
-        ?\App\Support\Ai\AiCost $cost,
+        ?AiCost $cost,
         string $status,
         float $startedAt,
         ?string $failure,

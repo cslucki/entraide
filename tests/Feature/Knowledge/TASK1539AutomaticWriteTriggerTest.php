@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Knowledge;
 
-use App\Ai\Agents\LoopConversationKnowledgeAgent;
+use App\Ai\Agents\LoopClaimPatchAgent;
 use App\Jobs\DeriveLoopConversationKnowledge;
 use App\Models\DerivedKnowledgeNote;
 use App\Models\Loop;
@@ -11,6 +11,9 @@ use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
+use App\Services\Knowledge\DerivedKnowledgeNoteIndexer;
+use App\Services\Knowledge\LoopClaimCompiler;
+use App\Services\Knowledge\LoopConversationKnowledgeDeriver;
 use App\Services\Knowledge\LoopConversationKnowledgeDispatcher;
 use App\Services\Loops\LoopRootDocumentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -116,19 +119,17 @@ class TASK1539AutomaticWriteTriggerTest extends TestCase
         }
 
         $appels = 0;
-        LoopConversationKnowledgeAgent::fake(function () use (&$appels): TextResponse {
-            $appels++;
-
-            return new TextResponse('Huit points ont ete abordes sur le chantier Belleville.',
-                new Usage(30, 12), new Meta('openrouter', 'openai/gpt-4o-mini'));
-        });
+        $this->fakeAgent('Huit points ont ete abordes sur le chantier Belleville.',
+            function () use (&$appels): void {
+                $appels++;
+            });
 
         $dispatches = app(LoopConversationKnowledgeDispatcher::class)->dispatchDue();
 
         $this->assertSame(1, $dispatches, 'une seule Boucle a compiler, donc un seul job');
         $this->assertSame(1, $appels,
             'DEBOUNCE_CALL_COUNT : huit messages rapproches -> UN appel, jamais huit');
-        $this->assertSame(1, DerivedKnowledgeNote::query()->count());
+        $this->assertSame(1, DerivedKnowledgeNote::query()->claims()->active()->count());
     }
 
     public function test_une_conversation_encore_en_cours_n_est_pas_compilee(): void
@@ -138,10 +139,8 @@ class TASK1539AutomaticWriteTriggerTest extends TestCase
         $this->message('Attends, je verifie le chiffre exact avant qu on acte quoi que ce soit.', now()->subMinute());
 
         $appels = 0;
-        LoopConversationKnowledgeAgent::fake(function () use (&$appels): TextResponse {
+        $this->fakeAgent('…', function () use (&$appels): void {
             $appels++;
-
-            return new TextResponse('…', new Usage(30, 12), new Meta('openrouter', 'openai/gpt-4o-mini'));
         });
 
         $this->assertSame(0, app(LoopConversationKnowledgeDispatcher::class)->dispatchDue(),
@@ -154,32 +153,30 @@ class TASK1539AutomaticWriteTriggerTest extends TestCase
     {
         $this->message('Le budget travaux vote pour Belleville est de 486 000 euros.', now()->subHour());
 
-        $this->fakeAgent('Budget 486 000 euros.');
+        $this->fakeAgent('Le budget travaux de Belleville est de 486 000 euros.');
         app(LoopConversationKnowledgeDispatcher::class)->dispatchDue();
-        $this->assertSame(1, DerivedKnowledgeNote::query()->count());
+        $this->assertSame(1, DerivedKnowledgeNote::query()->claims()->active()->count());
 
         // « ok » n'apporte aucun fait : il n'entre meme pas dans la source.
         $this->message('ok', now()->subMinutes(30));
         $this->message('merci 👍', now()->subMinutes(29));
 
         $appels = 0;
-        LoopConversationKnowledgeAgent::fake(function () use (&$appels): TextResponse {
+        $this->fakeAgent('…', function () use (&$appels): void {
             $appels++;
-
-            return new TextResponse('…', new Usage(30, 12), new Meta('openrouter', 'openai/gpt-4o-mini'));
         });
 
         app(LoopConversationKnowledgeDispatcher::class)->dispatchDue();
 
         $this->assertSame(0, $appels,
             'un « ok » ou un emoji ne doit jamais declencher un appel de modele');
-        $this->assertSame(1, DerivedKnowledgeNote::query()->count());
+        $this->assertSame(1, DerivedKnowledgeNote::query()->claims()->active()->count());
     }
 
     public function test_une_boucle_deja_a_jour_n_est_pas_redispatchee(): void
     {
         $this->message('Le budget travaux vote pour Belleville est de 486 000 euros.', now()->subHour());
-        $this->fakeAgent('Budget 486 000 euros.');
+        $this->fakeAgent('Le budget travaux de Belleville est de 486 000 euros.');
 
         $dispatcher = app(LoopConversationKnowledgeDispatcher::class);
         $this->assertSame(1, $dispatcher->dispatchDue());
@@ -214,13 +211,18 @@ class TASK1539AutomaticWriteTriggerTest extends TestCase
     public function test_rejouer_le_job_ne_produit_pas_une_seconde_note(): void
     {
         $this->message('Le budget travaux vote pour Belleville est de 486 000 euros.', now()->subHour());
-        $this->fakeAgent('Budget 486 000 euros.');
+        $this->fakeAgent('Le budget travaux de Belleville est de 486 000 euros.');
 
         $job = new DeriveLoopConversationKnowledge((string) $this->loop->id);
-        $job->handle(app(\App\Services\Knowledge\LoopConversationKnowledgeDeriver::class));
-        $job->handle(app(\App\Services\Knowledge\LoopConversationKnowledgeDeriver::class));
+        $lancer = fn (): null => $job->handle(
+            app(LoopClaimCompiler::class),
+            app(DerivedKnowledgeNoteIndexer::class),
+        );
 
-        $this->assertSame(1, DerivedKnowledgeNote::query()->count(),
+        $lancer();
+        $lancer();
+
+        $this->assertSame(1, DerivedKnowledgeNote::query()->claims()->active()->count(),
             'un retry ne doit pas dupliquer la connaissance');
     }
 
@@ -247,10 +249,8 @@ class TASK1539AutomaticWriteTriggerTest extends TestCase
         $this->message('Le budget travaux vote pour Belleville est de 486 000 euros.', now()->subHour());
 
         $appels = 0;
-        LoopConversationKnowledgeAgent::fake(function () use (&$appels): TextResponse {
+        $this->fakeAgent('…', function () use (&$appels): void {
             $appels++;
-
-            return new TextResponse('…', new Usage(30, 12), new Meta('openrouter', 'openai/gpt-4o-mini'));
         });
 
         app(LoopConversationKnowledgeDispatcher::class)->dispatchDue();
@@ -334,10 +334,39 @@ class TASK1539AutomaticWriteTriggerTest extends TestCase
         return $m;
     }
 
-    private function fakeAgent(string $texte): void
+    /**
+     * TASK-1541 — le chemin automatique compile des ENONCES.
+     *
+     * Les proprietes mesurees ici n'ont pas bouge d'un pouce : une fenetre
+     * d'inactivite, un appel pour N messages, zero appel pour un « ok », pas de
+     * redispatch d'une Boucle a jour. Seul a change l'agent qui les porte — et
+     * c'est precisement pour cela que ces tests doivent suivre le chemin reel
+     * plutot que rester verts sur un agent que plus personne n'appelle.
+     *
+     * Le patch reprend le texte demande : un ADD dont la preuve est le dernier
+     * message assez long. Un patch sans preuve valide serait rejete, et
+     * « aucun enonce ecrit » se confondrait avec « aucun appel ».
+     */
+    private function fakeAgent(string $texte, ?callable $compteur = null): void
     {
-        LoopConversationKnowledgeAgent::fake(fn (): TextResponse => new TextResponse(
-            $texte, new Usage(30, 12), new Meta('openrouter', 'openai/gpt-4o-mini'),
-        ));
+        LoopClaimPatchAgent::fake(function () use ($texte, $compteur): TextResponse {
+            if ($compteur !== null) {
+                $compteur();
+            }
+
+            $preuve = LoopMessage::query()
+                ->where('loop_id', $this->loop->id)
+                ->where('type', 'user')
+                ->whereRaw('length(trim(body)) >= ?', [LoopConversationKnowledgeDeriver::MIN_MESSAGE_CHARS])
+                ->orderByDesc('created_at')
+                ->value('id');
+
+            return new TextResponse(
+                (string) json_encode(['operations' => [
+                    ['op' => 'ADD', 'text' => $texte, 'evidence' => [(string) $preuve]],
+                ]], JSON_UNESCAPED_UNICODE),
+                new Usage(30, 12), new Meta('openrouter', 'openai/gpt-4o-mini'),
+            );
+        });
     }
 }

@@ -6,6 +6,7 @@ use App\Models\DerivedKnowledgeNote;
 use App\Models\Loop;
 use App\Models\LoopMessage;
 use App\Models\Organization;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -44,6 +45,141 @@ final class ClaimMemory
     public function __construct(
         private readonly DerivedKnowledgeNoteIndexer $indexer,
     ) {}
+
+    /**
+     * Le conteneur conversationnel de la Boucle — le « digest ».
+     *
+     * Il n'est plus compile par un modele : il est RECONSTRUIT localement a
+     * partir des enonces, donc gratuitement. Il garde trois roles que le CDC
+     * lui reconnait (§9) — conteneur, repli, provenance agregee — et en prend
+     * un quatrieme, decisif : il porte l'empreinte de la source deja compilee.
+     *
+     * Sans ce porteur, chaque balayage rappellerait le modele, y compris quand
+     * rien n'a change. La propriete « un « ok » ne coute rien » de T1539
+     * tomberait, et avec elle le declenchement automatique.
+     *
+     * Il n'est pas indexe tant que des enonces existent : les deux porteraient
+     * la meme connaissance, et le digest — vecteur moyenne — irait concurrencer
+     * l'enonce precis qui repond vraiment.
+     */
+    public function conteneur(Organization $organization, Loop $loop): ?DerivedKnowledgeNote
+    {
+        return DerivedKnowledgeNote::query()
+            ->where('organization_id', $organization->id)
+            ->where('source_type', DerivedKnowledgeNote::SOURCE_LOOP_CONVERSATION)
+            ->where('source_loop_id', $loop->id)
+            ->where('kind', DerivedKnowledgeNote::KIND_DIGEST)
+            ->active()
+            ->first();
+    }
+
+    /**
+     * Le marqueur qui distingue un conteneur d'enonces d'un digest historique.
+     *
+     * Il est lu par l'indexeur : un conteneur n'est JAMAIS servi, meme quand la
+     * Boucle n'a plus aucun enonce actif. Sans ce marquage, une Boucle dont
+     * tous les enonces ont ete retractes verrait reapparaitre, en retrieval, le
+     * paragraphe qui les enoncait encore — une connaissance explicitement
+     * retiree, ressuscitee par un repli.
+     */
+    public const CONTENEUR = 'claim_container';
+
+    /**
+     * L'empreinte de la source deja compilee EN ENONCES — jamais autre chose.
+     *
+     * La distinction est tout sauf formelle. Un digest historique porte une
+     * empreinte calculee par le MEME algorithme sur les MEMES messages : la
+     * comparer sans regarder d'ou elle vient ferait court-circuiter chaque
+     * Boucle deja derivee en paragraphe, qui ne basculerait donc jamais en
+     * enonces. C'est-a-dire toutes celles qui existent aujourd'hui.
+     *
+     * Une empreinte ne dit pas « cette source a ete lue » : elle dit « cette
+     * source a ete compilee PAR CE CHEMIN-LA ».
+     */
+    public function empreinteCompilee(Organization $organization, Loop $loop): ?string
+    {
+        $conteneur = $this->conteneur($organization, $loop);
+
+        if ($conteneur === null || ($conteneur->provenance['derived_by'] ?? null) !== self::CONTENEUR) {
+            return null;
+        }
+
+        return (string) $conteneur->source_fingerprint;
+    }
+
+    /**
+     * Reconstruit le conteneur apres une compilation reussie. Aucun appel.
+     *
+     * @param  list<DerivedKnowledgeNote>  $claims  la memoire telle qu'elle est apres le patch
+     * @param  list<LoopMessage>  $messages  la source qui vient d'etre lue
+     */
+    public function rafraichirConteneur(
+        Organization $organization,
+        Loop $loop,
+        string $dossierId,
+        array $claims,
+        array $messages,
+        string $empreinteSource,
+    ): void {
+        $contenu = trim(implode(' ', array_map(
+            static fn (DerivedKnowledgeNote $c): string => rtrim(trim((string) $c->content), '.').'.',
+            $claims,
+        )));
+
+        // `observed_at` du conteneur = jusqu'ou la SOURCE a ete lue, et non la
+        // date du dernier enonce.
+        //
+        // Le balayeur de T1539 compare cette date a la derniere activite
+        // humaine pour decider si une Boucle est due. La caler sur les enonces
+        // la ferait retarder des qu'un message assez long n'apporte aucun fait
+        // — « attends, je verifie le chiffre avant qu'on acte » — et la Boucle
+        // resterait due a chaque balayage, indefiniment. Le court-circuit
+        // d'empreinte empecherait la depense, mais la file tournerait a vide et
+        // la metrique de retard ne voudrait plus rien dire.
+        //
+        // C'est exactement ce que le digest faisait, et il avait raison.
+        $observe = $this->observeA($messages);
+
+        // Zero enonce actif n'autorise pas a garder l'ancien texte : ce serait
+        // rendre a nouveau lisible ce qu'un RETRACT vient d'effacer.
+        $contenu = $contenu !== '' ? $contenu : '(aucun enonce actif)';
+
+        $provenance = ['derived_by' => self::CONTENEUR, 'claim_count' => count($claims)];
+
+        $existant = $this->conteneur($organization, $loop);
+
+        if ($existant !== null) {
+            $existant->forceFill([
+                'content' => $contenu,
+                'source_fingerprint' => $empreinteSource,
+                'observed_at' => $observe,
+                'derived_at' => now(),
+                'provenance' => $provenance,
+            ])->save();
+
+            return;
+        }
+
+        DerivedKnowledgeNote::create([
+            'organization_id' => $organization->id,
+            'source_type' => DerivedKnowledgeNote::SOURCE_LOOP_CONVERSATION,
+            'kind' => DerivedKnowledgeNote::KIND_DIGEST,
+            'source_loop_id' => $loop->id,
+            'dossier_id' => $dossierId,
+            'subject_key' => DerivedKnowledgeNote::SUBJECT_DIGEST,
+            'content' => $contenu,
+            'source_fingerprint' => $empreinteSource,
+            'provenance' => $provenance,
+            'observed_at' => $observe,
+            'derived_at' => now(),
+            // Jamais 1 en dur : un digest archive occupe deja cette version, et
+            // `derived_notes_unique_version` porte (org, type, loop, sujet,
+            // version). La collision serait silencieuse en test SQLite et
+            // fatale en PostgreSQL.
+            'version' => $this->prochaineVersion($organization, $loop, DerivedKnowledgeNote::SUBJECT_DIGEST),
+            'status' => DerivedKnowledgeNote::STATUS_ACTIVE,
+        ]);
+    }
 
     /**
      * Les claims actifs d'une Boucle, du plus recemment observe au plus ancien.
@@ -125,11 +261,28 @@ final class ClaimMemory
             $observeA = $this->observeA($messages);
             $preuvesDe = fn (array $op): array => $this->preuves($op, $messages, $correlationId);
 
+            // TASK-1541 — chaque enonce est date par SA PROPRE preuve.
+            //
+            // Le digest n'avait qu'une date possible : celle du tour. Un claim
+            // en a une meilleure, et elle est deja calculee — le moment ou le
+            // message qui l'etablit a ete ecrit. Prendre le max du tour
+            // daterait d'aujourd'hui un fait dit il y a trois mois, et c'est
+            // precisement la date que le lecteur voit (`derivedTitle`, T1536)
+            // et sur laquelle il juge la fraicheur.
+            $dateDe = function (array $provenance) use ($observeA): \DateTimeInterface {
+                $depuisPreuve = $provenance['observed_from_evidence'] ?? null;
+
+                return $depuisPreuve === null
+                    ? $observeA
+                    : Carbon::parse((string) $depuisPreuve);
+            };
+
             $ajoutes = $modifies = $retractes = 0;
 
             foreach ($patch->operationsDe(ClaimPatch::OP_ADD) as $op) {
+                $preuves = $preuvesDe($op);
                 $this->creer($organization, $loop, $dossierId, (string) Str::uuid(), 1, (string) $op['text'],
-                    $preuvesDe($op), $observeA, $aIndexer);
+                    $preuves, $dateDe($preuves), $aIndexer);
                 $ajoutes++;
             }
 
@@ -140,10 +293,11 @@ final class ClaimMemory
                     continue;
                 }
 
+                $preuves = $preuvesDe($op);
                 $this->archiver($ancien);
                 $nouveau = $this->creer($organization, $loop, $dossierId, (string) $ancien->subject_key,
                     $this->prochaineVersion($organization, $loop, (string) $ancien->subject_key),
-                    (string) $op['text'], $preuvesDe($op), $observeA, $aIndexer);
+                    (string) $op['text'], $preuves, $dateDe($preuves), $aIndexer);
 
                 $ancien->forceFill(['superseded_by_id' => $nouveau->id])->save();
                 $this->indexer->forget($ancien);

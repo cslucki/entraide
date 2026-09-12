@@ -3,10 +3,12 @@
 namespace App\Services\Knowledge;
 
 use App\Ai\Agents\LoopConversationKnowledgeAgent;
+use App\Ai\CapabilityDefinition;
 use App\Ai\CapabilityRegistry;
 use App\Ai\ContexteIa;
 use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
+use App\Ai\ResolvedModel;
 use App\Models\AdminAiPrompt;
 use App\Models\DerivedKnowledgeNote;
 use App\Models\Loop;
@@ -15,6 +17,7 @@ use App\Models\Organization;
 use App\Services\Ai\AiProviderInvocationLedger;
 use App\Services\Dossiers\DerivedChunkEligibility;
 use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiUsage;
@@ -410,6 +413,10 @@ final class LoopConversationKnowledgeDeriver
             $note = DerivedKnowledgeNote::create([
                 'organization_id' => $organization->id,
                 'source_type' => DerivedKnowledgeNote::SOURCE_LOOP_CONVERSATION,
+                // Explicite, meme si la colonne et le modele le defaussent :
+                // ce chemin PRODUIT un paragraphe, et le dire ici evite de
+                // dependre d'un defaut pour une regle d'indexation.
+                'kind' => DerivedKnowledgeNote::KIND_DIGEST,
                 'source_loop_id' => $loop->id,
                 'dossier_id' => $dossierId,
                 'subject_key' => self::SUBJECT_CONVERSATION_DIGEST,
@@ -476,10 +483,10 @@ final class LoopConversationKnowledgeDeriver
     private function recordLedger(
         Organization $organization,
         ContexteIa $contexte,
-        \App\Ai\CapabilityDefinition $definition,
-        \App\Ai\ResolvedModel $resolved,
+        CapabilityDefinition $definition,
+        ResolvedModel $resolved,
         AiUsage $usage,
-        ?\App\Support\Ai\AiCost $cost,
+        ?AiCost $cost,
         string $status,
         float $startedAt,
         ?string $failure,
