@@ -135,15 +135,30 @@ class TASK1546PeopleAndSelfTest extends TestCase
 
     public function test_une_phrase_qui_porte_les_deux_formes_est_une_question_sur_soi(): void
     {
-        $prompt = 'Et moi, je pourrais aider ?';
+        $prompt = 'Qui pourrait les aider, et moi ?';
 
+        // PREMISSE : la phrase porte REELLEMENT les deux formes. Sans cette
+        // verification, le test mesurerait une precedence qui n'a jamais lieu.
+        $this->assertTrue(PeopleQuestionShape::isPeople($prompt));
         $this->assertTrue(PeopleQuestionShape::isSelf($prompt));
+
+        $this->profilPublie($this->camille, ['Charpente traditionnelle']);
+        $this->profilPublie($this->salome, ['Charpente traditionnelle']);
 
         $this->referentResolu();
         $tour = $this->demander($prompt);
 
         $this->assertSame(AiShellResponder::PRODUCER_SELF_MATCHING, $tour->metadata['producer'] ?? null,
-            'la personne interroge sa PROPRE place : rendre une liste d autres membres serait repondre a cote');
+            '« et moi » est la clause qui retrecit : la personne s inscrit explicitement dans la question');
+        $this->assertStringNotContainsString('Salome', $tour->content);
+    }
+
+    public function test_la_forme_naturelle_de_la_question_sur_soi_ne_depend_d_aucune_precedence(): void
+    {
+        // « Et moi, je pourrais aider ? » ne porte QUE la forme SELF : aucun
+        // marqueur de demande de personnes n'y figure.
+        $this->assertTrue(PeopleQuestionShape::isSelf('Et moi, je pourrais aider ?'));
+        $this->assertFalse(PeopleQuestionShape::isPeople('Et moi, je pourrais aider ?'));
     }
 
     // ──────────────────────────────── le referent herite
