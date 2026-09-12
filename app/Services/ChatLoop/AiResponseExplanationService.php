@@ -6,10 +6,12 @@ use App\Ai\CapabilityRegistry;
 use App\Ai\Context\DossierAccessScope;
 use App\Models\AiInteraction;
 use App\Models\AiInteractionFeedback;
+use App\Models\DerivedKnowledgeNote;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\User;
+use App\Services\Knowledge\ClaimProvenanceReader;
 
 /**
  * TASK-1328 — « Pourquoi cette réponse ? » (Premium-2 / AI Quality V1).
@@ -56,7 +58,10 @@ final class AiResponseExplanationService
         CapabilityRegistry::LOOP_HYBRID_ANSWER,
     ];
 
-    public function __construct(private readonly DossierAccessScope $scope) {}
+    public function __construct(
+        private readonly DossierAccessScope $scope,
+        private readonly ClaimProvenanceReader $claims,
+    ) {}
 
     /**
      * L'explication bornée d'une bulle IA, ou `null` si ce spectateur n'a
@@ -229,6 +234,10 @@ final class AiResponseExplanationService
             'doctrine_version' => is_int($imeta['doctrine_version'] ?? null) ? $imeta['doctrine_version'] : null,
             'conversation' => is_array($messageIds) ? $this->conversationPanel($loop, $messageIds) : null,
             'documents' => ['applies' => false],
+            // TASK-1549 : un chemin LLM pur ne cite aucun chunk — la section
+            // mémoire ne s'applique pas, et ne simule jamais une absence.
+            'memory' => null,
+            'unreachable_count' => 0,
             'denied_count' => is_array($imeta['sources_denied'] ?? null) ? count($imeta['sources_denied']) : 0,
         ];
     }
@@ -258,8 +267,199 @@ final class AiResponseExplanationService
             'doctrine_version' => is_int($imeta['doctrine_version'] ?? null) ? $imeta['doctrine_version'] : null,
             'conversation' => is_array($contextIds) ? $this->conversationPanel($loop, $contextIds) : null,
             'documents' => $retrieval === null ? null : $this->documentsPanel($loop, $retrieval, $message, $viewer),
+            'memory' => $retrieval === null ? null : $this->memoryPanel($loop, $retrieval, $message, $viewer),
+            // TASK-1549 (remédiation) — le TROISIÈME état, au niveau du ledger
+            // et non de la section mémoire : une source citée dont la ligne a
+            // disparu n'a plus d'origine prouvable, donc elle se dit SANS
+            // nommer de famille. La placer dans « Mémoire de BouclePro »
+            // revenait à affirmer une mémoire qu'on ne peut plus établir.
+            'unreachable_count' => $retrieval === null ? 0 : $this->unreachableCitedCount($loop, $retrieval),
             'denied_count' => is_array($imeta['sources_denied'] ?? null) ? count($imeta['sources_denied']) : 0,
         ];
+    }
+
+    /**
+     * Les sources citées dont la ligne `dossier_chunks` n'existe plus —
+     * réindexation d'un Article, fichier supprimé, supersession d'une note
+     * dérivée. Comptées TOUTES FAMILLES CONFONDUES, et c'est délibéré : la FK
+     * qui aurait permis de discriminer est partie avec la ligne.
+     *
+     * C'est la dette W5/TRACE-0 rendue honnêtement : tant que la trace ne
+     * portera pas l'identité de la note, ce compte ne peut pas dire s'il
+     * s'agissait d'un document ou d'une mémoire — alors il ne le dit pas.
+     *
+     * @param  array<string, mixed>  $retrieval
+     */
+    private function unreachableCitedCount(Loop $loop, array $retrieval): int
+    {
+        $organization = $loop->organization;
+
+        if ($organization === null) {
+            return 0;
+        }
+
+        $cited = is_array($retrieval['cited'] ?? null) ? array_values($retrieval['cited']) : [];
+        $count = 0;
+
+        foreach ($cited as $entry) {
+            $chunkId = is_array($entry) ? ($entry['chunk_id'] ?? null) : null;
+
+            if (! is_string($chunkId) || $chunkId === '') {
+                continue;
+            }
+
+            if (! $this->claims->citedChunkStillExists((string) $organization->id, $chunkId)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * TASK-1549 — la section « Mémoire de BouclePro » du panneau : parmi les
+     * sources citées, celles qui sont une MÉMOIRE DURABLE — reconnues côté
+     * lecture par la FK `derived_knowledge_note_id` de leur chunk, jamais par
+     * la forme publique (`type = 'retrieval'` ne distingue rien, dette CDC).
+     *
+     * ## Le discriminateur est POSITIF (remédiation TASK-1549)
+     *
+     * Une citation n'entre ici QUE si `noteFromChunk()` la reconnaît : chunk
+     * vivant, portant la FK, pointant un claim. Tout le reste — document
+     * ordinaire, digest non adressable, et surtout **chunk disparu** — sort en
+     * silence de cette section.
+     *
+     * Le cas du chunk disparu était le défaut : sa ligne emporte sa FK, donc
+     * son origine n'est plus établissable, et le compter ici faisait apparaître
+     * « Mémoire de BouclePro » sur une réponse n'ayant cité que des documents.
+     * Il est désormais compté au niveau du ledger
+     * ({@see self::unreachableCitedCount()}), sans nommer de famille.
+     *
+     * Deux issues seulement subsistent donc ici :
+     *  - mémoire résolue : provenance complète du lecteur standard ;
+     *  - mémoire résolue mais ACL de la Boucle source tombée : refus GÉNÉRIQUE,
+     *    compté, sans auteur ni titre ni contenu.
+     *
+     * `null` quand aucune mémoire n'est prouvée : la section n'apparaît pas, et
+     * ne prétend jamais montrer « tout ce que BouclePro sait ».
+     *
+     * @param  array<string, mixed>  $retrieval
+     * @return array{entries: list<array<string, mixed>>, denied_count: int}|null
+     */
+    private function memoryPanel(Loop $loop, array $retrieval, LoopMessage $message, User $viewer): ?array
+    {
+        $organization = $loop->organization;
+
+        if ($organization === null) {
+            return null;
+        }
+
+        $cited = is_array($retrieval['cited'] ?? null) ? array_values($retrieval['cited']) : [];
+        $publicSources = $message->metadata['sources'] ?? null;
+        $publicSources = is_array($publicSources) ? array_values($publicSources) : [];
+        $pairable = $cited !== [] && count($publicSources) === count($cited);
+
+        $entries = [];
+        $deniedCount = 0;
+
+        foreach ($cited as $index => $entry) {
+            $chunkId = is_array($entry) ? ($entry['chunk_id'] ?? null) : null;
+
+            if (! is_string($chunkId) || $chunkId === '') {
+                continue;
+            }
+
+            // LA porte d'entrée, et la seule. Un `null` ici veut dire « rien ne
+            // prouve que cette source soit une mémoire durable adressable » —
+            // qu'elle soit un document, un digest, ou une ligne disparue. Dans
+            // les trois cas la section se tait.
+            $note = $this->claims->noteFromChunk((string) $organization->id, $chunkId);
+
+            if ($note === null) {
+                continue;
+            }
+
+            $provenance = $this->claims->provenance($organization, $loop, $note, $viewer);
+
+            if ($provenance['state'] === 'denied') {
+                $deniedCount++;
+
+                continue;
+            }
+
+            $public = $pairable ? ($publicSources[$index] ?? null) : null;
+            $ref = is_array($public) && is_string($public['ref'] ?? null) && $public['ref'] !== ''
+                ? $public['ref']
+                : null;
+
+            $entries[] = ['ref' => $ref, ...$provenance];
+        }
+
+        if ($entries === [] && $deniedCount === 0) {
+            return null;
+        }
+
+        return [
+            'entries' => $entries,
+            'denied_count' => $deniedCount,
+        ];
+    }
+
+    /**
+     * TASK-1549 — résolution serveur d'un geste `Corriger` : la référence
+     * AFFICHÉE (`S1`…) redevient la note dérivée citée, toutes gardes
+     * refaites MAINTENANT — spectateur légitime, trace cohérente, appariement
+     * prouvable, chunk encore vivant, ACL de la Boucle source. `null` sinon :
+     * le composant traduit, il ne décide pas. `subject_key` reste dans la
+     * note, côté serveur — il n'entre jamais dans le snapshot Livewire.
+     */
+    public function citedMemoryNote(Loop $loop, LoopMessage $message, User $viewer, string $ref): ?DerivedKnowledgeNote
+    {
+        if ($ref === '' || ! $this->canView($loop, $message, $viewer)) {
+            return null;
+        }
+
+        $organization = $loop->organization;
+        $interaction = $this->trustedInteraction($loop, $message);
+
+        if ($organization === null || $interaction === null) {
+            return null;
+        }
+
+        $retrieval = $interaction->metadata['retrieval'] ?? null;
+        $cited = is_array($retrieval) && is_array($retrieval['cited'] ?? null) ? array_values($retrieval['cited']) : [];
+        $publicSources = $message->metadata['sources'] ?? null;
+        $publicSources = is_array($publicSources) ? array_values($publicSources) : [];
+
+        if ($cited === [] || count($publicSources) !== count($cited)) {
+            return null;
+        }
+
+        foreach ($cited as $index => $entry) {
+            $public = $publicSources[$index] ?? null;
+
+            if (! is_array($public) || ($public['ref'] ?? null) !== $ref) {
+                continue;
+            }
+
+            $chunkId = is_array($entry) ? ($entry['chunk_id'] ?? null) : null;
+
+            if (! is_string($chunkId) || $chunkId === '') {
+                return null;
+            }
+
+            $note = $this->claims->noteFromChunk((string) $organization->id, $chunkId);
+
+            if ($note === null) {
+                return null;
+            }
+
+            $provenance = $this->claims->provenance($organization, $loop, $note, $viewer);
+
+            return $provenance['state'] === 'denied' ? null : $note;
+        }
+
+        return null;
     }
 
     /**

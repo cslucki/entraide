@@ -43,8 +43,17 @@ final class ClaimPatch
 
     private const OPS = [self::OP_ADD, self::OP_UPDATE, self::OP_RETRACT, self::OP_KEEP];
 
-    /** Un enonce plus court ne se tient pas seul. */
-    private const MIN_TEXTE = 15;
+    /**
+     * Un enonce plus court ne se tient pas seul.
+     *
+     * PUBLIC depuis la remediation TASK-1549 — visibilite elargie, regle
+     * INCHANGEE. Une surface qui propose d'ecrire un enonce doit pouvoir
+     * refuser AVANT d'appeler le moteur : sinon le message humain est deja
+     * publie quand `valider()` rejette, et la personne lit un conflit invente
+     * a la place de la contrainte reelle. La borne reste definie ICI, une
+     * seule fois — la recopier dans le composant l'aurait laissee deriver.
+     */
+    public const MIN_TEXTE = 15;
 
     /** Borne dure : un tour ne reecrit pas une memoire entiere. */
     private const MAX_OPERATIONS = 40;

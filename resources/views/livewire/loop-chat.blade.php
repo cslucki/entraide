@@ -896,6 +896,131 @@
                                 @endif
                             </div>
 
+                            {{-- TASK-1549 : la mémoire durable citée par cette réponse.
+                                 Seuls les chunks portant une FK de note dérivée entrent
+                                 ici (discriminateur côté lecture, jamais la forme
+                                 publique) ; un refus d'ACL est générique, une trace
+                                 injoignable a son propre wording — et rien ici ne
+                                 prétend montrer tout ce que BouclePro sait. --}}
+                            @php($whyMemory = $whyPanel['ledger']['memory'] ?? null)
+                            @if($whyMemory !== null)
+                            <div class="rounded-xl border border-violet-200 bg-violet-50/40 p-3 text-xs dark:border-violet-900/40 dark:bg-violet-950/20" data-why-memory>
+                                <p class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                                    <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>
+                                    {{ __('loops.why_memory_title') }}
+                                </p>
+                                @if($whyMemory['entries'] !== [])
+                                <ul class="mt-2 space-y-2">
+                                    @foreach($whyMemory['entries'] as $entry)
+                                    <li class="rounded-lg border border-violet-200/70 bg-white px-2.5 py-2 dark:border-violet-800/50 dark:bg-gray-900" data-why-memory-entry data-memory-state="{{ $entry['state'] }}">
+                                        <p class="leading-5">
+                                            @if($entry['ref'])<span class="font-mono text-[10px] text-violet-700 dark:text-violet-300">[{{ $entry['ref'] }}]</span>@endif
+                                            <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $entry['statement'] }}</span>
+                                        </p>
+                                        <p class="mt-1 text-[11px] leading-4 text-gray-500 dark:text-gray-400">
+                                            @if($entry['observed_at']){{ __('loops.why_memory_observed', ['date' => $entry['observed_at']]) }} · @endif
+                                            @if($entry['same_loop']){{ __('loops.why_memory_scope_here') }}@else{{ __('loops.why_memory_scope_other', ['loop' => $entry['loop_name']]) }}@endif
+                                        </p>
+                                        @if($entry['evolved_since_answer'])
+                                        <p class="mt-1 text-[11px] leading-4 text-amber-700 dark:text-amber-300" data-memory-evolved>{{ __('loops.why_memory_evolved') }}</p>
+                                        @endif
+                                        @if($entry['state'] === 'retracted')
+                                        <p class="mt-1 text-[11px] leading-4 text-amber-700 dark:text-amber-300" data-memory-retracted>{{ __('loops.why_memory_retracted') }}</p>
+                                        @endif
+                                        @if($entry['evidence_message_ids'] !== [])
+                                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5" data-memory-evidence>
+                                            @foreach($entry['evidence_message_ids'] as $evidenceId)
+                                            <button type="button" wire:click="showMessageInThread('{{ $evidenceId }}')"
+                                                    class="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800">
+                                                {{ __('loops.why_memory_evidence', ['n' => $loop->iteration]) }}
+                                            </button>
+                                            @endforeach
+                                        </div>
+                                        @endif
+                                        @if($entry['corrections'] !== [])
+                                        <div class="mt-1.5 space-y-0.5" data-memory-corrections>
+                                            @foreach($entry['corrections'] as $correctionEvent)
+                                            <p class="text-[11px] leading-4 text-gray-500 dark:text-gray-400">
+                                                {{ $correctionEvent['by_name'] !== null
+                                                    ? __('loops.why_memory_corrected_by', ['name' => $correctionEvent['by_name'], 'date' => $correctionEvent['at'] ?? '—'])
+                                                    : __('loops.why_memory_corrected', ['date' => $correctionEvent['at'] ?? '—']) }}
+                                                @if($correctionEvent['message_id'] !== null && $entry['same_loop'])
+                                                <button type="button" wire:click="showMessageInThread('{{ $correctionEvent['message_id'] }}')"
+                                                        class="font-semibold text-violet-700 underline decoration-dotted underline-offset-2 dark:text-violet-300">
+                                                    {{ __('loops.why_memory_see_correction') }}
+                                                </button>
+                                                @endif
+                                            </p>
+                                            @endforeach
+                                        </div>
+                                        @endif
+                                        @if($whyCanCorrect && $entry['can_correct'] && $entry['ref'] !== null)
+                                            @if($correctingRef === $entry['ref'])
+                                            <form wire:submit.prevent="submitCorrection" class="mt-2 space-y-2 rounded-lg border border-violet-200 bg-violet-50/60 p-2.5 dark:border-violet-800/50 dark:bg-violet-950/30" data-correct-form>
+                                                <p class="text-[11px] font-semibold text-gray-900 dark:text-gray-100">{{ __('loops.correct_form_title') }}</p>
+                                                <p class="text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ __('loops.correct_scope') }} {{ __('loops.correct_form_note') }}</p>
+                                                <div class="flex flex-wrap gap-3 text-[11px] text-gray-700 dark:text-gray-300">
+                                                    <label class="inline-flex items-center gap-1.5"><input type="radio" wire:model.live="correctingMode" value="update" class="h-3 w-3">{{ __('loops.correct_mode_update') }}</label>
+                                                    <label class="inline-flex items-center gap-1.5"><input type="radio" wire:model.live="correctingMode" value="retract" class="h-3 w-3">{{ __('loops.correct_mode_retract') }}</label>
+                                                </div>
+                                                @if($correctingMode === 'update')
+                                                <div>
+                                                    <label for="correction-new-text" class="block text-[11px] font-medium text-gray-700 dark:text-gray-300">{{ __('loops.correct_new_text_label') }}</label>
+                                                    <input type="text" id="correction-new-text" wire:model="correctionNewText" data-correct-new-text
+                                                           class="mt-1 w-full rounded-lg border-gray-300 text-xs dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                                                    @error('correctionNewText')<p class="mt-0.5 text-[11px] text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
+                                                </div>
+                                                @endif
+                                                <div>
+                                                    <label for="correction-text" class="block text-[11px] font-medium text-gray-700 dark:text-gray-300">{{ __('loops.correct_text_label') }}</label>
+                                                    <textarea wire:model="correctionText" id="correction-text" rows="2" data-correct-text placeholder="{{ __('loops.correct_text_placeholder') }}"
+                                                              class="mt-1 w-full rounded-lg border-gray-300 text-xs dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"></textarea>
+                                                    @error('correctionText')<p class="mt-0.5 text-[11px] text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
+                                                </div>
+                                                <div class="flex justify-end gap-2">
+                                                    <button type="button" wire:click="cancelCorrection"
+                                                            class="rounded-lg border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
+                                                        {{ __('loops.correct_cancel') }}
+                                                    </button>
+                                                    <button type="submit" wire:loading.attr="disabled" wire:target="submitCorrection" data-correct-submit
+                                                            class="rounded-lg bg-violet-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-violet-700 disabled:opacity-50">
+                                                        {{ __('loops.correct_submit') }}
+                                                    </button>
+                                                </div>
+                                            </form>
+                                            @else
+                                            <div class="mt-1.5 flex flex-wrap gap-1.5">
+                                                <button type="button" wire:click="startCorrection('{{ $entry['ref'] }}', 'update')" data-correct-open-update
+                                                        class="rounded-full border border-violet-300 bg-white px-2.5 py-0.5 text-[10px] font-semibold text-violet-700 transition hover:bg-violet-50 dark:border-violet-700 dark:bg-gray-900 dark:text-violet-300 dark:hover:bg-violet-950/40">
+                                                    {{ __('loops.correct_action_update') }}
+                                                </button>
+                                                <button type="button" wire:click="startCorrection('{{ $entry['ref'] }}', 'retract')" data-correct-open-retract
+                                                        class="rounded-full border border-gray-200 bg-white px-2.5 py-0.5 text-[10px] font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800">
+                                                    {{ __('loops.correct_action_retract') }}
+                                                </button>
+                                            </div>
+                                            @endif
+                                        @endif
+                                    </li>
+                                    @endforeach
+                                </ul>
+                                @endif
+                                @if($whyMemory['denied_count'] > 0)
+                                <p class="mt-2 leading-5 text-amber-700 dark:text-amber-300" data-why-memory-denied="{{ $whyMemory['denied_count'] }}">{{ trans_choice('loops.why_memory_denied', $whyMemory['denied_count']) }}</p>
+                                @endif
+                            </div>
+                            @endif
+
+                            {{-- TASK-1549 (remédiation) : le TROISIÈME état, HORS de la
+                                 section mémoire. Une source citée dont la ligne a disparu
+                                 n'a plus d'origine établissable — la dire ici, en une ligne
+                                 discrète et sans nommer de famille, évite d'affirmer une
+                                 mémoire qu'on ne peut plus prouver. Distinct d'un refus
+                                 de droit, qui lui reste dans la section mémoire. --}}
+                            @if(($whyPanel['ledger']['unreachable_count'] ?? 0) > 0)
+                            <p class="leading-5 text-gray-500 dark:text-gray-400" data-why-source-unreachable="{{ $whyPanel['ledger']['unreachable_count'] }}">{{ trans_choice('loops.why_source_unreachable', $whyPanel['ledger']['unreachable_count']) }}</p>
+                            @endif
+
                             @if($whyPanel['ledger']['denied_count'] > 0)
                             <p class="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200" data-why-denied="{{ $whyPanel['ledger']['denied_count'] }}">
                                 <svg class="mt-0.5 h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
@@ -903,6 +1028,17 @@
                             </p>
                             @endif
                         </div>
+                    @endif
+
+                    {{-- TASK-1549 : l'ACK ou le conflit d'une correction que la
+                         personne vient de DEMANDER lui est dû (exception
+                         explicite du CDC Lab §10). Propriétés publiques, jamais
+                         un flash : le `wire:poll.3s` le consommerait. --}}
+                    @if($correctionFlash !== '')
+                    <p class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs leading-5 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-200" data-correction-flash>{{ $correctionFlash }}</p>
+                    @endif
+                    @if($correctionConflict !== null)
+                    <p class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200" data-correction-conflict>{{ $correctionConflict }}</p>
                     @endif
 
                     @if($whyPanel['can_feedback'])

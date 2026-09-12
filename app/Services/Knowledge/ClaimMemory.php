@@ -201,6 +201,36 @@ final class ClaimMemory
     }
 
     /**
+     * TASK-1549 — le lignage complet d'UN sujet, de la version 1 a la derniere.
+     *
+     * C'est la lecture qui porte « l'historique de correction utile » du
+     * panneau Pourquoi ? : chaque ligne archivee par une correction humaine
+     * garde sa frontiere dans `provenance['human_correction']`, et c'est ELLE
+     * qui fait autorite — les champs `corrected_*` vivent sur le successeur,
+     * qui n'existe pas apres un RETRACT.
+     *
+     * Aucune borne : l'histoire d'un sujet ne se tronque pas. Le piege mesure
+     * est `LoopClaimDelta::MAX_EVENEMENTS = 20`, une borne de PROMPT — la
+     * reprendre ici aurait fait sortir silencieusement une correction de
+     * l'historique des qu'une Boucle depasse vingt evenements (classe de
+     * defaut de la remediation Codex #2 de T1548).
+     *
+     * @return list<DerivedKnowledgeNote> ordonnees par version croissante
+     */
+    public function lignee(Organization $organization, Loop $loop, string $subjectKey): array
+    {
+        return DerivedKnowledgeNote::query()
+            ->where('organization_id', $organization->id)
+            ->where('source_type', DerivedKnowledgeNote::SOURCE_LOOP_CONVERSATION)
+            ->where('source_loop_id', $loop->id)
+            ->where('subject_key', $subjectKey)
+            ->claims()
+            ->orderBy('version')
+            ->get()
+            ->all();
+    }
+
+    /**
      * L'empreinte de l'ETAT de la memoire — identites et versions.
      *
      * Elle repond a une seule question : « est-ce toujours la memoire que j'ai
