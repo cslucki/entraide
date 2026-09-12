@@ -3,6 +3,7 @@
 namespace App\Services\Ai;
 
 use App\Ai\Context\DossierAccessScope;
+use App\Ai\Context\PeopleQuestionShape;
 use App\Ai\ProviderResolver;
 use App\Models\AiShellMessage;
 use App\Models\BlogPost;
@@ -15,7 +16,12 @@ use App\Services\Dossiers\DerivedChunkEligibility;
 use App\Services\Dossiers\DossierInsightsService;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
+use App\Services\Knowledge\ClaimMemory;
 use App\Services\Knowledge\LoopReferenceResolver;
+use App\Services\People\DTO\EligiblePeopleResult;
+use App\Services\People\DTO\RelevantPeopleResult;
+use App\Services\People\DTO\SelfFitResult;
+use App\Services\People\RelevantPeopleService;
 use App\Support\Ai\AiSelfKnowledge;
 use App\Support\Ai\AiShellPageContext;
 use App\Support\Ai\AiShellThread;
@@ -173,6 +179,23 @@ final class AiShellResponder
      */
     public const PRODUCER_REFERENCE_RESOLUTION = 'reference.resolution';
 
+    /**
+     * TASK-1546 — le producteur de « Qui pourrait les aider ? ».
+     *
+     * Le tour ne lit aucun document et n'appelle aucun modele : il rend
+     * l'ensemble que le serveur autorise, apparie au besoin du referent.
+     */
+    public const PRODUCER_PEOPLE_MATCHING = 'people.matching';
+
+    /**
+     * TASK-1546 — le producteur de « Et moi ? ».
+     *
+     * `moi` = l'utilisateur AUTHENTIFIE du tour, jamais une personne nommee
+     * dans la phrase. Un Shell qui accepterait « et Marin ? » par ce chemin
+     * rendrait le profil de quelqu'un d'autre sur une question personnelle.
+     */
+    public const PRODUCER_SELF_MATCHING = 'people.self';
+
     private const DOCUMENTARY_PRODUCERS = [
         'dossier.answer',
         'article.answer',
@@ -278,6 +301,13 @@ final class AiShellResponder
         // TASK-1544 : la resolution d'une reference indirecte. Pas un Entity
         // Resolver : une jointure sur la provenance deja structuree.
         private readonly LoopReferenceResolver $references,
+        // TASK-1546 : People + Self. La primitive de pertinence EXISTANTE
+        // (People-2), qui consomme elle-meme l'eligibilite (People-1). Aucun
+        // second moteur People : le Shell n'interroge jamais l'annuaire.
+        private readonly RelevantPeopleService $people,
+        // TASK-1546 : le besoin se DERIVE des enonces actifs du referent, par
+        // la primitive qui les lit deja (T1540).
+        private readonly ClaimMemory $claims,
     ) {}
 
     /**
@@ -400,6 +430,14 @@ final class AiShellResponder
                 // n'ecrit ni `AiInteraction`, ni ligne de ledger, et ne
                 // consomme aucun credit.
                 [$content, $metadata] = $this->selfKnowledgeTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
+                    // TASK-1546 : AVANT les branches documentaires, et l'ordre
+                    // est le sujet. « Et moi ? » pose sur une page Dossier
+                    // serait sinon captee par `dossierAnswerTurn()`, qui
+                    // repondrait avec des extraits de documents a une question
+                    // qui n'en demande aucun. La garde est etroite — une forme
+                    // locale ET un referent herite — donc rien d'autre ne
+                    // change de chemin.
+                    ?? $this->peopleTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
                     ?? $this->dossierAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory)
                     ?? $this->articleAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory)
                     // TASK-1530 : entre l'objet COURANT et le chemin general.
@@ -1624,6 +1662,372 @@ final class AiShellResponder
         }
 
         return null;
+    }
+
+    /**
+     * TASK-1546 — « Qui pourrait les aider ? » puis « Et moi ? ».
+     *
+     * ## Le serveur garde l'univers, et le Shell n'y touche pas
+     *
+     * Ce tour n'interroge aucun annuaire. Il delegue a
+     * {@see RelevantPeopleService}, qui consomme lui-meme
+     * {@see \App\Services\People\EligiblePeopleService} — appartenance ACTIVE
+     * a la Boucle, profil IA PUBLIE, `viewWorkspace` du demandeur, gate
+     * `ai_profiles_enabled`. Une personne d'un autre tenant ne peut donc pas
+     * etre candidate : elle n'entre dans aucune des requetes.
+     *
+     * ## Pourquoi un referent HERITE est obligatoire
+     *
+     * Sans lui, ce tour deviendrait un second chemin pour « qui pourrait
+     * m'aider ? » — une question que le produit route deja vers la
+     * clarification d'entraide, et qui marche. La garde etroite rend ce tour
+     * purement ADDITIF : hors d'une conversation qui a deja etabli un projet,
+     * rien ne change de chemin.
+     *
+     * ## L'ambiguite non resolue BLOQUE, et se dit
+     *
+     * Si le dernier tour de reference a demande de choisir, aucun matching
+     * n'est calcule. Prendre le premier candidat « pour avancer » ferait
+     * chercher des personnes pour un projet que personne n'a designe — et
+     * l'utilisateur ne saurait pas qu'on a choisi pour lui. Le tour repond
+     * qu'il attend le projet ; il ne s'efface pas en silence, sans quoi le
+     * chemin general repondrait quelque chose a la place.
+     *
+     * @param  array<string, mixed>  $pageContext
+     * @param  list<array<string, mixed>>  $pinnedContext
+     * @return array{0: string, 1: array<string, mixed>}|null
+     */
+    private function peopleTurn(
+        Organization $organization,
+        User $user,
+        string $prompt,
+        array $pageContext,
+        array $pinnedContext,
+    ): ?array {
+        // SELF d'abord : « Et moi, je pourrais aider ? » porte les deux
+        // formes, et la personne interroge sa PROPRE place. Rendre une liste
+        // d'autres membres serait repondre a cote.
+        $self = PeopleQuestionShape::isSelf($prompt);
+
+        if (! $self && ! PeopleQuestionShape::isPeople($prompt)) {
+            return null;
+        }
+
+        $herite = $this->referentHerite($organization, $user);
+
+        if ($herite === null) {
+            return null;
+        }
+
+        $locale = str_starts_with((string) app()->getLocale(), 'en') ? 'en' : 'fr';
+
+        if ($herite['ambiguous']) {
+            return [trans('ai.people_blocked_by_ambiguity', [], $locale), [
+                'status' => self::STATUS_NON_INTERACTION,
+                'producer' => $self ? self::PRODUCER_SELF_MATCHING : self::PRODUCER_PEOPLE_MATCHING,
+                'page_context' => $this->traceablePeoplePage($pageContext),
+                ($self ? 'self' : 'people') => [
+                    'referent_loop_id' => null,
+                    'blocked_by' => 'unresolved_reference',
+                ],
+                'grounded' => true,
+            ] + $this->pinnedTrace($pinnedContext)];
+        }
+
+        $loop = $herite['loop'];
+        $besoin = $this->besoinDuReferent($organization, $loop);
+
+        return $self
+            ? $this->tourDeSelf($organization, $user, $loop, $besoin, $pageContext, $pinnedContext, $locale)
+            : $this->tourDePeople($organization, $user, $loop, $besoin, $pageContext, $pinnedContext, $locale);
+    }
+
+    /**
+     * @param  array<string, mixed>  $pageContext
+     * @param  list<array<string, mixed>>  $pinnedContext
+     * @return array{0: string, 1: array<string, mixed>}
+     */
+    private function tourDePeople(
+        Organization $organization,
+        User $user,
+        Loop $loop,
+        string $besoin,
+        array $pageContext,
+        array $pinnedContext,
+        string $locale,
+    ): array {
+        $resultat = $this->people->relevantFor($organization, $loop, $user, $besoin);
+
+        $content = $this->texteDePeople($resultat, $loop, $besoin, $locale);
+
+        return [$content, [
+            'status' => self::STATUS_NON_INTERACTION,
+            'producer' => self::PRODUCER_PEOPLE_MATCHING,
+            'page_context' => $this->traceablePeoplePage($pageContext),
+            'people' => [
+                'referent_loop_id' => (string) $loop->id,
+                // « aucun besoin derivable » et « personne ne correspond » ne
+                // sont pas le meme resultat : la trace les separe comme le
+                // texte les separe.
+                'need_derived' => $besoin !== '',
+                'authorized' => $resultat->authorized,
+                'refusal_reason' => $resultat->refusalReason,
+                'selected_user_ids' => array_map(
+                    static fn ($person): string => $person->person->userId,
+                    $resultat->people,
+                ),
+            ],
+            // Les PersonCards sont construites par la MEME primitive et le
+            // MEME besoin : le texte et les cartes ne peuvent pas diverger.
+            'cards' => $this->cards->forAnsweredTurn(
+                $organization,
+                $user,
+                ['id' => (string) $loop->id, 'label' => (string) $loop->name,
+                    'provenance' => ['verified' => [['type' => 'active_membership', 'loop_id' => (string) $loop->id]]]],
+                $pageContext,
+                $besoin,
+            ),
+            'grounded' => true,
+        ] + $this->pinnedTrace($pinnedContext)];
+    }
+
+    /**
+     * @param  array<string, mixed>  $pageContext
+     * @param  list<array<string, mixed>>  $pinnedContext
+     * @return array{0: string, 1: array<string, mixed>}
+     */
+    private function tourDeSelf(
+        Organization $organization,
+        User $user,
+        Loop $loop,
+        string $besoin,
+        array $pageContext,
+        array $pinnedContext,
+        string $locale,
+    ): array {
+        // `moi` = l'utilisateur AUTHENTIFIE du tour. Aucun nom n'est lu dans
+        // la phrase : « et Untel ? » ne peut pas emprunter ce chemin pour se
+        // faire rendre le profil de quelqu'un d'autre.
+        $resultat = $this->people->selfFitFor($organization, $loop, $user, $besoin);
+
+        $content = $this->texteDeSelf($resultat, $loop, $besoin, $locale);
+
+        return [$content, [
+            'status' => self::STATUS_NON_INTERACTION,
+            'producer' => self::PRODUCER_SELF_MATCHING,
+            'page_context' => $this->traceablePeoplePage($pageContext),
+            'self' => [
+                'referent_loop_id' => (string) $loop->id,
+                'need_derived' => $besoin !== '',
+                'authorized' => $resultat->authorized,
+                'refusal_reason' => $resultat->refusalReason,
+                'assessable' => $resultat->assessable,
+                'not_assessable_reason' => $resultat->notAssessableReason,
+                'fits' => $resultat->fits(),
+                // Le sujet de la mesure, ecrit : une trace doit pouvoir
+                // prouver que c'est bien le demandeur qui a ete mesure.
+                'user_id' => (string) $user->id,
+            ],
+            // `INTENT_OFFER` : sur « et moi ? », aucune PersonCard. La
+            // coupe existe deja (T1350) et dit exactement ce qu'il faut —
+            // quelqu'un qui envisage d'aider n'a pas besoin qu'on lui
+            // propose d'autres aidants.
+            'cards' => $this->cards->forAnsweredTurn(
+                $organization,
+                $user,
+                ['id' => (string) $loop->id, 'label' => (string) $loop->name,
+                    'provenance' => ['verified' => [['type' => 'active_membership', 'loop_id' => (string) $loop->id]]]],
+                $pageContext,
+                '',
+                AiShellTurnCards::INTENT_OFFER,
+            ),
+            'grounded' => true,
+        ] + $this->pinnedTrace($pinnedContext)];
+    }
+
+    private function texteDePeople(RelevantPeopleResult $resultat, Loop $loop, string $besoin, string $locale): string
+    {
+        if (! $resultat->authorized) {
+            return trans($this->cleDeRefus($resultat->refusalReason), ['loop' => $loop->name], $locale);
+        }
+
+        // Rien d'appris sur ce projet n'est PAS « personne ne correspond ».
+        if ($besoin === '') {
+            return trans('ai.people_no_need', ['loop' => $loop->name], $locale);
+        }
+
+        if ($resultat->people === []) {
+            return trans('ai.people_none', ['loop' => $loop->name], $locale);
+        }
+
+        $lignes = array_map(
+            fn ($person): string => trans('ai.people_candidate', [
+                'name' => $person->person->displayName,
+                'reasons' => $this->raisons($person->reasons, $locale),
+            ], $locale),
+            $resultat->people,
+        );
+
+        return trans('ai.people_intro', ['loop' => $loop->name], $locale)."\n\n".implode("\n", $lignes);
+    }
+
+    private function texteDeSelf(SelfFitResult $resultat, Loop $loop, string $besoin, string $locale): string
+    {
+        if (! $resultat->authorized) {
+            return trans($this->cleDeRefus($resultat->refusalReason), ['loop' => $loop->name], $locale);
+        }
+
+        if (! $resultat->assessable) {
+            return trans('ai.self_not_assessable', ['loop' => $loop->name], $locale);
+        }
+
+        if ($besoin === '') {
+            return trans('ai.people_no_need', ['loop' => $loop->name], $locale);
+        }
+
+        if (! $resultat->fits()) {
+            return trans('ai.self_no_match', ['loop' => $loop->name], $locale)
+                ."\n\n".trans('ai.self_limits', [], $locale);
+        }
+
+        return trans('ai.self_fit', ['loop' => $loop->name], $locale)
+            ."\n\n".trans('ai.people_candidate', [
+                'name' => $resultat->person?->displayName ?? '',
+                'reasons' => $this->raisons($resultat->reasons, $locale),
+            ], $locale)
+            ."\n\n".trans('ai.self_limits', [], $locale);
+    }
+
+    /**
+     * Le refus de contexte People-1, rendu en clair. Jamais une cle
+     * construite depuis une valeur d'execution : une raison inconnue doit
+     * tomber sur une phrase honnete, pas sur un identifiant affiche.
+     */
+    private function cleDeRefus(?string $reason): string
+    {
+        return match ($reason) {
+            EligiblePeopleResult::REFUSAL_LOOP_NOT_ACTIVE => 'ai.people_refused_loop_not_active',
+            EligiblePeopleResult::REFUSAL_AI_PROFILES_DISABLED => 'ai.people_refused_ai_profiles_disabled',
+            default => 'ai.people_refused_not_authorized',
+        };
+    }
+
+    /**
+     * Les raisons, telles que le serveur les a lues : le libelle DECLARE,
+     * jamais une reformulation. Aucun score, aucun rang, aucun pourcentage —
+     * le contrat de People-2 s'arrete aux faits apparies.
+     *
+     * @param  list<array{type: string, label: string, source: array<string, string>, matched_terms: list<string>, verified: true}>  $reasons
+     */
+    private function raisons(array $reasons, string $locale): string
+    {
+        return implode(
+            trans('ai.people_reason_separator', [], $locale),
+            array_map(
+                static fn (array $reason): string => trans('ai.people_reason', [
+                    'label' => (string) $reason['label'],
+                ], $locale),
+                $reasons,
+            ),
+        );
+    }
+
+    /**
+     * Meme trace de page reduite que le tour de reference : un tour de
+     * personnes ne depend d'aucun objet de page, et n'a pas a en porter un.
+     *
+     * @param  array<string, mixed>  $pageContext
+     * @return array<string, string>
+     */
+    private function traceablePeoplePage(array $pageContext): array
+    {
+        return [
+            'route' => (string) ($pageContext['route'] ?? ''),
+            'kind' => (string) ($pageContext['kind'] ?? 'other'),
+        ];
+    }
+
+    /**
+     * Le referent HERITE du fil : la Boucle etablie par le dernier tour de
+     * resolution de reference.
+     *
+     * ## Pourquoi le PREMIER tour de reference rencontre en remontant
+     *
+     * Une correction ecrit un NOUVEAU tour de reference, non ambigu. En
+     * remontant, c'est donc lui qu'on rencontre d'abord, et le referent
+     * corrige devient le referent tout court — sans qu'aucun code de
+     * correction n'existe ici. Le recalcul est COMPLET par construction :
+     * rien n'est reporte d'un tour de personnes au suivant.
+     *
+     * ## Un identifiant de fil n'est jamais un droit
+     *
+     * L'appartenance est revalidee a l'instant de CETTE question, par la
+     * meme autorite que partout ailleurs. Quelqu'un qui a quitte la Boucle
+     * entre deux tours n'en herite plus — et le tour s'efface au lieu de
+     * nommer un projet qu'il n'a plus le droit de lire.
+     *
+     * @return array{ambiguous: bool, loop: ?Loop}|null
+     */
+    private function referentHerite(Organization $organization, User $user): ?array
+    {
+        $conversationId = $this->thread->persistedConversationId($organization, $user);
+
+        if ($conversationId === null) {
+            return null;
+        }
+
+        foreach ($this->thread->messages($organization, $user, $conversationId)->reverse() as $message) {
+            $metadata = is_array($message->metadata) ? $message->metadata : [];
+
+            if (($metadata['producer'] ?? null) !== self::PRODUCER_REFERENCE_RESOLUTION) {
+                continue;
+            }
+
+            if (($metadata['reference']['ambiguous'] ?? false) === true) {
+                return ['ambiguous' => true, 'loop' => null];
+            }
+
+            $offerts = array_map('strval', (array) ($metadata['reference']['candidate_loop_ids'] ?? []));
+            $loopId = $offerts[0] ?? null;
+
+            if ($loopId === null) {
+                return null;
+            }
+
+            if (! in_array($loopId, $this->derivedEligibility->authorizedLoopIds((string) $organization->id, $user), true)) {
+                return null;
+            }
+
+            $loop = Loop::query()->find($loopId);
+
+            return $loop instanceof Loop ? ['ambiguous' => false, 'loop' => $loop] : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Le BESOIN du referent, derive de ses enonces ACTIFS par la primitive
+     * qui les lit deja ({@see ClaimMemory::actifs()}).
+     *
+     * ## Pourquoi pas le texte affiche au tour precedent
+     *
+     * Parce qu'une CORRECTION n'affiche qu'une note de service — « Referent
+     * corrige a votre demande ». Heriter du texte RENDU ferait donc d'un
+     * referent corrige un besoin vide, et « Qui pourrait les aider ? » apres
+     * correction ne trouverait jamais personne. L'echec serait silencieux, et
+     * c'est precisement le scenario que le mandat exige de faire marcher.
+     *
+     * Le besoin se relit donc a la source, a chaque tour.
+     */
+    private function besoinDuReferent(Organization $organization, Loop $loop): string
+    {
+        $enonces = array_filter(array_map(
+            static fn ($claim): string => trim((string) $claim->content),
+            $this->claims->actifs($organization, $loop),
+        ));
+
+        return trim(implode(' ', $enonces));
     }
 
     private function dossierDiscoveryTurn(
