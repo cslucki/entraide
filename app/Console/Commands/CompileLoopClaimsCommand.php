@@ -54,6 +54,13 @@ class CompileLoopClaimsCommand extends Command
             foreach ($b['rejetees'] as $rejet) {
                 $this->line('      rejet : '.$rejet['raison']);
             }
+
+            // TASK-1548 — une operation ecartee parce qu'elle rejouait un passe
+            // deja corrige est une DECISION, pas un detail. La taire ferait
+            // d'une garde deliberee un silence indistinguable d'une panne.
+            if (($b['resurrections'] ?? 0) > 0) {
+                $this->line(sprintf('      %d operation(s) ecartee(s) : frontiere temporelle de verite', $b['resurrections']));
+            }
         }
 
         return self::SUCCESS;

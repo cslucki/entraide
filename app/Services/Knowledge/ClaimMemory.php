@@ -223,8 +223,22 @@ final class ClaimMemory
     /**
      * Applique un patch valide, sous verrou, tout ou rien.
      *
+     * ## TASK-1548 — le second appelant
+     *
+     * Cette methode n'en avait qu'un, le compiler, et `preuves()` ecrivait son
+     * nom en dur. `$origine` ouvre la porte a une correction HUMAINE sans rien
+     * assouplir : la preuve reste obligatoire ({@see ClaimPatch::valider()}),
+     * elle est simplement le message que la personne vient d'ecrire.
+     *
+     * L'origine porte aussi la garde anti-resurrection, qui ne s'applique
+     * qu'aux ecritures du compiler — voir {@see ClaimResurrectionGuard}. Une
+     * operation rejouant un passe deja corrige est ECARTEE, pas fatale : le
+     * reste du patch est legitime et s'applique. Elle est comptee dans
+     * `resurrections`, jamais passee sous silence.
+     *
      * @param  list<LoopMessage>  $messages  la source lue pour ce tour
-     * @return array{applique: bool, raison: ?string, ajoutes: int, modifies: int, retractes: int, conserves: int}
+     * @param  ClaimWriteOrigin|null  $origine  defaut : le compiler
+     * @return array{applique: bool, raison: ?string, ajoutes: int, modifies: int, retractes: int, conserves: int, resurrections: int}
      */
     public function appliquer(
         Organization $organization,
@@ -234,11 +248,14 @@ final class ClaimMemory
         array $messages,
         string $empreinteDeDepart,
         ?string $correlationId,
+        ?ClaimWriteOrigin $origine = null,
     ): array {
+        $origine ??= ClaimWriteOrigin::compiler();
+
         /** @var list<DerivedKnowledgeNote> $aIndexer */
         $aIndexer = [];
 
-        $bilan = DB::transaction(function () use ($organization, $loop, $dossierId, $patch, $messages, $empreinteDeDepart, $correlationId, &$aIndexer): array {
+        $bilan = DB::transaction(function () use ($organization, $loop, $dossierId, $patch, $messages, $empreinteDeDepart, $correlationId, $origine, &$aIndexer): array {
             // Le verrou porte sur TOUS les claims actifs de la Boucle : c'est
             // l'ensemble qui constitue la base, pas une ligne isolee.
             $courants = DerivedKnowledgeNote::query()
@@ -259,7 +276,32 @@ final class ClaimMemory
             $parId = $courants->keyBy(static fn (DerivedKnowledgeNote $c): string => (string) $c->subject_key);
 
             $observeA = $this->observeA($messages);
-            $preuvesDe = fn (array $op): array => $this->preuves($op, $messages, $correlationId);
+            $preuvesDe = fn (array $op): array => $this->preuves($op, $messages, $correlationId, $origine);
+
+            // TASK-1548 — la garde anti-resurrection, et elle ne s'applique
+            // qu'au COMPILER. Un humain doit pouvoir re-affirmer ce qu'un
+            // humain a corrige ; c'est la machine, relisant un corpus
+            // inchange, qu'on empeche de defaire une correction.
+            $messagesParId = [];
+
+            foreach ($messages as $m) {
+                $messagesParId[(string) $m->id] = $m;
+            }
+
+            $frontieres = $origine->isHuman() ? [] : ClaimResurrectionGuard::frontieresDeVerite(
+                $this->corrigeesParHumain($organization, $loop),
+            );
+
+            $resurrections = 0;
+            $estRejouee = function (array $op) use ($frontieres, $messagesParId, &$resurrections): bool {
+                if (! ClaimResurrectionGuard::estUneResurrection($op, $frontieres, $messagesParId)) {
+                    return false;
+                }
+
+                $resurrections++;
+
+                return true;
+            };
 
             // TASK-1541 — chaque enonce est date par SA PROPRE preuve.
             //
@@ -280,6 +322,10 @@ final class ClaimMemory
             $ajoutes = $modifies = $retractes = 0;
 
             foreach ($patch->operationsDe(ClaimPatch::OP_ADD) as $op) {
+                if ($estRejouee($op)) {
+                    continue;
+                }
+
                 $preuves = $preuvesDe($op);
                 $this->creer($organization, $loop, $dossierId, (string) Str::uuid(), 1, (string) $op['text'],
                     $preuves, $dateDe($preuves), $aIndexer);
@@ -289,12 +335,12 @@ final class ClaimMemory
             foreach ($patch->operationsDe(ClaimPatch::OP_UPDATE) as $op) {
                 $ancien = $parId->get((string) $op['claim_id']);
 
-                if ($ancien === null) {
+                if ($ancien === null || $estRejouee($op)) {
                     continue;
                 }
 
                 $preuves = $preuvesDe($op);
-                $this->archiver($ancien);
+                $this->archiver($ancien, frontiere: $this->frontiereDeVerite($ancien, $origine));
                 $nouveau = $this->creer($organization, $loop, $dossierId, (string) $ancien->subject_key,
                     $this->prochaineVersion($organization, $loop, (string) $ancien->subject_key),
                     (string) $op['text'], $preuves, $dateDe($preuves), $aIndexer);
@@ -315,13 +361,14 @@ final class ClaimMemory
                 // plus valable » ne veut pas dire « voici la nouvelle date » :
                 // inventer un successeur serait combler un trou avec une
                 // certitude que personne n'a exprimee.
-                $this->archiver($ancien, (string) ($op['reason'] ?? ''), $preuvesDe($op));
+                $this->archiver($ancien, (string) ($op['reason'] ?? ''), $preuvesDe($op),
+                    $this->frontiereDeVerite($ancien, $origine));
                 $this->indexer->forget($ancien);
                 $retractes++;
             }
 
             return $this->bilan(true, null, $ajoutes, $modifies, $retractes,
-                count($patch->operationsDe(ClaimPatch::OP_KEEP)));
+                count($patch->operationsDe(ClaimPatch::OP_KEEP)), $resurrections);
         });
 
         // L'indexation vit HORS de la transaction, et deliberement.
@@ -381,8 +428,12 @@ final class ClaimMemory
 
     /**
      * @param  list<string>  $preuves
+     * @param  array<string, mixed>|null  $frontiere  TASK-1548 — la FRONTIERE
+     *                                                TEMPORELLE DE VERITE posee par une
+     *                                                correction HUMAINE, lue ensuite par
+     *                                                la garde anti-resurrection
      */
-    private function archiver(DerivedKnowledgeNote $claim, string $raison = '', array $preuves = []): void
+    private function archiver(DerivedKnowledgeNote $claim, string $raison = '', array $preuves = [], ?array $frontiere = null): void
     {
         $provenance = $claim->provenance ?? [];
 
@@ -391,11 +442,87 @@ final class ClaimMemory
             $provenance['retracted_evidence'] = $preuves['source_loop_message_ids'] ?? [];
         }
 
+        if ($frontiere !== null) {
+            $provenance['human_correction'] = $frontiere;
+        }
+
         $claim->forceFill([
             'status' => DerivedKnowledgeNote::STATUS_SUPERSEDED,
             'superseded_at' => now(),
             'provenance' => $provenance,
         ])->save();
+    }
+
+    /**
+     * TASK-1548 — la FRONTIERE TEMPORELLE DE VERITE.
+     *
+     * Une correction humaine persistee etablit, pour ce `subject_key`, une
+     * frontiere apres laquelle seules de NOUVELLES preuves humaines peuvent
+     * justifier une nouvelle mutation automatique.
+     *
+     * Elle porte de quoi reconnaitre un rejeu SANS relire le modele : le texte
+     * qu'on vient d'ecarter, les preuves sur lesquelles il reposait, et la
+     * position canonique de la correction — le point a partir duquel une preuve
+     * compte comme neuve.
+     *
+     * ## Ou elle vit, et pourquoi la elle survit
+     *
+     * Aucune colonne n'est ajoutee : `provenance` est un `jsonb`, et la LIGNE
+     * ARCHIVEE est exactement l'endroit ou cette marque a un sens. C'est ce qui
+     * la rend persistante dans les deux cas qui comptent :
+     *
+     *  - apres un UPDATE, la ligne archivee reste, chainee par
+     *    `superseded_by_id` a la version qui l'a remplacee ;
+     *  - apres un RETRACT, la ligne archivee reste AUSSI — c'est le seul
+     *    endroit qui pourrait la porter, puisqu'il n'existe plus aucun enonce
+     *    actif sur ce sujet.
+     *
+     * Rien n'est jamais supprime de cette table : la frontiere survit donc a
+     * toute recompilation, et ne depend d'aucun etat de run.
+     *
+     * @return array<string, mixed>|null `null` quand l'ecriture vient du compiler
+     */
+    private function frontiereDeVerite(DerivedKnowledgeNote $claim, ClaimWriteOrigin $origine): ?array
+    {
+        if (! $origine->isHuman() || $origine->message === null) {
+            return null;
+        }
+
+        return [
+            'kind' => $origine->kind,
+            'by' => (string) $origine->user?->id,
+            'at' => now()->toIso8601String(),
+            'message_id' => (string) $origine->message->id,
+            'text_hash' => ClaimResurrectionGuard::empreinteTexte((string) $claim->content),
+            'evidence_ids' => array_map('strval', (array) (($claim->provenance ?? [])['source_loop_message_ids'] ?? [])),
+            'position' => ClaimResurrectionGuard::position($origine->message),
+        ];
+    }
+
+    /**
+     * Les enonces de cette Boucle qu'une personne a corriges.
+     *
+     * Le filtre sur `human_correction` se fait en PHP et non en SQL : un
+     * operateur `jsonb` serait vert sur les six voies PostgreSQL de la CI et
+     * faux sur SQLite, qui tourne a cote.
+     *
+     * @return list<DerivedKnowledgeNote>
+     */
+    private function corrigeesParHumain(Organization $organization, Loop $loop): array
+    {
+        return DerivedKnowledgeNote::query()
+            ->where('organization_id', $organization->id)
+            ->where('source_type', DerivedKnowledgeNote::SOURCE_LOOP_CONVERSATION)
+            ->where('source_loop_id', $loop->id)
+            ->claims()
+            ->where('status', DerivedKnowledgeNote::STATUS_SUPERSEDED)
+            ->whereNotNull('superseded_at')
+            ->orderByDesc('superseded_at')
+            ->limit(500)
+            ->get()
+            ->filter(static fn (DerivedKnowledgeNote $c): bool => is_array(($c->provenance ?? [])['human_correction'] ?? null))
+            ->values()
+            ->all();
     }
 
     private function prochaineVersion(Organization $organization, Loop $loop, string $subjectKey): int
@@ -412,7 +539,7 @@ final class ClaimMemory
      * @param  list<LoopMessage>  $messages
      * @return array<string, mixed>
      */
-    private function preuves(array $op, array $messages, ?string $correlationId): array
+    private function preuves(array $op, array $messages, ?string $correlationId, ClaimWriteOrigin $origine): array
     {
         $ids = (array) ($op['evidence'] ?? []);
         $parId = [];
@@ -436,8 +563,11 @@ final class ClaimMemory
             'source_loop_message_ids' => array_values(array_map('strval', $ids)),
             'source_message_count' => count($ids),
             'correlation_id' => $correlationId,
-            'derived_by' => LoopConversationKnowledgeDeriver::FEATURE,
             'observed_from_evidence' => $observe?->toIso8601String(),
+            // TASK-1548 — `derived_by` n'est plus une constante : une correction
+            // humaine se NOMME, sans quoi elle entrerait en base sous la
+            // signature du deriver, indistinguable d'une phrase de modele.
+            ...$origine->provenanceFields(),
         ];
     }
 
@@ -460,11 +590,14 @@ final class ClaimMemory
     }
 
     /**
-     * @return array{applique: bool, raison: ?string, ajoutes: int, modifies: int, retractes: int, conserves: int}
+     * @return array{applique: bool, raison: ?string, ajoutes: int, modifies: int, retractes: int, conserves: int, resurrections: int}
      */
-    private function bilan(bool $applique, ?string $raison, int $a = 0, int $m = 0, int $r = 0, int $k = 0): array
+    private function bilan(bool $applique, ?string $raison, int $a = 0, int $m = 0, int $r = 0, int $k = 0, int $res = 0): array
     {
         return ['applique' => $applique, 'raison' => $raison,
-            'ajoutes' => $a, 'modifies' => $m, 'retractes' => $r, 'conserves' => $k];
+            'ajoutes' => $a, 'modifies' => $m, 'retractes' => $r, 'conserves' => $k,
+            // TASK-1548 — les operations refusees parce qu'elles rejouaient un
+            // passe deja corrige. Comptees, jamais silencieuses.
+            'resurrections' => $res];
     }
 }
