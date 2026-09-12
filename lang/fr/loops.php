@@ -1302,8 +1302,11 @@ return [
     'why_memory_observed' => 'Constaté le :date',
     'why_memory_scope_here' => 'retenu dans cette Boucle',
     'why_memory_scope_other' => 'retenu dans la Boucle « :loop » — se corrige depuis cette Boucle-là',
-    'why_memory_evolved' => 'Cet énoncé a évolué depuis cette réponse ; voici sa version actuelle.',
-    'why_memory_retracted' => 'Cet énoncé a été retiré de la mémoire depuis cette réponse.',
+    // REMÉDIATION R2 (audit Codex F3) : `why_memory_evolved` et
+    // `why_memory_retracted` ont été RETIRÉES. Le panneau ne peut pas les
+    // atteindre — une supersession emporte le chunk cité, donc la section
+    // mémoire se tait et le ledger parle à sa place, sans nommer de famille.
+    // Une clé qu'aucune donnée ne peut produire est une promesse d'interface.
     'why_memory_evidence' => 'Preuve :n',
     'why_memory_corrected_by' => 'Corrigé par :name le :date.',
     'why_memory_corrected' => 'Corrigé le :date.',

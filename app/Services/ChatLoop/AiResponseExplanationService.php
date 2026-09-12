@@ -58,6 +58,17 @@ final class AiResponseExplanationService
         CapabilityRegistry::LOOP_HYBRID_ANSWER,
     ];
 
+    /**
+     * Les trois familles EXCLUSIVES d'une source citée (REMÉDIATION R2, F4).
+     * Une citation en occupe exactement une : le panneau ne peut plus affirmer
+     * deux origines pour la même référence.
+     */
+    private const FAMILLE_MEMOIRE = 'memoire';
+
+    private const FAMILLE_DOCUMENT = 'document';
+
+    private const FAMILLE_INJOIGNABLE = 'injoignable';
+
     public function __construct(
         private readonly DossierAccessScope $scope,
         private readonly ClaimProvenanceReader $claims,
@@ -261,59 +272,97 @@ final class AiResponseExplanationService
         $contextIds = $message->metadata['context_message_ids'] ?? null;
         $retrieval = is_array($imeta['retrieval'] ?? null) ? $imeta['retrieval'] : null;
 
+        // REMÉDIATION R2 (audit Codex F4) — les sources citées sont classées
+        // UNE FOIS, ici, et les trois sections consomment ce classement.
+        //
+        // Chacune lisait auparavant la même liste `cited` pour son compte, avec
+        // son propre critère : le panneau pouvait donc afficher la même
+        // référence comme document ordinaire NOMMÉ et comme mémoire durable,
+        // ou la nommer document accessible tout en la comptant injoignable.
+        // Trois lectures indépendantes de la même liste ne peuvent pas se
+        // contredire si elles n'en font qu'une.
+        $classees = $retrieval === null ? [] : $this->classerCitations($loop, $retrieval);
+
         return [
             'capability' => (string) $capability,
             'capability_label' => $this->capabilityLabel($capability),
             'doctrine_version' => is_int($imeta['doctrine_version'] ?? null) ? $imeta['doctrine_version'] : null,
             'conversation' => is_array($contextIds) ? $this->conversationPanel($loop, $contextIds) : null,
-            'documents' => $retrieval === null ? null : $this->documentsPanel($loop, $retrieval, $message, $viewer),
-            'memory' => $retrieval === null ? null : $this->memoryPanel($loop, $retrieval, $message, $viewer),
+            'documents' => $retrieval === null ? null : $this->documentsPanel($loop, $retrieval, $classees, $message, $viewer),
+            'memory' => $retrieval === null ? null : $this->memoryPanel($loop, $classees, $message, $viewer),
             // TASK-1549 (remédiation) — le TROISIÈME état, au niveau du ledger
             // et non de la section mémoire : une source citée dont la ligne a
             // disparu n'a plus d'origine prouvable, donc elle se dit SANS
             // nommer de famille. La placer dans « Mémoire de BouclePro »
             // revenait à affirmer une mémoire qu'on ne peut plus établir.
-            'unreachable_count' => $retrieval === null ? 0 : $this->unreachableCitedCount($loop, $retrieval),
+            'unreachable_count' => count(array_filter(
+                $classees,
+                static fn (array $c): bool => $c['famille'] === self::FAMILLE_INJOIGNABLE,
+            )),
             'denied_count' => is_array($imeta['sources_denied'] ?? null) ? count($imeta['sources_denied']) : 0,
         ];
     }
 
     /**
-     * Les sources citées dont la ligne `dossier_chunks` n'existe plus —
-     * réindexation d'un Article, fichier supprimé, supersession d'une note
-     * dérivée. Comptées TOUTES FAMILLES CONFONDUES, et c'est délibéré : la FK
-     * qui aurait permis de discriminer est partie avec la ligne.
+     * REMÉDIATION R2 (F4) — à quelle famille appartient chaque source citée,
+     * décidé une seule fois et pour tout le panneau.
      *
-     * C'est la dette W5/TRACE-0 rendue honnêtement : tant que la trace ne
-     * portera pas l'identité de la note, ce compte ne peut pas dire s'il
-     * s'agissait d'un document ou d'une mémoire — alors il ne le dit pas.
+     * Le discriminateur reste celui de TASK-1549, et il reste POSITIF : une FK
+     * `derived_knowledge_note_id` vers un claim, jamais la forme publique
+     * (`type = 'retrieval'` ne distingue rien), jamais une heuristique de
+     * contenu. Ce qui change est la PORTÉE : trois familles exclusives.
+     *
+     *  - `memoire`     : chunk vivant, portant la FK, pointant un claim ;
+     *  - `document`    : chunk vivant sans FK — ou citation sans `chunk_id`
+     *                    exploitable, que la trace seule doit pouvoir compter ;
+     *  - `injoignable` : la ligne `dossier_chunks` n'existe plus. La FK est
+     *                    partie avec elle : l'origine n'est plus établissable,
+     *                    donc la source ne se range dans aucune des deux
+     *                    autres. Elle se dit au ledger, sans nommer de famille
+     *                    (dette W5/TRACE-0 rendue telle quelle).
+     *
+     * La note résolue est transportée avec le classement : la section mémoire
+     * n'a pas à refaire la requête qui l'a produite.
      *
      * @param  array<string, mixed>  $retrieval
+     * @return list<array{index: int, famille: string, note: ?DerivedKnowledgeNote}>
      */
-    private function unreachableCitedCount(Loop $loop, array $retrieval): int
+    private function classerCitations(Loop $loop, array $retrieval): array
     {
         $organization = $loop->organization;
-
-        if ($organization === null) {
-            return 0;
-        }
-
         $cited = is_array($retrieval['cited'] ?? null) ? array_values($retrieval['cited']) : [];
-        $count = 0;
 
-        foreach ($cited as $entry) {
+        $classees = [];
+
+        foreach ($cited as $index => $entry) {
             $chunkId = is_array($entry) ? ($entry['chunk_id'] ?? null) : null;
 
-            if (! is_string($chunkId) || $chunkId === '') {
+            if ($organization === null || ! is_string($chunkId) || $chunkId === '') {
+                // Sans Organization ou sans identifiant de chunk, rien ne peut
+                // être prouvé : la citation reste dans la voie documentaire,
+                // où l'accès au Dossier gouvernant décidera seul — c'est le
+                // comportement d'avant TASK-1549, inchangé.
+                $classees[] = ['index' => $index, 'famille' => self::FAMILLE_DOCUMENT, 'note' => null];
+
                 continue;
             }
 
             if (! $this->claims->citedChunkStillExists((string) $organization->id, $chunkId)) {
-                $count++;
+                $classees[] = ['index' => $index, 'famille' => self::FAMILLE_INJOIGNABLE, 'note' => null];
+
+                continue;
             }
+
+            $note = $this->claims->noteFromChunk((string) $organization->id, $chunkId);
+
+            $classees[] = [
+                'index' => $index,
+                'famille' => $note === null ? self::FAMILLE_DOCUMENT : self::FAMILLE_MEMOIRE,
+                'note' => $note,
+            ];
         }
 
-        return $count;
+        return $classees;
     }
 
     /**
@@ -332,8 +381,8 @@ final class AiResponseExplanationService
      * Le cas du chunk disparu était le défaut : sa ligne emporte sa FK, donc
      * son origine n'est plus établissable, et le compter ici faisait apparaître
      * « Mémoire de BouclePro » sur une réponse n'ayant cité que des documents.
-     * Il est désormais compté au niveau du ledger
-     * ({@see self::unreachableCitedCount()}), sans nommer de famille.
+     * Il est désormais classé `injoignable` et compté au niveau du ledger, sans
+     * nommer de famille ({@see self::classerCitations()}).
      *
      * Deux issues seulement subsistent donc ici :
      *  - mémoire résolue : provenance complète du lecteur standard ;
@@ -343,10 +392,14 @@ final class AiResponseExplanationService
      * `null` quand aucune mémoire n'est prouvée : la section n'apparaît pas, et
      * ne prétend jamais montrer « tout ce que BouclePro sait ».
      *
-     * @param  array<string, mixed>  $retrieval
+     * REMÉDIATION R2 (F4) : la section ne relit plus `cited` — elle consomme le
+     * classement, note déjà résolue comprise. Ce qui entre ici ne peut donc pas
+     * figurer ailleurs.
+     *
+     * @param  list<array{index: int, famille: string, note: ?DerivedKnowledgeNote}>  $classees
      * @return array{entries: list<array<string, mixed>>, denied_count: int}|null
      */
-    private function memoryPanel(Loop $loop, array $retrieval, LoopMessage $message, User $viewer): ?array
+    private function memoryPanel(Loop $loop, array $classees, LoopMessage $message, User $viewer): ?array
     {
         $organization = $loop->organization;
 
@@ -354,32 +407,20 @@ final class AiResponseExplanationService
             return null;
         }
 
-        $cited = is_array($retrieval['cited'] ?? null) ? array_values($retrieval['cited']) : [];
         $publicSources = $message->metadata['sources'] ?? null;
         $publicSources = is_array($publicSources) ? array_values($publicSources) : [];
-        $pairable = $cited !== [] && count($publicSources) === count($cited);
+        $pairable = $classees !== [] && count($publicSources) === count($classees);
 
         $entries = [];
         $deniedCount = 0;
 
-        foreach ($cited as $index => $entry) {
-            $chunkId = is_array($entry) ? ($entry['chunk_id'] ?? null) : null;
-
-            if (! is_string($chunkId) || $chunkId === '') {
+        foreach ($classees as $classee) {
+            if ($classee['famille'] !== self::FAMILLE_MEMOIRE || $classee['note'] === null) {
                 continue;
             }
 
-            // LA porte d'entrée, et la seule. Un `null` ici veut dire « rien ne
-            // prouve que cette source soit une mémoire durable adressable » —
-            // qu'elle soit un document, un digest, ou une ligne disparue. Dans
-            // les trois cas la section se tait.
-            $note = $this->claims->noteFromChunk((string) $organization->id, $chunkId);
-
-            if ($note === null) {
-                continue;
-            }
-
-            $provenance = $this->claims->provenance($organization, $loop, $note, $viewer);
+            $index = $classee['index'];
+            $provenance = $this->claims->provenance($organization, $loop, $classee['note'], $viewer);
 
             if ($provenance['state'] === 'denied') {
                 $deniedCount++;
@@ -498,19 +539,42 @@ final class AiResponseExplanationService
      * autorité que le retrieval (`DossierAccessScope` => DossierPolicy).
      * Tout le reste est masqué et compté, sans titre ni identifiant.
      *
+     * REMÉDIATION R2 (audit Codex F4) — cette section ne parle QUE des
+     * citations classées `document`.
+     *
+     * Elle comptait et nommait auparavant toute source citée dont le Dossier
+     * gouvernant restait accessible. Or le chunk d'une note dérivée vit dans le
+     * Dossier racine de la Boucle, accessible à tout membre : une mémoire
+     * durable s'affichait donc ICI, sous son titre, EN MÊME TEMPS que la
+     * section « Mémoire de BouclePro » l'annonçait comme mémoire. Et une source
+     * dont la ligne avait disparu restait nommée comme document accessible
+     * alors que le ledger la comptait injoignable.
+     *
+     * `cited_count` dérive désormais des citations RETENUES, pas de la
+     * longueur brute de `cited` : le compte et la liste parlent de la même
+     * chose.
+     *
      * @param  array<string, mixed>  $retrieval
+     * @param  list<array{index: int, famille: string, note: ?DerivedKnowledgeNote}>  $classees
      * @return array<string, mixed>
      */
-    private function documentsPanel(Loop $loop, array $retrieval, LoopMessage $message, User $viewer): array
+    private function documentsPanel(Loop $loop, array $retrieval, array $classees, LoopMessage $message, User $viewer): array
     {
         $cited = is_array($retrieval['cited'] ?? null) ? array_values($retrieval['cited']) : [];
         $consulted = is_array($retrieval['consulted'] ?? null) ? $retrieval['consulted'] : [];
         $publicSources = $message->metadata['sources'] ?? null;
         $publicSources = is_array($publicSources) ? array_values($publicSources) : [];
 
+        // L'appariement positionnel se prouve sur la trace ENTIÈRE — c'est la
+        // longueur brute qui l'établit, pas le sous-ensemble documentaire.
         $pairable = $cited !== [] && count($publicSources) === count($cited);
 
-        $accessibleDossierIds = $cited === [] ? [] : $this->scope->accessibleDossierIds(
+        $documentaires = array_values(array_filter(
+            $classees,
+            static fn (array $c): bool => $c['famille'] === self::FAMILLE_DOCUMENT,
+        ));
+
+        $accessibleDossierIds = $documentaires === [] ? [] : $this->scope->accessibleDossierIds(
             (string) $loop->organization_id,
             $viewer,
             (string) $loop->id,
@@ -519,7 +583,9 @@ final class AiResponseExplanationService
         $entries = [];
         $maskedCount = 0;
 
-        foreach ($cited as $index => $entry) {
+        foreach ($documentaires as $classee) {
+            $index = $classee['index'];
+            $entry = $cited[$index] ?? null;
             $dossierId = is_array($entry) ? ($entry['dossier_id'] ?? null) : null;
             $public = $pairable ? ($publicSources[$index] ?? null) : null;
 
@@ -540,7 +606,7 @@ final class AiResponseExplanationService
 
         return [
             'applies' => true,
-            'cited_count' => count($cited),
+            'cited_count' => count($documentaires),
             'consulted_count' => count($consulted),
             'entries' => $entries,
             'masked_count' => $maskedCount,

@@ -1296,8 +1296,9 @@ return [
     'why_memory_observed' => 'Observed on :date',
     'why_memory_scope_here' => 'retained in this Loop',
     'why_memory_scope_other' => 'retained in the Loop ":loop" — it is corrected from that Loop',
-    'why_memory_evolved' => 'This statement has evolved since this answer; here is its current version.',
-    'why_memory_retracted' => 'This statement has been removed from memory since this answer.',
+    // REMEDIATION R2 (Codex audit F3): `why_memory_evolved` and
+    // `why_memory_retracted` were REMOVED — the panel cannot reach them.
+    // See the French file for the full rationale.
     'why_memory_evidence' => 'Evidence :n',
     'why_memory_corrected_by' => 'Corrected by :name on :date.',
     'why_memory_corrected' => 'Corrected on :date.',

@@ -348,6 +348,134 @@ class TASK1549ProvenanceAndCorrectionTest extends TestCase
             ->assertSee(trans_choice('loops.why_source_unreachable', 1));
     }
 
+    /**
+     * REMEDIATION R2 — F4 : les trois familles sont EXCLUSIVES.
+     *
+     * Une meme reponse cite les trois : un document ordinaire vivant, une
+     * memoire durable, et une ligne disparue. Chaque source doit apparaitre
+     * dans UNE seule categorie. Avant la remediation, la memoire etait
+     * annoncee DEUX FOIS — comme memoire ET comme document nomme, puisque son
+     * chunk vit dans le Dossier racine, accessible a tout membre.
+     */
+    public function test_chaque_source_citee_n_appartient_qu_a_une_seule_famille(): void
+    {
+        $rootDossier = $this->rootDossier($this->loop);
+
+        [$claim] = $this->unClaim($this->loop);
+        $memoryChunk = DossierChunk::query()
+            ->where('derived_knowledge_note_id', $claim->id)
+            ->firstOrFail();
+
+        $file = DossierFile::factory()->create([
+            'organization_id' => $this->organization->id,
+            'dossier_id' => $rootDossier,
+        ]);
+
+        $documentChunk = $this->unChunkDocumentaire($rootDossier, $file, 'Le devis original de la charpente.');
+        $disparuChunk = $this->unChunkDocumentaire($rootDossier, $file, 'Un extrait qui sera reindexe.');
+
+        $bubble = $this->bubbleCiting(
+            [
+                $this->cited($documentChunk),
+                $this->cited($memoryChunk),
+                $this->cited($disparuChunk),
+            ],
+            [
+                $this->publicSource('S1', 'Devis charpente'),
+                $this->publicSource('S2', 'Memoire de la Boucle'),
+                $this->publicSource('S3', 'Extrait reindexe'),
+            ],
+        );
+
+        // Reindexation de la troisieme : sa ligne disparait, sa FK avec elle.
+        DossierChunk::query()->whereKey($disparuChunk->id)->delete();
+
+        $panel = $this->panel($bubble, $this->alice);
+        $ledger = $panel['ledger'];
+
+        // ── Documentaire : S1 SEULE. Ni la memoire, ni la ligne disparue.
+        $this->assertSame(1, $ledger['documents']['cited_count'],
+            'le compte documentaire derive des entrees RETENUES, pas de la longueur de la trace');
+        $this->assertSame(0, $ledger['documents']['masked_count']);
+        $this->assertSame([['ref' => 'S1', 'title' => 'Devis charpente', 'dossier_name' => null]],
+            $ledger['documents']['entries'],
+            'une memoire durable n est jamais listee comme document ordinaire');
+
+        // ── Memoire : S2 SEULE.
+        $this->assertCount(1, $ledger['memory']['entries']);
+        $this->assertSame('S2', $ledger['memory']['entries'][0]['ref']);
+        $this->assertSame((string) $claim->content, $ledger['memory']['entries'][0]['statement']);
+        $this->assertSame(0, $ledger['memory']['denied_count']);
+
+        // ── Injoignable : S3 SEULE, et sans nommer de famille.
+        $this->assertSame(1, $ledger['unreachable_count']);
+
+        $this->actingAs($this->alice);
+        $html = Livewire::test(LoopChat::class, ['loop' => $this->loop])
+            ->call('showWhy', $bubble->id)
+            ->assertSee(trans_choice('loops.why_source_unreachable', 1))
+            ->assertSee(__('loops.why_memory_title'))
+            ->assertSee('Devis charpente')
+            ->html();
+
+        // UNE seule entree documentaire dans le panneau, et UNE seule entree
+        // memoire : ni la memoire ni la ligne disparue ne sont listees comme
+        // documents. On compte les entrees plutot que de chercher un titre
+        // dans la page — la bulle IA affiche par ailleurs ses propres sources,
+        // et un `assertDontSee` global serait vert pour la mauvaise raison.
+        $this->assertSame(1, substr_count($html, 'data-why-document-entry'),
+            'une seule source est presentee comme document');
+        $this->assertSame(1, substr_count($html, 'data-why-memory-entry'),
+            'une seule source est presentee comme memoire');
+    }
+
+    /**
+     * REMEDIATION R2 — F3 : apres une correction, la surface ne promet rien
+     * qu'elle ne puisse tenir.
+     *
+     * La supersession emporte le chunk cite : la section memoire se tait, et
+     * le ledger dit l'injoignabilite SANS nommer de famille. Les deux mentions
+     * « cet enonce a evolue » / « a ete retire » ont ete retirees de cette
+     * surface — elle ne peut pas les produire.
+     */
+    public function test_apres_une_correction_la_surface_ne_promet_pas_un_etat_qu_elle_ne_peut_pas_produire(): void
+    {
+        [$claim] = $this->unClaim($this->loop);
+        $bubble = $this->memoryBubble($claim);
+
+        $this->actingAs($this->alice);
+        $component = Livewire::test(LoopChat::class, ['loop' => $this->loop])
+            ->call('showWhy', $bubble->id)
+            ->call('startCorrection', 'S1', 'update')
+            ->set('correctionNewText', 'Lemercier realise la charpente du chantier.')
+            ->set('correctionText', 'Ce n est plus Vaucanson, le marche est passe a Lemercier.')
+            ->call('submitCorrection')
+            ->assertSet('correctionFlash', __('loops.correct_ack'));
+
+        // L'ACK reste l'autorite immediate : c'est lui qui dit ce qui s'est
+        // passe, pas une section qui aurait survecu a la mutation.
+        $panel = $this->panel($bubble->fresh(), $this->alice);
+
+        $this->assertNull($panel['ledger']['memory'],
+            'la memoire corrigee quitte la section : son chunk cite n existe plus');
+        $this->assertSame(1, $panel['ledger']['unreachable_count'],
+            'elle se dit au ledger, sans nommer de famille');
+
+        $component
+            ->assertDontSeeHtml('data-memory-evolved')
+            ->assertDontSeeHtml('data-memory-retracted')
+            ->assertSee(__('loops.correct_ack'));
+
+        $this->assertSame([], $component->get('whyMemoryVersions'),
+            'plus aucune version figee : il n y a plus rien a corriger sur cette bulle');
+
+        // Les libelles morts n'existent plus : une cle absente se rend
+        // elle-meme, ce qui rendrait le test ci-dessus trompeusement vert si
+        // on l'avait ecrit sur le texte.
+        $this->assertSame('loops.why_memory_evolved', __('loops.why_memory_evolved'));
+        $this->assertSame('loops.why_memory_retracted', __('loops.why_memory_retracted'));
+    }
+
     public function test_le_sujet_retracte_se_dit_au_lecteur_standard(): void
     {
         [$claim] = $this->unClaim($this->loop);
@@ -483,10 +611,12 @@ class TASK1549ProvenanceAndCorrectionTest extends TestCase
                 ->citedMemoryNote($this->loop, $bubble, $this->alice, 'S1'),
             'PREMISSE : la citation se resout — la branche `$note === null` est hors jeu',
         );
+        // REMEDIATION R2 : la carte est indexee par BULLE ET par reference —
+        // c'est le triplet (bulle, reference, version) qui est revalide.
         $this->assertSame(
             1,
-            $component->get('whyMemoryVersions')['S1'] ?? null,
-            'PREMISSE : l appariement ref <-> version tient — la garde d appariement est hors jeu',
+            $component->get('whyMemoryVersions')[$bubble->id.'|S1'] ?? null,
+            'PREMISSE : le triplet bulle/ref/version tient — la garde d appariement est hors jeu',
         );
         $this->assertSame(2, (int) $claim->fresh()->version,
             'PREMISSE : la version ACTIVE (2) differe de la version LUE (1)');
@@ -675,14 +805,191 @@ class TASK1549ProvenanceAndCorrectionTest extends TestCase
     }
 
     /**
+     * REMEDIATION R2 — F1, le defaut que le verrou de `correctingRef` NE
+     * FERMAIT PAS.
+     *
+     * Ce qui decide quel enonce est mute n'est pas la reference affichee :
+     * c'est la BULLE dont les citations sont re-resolues a la soumission. Une
+     * reference `S1` n'est unique qu'a l'interieur d'une reponse — c'est un
+     * numero d'ordre de citation, pas une identite.
+     *
+     * Deux bulles nommant chacune leur source `S1`, sur deux sujets differents
+     * en meme version, satisfaisaient donc trivialement la garde d'appariement
+     * de R1 : `S1 == S1`, `1 == 1`. Forger `whyMessageId` rendait un ACCUSE DE
+     * RECEPTION POSITIF pour la RETRACTATION d'un sujet que la personne
+     * n'avait jamais ouvert — et posait sur lui une frontiere humaine fondee
+     * sur un message qui parle d'autre chose.
+     */
+    public function test_une_bulle_forgee_ne_peut_pas_muter_l_enonce_d_une_autre_bulle(): void
+    {
+        [$claimX] = $this->unClaim($this->loop,
+            'Vaucanson realise la charpente du chantier.',
+            'Pour la charpente on part sur Vaucanson.');
+
+        $source2 = LoopMessage::create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->alice->id,
+            'body' => 'Les menuiseries arrivent le 14 mars.',
+            'type' => 'user',
+        ]);
+
+        LoopClaimPatchAgent::fake(fn (): TextResponse => new TextResponse(
+            (string) json_encode(['operations' => [[
+                'op' => 'ADD', 'text' => 'La livraison des menuiseries est prevue le 14 mars.',
+                'evidence' => [(string) $source2->id],
+            ]]], JSON_UNESCAPED_UNICODE),
+            new Usage(60, 40), new Meta('openrouter', 'openai/gpt-4o-mini'),
+        ));
+        $this->assertTrue(app(LoopClaimCompiler::class)->compile($this->loop->fresh())['applique'],
+            'PREMISSE : le second enonce doit se compiler');
+
+        $claimY = DerivedKnowledgeNote::query()
+            ->where('source_loop_id', $this->loop->id)->claims()->active()
+            ->where('content', 'La livraison des menuiseries est prevue le 14 mars.')
+            ->firstOrFail();
+
+        // La condition exacte de la forge : meme reference, meme version.
+        $this->assertSame(1, (int) $claimX->fresh()->version);
+        $this->assertSame(1, (int) $claimY->version);
+
+        $bulleX = $this->memoryBubble($claimX);
+        $bulleY = $this->memoryBubble($claimY);
+
+        $messagesAvant = LoopMessage::query()->where('loop_id', $this->loop->id)->count();
+
+        $this->actingAs($this->alice);
+        $component = Livewire::test(LoopChat::class, ['loop' => $this->loop])
+            ->call('showWhy', $bulleX->id)
+            ->call('startCorrection', 'S1', 'retract')
+            ->assertSet('correctingMessageId', (string) $bulleX->id)
+            ->assertSet('correctingVersion', 1);
+
+        // 1er mecanisme : `#[Locked]`. Le client ne reecrit pas la bulle lue.
+        try {
+            $component->set('whyMessageId', (string) $bulleY->id);
+            $this->fail('`whyMessageId` doit etre verrouille cote serveur');
+        } catch (\Throwable $e) {
+            $this->assertStringContainsString('whyMessageId', $e->getMessage());
+        }
+
+        // 2e mecanisme, INDEPENDANT : la carte figee est indexee par bulle. On
+        // casse donc le triplet au niveau PHP — la seule facon honnete de
+        // prouver que la garde refuse au lieu d'ecrire, le chemin client etant
+        // desormais ferme.
+        $instance = $component->instance();
+        $instance->whyMessageId = (string) $bulleY->id;
+        $instance->correctionText = 'Non, Vaucanson est faux pour la charpente.';
+        $instance->submitCorrection(
+            app(HumanClaimCorrection::class),
+            app(AiResponseExplanationService::class),
+        );
+
+        $this->assertSame('', $instance->correctionFlash, 'aucun ACK sur un triplet rompu');
+        $this->assertSame(__('loops.correct_conflict_before'), $instance->correctionConflict);
+        $this->assertNull($instance->correctingRef, 'le formulaire est referme');
+
+        $this->assertSame(DerivedKnowledgeNote::STATUS_ACTIVE, $claimX->fresh()->status,
+            'X, le sujet ouvert, n a pas bouge — on n a pas corrige a sa place');
+        $this->assertSame(DerivedKnowledgeNote::STATUS_ACTIVE, $claimY->fresh()->status,
+            'Y, jamais ouvert, n a pas bouge non plus');
+        $this->assertSame($messagesAvant,
+            LoopMessage::query()->where('loop_id', $this->loop->id)->count(),
+            'un triplet rompu n ecrit rien, pas meme un message');
+    }
+
+    /**
+     * REMEDIATION R2 — F2 : le mode decide entre une reecriture et une
+     * SUPPRESSION. Une valeur hors domaine ne retombe pas sur la seconde.
+     */
+    public function test_un_mode_hors_domaine_n_ecrit_rien(): void
+    {
+        [$claim] = $this->unClaim($this->loop);
+        $bubble = $this->memoryBubble($claim);
+
+        $messagesAvant = LoopMessage::query()->where('loop_id', $this->loop->id)->count();
+
+        $this->actingAs($this->alice);
+        $component = Livewire::test(LoopChat::class, ['loop' => $this->loop])
+            ->call('showWhy', $bubble->id)
+            ->call('startCorrection', 'S1', 'update')
+            ->assertSet('correctingMode', 'update');
+
+        // 1er mecanisme : `#[Locked]` — le mode n'est plus une liaison de
+        // propriete, il se change par une ACTION dont le domaine est controle.
+        try {
+            $component->set('correctingMode', 'n-importe-quoi');
+            $this->fail('`correctingMode` doit etre verrouille cote serveur');
+        } catch (\Throwable $e) {
+            $this->assertStringContainsString('correctingMode', $e->getMessage());
+        }
+
+        $component->call('setCorrectionMode', 'n-importe-quoi')
+            ->assertSet('correctingMode', 'update', 'l action refuse une valeur hors domaine');
+        $component->call('setCorrectionMode', 'retract')
+            ->assertSet('correctingMode', 'retract', 'et accepte les deux gestes reels');
+        $component->call('setCorrectionMode', 'update')
+            ->assertSet('correctingMode', 'update');
+
+        // 2e mecanisme, INDEPENDANT : la revalidation au point d'ecriture.
+        $instance = $component->instance();
+        $instance->correctingMode = 'n-importe-quoi';
+        $instance->correctionText = 'Je voulais REMPLACER l enonce, pas le retirer.';
+        $instance->submitCorrection(
+            app(HumanClaimCorrection::class),
+            app(AiResponseExplanationService::class),
+        );
+
+        $this->assertSame('', $instance->correctionFlash,
+            'jamais un ACK positif pour un geste que personne n a demande');
+        $this->assertSame(__('loops.correct_conflict_before'), $instance->correctionConflict);
+        $this->assertSame(DerivedKnowledgeNote::STATUS_ACTIVE, $claim->fresh()->status,
+            'aucun repli silencieux sur RETRACT');
+        $this->assertSame($messagesAvant,
+            LoopMessage::query()->where('loop_id', $this->loop->id)->count(),
+            'et aucun message public');
+    }
+
+    /**
+     * REMEDIATION R2 — F5 : `booted()` conclut l'adhesion a chaque requete,
+     * mais Livewire applique les mises a jour du client APRES. Sans verrou,
+     * une requete portant `isMember: true` rouvrait la gate d'affichage pour
+     * toute la duree de l'appel.
+     *
+     * Ce verrou ferme l'honnetete Livewire — l'autorite metier
+     * (`canView()`, `HumanClaimCorrection`) n'a jamais dependu de ce champ.
+     */
+    public function test_l_adhesion_n_est_pas_reinscriptible_par_le_client(): void
+    {
+        [$claim] = $this->unClaim($this->loop);
+        $bubble = $this->memoryBubble($claim);
+
+        $this->actingAs($this->alice);
+        $component = Livewire::test(LoopChat::class, ['loop' => $this->loop])
+            ->call('showWhy', $bubble->id)
+            ->assertSet('isMember', true);
+
+        try {
+            $component->set('isMember', false);
+            $this->fail('`isMember` doit etre verrouille cote serveur');
+        } catch (\Throwable $e) {
+            $this->assertStringContainsString('isMember', $e->getMessage());
+        }
+    }
+
+    /**
      * REMEDIATION MAJEUR 2, second mecanisme isole.
      *
      * `whyMemoryVersions` est elle aussi `#[Locked]` : Livewire refuse net une
      * tentative de reecriture depuis le client (verifie ci-dessous). La garde
      * d'appariement est donc une DEFENSE EN PROFONDEUR — elle ne se declenche
      * plus par un chemin client. On l'exerce au niveau PHP, en cassant le
-     * couple sur l'instance puis en appelant la methode directement : c'est la
+     * triplet sur l'instance puis en appelant la methode directement : c'est la
      * seule facon honnete de prouver qu'elle refuse au lieu d'ecrire.
+     *
+     * REMEDIATION R2 : la carte est desormais indexee par BULLE ET reference.
+     * Ecraser son contenu par une cle de l'ancienne forme (`S1`) suffit donc a
+     * rompre le triplet — ce que ce test fait, et ce qu'il doit refuser.
      */
     public function test_un_appariement_ref_version_rompu_n_ecrit_rien(): void
     {
@@ -1099,6 +1406,26 @@ class TASK1549ProvenanceAndCorrectionTest extends TestCase
                 'sources' => $sources,
                 'ai_interaction_id' => $interaction->id,
             ],
+        ]);
+    }
+
+    /**
+     * Un chunk de DOCUMENT ordinaire : aucune FK de note derivee, donc le
+     * discriminateur positif le laisse dans la voie documentaire.
+     */
+    private function unChunkDocumentaire(string $dossierId, DossierFile $file, string $contenu): DossierChunk
+    {
+        return DossierChunk::create([
+            'organization_id' => $this->organization->id,
+            'dossier_id' => $dossierId,
+            'dossier_file_id' => $file->id,
+            'chunk_index' => DossierChunk::query()->where('dossier_id', $dossierId)->count(),
+            'content' => $contenu,
+            'content_hash' => hash('sha256', $contenu),
+            'embedding' => array_fill(0, 1536, 0.01),
+            'embedding_provider' => 'openrouter',
+            'embedding_model' => 'openai/text-embedding-3-small',
+            'indexed_at' => now(),
         ]);
     }
 

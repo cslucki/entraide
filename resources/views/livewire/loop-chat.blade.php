@@ -921,12 +921,19 @@
                                             @if($entry['observed_at']){{ __('loops.why_memory_observed', ['date' => $entry['observed_at']]) }} · @endif
                                             @if($entry['same_loop']){{ __('loops.why_memory_scope_here') }}@else{{ __('loops.why_memory_scope_other', ['loop' => $entry['loop_name']]) }}@endif
                                         </p>
-                                        @if($entry['evolved_since_answer'])
-                                        <p class="mt-1 text-[11px] leading-4 text-amber-700 dark:text-amber-300" data-memory-evolved>{{ __('loops.why_memory_evolved') }}</p>
-                                        @endif
-                                        @if($entry['state'] === 'retracted')
-                                        <p class="mt-1 text-[11px] leading-4 text-amber-700 dark:text-amber-300" data-memory-retracted>{{ __('loops.why_memory_retracted') }}</p>
-                                        @endif
+                                        {{-- REMÉDIATION R2 (audit Codex F3) : les deux mentions
+                                             « cet énoncé a évolué » / « a été retiré » ont été
+                                             retirées d'ICI. Cette surface ne peut pas les
+                                             produire : `noteFromChunk()` est sa seule porte, et
+                                             une supersession emporte le chunk cité
+                                             (`ClaimMemory::appliquer()` → `forget()`). Une
+                                             mémoire corrigée sort donc de cette section et se
+                                             dit au ledger, sans nommer de famille. Les promettre
+                                             ici était une promesse d'interface qu'aucune donnée
+                                             ne pouvait tenir. L'état reste lisible par le
+                                             lecteur standard (`ClaimProvenanceReader`), qui sert
+                                             d'autres surfaces ; le faire vivre ICI demande que
+                                             la trace porte l'identité de la note — TRACE-0. --}}
                                         @if($entry['evidence_message_ids'] !== [])
                                         <div class="mt-1.5 flex flex-wrap items-center gap-1.5" data-memory-evidence>
                                             @foreach($entry['evidence_message_ids'] as $evidenceId)
@@ -959,9 +966,13 @@
                                             <form wire:submit.prevent="submitCorrection" class="mt-2 space-y-2 rounded-lg border border-violet-200 bg-violet-50/60 p-2.5 dark:border-violet-800/50 dark:bg-violet-950/30" data-correct-form>
                                                 <p class="text-[11px] font-semibold text-gray-900 dark:text-gray-100">{{ __('loops.correct_form_title') }}</p>
                                                 <p class="text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ __('loops.correct_scope') }} {{ __('loops.correct_form_note') }}</p>
+                                                {{-- REMÉDIATION R2 (F2) : le mode se change par une ACTION,
+                                                     pas par liaison de propriété — `$correctingMode` est
+                                                     `#[Locked]`, son domaine est contrôlé une fois, à
+                                                     l'entrée. L'état coché vient du serveur. --}}
                                                 <div class="flex flex-wrap gap-3 text-[11px] text-gray-700 dark:text-gray-300">
-                                                    <label class="inline-flex items-center gap-1.5"><input type="radio" wire:model.live="correctingMode" value="update" class="h-3 w-3">{{ __('loops.correct_mode_update') }}</label>
-                                                    <label class="inline-flex items-center gap-1.5"><input type="radio" wire:model.live="correctingMode" value="retract" class="h-3 w-3">{{ __('loops.correct_mode_retract') }}</label>
+                                                    <label class="inline-flex items-center gap-1.5"><input type="radio" name="correction-mode" wire:click="setCorrectionMode('update')" @checked($correctingMode === 'update') data-correct-mode-update class="h-3 w-3">{{ __('loops.correct_mode_update') }}</label>
+                                                    <label class="inline-flex items-center gap-1.5"><input type="radio" name="correction-mode" wire:click="setCorrectionMode('retract')" @checked($correctingMode === 'retract') data-correct-mode-retract class="h-3 w-3">{{ __('loops.correct_mode_retract') }}</label>
                                                 </div>
                                                 @if($correctingMode === 'update')
                                                 <div>

@@ -124,10 +124,25 @@ final class ClaimProvenanceReader
      * spectateur, revalidee maintenant.
      *
      * L'etat courant fait foi : la note citee peut etre `superseded` depuis la
-     * reponse — le panneau montre l'enonce ACTIF du sujet (resolution
-     * note -> sujet -> claim actif, `ClaimMemory::actifs()`), et le dit quand
-     * il a evolue. Un sujet retracte n'a plus de geste : la surface dit
-     * l'etat.
+     * reponse — ce lecteur rend alors l'enonce ACTIF du sujet (resolution
+     * note -> sujet -> claim actif, `ClaimMemory::actifs()`), signale
+     * `evolved_since_answer`, et rend `state = 'retracted'` quand plus aucun
+     * enonce actif ne porte ce sujet. Un sujet retracte n'a plus de geste.
+     *
+     * ## Ce que le panneau ChatLoop peut, ou non, en faire (REMEDIATION R2)
+     *
+     * Ces deux etats ne sont PAS atteignables depuis « Pourquoi ? » : la seule
+     * porte de sa section memoire est {@see self::noteFromChunk()}, et une
+     * supersession emporte le chunk cite (`ClaimMemory::appliquer()` ->
+     * `DerivedKnowledgeNoteIndexer::forget()`). Une memoire corrigee quitte
+     * donc la section et se dit au ledger, sans nommer de famille. Le panneau
+     * ne les affiche plus — les afficher etait une promesse qu'aucune donnee
+     * ne pouvait tenir (audit Codex F3).
+     *
+     * Ils restent rendus ICI parce que ce lecteur ne sert pas que le ChatLoop :
+     * il repond a qui tient deja la note, quel que soit l'etat de son chunk.
+     * Les faire vivre dans le panneau demande que la trace porte l'identite de
+     * la note — TRACE-0, hors mandat.
      *
      * @return array{
      *     state: 'denied'|'active'|'retracted',
