@@ -347,9 +347,16 @@
                                      propose. Le texte a la premiere personne, lui, quitte
                                      cette bulle. --}}
                                 @if($message->role === \App\Models\AiShellMessage::ROLE_ASSISTANT && ! $isUserDraft)
+                                    {{-- TASK-1546 (audit) — le corps NOMINATIF est
+                                         revalide a chaque rendu : une personne qui a
+                                         quitte la Boucle ou depublie son profil
+                                         disparait du texte deja ecrit. Une entree
+                                         absente signifie que le contenu stocke est
+                                         encore exact — c'est le cas de tous les tours
+                                         qui ne nomment personne. --}}
                                     <div data-ai-shell-markdown
                                          class="prose prose-sm max-w-none break-words text-current dark:prose-invert prose-p:my-0 prose-ol:my-2 prose-ul:my-2 prose-li:my-1 prose-strong:text-inherit">
-                                        {!! markdown($message->content) !!}
+                                        {!! markdown($shell['bodies'][(string) $message->id] ?? $message->content) !!}
                                     </div>
                                 @else
                                     <span class="block whitespace-pre-line">{{ $isUserDraft ? ($isOfferDraft ? __('ai.shell_offer_framing') : __('ai.shell_request_framing')) : $message->content }}</span>

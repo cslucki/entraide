@@ -983,6 +983,7 @@ return [
      */
     'reference_resolved' => 'Vous parlez de la Boucle « :loop ».',
     'reference_ambiguous' => 'Deux projets peuvent correspondre a ce que :personne a dit. Duquel parlez-vous ?',
+    'reference_correction_ambiguous' => 'Votre correction nomme plusieurs de ces projets. Duquel parlez-vous ?',
     'reference_candidate' => '- **:loop** — « :enonce » (le :date)',
     'reference_corrected_note' => 'Referent corrige a votre demande.',
 
@@ -996,6 +997,8 @@ return [
      * Les confondre fabriquerait une certitude que personne n'a.
      */
     'people_blocked_by_ambiguity' => 'Je ne peux pas chercher qui pourrait aider tant que le projet n\'est pas fixe. Dites-moi duquel vous parlez et je reprends.',
+    'people_blocked_by_revoked_reference' => 'Je ne peux plus rien chercher a partir de cette conversation. Reformulez votre question en nommant ce dont vous parlez.',
+    'nominative_no_longer_shown' => 'Cette reponse citait des personnes que je ne peux plus verifier ici : je ne l\'affiche plus.',
     'people_no_need' => 'Je n\'ai encore rien appris sur la Boucle « :loop » : je ne peux donc pas dire qui pourrait y aider.',
     'people_none' => 'Personne, parmi les membres de la Boucle « :loop » dont le profil est publie, ne declare quelque chose qui corresponde a ce projet.',
     'people_intro' => 'Dans la Boucle « :loop », ces personnes declarent quelque chose qui correspond :',

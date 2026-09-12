@@ -939,6 +939,7 @@ return [
      */
     'reference_resolved' => 'You mean the ":loop" Loop.',
     'reference_ambiguous' => 'Two projects could match what :personne said. Which one do you mean?',
+    'reference_correction_ambiguous' => 'Your correction names several of those projects. Which one do you mean?',
     'reference_candidate' => '- **:loop** — ":enonce" (on :date)',
     'reference_corrected_note' => 'Referent corrected at your request.',
 
@@ -951,6 +952,8 @@ return [
      * measurable. Conflating them would manufacture a certainty nobody has.
      */
     'people_blocked_by_ambiguity' => 'I cannot look for who could help until the project is settled. Tell me which one you mean and I will pick it up again.',
+    'people_blocked_by_revoked_reference' => 'I can no longer search from this conversation. Please rephrase your question and name what you are referring to.',
+    'nominative_no_longer_shown' => 'This answer named people I can no longer verify here, so I am no longer displaying it.',
     'people_no_need' => 'I have not learned anything about the ":loop" Loop yet, so I cannot say who could help with it.',
     'people_none' => 'Nobody among the members of the ":loop" Loop with a published profile declares anything that matches this project.',
     'people_intro' => 'In the ":loop" Loop, these people declare something that matches:',
