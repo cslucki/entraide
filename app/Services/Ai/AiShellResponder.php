@@ -7,6 +7,7 @@ use App\Ai\ProviderResolver;
 use App\Models\AiShellMessage;
 use App\Models\BlogPost;
 use App\Models\Dossier;
+use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\DTO\KnowledgeAnswer;
@@ -14,6 +15,7 @@ use App\Services\Dossiers\DerivedChunkEligibility;
 use App\Services\Dossiers\DossierInsightsService;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
+use App\Services\Knowledge\LoopReferenceResolver;
 use App\Support\Ai\AiSelfKnowledge;
 use App\Support\Ai\AiShellPageContext;
 use App\Support\Ai\AiShellThread;
@@ -161,6 +163,16 @@ final class AiShellResponder
      */
     public const PRODUCER_DOSSIER_DISCOVERY = 'dossier.answer.discovery';
 
+    /**
+     * TASK-1544 — le producteur d'une REFERENCE INDIRECTE resolue.
+     *
+     * « Le projet dont Roger parlait mardi » : le tour ne lit aucun document
+     * et n'appelle aucun modele. Il rend ce que la provenance dit — quel
+     * projet, etabli par qui, quand — ou la liste des projets possibles quand
+     * la question en designe plusieurs.
+     */
+    public const PRODUCER_REFERENCE_RESOLUTION = 'reference.resolution';
+
     private const DOCUMENTARY_PRODUCERS = [
         'dossier.answer',
         'article.answer',
@@ -263,6 +275,9 @@ final class AiShellResponder
         // TASK-1534 : l'autorite qui dit quelles Boucles ce membre peut lire.
         // Elle borne la troisieme famille de chunk — la connaissance derivee.
         private readonly DerivedChunkEligibility $derivedEligibility,
+        // TASK-1544 : la resolution d'une reference indirecte. Pas un Entity
+        // Resolver : une jointure sur la provenance deja structuree.
+        private readonly LoopReferenceResolver $references,
     ) {}
 
     /**
@@ -393,6 +408,12 @@ final class AiShellResponder
                     // TASK-1531 : en dernier recours documentaire — ni objet
                     // courant, ni objet deja discute. Sa garde de declenchement
                     // s'execute avant tout balayage de perimetre.
+                    // TASK-1544 : AVANT la decouverte documentaire, et c'est
+                    // l'ordre qui compte. « Le projet dont Roger parlait » ne
+                    // nomme pas son sujet : la recherche semantique y
+                    // repondrait par le document le plus proche des mots
+                    // « projet » et « parlait », c'est-a-dire n'importe quoi.
+                    ?? $this->referenceResolutionTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
                     ?? $this->dossierDiscoveryTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
                     ?? $this->generalAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $generalMemory)
                     ?? $this->generate($organization, $user, $prompt, $pageContext, $pinnedContext, $memory);
@@ -1427,6 +1448,184 @@ final class AiShellResponder
      * @param  list<array<string, mixed>>  $pinnedContext
      * @return array{0: string, 1: array<string, mixed>}|null
      */
+    /**
+     * TASK-1544 — resoudre une reference indirecte par la PROVENANCE.
+     *
+     * ## Aucun appel de modele, et ce n'est pas une economie
+     *
+     * Le tour ne genere rien : il rend ce que la jointure dit. Un modele
+     * n'aurait ici qu'une seule chose a apporter — choisir entre deux
+     * candidats — et c'est precisement ce qu'il ne doit pas faire.
+     *
+     * ## L'ambiguite est STRUCTURELLE, pas une consigne
+     *
+     * Quand deux projets repondent, les deux sont nommes et la question est
+     * rendue a la personne. Ce n'est pas une instruction qu'un modele pourrait
+     * mal suivre : il n'y a pas de branche qui choisisse.
+     *
+     * ## La correction est un tour comme un autre
+     *
+     * « Non, je parlais de REVIVE » arrive apres une clarification. Le fil
+     * porte deja les candidats offerts au tour precedent — meme mecanisme que
+     * `recentDossierObjectId()`, aucun second store. Si le nouveau message
+     * nomme l'un d'eux, le referent est corrige et le contexte conserve.
+     *
+     * @param  array<string, mixed>  $pageContext
+     * @param  list<array<string, mixed>>  $pinnedContext
+     * @return array{0: string, 1: array<string, mixed>}|null
+     */
+    private function referenceResolutionTurn(
+        Organization $organization,
+        User $user,
+        string $prompt,
+        array $pageContext,
+        array $pinnedContext,
+    ): ?array {
+        // La CORRECTION d'abord : elle repond a un tour qu'on vient de tenir,
+        // et sa phrase ne porte plus de marqueur de reference indirecte.
+        $corrige = $this->referentCorrige($organization, $user, $prompt);
+
+        if ($corrige !== null) {
+            return $this->tourDeReference($organization, $user, $pageContext, $pinnedContext,
+                ['candidats' => [$corrige], 'personne' => null], corrige: true);
+        }
+
+        $resolution = $this->references->resoudre((string) $organization->id, $user, $prompt);
+
+        if ($resolution['candidats'] === []) {
+            return null;
+        }
+
+        return $this->tourDeReference($organization, $user, $pageContext, $pinnedContext, $resolution);
+    }
+
+    /**
+     * @param  array<string, mixed>  $pageContext
+     * @param  list<array<string, mixed>>  $pinnedContext
+     * @param  array{personne: ?User, candidats: list<array<string, mixed>>}  $resolution
+     * @return array{0: string, 1: array<string, mixed>}
+     */
+    private function tourDeReference(
+        Organization $organization,
+        User $user,
+        array $pageContext,
+        array $pinnedContext,
+        array $resolution,
+        bool $corrige = false,
+    ): array {
+        $candidats = $resolution['candidats'];
+        $ambigu = count($candidats) > 1;
+        $locale = str_starts_with((string) app()->getLocale(), 'en') ? 'en' : 'fr';
+
+        $lignes = array_map(
+            static fn (array $c): string => trans('ai.reference_candidate', [
+                'loop' => $c['loop_name'],
+                'enonce' => $c['enonces'][0]['texte'],
+                'date' => $c['enonces'][0]['quand']->locale($locale)->translatedFormat('j F Y'),
+            ], $locale),
+            $candidats,
+        );
+
+        $content = $ambigu
+            // On NOMME les deux et on rend la question. Trancher « le plus
+            // recent » fabriquerait une certitude que personne n'a exprimee,
+            // et la personne ne saurait pas qu'on a choisi pour elle.
+            ? trans('ai.reference_ambiguous', [
+                'personne' => $resolution['personne']?->name ?? '',
+            ], $locale).'
+
+'.implode('
+', $lignes)
+            : trans('ai.reference_resolved', [
+                'loop' => $candidats[0]['loop_name'],
+            ], $locale).'
+
+'.implode('
+', $lignes);
+
+        return [$content, [
+            'status' => self::STATUS_NON_INTERACTION,
+            'producer' => self::PRODUCER_REFERENCE_RESOLUTION,
+            'page_context' => [
+                'route' => (string) ($pageContext['route'] ?? ''),
+                'kind' => (string) ($pageContext['kind'] ?? 'other'),
+            ],
+            // Les candidats OFFERTS, pour que la correction du tour suivant
+            // puisse s'y adosser. Des identifiants, jamais un droit : chaque
+            // affichage et chaque reprise les reverifient.
+            'reference' => [
+                'ambiguous' => $ambigu,
+                'corrected' => $corrige,
+                'candidate_loop_ids' => array_map(static fn (array $c): string => $c['loop_id'], $candidats),
+            ],
+            'cards' => $this->cards->forAnsweredTurn(
+                $organization,
+                $user,
+                $ambigu ? null : ['id' => $candidats[0]['loop_id'], 'label' => $candidats[0]['loop_name'],
+                    'provenance' => ['verified' => [['type' => 'active_membership', 'loop_id' => $candidats[0]['loop_id']]]]],
+                $pageContext,
+                '',
+            ),
+            'grounded' => true,
+        ] + $this->pinnedTrace($pinnedContext)];
+    }
+
+    /**
+     * Le referent corrige, quand le tour precedent a demande de choisir.
+     *
+     * Rien n'est devine : on ne retient un candidat que si le message le NOMME
+     * et qu'il figurait dans les identifiants offerts. Un « non » seul, ou un
+     * nom qui n'etait pas propose, ne corrige rien.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function referentCorrige(Organization $organization, User $user, string $prompt): ?array
+    {
+        $conversationId = $this->thread->persistedConversationId($organization, $user);
+
+        if ($conversationId === null) {
+            return null;
+        }
+
+        $offerts = [];
+
+        foreach ($this->thread->messages($organization, $user, $conversationId)->reverse() as $message) {
+            $metadata = is_array($message->metadata) ? $message->metadata : [];
+
+            if (($metadata['producer'] ?? null) !== self::PRODUCER_REFERENCE_RESOLUTION) {
+                continue;
+            }
+
+            if (($metadata['reference']['ambiguous'] ?? false) !== true) {
+                return null;
+            }
+
+            $offerts = array_map('strval', (array) ($metadata['reference']['candidate_loop_ids'] ?? []));
+            break;
+        }
+
+        if ($offerts === []) {
+            return null;
+        }
+
+        // L'univers reste celui du serveur : on relit les Boucles offertes,
+        // et on revalide l'appartenance ACTIVE au moment de la correction.
+        $autorisees = $this->derivedEligibility->authorizedLoopIds((string) $organization->id, $user);
+        $normalise = mb_strtolower($prompt);
+
+        foreach (Loop::query()->whereIn('id', array_intersect($offerts, $autorisees))->get() as $loop) {
+            if (! str_contains($normalise, mb_strtolower(trim((string) $loop->name)))) {
+                continue;
+            }
+
+            return ['loop_id' => (string) $loop->id, 'loop_name' => (string) $loop->name, 'enonces' => [
+                ['texte' => trans('ai.reference_corrected_note'), 'quand' => now()],
+            ]];
+        }
+
+        return null;
+    }
+
     private function dossierDiscoveryTurn(
         Organization $organization,
         User $user,

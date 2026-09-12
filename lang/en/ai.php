@@ -930,6 +930,18 @@ return [
     'knowledge_delta_no_reason' => 'no reason stated',
     'knowledge_delta_source_title' => 'History of the ":loop" Loop, change on :date',
 
+    /*
+     * TASK-1544 — the indirect reference, resolved through PROVENANCE.
+     *
+     * These sentences are not generated: they frame facts the server has just
+     * read. That is why the ambiguity cannot be "poorly followed" — there is no
+     * branch that chooses.
+     */
+    'reference_resolved' => 'You mean the ":loop" Loop.',
+    'reference_ambiguous' => 'Two projects could match what :personne said. Which one do you mean?',
+    'reference_candidate' => '- **:loop** — ":enonce" (on :date)',
+    'reference_corrected_note' => 'Referent corrected at your request.',
+
     // TASK-1477 — the neutral panel fallback: what the Shell can do, not what it cannot.
     'fab_page_help' => 'Ask your question about what you are looking at: the conversation follows you from page to page.',
 

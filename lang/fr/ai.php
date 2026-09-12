@@ -974,6 +974,18 @@ return [
     'knowledge_delta_no_reason' => 'aucune raison enoncee',
     'knowledge_delta_source_title' => 'Historique de la Boucle « :loop », changement du :date',
 
+    /*
+     * TASK-1544 — la reference indirecte, resolue par la PROVENANCE.
+     *
+     * Ces phrases ne sont pas generees : elles encadrent des faits que le
+     * serveur vient de lire. C'est pourquoi l'ambiguite ne peut pas etre
+     * « mal suivie » — il n'existe aucune branche qui choisisse.
+     */
+    'reference_resolved' => 'Vous parlez de la Boucle « :loop ».',
+    'reference_ambiguous' => 'Deux projets peuvent correspondre a ce que :personne a dit. Duquel parlez-vous ?',
+    'reference_candidate' => '- **:loop** — « :enonce » (le :date)',
+    'reference_corrected_note' => 'Referent corrige a votre demande.',
+
     // TASK-1477 — le repli neutre du panneau : ce que le Shell peut, pas ce qu'il ne peut pas.
     'fab_page_help' => 'Posez votre question sur ce que vous consultez : la conversation vous suit de page en page.',
 
