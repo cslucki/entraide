@@ -982,10 +982,13 @@ return [
      * « mal suivie » — il n'existe aucune branche qui choisisse.
      */
     'reference_resolved' => 'Vous parlez de la Boucle « :loop ».',
-    'reference_ambiguous' => 'Deux projets peuvent correspondre a ce que :personne a dit. Duquel parlez-vous ?',
+    // TASK-1547 — le nombre est celui des candidats REELLEMENT rendus. Le
+    // resolveur en offre jusqu'a quatre : ecrire « Deux » en dur mentait des
+    // que trois projets repondaient, et la liste juste en dessous le montrait.
+    'reference_ambiguous' => ':nombre projets peuvent correspondre à ce que :personne a dit. Duquel parlez-vous ?',
     'reference_correction_ambiguous' => 'Votre correction nomme plusieurs de ces projets. Duquel parlez-vous ?',
     'reference_candidate' => '- **:loop** — « :enonce » (le :date)',
-    'reference_corrected_note' => 'Referent corrige a votre demande.',
+    'reference_corrected_note' => 'Référent corrigé à votre demande.',
 
     /*
      * TASK-1546 — People + Self, sur le referent herite.

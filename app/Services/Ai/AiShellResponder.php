@@ -1627,7 +1627,13 @@ final class AiShellResponder
             //
             // TASK-1546 (audit) : une CORRECTION ambigue n'a pas de personne
             // citee — la phrase qui en nommerait une serait fausse.
+            //
+            // TASK-1547 : le NOMBRE annonce est celui des candidats qu'on
+            // s'apprete a lister. `MAX_CANDIDATS` en autorise quatre ; la
+            // phrase en annoncait deux quoi qu'il arrive, et la liste juste
+            // en dessous dementait la phrase.
             ? trans($corrige ? 'ai.reference_correction_ambiguous' : 'ai.reference_ambiguous', [
+                'nombre' => (string) count($candidats),
                 'personne' => $resolution['personne']?->name ?? '',
             ], $locale).'
 
@@ -1690,6 +1696,32 @@ final class AiShellResponder
      * - 0 : rien n'est corrige, le tour suit son cours ;
      * - 2 ou plus : tous sont rendus, et l'appelant re-pose la question.
      *
+     * ## TASK-1547 — le nom NOMME l'emporte sur le nom simplement CONTENU
+     *
+     * L'appariement etait un `str_contains` nu, et deux Boucles dont l'une
+     * porte le nom de l'autre le mettaient en defaut par construction :
+     * « Renovation Pigeonnier » est un morceau de « Renovation Pigeonnier —
+     * temoin ». Nommer la SECONDE appariait donc les deux, et la correction la
+     * plus precise que la personne pouvait ecrire etait exactement celle que
+     * le systeme declarait ambigue.
+     *
+     * Une occurrence AVALEE par le nom plus long d'un autre candidat ne
+     * designe donc rien : elle n'existe que parce que l'autre nom est ecrit.
+     * Un candidat n'est retenu que s'il est nomme quelque part HORS de ces
+     * noms plus longs.
+     *
+     * Ce n'est pas un arbitrage deguise. Le comptage final ne change pas, et
+     * la seule chose ecartee est un appariement que le texte n'a jamais
+     * porte :
+     *
+     * - « je parlais de Renovation Pigeonnier — temoin » : la Boucle courte
+     *   n'apparait que dans la longue, 1 candidat, la correction est acceptee ;
+     * - « je parlais de Renovation Pigeonnier » : la longue n'apparait pas du
+     *   tout, 1 candidat, la correction est acceptee ;
+     * - « Renovation Pigeonnier, pas Renovation Pigeonnier — temoin » : la
+     *   courte est nommee AUSSI hors de la longue, 2 candidats, la question
+     *   est re-posee. Deux Boucles homonymes restent, elles aussi, deux.
+     *
      * @return list<array<string, mixed>> vide = aucune correction
      */
     private function referentCorrige(Organization $organization, User $user, string $prompt): array
@@ -1726,12 +1758,35 @@ final class AiShellResponder
         $autorisees = $this->derivedEligibility->authorizedLoopIds((string) $organization->id, $user);
         $normalise = mb_strtolower($prompt);
 
-        $nommes = [];
+        $apparies = [];
 
         foreach (Loop::query()->whereIn('id', array_intersect($offerts, $autorisees))->get() as $loop) {
-            if (! str_contains($normalise, mb_strtolower(trim((string) $loop->name)))) {
+            $nom = mb_strtolower(trim((string) $loop->name));
+
+            // Un nom vide serait contenu dans n'importe quel message : il
+            // apparierait sa Boucle a chaque correction, sans que rien ne
+            // l'ait nommee.
+            if ($nom === '') {
                 continue;
             }
+
+            $positions = $this->occurrences($normalise, $nom);
+
+            if ($positions === []) {
+                continue;
+            }
+
+            $apparies[] = ['loop' => $loop, 'nom' => $nom, 'positions' => $positions];
+        }
+
+        $nommes = [];
+
+        foreach ($apparies as $apparie) {
+            if (! $this->nommeHorsDUnNomPlusLong($apparie, $apparies)) {
+                continue;
+            }
+
+            $loop = $apparie['loop'];
 
             $nommes[] = ['loop_id' => (string) $loop->id, 'loop_name' => (string) $loop->name, 'enonces' => [
                 ['texte' => trans('ai.reference_corrected_note'), 'quand' => now()],
@@ -1743,6 +1798,68 @@ final class AiShellResponder
         usort($nommes, static fn (array $a, array $b): int => $a['loop_name'] <=> $b['loop_name']);
 
         return $nommes;
+    }
+
+    /**
+     * TASK-1547 — le message nomme-t-il ce candidat AILLEURS que dans le nom
+     * plus long d'un autre candidat ?
+     *
+     * La comparaison porte sur les POSITIONS, pas sur la seule inclusion des
+     * noms : « Renovation Pigeonnier, pas Renovation Pigeonnier — temoin »
+     * ecrit la Boucle courte deux fois, et la premiere de ces deux ecritures
+     * la designe pour elle-meme. Deux candidats homonymes ne s'avalent pas non
+     * plus l'un l'autre — aucun n'est plus long, et l'ambiguite demeure.
+     *
+     * @param  array{loop: Loop, nom: string, positions: list<int>}  $apparie
+     * @param  list<array{loop: Loop, nom: string, positions: list<int>}>  $apparies
+     */
+    private function nommeHorsDUnNomPlusLong(array $apparie, array $apparies): bool
+    {
+        $longueur = mb_strlen($apparie['nom']);
+
+        foreach ($apparie['positions'] as $debut) {
+            $avalee = false;
+
+            foreach ($apparies as $autre) {
+                if (mb_strlen($autre['nom']) <= $longueur) {
+                    continue;
+                }
+
+                foreach ($autre['positions'] as $debutAutre) {
+                    if ($debut >= $debutAutre && $debut + $longueur <= $debutAutre + mb_strlen($autre['nom'])) {
+                        $avalee = true;
+                        break 2;
+                    }
+                }
+            }
+
+            if (! $avalee) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Les positions de TOUTES les occurrences de `$motif` dans `$texte`.
+     *
+     * `$motif` est garanti non vide par l'appelant : sans cela la recherche ne
+     * terminerait pas.
+     *
+     * @return list<int>
+     */
+    private function occurrences(string $texte, string $motif): array
+    {
+        $positions = [];
+        $offset = 0;
+
+        while (($position = mb_strpos($texte, $motif, $offset)) !== false) {
+            $positions[] = $position;
+            $offset = $position + 1;
+        }
+
+        return $positions;
     }
 
     /**
