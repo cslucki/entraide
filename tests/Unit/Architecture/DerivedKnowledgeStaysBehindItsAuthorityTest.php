@@ -38,6 +38,14 @@ class DerivedKnowledgeStaysBehindItsAuthorityTest extends TestCase
         // Le cote WRITE : il ecrit les notes et leurs vecteurs.
         'app/Services/Knowledge/DerivedKnowledgeNoteIndexer.php',
         'app/Services/Knowledge/LoopConversationKnowledgeDeriver.php',
+        // TASK-1540 : le cote WRITE claim-level. `ClaimMemory` ecrit les
+        // enonces et arbitre leur concurrence ; `LoopClaimCompiler` lit les
+        // enonces actifs pour les presenter au modele. Aucun des deux ne SERT
+        // de connaissance a un lecteur — c'est ce que cette garde protege —
+        // et l'un comme l'autre laissent `DerivedChunkEligibility` seule
+        // maitresse du retrieval.
+        'app/Services/Knowledge/ClaimMemory.php',
+        'app/Services/Knowledge/LoopClaimCompiler.php',
         // Le modele qui porte la colonne.
         'app/Models/DossierChunk.php',
         'app/Models/DerivedKnowledgeNote.php',

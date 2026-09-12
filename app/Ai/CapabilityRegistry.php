@@ -24,6 +24,16 @@ final class CapabilityRegistry
      */
     public const LOOP_CONVERSATION_KNOWLEDGE = 'loop_conversation_knowledge';
 
+    /**
+     * TASK-1540 — le protocole de patch de la memoire de Boucle.
+     *
+     * Distincte de `LOOP_CONVERSATION_KNOWLEDGE` : elle ne produit pas un
+     * texte a ranger mais des OPERATIONS a valider, et sa depense se lit donc
+     * separement dans le ledger. Les confondre rendrait illisible le cout de
+     * la bascule claim-level.
+     */
+    public const LOOP_CLAIM_PATCH = 'loop_claim_patch';
+
     public const SCOPE_ORGANIZATION = 'organization';
 
     public const SCOPE_LOOP = 'loop';
@@ -438,9 +448,24 @@ final class CapabilityRegistry
             contextCharBudget: self::loopSummaryContextBudget(),
         );
 
+        $loopClaimPatch = new CapabilityDefinition(
+            id: self::LOOP_CLAIM_PATCH,
+            process: AiProcess::fromScenarioId('loop_claim_patch'),
+            requiresHumanConfirmation: false,
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
+            allowedSources: [self::SOURCE_LOOP_MESSAGES],
+            // Un patch porte N operations, chacune avec son texte et ses
+            // preuves : il lui faut plus de place qu'a un paragraphe unique.
+            maxOutput: 2000,
+            promptKey: 'loop_claim_patch',
+            contextCharBudget: self::loopSummaryContextBudget(),
+        );
+
         $this->definitions = [
             $loopSummary->id => $loopSummary,
             $loopConversationKnowledge->id => $loopConversationKnowledge,
+            $loopClaimPatch->id => $loopClaimPatch,
             $clarifyHelpRequest->id => $clarifyHelpRequest,
             $shellGeneralAnswer->id => $shellGeneralAnswer,
             $loopKnowledgeAnswer->id => $loopKnowledgeAnswer,

@@ -38,6 +38,25 @@ class DerivedKnowledgeNote extends Model
     /** La conversation humaine d'une Boucle. Premiere famille, pas la seule prevue. */
     public const SOURCE_LOOP_CONVERSATION = 'loop_conversation';
 
+    /**
+     * TASK-1540 — deux natures de memoire cohabitent.
+     *
+     * `KIND_DIGEST` : le paragraphe conversationnel, un par Boucle. Il reste
+     * conteneur, repli et provenance agregee, mais n'est plus indexe des lors
+     * que des claims existent — son vecteur, moyenne de huit sujets, se faisait
+     * devancer par un Article generique (mesure T1537).
+     *
+     * `KIND_CLAIM` : un enonce adressable. Il a sa propre identite durable
+     * (`subject_key`), sa propre version, son propre `observed_at`, ses propres
+     * preuves — et son propre chunk, topiquement homogene.
+     */
+    public const KIND_DIGEST = 'digest';
+
+    public const KIND_CLAIM = 'claim';
+
+    /** Le `subject_key` reserve au digest conversationnel. */
+    public const SUBJECT_DIGEST = 'conversation_digest';
+
     public const STATUS_ACTIVE = 'active';
 
     public const STATUS_SUPERSEDED = 'superseded';
@@ -45,6 +64,7 @@ class DerivedKnowledgeNote extends Model
     protected $fillable = [
         'organization_id',
         'source_type',
+        'kind',
         'source_loop_id',
         'dossier_id',
         'subject_key',
@@ -93,6 +113,16 @@ class DerivedKnowledgeNote extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('status', self::STATUS_ACTIVE);
+    }
+
+    public function scopeClaims(Builder $query): Builder
+    {
+        return $query->where('kind', self::KIND_CLAIM);
+    }
+
+    public function isClaim(): bool
+    {
+        return $this->kind === self::KIND_CLAIM;
     }
 
     public function isActive(): bool
