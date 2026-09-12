@@ -67,6 +67,24 @@ final class DerivedKnowledgeNoteIndexer
             return 0;
         }
 
+        if ($this->digestEclipseParSesClaims($note)) {
+            // TASK-1541 — le digest cesse d'etre servi des que la Boucle a des
+            // enonces.
+            //
+            // Les deux portent la MEME connaissance : les indexer ensemble
+            // ferait remonter deux fois chaque fait, et le digest — vecteur
+            // moyenne sur tous les sujets — irait concurrencer l'enonce precis
+            // qui repond vraiment. Le banc de dilution ne mesurerait alors plus
+            // rien, et le lecteur verrait deux sources dire la meme chose.
+            //
+            // La ligne RESTE en base : conteneur conversationnel, porteur de
+            // l'empreinte de source, provenance agregee (CDC §9). Elle n'est
+            // simplement plus retrouvable.
+            $this->forget($note);
+
+            return 0;
+        }
+
         $chunks = $this->chunker->chunk((string) $note->content);
 
         if ($chunks === []) {
@@ -120,6 +138,43 @@ final class DerivedKnowledgeNoteIndexer
 
             return count($chunks);
         });
+    }
+
+    /**
+     * Un digest que ses propres enonces rendent superflu.
+     *
+     * DEUX cas, et le second n'est pas une variante du premier :
+     *
+     *  - la Boucle a des enonces actifs : les deux porteraient les memes faits ;
+     *  - la ligne EST un conteneur d'enonces. Elle ne redevient jamais servable,
+     *    meme si tous les enonces sont retractes : son texte n'est qu'une
+     *    projection des enonces, et le repli sur une projection perimee
+     *    rendrait lisible ce qu'un RETRACT vient d'effacer.
+     *
+     * Un digest HISTORIQUE, compile par un modele sur une Boucle sans enonce,
+     * reste servi : c'est le chemin `knowledge:derive-loop-conversations`, que
+     * le CDC conserve.
+     */
+    private function digestEclipseParSesClaims(DerivedKnowledgeNote $note): bool
+    {
+        // « tout ce qui n'est pas un enonce est un digest », et non l'inverse.
+        // Ecrite dans l'autre sens, la condition laissait passer toute ligne
+        // dont le `kind` n'etait pas encore charge — et il ne l'est pas sur
+        // l'instance que `create()` rend.
+        if ($note->isClaim() || $note->source_loop_id === null) {
+            return false;
+        }
+
+        if (($note->provenance['derived_by'] ?? null) === ClaimMemory::CONTENEUR) {
+            return true;
+        }
+
+        return DerivedKnowledgeNote::query()
+            ->where('organization_id', $note->organization_id)
+            ->where('source_loop_id', $note->source_loop_id)
+            ->claims()
+            ->active()
+            ->exists();
     }
 
     /**

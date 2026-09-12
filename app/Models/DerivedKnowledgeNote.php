@@ -61,6 +61,25 @@ class DerivedKnowledgeNote extends Model
 
     public const STATUS_SUPERSEDED = 'superseded';
 
+    /**
+     * TASK-1541 — `kind` a une valeur DES LA CONSTRUCTION, pas seulement en base.
+     *
+     * La colonne porte bien un defaut SQL, mais il ne s'applique qu'a la ligne
+     * ecrite : l'instance rendue par `create()` gardait, elle, un `kind` nul.
+     * L'indexeur — qui recoit cette instance-la — ne reconnaissait donc pas un
+     * digest fraichement compile, et l'indexait a cote des enonces. Le banc de
+     * dilution l'a montre : un chunk de paragraphe servi en meme temps que les
+     * enonces, portant les memes faits.
+     *
+     * Un defaut qui ne vaut qu'en base est un defaut qu'on oublie une requete
+     * sur deux.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'kind' => self::KIND_DIGEST,
+    ];
+
     protected $fillable = [
         'organization_id',
         'source_type',
