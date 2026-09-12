@@ -330,6 +330,29 @@ return [
         // cours ; trop long, la memoire est en retard sur le travail.
         'conversation' => [
             'quiet_minutes' => (int) env('AI_KNOWLEDGE_CONVERSATION_QUIET_MINUTES', 10),
+            /*
+             * TASK-1542 — le PLAFOND DE RETARD.
+             *
+             * La fenetre d'inactivite suppose que les conversations finissent
+             * par se taire. Certaines ne se taisent pas : une Boucle ou
+             * quelqu'un parle toutes les cinq minutes ne franchit jamais le
+             * seuil de calme, et n'est donc JAMAIS apprise — sans limite de
+             * temps, sans alerte, et sans que rien ne le signale.
+             *
+             * Ce plafond repond a « depuis combien de temps y a-t-il de la
+             * matiere non apprise », question que la fenetre de calme ne pose
+             * pas. Au-dela, on compile pendant que les gens parlent encore.
+             *
+             * Il ne remplace pas le debounce, il le borne : en deca du
+             * plafond, N messages rapproches convergent toujours vers UNE
+             * compilation. Le cout ajoute vaut donc, au pire, un appel par
+             * Boucle et par plafond.
+             *
+             * Jamais inferieur a `quiet_minutes` : un plafond plus court
+             * prendrait la main sur la fenetre de calme et compilerait des
+             * echanges en cours a chaque balayage.
+             */
+            'max_learning_delay_minutes' => (int) env('AI_KNOWLEDGE_CONVERSATION_MAX_LEARNING_DELAY_MINUTES', 120),
         ],
         'max_context_chars' => (int) env('AI_KNOWLEDGE_MAX_CONTEXT_CHARS', 6000),
         'max_tokens' => (int) env('AI_KNOWLEDGE_MAX_TOKENS', 700),
