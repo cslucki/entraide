@@ -956,6 +956,24 @@ return [
     'dossier_manifest_file' => 'Fichier :type : :name — Dossier « :dossier »',
     'dossier_manifest_file_type_fallback' => 'fichier',
 
+    /*
+     * TASK-1543 — l'espace de citation [Hn] : l'HISTOIRE.
+     *
+     * Distinct de [Mn] (existence) et de [Sn] (contenu), et il doit le rester :
+     * une affirmation historique ne sort pas d'un document, elle sort d'une
+     * chaine de versions dont les deux extremites portent leurs preuves.
+     *
+     * Les dates rendues ici sont des temps HUMAINS — le moment ou le propos a
+     * ete tenu — jamais l'instant ou la machine a compile.
+     */
+    'knowledge_delta_header' => '--- CE QUI A CHANGE DANS LA MEMOIRE DE LA BOUCLE « :loop » DEPUIS :depuis ---',
+    'knowledge_delta_since_always' => 'le debut',
+    'knowledge_delta_added' => 'AJOUTE le :date : :nouveau',
+    'knowledge_delta_updated' => 'CORRIGE le :date : avant, « :ancien » ; desormais, « :nouveau »',
+    'knowledge_delta_retracted' => 'RETIRE le :date : « :ancien » n\'est plus valable (:raison). Aucun remplacement n\'a ete enonce.',
+    'knowledge_delta_no_reason' => 'aucune raison enoncee',
+    'knowledge_delta_source_title' => 'Historique de la Boucle « :loop », changement du :date',
+
     // TASK-1477 — le repli neutre du panneau : ce que le Shell peut, pas ce qu'il ne peut pas.
     'fab_page_help' => 'Posez votre question sur ce que vous consultez : la conversation vous suit de page en page.',
 

@@ -71,6 +71,17 @@ final class CapabilityRegistry
     public const SOURCE_DOSSIER_MANIFEST = 'dossier.manifest';
 
     /**
+     * TASK-1543 : l'HISTOIRE de la memoire d'une Boucle — ce qui a ete ajoute,
+     * corrige ou retire, avec les preuves des deux cotes.
+     *
+     * Lecture de LIGNAGE, deterministe, sans recherche ni embedding. Une
+     * question de changement n'a aucun bon voisin vectoriel : le plus proche
+     * chunk de « change » est un paragraphe qui PARLE de changement. Meme
+     * argument que `dossier.manifest` pour les questions d'inventaire.
+     */
+    public const SOURCE_KNOWLEDGE_DELTA = 'knowledge.delta';
+
+    /**
      * TASK-1213 : reponse documentaire sourcee depuis une Boucle. Read-only :
      * elle n'ecrit ni message ni objet metier.
      */
@@ -257,7 +268,11 @@ final class CapabilityRegistry
             // les Dossiers savent. TASK-1307 : le manifest structurel est
             // declare EN PREMIER (petit, deterministe, prioritaire sur le
             // budget) — le retrieval semantique consomme le reste.
-            allowedSources: [self::SOURCE_DOSSIER_MANIFEST, self::SOURCE_DOSSIER_RETRIEVAL],
+            // TASK-1543 : l'histoire EN PREMIER, pour la meme raison que le
+            // manifest — petite, deterministe, et elle ne produit rien du tout
+            // hors d'une question de changement. Le retrieval semantique
+            // consomme le budget restant.
+            allowedSources: [self::SOURCE_KNOWLEDGE_DELTA, self::SOURCE_DOSSIER_MANIFEST, self::SOURCE_DOSSIER_RETRIEVAL],
             maxOutput: 4000,
             promptKey: 'loop_knowledge_answer',
             contextCharBudget: self::knowledgeContextBudget(),
@@ -283,7 +298,7 @@ final class CapabilityRegistry
             requiresHumanConfirmation: false,
             canWrite: false,
             allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
-            allowedSources: [self::SOURCE_DOSSIER_MANIFEST, self::SOURCE_DOSSIER_RETRIEVAL],
+            allowedSources: [self::SOURCE_KNOWLEDGE_DELTA, self::SOURCE_DOSSIER_MANIFEST, self::SOURCE_DOSSIER_RETRIEVAL],
             maxOutput: 4000,
             promptKey: 'loop_hybrid_answer',
             contextCharBudget: self::knowledgeContextBudget(),
