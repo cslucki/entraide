@@ -104,6 +104,9 @@ final class AiProcess
         // une reponse a un membre ni une indexation, et la confondre avec
         // l'une des deux rendrait la releve economique illisible.
         'loop_conversation_knowledge' => 'loop_conversation.knowledge',
+        // TASK-1540 — la bascule claim-level se lit separement du digest :
+        // confondre les deux rendrait son cout invisible.
+        'loop_claim_patch' => 'loop_conversation.claim_patch',
     ];
 
     private function __construct() {}

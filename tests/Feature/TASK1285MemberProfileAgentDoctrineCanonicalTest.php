@@ -542,7 +542,8 @@ class TASK1285MemberProfileAgentDoctrineCanonicalTest extends TestCase
         // TASK-1435 : + `guest_shell_welcome` (accueil du visiteur, SW-5) = 12.
         // TASK-1526 : + `shell_general_answer` (Shell membre) = 13.
         // TASK-1534 : + `loop_conversation_knowledge` = 14 canoniques.
-        $this->assertSame(14, $coverage->coveredCount());
-        $this->assertSame(18, $coverage->totalCount());
+        // TASK-1540 : + `loop_claim_patch` (le protocole de patch de la memoire) = 15.
+        $this->assertSame(15, $coverage->coveredCount());
+        $this->assertSame(19, $coverage->totalCount());
     }
 }
