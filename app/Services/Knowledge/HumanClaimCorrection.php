@@ -4,6 +4,7 @@ namespace App\Services\Knowledge;
 
 use App\Models\DerivedKnowledgeNote;
 use App\Models\Loop;
+use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Dossiers\DerivedChunkEligibility;
@@ -186,14 +187,58 @@ final class HumanClaimCorrection
         // ecoute. On ne la double pas d'une regle locale.
 
         try {
-            $message = $this->messages->sendUserMessage($loop, $user, trim($texteHumain));
+            // Le marqueur d'origine est une METADONNEE, jamais un type a part :
+            // le message reste un message humain ordinaire, visible et
+            // editable comme les autres. Il dit seulement a qui il s'adresse —
+            // a la memoire, pas a l'agent de la Boucle
+            // ({@see LoopMessage::isClaimCorrection()}).
+            $message = $this->messages->sendUserMessage($loop, $user, trim($texteHumain), [
+                'origin' => LoopMessage::ORIGIN_CLAIM_CORRECTION,
+                'corrected_subject_key' => $subjectKey,
+            ]);
         } catch (\RuntimeException) {
             return $refus('ecriture_refusee');
+        }
+
+        // REMEDIATION CODEX #8 — l'acteur de la provenance est l'auteur du
+        // message, et cela se VERIFIE.
+        //
+        // Deux identites circulent ici : celle qui signera la provenance, et
+        // celle qui a reellement ecrit la preuve. Rien ne les liait. Le jour ou
+        // une UI passera un `user_id` venu du front, la provenance nommerait
+        // quelqu'un qui n'a rien ecrit — une correction attribuee a un tiers,
+        // et une preuve qui dit le contraire.
+        // La lecture porte sur l'etat PERSISTE, pas sur l'objet qu'on vient de
+        // construire : un observateur ou un abonne a `LoopMessageCreated` peut
+        // reassigner l'expediteur en base, et l'instance en memoire dirait
+        // encore le contraire.
+        $message = $message->fresh() ?? $message;
+
+        if ((string) $message->sender_id !== (string) $user->id) {
+            return ['ok' => false, 'raison' => 'acteur_incoherent', 'message_id' => (string) $message->id];
         }
 
         $origine = ClaimWriteOrigin::humanCorrection($user, $message);
 
         for ($essai = 0; $essai <= self::REJEUX; $essai++) {
+            // REMEDIATION CODEX #7 — les gardes sont revalidees a CHAQUE essai,
+            // au plus pres de la mutation. Un droit peut tomber entre la
+            // premiere verification et le verrou : une adhesion revoquee, un
+            // compte desactive, une Boucle archivee. Le residuel assume est la
+            // fenetre entre ce controle et le `lockForUpdate()` de
+            // `appliquer()` — fermer celle-la demanderait de faire entrer l'ACL
+            // dans la primitive de memoire, donc le refactor que la mission
+            // exclut.
+            $loop = $loop->fresh() ?? $loop;
+            $user = $user->fresh() ?? $user;
+
+            if ($user->isDeactivated()
+                || (string) $user->organization_id !== (string) $organization->id
+                || ! in_array((string) $loop->id, $this->eligibility->authorizedLoopIds((string) $organization->id, $user), true)
+                || ! $this->lifecycle->isWritable($loop)) {
+                return ['ok' => false, 'raison' => 'droit_revoque', 'message_id' => (string) $message->id];
+            }
+
             $claims = $this->memory->actifs($organization, $loop);
             $empreinte = $this->memory->empreinte($claims);
 

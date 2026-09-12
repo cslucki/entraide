@@ -71,14 +71,6 @@ use App\Models\LoopMessage;
 final class ClaimResurrectionGuard
 {
     /**
-     * Borne de lecture des frontieres d'une Boucle.
-     *
-     * Une Boucle tres corrigee n'en accumule pas des milliers ; la borne
-     * protege le cas pathologique sans changer le cas reel.
-     */
-    private const MAX_FRONTIERES = 200;
-
-    /**
      * Les corrections humaines de cette Boucle, sous la forme ou la garde les
      * consomme.
      *
@@ -117,7 +109,59 @@ final class ClaimResurrectionGuard
             ];
         }
 
-        return array_slice($frontieres, 0, self::MAX_FRONTIERES);
+        return $frontieres;
+    }
+
+    /**
+     * REMEDIATION CODEX #3 — la DERNIERE correction d'un sujet fait autorite.
+     *
+     * Les frontieres anterieures restent historiques : leur `text_hash` et
+     * leurs `evidence_ids` servent encore a RECONNAITRE un rejeu — c'est la
+     * seule trace du texte qu'une correction intermediaire a ecarte. Mais
+     * aucune d'elles ne decide a la place de la plus recente : la barre de
+     * posteriorite d'un sujet est celle de sa derniere correction.
+     *
+     * Sans cette collapse, la barre appliquee dependait de la frontiere qui se
+     * trouvait matcher en premier — donc, en pratique, de l'ordre de lecture.
+     *
+     * @param  list<array{subject_key: string, text_hash: string, evidence_ids: list<string>, position: array{0: string, 1: string}}>  $frontieres
+     * @return array<string, array{0: string, 1: string}> subject_key => derniere position
+     */
+    public static function dernieresPositions(array $frontieres): array
+    {
+        $dernieres = [];
+
+        foreach ($frontieres as $frontiere) {
+            $sujet = $frontiere['subject_key'];
+            $connue = $dernieres[$sujet] ?? null;
+
+            if ($connue === null || self::compare($frontiere['position'], $connue) > 0) {
+                $dernieres[$sujet] = $frontiere['position'];
+            }
+        }
+
+        return $dernieres;
+    }
+
+    /**
+     * La position de la DERNIERE correction humaine de la Boucle, toutes
+     * identites confondues — la barre que la regle fail-closed des `ADD`
+     * oppose au corpus ancien.
+     *
+     * @param  list<array{subject_key: string, text_hash: string, evidence_ids: list<string>, position: array{0: string, 1: string}}>  $frontieres
+     * @return array{0: string, 1: string}|null
+     */
+    public static function derniereFrontiereDeLaBoucle(array $frontieres): ?array
+    {
+        $derniere = null;
+
+        foreach ($frontieres as $frontiere) {
+            if ($derniere === null || self::compare($frontiere['position'], $derniere) > 0) {
+                $derniere = $frontiere['position'];
+            }
+        }
+
+        return $derniere;
     }
 
     /**
@@ -176,15 +220,52 @@ final class ClaimResurrectionGuard
         $empreinte = self::empreinteTexte((string) ($operation['text'] ?? ''));
         $preuves = array_map('strval', (array) ($operation['evidence'] ?? []));
         $sujet = (string) ($operation['claim_id'] ?? '');
+        $operateur = strtoupper(trim((string) ($operation['op'] ?? '')));
+
+        // ── REMEDIATION CODEX #4 — la regle fail-closed des `ADD` ──────────
+        //
+        // Un `ADD` ne porte aucune identite et peut reformuler librement : ni
+        // le `subject_key`, ni l'empreinte de texte, ni meme l'inclusion des
+        // preuves ne le rattrapent si le modele repart d'un AUTRE vieux
+        // message pour redire la meme chose. Le seul filet qui ne demande ni
+        // resolution d'entites ni appel au modele est temporel :
+        //
+        //   dans une Boucle qui porte au moins une correction humaine, un
+        //   `ADD` automatique n'est admissible que si TOUTES ses preuves sont
+        //   strictement posterieures a la DERNIERE correction de cette Boucle.
+        //
+        // C'est assume comme un COMPROMIS FAIL-CLOSED TEMPORAIRE, et il coute :
+        // un sujet voisin, jamais corrige, cesse d'etre apprenable depuis le
+        // corpus ancien des qu'une correction existe dans la Boucle. Le cout
+        // est borne — le corpus ancien a deja ete compile, et tout ce qui
+        // s'ecrit ENSUITE reste apprenable — la ou le defaut inverse laissait
+        // une correction humaine se faire defaire par une reformulation.
+        //
+        // Il ne touche AUCUN claim actif : il n'interdit que la CREATION
+        // automatique depuis l'ancien corpus. Lever ce compromis demandera une
+        // identite de sujet qui survive a la reformulation, pas un prompt.
+        if ($operateur === ClaimPatch::OP_ADD) {
+            $derniere = self::derniereFrontiereDeLaBoucle($frontieres);
+
+            if ($derniere !== null && ! self::toutesLesPreuvesSontPosterieures($preuves, $derniere, $messagesParId)) {
+                return true;
+            }
+        }
+
+        $dernieres = self::dernieresPositions($frontieres);
 
         foreach ($frontieres as $frontiere) {
             if (! self::viseCetteFrontiere($empreinte, $preuves, $sujet, $frontiere)) {
                 continue;
             }
 
-            // Elle touche un terrain deja corrige. Elle ne passe QUE si TOUTE
-            // sa preuve est posterieure a cette correction.
-            if (! self::toutesLesPreuvesSontPosterieures($preuves, $frontiere['position'], $messagesParId)) {
+            // Elle touche un terrain deja corrige. La barre est celle de la
+            // DERNIERE correction de ce sujet, jamais celle de la frontiere
+            // qui a matche — sinon la decision dependrait de l'ordre de
+            // lecture (REMEDIATION CODEX #3).
+            $barre = $dernieres[$frontiere['subject_key']] ?? $frontiere['position'];
+
+            if (! self::toutesLesPreuvesSontPosterieures($preuves, $barre, $messagesParId)) {
                 return true;
             }
         }

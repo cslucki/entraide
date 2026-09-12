@@ -2,6 +2,7 @@
 
 namespace App\Services\Knowledge;
 
+use App\Jobs\IndexDerivedKnowledgeNote;
 use App\Models\DerivedKnowledgeNote;
 use App\Models\Loop;
 use App\Models\LoopMessage;
@@ -353,7 +354,15 @@ final class ClaimMemory
             foreach ($patch->operationsDe(ClaimPatch::OP_RETRACT) as $op) {
                 $ancien = $parId->get((string) $op['claim_id']);
 
-                if ($ancien === null) {
+                // REMEDIATION CODEX #1 — un RETRACT aussi se garde.
+                //
+                // La garde ne visait qu'ADD et UPDATE, comme si defaire une
+                // correction demandait d'ecrire. C'est faux : apres un UPDATE
+                // humain, le compiler pouvait RETRACTER la version corrigee en
+                // citant la vieille preuve — et EFFACER la correction sans
+                // jamais rien ecrire. La forme la plus destructrice du rejeu
+                // etait la seule qui passait.
+                if ($ancien === null || $estRejouee($op)) {
                     continue;
                 }
 
@@ -383,7 +392,33 @@ final class ClaimMemory
         // indexe est simplement introuvable pendant un instant, ce qui est
         // exactement le comportement d'un index asynchrone — jamais une
         // incoherence.
+        //
+        // ## REMEDIATION CODEX #5 — une correction humaine n'attend aucun provider
+        //
+        // Hors de la transaction ne veut pas dire hors du chemin critique :
+        // cette boucle s'executait AVANT que l'appelant recoive sa reponse. La
+        // memoire etait donc deja commitee, mais l'accuse de reception de la
+        // personne attendait un aller-retour d'embedding — et un fournisseur
+        // injoignable faisait remonter une EXCEPTION sur une correction
+        // pourtant ecrite. La personne aurait lu « echec » sur un fait acquis.
+        //
+        // Pour une origine HUMAINE, l'indexation est donc MISE EN FILE, jamais
+        // appelee ici : zero appel de fournisseur avant l'accuse de reception.
+        // Le commit memoire fait foi, le vecteur suit.
+        //
+        // `forget()` reste synchrone, lui, et c'est necessaire : il ne fait que
+        // supprimer des chunks en base — aucun fournisseur — et c'est ce qui
+        // garantit qu'un enonce retracte sort du retrieval IMMEDIATEMENT.
+        //
+        // Le compiler garde le comportement synchrone : il tourne deja en file,
+        // personne n'attend derriere lui.
         foreach ($aIndexer as $note) {
+            if ($origine->isHuman()) {
+                IndexDerivedKnowledgeNote::dispatch((string) $note->id, $correlationId);
+
+                continue;
+            }
+
             $this->indexer->synchronize($note);
         }
 
@@ -500,29 +535,49 @@ final class ClaimMemory
     }
 
     /**
-     * Les enonces de cette Boucle qu'une personne a corriges.
+     * Les enonces de cette Boucle qu'une personne a corriges — TOUS.
      *
      * Le filtre sur `human_correction` se fait en PHP et non en SQL : un
      * operateur `jsonb` serait vert sur les six voies PostgreSQL de la CI et
      * faux sur SQLite, qui tourne a cote.
      *
+     * ## REMEDIATION CODEX #2 — aucune frontiere ne s'evapore avec l'age
+     *
+     * Cette lecture portait `limit(500)`, et le garde-fou une borne de 200.
+     * Deux chiffres anodins, et une consequence qui ne l'est pas : au-dela,
+     * les frontieres les plus ANCIENNES sortaient silencieusement de la garde.
+     * Une correction humaine redevenait donc ressuscitable parce qu'elle etait
+     * vieille — exactement la propriete que W1.5-A promet d'exclure, annulee
+     * par une optimisation que personne n'aurait songe a tester.
+     *
+     * La lecture est desormais **exhaustive semantiquement** et seulement
+     * bornee TECHNIQUEMENT : `chunkById` pagine, la memoire reste plate, et
+     * aucune ligne n'est laissee derriere. Le cout suit le nombre de
+     * corrections HUMAINES d'une Boucle — pas celui de ses supersessions, qui
+     * sont filtrees ligne a ligne et jamais accumulees.
+     *
      * @return list<DerivedKnowledgeNote>
      */
     private function corrigeesParHumain(Organization $organization, Loop $loop): array
     {
-        return DerivedKnowledgeNote::query()
+        $corrigees = [];
+
+        DerivedKnowledgeNote::query()
             ->where('organization_id', $organization->id)
             ->where('source_type', DerivedKnowledgeNote::SOURCE_LOOP_CONVERSATION)
             ->where('source_loop_id', $loop->id)
             ->claims()
             ->where('status', DerivedKnowledgeNote::STATUS_SUPERSEDED)
             ->whereNotNull('superseded_at')
-            ->orderByDesc('superseded_at')
-            ->limit(500)
-            ->get()
-            ->filter(static fn (DerivedKnowledgeNote $c): bool => is_array(($c->provenance ?? [])['human_correction'] ?? null))
-            ->values()
-            ->all();
+            ->chunkById(500, function ($lot) use (&$corrigees): void {
+                foreach ($lot as $claim) {
+                    if (is_array(($claim->provenance ?? [])['human_correction'] ?? null)) {
+                        $corrigees[] = $claim;
+                    }
+                }
+            });
+
+        return $corrigees;
     }
 
     private function prochaineVersion(Organization $organization, Loop $loop, string $subjectKey): int
