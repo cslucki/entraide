@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\People\DTO\EligiblePerson;
 use App\Services\People\DTO\RelevantPeopleResult;
 use App\Services\People\DTO\RelevantPerson;
+use App\Services\People\DTO\SelfFitResult;
 use Illuminate\Support\Str;
 
 /**
@@ -136,6 +137,58 @@ class RelevantPeopleService
         );
 
         return RelevantPeopleResult::authorized(array_slice($kept, 0, self::MAX_RESULTS));
+    }
+
+    /**
+     * TASK-1546 — « Et moi ? », mesure sur la personne qui demande.
+     *
+     * ## Le MEME appariement, pas un second
+     *
+     * Les signaux autorises sont extraits par {@see authorizedSignalsByUserId()}
+     * et apparies par {@see matchedReasons()} — exactement le code qui sert
+     * aux autres. Une personne n'a pas deux pertinences selon qu'elle se
+     * regarde ou qu'on la regarde ; ecrire ici une seconde regle
+     * d'appariement aurait produit deux verites sur la meme personne.
+     *
+     * Le seul changement est l'UNIVERS : {@see EligiblePeopleService::requesterInLoop()}
+     * rend le demandeur au lieu de l'exclure. Les gardes de contexte et les
+     * regles de lisibilite restent celles de People-1, ecrites une fois.
+     *
+     * ## Trois issues, jamais deux
+     *
+     * Un refus de contexte se propage tel quel. Un demandeur sans profil
+     * publie rend `notAssessable` — « je ne peux pas le dire », qui n'est pas
+     * « vous ne correspondez pas ». Sinon la mesure est rendue, avec
+     * possiblement zero raison : un zero franc reste un resultat propre.
+     *
+     * Le plafond `MAX_RESULTS` ne s'applique pas : il borne un NOMBRE DE
+     * PERSONNES pour qu'une liste ne redevienne pas un classement. Ici il n'y
+     * a qu'une personne, et tronquer ses raisons lui cacherait ce que le
+     * serveur a effectivement lu d'elle.
+     *
+     * `$need` est le texte du besoin (brut ou derive). Un texte sans terme
+     * exploitable rend une mesure a zero raison — proprement.
+     */
+    public function selfFitFor(Organization $organization, Loop $loop, User $requester, string $need): SelfFitResult
+    {
+        $moi = $this->eligiblePeople->requesterInLoop($organization, $loop, $requester);
+
+        if (! $moi->authorized) {
+            return SelfFitResult::refused((string) $moi->refusalReason);
+        }
+
+        if ($moi->people === []) {
+            return SelfFitResult::notAssessable(SelfFitResult::NOT_ASSESSABLE_PROFILE_NOT_PUBLISHED);
+        }
+
+        $person = $moi->people[0];
+
+        $signals = $this->authorizedSignalsByUserId($organization, $moi->people);
+
+        return SelfFitResult::assessed(
+            $person,
+            $this->matchedReasons($signals[$person->userId] ?? [], $this->tokens($need)),
+        );
     }
 
     /**

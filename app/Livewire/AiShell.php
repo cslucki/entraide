@@ -12,6 +12,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\AiShellResponder;
 use App\Support\Ai\AiFabContext;
+use App\Support\Ai\AiShellNominativeTurn;
 use App\Support\Ai\AiShellPageContext;
 use App\Support\Ai\AiShellPinnedContext;
 use App\Support\Ai\AiShellThread;
@@ -461,12 +462,30 @@ class AiShell extends Component
                 ->all();
 
         $cards = [];
+        // TASK-1546 (audit) — le texte NOMINATIF, revalide MAINTENANT.
+        //
+        // Les cartes ne suffisaient pas, et pas par oubli : `forDisplay()` ne
+        // rend des cartes que sur un tour `STATUS_ANSWERED`, or les tours
+        // People/Self sont `STATUS_NON_INTERACTION`. Leurs cartes n'atteignent
+        // jamais l'ecran — seul le texte l'atteint, et c'est lui qui portait
+        // les noms d'un ensemble eligible calcule a un autre moment.
+        //
+        // Une seule instance par rendu, comme pour les cartes : les tours qui
+        // ne nomment personne rendent leur contenu sans aucune requete.
+        $nominative = app(AiShellNominativeTurn::class);
+        $bodies = [];
 
         foreach ($messages as $message) {
             $displayable = $turnCards->forDisplay($organization, $user, $message);
 
             if ($displayable !== []) {
                 $cards[(string) $message->id] = $displayable;
+            }
+
+            $body = $nominative->displayContent($organization, $user, $message);
+
+            if ($body !== (string) $message->content) {
+                $bodies[(string) $message->id] = $body;
             }
         }
 
@@ -499,6 +518,9 @@ class AiShell extends Component
                 'conversation_id' => $conversationId,
                 'messages' => $messages,
                 'cards' => $cards,
+                // TASK-1546 (audit) : contenu revalide, par identifiant de
+                // message. Absent = le contenu stocke est encore exact.
+                'bodies' => $bodies,
                 // TASK-1486 : `ai_interaction_id` => verdict, pour CETTE
                 // personne uniquement.
                 'verdicts' => $verdicts,

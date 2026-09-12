@@ -983,8 +983,35 @@ return [
      */
     'reference_resolved' => 'Vous parlez de la Boucle « :loop ».',
     'reference_ambiguous' => 'Deux projets peuvent correspondre a ce que :personne a dit. Duquel parlez-vous ?',
+    'reference_correction_ambiguous' => 'Votre correction nomme plusieurs de ces projets. Duquel parlez-vous ?',
     'reference_candidate' => '- **:loop** — « :enonce » (le :date)',
     'reference_corrected_note' => 'Referent corrige a votre demande.',
+
+    /*
+     * TASK-1546 — People + Self, sur le referent herite.
+     *
+     * Aucune de ces phrases n'est generee : elles encadrent des faits que le
+     * serveur vient de lire. Quatre etats qui se ressemblent a l'ecran sont
+     * volontairement distincts — l'ambiguite non resolue, l'absence de besoin
+     * derivable, l'absence de correspondance et l'impossibilite de mesurer.
+     * Les confondre fabriquerait une certitude que personne n'a.
+     */
+    'people_blocked_by_ambiguity' => 'Je ne peux pas chercher qui pourrait aider tant que le projet n\'est pas fixe. Dites-moi duquel vous parlez et je reprends.',
+    'people_blocked_by_revoked_reference' => 'Je ne peux plus rien chercher a partir de cette conversation. Reformulez votre question en nommant ce dont vous parlez.',
+    'nominative_no_longer_shown' => 'Cette reponse citait des personnes que je ne peux plus verifier ici : je ne l\'affiche plus.',
+    'people_no_need' => 'Je n\'ai encore rien appris sur la Boucle « :loop » : je ne peux donc pas dire qui pourrait y aider.',
+    'people_none' => 'Personne, parmi les membres de la Boucle « :loop » dont le profil est publie, ne declare quelque chose qui corresponde a ce projet.',
+    'people_intro' => 'Dans la Boucle « :loop », ces personnes declarent quelque chose qui correspond :',
+    'people_candidate' => '- **:name** — :reasons',
+    'people_reason' => '« :label »',
+    'people_reason_separator' => ', ',
+    'people_refused_loop_not_active' => 'La Boucle « :loop » n\'est plus active : je ne cherche pas de personnes dessus.',
+    'people_refused_ai_profiles_disabled' => 'Les profils IA sont desactives dans cette organisation : je n\'ai aucun profil a lire pour repondre.',
+    'people_refused_not_authorized' => 'Je ne peux pas chercher de personnes sur la Boucle « :loop ».',
+    'self_fit' => 'Sur la Boucle « :loop », voici ce que votre profil publie declare et qui correspond :',
+    'self_no_match' => 'Rien de ce que votre profil publie declare ne correspond a la Boucle « :loop ».',
+    'self_not_assessable' => 'Je ne peux pas mesurer votre place sur la Boucle « :loop » : votre profil IA n\'est pas publie dans cette organisation.',
+    'self_limits' => 'Je ne lis que votre profil publie et vos services actifs. Je ne sais rien de votre disponibilite ni de votre charge : c\'est a vous d\'en decider.',
 
     // TASK-1477 — le repli neutre du panneau : ce que le Shell peut, pas ce qu'il ne peut pas.
     'fab_page_help' => 'Posez votre question sur ce que vous consultez : la conversation vous suit de page en page.',

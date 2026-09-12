@@ -939,8 +939,34 @@ return [
      */
     'reference_resolved' => 'You mean the ":loop" Loop.',
     'reference_ambiguous' => 'Two projects could match what :personne said. Which one do you mean?',
+    'reference_correction_ambiguous' => 'Your correction names several of those projects. Which one do you mean?',
     'reference_candidate' => '- **:loop** — ":enonce" (on :date)',
     'reference_corrected_note' => 'Referent corrected at your request.',
+
+    /*
+     * TASK-1546 — People + Self, on the inherited referent.
+     *
+     * None of these sentences is generated: they frame facts the server has
+     * just read. Four states that look alike on screen are deliberately kept
+     * apart — unresolved ambiguity, no derivable need, no match, and not
+     * measurable. Conflating them would manufacture a certainty nobody has.
+     */
+    'people_blocked_by_ambiguity' => 'I cannot look for who could help until the project is settled. Tell me which one you mean and I will pick it up again.',
+    'people_blocked_by_revoked_reference' => 'I can no longer search from this conversation. Please rephrase your question and name what you are referring to.',
+    'nominative_no_longer_shown' => 'This answer named people I can no longer verify here, so I am no longer displaying it.',
+    'people_no_need' => 'I have not learned anything about the ":loop" Loop yet, so I cannot say who could help with it.',
+    'people_none' => 'Nobody among the members of the ":loop" Loop with a published profile declares anything that matches this project.',
+    'people_intro' => 'In the ":loop" Loop, these people declare something that matches:',
+    'people_candidate' => '- **:name** — :reasons',
+    'people_reason' => '":label"',
+    'people_reason_separator' => ', ',
+    'people_refused_loop_not_active' => 'The ":loop" Loop is no longer active: I am not looking for people on it.',
+    'people_refused_ai_profiles_disabled' => 'AI profiles are disabled in this organization: I have no profile to read in order to answer.',
+    'people_refused_not_authorized' => 'I cannot look for people on the ":loop" Loop.',
+    'self_fit' => 'On the ":loop" Loop, here is what your published profile declares that matches:',
+    'self_no_match' => 'Nothing your published profile declares matches the ":loop" Loop.',
+    'self_not_assessable' => 'I cannot assess your place on the ":loop" Loop: your AI profile is not published in this organization.',
+    'self_limits' => 'I only read your published profile and your active services. I know nothing about your availability or your workload: that is yours to decide.',
 
     // TASK-1477 — the neutral panel fallback: what the Shell can do, not what it cannot.
     'fab_page_help' => 'Ask your question about what you are looking at: the conversation follows you from page to page.',
