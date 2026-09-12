@@ -51,12 +51,22 @@ use App\Models\LoopMessage;
  *    toutes les preuves sont deja celles d'un enonce corrige, sans rien de
  *    neuf, ne s'appuie sur rien que la correction n'ait deja tranche.
  *
- * ## « Posterieur » se lit dans l'ordre du repo, pas sur une horloge
+ * ## « Posterieur » : l'ordre canonique est TOTAL, il n'est pas TEMPOREL
  *
- * `created_at` seul ne suffit pas a ordonner deux messages : deux ecritures de
- * la meme transaction le partagent. L'ordre canonique des messages de ce depot
- * est `(created_at, id)` — celui que `LoopChat` applique partout. C'est lui
- * qu'on compare, et jamais une soustraction de timestamps.
+ * `loop_messages.created_at` est stocke a la SECONDE (`datetime_precision` = 0,
+ * mesure sur la base). L'ordre canonique du depot, `(created_at, id)` — celui
+ * que `LoopChat` applique partout — est donc TOTAL et STABLE, et c'est le bon
+ * ordre pour AFFICHER et pour ITERER.
+ *
+ * Il ne fait pas AUTORITE ici. A egalite de seconde, ce qui departage est un
+ * UUID : un tirage, sans rapport avec l'ordre d'ecriture. S'en remettre a lui
+ * laisserait un message ecrit AVANT une correction lui etre declare posterieur,
+ * une fois sur deux et sans reproductibilite.
+ *
+ * La posteriorite exige donc un `created_at` STRICTEMENT superieur, et
+ * l'egalite est refusee — voir {@see self::estStrictementPosterieur()}.
+ * `observed_at` (temps humain de l'enonce) et `derived_at` (instant de
+ * compilation) ne sont JAMAIS un ordre metier.
  */
 final class ClaimResurrectionGuard
 {
