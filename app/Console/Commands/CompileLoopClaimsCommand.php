@@ -26,7 +26,7 @@ class CompileLoopClaimsCommand extends Command
         {--loop= : identifiant d\'une seule Boucle}
         {--limit=20 : nombre maximum de Boucles traitees}';
 
-    protected $description = "Compile les conversations humaines en enonces adressables (ADD / UPDATE / RETRACT / KEEP).";
+    protected $description = 'Compile les conversations humaines en enonces adressables (ADD / UPDATE / RETRACT / KEEP).';
 
     public function handle(LoopClaimCompiler $compiler): int
     {

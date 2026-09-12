@@ -20,6 +20,7 @@ use App\Services\Knowledge\HumanClaimCorrection;
 use App\Services\Knowledge\LoopClaimCompiler;
 use App\Services\Loops\LoopRootDocumentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use Laravel\Ai\Embeddings;
 use Laravel\Ai\Prompts\EmbeddingsPrompt;
@@ -370,6 +371,10 @@ class TASK1548HumanClaimCorrectionTest extends TestCase
 
         // Quelqu'un ecrit APRES la correction. La Boucle doit pouvoir
         // reapprendre — y compris contredire la personne qui a corrige.
+        //
+        // L'horloge avance d'une seconde PLEINE : `created_at` est stocke a la
+        // seconde, et un message de la meme seconde n'est pas posterieur.
+        $this->travel(2)->seconds();
         $nouveau = $this->message('Revirement : le marche charpente repart finalement chez Vaucanson.');
 
         $this->fakePatch([
@@ -394,6 +399,7 @@ class TASK1548HumanClaimCorrectionTest extends TestCase
             'Non, la charpente n est pas confiee a Vaucanson, ce marche a ete annule.',
         );
 
+        $this->travel(2)->seconds();
         $autre = $this->message('Le budget travaux vote pour Belleville est de 486 000 euros.');
 
         $this->fakePatch([
@@ -424,6 +430,7 @@ class TASK1548HumanClaimCorrectionTest extends TestCase
             'Non, la charpente n est pas confiee a Vaucanson, ce marche a ete annule.',
         );
 
+        $this->travel(2)->seconds();
         $neuf = $this->message('On refera le point sur la charpente a la reunion de jeudi.');
 
         // Le message neuf ne dit rien du marche ; il sert de caution a la
@@ -456,6 +463,7 @@ class TASK1548HumanClaimCorrectionTest extends TestCase
             'Non, la charpente n est pas confiee a Vaucanson, ce marche a ete annule.',
         );
 
+        $this->travel(2)->seconds();
         $budget = $this->message('Le budget travaux vote pour Belleville est de 486 000 euros.');
 
         $this->fakePatch([
@@ -475,6 +483,169 @@ class TASK1548HumanClaimCorrectionTest extends TestCase
         $actifs = DerivedKnowledgeNote::query()->claims()->active()->get();
         $this->assertCount(1, $actifs);
         $this->assertStringContainsString('486 000', (string) $actifs->first()->content);
+    }
+
+    // ─────────────────────────────────────── ordre canonique / temporalite
+
+    /**
+     * ADDENDUM ORDERING — le tie-break par UUID est TOTAL, pas TEMPOREL.
+     *
+     * `created_at` est stocke a la seconde. Un message de la MEME seconde que
+     * la correction ne fait donc pas autorite contre elle : s'en remettre a
+     * l'identifiant reviendrait a laisser un tirage decider, une fois sur deux.
+     *
+     * L'horloge est GELEE pour que les deux ecritures tombent dans la meme
+     * seconde a coup sur — sans quoi le test dependrait du moment ou il tourne.
+     */
+    public function test_un_message_de_la_meme_seconde_que_la_correction_ne_fait_pas_autorite(): void
+    {
+        $source = $this->message('Pour la charpente on part sur Vaucanson, malgre les 12% de hausse.');
+        $claim = $this->unClaim($source);
+        $texte = (string) $claim->content;
+
+        $this->travelTo(Carbon::parse('2026-09-12 14:30:00'));
+
+        $this->correction()->retracter(
+            $this->organization, $this->loop->fresh(), $this->alice,
+            (string) $claim->subject_key, (int) $claim->version,
+            'Non, la charpente n est pas confiee a Vaucanson, ce marche a ete annule.',
+        );
+
+        // Ecrit APRES la correction en horloge murale, mais dans la MEME
+        // seconde : la base ne peut pas les distinguer.
+        $memeSeconde = $this->message('En fait Vaucanson reste sur le lot charpente.');
+
+        $frontiere = ($claim->fresh()->provenance ?? [])['human_correction'] ?? [];
+        $this->assertSame(
+            $memeSeconde->created_at?->format('Y-m-d H:i:s'),
+            substr((string) ($frontiere['position'][0] ?? ''), 0, 19),
+            'PREMISSE : les deux tombent bien dans la meme seconde',
+        );
+
+        $this->fakePatch([
+            ['op' => 'ADD', 'text' => $texte, 'evidence' => [(string) $memeSeconde->id]],
+        ]);
+
+        $bilan = app(LoopClaimCompiler::class)->compile($this->loop->fresh());
+
+        $this->assertSame(0, $bilan['ajoutes'], 'a egalite de seconde, la correction tient : fail closed');
+        $this->assertSame(1, $bilan['resurrections']);
+    }
+
+    /**
+     * ADDENDUM ORDERING — c'est la DERNIERE correction qui fait frontiere.
+     */
+    public function test_la_correction_la_plus_recente_est_la_frontiere_active(): void
+    {
+        $source = $this->message('Pour la charpente on part sur Vaucanson, malgre les 12% de hausse.');
+        $claim = $this->unClaim($source);
+        $sujet = (string) $claim->subject_key;
+
+        $this->travel(2)->seconds();
+        $this->correction()->mettreAJour(
+            $this->organization, $this->loop->fresh(), $this->alice, $sujet, 1,
+            'Ce n est plus Vaucanson, la charpente est confiee a Lemercier.',
+            'Lemercier realise la charpente du chantier Belleville.',
+        );
+
+        // Un message ecrit ENTRE les deux corrections.
+        $this->travel(2)->seconds();
+        $entreLesDeux = $this->message('Petit doute sur le lot charpente, a reverifier avec le maitre d oeuvre.');
+
+        $this->travel(2)->seconds();
+        $this->correction()->mettreAJour(
+            $this->organization, $this->loop->fresh(), $this->alice, $sujet, 2,
+            'Correction : finalement c est Charpentier SA qui reprend le lot.',
+            'Charpentier SA realise la charpente du chantier Belleville.',
+        );
+
+        $actif = DerivedKnowledgeNote::query()->claims()->active()->firstOrFail();
+        $this->assertSame(3, $actif->version, 'PREMISSE : deux corrections successives');
+
+        // Posterieur a la PREMIERE frontiere, anterieur a la SECONDE.
+        $this->fakePatch([
+            ['op' => 'UPDATE', 'claim_id' => $sujet,
+                'text' => 'Lemercier realise la charpente du chantier Belleville.',
+                'evidence' => [(string) $entreLesDeux->id]],
+        ]);
+
+        $bilan = app(LoopClaimCompiler::class)->compile($this->loop->fresh());
+
+        $this->assertSame(0, $bilan['modifies'], 'la frontiere ACTIVE est la plus recente');
+        $this->assertSame(1, $bilan['resurrections']);
+        $this->assertStringContainsString('Charpentier SA',
+            (string) DerivedKnowledgeNote::query()->claims()->active()->firstOrFail()->content);
+    }
+
+    /**
+     * ADDENDUM ORDERING — deux corrections humaines tres rapprochees (meme
+     * seconde) s'appliquent toutes les deux : la garde ne vise QUE le compiler.
+     */
+    public function test_deux_corrections_tres_rapprochees_s_appliquent_toutes_les_deux(): void
+    {
+        $claim = $this->unClaim();
+        $sujet = (string) $claim->subject_key;
+
+        $this->travelTo(Carbon::parse('2026-09-12 15:00:00'));
+
+        $un = $this->correction()->mettreAJour(
+            $this->organization, $this->loop->fresh(), $this->alice, $sujet, 1,
+            'Ce n est plus Vaucanson, la charpente est confiee a Lemercier.',
+            'Lemercier realise la charpente du chantier Belleville.',
+        );
+
+        $deux = $this->correction()->mettreAJour(
+            $this->organization, $this->loop->fresh(), $this->alice, $sujet, 2,
+            'Correction : finalement c est Charpentier SA qui reprend le lot.',
+            'Charpentier SA realise la charpente du chantier Belleville.',
+        );
+
+        $this->assertTrue($un['ok']);
+        $this->assertTrue($deux['ok'], 'une correction humaine n est jamais bornee par une autre');
+
+        $actif = DerivedKnowledgeNote::query()->claims()->active()->firstOrFail();
+        $this->assertSame(3, $actif->version);
+        $this->assertStringContainsString('Charpentier SA', (string) $actif->content);
+    }
+
+    /**
+     * ADDENDUM ORDERING — deux corrections CONCURRENTES sur la meme base : le
+     * perdant est stale, sans second message et sans ACK.
+     */
+    public function test_deux_corrections_concurrentes_sur_la_meme_base_le_perdant_est_stale(): void
+    {
+        $claim = $this->unClaim();
+        $sujet = (string) $claim->subject_key;
+        $base = (int) $claim->version;
+
+        $bob = User::factory()->create(['organization_id' => $this->organization->id, 'name' => 'Bob Vasseur']);
+        $this->membre($this->loop->fresh(), $bob);
+
+        // Les deux ont LU la meme version avant d'agir.
+        $gagnant = $this->correction()->mettreAJour(
+            $this->organization, $this->loop->fresh(), $this->alice, $sujet, $base,
+            'Ce n est plus Vaucanson, la charpente est confiee a Lemercier.',
+            'Lemercier realise la charpente du chantier Belleville.',
+        );
+
+        $messages = LoopMessage::where('loop_id', $this->loop->id)->count();
+
+        $perdant = $this->correction()->mettreAJour(
+            $this->organization, $this->loop->fresh(), $bob, $sujet, $base,
+            'Non, c est Charpentier SA qui reprend le lot charpente.',
+            'Charpentier SA realise la charpente du chantier Belleville.',
+        );
+
+        $this->assertTrue($gagnant['ok']);
+        $this->assertFalse($perdant['ok'], 'le perdant n obtient JAMAIS un ACK');
+        $this->assertSame('version_perimee', $perdant['raison']);
+        $this->assertNull($perdant['message_id'], 'et il n ecrit AUCUN message');
+        $this->assertSame($messages, LoopMessage::where('loop_id', $this->loop->id)->count());
+
+        // Une seule mutation a eu lieu.
+        $actif = DerivedKnowledgeNote::query()->claims()->active()->firstOrFail();
+        $this->assertSame(2, $actif->version);
+        $this->assertStringContainsString('Lemercier', (string) $actif->content);
     }
 
     // ────────────────────────────────────────────── idempotence

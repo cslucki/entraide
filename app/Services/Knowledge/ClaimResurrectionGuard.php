@@ -253,12 +253,43 @@ final class ClaimResurrectionGuard
                 return false;
             }
 
-            if (self::compare(self::position($message), $correction) <= 0) {
+            if (! self::estStrictementPosterieur($message, $correction)) {
                 return false;
             }
         }
 
         return true;
+    }
+
+    /**
+     * ADDENDUM ORDERING — l'ordre canonique est TOTAL, il n'est pas TEMPOREL.
+     *
+     * `loop_messages.created_at` est stocke a la SECONDE (`datetime_precision`
+     * = 0, mesure sur la base, pas relue dans une migration). Deux messages
+     * d'une meme seconde partagent donc leur horodatage, et ce qui les
+     * departage dans l'ordre canonique `(created_at, id)` est un UUID — tire au
+     * hasard, sans aucun rapport avec l'ordre d'ecriture.
+     *
+     * Cet ordre reste le bon pour AFFICHER et pour iterer : il est total et
+     * stable, et c'est celui de `LoopChat`. Mais une frontiere de verite ne
+     * demande pas un depart, elle demande une AUTORITE TEMPORELLE. S'en
+     * remettre au tie-break reviendrait a laisser un tirage a pile ou face
+     * decider qu'un message ecrit AVANT une correction lui est posterieur —
+     * une fois sur deux, et de facon irreproductible.
+     *
+     * A egalite de seconde, on refuse donc. Fail closed : le cout est une
+     * fenetre d'une seconde ou une re-affirmation doit etre reecrite ; le
+     * benefice est qu'aucun hasard ne defait une correction humaine.
+     *
+     * `observed_at` (temps humain de l'enonce) et `derived_at` (instant de
+     * compilation) ne servent JAMAIS ici : ni l'un ni l'autre n'est l'ordre
+     * du message source.
+     *
+     * @param  array{0: string, 1: string}  $frontiere
+     */
+    private static function estStrictementPosterieur(LoopMessage $message, array $frontiere): bool
+    {
+        return self::position($message)[0] > $frontiere[0];
     }
 
     private static function estUnMessageHumain(LoopMessage $message): bool
