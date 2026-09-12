@@ -71,7 +71,8 @@ final class LoopClaimCompiler
     {
         $vide = fn (?string $raison): array => [
             'applique' => false, 'raison' => $raison,
-            'ajoutes' => 0, 'modifies' => 0, 'retractes' => 0, 'conserves' => 0, 'rejetees' => [],
+            'ajoutes' => 0, 'modifies' => 0, 'retractes' => 0, 'conserves' => 0,
+            'resurrections' => 0, 'rejetees' => [],
         ];
 
         $organization = $loop->organization;
@@ -106,7 +107,8 @@ final class LoopClaimCompiler
 
         if ($dejaCompilee !== null && hash_equals($dejaCompilee, $empreinteSource)) {
             return ['applique' => true, 'raison' => 'source_inchangee',
-                'ajoutes' => 0, 'modifies' => 0, 'retractes' => 0, 'conserves' => 0, 'rejetees' => []];
+                'ajoutes' => 0, 'modifies' => 0, 'retractes' => 0, 'conserves' => 0,
+                'resurrections' => 0, 'rejetees' => []];
         }
 
         // L'etat de depart : ce que la memoire sait AVANT l'appel. Son
@@ -194,11 +196,14 @@ final class LoopClaimCompiler
             return ['applique' => true, 'raison' => 'rien_a_changer',
                 'ajoutes' => 0, 'modifies' => 0, 'retractes' => 0,
                 'conserves' => count($patch->operationsDe(ClaimPatch::OP_KEEP)),
-                'rejetees' => $patch->rejetees];
+                'resurrections' => 0, 'rejetees' => $patch->rejetees];
         }
 
+        // L'origine est EXPLICITE des les deux cotes (TASK-1548) : c'est elle
+        // qui arme la garde anti-resurrection, et un defaut implicite la
+        // rendrait dependante de l'ordre des parametres.
         $bilan = $this->memory->appliquer($organization, $loop, $dossierId, $patch, $messages,
-            $empreinteDeDepart, $contexte->correlationId);
+            $empreinteDeDepart, $contexte->correlationId, ClaimWriteOrigin::compiler());
 
         if ($bilan['applique']) {
             $this->memory->rafraichirConteneur($organization, $loop, $dossierId,

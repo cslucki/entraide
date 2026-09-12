@@ -26,7 +26,7 @@ class CompileLoopClaimsCommand extends Command
         {--loop= : identifiant d\'une seule Boucle}
         {--limit=20 : nombre maximum de Boucles traitees}';
 
-    protected $description = "Compile les conversations humaines en enonces adressables (ADD / UPDATE / RETRACT / KEEP).";
+    protected $description = 'Compile les conversations humaines en enonces adressables (ADD / UPDATE / RETRACT / KEEP).';
 
     public function handle(LoopClaimCompiler $compiler): int
     {
@@ -53,6 +53,13 @@ class CompileLoopClaimsCommand extends Command
 
             foreach ($b['rejetees'] as $rejet) {
                 $this->line('      rejet : '.$rejet['raison']);
+            }
+
+            // TASK-1548 — une operation ecartee parce qu'elle rejouait un passe
+            // deja corrige est une DECISION, pas un detail. La taire ferait
+            // d'une garde deliberee un silence indistinguable d'une panne.
+            if (($b['resurrections'] ?? 0) > 0) {
+                $this->line(sprintf('      %d operation(s) ecartee(s) : frontiere temporelle de verite', $b['resurrections']));
             }
         }
 
