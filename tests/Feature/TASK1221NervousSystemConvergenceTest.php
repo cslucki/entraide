@@ -383,10 +383,35 @@ class TASK1221NervousSystemConvergenceTest extends TestCase
             // sans recherche ni contenu) rejoint le retrieval semantique —
             // toujours et seulement le corpus documentaire des Dossiers,
             // jamais les messages de Boucle ni un autre perimetre.
-            [CapabilityRegistry::SOURCE_DOSSIER_MANIFEST, CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL],
+            //
+            // TASK-1543 : l'historique de la memoire derivee (`knowledge.delta`)
+            // les rejoint, et il RESTE dans le corpus documentaire — il lit des
+            // `derived_knowledge_notes`, la troisieme famille de chunk rangee
+            // dans un Dossier depuis T1534, sous la MEME autorite d'eligibilite.
+            // Ce qui n'a pas bouge d'un pouce, et c'est ce que cette ligne garde :
+            // il n'y a toujours ni `loop.messages`, ni `member.profile`, ni
+            // `user.loops` — la capability ne lit pas la conversation humaine,
+            // elle lit ce que les Dossiers en savent.
+            [
+                CapabilityRegistry::SOURCE_KNOWLEDGE_DELTA,
+                CapabilityRegistry::SOURCE_DOSSIER_MANIFEST,
+                CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL,
+            ],
             $knowledge->allowedSources,
             'knowledge reads ONLY the documentary corpus',
         );
+
+        // La garde de fond, et elle survit a tout ajout futur : aucune source
+        // de conversation, de profil ou de catalogue n'entre ici.
+        foreach ([
+            CapabilityRegistry::SOURCE_LOOP_MESSAGES,
+            CapabilityRegistry::SOURCE_MEMBER_PROFILE,
+            CapabilityRegistry::SOURCE_USER_LOOPS,
+            CapabilityRegistry::SOURCE_ORGANIZATION_CATEGORIES,
+        ] as $horsPerimetre) {
+            $this->assertNotContains($horsPerimetre, $knowledge->allowedSources,
+                "knowledge ne lit pas {$horsPerimetre}");
+        }
     }
 
     // =====================================================================
