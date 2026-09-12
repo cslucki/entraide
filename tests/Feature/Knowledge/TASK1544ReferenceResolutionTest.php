@@ -23,7 +23,7 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
- * TASK-1544 — « Le projet dont Roger parlait mardi, ça avance ? »
+ * TASK-1544 — « Le projet dont Marin parlait mardi, ça avance ? »
  *
  * ## La reference se resout par la PROVENANCE, pas par le texte
  *
@@ -31,7 +31,7 @@ use Tests\TestCase;
  * par un vrai modele, UN SEUL nommait le projet. Une consigne d'ancrage
  * explicite a ete mesuree puis RETIREE — elle ne deplacait rien.
  *
- * Et elle n'aurait de toute facon pas resolu « dont Roger parlait » : le nom de
+ * Et elle n'aurait de toute facon pas resolu « dont Marin parlait » : le nom de
  * l'auteur n'est pas dans le texte de l'enonce, il est dans sa provenance.
  * `source_loop_message_ids` pointe des messages, un message a un `sender_id`,
  * un enonce porte son `observed_at`. Les trois signaux sont deja structures.
@@ -57,7 +57,7 @@ class TASK1544ReferenceResolutionTest extends TestCase
     private User $camille;
 
     /** Celui dont on parle. */
-    private User $roger;
+    private User $marin;
 
     private Loop $aria;
 
@@ -71,7 +71,7 @@ class TASK1544ReferenceResolutionTest extends TestCase
         app()->instance('current_organization', $this->organization);
 
         $this->camille = User::factory()->create(['organization_id' => $this->organization->id, 'name' => 'Camille Dubreuil']);
-        $this->roger = User::factory()->create(['organization_id' => $this->organization->id, 'name' => 'Roger Vasseur']);
+        $this->marin = User::factory()->create(['organization_id' => $this->organization->id, 'name' => 'Marin Delcourt']);
 
         $this->aria = $this->boucle('ARIA');
         $this->revive = $this->boucle('REVIVE');
@@ -110,10 +110,10 @@ class TASK1544ReferenceResolutionTest extends TestCase
         }
 
         foreach ([
-            'Le projet dont Roger parlait mardi, ça avance ?',
-            'Le projet de Roger, où en est-il ?',
-            'Celui dont Roger parlait la semaine dernière ?',
-            'How is the project Roger mentioned going?',
+            'Le projet dont Marin parlait mardi, ça avance ?',
+            'Le projet de Marin, où en est-il ?',
+            'Celui dont Marin parlait la semaine dernière ?',
+            'How is the project Marin mentioned going?',
         ] as $question) {
             $this->assertTrue(ReferenceQuestionShape::isIndirect($question), $question);
         }
@@ -128,18 +128,18 @@ class TASK1544ReferenceResolutionTest extends TestCase
         //
         // Le filtre de personne ne suffit pas a proteger ce cas : le nom EST
         // dans la phrase.
-        $this->enonce($this->aria, $this->roger, 'Le budget travaux est de 486 000 euros.', now()->subDays(2));
+        $this->enonce($this->aria, $this->marin, 'Le budget travaux est de 486 000 euros.', now()->subDays(2));
 
-        $this->assertFalse(ReferenceQuestionShape::isIndirect('Roger a-t-il validé le budget ?'));
+        $this->assertFalse(ReferenceQuestionShape::isIndirect('Marin a-t-il validé le budget ?'));
 
         $resolution = app(LoopReferenceResolver::class)->resoudre(
-            (string) $this->organization->id, $this->camille, 'Roger a-t-il validé le budget ?',
+            (string) $this->organization->id, $this->camille, 'Marin a-t-il validé le budget ?',
         );
 
         $this->assertSame([], $resolution['candidats'],
             'une question qui nomme quelqu un sans designer de projet n est pas une reference indirecte');
 
-        $tour = $this->demander('Roger a-t-il validé le budget ?');
+        $tour = $this->demander('Marin a-t-il validé le budget ?');
 
         $this->assertNotSame(AiShellResponder::PRODUCER_REFERENCE_RESOLUTION, $tour->metadata['producer'] ?? null,
             'la branche ne doit pas prendre la main sur une question qu elle ne resout pas');
@@ -147,19 +147,19 @@ class TASK1544ReferenceResolutionTest extends TestCase
 
     // ──────────────────────────────── la resolution
 
-    public function test_le_projet_dont_roger_parlait_se_resout_par_l_auteur_de_la_preuve(): void
+    public function test_le_projet_dont_marin_parlait_se_resout_par_l_auteur_de_la_preuve(): void
     {
-        // Roger a etabli un fait dans ARIA. Camille a etabli un fait dans
+        // Marin a etabli un fait dans ARIA. Camille a etabli un fait dans
         // REVIVE. Les deux enonces sont dans l'univers de Camille, et AUCUN des
         // deux ne nomme son projet — c'est le cas mesure en T1541.
-        $this->enonce($this->aria, $this->roger, 'Le budget travaux est de 486 000 euros.', now()->subDays(2));
+        $this->enonce($this->aria, $this->marin, 'Le budget travaux est de 486 000 euros.', now()->subDays(2));
         $this->enonce($this->revive, $this->camille, 'La charpente est confiee a Vaucanson.', now()->subDays(2));
 
         $resolution = app(LoopReferenceResolver::class)->resoudre(
-            (string) $this->organization->id, $this->camille, 'Le projet dont Roger parlait, ça avance ?',
+            (string) $this->organization->id, $this->camille, 'Le projet dont Marin parlait, ça avance ?',
         );
 
-        $this->assertSame((string) $this->roger->id, (string) $resolution['personne']?->id);
+        $this->assertSame((string) $this->marin->id, (string) $resolution['personne']?->id);
         $this->assertCount(1, $resolution['candidats']);
         $this->assertSame('ARIA', $resolution['candidats'][0]['loop_name']);
         $this->assertStringContainsString('486 000', $resolution['candidats'][0]['enonces'][0]['texte']);
@@ -167,13 +167,13 @@ class TASK1544ReferenceResolutionTest extends TestCase
 
     public function test_le_reperage_temporel_ecarte_ce_qui_a_ete_dit_avant(): void
     {
-        $this->enonce($this->aria, $this->roger, 'Le budget travaux est de 486 000 euros.', now()->subMonths(4));
-        $this->enonce($this->revive, $this->roger, 'La charpente est confiee a Vaucanson.', now()->subDay());
+        $this->enonce($this->aria, $this->marin, 'Le budget travaux est de 486 000 euros.', now()->subMonths(4));
+        $this->enonce($this->revive, $this->marin, 'La charpente est confiee a Vaucanson.', now()->subDay());
 
         // « depuis hier » : un seul des deux projets peut repondre.
         $resolution = app(LoopReferenceResolver::class)->resoudre(
             (string) $this->organization->id, $this->camille,
-            'Le projet dont Roger parlait depuis hier, ça avance ?',
+            'Le projet dont Marin parlait depuis hier, ça avance ?',
         );
 
         $this->assertCount(1, $resolution['candidats']);
@@ -182,7 +182,7 @@ class TASK1544ReferenceResolutionTest extends TestCase
 
     public function test_une_personne_inconnue_ne_resout_rien_et_n_en_invente_aucune(): void
     {
-        $this->enonce($this->aria, $this->roger, 'Le budget travaux est de 486 000 euros.', now()->subDays(2));
+        $this->enonce($this->aria, $this->marin, 'Le budget travaux est de 486 000 euros.', now()->subDays(2));
 
         $resolution = app(LoopReferenceResolver::class)->resoudre(
             (string) $this->organization->id, $this->camille, 'Le projet dont Gwendoline parlait ?',
@@ -197,12 +197,12 @@ class TASK1544ReferenceResolutionTest extends TestCase
     {
         // Resoudre sur l'un des deux au hasard serait pire que ne rien
         // resoudre : la personne ne saurait pas qu'on a choisi.
-        User::factory()->create(['organization_id' => $this->organization->id, 'name' => 'Roger Lemoine']);
+        User::factory()->create(['organization_id' => $this->organization->id, 'name' => 'Marin Aubertin']);
 
-        $this->enonce($this->aria, $this->roger, 'Le budget travaux est de 486 000 euros.', now()->subDays(2));
+        $this->enonce($this->aria, $this->marin, 'Le budget travaux est de 486 000 euros.', now()->subDays(2));
 
         $resolution = app(LoopReferenceResolver::class)->resoudre(
-            (string) $this->organization->id, $this->camille, 'Le projet dont Roger parlait ?',
+            (string) $this->organization->id, $this->camille, 'Le projet dont Marin parlait ?',
         );
 
         $this->assertNull($resolution['personne']);
@@ -247,12 +247,12 @@ class TASK1544ReferenceResolutionTest extends TestCase
 
     public function test_nommer_quelqu_un_ne_donne_aucun_acces_a_ses_boucles(): void
     {
-        // Roger parle dans une Boucle ou Camille n'est PAS membre.
+        // Marin parle dans une Boucle ou Camille n'est PAS membre.
         $privee = $this->boucle('Commission confidentielle', avecCamille: false);
-        $this->enonce($privee, $this->roger, 'Le montant negocie est de 900 000 euros.', now()->subDay());
+        $this->enonce($privee, $this->marin, 'Le montant negocie est de 900 000 euros.', now()->subDay());
 
         $resolution = app(LoopReferenceResolver::class)->resoudre(
-            (string) $this->organization->id, $this->camille, 'Le projet dont Roger parlait ?',
+            (string) $this->organization->id, $this->camille, 'Le projet dont Marin parlait ?',
         );
 
         $this->assertSame([], $resolution['candidats'],
@@ -261,30 +261,30 @@ class TASK1544ReferenceResolutionTest extends TestCase
 
     public function test_un_membre_qui_quitte_la_boucle_perd_la_reference_au_tour_suivant(): void
     {
-        $this->enonce($this->aria, $this->roger, 'Le budget travaux est de 486 000 euros.', now()->subDays(2));
+        $this->enonce($this->aria, $this->marin, 'Le budget travaux est de 486 000 euros.', now()->subDays(2));
 
         $this->assertCount(1, app(LoopReferenceResolver::class)->resoudre(
-            (string) $this->organization->id, $this->camille, 'Le projet dont Roger parlait ?')['candidats'],
+            (string) $this->organization->id, $this->camille, 'Le projet dont Marin parlait ?')['candidats'],
             'PREMISSE : membre active, la reference se resout');
 
         LoopMember::where('loop_id', $this->aria->id)->where('user_id', $this->camille->id)
             ->update(['status' => 'left']);
 
         $this->assertSame([], app(LoopReferenceResolver::class)->resoudre(
-            (string) $this->organization->id, $this->camille->fresh(), 'Le projet dont Roger parlait ?')['candidats']);
+            (string) $this->organization->id, $this->camille->fresh(), 'Le projet dont Marin parlait ?')['candidats']);
     }
 
     public function test_aucune_reference_ne_franchit_la_frontiere_du_tenant(): void
     {
-        $this->enonce($this->aria, $this->roger, 'Le budget travaux est de 486 000 euros.', now()->subDays(2));
+        $this->enonce($this->aria, $this->marin, 'Le budget travaux est de 486 000 euros.', now()->subDays(2));
 
         $autre = Organization::factory()->create(['is_active' => true]);
-        $etranger = User::factory()->create(['organization_id' => $autre->id, 'name' => 'Roger Etranger']);
+        $etranger = User::factory()->create(['organization_id' => $autre->id, 'name' => 'Marin Etranger']);
 
         $this->assertSame([], app(LoopReferenceResolver::class)->resoudre(
-            (string) $autre->id, $etranger, 'Le projet dont Roger parlait ?')['candidats']);
+            (string) $autre->id, $etranger, 'Le projet dont Marin parlait ?')['candidats']);
         $this->assertSame([], app(LoopReferenceResolver::class)->resoudre(
-            (string) $this->organization->id, $etranger, 'Le projet dont Roger parlait ?')['candidats']);
+            (string) $this->organization->id, $etranger, 'Le projet dont Marin parlait ?')['candidats']);
     }
 
     // ──────────────────────────────── l'ambiguite ne se tranche pas
@@ -292,11 +292,11 @@ class TASK1544ReferenceResolutionTest extends TestCase
     public function test_deux_projets_plausibles_restent_deux_projets(): void
     {
         // LE cas critique du mandat : ARIA et REVIVE tous deux plausibles.
-        $this->enonce($this->aria, $this->roger, 'Le budget travaux est de 486 000 euros.', now()->subDays(3));
-        $this->enonce($this->revive, $this->roger, 'La charpente est confiee a Vaucanson.', now()->subDays(2));
+        $this->enonce($this->aria, $this->marin, 'Le budget travaux est de 486 000 euros.', now()->subDays(3));
+        $this->enonce($this->revive, $this->marin, 'La charpente est confiee a Vaucanson.', now()->subDays(2));
 
         $resolution = app(LoopReferenceResolver::class)->resoudre(
-            (string) $this->organization->id, $this->camille, 'Le projet dont Roger parlait ?',
+            (string) $this->organization->id, $this->camille, 'Le projet dont Marin parlait ?',
         );
 
         $this->assertCount(2, $resolution['candidats'],
@@ -311,9 +311,9 @@ class TASK1544ReferenceResolutionTest extends TestCase
 
     public function test_le_shell_nomme_le_projet_resolu_sans_appeler_le_moindre_modele(): void
     {
-        $this->enonce($this->aria, $this->roger, 'Le budget travaux est de 486 000 euros.', now()->subDays(2));
+        $this->enonce($this->aria, $this->marin, 'Le budget travaux est de 486 000 euros.', now()->subDays(2));
 
-        $tour = $this->demander('Le projet dont Roger parlait, ça avance ?');
+        $tour = $this->demander('Le projet dont Marin parlait, ça avance ?');
 
         $this->assertSame(AiShellResponder::PRODUCER_REFERENCE_RESOLUTION, $tour->metadata['producer'] ?? null);
         $this->assertStringContainsString('ARIA', $tour->content);
@@ -326,10 +326,10 @@ class TASK1544ReferenceResolutionTest extends TestCase
 
     public function test_le_shell_rend_la_question_quand_deux_projets_repondent(): void
     {
-        $this->enonce($this->aria, $this->roger, 'Le budget travaux est de 486 000 euros.', now()->subDays(3));
-        $this->enonce($this->revive, $this->roger, 'La charpente est confiee a Vaucanson.', now()->subDays(2));
+        $this->enonce($this->aria, $this->marin, 'Le budget travaux est de 486 000 euros.', now()->subDays(3));
+        $this->enonce($this->revive, $this->marin, 'La charpente est confiee a Vaucanson.', now()->subDays(2));
 
-        $tour = $this->demander('Le projet dont Roger parlait, ça avance ?');
+        $tour = $this->demander('Le projet dont Marin parlait, ça avance ?');
 
         $this->assertTrue($tour->metadata['reference']['ambiguous'] ?? false);
         $this->assertStringContainsString('ARIA', $tour->content);
@@ -342,10 +342,10 @@ class TASK1544ReferenceResolutionTest extends TestCase
 
     public function test_la_correction_change_le_referent_et_conserve_le_contexte(): void
     {
-        $this->enonce($this->aria, $this->roger, 'Le budget travaux est de 486 000 euros.', now()->subDays(3));
-        $this->enonce($this->revive, $this->roger, 'La charpente est confiee a Vaucanson.', now()->subDays(2));
+        $this->enonce($this->aria, $this->marin, 'Le budget travaux est de 486 000 euros.', now()->subDays(3));
+        $this->enonce($this->revive, $this->marin, 'La charpente est confiee a Vaucanson.', now()->subDays(2));
 
-        $ambigu = $this->demander('Le projet dont Roger parlait, ça avance ?');
+        $ambigu = $this->demander('Le projet dont Marin parlait, ça avance ?');
         $this->assertTrue($ambigu->metadata['reference']['ambiguous'] ?? false, 'PREMISSE : le tour precedent a demande de choisir');
 
         $corrige = $this->demander('Non, je parlais de REVIVE.');
@@ -359,14 +359,14 @@ class TASK1544ReferenceResolutionTest extends TestCase
 
     public function test_une_correction_qui_nomme_une_boucle_non_offerte_ne_corrige_rien(): void
     {
-        $this->enonce($this->aria, $this->roger, 'Le budget travaux est de 486 000 euros.', now()->subDays(3));
-        $this->enonce($this->revive, $this->roger, 'La charpente est confiee a Vaucanson.', now()->subDays(2));
+        $this->enonce($this->aria, $this->marin, 'Le budget travaux est de 486 000 euros.', now()->subDays(3));
+        $this->enonce($this->revive, $this->marin, 'La charpente est confiee a Vaucanson.', now()->subDays(2));
 
-        $this->demander('Le projet dont Roger parlait, ça avance ?');
+        $this->demander('Le projet dont Marin parlait, ça avance ?');
 
         // « Atlas » n'a jamais ete propose : rien ne doit se resoudre dessus.
         $autre = $this->boucle('Atlas');
-        $this->enonce($autre, $this->roger, 'Un tout autre sujet.', now()->subDay());
+        $this->enonce($autre, $this->marin, 'Un tout autre sujet.', now()->subDay());
 
         $tour = $this->demander('Non, je parlais de Atlas.');
 
@@ -380,12 +380,12 @@ class TASK1544ReferenceResolutionTest extends TestCase
     {
         $loop = Loop::factory()->create([
             'organization_id' => $this->organization->id,
-            'created_by' => $this->roger->id,
+            'created_by' => $this->marin->id,
             'name' => $nom,
             'visibility' => 'private',
         ]);
 
-        $membres = $avecCamille ? [$this->roger, $this->camille] : [$this->roger];
+        $membres = $avecCamille ? [$this->marin, $this->camille] : [$this->marin];
 
         foreach ($membres as $membre) {
             LoopMember::create([
@@ -405,7 +405,7 @@ class TASK1544ReferenceResolutionTest extends TestCase
 
     /**
      * Un enonce et le message humain qui l'etablit — c'est CE lien, et lui
-     * seul, qui rend « dont Roger parlait » resolvable. Le texte de l'enonce
+     * seul, qui rend « dont Marin parlait » resolvable. Le texte de l'enonce
      * ne nomme jamais son projet : c'est exactement ce que T1541 a mesure.
      */
     private function enonce(Loop $loop, User $auteur, string $texte, \DateTimeInterface $quand): DerivedKnowledgeNote

@@ -5,7 +5,7 @@ namespace App\Ai\Context;
 /**
  * TASK-1544 — forme d'une REFERENCE INDIRECTE a un projet.
  *
- * « Le projet dont Roger parlait mardi, ça avance ? »
+ * « Le projet dont Marin parlait mardi, ça avance ? »
  *
  * Indice LOCAL et DETERMINISTE, comme `DocumentaryQuestionShape` et
  * `TemporalQuestionShape`. Aucun appel de modele pour router, aucune
@@ -15,7 +15,7 @@ namespace App\Ai\Context;
  *
  * ## Pourquoi elle ne reconnait PAS les noms propres
  *
- * Elle ne cherche pas « Roger ». Elle rend les mots candidats, et c'est le
+ * Elle ne cherche pas « Marin ». Elle rend les mots candidats, et c'est le
  * SERVEUR qui les confronte aux membres reels de l'Organization. Reconnaitre
  * un nom propre par heuristique — majuscule, position, dictionnaire — serait
  * le premier etage d'un Entity Resolver general, que le mandat interdit, et

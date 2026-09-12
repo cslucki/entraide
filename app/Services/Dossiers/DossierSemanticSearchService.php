@@ -11,6 +11,7 @@ use App\Support\Ai\AiCorrelation;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiEconomicVerdict;
 use App\Support\Ai\AiRefusedException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
@@ -567,7 +568,7 @@ class DossierSemanticSearchService
      * TASK-1536 : la date ne decore pas, elle qualifie. « Le chantier demarre
      * le 14 octobre » ne se lit pas pareil selon qu'il a ete dit il y a trois
      * jours ou il y a huit mois, et c'est exactement la question que le
-     * produit vise — « le projet dont Roger parlait MARDI ». Sans elle, un
+     * produit vise — « le projet dont un collegue parlait MARDI ». Sans elle, un
      * extrait de conversation se presentait au modele et au lecteur comme un
      * Article : hors du temps.
      *
@@ -612,8 +613,8 @@ class DossierSemanticSearchService
 
         try {
             $date = $value instanceof \DateTimeInterface
-                ? \Illuminate\Support\Carbon::instance($value)
-                : \Illuminate\Support\Carbon::parse((string) $value);
+                ? Carbon::instance($value)
+                : Carbon::parse((string) $value);
         } catch (\Throwable) {
             return null;
         }

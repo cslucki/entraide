@@ -40,7 +40,7 @@ use Illuminate\Support\Facades\DB;
  *
  * BouclePro savait donc rendre durable ce que l'IA avait dit, et rien de ce
  * que les humains s'etaient dit. Or c'est exactement la phrase que le produit
- * vise : « le projet dont Roger PARLAIT mardi ».
+ * vise : « le projet dont un collegue PARLAIT mardi ».
  *
  * ## Ce que le service ne fait pas
  *

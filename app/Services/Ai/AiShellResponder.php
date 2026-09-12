@@ -166,7 +166,7 @@ final class AiShellResponder
     /**
      * TASK-1544 — le producteur d'une REFERENCE INDIRECTE resolue.
      *
-     * « Le projet dont Roger parlait mardi » : le tour ne lit aucun document
+     * « Le projet dont Marin parlait mardi » : le tour ne lit aucun document
      * et n'appelle aucun modele. Il rend ce que la provenance dit — quel
      * projet, etabli par qui, quand — ou la liste des projets possibles quand
      * la question en designe plusieurs.
@@ -409,7 +409,7 @@ final class AiShellResponder
                     // courant, ni objet deja discute. Sa garde de declenchement
                     // s'execute avant tout balayage de perimetre.
                     // TASK-1544 : AVANT la decouverte documentaire, et c'est
-                    // l'ordre qui compte. « Le projet dont Roger parlait » ne
+                    // l'ordre qui compte. « Le projet dont Marin parlait » ne
                     // nomme pas son sujet : la recherche semantique y
                     // repondrait par le document le plus proche des mots
                     // « projet » et « parlait », c'est-a-dire n'importe quoi.

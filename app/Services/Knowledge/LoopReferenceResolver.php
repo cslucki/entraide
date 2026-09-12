@@ -13,7 +13,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * TASK-1544 — « le projet dont Roger parlait mardi » se resout par la PROVENANCE.
+ * TASK-1544 — « le projet dont Marin parlait mardi » se resout par la PROVENANCE.
  *
  * ## Ce que ce service n'est pas
  *
@@ -35,15 +35,15 @@ use Illuminate\Support\Collection;
  * par un vrai modele, UN SEUL nommait le projet. Une consigne d'ancrage
  * explicite a ete mesuree — ancrage toujours 1/4, aucun rang gagne — et
  * retiree. Faire repeter le nom du projet dans chaque enonce ne marche pas, et
- * n'aurait de toute facon pas resolu « dont Roger parlait » : le nom de
+ * n'aurait de toute facon pas resolu « dont Marin parlait » : le nom de
  * l'auteur n'est pas dans le texte de l'enonce, il est dans sa provenance.
  *
  * ## Le serveur garde l'univers
  *
  * L'ACL est celle de la Boucle, via l'autorite unique
  * `DerivedChunkEligibility::authorizedLoopIds()` — et c'est celle de qui
- * DEMANDE, jamais celle de la personne citee. Demander « le projet de Roger »
- * ne donne aucun acces aux Boucles de Roger.
+ * DEMANDE, jamais celle de la personne citee. Demander « le projet de Marin »
+ * ne donne aucun acces aux Boucles de Marin.
  *
  * ## L'ambiguite ne se tranche pas toute seule
  *
@@ -84,7 +84,7 @@ final class LoopReferenceResolver
 
         // L'univers AUTORISE est celui du DEMANDEUR. Nommer quelqu'un ne
         // donne aucun droit sur ce qu'il voit : demander « le projet de
-        // Roger » depuis une Organization ou l'on ne partage qu'une Boucle ne
+        // Marin » depuis une Organization ou l'on ne partage qu'une Boucle ne
         // peut designer que cette Boucle-la.
         $autorisees = $this->eligibility->authorizedLoopIds($organizationId, $demandeur);
 
