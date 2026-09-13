@@ -116,6 +116,32 @@ use Illuminate\Support\Str;
  * donc sa propre cle, `{organization}:{user}`, et rien d'autre ne change. Le
  * rejeu, lui, est arbitre par la BASE (`ai_shell_messages.reply_to_id` UNIQUE) :
  * le verrou traite la course, l'idempotence traite le rejeu.
+ *
+ * ## TASK-1554 / W3A — ce que cette classe EST : un ROUTEUR de capacites
+ *
+ * Le Gate d'architecture W3A a mesure quatre mecanismes de contexte dans le
+ * depot et a etabli que celui-ci n'en est PAS un quatrieme. `AiShellResponder`
+ * ne construit aucun contexte en propre : il choisit, tour par tour, QUELLE
+ * capacite deja constituee doit repondre, et lui passe la main.
+ *
+ *   - certaines branches delegent au `ContextBuilder` (mecanisme typed, 9
+ *     `ContextSource`, `ContexteBorne` avec `used` / `denied` / `provenance`) ;
+ *   - quatre branches documentaires delegent a `DossierInsightsService`, qui
+ *     porte son propre retrieval et, depuis W3A, dit la meme semantique a sa
+ *     frontiere ;
+ *   - People / Reference / Self n'appellent aucun modele et lisent leurs
+ *     primitives specialisees.
+ *
+ * Cette heterogeneite est le fait, et elle est ASSUMEE. La consequence tient en
+ * une phrase, et c'est une interdiction : ce routeur ne doit devenir ni un
+ * `ContextBuilder` bis, ni une orchestration contextuelle globale, ni une
+ * memoire, ni un RAG. Uniformiser les trois familles derriere une abstraction
+ * unique reviendrait a inventer un cinquieme moteur pour masquer qu'il y en a
+ * deux — et la premiere branche qui aurait besoin d'y echapper le ferait
+ * silencieusement.
+ *
+ * W3A n'a donc cree ici AUCUN objet : il n'existait aucune necessite de code,
+ * seulement une ambiguite de lecture. Elle se ferme par ce paragraphe.
  */
 final class AiShellResponder
 {
