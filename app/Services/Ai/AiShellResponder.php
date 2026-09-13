@@ -30,6 +30,7 @@ use App\Support\Ai\AiShellThread;
 use App\Support\Ai\AiShellTurnCards;
 use App\Support\Ai\AiShellUsageReference;
 use App\Support\Ai\AiTurnLock;
+use App\Support\Ai\AiTurnState;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -567,6 +568,11 @@ final class AiShellResponder
 
             return [__('ai.shell_answer_unavailable'), [
                 'status' => self::STATUS_UNAVAILABLE,
+                // TASK-1557 / W3F-min : la cause etait DEJA typee ici — un
+                // `DomainException` du clarificateur, rapporte puis perdu. La
+                // nommer ne change ni le flux, ni le texte rendu : elle rend
+                // seulement l'axe `degraded_reason` lisible (CDC CORE §12.2).
+                'degraded_reason' => AiTurnState::DEGRADED_PROVIDER_UNAVAILABLE,
                 'page_context' => $this->traceable($pageContext),
             ] + $this->pinnedTrace($pinnedContext)];
         }
@@ -605,6 +611,13 @@ final class AiShellResponder
         if ($result->producer === 'deterministic_fallback') {
             return [__('ai.shell_answer_request_preparation_unavailable'), [
                 'status' => self::STATUS_UNAVAILABLE,
+                // TASK-1557 : raison DISTINCTE de la precedente, et c'est tout
+                // l'interet de l'axe. Le texte rendu, lui, ne nomme toujours
+                // aucune cause — le repli ne sait pas laquelle des trois s'est
+                // produite (voir le bloc ci-dessus), et la trace ne pretend pas
+                // le savoir davantage : elle dit « preparation de demande
+                // indisponible », ce qui est exactement ce qui est connu.
+                'degraded_reason' => AiTurnState::DEGRADED_REQUEST_PREPARATION_UNAVAILABLE,
                 'producer' => $result->producer,
                 'page_context' => $this->traceable($pageContext),
             ] + $this->pinnedTrace($pinnedContext)];

@@ -806,6 +806,18 @@ return [
     'shell_turn_in_progress' => 'An answer is already being generated. Let it finish.',
     // TASK-1350: behaviour unchanged — this stays the EXPLICIT unavailability
     // of the « no active prompt » case. Only the wording is normalised.
+    // TASK-1557 / W3F-min — user-facing projection of the boundary states.
+    //
+    // At most ONE meta sentence, never a technical code, never a counter, and
+    // never anything from which the existence of a forbidden source could be
+    // inferred. R1 and R7 render NO sentence: the clarification question and the
+    // answer itself are already the surface.
+    'turn_state_unavailable' => 'This service is unavailable right now. Nothing could be produced for this request.',
+    'turn_state_contradicted' => 'The elements found contradict each other. They are shown as they are, with their origin and date, and are not arbitrated.',
+    'turn_state_insufficient' => 'What was found is not enough to support an answer. What is missing is stated rather than filled in.',
+    'turn_state_stale' => 'This answer relies on elements that may have changed since. Their date is shown.',
+    'turn_state_partial' => 'Part of what was asked could not be processed for a technical reason. The rest of the answer holds.',
+
     'shell_answer_unavailable' => 'I cannot answer right now. AI is not available in this organization.',
 
     // TASK-1350: names no cause, mentions no provider, credential,
