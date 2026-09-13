@@ -420,6 +420,70 @@
         </x-slot:after>
     </x-conversation.message-list>
 
+    {{-- TASK-1550 : « Depuis cet échange, BouclePro a retenu… »
+         Entre le fil et le composeur : c'est là que le regard revient, et c'est
+         non bloquant — la carte ne recouvre rien, ne demande rien, et n'attend
+         aucune validation. Elle n'existe QUE si la mémoire a réellement été
+         écrite depuis la dernière fois que cette personne a parlé ici. Aucun
+         état « en cours d'apprentissage », aucun délai promis : avant la
+         consolidation il n'y a simplement pas de carte (CDC CORE V3 §3.3). --}}
+    @if($digestPanel !== null)
+    <div class="mx-3 mb-2 rounded-xl border border-violet-200 bg-violet-50/50 p-3 text-xs dark:border-violet-900/40 dark:bg-violet-950/20" data-memory-digest>
+        <div class="flex items-start justify-between gap-2">
+            <p class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>
+                {{ __('loops.digest_title') }}
+            </p>
+            <button type="button" wire:click="dismissDigest" data-memory-digest-dismiss
+                    aria-label="{{ __('loops.digest_dismiss') }}"
+                    class="shrink-0 rounded-full p-1 text-gray-400 transition hover:bg-violet-100 hover:text-gray-600 dark:hover:bg-violet-900/40 dark:hover:text-gray-200">
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        {{-- Hauteur BORNÉE, et c'est une garantie, pas une esthétique : la carte
+             ne peut jamais repousser la conversation hors de l'écran, même sur
+             une fenêtre courte ou avec trois énoncés longs. Elle commente le
+             fil, elle ne le remplace pas. --}}
+        <ul class="mt-2 max-h-[38vh] space-y-1.5 overflow-y-auto">
+            @foreach($digestPanel['entries'] as $entry)
+            @include('livewire.partials.memory-entry', [
+                'entry' => $entry,
+                'ancre' => \App\Livewire\LoopChat::ANCRE_DIGEST,
+                'canCorrect' => $digestCanCorrect,
+                'entryMarker' => 'data-digest-memory-entry',
+                'correctPrefix' => 'data-digest-correct',
+                'compact' => true,
+            ])
+            @endforeach
+        </ul>
+        {{-- La carte ne prétend JAMAIS montrer tout ce que BouclePro sait : elle
+             montre la tête de ce qui vient d'être appris (CDC : aucun wording
+             d'exhaustivité mémoire). --}}
+        <p class="mt-2 text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ __('loops.digest_note') }}</p>
+    </div>
+    @endif
+
+    {{-- TASK-1550 : l'ACK ou le conflit d'une correction faite DEPUIS LA CARTE
+         vit HORS de la carte, et c'est un correctif, pas un détail de mise en
+         page.
+
+         Placé à l'intérieur, il disparaissait exactement quand il comptait le
+         plus : retirer le dernier énoncé de la carte la vide, la carte cesse
+         d'être rendue — et l'accusé de réception part avec elle. La personne
+         voyait son geste faire disparaître quelque chose, sans un mot. Or le
+         résultat d'une correction qu'elle vient de DEMANDER lui est dû
+         (exception explicite du CDC Lab §10). --}}
+    @if($correctionFeedbackAnchor === \App\Livewire\LoopChat::ANCRE_DIGEST)
+    <div class="mx-3 mb-2">
+        @if($correctionFlash !== '')
+        <p class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs leading-5 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-200" data-digest-correction-flash>{{ $correctionFlash }}</p>
+        @endif
+        @if($correctionConflict !== null)
+        <p class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200" data-digest-correction-conflict>{{ $correctionConflict }}</p>
+        @endif
+    </div>
+    @endif
+
     @php
         // TASK-1322 (Core-2) : « Qui peut m'aider ? » n'est plus conditionne a
         // AiConfig::clarification_enabled. L'entree du parcours reste visible
@@ -912,107 +976,14 @@
                                 @if($whyMemory['entries'] !== [])
                                 <ul class="mt-2 space-y-2">
                                     @foreach($whyMemory['entries'] as $entry)
-                                    <li class="rounded-lg border border-violet-200/70 bg-white px-2.5 py-2 dark:border-violet-800/50 dark:bg-gray-900" data-why-memory-entry data-memory-state="{{ $entry['state'] }}">
-                                        <p class="leading-5">
-                                            @if($entry['ref'])<span class="font-mono text-[10px] text-violet-700 dark:text-violet-300">[{{ $entry['ref'] }}]</span>@endif
-                                            <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $entry['statement'] }}</span>
-                                        </p>
-                                        <p class="mt-1 text-[11px] leading-4 text-gray-500 dark:text-gray-400">
-                                            @if($entry['observed_at']){{ __('loops.why_memory_observed', ['date' => $entry['observed_at']]) }} · @endif
-                                            @if($entry['same_loop']){{ __('loops.why_memory_scope_here') }}@else{{ __('loops.why_memory_scope_other', ['loop' => $entry['loop_name']]) }}@endif
-                                        </p>
-                                        {{-- REMÉDIATION R2 (audit Codex F3) : les deux mentions
-                                             « cet énoncé a évolué » / « a été retiré » ont été
-                                             retirées d'ICI. Cette surface ne peut pas les
-                                             produire : `noteFromChunk()` est sa seule porte, et
-                                             une supersession emporte le chunk cité
-                                             (`ClaimMemory::appliquer()` → `forget()`). Une
-                                             mémoire corrigée sort donc de cette section et se
-                                             dit au ledger, sans nommer de famille. Les promettre
-                                             ici était une promesse d'interface qu'aucune donnée
-                                             ne pouvait tenir. L'état reste lisible par le
-                                             lecteur standard (`ClaimProvenanceReader`), qui sert
-                                             d'autres surfaces ; le faire vivre ICI demande que
-                                             la trace porte l'identité de la note — TRACE-0. --}}
-                                        @if($entry['evidence_message_ids'] !== [])
-                                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5" data-memory-evidence>
-                                            @foreach($entry['evidence_message_ids'] as $evidenceId)
-                                            <button type="button" wire:click="showMessageInThread('{{ $evidenceId }}')"
-                                                    class="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800">
-                                                {{ __('loops.why_memory_evidence', ['n' => $loop->iteration]) }}
-                                            </button>
-                                            @endforeach
-                                        </div>
-                                        @endif
-                                        @if($entry['corrections'] !== [])
-                                        <div class="mt-1.5 space-y-0.5" data-memory-corrections>
-                                            @foreach($entry['corrections'] as $correctionEvent)
-                                            <p class="text-[11px] leading-4 text-gray-500 dark:text-gray-400">
-                                                {{ $correctionEvent['by_name'] !== null
-                                                    ? __('loops.why_memory_corrected_by', ['name' => $correctionEvent['by_name'], 'date' => $correctionEvent['at'] ?? '—'])
-                                                    : __('loops.why_memory_corrected', ['date' => $correctionEvent['at'] ?? '—']) }}
-                                                @if($correctionEvent['message_id'] !== null && $entry['same_loop'])
-                                                <button type="button" wire:click="showMessageInThread('{{ $correctionEvent['message_id'] }}')"
-                                                        class="font-semibold text-violet-700 underline decoration-dotted underline-offset-2 dark:text-violet-300">
-                                                    {{ __('loops.why_memory_see_correction') }}
-                                                </button>
-                                                @endif
-                                            </p>
-                                            @endforeach
-                                        </div>
-                                        @endif
-                                        @if($whyCanCorrect && $entry['can_correct'] && $entry['ref'] !== null)
-                                            @if($correctingRef === $entry['ref'])
-                                            <form wire:submit.prevent="submitCorrection" class="mt-2 space-y-2 rounded-lg border border-violet-200 bg-violet-50/60 p-2.5 dark:border-violet-800/50 dark:bg-violet-950/30" data-correct-form>
-                                                <p class="text-[11px] font-semibold text-gray-900 dark:text-gray-100">{{ __('loops.correct_form_title') }}</p>
-                                                <p class="text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ __('loops.correct_scope') }} {{ __('loops.correct_form_note') }}</p>
-                                                {{-- REMÉDIATION R2 (F2) : le mode se change par une ACTION,
-                                                     pas par liaison de propriété — `$correctingMode` est
-                                                     `#[Locked]`, son domaine est contrôlé une fois, à
-                                                     l'entrée. L'état coché vient du serveur. --}}
-                                                <div class="flex flex-wrap gap-3 text-[11px] text-gray-700 dark:text-gray-300">
-                                                    <label class="inline-flex items-center gap-1.5"><input type="radio" name="correction-mode" wire:click="setCorrectionMode('update')" @checked($correctingMode === 'update') data-correct-mode-update class="h-3 w-3">{{ __('loops.correct_mode_update') }}</label>
-                                                    <label class="inline-flex items-center gap-1.5"><input type="radio" name="correction-mode" wire:click="setCorrectionMode('retract')" @checked($correctingMode === 'retract') data-correct-mode-retract class="h-3 w-3">{{ __('loops.correct_mode_retract') }}</label>
-                                                </div>
-                                                @if($correctingMode === 'update')
-                                                <div>
-                                                    <label for="correction-new-text" class="block text-[11px] font-medium text-gray-700 dark:text-gray-300">{{ __('loops.correct_new_text_label') }}</label>
-                                                    <input type="text" id="correction-new-text" wire:model="correctionNewText" data-correct-new-text
-                                                           class="mt-1 w-full rounded-lg border-gray-300 text-xs dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
-                                                    @error('correctionNewText')<p class="mt-0.5 text-[11px] text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
-                                                </div>
-                                                @endif
-                                                <div>
-                                                    <label for="correction-text" class="block text-[11px] font-medium text-gray-700 dark:text-gray-300">{{ __('loops.correct_text_label') }}</label>
-                                                    <textarea wire:model="correctionText" id="correction-text" rows="2" data-correct-text placeholder="{{ __('loops.correct_text_placeholder') }}"
-                                                              class="mt-1 w-full rounded-lg border-gray-300 text-xs dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"></textarea>
-                                                    @error('correctionText')<p class="mt-0.5 text-[11px] text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
-                                                </div>
-                                                <div class="flex justify-end gap-2">
-                                                    <button type="button" wire:click="cancelCorrection"
-                                                            class="rounded-lg border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
-                                                        {{ __('loops.correct_cancel') }}
-                                                    </button>
-                                                    <button type="submit" wire:loading.attr="disabled" wire:target="submitCorrection" data-correct-submit
-                                                            class="rounded-lg bg-violet-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-violet-700 disabled:opacity-50">
-                                                        {{ __('loops.correct_submit') }}
-                                                    </button>
-                                                </div>
-                                            </form>
-                                            @else
-                                            <div class="mt-1.5 flex flex-wrap gap-1.5">
-                                                <button type="button" wire:click="startCorrection('{{ $entry['ref'] }}', 'update')" data-correct-open-update
-                                                        class="rounded-full border border-violet-300 bg-white px-2.5 py-0.5 text-[10px] font-semibold text-violet-700 transition hover:bg-violet-50 dark:border-violet-700 dark:bg-gray-900 dark:text-violet-300 dark:hover:bg-violet-950/40">
-                                                    {{ __('loops.correct_action_update') }}
-                                                </button>
-                                                <button type="button" wire:click="startCorrection('{{ $entry['ref'] }}', 'retract')" data-correct-open-retract
-                                                        class="rounded-full border border-gray-200 bg-white px-2.5 py-0.5 text-[10px] font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800">
-                                                    {{ __('loops.correct_action_retract') }}
-                                                </button>
-                                            </div>
-                                            @endif
-                                        @endif
-                                    </li>
+                                    @include('livewire.partials.memory-entry', [
+                                        'entry' => $entry,
+                                        'ancre' => \App\Livewire\LoopChat::ANCRE_WHY,
+                                        'canCorrect' => $whyCanCorrect,
+                                        'entryMarker' => 'data-why-memory-entry',
+                                        'correctPrefix' => 'data-correct',
+                                        'compact' => false,
+                                    ])
                                     @endforeach
                                 </ul>
                                 @endif
@@ -1045,11 +1016,16 @@
                          personne vient de DEMANDER lui est dû (exception
                          explicite du CDC Lab §10). Propriétés publiques, jamais
                          un flash : le `wire:poll.3s` le consommerait. --}}
+                    {{-- TASK-1550 : le résultat d'un geste s'affiche LÀ OÙ le geste a
+                         été fait. Sans ce filtre, une correction faite depuis la carte
+                         aurait aussi posé son accusé de réception ici. --}}
+                    @if($correctionFeedbackAnchor !== \App\Livewire\LoopChat::ANCRE_DIGEST)
                     @if($correctionFlash !== '')
                     <p class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs leading-5 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-200" data-correction-flash>{{ $correctionFlash }}</p>
                     @endif
                     @if($correctionConflict !== null)
                     <p class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200" data-correction-conflict>{{ $correctionConflict }}</p>
+                    @endif
                     @endif
 
                     @if($whyPanel['can_feedback'])

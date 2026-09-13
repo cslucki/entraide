@@ -1337,6 +1337,26 @@ return [
     'correct_ack' => 'Correction enregistrée : la mémoire de cette Boucle est à jour, et votre message est visible dans la conversation.',
     'correct_conflict_before' => 'Ce point a changé entre-temps. Rien n\'a été enregistré.',
     'correct_conflict_after' => 'Votre message est visible dans la Boucle, mais la mémoire n\'a pas pu être corrigée. Rechargez la version actuelle.',
+    // TASK-1550 — W1.5-B : « Depuis cet échange, BouclePro a retenu… ».
+    // Formulation au PASSÉ, et aucune promesse de délai : le CDC interdit de
+    // laisser croire que l'apprentissage est synchrone, et interdit tout autant
+    // d'annoncer un temps de consolidation. Avant la compilation, il n'y a pas
+    // de carte — le silence est la formulation honnête.
+    'digest_title' => 'Depuis cet échange, BouclePro a retenu…',
+    // L'opération réellement persistée, jamais une nature devinée. Le
+    // compilateur ne produit aucun discriminateur fait / interprétation /
+    // décision : en inventer un à la lecture serait une heuristique de contenu.
+    'digest_kind_added' => 'Nouveau',
+    'digest_kind_updated' => 'Mis à jour',
+    'digest_kind_retracted' => 'Retiré',
+    // Aucune prétention d'exhaustivité mémoire, et aucune case à cocher : rien
+    // n'attend de validation, tout ceci est DÉJÀ enregistré.
+    // La PORTEE, dite UNE fois pour la carte entiere plutot que sur chaque
+    // ligne : la carte vit dans la Boucle qu'elle decrit, et repeter « retenu
+    // dans cette Boucle » a chaque enonce ajoutait une rangee par element sans
+    // ajouter une information. Une portee AUTRE reste dite sur la ligne.
+    'digest_note' => 'Ces éléments sont déjà enregistrés dans la mémoire de cette Boucle. Ce n\'est pas tout ce que BouclePro en sait.',
+    'digest_dismiss' => 'Masquer',
     'why_feedback_title' => 'Cette réponse vous a-t-elle été utile ?',
     'why_feedback_helpful' => 'Utile',
     'why_feedback_improve' => 'À améliorer',
