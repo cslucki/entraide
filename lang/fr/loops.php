@@ -1295,6 +1295,48 @@ return [
     'why_documents_unavailable' => 'La trace ne détaille pas les sources documentaires.',
     'why_denied' => '{1} 1 source de contexte a été refusée au moment de la génération : l\'IA a répondu sans elle.|[2,*] :count sources de contexte ont été refusées au moment de la génération : l\'IA a répondu sans elles.',
     'why_trace_unavailable' => 'La trace de génération de cette réponse n\'est pas exploitable : rien n\'est reconstruit après coup, donc rien de plus n\'est affiché.',
+    // TASK-1549 — mémoire durable dans le panneau « Pourquoi ? », et le chemin
+    // standard « Corriger ». Aucun identifiant technique, aucun score, aucune
+    // prétention d'exhaustivité : uniquement ce que la trace prouve.
+    'why_memory_title' => 'Mémoire de BouclePro',
+    'why_memory_observed' => 'Constaté le :date',
+    'why_memory_scope_here' => 'retenu dans cette Boucle',
+    'why_memory_scope_other' => 'retenu dans la Boucle « :loop » — se corrige depuis cette Boucle-là',
+    // REMÉDIATION R2 (audit Codex F3) : `why_memory_evolved` et
+    // `why_memory_retracted` ont été RETIRÉES. Le panneau ne peut pas les
+    // atteindre — une supersession emporte le chunk cité, donc la section
+    // mémoire se tait et le ledger parle à sa place, sans nommer de famille.
+    // Une clé qu'aucune donnée ne peut produire est une promesse d'interface.
+    'why_memory_evidence' => 'Preuve :n',
+    'why_memory_corrected_by' => 'Corrigé par :name le :date.',
+    'why_memory_corrected' => 'Corrigé le :date.',
+    'why_memory_see_correction' => 'Voir la correction',
+    'why_memory_denied' => '{1} Une information de mémoire citée n\'est plus accessible et n\'est pas détaillée.|[2,*] :count informations de mémoire citées ne sont plus accessibles et ne sont pas détaillées.',
+    // Le TROISIÈME état : la ligne citée a disparu, donc son origine n'est plus
+    // établissable. Ce libellé ne nomme AUCUNE famille — ni document, ni
+    // mémoire — parce que rien ne permet plus de trancher (dette W5/TRACE-0).
+    'why_source_unreachable' => '{1} Une source citée n\'est plus accessible : son contenu a pu évoluer depuis cette réponse.|[2,*] :count sources citées ne sont plus accessibles : leur contenu a pu évoluer depuis cette réponse.',
+    'correct_action_update' => 'Corriger',
+    'correct_action_retract' => 'Ce n\'est plus à jour',
+    'correct_form_title' => 'Corriger la mémoire',
+    'correct_scope' => 'Cette correction s\'applique à cette Boucle.',
+    'correct_form_note' => 'La mémoire est corrigée immédiatement ; l\'apprentissage automatique, lui, reste différé et respectera cette correction.',
+    'correct_mode_update' => 'Remplacer par le bon énoncé',
+    'correct_mode_retract' => 'Retirer cet énoncé',
+    'correct_new_text_label' => 'Le bon énoncé',
+    'correct_text_label' => 'Pourquoi ? Ce message sera visible dans la Boucle.',
+    'correct_text_placeholder' => 'Expliquez en une phrase — c\'est la preuve de la correction.',
+    'correct_text_required' => 'Expliquez la correction : cette phrase est la preuve, elle est obligatoire.',
+    'correct_new_text_required' => 'Écrivez le bon énoncé pour remplacer l\'ancien.',
+    // Une contrainte de saisie se NOMME. Ce n'est pas un incident, ce n'est pas
+    // un conflit, et surtout ce n'est pas « rechargez la version actuelle ».
+    'correct_new_text_min' => 'Votre correction doit faire au moins :min caractères pour être enregistrée.',
+    'correct_refused_right' => 'Vous ne pouvez plus corriger la mémoire de cette Boucle. Rien n\'a été enregistré.',
+    'correct_submit' => 'Enregistrer la correction',
+    'correct_cancel' => 'Annuler',
+    'correct_ack' => 'Correction enregistrée : la mémoire de cette Boucle est à jour, et votre message est visible dans la conversation.',
+    'correct_conflict_before' => 'Ce point a changé entre-temps. Rien n\'a été enregistré.',
+    'correct_conflict_after' => 'Votre message est visible dans la Boucle, mais la mémoire n\'a pas pu être corrigée. Rechargez la version actuelle.',
     'why_feedback_title' => 'Cette réponse vous a-t-elle été utile ?',
     'why_feedback_helpful' => 'Utile',
     'why_feedback_improve' => 'À améliorer',

@@ -8,6 +8,7 @@ use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\User;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Facades\DB;
 
 /**
  * TASK-1534 — l'UNIQUE autorite d'eligibilite des chunks.
@@ -114,16 +115,141 @@ final class DerivedChunkEligibility
             }
 
             $outer->orWhere(function (Builder $derived) use ($organizationId, $authorizedLoopIds): void {
-                $derived->whereNotNull('dossier_chunks.derived_knowledge_note_id')
-                    ->where('derived_knowledge_notes.organization_id', $organizationId)
-                    ->where('derived_knowledge_notes.status', DerivedKnowledgeNote::STATUS_ACTIVE)
-                    // LA moitie Boucle de l'intersection. Sans elle, une note
-                    // rangee dans un Dossier org-visible sortirait d'une
-                    // Boucle privee.
-                    ->whereNotNull('derived_knowledge_notes.source_loop_id')
-                    ->whereIn('derived_knowledge_notes.source_loop_id', $authorizedLoopIds);
+                $this->applyDerivedFamily($derived, $organizationId, $authorizedLoopIds);
             });
         });
+    }
+
+    /**
+     * LA clause de la troisieme famille — extraite (TASK-1549) pour qu'elle
+     * serve AUSSI la resolution unitaire {@see self::derivedClaimForViewer()}.
+     *
+     * Elle n'est pas recopiee : c'est la meme methode que `applyTo()` appelle.
+     * Deux ecritures de cette clause seraient exactement le defaut que cette
+     * classe existe pour empecher.
+     *
+     * @param  list<string>  $authorizedLoopIds
+     */
+    private function applyDerivedFamily(Builder $query, string $organizationId, array $authorizedLoopIds): void
+    {
+        $query->whereNotNull('dossier_chunks.derived_knowledge_note_id')
+            ->where('derived_knowledge_notes.organization_id', $organizationId)
+            ->where('derived_knowledge_notes.status', DerivedKnowledgeNote::STATUS_ACTIVE)
+            // LA moitie Boucle de l'intersection. Sans elle, une note
+            // rangee dans un Dossier org-visible sortirait d'une
+            // Boucle privee.
+            ->whereNotNull('derived_knowledge_notes.source_loop_id')
+            ->whereIn('derived_knowledge_notes.source_loop_id', $authorizedLoopIds);
+    }
+
+    /**
+     * TASK-1549 (remediation autorite) — resoudre UN chunk cite en l'enonce
+     * qu'il porte, pour CE spectateur, sous la clause de cette classe.
+     *
+     * ## Pourquoi cette primitive existe
+     *
+     * Le panneau « Pourquoi ? » doit nommer la memoire durable qu'une reponse
+     * a citee. Il lisait pour cela `dossier_chunks` en direct, depuis un
+     * service de lecture : la garde d'ACL redevenait alors une CONVENTION
+     * D'ORDRE D'APPEL — resoudre la note, puis penser a verifier le droit.
+     * Une convention ne protege rien : il suffit d'un appelant qui oublie la
+     * seconde moitie.
+     *
+     * L'eligibilite est donc decidee ICI, par la clause, et l'appelant ne peut
+     * plus obtenir une note qu'il n'a pas le droit de lire — meme en appelant
+     * la primitive isolement.
+     *
+     * ## Les trois verdicts, et pourquoi `denied` n'est pas `none`
+     *
+     *  - `granted` : le chunk porte un enonce ACTIF, et la clause l'admet pour
+     *    ce spectateur. La note est rendue.
+     *  - `denied` : le chunk porte bien un enonce, mais la clause le refuse —
+     *    Boucle source non autorisee. La note n'est JAMAIS rendue. Le verdict
+     *    seul sort, parce que la surface doit pouvoir dire « une information
+     *    de memoire citee n'est plus accessible » sans en divulguer ni
+     *    l'auteur, ni le titre, ni le contenu (decision T1549).
+     *  - `none` : rien ne prouve que ce chunk soit une memoire durable
+     *    adressable — document ordinaire, ligne disparue, note deplacee
+     *    (garde de staleness de {@see self::joinTo()}), ou digest non
+     *    adressable par sujet.
+     *
+     * Ferme par defaut : tout ce qui n'est pas explicitement admis sort en
+     * `none` ou `denied`, jamais avec une note.
+     *
+     * @return array{state: 'none'|'denied'|'granted', note: ?DerivedKnowledgeNote}
+     */
+    public function derivedClaimForViewer(string $organizationId, ?User $viewer, string $chunkId): array
+    {
+        $none = ['state' => 'none', 'note' => null];
+
+        if ($organizationId === '' || $chunkId === '') {
+            return $none;
+        }
+
+        // 1. Le chunk porte-t-il, DANS CE TENANT, une note derivee encore
+        //    rattachee a son Dossier ? La jointure de staleness fait foi.
+        $ligne = $this->chunkQuery($organizationId, $chunkId);
+        $this->joinTo($ligne);
+
+        $noteId = $ligne->value('derived_knowledge_notes.id');
+
+        if ($noteId === null) {
+            return $none;
+        }
+
+        // 2. Un enonce adressable par sujet, ou un digest ? On ne propose pas
+        //    de verdict sur ce qu'aucun `subject_key` ne designe.
+        $note = DerivedKnowledgeNote::query()
+            ->where('organization_id', $organizationId)
+            ->find($noteId);
+
+        if ($note === null || ! $note->isClaim()) {
+            return $none;
+        }
+
+        // 3. LA decision, prise par la clause elle-meme — jamais par une
+        //    comparaison refaite ici.
+        $eligible = $this->chunkQuery($organizationId, $chunkId);
+        $this->joinTo($eligible);
+        $this->applyDerivedFamily(
+            $eligible,
+            $organizationId,
+            $this->authorizedLoopIds($organizationId, $viewer),
+        );
+
+        return $eligible->exists()
+            ? ['state' => 'granted', 'note' => $note]
+            : ['state' => 'denied', 'note' => null];
+    }
+
+    /**
+     * Une ligne `dossier_chunks` designee, bornee au tenant. Point d'entree
+     * unique des deux passes de {@see self::derivedClaimForViewer()}.
+     */
+    private function chunkQuery(string $organizationId, string $chunkId): Builder
+    {
+        return DB::table('dossier_chunks')
+            ->where('dossier_chunks.organization_id', $organizationId)
+            ->where('dossier_chunks.id', $chunkId);
+    }
+
+    /**
+     * La ligne `dossier_chunks` citee existe-t-elle encore, dans ce tenant ?
+     *
+     * N'AFFIRME RIEN SUR L'ORIGINE, et c'est tout l'interet : quand la ligne a
+     * disparu, sa reference de note est partie avec elle — memoire durable et
+     * document ordinaire deviennent indiscernables. Cette sonde sert le
+     * TROISIEME etat du panneau (« une source citee n'est plus accessible »),
+     * qui se dit sans nommer de famille. Elle vit ICI parce qu'elle interroge
+     * la table que cette classe gouverne.
+     */
+    public function citedChunkStillExists(string $organizationId, string $chunkId): bool
+    {
+        if ($organizationId === '' || $chunkId === '') {
+            return false;
+        }
+
+        return $this->chunkQuery($organizationId, $chunkId)->exists();
     }
 
     /**
