@@ -54,6 +54,20 @@ class AiShellMessage extends Model
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * TASK-1552 — le message HUMAIN qui a declenche cette reponse.
+     *
+     * La colonne `reply_to_id` existe depuis TASK-1315 et porte deja
+     * l'idempotence du fil (`AiShellThread::answerFor()`, contrainte UNIQUE).
+     * Ce qui manquait etait la relation : le brouillon d'une demande preparee
+     * depuis un tour Nervous System doit contenir LES MOTS DE LA PERSONNE, et
+     * ils sont ici — nulle part ailleurs.
+     */
+    public function replyTo(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'reply_to_id');
+    }
+
     /** La seule porte de lecture : jamais un `where('user_id')` nu ailleurs. */
     public function scopeForThread(Builder $query, string $organizationId, string $userId): Builder
     {

@@ -247,12 +247,46 @@ final class AiShellTurnCards
     {
         $metadata = is_array($message->metadata) ? $message->metadata : [];
 
-        if ($message->role !== AiShellMessage::ROLE_ASSISTANT
-            || ($metadata['status'] ?? null) !== AiShellResponder::STATUS_ANSWERED) {
+        if ($message->role !== AiShellMessage::ROLE_ASSISTANT) {
             return [];
         }
 
+        $status = $metadata['status'] ?? null;
+        $answered = $status === AiShellResponder::STATUS_ANSWERED;
         $stored = $metadata['cards'] ?? null;
+
+        // TASK-1552 — un tour NERVOUS SYSTEM peut porter des cartes, et il en
+        // portait deja.
+        //
+        // Les quatre branches documentaires ecrivent `cards` depuis
+        // `forAnsweredTurn()` avec `status = NON_INTERACTION` : cette methode
+        // les jetait toutes. Le depot le disait deja de lui-meme dans
+        // `AiShell::render()` (audit T1546) — « leurs cartes n'atteignent
+        // jamais l'ecran ». Une donnee ecrite que personne ne lit, exactement
+        // la classe de defaut que T1551 vient de fermer sur `sources`.
+        //
+        // La condition est DECLARATIVE et BORNEE PAR PRODUCTEUR, et c'est ce qui
+        // la rend etroite. Le statut seul ne suffisait pas : un test de T1350
+        // l'a prouve en rougissant (« meme si une reference de carte etait
+        // forgee dans la metadata, le statut interdit son rendu »). Le statut
+        // ne distingue pas un tour Nervous System d'une reponse
+        // conversationnelle ; le producteur, si. Voir
+        // `AiShellResponder::CARD_PRODUCERS`.
+        //
+        // Le repli historique sur `suggested_loop_id` reste, lui, reserve aux
+        // tours REPONDUS — deduire une carte d'un tour qui n'en a pas declare
+        // reviendrait a lui preter une intention d'action qu'il n'a pas eue.
+        //
+        // `BLOCKED` et `UNAVAILABLE` restent exclus, et pas par prudence : ces
+        // tours n'ont produit aucune reponse. Proposer d'agir a partir d'eux
+        // designerait le vide.
+        $declares = $status === AiShellResponder::STATUS_NON_INTERACTION
+            && is_array($stored)
+            && in_array($metadata['producer'] ?? null, AiShellResponder::CARD_PRODUCERS, true);
+
+        if (! $answered && ! $declares) {
+            return [];
+        }
 
         if (! is_array($stored)) {
             // Tours anterieurs a Shell-1 : la suggestion de Boucle existante

@@ -225,6 +225,36 @@ final class AiShellResponder
         self::PRODUCER_SELF_MATCHING,
     ];
 
+    /**
+     * TASK-1552 — les producteurs Nervous System autorises a DECLARER des
+     * cartes de tour.
+     *
+     * Pourquoi une whitelist de PRODUCTEURS, et pas simplement « un tour
+     * non-interaction qui porte des cartes » : un test de T1350 l'a montre en
+     * rougissant, et il avait raison. Sa garde disait « meme si une reference
+     * de carte etait forgee dans la metadata, le statut interdit son rendu ».
+     * Ouvrir sur le seul statut supprimait cette defense en profondeur sans
+     * rien mettre a la place.
+     *
+     * Le statut n'etait pas le bon axe — il ne distingue pas un tour Nervous
+     * System d'une reponse conversationnelle `direct_reply`. Le PRODUCTEUR,
+     * si : il nomme la branche qui a repondu, et il est ecrit par le serveur
+     * au meme endroit que les cartes.
+     *
+     * Sont exclus, et c'est le defaut ferme : `people.self` (une intention
+     * d'OFFRE, pas de demande), `reference.resolution`, et toute reponse
+     * generative — dont la metadata est de toute facon bornee a quatre cles.
+     *
+     * @var list<string>
+     */
+    public const CARD_PRODUCERS = [
+        self::PRODUCER_PEOPLE_MATCHING,
+        'dossier.answer',
+        'article.answer',
+        self::PRODUCER_DOSSIER_CONTINUATION,
+        self::PRODUCER_DOSSIER_DISCOVERY,
+    ];
+
     private const DOCUMENTARY_PRODUCERS = [
         'dossier.answer',
         'article.answer',
@@ -2010,6 +2040,29 @@ final class AiShellResponder
             'status' => self::STATUS_NON_INTERACTION,
             'producer' => self::PRODUCER_PEOPLE_MATCHING,
             'page_context' => $this->traceablePeoplePage($pageContext),
+            // TASK-1552 — le tour People DEBOUCHE, au lieu de s'arreter la.
+            //
+            // « Qui peut m'aider sur la charpente ? » nommait des personnes
+            // dans une Boucle autorisee, puis le parcours mourait : aucun appel
+            // a l'action, aucun brouillon, aucune suite. La promesse produit se
+            // cassait exactement au moment ou elle allait aboutir.
+            //
+            // La Boucle proposee n'est INVENTEE par personne : c'est celle sur
+            // laquelle le matching vient de tourner, deja autorisee, deja
+            // nommee dans le texte ci-dessus. Elle est revalidee deux fois de
+            // plus en aval — au rendu par `loopCard()`, au clic par
+            // `AiShell::suggestedLoop()`. Une reference, jamais un droit.
+            //
+            // `suggested_loop_id` est la MEME cle que celle d'un tour repondu :
+            // `AiShell::suggestedLoop()` la lit sans rien savoir du chemin qui
+            // l'a ecrite. Aucun second contrat.
+            //
+            // Et c'est la SEULE cle ajoutee : les cartes de ce tour — LoopCard
+            // avec son appel a l'action, PersonCards — sont ecrites vingt
+            // lignes plus bas depuis `forAnsweredTurn()`, avec le MEME besoin
+            // que le texte. Elles existaient deja ; il leur manquait seulement
+            // d'atteindre l'ecran.
+            'suggested_loop_id' => (string) $loop->id,
             'people' => [
                 'referent_loop_id' => (string) $loop->id,
                 // « aucun besoin derivable » et « personne ne correspond » ne
