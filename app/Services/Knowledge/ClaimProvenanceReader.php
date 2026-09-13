@@ -3,7 +3,6 @@
 namespace App\Services\Knowledge;
 
 use App\Models\DerivedKnowledgeNote;
-use App\Models\DossierChunk;
 use App\Models\Loop;
 use App\Models\LoopMessage;
 use App\Models\Organization;
@@ -25,18 +24,23 @@ use Carbon\Carbon;
  * `KnowledgeAnswer::publicSource()` expose `type = 'retrieval'` pour un
  * Article, un fichier ET une note derivee : la forme publique ne distingue pas
  * une memoire durable d'un document, et la mission interdit de l'elargir. Le
- * discriminateur vit donc ICI, cote lecture : un chunk cite est une memoire
- * durable si et seulement si sa ligne `dossier_chunks` porte
- * `derived_knowledge_note_id` — une FK, jamais une heuristique de contenu
- * (meme regle que `mapSourceRow()`, TASK-1534).
+ * discriminateur est donc une REFERENCE de rattachement portee par la ligne
+ * `dossier_chunks` — jamais une heuristique de contenu (meme regle que
+ * `mapSourceRow()`, TASK-1534).
+ *
+ * Il ne vit PAS ici. Il vit dans `DerivedChunkEligibility`, avec la clause
+ * d'ACL qui en decide : ce lecteur demande un verdict, il n'en calcule aucun
+ * (remediation TASK-1549 — voir `derivedClaimForViewer()`).
  *
  * Le discriminateur est POSITIF, et il ne juge que ce qu'il peut prouver :
- *  - chunk avec FK vers un claim => memoire durable, provenance ou refus ;
- *  - chunk sans FK               => document ordinaire, ce lecteur rend `null` ;
- *  - chunk DISPARU               => la FK est partie avec la ligne : plus rien
- *                                   ne prouve l'origine. Ce lecteur rend `null`
- *                                   et la surface ne dit RIEN — elle n'invente
- *                                   pas une memoire a partir d'une absence.
+ *  - rattachement vers un claim autorise => memoire durable, provenance ;
+ *  - rattachement vers un claim refuse   => verdict seul, sans aucun detail ;
+ *  - aucun rattachement                  => document ordinaire, `null` ;
+ *  - chunk DISPARU                       => le rattachement est parti avec la
+ *                                   ligne : plus rien ne prouve l'origine. Ce
+ *                                   lecteur rend `null` et la surface ne dit
+ *                                   RIEN — elle n'invente pas une memoire a
+ *                                   partir d'une absence.
  *
  * Ce dernier cas est la dette W5/TRACE-0, conservee telle quelle : tant que la
  * trace ne porte pas l'identite de la note, une citation dont le chunk a ete
@@ -74,49 +78,49 @@ final class ClaimProvenanceReader
     ) {}
 
     /**
-     * La note derivee derriere un chunk cite, si ce chunk est une memoire
-     * durable ADRESSABLE — la SEULE porte d'entree de la section memoire.
+     * Le VERDICT de l'autorite sur un chunk cite, pour ce spectateur.
      *
-     * Rendent `null`, et se taisent donc toutes de la meme facon : un chunk de
-     * document ordinaire, un chunk disparu (l'origine n'est plus prouvable),
-     * et le digest conversationnel, qui est bien de la memoire mais n'est pas
-     * adressable par sujet — on ne propose pas de corriger ce qu'aucun
-     * `subject_key` ne designe.
+     * REMEDIATION TASK-1549 (autorite) — ce lecteur ne resout plus rien
+     * lui-meme. Il demandait auparavant la colonne de rattachement a
+     * `dossier_chunks`, puis verifiait le droit dans un SECOND temps : l'ACL
+     * tenait donc a l'ORDRE DES APPELS, et un appelant qui s'arretait apres le
+     * premier obtenait une note qu'il n'avait pas le droit de lire.
+     * `DerivedChunkEligibility` decide desormais, sous sa propre clause.
+     *
+     * Aucune politique d'acces n'est rejouee ici : ce lecteur TRADUIT un
+     * verdict, il n'en rend aucun.
+     *
+     * @return array{state: 'none'|'denied'|'granted', note: ?DerivedKnowledgeNote}
      */
-    public function noteFromChunk(string $organizationId, string $chunkId): ?DerivedKnowledgeNote
+    public function citedClaimForViewer(string $organizationId, ?User $viewer, string $chunkId): array
     {
-        $noteId = DossierChunk::query()
-            ->where('organization_id', $organizationId)
-            ->whereKey($chunkId)
-            ->value('derived_knowledge_note_id');
-
-        if ($noteId === null) {
-            return null;
-        }
-
-        $note = DerivedKnowledgeNote::query()
-            ->where('organization_id', $organizationId)
-            ->find($noteId);
-
-        return $note !== null && $note->isClaim() ? $note : null;
+        return $this->eligibility->derivedClaimForViewer($organizationId, $viewer, $chunkId);
     }
 
     /**
-     * La ligne `dossier_chunks` citee existe-t-elle encore ?
+     * L'enonce derriere un chunk cite, SI ce spectateur a le droit de le lire —
+     * la SEULE porte d'entree de la section memoire.
      *
-     * N'AFFIRME RIEN SUR L'ORIGINE, et c'est tout l'interet : quand la ligne a
-     * disparu, la FK a disparu avec elle — memoire durable et document ordinaire
-     * deviennent indiscernables. Cette sonde sert donc le TROISIEME etat du
-     * panneau (« une source citee n'est plus accessible »), qui se dit en dehors
-     * de la section memoire et sans nommer de famille. La lire comme une trace
-     * de memoire etait le defaut corrige en remediation TASK-1549.
+     * Rend `null`, et se tait donc de la meme facon, pour tout ce qui n'est pas
+     * un enonce autorise : document ordinaire, chunk disparu (l'origine n'est
+     * plus prouvable), digest non adressable par sujet, et Boucle source non
+     * autorisee. Le detail du verdict, quand la surface en a besoin pour
+     * compter un refus sans rien divulguer, se lit par
+     * {@see self::citedClaimForViewer()}.
+     */
+    public function noteFromChunk(string $organizationId, ?User $viewer, string $chunkId): ?DerivedKnowledgeNote
+    {
+        return $this->citedClaimForViewer($organizationId, $viewer, $chunkId)['note'];
+    }
+
+    /**
+     * La ligne citee existe-t-elle encore ? Deleguee a l'autorite, qui gouverne
+     * cette table — voir `DerivedChunkEligibility::citedChunkStillExists()`
+     * pour ce que cette sonde n'affirme PAS.
      */
     public function citedChunkStillExists(string $organizationId, string $chunkId): bool
     {
-        return DossierChunk::query()
-            ->where('organization_id', $organizationId)
-            ->whereKey($chunkId)
-            ->exists();
+        return $this->eligibility->citedChunkStillExists($organizationId, $chunkId);
     }
 
     /**

@@ -265,6 +265,64 @@ class TASK1549ProvenanceAndCorrectionTest extends TestCase
         $this->assertStringNotContainsString('Budget confidentiel', $html, 'le NOM de la Boucle refusee ne fuit pas');
     }
 
+    /**
+     * REMEDIATION AUTORITE — l'ACL n'est plus une convention d'ordre d'appel.
+     *
+     * `ClaimProvenanceReader` resolvait la note en lisant la reference de
+     * rattachement du chunk, PUIS verifiait le droit dans un second temps. Un
+     * appelant qui s'arretait apres le premier appel obtenait une note qu'il
+     * n'avait pas le droit de lire — et rien ne le signalait. C'est exactement
+     * ce que la garde d'architecture de TASK-1539 interdit : « le jour ou un
+     * service interroge cette colonne directement, elle redevient une
+     * convention — et une convention ne protege rien ».
+     *
+     * Ce test appelle donc la primitive ISOLEMENT, sans jamais passer par le
+     * panneau. Il casse si l'autorite est remplacee par une lecture directe :
+     * une telle lecture rendrait la note a Bruno.
+     */
+    public function test_le_lecteur_n_obtient_aucune_note_non_autorisee_meme_appele_isolement(): void
+    {
+        $loopB = $this->autreBoucle('Budget confidentiel', [$this->alice]);
+        [$claimB] = $this->unClaim($loopB, 'La reserve du bureau est de 40000 euros.',
+            'On garde 40000 euros de reserve, entre nous.');
+
+        $chunkId = (string) DossierChunk::query()
+            ->where('derived_knowledge_note_id', $claimB->id)
+            ->firstOrFail()->id;
+
+        $lecteur = app(ClaimProvenanceReader::class);
+        $org = (string) $this->organization->id;
+
+        // La ligne EXISTE : ce qui suit est un refus de DROIT, jamais une
+        // absence deguisee.
+        $this->assertTrue($lecteur->citedChunkStillExists($org, $chunkId),
+            'PREMISSE : la trace citee est bien en base');
+
+        // Alice est membre de la Boucle SOURCE : verdict accorde.
+        $accorde = $lecteur->citedClaimForViewer($org, $this->alice, $chunkId);
+        $this->assertSame('granted', $accorde['state']);
+        $this->assertNotNull($accorde['note']);
+        $this->assertNotNull($lecteur->noteFromChunk($org, $this->alice, $chunkId));
+
+        // Bruno ne l'est PAS. Aucune note ne sort, par aucun des deux chemins.
+        $refuse = $lecteur->citedClaimForViewer($org, $this->bruno, $chunkId);
+        $this->assertSame('denied', $refuse['state'],
+            'le refus se DIT — la surface doit pouvoir le compter sans rien divulguer');
+        $this->assertNull($refuse['note'], 'un refus ne transporte JAMAIS la note');
+        $this->assertNull($lecteur->noteFromChunk($org, $this->bruno, $chunkId),
+            'une lecture directe du rattachement rendrait la note ici : c est ce que ce test interdit');
+
+        // Ferme par defaut : sans spectateur, rien.
+        $this->assertNull($lecteur->noteFromChunk($org, null, $chunkId));
+        $this->assertSame('denied', $lecteur->citedClaimForViewer($org, null, $chunkId)['state']);
+
+        // Hors tenant : la question ne se pose meme pas.
+        $autreOrg = Organization::factory()->create(['is_active' => true]);
+        $this->assertNull($lecteur->noteFromChunk((string) $autreOrg->id, $this->alice, $chunkId));
+        $this->assertSame('none', $lecteur->citedClaimForViewer((string) $autreOrg->id, $this->alice, $chunkId)['state'],
+            'hors tenant, on ne revele pas meme l existence d un rattachement');
+    }
+
     public function test_une_trace_injoignable_a_un_wording_distinct_d_un_refus_de_droit(): void
     {
         [$claim] = $this->unClaim($this->loop);

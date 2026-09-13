@@ -65,6 +65,13 @@ final class AiResponseExplanationService
      */
     private const FAMILLE_MEMOIRE = 'memoire';
 
+    /**
+     * Une memoire durable que CE spectateur n'a pas le droit de lire. Famille
+     * a part entiere : elle se compte, elle ne se nomme pas, et elle ne glisse
+     * JAMAIS dans la voie documentaire — qui, elle, nomme ses entrees.
+     */
+    private const FAMILLE_MEMOIRE_REFUSEE = 'memoire_refusee';
+
     private const FAMILLE_DOCUMENT = 'document';
 
     private const FAMILLE_INJOIGNABLE = 'injoignable';
@@ -281,7 +288,7 @@ final class AiResponseExplanationService
         // ou la nommer document accessible tout en la comptant injoignable.
         // Trois lectures indépendantes de la même liste ne peuvent pas se
         // contredire si elles n'en font qu'une.
-        $classees = $retrieval === null ? [] : $this->classerCitations($loop, $retrieval);
+        $classees = $retrieval === null ? [] : $this->classerCitations($loop, $retrieval, $viewer);
 
         return [
             'capability' => (string) $capability,
@@ -307,19 +314,26 @@ final class AiResponseExplanationService
      * REMÉDIATION R2 (F4) — à quelle famille appartient chaque source citée,
      * décidé une seule fois et pour tout le panneau.
      *
-     * Le discriminateur reste celui de TASK-1549, et il reste POSITIF : une FK
-     * `derived_knowledge_note_id` vers un claim, jamais la forme publique
-     * (`type = 'retrieval'` ne distingue rien), jamais une heuristique de
-     * contenu. Ce qui change est la PORTÉE : trois familles exclusives.
+     * Le discriminateur reste celui de TASK-1549, et il reste POSITIF : la
+     * référence de rattachement du chunk vers un claim, jamais la forme
+     * publique (`type = 'retrieval'` ne distingue rien), jamais une heuristique
+     * de contenu. Ce qui change est la PORTÉE : trois familles exclusives.
      *
-     *  - `memoire`     : chunk vivant, portant la FK, pointant un claim ;
-     *  - `document`    : chunk vivant sans FK — ou citation sans `chunk_id`
+     * REMÉDIATION AUTORITÉ — ce service ne lit plus ce rattachement : il
+     * demande son verdict à `DerivedChunkEligibility`, qui décide sous sa
+     * propre clause d'ACL. Une mémoire refusée à CE spectateur ne devient donc
+     * pas un document : elle reste de la mémoire, comptée sans rien divulguer.
+     *
+     *  - `memoire`     : chunk vivant, rattaché à un claim AUTORISÉ ;
+     *  - `memoire_refusee` : chunk vivant, rattaché à un claim que ce
+     *                    spectateur n'a pas le droit de lire — verdict seul ;
+     *  - `document`    : chunk vivant sans rattachement — ou citation sans `chunk_id`
      *                    exploitable, que la trace seule doit pouvoir compter ;
-     *  - `injoignable` : la ligne `dossier_chunks` n'existe plus. La FK est
-     *                    partie avec elle : l'origine n'est plus établissable,
-     *                    donc la source ne se range dans aucune des deux
-     *                    autres. Elle se dit au ledger, sans nommer de famille
-     *                    (dette W5/TRACE-0 rendue telle quelle).
+     *  - `injoignable` : la ligne `dossier_chunks` n'existe plus. Son
+     *                    rattachement est parti avec elle : l'origine n'est
+     *                    plus établissable, donc la source ne se range dans
+     *                    aucune des autres. Elle se dit au ledger, sans nommer
+     *                    de famille (dette W5/TRACE-0 rendue telle quelle).
      *
      * La note résolue est transportée avec le classement : la section mémoire
      * n'a pas à refaire la requête qui l'a produite.
@@ -327,7 +341,7 @@ final class AiResponseExplanationService
      * @param  array<string, mixed>  $retrieval
      * @return list<array{index: int, famille: string, note: ?DerivedKnowledgeNote}>
      */
-    private function classerCitations(Loop $loop, array $retrieval): array
+    private function classerCitations(Loop $loop, array $retrieval, User $viewer): array
     {
         $organization = $loop->organization;
         $cited = is_array($retrieval['cited'] ?? null) ? array_values($retrieval['cited']) : [];
@@ -353,13 +367,18 @@ final class AiResponseExplanationService
                 continue;
             }
 
-            $note = $this->claims->noteFromChunk((string) $organization->id, $chunkId);
+            // LE verdict, rendu par l'autorité. `denied` reste de la MÉMOIRE :
+            // la faire glisser dans la voie documentaire la ferait nommer sous
+            // son titre par une autre section, ce que le refus d'ACL interdit.
+            $verdict = $this->claims->citedClaimForViewer((string) $organization->id, $viewer, $chunkId);
 
-            $classees[] = [
-                'index' => $index,
-                'famille' => $note === null ? self::FAMILLE_DOCUMENT : self::FAMILLE_MEMOIRE,
-                'note' => $note,
-            ];
+            $famille = match ($verdict['state']) {
+                'granted' => self::FAMILLE_MEMOIRE,
+                'denied' => self::FAMILLE_MEMOIRE_REFUSEE,
+                default => self::FAMILLE_DOCUMENT,
+            };
+
+            $classees[] = ['index' => $index, 'famille' => $famille, 'note' => $verdict['note']];
         }
 
         return $classees;
@@ -368,26 +387,27 @@ final class AiResponseExplanationService
     /**
      * TASK-1549 — la section « Mémoire de BouclePro » du panneau : parmi les
      * sources citées, celles qui sont une MÉMOIRE DURABLE — reconnues côté
-     * lecture par la FK `derived_knowledge_note_id` de leur chunk, jamais par
-     * la forme publique (`type = 'retrieval'` ne distingue rien, dette CDC).
+     * lecture par la référence de rattachement de leur chunk, jamais par la
+     * forme publique (`type = 'retrieval'` ne distingue rien, dette CDC).
      *
      * ## Le discriminateur est POSITIF (remédiation TASK-1549)
      *
-     * Une citation n'entre ici QUE si `noteFromChunk()` la reconnaît : chunk
-     * vivant, portant la FK, pointant un claim. Tout le reste — document
-     * ordinaire, digest non adressable, et surtout **chunk disparu** — sort en
-     * silence de cette section.
+     * Une citation n'entre ici QUE si l'autorité d'éligibilité la reconnaît :
+     * chunk vivant, rattaché à un claim. Tout le reste — document ordinaire,
+     * digest non adressable, et surtout **chunk disparu** — sort en silence de
+     * cette section.
      *
-     * Le cas du chunk disparu était le défaut : sa ligne emporte sa FK, donc
-     * son origine n'est plus établissable, et le compter ici faisait apparaître
-     * « Mémoire de BouclePro » sur une réponse n'ayant cité que des documents.
-     * Il est désormais classé `injoignable` et compté au niveau du ledger, sans
-     * nommer de famille ({@see self::classerCitations()}).
+     * Le cas du chunk disparu était le défaut : sa ligne emporte son
+     * rattachement, donc son origine n'est plus établissable, et le compter ici
+     * faisait apparaître « Mémoire de BouclePro » sur une réponse n'ayant cité
+     * que des documents. Il est désormais classé `injoignable` et compté au
+     * niveau du ledger, sans nommer de famille
+     * ({@see self::classerCitations()}).
      *
      * Deux issues seulement subsistent donc ici :
-     *  - mémoire résolue : provenance complète du lecteur standard ;
-     *  - mémoire résolue mais ACL de la Boucle source tombée : refus GÉNÉRIQUE,
-     *    compté, sans auteur ni titre ni contenu.
+     *  - mémoire AUTORISÉE : provenance complète du lecteur standard ;
+     *  - mémoire refusée à ce spectateur : refus GÉNÉRIQUE, compté, sans
+     *    auteur ni titre ni contenu — la note n'est jamais même chargée.
      *
      * `null` quand aucune mémoire n'est prouvée : la section n'apparaît pas, et
      * ne prétend jamais montrer « tout ce que BouclePro sait ».
@@ -415,6 +435,14 @@ final class AiResponseExplanationService
         $deniedCount = 0;
 
         foreach ($classees as $classee) {
+            // Le refus vient de l'AUTORITÉ, en amont : aucune note n'a été
+            // chargée, donc il n'y a rien à filtrer ici — seulement à compter.
+            if ($classee['famille'] === self::FAMILLE_MEMOIRE_REFUSEE) {
+                $deniedCount++;
+
+                continue;
+            }
+
             if ($classee['famille'] !== self::FAMILLE_MEMOIRE || $classee['note'] === null) {
                 continue;
             }
@@ -422,6 +450,8 @@ final class AiResponseExplanationService
             $index = $classee['index'];
             $provenance = $this->claims->provenance($organization, $loop, $classee['note'], $viewer);
 
+            // Défense en profondeur : le lecteur standard repose la même
+            // question à la même autorité. Un désaccord ne s'affiche pas.
             if ($provenance['state'] === 'denied') {
                 $deniedCount++;
 
@@ -489,12 +519,16 @@ final class AiResponseExplanationService
                 return null;
             }
 
-            $note = $this->claims->noteFromChunk((string) $organization->id, $chunkId);
+            // L'autorité décide. `null` couvre désormais AUSSI le refus d'ACL :
+            // aucune note n'est rendue à qui n'a pas le droit de la lire, et
+            // cela ne dépend plus d'un second appel que l'on pourrait oublier.
+            $note = $this->claims->noteFromChunk((string) $organization->id, $viewer, $chunkId);
 
             if ($note === null) {
                 return null;
             }
 
+            // Défense en profondeur : le lecteur standard repose la question.
             $provenance = $this->claims->provenance($organization, $loop, $note, $viewer);
 
             return $provenance['state'] === 'denied' ? null : $note;
