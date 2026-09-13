@@ -148,11 +148,32 @@ final class ClaimProvenanceReader
      * Les faire vivre dans le panneau demande que la trace porte l'identite de
      * la note — TRACE-0, hors mandat.
      *
+     * ## TASK-1551 — lire depuis un hote qui n'a PAS de Boucle courante
+     *
+     * `$currentLoop` est desormais optionnel, et `null` n'est pas un cas
+     * degrade : c'est le cas du Shell, qui explique une reponse sans etre
+     * dans aucune conversation. Ce que `null` produit est fail-closed PAR
+     * CONSTRUCTION, sans qu'aucun appelant ait a y penser :
+     *
+     *  - `same_loop = false` — on n'est nulle part, donc pas « ici » ;
+     *  - `evidence_message_ids = []` — un raccourci vers un message ne vaut
+     *    que dans la conversation qui l'affiche ;
+     *  - **`can_correct = false`** — le geste n'est proposable que la ou il
+     *    ECRIT. Le Shell ne peut donc structurellement pas l'offrir, et ce
+     *    n'est pas une regle de vue : c'est le lecteur qui refuse.
+     *
+     * `source_loop_id` accompagne `loop_name` : la Boucle de portee est une
+     * ADRESSE autant qu'un nom, et sans elle une surface qui dit « cela se
+     * corrige dans la Boucle X » ne peut pas y conduire. Elle sert de cible de
+     * lien, jamais d'affichage — la regle « aucun identifiant technique » porte
+     * sur ce que la personne LIT.
+     *
      * @return array{
      *     state: 'denied'|'active'|'retracted',
      *     statement: ?string,
      *     observed_at: ?string,
      *     loop_name: ?string,
+     *     source_loop_id: ?string,
      *     same_loop: bool,
      *     evolved_since_answer: bool,
      *     subject_version: ?int,
@@ -161,11 +182,12 @@ final class ClaimProvenanceReader
      *     can_correct: bool,
      * }
      */
-    public function provenance(Organization $organization, Loop $currentLoop, DerivedKnowledgeNote $note, User $viewer): array
+    public function provenance(Organization $organization, ?Loop $currentLoop, DerivedKnowledgeNote $note, User $viewer): array
     {
         $denied = [
             'state' => 'denied', 'statement' => null, 'observed_at' => null,
-            'loop_name' => null, 'same_loop' => false, 'evolved_since_answer' => false,
+            'loop_name' => null, 'source_loop_id' => null, 'same_loop' => false,
+            'evolved_since_answer' => false,
             'subject_version' => null, 'evidence_message_ids' => [], 'corrections' => [],
             'can_correct' => false,
         ];
@@ -174,7 +196,7 @@ final class ClaimProvenanceReader
         // autorite que le retrieval. Une adhesion revoquee entre la reponse et
         // ce clic rend le refus generique : ni auteur, ni titre, ni contenu.
         if ((string) $note->organization_id !== (string) $organization->id
-            || (string) $currentLoop->organization_id !== (string) $organization->id) {
+            || ($currentLoop !== null && (string) $currentLoop->organization_id !== (string) $organization->id)) {
             return $denied;
         }
 
@@ -191,7 +213,7 @@ final class ClaimProvenanceReader
         }
 
         $subjectKey = (string) $note->subject_key;
-        $sameLoop = $sourceLoopId === (string) $currentLoop->id;
+        $sameLoop = $currentLoop !== null && $sourceLoopId === (string) $currentLoop->id;
 
         $actif = null;
 
@@ -210,10 +232,11 @@ final class ClaimProvenanceReader
             'statement' => (string) $courant->content,
             'observed_at' => $this->humanDate($courant->observed_at),
             'loop_name' => (string) $sourceLoop->name,
+            'source_loop_id' => $sourceLoopId,
             'same_loop' => $sameLoop,
             'evolved_since_answer' => $actif !== null && (string) $courant->id !== (string) $note->id,
             'subject_version' => $actif === null ? null : (int) $actif->version,
-            'evidence_message_ids' => $sameLoop ? $this->preuvesVisibles($currentLoop, $courant) : [],
+            'evidence_message_ids' => $sameLoop && $currentLoop !== null ? $this->preuvesVisibles($currentLoop, $courant) : [],
             'corrections' => $this->corrections($organization, $lignee),
             // Le geste n'est propose que la ou il ecrit : corriger depuis une
             // autre Boucle posterait un message dans une conversation que la

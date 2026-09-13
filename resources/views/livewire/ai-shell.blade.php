@@ -318,6 +318,26 @@
                             $judgeableId = $isAnswered ? ($meta['ai_interaction_id'] ?? null) : null;
                             $judgeableId = is_string($judgeableId) && $judgeableId !== '' ? $judgeableId : null;
                             $givenVerdict = $judgeableId !== null ? ($shell['verdicts'][$judgeableId] ?? null) : null;
+
+                            // TASK-1551 — « Pourquoi ? » se propose des qu'un tour porte
+                            // une TRACE et des SOURCES, quel que soit son statut.
+                            //
+                            // Mesure du Gate SPEC : les QUATRE branches du Shell qui
+                            // ecrivent `metadata['sources']` sortent en
+                            // `STATUS_NON_INTERACTION`. Reprendre la garde de statut de
+                            // `judge()` ci-dessus aurait rendu l'affordance invisible sur
+                            // 100 % des tours reels — verte en test, morte a l'ecran.
+                            //
+                            // L'affichage ne fait autorite sur rien : `showWhy()` refait
+                            // toutes les gardes, et n'ouvre rien s'il n'y a rien a prouver.
+                            $explainableId = $message->role === \App\Models\AiShellMessage::ROLE_ASSISTANT
+                                && ! $isUserDraft
+                                && is_array($meta['sources'] ?? null)
+                                && ($meta['sources'] !== [])
+                                && is_string($meta['ai_interaction_id'] ?? null)
+                                && $meta['ai_interaction_id'] !== ''
+                                    ? (string) $message->id
+                                    : null;
                         @endphp
                         <li wire:key="ai-shell-msg-{{ $message->id }}"
                             data-ai-shell-message="{{ $message->role }}"
@@ -491,6 +511,28 @@
                                         </button>
                                     @endif
                                 </div>
+                            @endif
+
+                            {{-- TASK-1551 — W1.5 : le Shell rend enfin lisible la
+                                 provenance qu'il ECRIT depuis TASK-1391 et que rien ne
+                                 lisait. Un bouton, un panneau replie, aucune ecriture. --}}
+                            @if($explainableId !== null)
+                                <div class="mt-1 flex flex-wrap items-center gap-2 text-[11px] leading-4">
+                                    @if($whyMessageId === $explainableId)
+                                        <button type="button" wire:click="closeWhy" data-ai-shell-why-close
+                                                class="rounded-full border border-indigo-300 px-2.5 py-1 font-medium text-indigo-600 transition hover:bg-indigo-50 dark:border-indigo-600 dark:text-indigo-300 dark:hover:bg-indigo-950/40">
+                                            {{ __('ai.shell_why_close') }}
+                                        </button>
+                                    @else
+                                        <button type="button" wire:click="showWhy('{{ $explainableId }}')" data-ai-shell-why-open
+                                                class="rounded-full border border-gray-300 px-2.5 py-1 font-medium text-gray-600 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300 dark:hover:border-indigo-500 dark:hover:text-indigo-300">
+                                            {{ __('ai.shell_why_open') }}
+                                        </button>
+                                    @endif
+                                </div>
+                            @endif
+                            @if($whyMessageId === $explainableId && $explainableId !== null && $whyPanel !== null)
+                                @include('livewire.partials.shell-why-panel', ['panel' => $whyPanel])
                             @endif
 
                             {{-- TASK-1325 — les cartes structurees de CE tour. Chaque

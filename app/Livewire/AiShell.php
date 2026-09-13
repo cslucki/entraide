@@ -11,6 +11,7 @@ use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\AiShellResponder;
+use App\Services\ChatLoop\AiResponseExplanationService;
 use App\Support\Ai\AiFabContext;
 use App\Support\Ai\AiShellNominativeTurn;
 use App\Support\Ai\AiShellPageContext;
@@ -80,6 +81,23 @@ class AiShell extends Component
     public ?string $notice = null;
 
     public bool $confirmingClear = false;
+
+    /**
+     * TASK-1551 — le tour dont le panneau « Pourquoi ? » est ouvert. `null` =
+     * fermé. `#[Locked]` : le client ne choisit pas quelle réponse s'explique,
+     * et un identifiant forgé ne peut pas remplacer celui que le serveur a
+     * validé — même discipline que `judge()`, qui résout toujours le message
+     * dans le fil de CETTE personne.
+     */
+    #[Locked]
+    public ?string $whyMessageId = null;
+
+    /**
+     * Ce que le serveur a jugé montrable à CE spectateur, et rien d'autre.
+     * Voyage dans le snapshot, qui est lisible côté client : aucune donnée
+     * refusée n'y entre — les refus y sont des NOMBRES.
+     */
+    public ?array $whyPanel = null;
 
     public function mount(): void
     {
@@ -358,6 +376,147 @@ class AiShell extends Component
             ['ai_interaction_id' => $interaction->id, 'user_id' => $user->id],
             ['organization_id' => $interaction->organization_id, 'verdict' => $verdict],
         );
+    }
+
+    /**
+     * TASK-1551 — « Pourquoi cette réponse ? » sur un tour du Shell.
+     *
+     * Ce composant ne décide RIEN : il résout le tour dans le fil de cette
+     * personne (exactement comme {@see self::judge()}), puis demande au lecteur
+     * standard ce qui est montrable. Ouvrir n'écrit rien, nulle part — ni
+     * mémoire, ni verdict, ni trace.
+     *
+     * ## La garde porte sur la TRACE, jamais sur le statut
+     *
+     * Piège mesuré au Gate SPEC : `judge()` exige `STATUS_ANSWERED`, or les
+     * QUATRE branches du Shell qui écrivent `metadata['sources']` sortent en
+     * `STATUS_NON_INTERACTION`. Reprendre cette garde ici aurait livré une
+     * fonctionnalité morte — verte en test sur un tour fabriqué, sans effet sur
+     * un seul tour réel. Ce qui rend une réponse explicable, c'est qu'elle
+     * porte une trace exploitable, pas son statut.
+     *
+     * ## Le Shell explique, il n'écrit pas
+     *
+     * Aucun formulaire de correction n'existe ici, et ce n'est pas une règle de
+     * vue : `ClaimProvenanceReader::provenance()` reçoit `null` comme Boucle
+     * courante et rend donc `can_correct = false` par construction. Corriger se
+     * fait dans la Boucle source, par le chemin standard de T1549 — le panneau
+     * y conduit, il ne le double pas.
+     */
+    public function showWhy(string $messageId, AiResponseExplanationService $explanations): void
+    {
+        $this->closeWhy();
+
+        [$user, $organization] = $this->actor();
+
+        if ($user === null || $organization === null) {
+            return;
+        }
+
+        $answer = AiShellMessage::query()
+            ->forThread((string) $organization->id, (string) $user->id)
+            ->whereKey($messageId)
+            ->where('role', AiShellMessage::ROLE_ASSISTANT)
+            ->first();
+
+        if (! $answer instanceof AiShellMessage) {
+            return;
+        }
+
+        $metadata = is_array($answer->metadata) ? $answer->metadata : [];
+        $interactionId = $metadata['ai_interaction_id'] ?? null;
+
+        if (! is_string($interactionId) || $interactionId === '') {
+            return;
+        }
+
+        // La trace doit être celle de CE tenant ET de CETTE personne — la même
+        // exigence que `judge()`, et pour la même raison.
+        $interaction = AiInteraction::query()
+            ->whereKey($interactionId)
+            ->where('organization_id', $organization->id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (! $interaction instanceof AiInteraction) {
+            return;
+        }
+
+        $imeta = is_array($interaction->metadata) ? $interaction->metadata : [];
+        $publicSources = is_array($metadata['sources'] ?? null) ? array_values($metadata['sources']) : [];
+
+        // `$currentLoop = null` : le Shell n'est dans aucune conversation.
+        $cite = $explanations->citedProvenance(
+            $organization,
+            null,
+            $user,
+            $publicSources,
+            is_array($imeta['retrieval'] ?? null) ? $imeta['retrieval'] : null,
+        );
+
+        $memory = $cite['memory'];
+        $documents = $cite['documents'];
+
+        $rien = ($memory === null || ($memory['entries'] === [] && $memory['denied_count'] === 0))
+            && ($documents === null || ($documents['entries'] === [] && $documents['masked_count'] === 0))
+            && $cite['unreachable_count'] === 0;
+
+        if ($rien) {
+            // Rien de prouvable sur ce tour. On n'ouvre pas un panneau vide :
+            // il laisserait croire que BouclePro a répondu sans rien, alors
+            // qu'on ne sait simplement rien en dire.
+            return;
+        }
+
+        $this->whyMessageId = (string) $answer->id;
+        $this->whyPanel = [
+            'memory' => $memory === null ? null : [
+                'entries' => array_map($this->withLoopUrl(...), $memory['entries']),
+                'denied_count' => $memory['denied_count'],
+            ],
+            'documents' => $documents,
+            'unreachable_count' => $cite['unreachable_count'],
+        ];
+    }
+
+    public function closeWhy(): void
+    {
+        $this->whyMessageId = null;
+        $this->whyPanel = null;
+    }
+
+    /**
+     * L'ADRESSE de la Boucle de portée, ajoutée à une entrée mémoire.
+     *
+     * Le lecteur standard ne rend `source_loop_id` que pour une Boucle qu'il a
+     * lui-même jugée lisible par ce spectateur ; la charger ici ne rouvre donc
+     * aucun droit. La contrainte de tenant est reposée quand même : une
+     * autorité ne se croit pas sur parole quand la vérifier coûte une clause.
+     *
+     * `workspaceUrl()` est le constructeur canonique du dépôt — il résout
+     * l'Organization de la Boucle ELLE-MÊME, jamais celle de la requête
+     * courante.
+     *
+     * @param  array<string, mixed>  $entry
+     * @return array<string, mixed>
+     */
+    private function withLoopUrl(array $entry): array
+    {
+        $loopId = $entry['source_loop_id'] ?? null;
+        $entry['loop_url'] = null;
+
+        if (! is_string($loopId) || $loopId === '') {
+            return $entry;
+        }
+
+        $loop = Loop::query()
+            ->whereKey($loopId)
+            ->where('organization_id', $this->organizationId)
+            ->first();
+
+        $entry['loop_url'] = $loop?->workspaceUrl();
+
+        return $entry;
     }
 
     public function pin(AiShellPinnedContext $pins, string $kind, string $objectId): void

@@ -10,6 +10,7 @@ use App\Models\DerivedKnowledgeNote;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\Knowledge\ClaimProvenanceReader;
 
@@ -288,15 +289,61 @@ final class AiResponseExplanationService
         // ou la nommer document accessible tout en la comptant injoignable.
         // Trois lectures indépendantes de la même liste ne peuvent pas se
         // contredire si elles n'en font qu'une.
-        $classees = $retrieval === null ? [] : $this->classerCitations($loop, $retrieval, $viewer);
+        $publicSources = $message->metadata['sources'] ?? null;
+        $publicSources = is_array($publicSources) ? array_values($publicSources) : [];
+
+        $cite = $this->citedProvenance($loop->organization, $loop, $viewer, $publicSources, $retrieval);
 
         return [
             'capability' => (string) $capability,
             'capability_label' => $this->capabilityLabel($capability),
             'doctrine_version' => is_int($imeta['doctrine_version'] ?? null) ? $imeta['doctrine_version'] : null,
             'conversation' => is_array($contextIds) ? $this->conversationPanel($loop, $contextIds) : null,
-            'documents' => $retrieval === null ? null : $this->documentsPanel($loop, $retrieval, $classees, $message, $viewer),
-            'memory' => $retrieval === null ? null : $this->memoryPanel($loop, $classees, $message, $viewer),
+            'denied_count' => is_array($imeta['sources_denied'] ?? null) ? count($imeta['sources_denied']) : 0,
+        ] + $cite;
+    }
+
+    /**
+     * TASK-1551 — LA lecture des sources citées d'une réponse, pour un
+     * spectateur donné, **indépendamment de l'hôte qui l'affiche**.
+     *
+     * C'est l'extraction exacte de ce que `ragPanel()` faisait déjà, et c'est
+     * tout ce que le Shell avait besoin d'obtenir. Elle n'est pas un second
+     * moteur d'explication : c'est le PREMIER, rendu appelable depuis les deux
+     * surfaces. Une seconde implémentation aurait divergé de celle-ci au
+     * premier correctif appliqué d'un seul côté — et c'est précisément ce que
+     * la rémédiation R2 de T1549 a payé une fois (trois lectures indépendantes
+     * de la même liste `cited`, qui se contredisaient).
+     *
+     * `$currentLoop = null` est le cas du Shell : aucune conversation courante.
+     * Le classement, l'ACL et la provenance ne changent pas d'un iota ; seules
+     * les conséquences de « être ici » tombent, et elles tombent dans le sens
+     * fermé — voir `ClaimProvenanceReader::provenance()`.
+     *
+     * @param  list<array<string, mixed>>  $publicSources  la forme publique, dans l'ORDRE d'écriture
+     * @param  array<string, mixed>|null  $retrieval
+     * @return array{documents: array<string, mixed>|null, memory: array<string, mixed>|null, unreachable_count: int}
+     */
+    public function citedProvenance(
+        ?Organization $organization,
+        ?Loop $currentLoop,
+        User $viewer,
+        array $publicSources,
+        ?array $retrieval,
+    ): array {
+        if ($organization === null || $retrieval === null) {
+            return ['documents' => null, 'memory' => null, 'unreachable_count' => 0];
+        }
+
+        // REMÉDIATION R2 (audit Codex F4) — les sources citées sont classées
+        // UNE FOIS, ici, et les sections consomment ce classement. Trois
+        // lectures indépendantes de la même liste ne peuvent pas se contredire
+        // si elles n'en font qu'une.
+        $classees = $this->classerCitations($organization, $retrieval, $viewer);
+
+        return [
+            'documents' => $this->documentsPanel($organization, $currentLoop, $retrieval, $classees, $publicSources, $viewer),
+            'memory' => $this->memoryPanel($organization, $currentLoop, $classees, $publicSources, $viewer),
             // TASK-1549 (remédiation) — le TROISIÈME état, au niveau du ledger
             // et non de la section mémoire : une source citée dont la ligne a
             // disparu n'a plus d'origine prouvable, donc elle se dit SANS
@@ -306,7 +353,6 @@ final class AiResponseExplanationService
                 $classees,
                 static fn (array $c): bool => $c['famille'] === self::FAMILLE_INJOIGNABLE,
             )),
-            'denied_count' => is_array($imeta['sources_denied'] ?? null) ? count($imeta['sources_denied']) : 0,
         ];
     }
 
@@ -341,9 +387,8 @@ final class AiResponseExplanationService
      * @param  array<string, mixed>  $retrieval
      * @return list<array{index: int, famille: string, note: ?DerivedKnowledgeNote}>
      */
-    private function classerCitations(Loop $loop, array $retrieval, User $viewer): array
+    private function classerCitations(?Organization $organization, array $retrieval, User $viewer): array
     {
-        $organization = $loop->organization;
         $cited = is_array($retrieval['cited'] ?? null) ? array_values($retrieval['cited']) : [];
 
         $classees = [];
@@ -419,16 +464,8 @@ final class AiResponseExplanationService
      * @param  list<array{index: int, famille: string, note: ?DerivedKnowledgeNote}>  $classees
      * @return array{entries: list<array<string, mixed>>, denied_count: int}|null
      */
-    private function memoryPanel(Loop $loop, array $classees, LoopMessage $message, User $viewer): ?array
+    private function memoryPanel(Organization $organization, ?Loop $currentLoop, array $classees, array $publicSources, User $viewer): ?array
     {
-        $organization = $loop->organization;
-
-        if ($organization === null) {
-            return null;
-        }
-
-        $publicSources = $message->metadata['sources'] ?? null;
-        $publicSources = is_array($publicSources) ? array_values($publicSources) : [];
         $pairable = $classees !== [] && count($publicSources) === count($classees);
 
         $entries = [];
@@ -448,7 +485,7 @@ final class AiResponseExplanationService
             }
 
             $index = $classee['index'];
-            $provenance = $this->claims->provenance($organization, $loop, $classee['note'], $viewer);
+            $provenance = $this->claims->provenance($organization, $currentLoop, $classee['note'], $viewer);
 
             // Défense en profondeur : le lecteur standard repose la même
             // question à la même autorité. Un désaccord ne s'affiche pas.
@@ -592,12 +629,10 @@ final class AiResponseExplanationService
      * @param  list<array{index: int, famille: string, note: ?DerivedKnowledgeNote}>  $classees
      * @return array<string, mixed>
      */
-    private function documentsPanel(Loop $loop, array $retrieval, array $classees, LoopMessage $message, User $viewer): array
+    private function documentsPanel(Organization $organization, ?Loop $currentLoop, array $retrieval, array $classees, array $publicSources, User $viewer): array
     {
         $cited = is_array($retrieval['cited'] ?? null) ? array_values($retrieval['cited']) : [];
         $consulted = is_array($retrieval['consulted'] ?? null) ? $retrieval['consulted'] : [];
-        $publicSources = $message->metadata['sources'] ?? null;
-        $publicSources = is_array($publicSources) ? array_values($publicSources) : [];
 
         // L'appariement positionnel se prouve sur la trace ENTIÈRE — c'est la
         // longueur brute qui l'établit, pas le sous-ensemble documentaire.
@@ -608,10 +643,16 @@ final class AiResponseExplanationService
             static fn (array $c): bool => $c['famille'] === self::FAMILLE_DOCUMENT,
         ));
 
+        // TASK-1551 — la portee Boucle est DEJA optionnelle dans cette autorite
+        // (`DossierAccessScope::accessibleDossierIds(..., ?string $loopId)`), et
+        // `null` y rend « les Dossiers de l'Organization », chacun filtre par
+        // `Gate::allows('view', ...)`. Le Shell passe donc `null` sans qu'une
+        // SECONDE politique d'acces soit ecrite : c'est la meme, appelee depuis
+        // un hote qui n'est dans aucune conversation.
         $accessibleDossierIds = $documentaires === [] ? [] : $this->scope->accessibleDossierIds(
-            (string) $loop->organization_id,
+            (string) $organization->id,
             $viewer,
-            (string) $loop->id,
+            $currentLoop === null ? null : (string) $currentLoop->id,
         );
 
         $entries = [];

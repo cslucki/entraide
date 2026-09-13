@@ -881,6 +881,22 @@ return [
     // TASK-1486 — le verdict humain sur UNE reponse du Shell. Meme geste et
     // memes deux valeurs que le blog explorer (TASK-1256) : on ne cree pas un
     // second vocabulaire pour la meme chose.
+    // TASK-1551 — W1.5 : « Pourquoi cette réponse ? » sur un tour du Shell.
+    //
+    // Le Shell EXPLIQUE, il n'écrit pas. Aucun formulaire de correction ici :
+    // la portée d'un énoncé est une Boucle, et c'est là que la correction
+    // s'écrit — le panneau y conduit par le chemin standard de T1549.
+    'shell_why_open' => 'Pourquoi ?',
+    'shell_why_close' => 'Fermer',
+    'shell_why_title' => 'Sur quoi cette réponse se fonde',
+    'shell_why_memory_title' => 'Mémoire de BouclePro',
+    'shell_why_documents_title' => 'Documents cités',
+    // Le renvoi vers la Boucle SOURCE. Aucun lien vers le message : le dépôt
+    // n'a aucune route qui ouvre une Boucle sur un message, et en inventer une
+    // aurait été une primitive, pas un lien.
+    'shell_why_open_loop' => 'Ouvrir la Boucle',
+    // Un refus ne divulgue NI auteur, NI titre, NI contenu : un nombre.
+    'shell_why_documents_masked' => '{1} Un document cité ne vous est plus accessible : il n\'est pas détaillé.|[2,*] :count documents cités ne vous sont plus accessibles : ils ne sont pas détaillés.',
     'shell_feedback_question' => 'Cette réponse vous a-t-elle aidé ?',
     'shell_feedback_helpful' => 'Utile',
     'shell_feedback_improve' => 'À améliorer',
