@@ -329,6 +329,15 @@ class AiShell extends Component
             'description' => $description,
             'relay_loop_id' => $relayLoop?->id,
             'category_id' => $category?->id,
+            // TASK-1553 — sur quoi cette proposition se fonde, porte JUSQU'AU
+            // formulaire. Sans elle, la personne devait decider d'envoyer
+            // quelque chose sans savoir d'ou cela venait.
+            //
+            // Rien n'est reconstruit : le fait vient d'une resolution SERVEUR
+            // qui vient d'avoir lieu (`suggestedLoop()` a rejoue la garde de
+            // page), et la formulation vient de la carte du tour, ecrite avant
+            // tout aplatissement en prose. Aucune lecture de texte genere.
+            'provenance' => $this->draftProvenance($answer, $relayLoop),
         ]);
 
         return redirect()->to($this->requestsCreateUrl($organization));
@@ -850,6 +859,48 @@ class AiShell extends Component
      * La Boucle suggeree par un tour, RE-RESOLUE sous la garde de la page.
      * L'identifiant seul est stocke ; s'il ne passe plus, il n'existe plus.
      */
+    /**
+     * TASK-1553 — les fondements de la proposition, tels que le SERVEUR peut
+     * les prouver, et rien de plus.
+     *
+     * Deux niveaux, et la distinction est le sujet (motif T1321) :
+     *
+     *  - `verified` : un FAIT etabli par une requete serveur. Ici l'adhesion
+     *    active a la Boucle de relais — et elle vient d'etre reverifiee par
+     *    `suggestedLoop()`, qui rejoue la garde de page. Sans Boucle resolue,
+     *    aucun fait : le tableau reste vide plutot que d'affirmer.
+     *  - `ai_wording` : la FORMULATION du modele, `verified: false`, jamais une
+     *    preuve. Elle est lue sur la carte de Boucle du tour — une structure
+     *    ecrite AVANT `situated()`, donc avant tout aplatissement en prose. Un
+     *    tour Nervous System n'en a aucune, et on n'en invente pas.
+     *
+     * @return array<string, mixed>
+     */
+    private function draftProvenance(AiShellMessage $answer, ?Loop $relayLoop): array
+    {
+        $metadata = is_array($answer->metadata) ? $answer->metadata : [];
+        $wording = null;
+
+        foreach ((array) ($metadata['cards'] ?? []) as $card) {
+            if (! is_array($card) || ($card['type'] ?? null) !== AiShellTurnCards::TYPE_LOOP) {
+                continue;
+            }
+
+            $texte = trim((string) ($card['ai_wording'] ?? ''));
+            $wording = $texte === '' ? null : ['text' => $texte, 'verified' => false];
+
+            break;
+        }
+
+        return [
+            'origin' => 'shell',
+            'verified' => $relayLoop === null
+                ? []
+                : [['type' => 'active_membership', 'loop_id' => (string) $relayLoop->id]],
+            'ai_wording' => $wording,
+        ];
+    }
+
     private function suggestedLoop(AiShellMessage $answer): ?Loop
     {
         $loopId = is_array($answer->metadata) ? ($answer->metadata['suggested_loop_id'] ?? null) : null;

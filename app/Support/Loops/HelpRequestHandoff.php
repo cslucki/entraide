@@ -76,6 +76,28 @@ final class HelpRequestHandoff
      * formulaire canonique. Meme raison qu'au-dessus : ce clic quitte une page
      * qui poll, et `withInput()` n'y survivrait pas mieux qu'un flash.
      *
+     * ## TASK-1553 — la cle `provenance`, optionnelle et bornee
+     *
+     * Depuis W2-1, une demande arrive PRE-REMPLIE sur le formulaire : une
+     * description, un cercle deja choisi. Sans provenance, la personne devait
+     * decider d'envoyer quelque chose sans savoir d'ou cela venait.
+     *
+     * La forme n'est pas nouvelle : c'est celle de
+     * `ClarifyUserHelpRequestService`, deja rendue a l'ecran par la modale de
+     * clarification de Boucle (TASK-1321) — un FAIT verifie cote serveur, et
+     * separement la FORMULATION du modele, qui n'est jamais une preuve.
+     *
+     *     'provenance' => [
+     *         'origin'     => 'shell' | 'loop_clarification' | 'loop_clarification_unavailable',
+     *         'verified'   => [ ['type' => 'active_membership', 'loop_id' => '…'] ],
+     *         'ai_wording' => ['text' => '…', 'verified' => false] | null,
+     *     ]
+     *
+     * Chaque appelant n'y met que ce qu'il peut PROUVER : un appelant qui ne
+     * tient pas la phrase du modele laisse `ai_wording` a `null` plutot que
+     * d'en fabriquer une. Aucune migration, aucune table : le brouillon reste
+     * le meme tableau, dans le meme cache, avec le meme TTL.
+     *
      * @param  array<string, mixed>  $draft
      */
     public function storeDraft(User $user, Organization $organization, array $draft): void
