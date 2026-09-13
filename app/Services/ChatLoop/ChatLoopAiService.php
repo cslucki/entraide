@@ -14,6 +14,7 @@ use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
 use App\Ai\ResolvedModel;
 use App\Events\LoopMessageCreated;
+use App\Listeners\RecordSdkEmbeddingsInvocation;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
 use App\Models\Loop;
@@ -911,6 +912,9 @@ class ChatLoopAiService
                 'capability' => $definition->id,
                 'status' => $status,
                 'sdk_invocation_id' => $sdkInvocationId,
+                // TASK-1556 : les invocations embedding (query) que CE tour a
+                // declenchees, reclamees une seule fois — `[]` mesure, jamais null.
+                RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
                 'failure' => $failure,
                 ...$extraMetadata,
             ], static fn ($value): bool => $value !== null)

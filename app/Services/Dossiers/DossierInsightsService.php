@@ -12,6 +12,7 @@ use App\Ai\ContexteIa;
 use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
 use App\Ai\ResolvedModel;
+use App\Listeners\RecordSdkEmbeddingsInvocation;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
 use App\Models\Dossier;
@@ -28,6 +29,7 @@ use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiUsage;
 use DomainException;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
@@ -417,13 +419,18 @@ final class DossierInsightsService
             ? $this->resolveFileScope($organization, $dossier, $fileHint)
             : $this->detectFileScope($organization, $dossier, $question);
 
+        // TASK-1556 : le tour nait ICI, avant la recherche — c'est sous cette
+        // identite que son embedding est journalise, et sous elle que
+        // `answerOverSources()` le reclamera.
+        $turnId = (string) Str::uuid();
+
         $rows = $this->search->searchAcrossDossiers(
             (string) $organization->id,
             [(string) $dossier->id],
             $question,
             $embeddingInstance,
             self::ANSWER_SOURCE_LIMIT,
-            ['dossier_answer' => true],
+            ['dossier_answer' => true, 'turn_id' => $turnId],
             self::ANSWER_CANDIDATE_LIMIT,
             $scopedFiles,
             // TASK-1535 — les Boucles que CE lecteur peut lire.
@@ -479,7 +486,7 @@ final class DossierInsightsService
             );
         }
 
-        return $this->answerOverSources($organization, $dossier, $requester, $question, $rows, $conversationMemory);
+        return $this->answerOverSources($organization, $dossier, $requester, $question, $rows, $conversationMemory, $turnId);
     }
 
     /**
@@ -499,6 +506,7 @@ final class DossierInsightsService
      * de perimetre : les sources sont donnees.
      *
      * @param  list<array<string, mixed>>  $rows  sources deja retrouvees et autorisees
+     * @param  ?string  $turnId  identite du tour si l'appelant l'a deja ouvert (recherche faite)
      *
      * @throws RuntimeException reponse vide
      */
@@ -509,6 +517,7 @@ final class DossierInsightsService
         string $question,
         array $rows,
         ?string $conversationMemory = null,
+        ?string $turnId = null,
     ): KnowledgeAnswer {
         $locale = $this->readerLocale();
         $capability = CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER;
@@ -524,6 +533,9 @@ final class DossierInsightsService
             correlationId: AiCorrelation::id(),
             source: CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL,
             query: $question,
+            // TASK-1556 : l'appelant a deja cherche (donc deja embedde) sous
+            // cette identite de tour ; sans elle, un tour neuf commence ici.
+            turnId: $turnId,
         );
 
         try {
@@ -1313,6 +1325,9 @@ final class DossierInsightsService
                 'capability' => $definition->id,
                 'status' => $status,
                 'sdk_invocation_id' => $sdkInvocationId,
+                // TASK-1556 : les invocations embedding (query) que CE tour a
+                // declenchees, reclamees une seule fois — `[]` mesure, jamais null.
+                RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
                 'failure' => $failure,
                 'retrieval' => ['consulted' => $ids($consulted), 'cited' => $ids($cited)],
                 // TASK-1554 / W3A — la graphie canonique du contrat commun,

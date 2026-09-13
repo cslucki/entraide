@@ -6,8 +6,8 @@ use App\Ai\ContexteIa;
 use App\Ai\ProviderResolver;
 use App\Models\Organization;
 use App\Models\User;
-use App\Services\Dossiers\DossierChunkEmbeddingService;
 use App\Services\Dossiers\DerivedChunkEligibility;
+use App\Services\Dossiers\DossierChunkEmbeddingService;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use DomainException;
@@ -188,7 +188,9 @@ final class DossierRetrievalSource implements ContextSource
             $topK,
             // TASK-1229 : la feature emettrice (essais de doctrine) suit la
             // recherche jusqu'au ledger.
-            ['capability' => $contexte->capability, 'loop_id' => $contexte->loopId, 'feature' => $contexte->feature],
+            // TASK-1556 : l'identite du tour suit la recherche jusqu'au
+            // listener, qui journalise l'invocation embedding sous elle.
+            ['capability' => $contexte->capability, 'loop_id' => $contexte->loopId, 'feature' => $contexte->feature, 'turn_id' => $contexte->turnId],
             max($topK, self::CANDIDATE_POOL_SIZE),
             null,
             // TASK-1534 — la troisieme famille de chunk est bornee par les
