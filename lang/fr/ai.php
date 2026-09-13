@@ -838,6 +838,18 @@ return [
     // TASK-1350 : « Organization » etait visible en francais. Le comportement
     // ne change pas — cette phrase reste l'indisponibilite EXPLICITE du cas ou
     // aucun prompt actif n'existe — seul le vocabulaire est corrige.
+    // TASK-1557 / W3F-min — la projection user-facing des etats de frontiere.
+    //
+    // UNE phrase meta au plus, jamais un code technique, jamais un compteur, et
+    // jamais rien qui permette de deduire qu'une source interdite existe. R1 et
+    // R7 ne rendent AUCUNE phrase : la question de clarification et la reponse
+    // sont deja la surface.
+    'turn_state_unavailable' => 'Ce service n\'est pas disponible pour l\'instant. Rien n\'a pu être produit pour cette demande.',
+    'turn_state_contradicted' => 'Les éléments retrouvés se contredisent. Ils sont présentés tels quels, avec leur origine et leur date, sans être tranchés.',
+    'turn_state_insufficient' => 'Ce qui a été trouvé ne suffit pas à étayer une réponse. Ce qui manque est indiqué plutôt que comblé.',
+    'turn_state_stale' => 'Cette réponse s\'appuie sur des éléments qui ont pu évoluer depuis. Leur date est indiquée.',
+    'turn_state_partial' => 'Une partie de ce qui était demandé n\'a pas pu être traitée pour une raison technique. Le reste de la réponse tient.',
+
     'shell_answer_unavailable' => 'Je ne peux pas répondre pour l\'instant. L\'IA n\'est pas disponible dans cette organisation.',
 
     // TASK-1350 — la phrase que voit une personne quand la preparation
