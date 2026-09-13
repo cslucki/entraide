@@ -119,9 +119,9 @@ class LoopKnowledgeAnswerService
      * null, le chemin T-1 est inchange octet pour octet (modal knowledge,
      * flag `ai.knowledge.publish_question` gouvernant).
      */
-    public function answer(Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger = null): KnowledgeAnswer
+    public function answer(Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger = null, bool $publish = true): KnowledgeAnswer
     {
-        return $this->respond(self::MODE_DOSSIERS, $loop, $requester, $question, $inThreadTrigger);
+        return $this->respond(self::MODE_DOSSIERS, $loop, $requester, $question, $inThreadTrigger, $publish);
     }
 
     /**
@@ -134,9 +134,9 @@ class LoopKnowledgeAnswerService
      * Dossiers accessibles n'ont rien apporte — jamais en habillant cette
      * connaissance generale d'une reference [Mn]/[Sn].
      */
-    public function answerHybrid(Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger = null): KnowledgeAnswer
+    public function answerHybrid(Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger = null, bool $publish = true): KnowledgeAnswer
     {
-        return $this->respond(self::MODE_HYBRID, $loop, $requester, $question, $inThreadTrigger);
+        return $this->respond(self::MODE_HYBRID, $loop, $requester, $question, $inThreadTrigger, $publish);
     }
 
     /**
@@ -145,7 +145,7 @@ class LoopKnowledgeAnswerService
      * Builder, la validation de citations, le ledger, la trace et la
      * publication ne peuvent pas diverger entre Dossiers et IA + Dossiers.
      */
-    private function respond(string $mode, Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger): KnowledgeAnswer
+    private function respond(string $mode, Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger, bool $publish = true): KnowledgeAnswer
     {
         $question = trim($question);
 
@@ -177,7 +177,7 @@ class LoopKnowledgeAnswerService
         return AiTurnLock::run(
             $loop,
             $requester,
-            fn (): KnowledgeAnswer => $this->generateUnderLock($mode, $loop, $requester, $question, $inThreadTrigger),
+            fn (): KnowledgeAnswer => $this->generateUnderLock($mode, $loop, $requester, $question, $inThreadTrigger, $publish),
         );
     }
 
@@ -188,7 +188,7 @@ class LoopKnowledgeAnswerService
      * seul but de la separation est que le verrou puisse englober exactement
      * cet acte-la, sans re-indenter deux cents lignes pour le prouver.
      */
-    private function generateUnderLock(string $mode, Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger): KnowledgeAnswer
+    private function generateUnderLock(string $mode, Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger, bool $publish = true): KnowledgeAnswer
     {
         $capability = $mode === self::MODE_HYBRID
             ? CapabilityRegistry::LOOP_HYBRID_ANSWER
@@ -398,8 +398,22 @@ class LoopKnowledgeAnswerService
         // sources documentaires.
         $sources = $cited;
 
-        $this->publishExchange($mode, $loop, $requester, $question, $answer, $resolved, $interaction, $cited,
-            $sources, $this->consultedForDisplay($cited, $consulted), $inThreadTrigger, $conversation->messageIds);
+        // TASK-1558 — le SEAM d'observation, et le seul.
+        //
+        // `$publish = false` n'est pas un mode degrade ni un second chemin :
+        // tout ce qui precede — garde d'appartenance, idempotence, verrou,
+        // Context Builder, garde economique, retrieval, validation des
+        // citations, ledger, `AiInteraction` — s'execute a l'identique. Seules
+        // les DEUX lignes de `loop_messages` ne sont pas ecrites.
+        //
+        // C'est la difference entre observer un chemin et en fabriquer une
+        // imitation : ici le service reel repond, il facture, il trace ; il ne
+        // parle simplement pas dans le fil de quelqu'un d'autre. La telemetrie
+        // canonique reste, parce qu'elle appartient au chemin.
+        if ($publish) {
+            $this->publishExchange($mode, $loop, $requester, $question, $answer, $resolved, $interaction, $cited,
+                $sources, $this->consultedForDisplay($cited, $consulted), $inThreadTrigger, $conversation->messageIds);
+        }
 
         return new KnowledgeAnswer(
             answer: $answer,
@@ -772,6 +786,11 @@ class LoopKnowledgeAnswerService
                 'capability' => $definition->id,
                 'status' => $status,
                 'sdk_invocation_id' => $sdkInvocationId,
+                // TASK-1558 : l'identite du TOUR, tracee. Sans elle, les
+                // invocations embedding ci-dessous ne se rattachent a rien
+                // d'observable depuis la base : T1556 les reclame PAR turn_id,
+                // mais ne l'ecrivait nulle part.
+                'turn_id' => $contexte->turnId,
                 // TASK-1556 : les invocations embedding (query) que CE tour a
                 // declenchees, reclamees une seule fois — `[]` mesure, jamais null.
                 RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
