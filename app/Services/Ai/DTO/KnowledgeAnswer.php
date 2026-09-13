@@ -43,6 +43,42 @@ final class KnowledgeAnswer
          * @var list<string>
          */
         public readonly array $followUps = [],
+        /**
+         * TASK-1554 / W3A — ce que la FRONTIERE savait, dans la semantique
+         * commune du contexte : quelles sources ont reellement fourni de la
+         * matiere, et lesquelles ont ete REFUSEES pour une raison deterministe
+         * connue du serveur.
+         *
+         * Memes formes que `ContexteBorne` — `list<string>` de noms de source,
+         * et `nom => raison technique`. Le vocabulaire des raisons est celui,
+         * deja etabli, de `SourceDenied` / `DossierRetrievalSource::REASON_*` :
+         * W3A n'en cree aucune.
+         *
+         * Ce qui n'entre JAMAIS dans `sourcesDenied` : un zero hit, une preuve
+         * insuffisante, un provider indisponible, un document absent. Une
+         * source qui n'a rien a dire n'est pas une source refusee — c'est
+         * exactement ce que `ContextSource::collect()` dit deja, et l'inverse
+         * ferait passer une recherche infructueuse pour une porte fermee.
+         *
+         * Defaut vide : les constructions existantes gardent leur forme.
+         * `toArray()` NE LES EXPOSE PAS — la forme JSON publique de la reponse
+         * documentaire est inchangee.
+         *
+         * ATTENTION, et c'est la seule chose a savoir avant de lire ces champs :
+         * un tableau vide ne distingue pas « rien n'a ete utilise / refuse » de
+         * « ce producteur ne declare pas encore ». A ce jour SEUL
+         * `DossierInsightsService` les remplit ; `LoopKnowledgeAnswerService`
+         * calcule pourtant les deux dans son `ContexteBorne` et les jette
+         * (dette W3A, portee au rapport). Le jour ou il les portera, un
+         * `sources_denied` non vide rendra `why_denied` visible sur des
+         * reponses ChatLoop existantes — une difference PRODUIT, qui demande sa
+         * propre mesure et pas un branchement de commodite.
+         *
+         * @var list<string>
+         */
+        public readonly array $sourcesUsed = [],
+        /** @var array<string, string> */
+        public readonly array $sourcesDenied = [],
     ) {}
 
     /**

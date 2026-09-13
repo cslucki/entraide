@@ -5,7 +5,9 @@ namespace App\Services\Dossiers;
 use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Ai\CapabilityDefinition;
 use App\Ai\CapabilityRegistry;
+use App\Ai\Context\DossierRetrievalSource;
 use App\Ai\Context\DossierSourceUrl;
+use App\Ai\Context\SourceDenied;
 use App\Ai\ContexteIa;
 use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
@@ -136,6 +138,33 @@ final class DossierInsightsService
      */
     private const ANSWER_TOTAL_LIMIT = 6;
 
+    /**
+     * TASK-1554 / W3A — le NOM de cette source dans la semantique commune du
+     * contexte.
+     *
+     * Ce n'est pas une declaration nouvelle : `buildSourcesBlock()` ecrivait
+     * deja cette chaine, en dur, dans chaque ligne de provenance. Lui donner un
+     * nom est ce qui permet a `sources_used` / `sources_denied` de designer
+     * quelque chose — et a un diagnostic de distinguer une interaction
+     * `loop_knowledge_answer` produite par CE moteur de la meme capability
+     * produite par `LoopKnowledgeAnswerService`, ce que rien ne permettait.
+     */
+    public const SOURCE_NAME = 'dossier.insights';
+
+    /**
+     * TASK-1554 — les raisons de refus DETERMINISTES que ce service connait
+     * reellement. Meme patron que `DossierRetrievalSource::REASON_*`, meme
+     * vocabulaire, aucune raison inventee.
+     *
+     * Ce qui n'est PAS ici, et ne doit jamais y entrer : un zero hit, un nom de
+     * fichier non resoluble, une preuve insuffisante, un credential provider
+     * absent. Ce sont des degradations, pas des portes fermees — W3F-min les
+     * harmonisera pour elles-memes.
+     */
+    public const REASON_DOSSIER_OUTSIDE_ORGANIZATION = 'dossier_outside_organization';
+
+    public const REASON_DOSSIER_NOT_AUTHORIZED = 'dossier_not_authorized';
+
     public function __construct(
         private readonly DossierSemanticSearchService $search,
         private readonly CapabilityRegistry $capabilities,
@@ -146,6 +175,11 @@ final class DossierInsightsService
         // TASK-1535 : l'autorite qui dit quelles Boucles un lecteur peut lire.
         // Utilisee par `answer()` SEULEMENT — voir le bloc de tete.
         private readonly DerivedChunkEligibility $derivedEligibility,
+        // TASK-1554 : la MEME autorite que celle deja consultee au fond de
+        // `DossierSemanticSearchService`. Elle est relue ici non pour changer
+        // le perimetre — la recherche rendrait la meme liste vide — mais pour
+        // que la frontiere sache DIRE pourquoi elle est vide.
+        private readonly DossierSemanticSearchGate $searchGate,
     ) {}
 
     /**
@@ -166,13 +200,15 @@ final class DossierInsightsService
     public function generate(Organization $organization, Dossier $dossier, User $requester): KnowledgeAnswer
     {
         if ((string) $dossier->organization_id !== (string) $organization->id) {
-            throw new RuntimeException(__('dossiers.insights_cross_organization'));
+            throw new SourceDenied(self::SOURCE_NAME, self::REASON_DOSSIER_OUTSIDE_ORGANIZATION,
+                __('dossiers.insights_cross_organization'));
         }
 
         // Revalidation serveur — jamais une confiance sur « la page est deja
         // ouverte » (PREP-LIGHT §4.2).
         if (Gate::forUser($requester)->denies('view', $dossier)) {
-            throw new RuntimeException(__('dossiers.insights_not_authorized'));
+            throw new SourceDenied(self::SOURCE_NAME, self::REASON_DOSSIER_NOT_AUTHORIZED,
+                __('dossiers.insights_not_authorized'));
         }
 
         // La langue du contenu SYSTEME produit pour une Organization est celle
@@ -291,6 +327,12 @@ final class DossierInsightsService
             grounded: $cited !== [],
             interactionId: $interaction->id,
             credit: $this->economicGuard->userCreditStatus($organization, $requester),
+            // TASK-1554 / W3A — Smart Dossier traverse la meme frontiere et la
+            // dit de la meme facon. Son corpus est `representativeChunks…()`,
+            // qui ne passe pas par la recherche semantique : la desactiver ne
+            // le refuse donc pas, et aucun refus ne se declare ici.
+            sourcesUsed: $consulted === [] ? [] : [self::SOURCE_NAME],
+            sourcesDenied: [],
         );
     }
 
@@ -342,13 +384,15 @@ final class DossierInsightsService
         }
 
         if ((string) $dossier->organization_id !== (string) $organization->id) {
-            throw new RuntimeException(__('dossiers.insights_cross_organization'));
+            throw new SourceDenied(self::SOURCE_NAME, self::REASON_DOSSIER_OUTSIDE_ORGANIZATION,
+                __('dossiers.insights_cross_organization'));
         }
 
         // Revalidation serveur, a chaque tour — jamais une confiance sur « la
         // page est deja ouverte ».
         if (Gate::forUser($requester)->denies('view', $dossier)) {
-            throw new RuntimeException(__('dossiers.insights_not_authorized'));
+            throw new SourceDenied(self::SOURCE_NAME, self::REASON_DOSSIER_NOT_AUTHORIZED,
+                __('dossiers.insights_not_authorized'));
         }
 
         // La langue sert ici au seul message de non-reponse ; le coeur la
@@ -402,6 +446,27 @@ final class DossierInsightsService
             // La rendre par une exception l'afficherait en rouge, comme un
             // incident technique, alors que c'est le comportement honnete et
             // attendu. Aucun appel provider : il n'y a rien a fonder.
+            //
+            // TASK-1554 / W3A — la reponse est la meme, ce qu'elle SAIT ne
+            // l'est plus.
+            //
+            // Deux situations rendaient jusqu'ici une liste vide rigoureusement
+            // indiscernable : « rien ne correspond dans ce corpus » et « la
+            // recherche documentaire est desactivee pour cette Organization ».
+            // La seconde est un refus DETERMINISTE, connu du serveur avant
+            // toute requete — `searchAcrossDossiers()` le lit deja et rend `[]`
+            // sans rien chercher. La porter comme un zero hit revenait a dire
+            // « je n'ai rien trouve » a propos d'un corpus qu'on n'a jamais
+            // ouvert.
+            //
+            // C'est la SEULE raison portee ici, et elle n'est pas inferee : le
+            // meme booleen, lu a la meme autorite, que celui qui a produit le
+            // vide. Un zero hit sur une recherche REELLE reste un zero hit —
+            // `sourcesDenied` y vaut `[]`.
+            $denied = $this->searchGate->isEnabledFor((string) $organization->id)
+                ? []
+                : [self::SOURCE_NAME => DossierRetrievalSource::REASON_SEMANTIC_SEARCH_DISABLED];
+
             return new KnowledgeAnswer(
                 answer: __($scopedFiles !== null ? 'dossiers.answer_no_source_in_file' : 'dossiers.answer_no_source', [], $locale),
                 sources: [],
@@ -409,6 +474,8 @@ final class DossierInsightsService
                 grounded: false,
                 interactionId: null,
                 credit: $this->economicGuard->userCreditStatus($organization, $requester),
+                sourcesUsed: [],
+                sourcesDenied: $denied,
             );
         }
 
@@ -577,6 +644,11 @@ final class DossierInsightsService
             interactionId: $interaction->id,
             credit: $this->economicGuard->userCreditStatus($organization, $requester),
             followUps: $followUps,
+            // TASK-1554 / W3A — la meme verite que la trace, au meme moment et
+            // depuis la meme expression. Deux calculs distincts auraient
+            // diverge au premier correctif applique d'un seul cote.
+            sourcesUsed: $consulted === [] ? [] : [self::SOURCE_NAME],
+            sourcesDenied: [],
         );
     }
 
@@ -950,9 +1022,20 @@ final class DossierInsightsService
             $lines[] = $header."\n".$content;
 
             $consulted[] = [
-                'source' => 'dossier.insights',
+                'source' => self::SOURCE_NAME,
                 'type' => 'retrieval',
                 'ref' => $ref,
+                // TASK-1554 : `id` est la cle par laquelle la semantique
+                // commune designe une entree de provenance
+                // (`ContexteBorne::provenance`, lue telle quelle par
+                // `BlogAiService` et `MemberProfileAgentResponder`). C'etait la
+                // SEULE difference de forme entre cette provenance et celle de
+                // `DossierRetrievalSource`, qui ecrit deja les deux cles.
+                //
+                // Purement additive : `KnowledgeAnswer::publicSource()` ne la
+                // lit pas, `recordInteraction()` ne trace que `chunk_id` et
+                // `dossier_id`, et les vues nomment leurs champs.
+                'id' => $row['chunk_id'],
                 'chunk_id' => $row['chunk_id'],
                 'dossier_id' => $row['dossier_id'],
                 'dossier_name' => $row['dossier_name'],
@@ -1232,6 +1315,27 @@ final class DossierInsightsService
                 'sdk_invocation_id' => $sdkInvocationId,
                 'failure' => $failure,
                 'retrieval' => ['consulted' => $ids($consulted), 'cited' => $ids($cited)],
+                // TASK-1554 / W3A — la graphie canonique du contrat commun,
+                // celle que `AiResponseExplanationService` lit deja
+                // (`llmPanel()` et `ragPanel()` -> `denied_count`) et que
+                // `ChatLoopAiService` / `ShellGeneralAnswerService` ecrivent
+                // deja. Ce moteur enregistre ses interactions sous la MEME
+                // capability `loop_knowledge_answer` que
+                // `LoopKnowledgeAnswerService` : sans ces deux cles, rien dans
+                // la trace ne disait quel moteur avait fonde la reponse, et le
+                // « Pourquoi ? » comptait 0 refus par ABSENCE de cle, jamais
+                // par mesure.
+                //
+                // `sources_denied` vaut `[]` ici, et ce n'est pas un
+                // remplissage : sur ce chemin les sources sont DEJA choisies et
+                // deja autorisees par l'appelant — aucune ne peut y etre
+                // refusee. Les deux refus deterministes que ce service connait
+                // (tenant, ACL) levent `SourceDenied` bien avant qu'une
+                // interaction existe, et le refus de configuration se dit sur
+                // le `KnowledgeAnswer` de `answer()`, qui n'en enregistre
+                // aucune non plus.
+                'sources_used' => $consulted === [] ? [] : [self::SOURCE_NAME],
+                'sources_denied' => [],
             ], static fn ($value): bool => $value !== null)
                 + ['doctrine_version' => $doctrineVersion],
         ]);
