@@ -243,8 +243,28 @@ class AiShell extends Component
         }
 
         $metadata = is_array($answer->metadata) ? $answer->metadata : [];
+        $status = $metadata['status'] ?? null;
 
-        if (($metadata['status'] ?? null) !== AiShellResponder::STATUS_ANSWERED) {
+        // TASK-1552 — un tour NERVOUS SYSTEM debouche, lui aussi.
+        //
+        // Le verrou historique etait `status === ANSWERED`, et il coupait tout
+        // le Nervous System : People, reference, documentaire — tous sortent en
+        // `NON_INTERACTION` par construction, tous AVANT `generate()`. « Qui
+        // peut m'aider ? » n'avait donc aucune suite possible.
+        //
+        // L'ouverture est DECLARATIVE et BORNEE PAR PRODUCTEUR, jamais
+        // permissive : un tour non-interaction n'est recevable que s'il vient
+        // d'une branche Nervous System autorisee a declarer
+        // (`AiShellResponder::CARD_PRODUCERS`) ET qu'il a lui-meme ECRIT une
+        // Boucle de relais. `BLOCKED` et `UNAVAILABLE` restent refuses — aucune
+        // reponse n'a eu lieu, il n'y a rien a preparer. Une reponse
+        // conversationnelle non plus : son producteur n'est pas dans la liste.
+        $declares = $status === AiShellResponder::STATUS_NON_INTERACTION
+            && in_array($metadata['producer'] ?? null, AiShellResponder::CARD_PRODUCERS, true)
+            && is_string($metadata['suggested_loop_id'] ?? null)
+            && $metadata['suggested_loop_id'] !== '';
+
+        if ($status !== AiShellResponder::STATUS_ANSWERED && ! $declares) {
             return null;
         }
 
@@ -265,9 +285,48 @@ class AiShell extends Component
 
         $relayLoop = $this->suggestedLoop($answer);
 
+        // TASK-1552 — la DECLARATION est de la metadata ; l'AUTORITE est
+        // `suggestedLoop()`, qui rejoue la garde de la page. Pour un tour
+        // Nervous System, toute l'affordance repose sur cette Boucle : si elle
+        // ne resout plus — adhesion retiree, Boucle archivee, tenant different
+        // — le tour n'a plus rien a proposer, et preparer une demande sans
+        // relais serait offrir un geste que le tour n'a jamais porte.
+        //
+        // La verification vit ICI, apres la resolution, et pas dans la garde
+        // de statut plus haut : une garde qui ferait confiance a la metadata
+        // seule rendrait l'ACL dependante de l'ORDRE DES APPELS — la classe de
+        // defaut que la remediation de T1549 a fermee.
+        if ($status !== AiShellResponder::STATUS_ANSWERED && $relayLoop === null) {
+            return null;
+        }
+
+        // TASK-1552 — LE point ou le brouillon peut mentir, et ou il ne ment pas.
+        //
+        // Sur un tour REPONDU, `message_draft` est le texte que la
+        // clarification a redige A LA PREMIERE PERSONNE pour cette personne :
+        // c'est sa demande, formulee avec elle. Le comportement est inchange.
+        //
+        // Un tour Nervous System n'en a pas. Retomber sur `$answer->content`
+        // sement le brouillon avec la REPONSE DE L'IA — « voici trois
+        // personnes qui pourraient aider… ». La personne arriverait sur le
+        // formulaire avec une demande qu'elle n'a jamais ecrite, redigee par la
+        // machine, a sa place.
+        //
+        // La source honnete est a un `reply_to_id` de distance : le message
+        // humain qui a declenche le tour. C'est SA phrase. Et le TITRE reste
+        // vide — un tour NS n'en produit aucun, en fabriquer un serait la meme
+        // faute en plus petit. La categorie aussi : rien n'est devine.
+        $description = trim((string) ($metadata['message_draft'] ?? ''));
+
+        if ($description === '') {
+            $description = $status === AiShellResponder::STATUS_ANSWERED
+                ? (string) $answer->content
+                : trim((string) $answer->replyTo?->content);
+        }
+
         $handoff->storeDraft($user, $organization, [
             'title' => (string) ($metadata['title'] ?? ''),
-            'description' => (string) ($metadata['message_draft'] ?: $answer->content),
+            'description' => $description,
             'relay_loop_id' => $relayLoop?->id,
             'category_id' => $category?->id,
         ]);
