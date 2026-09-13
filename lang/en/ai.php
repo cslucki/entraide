@@ -837,6 +837,15 @@ return [
     'shell_prompt_language_guard' => 'IMPORTANT: Answer in English. Whatever the language of the instructions and of the context below, you must reply to the member in English.',
     // TASK-1486 — the human verdict on ONE Shell answer. Same gesture and same
     // two values as the blog explorer (TASK-1256).
+    // TASK-1551 — W1.5: "Why this answer?" on a Shell turn. The Shell EXPLAINS,
+    // it does not write — see the French file for the full rationale.
+    'shell_why_open' => 'Why?',
+    'shell_why_close' => 'Close',
+    'shell_why_title' => 'What this answer is based on',
+    'shell_why_memory_title' => 'BouclePro memory',
+    'shell_why_documents_title' => 'Cited documents',
+    'shell_why_open_loop' => 'Open the Loop',
+    'shell_why_documents_masked' => '{1} One cited document is no longer accessible to you: it is not detailed.|[2,*] :count cited documents are no longer accessible to you: they are not detailed.',
     'shell_feedback_question' => 'Did this answer help?',
     'shell_feedback_helpful' => 'Helpful',
     'shell_feedback_improve' => 'Could be better',
