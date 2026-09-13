@@ -1056,6 +1056,15 @@ class LoopController extends Controller
                 'description' => $data['intention'],
                 'relay_loop_id' => $loop->id,
                 'category_id' => null,
+                // TASK-1553 — aucun modele n'est intervenu sur ce chemin :
+                // `ai_wording` reste `null`, et la carte ne montrera donc que
+                // le fait. Fabriquer une formulation ici ferait passer une
+                // degradation pour une suggestion.
+                'provenance' => [
+                    'origin' => 'loop_clarification_unavailable',
+                    'verified' => [['type' => 'active_membership', 'loop_id' => (string) $loop->id]],
+                    'ai_wording' => null,
+                ],
             ]);
 
             return redirect()->route('organization.requests.create', [
@@ -1220,6 +1229,19 @@ class LoopController extends Controller
             'description' => $data['need'],
             'relay_loop_id' => $cible?->id,
             'category_id' => $categorie?->id,
+            // TASK-1553 — la modale de clarification affichait DEJA ces deux
+            // niveaux (T1321) ; ils voyagent desormais jusqu'au formulaire, au
+            // lieu de s'arreter a l'ecran precedent. Le fait est celui que
+            // `publishableLoopOrNull()` vient d'etablir ; la formulation du
+            // modele n'est pas postee par ce formulaire, donc elle reste
+            // `null` — on ne la reconstruit pas.
+            'provenance' => [
+                'origin' => 'loop_clarification',
+                'verified' => $cible === null
+                    ? []
+                    : [['type' => 'active_membership', 'loop_id' => (string) $cible->id]],
+                'ai_wording' => null,
+            ],
         ]);
 
         return redirect()->route('organization.requests.create', [

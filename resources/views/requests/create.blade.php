@@ -130,6 +130,78 @@
 
         <x-marketplace-form-validation :attribute-labels="__('marketplace.validation_attributes')" />
 
+        {{-- TASK-1553 — LA CARTE PRE-ENVOI.
+             Depuis W2-1, cette page peut arriver PRE-REMPLIE : une description,
+             un cercle deja choisi. Sans cette carte, la personne devait decider
+             d'envoyer quelque chose sans savoir d'ou cela venait.
+
+             Ce n'est pas un second formulaire : rien n'est editable ici. Le
+             formulaire canonique juste en dessous reste le seul lieu d'edition,
+             et c'est lui qui porte Annuler / Publier.
+
+             Deux niveaux, jamais confondus (motif T1321) : le FAIT etabli par
+             une requete serveur, et la FORMULATION du modele — qui n'est
+             jamais une preuve. Aucun compteur : sur ce chemin, le seul fondement
+             structure et denombrable est unique et invariable ; « fondee sur 1
+             element » serait un compteur decoratif. On MONTRE le fondement au
+             lieu de le compter.
+
+             La carte ne promet RIEN : le brouillon est un relais ephemere, il
+             a deja ete consomme, et aucune sauvegarde n'est annoncee. --}}
+        @php
+            $draftProvenance = $draftProvenance ?? null;
+            $_pvVerified = is_array($draftProvenance) ? ($draftProvenance['verified'] ?? []) : [];
+            $_pvLoopId = collect($_pvVerified)
+                ->first(fn ($fait) => ($fait['type'] ?? null) === 'active_membership')['loop_id'] ?? null;
+            $_pvLoop = $_pvLoopId ? ($relayLoops->firstWhere('id', $_pvLoopId)) : null;
+            $_pvWording = is_array($draftProvenance) ? trim((string) ($draftProvenance['ai_wording']['text'] ?? '')) : '';
+            $_pvOrigin = is_array($draftProvenance) ? (string) ($draftProvenance['origin'] ?? '') : '';
+        @endphp
+        @if($draftProvenance !== null && ($_pvLoop !== null || $_pvWording !== '' || $_pvOrigin !== ''))
+        <div class="mb-5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 dark:border-indigo-800/60 dark:bg-indigo-950/20"
+             data-request-presend-card>
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+                {{ __('requests.presend_title') }}
+            </p>
+
+            @if($_pvLoop !== null)
+            <p class="mt-2 text-sm text-gray-900 dark:text-gray-100" data-request-presend-destination>
+                <span class="font-semibold">{{ __('requests.presend_destination') }}</span>
+                {{ $_pvLoop->name }}
+                {{-- Le nombre ne s'affiche que s'il a ete charge : il vient
+                     d'une clause sur la requete des Boucles de relais, qui ne
+                     contient que des Boucles dont la personne est membre
+                     ACTIVE. Jamais un compte invente. --}}
+                @isset($_pvLoop->members_count)
+                    <span class="text-gray-500 dark:text-gray-400" data-request-presend-members="{{ $_pvLoop->members_count }}">
+                        · {{ trans_choice('requests.presend_members', (int) $_pvLoop->members_count) }}
+                    </span>
+                @endisset
+            </p>
+            @endif
+
+            <div class="mt-2 space-y-1">
+                @if($_pvLoop !== null)
+                <p class="text-xs text-indigo-700 dark:text-indigo-300" data-request-presend-verified>
+                    {{ __('loops.help_request_suggested_loop_verified_active_membership') }}
+                </p>
+                @endif
+                @if($_pvWording !== '')
+                <p class="text-xs italic text-gray-500 dark:text-gray-400" data-request-presend-ai-wording>
+                    {{ __('loops.help_request_suggested_loop_ai_wording') }} : « {{ $_pvWording }} »
+                </p>
+                @endif
+                @if($_pvOrigin !== '')
+                <p class="text-xs text-gray-500 dark:text-gray-400" data-request-presend-origin="{{ $_pvOrigin }}">
+                    {{ __('requests.presend_origin_'.$_pvOrigin) }}
+                </p>
+                @endif
+            </div>
+
+            <p class="mt-2 text-xs leading-4 text-gray-500 dark:text-gray-400">{{ __('requests.presend_note') }}</p>
+        </div>
+        @endif
+
         <form method="POST" action="{{ $_reqStoreAction }}" enctype="multipart/form-data" data-marketplace-validation
               x-data="{ selectedCategory: '{{ old('category_id', '') }}', files: [] }">
             @csrf
