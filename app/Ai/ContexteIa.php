@@ -2,6 +2,7 @@
 
 namespace App\Ai;
 
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 
 /**
@@ -23,6 +24,16 @@ use InvalidArgumentException;
  */
 final class ContexteIa
 {
+    /**
+     * TASK-1556 — identite du TOUR (uuid), distincte de `correlationId` qui est
+     * partagee par toute une operation metier. Elle nait ici, AVANT le
+     * retrieval, et suit le tour jusqu'a l'ecriture de son interaction : c'est
+     * par elle qu'une invocation embedding est rattachee EXACTEMENT au tour
+     * qui l'a declenchee. Un appelant qui a deja commence le tour (recherche
+     * faite avant de construire ce contexte) transmet la sienne.
+     */
+    public readonly string $turnId;
+
     public function __construct(
         public readonly string $organizationId,
         public readonly ?string $userId,
@@ -58,7 +69,14 @@ final class ContexteIa
          * @var array<string, string>
          */
         public readonly array $material = [],
+        ?string $turnId = null,
     ) {
+        if ($turnId !== null && ! self::isUuid($turnId)) {
+            throw new InvalidArgumentException('The AI context turn ID must be a UUID when provided.');
+        }
+
+        $this->turnId = $turnId ?? (string) Str::uuid();
+
         if (! self::isUuid($organizationId)) {
             throw new InvalidArgumentException('An AI context requires a valid organization ID.');
         }

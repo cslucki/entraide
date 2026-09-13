@@ -2414,6 +2414,11 @@ final class AiShellResponder
             return null;
         }
 
+        // TASK-1556 : le tour documentaire nait ici, avant la recherche ; son
+        // identite suit l'embedding jusqu'au ledger et jusqu'a l'interaction
+        // ecrite par `answerOverSources()`.
+        $turnId = (string) Str::uuid();
+
         try {
             $rows = $this->dossierSearch->searchAcrossDossiers(
                 (string) $organization->id,
@@ -2421,7 +2426,7 @@ final class AiShellResponder
                 $prompt,
                 $embeddingInstance,
                 self::DISCOVERY_SOURCE_LIMIT,
-                ['shell_dossier_discovery' => true],
+                ['shell_dossier_discovery' => true, 'turn_id' => $turnId],
                 self::DISCOVERY_CANDIDATE_LIMIT,
                 null,
                 // TASK-1534 — les Boucles dont CE membre peut lire l'espace de
@@ -2461,7 +2466,7 @@ final class AiShellResponder
         }
 
         try {
-            $answer = $this->dossierAnswers->answerOverSources($organization, $traceDossier, $user, $prompt, $rows);
+            $answer = $this->dossierAnswers->answerOverSources($organization, $traceDossier, $user, $prompt, $rows, turnId: $turnId);
         } catch (\Throwable $exception) {
             report($exception);
 
