@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\Ai\DTO\KnowledgeAnswer;
 use App\Services\Ai\LoopKnowledgeAnswerService;
 use App\Services\Dossiers\DossierSemanticSearchService;
+use App\Services\Loops\LoopRootDocumentService;
 use App\Support\Ai\AiTurnInspection;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -90,13 +91,13 @@ class TASK1558InspectorCliTest extends TestCase
             'joined_at' => now(),
         ]);
 
-        $this->dossier = Dossier::create([
-            'organization_id' => $this->organization->id,
-            'owner_id' => $this->membre->id,
-            'loop_id' => $this->loop->id,
-            'name' => 'Dossier ARIA',
-            'visibility' => 'loop',
-        ]);
+        // Le Dossier racine se cree par le SERVICE, jamais a la main : la
+        // contrainte PostgreSQL `dossiers_holder_xor` exige exactement UN
+        // porteur — `owner_id` XOR `loop_id`. SQLite ne l'applique pas, donc un
+        // fixture fabrique passe en local et rougit en CI (paye une fois ici).
+        app(LoopRootDocumentService::class)->ensureRootDossier($this->loop->fresh());
+
+        $this->dossier = Dossier::query()->where('loop_id', $this->loop->id)->firstOrFail();
 
         OrganizationAiSetting::factory()->create([
             'organization_id' => $this->organization->id,
@@ -335,9 +336,12 @@ class TASK1558InspectorCliTest extends TestCase
 
         // Le Dossier d'un AUTRE tenant n'entre jamais dans le perimetre, donc
         // rien de lui ne peut sortir — ni nom, ni identifiant.
+        // Dossier PERSONNEL d'un autre tenant : porteur = `owner_id` seul,
+        // conforme au XOR.
         $secret = Dossier::create([
             'organization_id' => $this->autre->id,
             'owner_id' => $this->etranger->id,
+            'loop_id' => null,
             'name' => 'CONFIDENTIEL AUTRE TENANT',
             'visibility' => 'organization',
         ]);
