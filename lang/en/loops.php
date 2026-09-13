@@ -1329,6 +1329,22 @@ return [
     'correct_ack' => 'Correction saved: this Loop\'s memory is up to date, and your message is visible in the conversation.',
     'correct_conflict_before' => 'This point changed in the meantime. Nothing has been recorded.',
     'correct_conflict_after' => 'Your message is visible in the Loop, but the memory could not be corrected. Reload the current version.',
+    // TASK-1550 — W1.5-B: "Since this exchange, BouclePro has retained...".
+    // PAST tense, and no promise of a delay — see the French file for the full
+    // rationale. Before compilation there is no card at all.
+    'digest_title' => 'Since this exchange, BouclePro has retained...',
+    // The operation actually persisted, never a guessed nature. The compiler
+    // produces no fact / interpretation / decision discriminator: inventing one
+    // at read time would be a content heuristic.
+    'digest_kind_added' => 'New',
+    'digest_kind_updated' => 'Updated',
+    'digest_kind_retracted' => 'Removed',
+    // No claim of memory exhaustiveness, and no checkbox: nothing is awaiting
+    // validation, all of this is ALREADY saved.
+    // The SCOPE, stated ONCE for the whole card rather than on every line — see
+    // the French file for the full rationale.
+    'digest_note' => 'These items are already saved in this Loop\'s memory. This is not everything BouclePro knows about it.',
+    'digest_dismiss' => 'Hide',
     'why_feedback_title' => 'Was this answer helpful?',
     'why_feedback_helpful' => 'Helpful',
     'why_feedback_improve' => 'Needs improvement',
