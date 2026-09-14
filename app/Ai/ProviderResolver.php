@@ -172,6 +172,70 @@ final class ProviderResolver
     }
 
     /**
+     * TASK-1560 : instance SDK de RERANK d'une Organization, ou `null`.
+     *
+     * Meme doctrine que `resolveEmbeddingInstance()`, et pour la meme raison :
+     * `null` signifie « cette Organization n'a pas de credential capable de
+     * reranker », JAMAIS « prends la cle plateforme ». Un tenant sans cle ne
+     * finance pas d'appel, et le chemin documentaire retombe sur l'ordre dense
+     * existant.
+     *
+     * Le rerank passe par la gateway Cohere de `laravel/ai`, dont l'URL est
+     * configurable, pointee sur OpenRouter : la cle du tenant est une cle
+     * OpenRouter, le modele (`cohere/rerank-v3.5`) est celui que le Bench a
+     * valide. C'est pourquoi la famille exigee est `openrouter` et aucune
+     * autre — une cle OpenAI ou un Ollama local ne sait pas reranker, et on ne
+     * comble pas l'ecart en silence.
+     *
+     * L'instance porte un nom DISTINCT (`org:{id}:rerank`) de l'instance de
+     * generation : meme credential, mais driver et URL differents, et deux
+     * configurations d'instance ne peuvent pas cohabiter sous un meme nom.
+     */
+    public function resolveRerankingInstance(string $organizationId): ?string
+    {
+        if (! (bool) config('ai.knowledge.rerank.enabled', false)) {
+            return null;
+        }
+
+        $setting = OrganizationAiSetting::query()
+            ->where('organization_id', $organizationId)
+            ->first();
+
+        if ($setting === null || ! $setting->isUsable()) {
+            return null;
+        }
+
+        // Seule la famille OpenRouter route un rerank Cohere avec la cle du
+        // tenant. Aucun repli plateforme, aucune substitution de famille.
+        if (trim((string) $setting->provider) !== 'openrouter') {
+            return null;
+        }
+
+        $key = trim((string) $setting->api_key);
+
+        if ($key === '') {
+            return null;
+        }
+
+        $url = trim((string) config('ai.knowledge.rerank.url', ''));
+        $model = trim((string) config('ai.knowledge.rerank.model', ''));
+
+        if ($url === '' || $model === '') {
+            throw new DomainException('AI reranking is enabled but has no [ai.knowledge.rerank.url] / [ai.knowledge.rerank.model] configuration.');
+        }
+
+        $instance = self::instanceName($organizationId, 'rerank');
+
+        $this->registerInstance($instance, [
+            'driver' => 'cohere',
+            'url' => $url,
+            'models' => ['reranking' => ['default' => $model]],
+        ], $key);
+
+        return $instance;
+    }
+
+    /**
      * TASK-1226 : la MEME decision que `resolveEmbeddingInstance()` — cette
      * Organization peut-elle produire des embeddings pour l'index courant ? —
      * mais en lecture pure : aucune instance SDK enregistree, aucun credential

@@ -182,6 +182,73 @@ final class AiProviderInvocationLedger
      * non NULL inconnue du registre est un defaut du writer appelant, pas
      * une ligne a ecrire « quand meme ».
      */
+    /**
+     * TASK-1560 : une tentative de RERANK reellement envoyee au provider,
+     * reussie ou non. Troisieme nature d'appel facturable du chemin
+     * documentaire, a cote de la generation et de l'embedding.
+     *
+     * Deux differences assumees avec `recordGeneration()`, et elles disent
+     * quelque chose plutot que de combler un trou :
+     *
+     * 1. AUCUN jeton. `RerankingResponse` ne porte que `results` et `meta` :
+     *    le SDK ne rend ni compte de jetons, ni usage. `input_tokens`,
+     *    `output_tokens` et `total_tokens` restent donc `NULL` — jamais 0,
+     *    qui se lirait comme « mesure a zero ».
+     * 2. COUT INCONNU. Meme raison : la gateway ne renvoie aucun montant. On
+     *    passe `null` a `costColumns()`, qui inscrit honnetement
+     *    `cost_status = unknown`. Le Bench a observe ~0,001 USD par appel,
+     *    mais une observation de banc n'est pas un montant rendu par le
+     *    provider, et on ne l'inscrit pas a sa place.
+     *
+     * Les COMPTEURS de candidats et de sources finales ne vivent PAS ici :
+     * aucune colonne du ledger ne les porte honnetement (`embedding_count`
+     * compte des embeddings), et le nombre final n'est connu qu'apres
+     * `diversify()`, en aval de l'appel. Ils sont journalises par le niveau
+     * qui les connait reellement.
+     */
+    public function recordRerank(
+        string $organizationId,
+        ?string $userId,
+        ?string $capability,
+        ?string $process,
+        string $provider,
+        string $model,
+        string $instance,
+        string $status,
+        ?string $failureReason,
+        ?string $correlationId,
+        ?float $startedAtMicrotime,
+        ?string $feature = null,
+    ): AiProviderInvocation {
+        $this->assertCanonicalOrNull($capability);
+
+        return AiProviderInvocation::create([
+            'organization_id' => $organizationId,
+            'user_id' => $userId,
+            'capability' => $capability,
+            'feature' => $feature,
+            'process' => $process,
+            'operation' => AiProviderInvocation::OPERATION_RERANK,
+            'embedding_operation' => null,
+            'provider' => $provider,
+            'model' => $model,
+            // La preuve du credential, jamais deduite : elle vient du registre
+            // pose par `ProviderResolver::registerInstance()` pour CETTE
+            // instance, pendant cette meme requete.
+            'credential_source' => ProviderResolver::credentialSourceFor($instance),
+            'input_tokens' => null,
+            'output_tokens' => null,
+            'total_tokens' => null,
+            ...$this->costColumns(null),
+            'status' => $status,
+            'failure_reason' => $failureReason,
+            'correlation_id' => $correlationId,
+            'sdk_invocation_id' => null,
+            'provider_invocation_id' => null,
+            ...$this->timestampColumns($startedAtMicrotime),
+        ]);
+    }
+
     private function assertCanonicalOrNull(?string $capability): void
     {
         if ($capability !== null && ! $this->capabilities->has($capability)) {
