@@ -263,8 +263,11 @@ class TASK1558InspectorCliTest extends TestCase
 
         $sortie = $this->sortieJson();
 
+        // TASK-1565 : `retrieval_trace` s'ajoute aux huit sections d'origine —
+        // les etages que le retrieval a REELLEMENT traverses, ecrits par le
+        // pipeline et lus ici.
         $this->assertSame(
-            ['run', 'identity', 'scope', 'retrieval', 'selection', 'llm_input', 'output', 'provider'],
+            ['run', 'identity', 'scope', 'retrieval', 'retrieval_trace', 'selection', 'llm_input', 'output', 'provider'],
             array_keys($sortie),
         );
         $this->assertSame('loop_knowledge_answer', $sortie['run']['capability']);
@@ -273,18 +276,26 @@ class TASK1558InspectorCliTest extends TestCase
 
     /**
      * `NULL` reste `NULL` — la règle qui distingue une mesure d'une absence de
-     * mesure. `candidates_found` n'est pas observable en v0 ; le rendre à 0
-     * ferait croire que le retrieval n'a rien trouvé.
+     * mesure.
+     *
+     * TASK-1565 a rendu `candidates_found` OBSERVABLE (le pipeline écrit sa
+     * trace, l'inspecteur la lit), donc l'exemple d'origine n'en est plus un :
+     * la règle se garde désormais là où elle mord encore — une interaction qui
+     * ne porte AUCUNE trace. Elle doit rendre `null`, et jamais `0`, sans quoi
+     * « je n'ai pas mesuré » deviendrait « le retrieval n'a rien trouvé ».
      */
     public function test_une_valeur_non_observee_reste_null_et_ne_devient_jamais_zero(): void
     {
         $this->rechercheRendant([$this->ligne('Prof. Enrica De Cian — Team Lead UNIVE.')]);
         $this->agentRepond('UNIVE coordonne [S1].');
 
+        config(['ai.knowledge.retrieval_trace.enabled' => false]);
+
         $sortie = $this->sortieJson();
 
         $this->assertNull($sortie['retrieval']['candidates_found']);
         $this->assertNotSame(0, $sortie['retrieval']['candidates_found']);
+        $this->assertNull($sortie['retrieval_trace']['dense_candidates_count']);
     }
 
     /** Le périmètre rendu est celui de l'autorité réelle, pas une seconde règle. */

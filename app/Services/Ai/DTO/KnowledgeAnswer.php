@@ -66,13 +66,21 @@ final class KnowledgeAnswer
          *
          * ATTENTION, et c'est la seule chose a savoir avant de lire ces champs :
          * un tableau vide ne distingue pas « rien n'a ete utilise / refuse » de
-         * « ce producteur ne declare pas encore ». A ce jour SEUL
-         * `DossierInsightsService` les remplit ; `LoopKnowledgeAnswerService`
-         * calcule pourtant les deux dans son `ContexteBorne` et les jette
-         * (dette W3A, portee au rapport). Le jour ou il les portera, un
-         * `sources_denied` non vide rendra `why_denied` visible sur des
-         * reponses ChatLoop existantes — une difference PRODUIT, qui demande sa
-         * propre mesure et pas un branchement de commodite.
+         * « ce producteur ne declare pas encore ».
+         *
+         * TASK-1565 : la dette W3A est payee — `LoopKnowledgeAnswerService`
+         * calculait les deux dans son `ContexteBorne` et les jetait ; il les
+         * porte desormais, comme `OrganizationDoctrineSandbox` et
+         * `DossierInsightsService`.
+         *
+         * L'avertissement qui accompagnait cette dette, lui, reste ENTIEREMENT
+         * valable, et il porte sur la METADATA, pas sur ce DTO : ecrire
+         * `sources_denied` au premier niveau de `AiInteraction.metadata` rend
+         * `why_denied` visible sur des reponses ChatLoop existantes
+         * (`AiResponseExplanationService::ragPanel()` -> `loops.why_denied`).
+         * C'est une difference PRODUIT, qui demande sa propre mesure et pas un
+         * branchement de commodite. Le chemin Loop les depose donc sous
+         * `metadata['retrieval_trace']`, que seule l'inspection lit.
          *
          * @var list<string>
          */

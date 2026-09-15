@@ -6,8 +6,10 @@ use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Ai\CapabilityDefinition;
 use App\Ai\CapabilityRegistry;
 use App\Ai\Context\ContextBuilder;
+use App\Ai\Context\ContexteBorne;
 use App\Ai\Context\DossierManifestSource;
 use App\Ai\Context\DossierRetrievalSource;
+use App\Ai\Context\DossierRetrievalTraceRecorder;
 use App\Ai\Context\KnowledgeDeltaSource;
 use App\Ai\ContexteIa;
 use App\Ai\PromptRepository;
@@ -297,6 +299,19 @@ class LoopKnowledgeAnswerService
         // documentaire est une information a transmettre au modele, pas une
         // raison de se taire : c'est tout l'interet du mode.
         if ($consulted === [] && $mode !== self::MODE_HYBRID) {
+            // TASK-1565 — ce tour n'ecrira AUCUNE `AiInteraction` : il refuse
+            // avant tout appel, donc sans rien a facturer ni a tracer. Sa trace
+            // de retrieval n'a par consequent nulle part ou aller, et on la
+            // reclame ici uniquement pour ne pas la laisser derriere soi dans
+            // le journal du processus.
+            //
+            // C'est une limite ASSUMEE de ce v0, et elle est etroite : des que
+            // le manifest rend quelque chose — le cas ENRICA — ce chemin n'est
+            // plus pris et la trace est persistee normalement. La lever
+            // exigerait d'ecrire une interaction la ou le produit n'en ecrit
+            // pas : un changement de comportement, hors mandat.
+            DossierRetrievalTraceRecorder::claim($contexte->organizationId, $contexte->turnId);
+
             // Rien de pertinent dans les Dossiers accessibles : on le dit, sans
             // inventer et sans appeler le modele.
             return new KnowledgeAnswer(
@@ -308,6 +323,12 @@ class LoopKnowledgeAnswerService
                 // TASK-1229 : la recherche documentaire a pu etre emise (une
                 // utilisation reelle) : le credit se lit ici aussi.
                 credit: $this->economicGuard->userCreditStatus($organization, $requester),
+                // TASK-1565 / W3A — ce que la frontiere savait, enfin porte par
+                // le vrai chemin ChatLoop. Aucun lecteur produit ne consomme
+                // ces champs du DTO (`toArray()` ne les expose pas) : le relai
+                // est invisible pour le membre, et lisible par l'inspection.
+                sourcesUsed: $borne->sourcesUsed,
+                sourcesDenied: $borne->sourcesDenied,
             );
         }
 
@@ -348,7 +369,7 @@ class LoopKnowledgeAnswerService
         } catch (\Throwable $exception) {
             $this->recordInteraction($loop, $requester, $contexte, $definition, $resolved, $prompt, null,
                 AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null, 'failed', $startedAt, null,
-                $exception::class, $consulted, [], $doctrineVersion);
+                $exception::class, $consulted, [], $doctrineVersion, $borne);
 
             throw new RuntimeException(__('loops.ai_error'), 0, $exception);
         }
@@ -387,7 +408,7 @@ class LoopKnowledgeAnswerService
 
         $interaction = $this->recordInteraction($loop, $requester, $contexte, $definition, $resolved, $prompt,
             $answer, $usage, $cost->traceAttributes(), $cost, 'success', $startedAt, $response->invocationId, null,
-            $consulted, $cited, $doctrineVersion);
+            $consulted, $cited, $doctrineVersion, $borne);
 
         // TASK-1309 : « Sources utilisées » = sources REELLEMENT CITEES.
         // Jusqu'ici, faute de citation valide, on retombait sur TOUT ce qui
@@ -425,6 +446,13 @@ class LoopKnowledgeAnswerService
             // decomptees) — l'alerte de seuil se lit ici, l'action n'a pas
             // ete bloquee.
             credit: $this->economicGuard->userCreditStatus($organization, $requester),
+            // TASK-1565 / W3A — la dette nommee dans le docblock de
+            // `KnowledgeAnswer` est payee : ce service CALCULAIT les deux dans
+            // son `ContexteBorne` et les jetait. Deux services les portaient
+            // deja (`OrganizationDoctrineSandbox`, `DossierInsightsService`) ;
+            // le vrai chemin ChatLoop etait le dernier a ne pas le faire.
+            sourcesUsed: $borne->sourcesUsed,
+            sourcesDenied: $borne->sourcesDenied,
         );
     }
 
@@ -739,6 +767,7 @@ class LoopKnowledgeAnswerService
         array $consulted,
         array $cited,
         ?int $doctrineVersion,
+        ContexteBorne $borne,
     ): AiInteraction {
         // TASK-1220 : ligne canonique du ledger, memes points que la trace P1
         // (succes ET echec) ; les refus pre-provider n'arrivent jamais ici.
@@ -796,6 +825,33 @@ class LoopKnowledgeAnswerService
                 RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
                 'failure' => $failure,
                 'retrieval' => ['consulted' => $ids($consulted), 'cited' => $ids($cited)],
+                // TASK-1565 / W3A — les sources qui ont REELLEMENT fourni de la
+                // matiere. Lue par `AiTurnInspection::provider()` et par
+                // personne d'autre : aucun lecteur produit ne la consomme.
+                'sources_used' => $borne->sourcesUsed,
+                // TASK-1565 — la trace des etages du retrieval, reclamee UNE
+                // fois au journal process-local ou `DossierRetrievalSource` l'a
+                // deposee (meme pattern que les invocations embedding
+                // ci-dessus, T1556).
+                //
+                // `sources_denied` voyage ICI, et non au premier niveau, et
+                // c'est une decision mesuree : au premier niveau, la cle est
+                // lue par `AiResponseExplanationService::ragPanel()` et allume
+                // un bandeau VISIBLE PAR LE MEMBRE (`loops.why_denied`). Le
+                // docblock de `KnowledgeAnswer` l'avait annonce — « une
+                // difference PRODUIT, qui demande sa propre mesure et pas un
+                // branchement de commodite ». T1565 est une TASK
+                // d'observabilite a comportement produit inchange : elle ne
+                // l'allume pas.
+                //
+                // `dossier_retrieval` a `null` signifie « la source n'a produit
+                // aucune trace pour ce tour » — refusee, absente de la
+                // capability, ou collecte coupee. Jamais un tableau vide, qui
+                // se lirait comme une mesure a zero.
+                DossierRetrievalTraceRecorder::TURN_METADATA_KEY => [
+                    'sources_denied' => $borne->sourcesDenied,
+                    'dossier_retrieval' => DossierRetrievalTraceRecorder::claim($contexte->organizationId, $contexte->turnId),
+                ],
             ], static fn ($value): bool => $value !== null)
                 // TASK-1236 : cle toujours presente, meme a null (aucune doctrine
                 // active) — sa PRESENCE distingue une interaction tracee d'une

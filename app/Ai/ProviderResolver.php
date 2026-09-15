@@ -2,6 +2,7 @@
 
 namespace App\Ai;
 
+use App\Ai\Context\DossierRerankOutcome;
 use App\Models\AiProviderInvocation;
 use App\Models\OrganizationAiSetting;
 use App\Services\Dossiers\DossierRerankGate;
@@ -192,12 +193,26 @@ final class ProviderResolver
      * generation : meme credential, mais driver et URL differents, et deux
      * configurations d'instance ne peuvent pas cohabiter sous un meme nom.
      */
-    public function resolveRerankingInstance(string $organizationId): ?string
+    /**
+     * TASK-1565 : `$reason` rend NOMMEE la cause d'un `null`.
+     *
+     * Ces quatre branches rendaient toutes le meme `null`, et la trace ne
+     * pouvait donc pas distinguer un pilote eteint d'un tenant sans cle. Le
+     * parametre est optionnel et passe par reference : aucun appelant existant
+     * ne change, et surtout la DECISION reste prise ici, une seule fois. La
+     * recopier ailleurs pour la nommer aurait cree une seconde autorite, qui
+     * aurait diverge au premier correctif applique d'un seul cote.
+     */
+    public function resolveRerankingInstance(string $organizationId, ?string &$reason = null): ?string
     {
+        $reason = null;
+
         // TASK-1562 : ce n'est plus l'environnement qui decide seul, c'est la
         // porte — drapeau maitre PUIS allowlist par Organization. Le defaut
         // reste ferme : sans allowlist, personne ne reranke.
         if (! app(DossierRerankGate::class)->isEnabledFor($organizationId)) {
+            $reason = DossierRerankOutcome::REASON_GATE_CLOSED;
+
             return null;
         }
 
@@ -206,18 +221,24 @@ final class ProviderResolver
             ->first();
 
         if ($setting === null || ! $setting->isUsable()) {
+            $reason = DossierRerankOutcome::REASON_ORGANIZATION_SETTING_MISSING_OR_UNUSABLE;
+
             return null;
         }
 
         // Seule la famille OpenRouter route un rerank Cohere avec la cle du
         // tenant. Aucun repli plateforme, aucune substitution de famille.
         if (trim((string) $setting->provider) !== 'openrouter') {
+            $reason = DossierRerankOutcome::REASON_NO_CREDENTIAL;
+
             return null;
         }
 
         $key = trim((string) $setting->api_key);
 
         if ($key === '') {
+            $reason = DossierRerankOutcome::REASON_NO_CREDENTIAL;
+
             return null;
         }
 

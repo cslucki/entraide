@@ -378,6 +378,28 @@ return [
             'url' => env('AI_KNOWLEDGE_RERANK_URL', 'https://openrouter.ai/api/v1'),
         ],
 
+        /*
+         * TASK-1565 — la TRACE des etages du retrieval documentaire (bassin
+         * dense, filtre `max_distance`, rerank, selection finale), deposee dans
+         * `AiInteraction.metadata['retrieval_trace']` et lue par
+         * `AiTurnInspection` / `ai:inspect-turn`.
+         *
+         * Le defaut est OUVERT, et c'est l'inverse exact du rerank ci-dessus
+         * (DEFAULT_OFF_BY_DESIGN) pour une raison qui lui est opposee : cette
+         * collecte n'appelle AUCUN provider, ne coute rien, et ne change ni ce
+         * qui part au modele, ni ce qui est cite, ni ce que le membre voit.
+         * Un defaut ferme rendrait la production inobservable — ce qui est
+         * precisement le probleme que cette TASK ouvre.
+         *
+         * Le drapeau existe pour la garde de NON-DEPENDANCE : coupe, le
+         * comportement produit et la reponse doivent rester identiques. C'est
+         * ce qui prouve que l'observabilite n'est pas devenue une dependance
+         * fonctionnelle.
+         */
+        'retrieval_trace' => [
+            'enabled' => (bool) env('AI_KNOWLEDGE_RETRIEVAL_TRACE_ENABLED', true),
+        ],
+
         // TASK-1539 — la fenetre d'INACTIVITE apres laquelle une conversation
         // est consideree posee, et donc compilable. Ce n'est pas un reglage de
         // frequence d'appel : c'est la duree au bout de laquelle on admet que
