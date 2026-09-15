@@ -81,7 +81,20 @@ class AdminAiMonetizationController extends Controller
             'period' => $period,
             'rows' => $rows,
             'lastChange' => $settings->lastChange(null),
+            // TASK-1563 : cet ecran est celui du CREDIT, et son historique ne
+            // doit montrer que des changements de credit.
+            //
+            // La table `ai_credit_setting_changes` porte desormais DEUX natures
+            // de reglage. Sans ce filtre, un changement de rerank remontait ici
+            // et s'affichait « rerank_enabled : off -> on » au milieu des
+            // quotas, parce que le formateur du Blade rend n'importe quel champ
+            // de `changes` de facon generique. Mesure avant correctif sur le
+            // banc : 8 lignes de rerank dans l'historique de monetisation.
+            //
+            // `lastChange()` au-dessus filtre deja par son service ; cette
+            // requete-ci etait le TROISIEME lecteur, et le seul reste nu.
             'history' => AiCreditSettingChange::query()
+                ->where('setting_kind', AiCreditSettingChange::KIND_CREDIT)
                 ->with(['author:id,name', 'organization:id,name'])
                 ->latest('created_at')
                 ->limit(15)

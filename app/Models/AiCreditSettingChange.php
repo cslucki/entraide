@@ -7,10 +7,20 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Trace d'un changement de reglage du credit IA par utilisateur (TASK-1229) :
- * qui, quand, quoi (avant / apres). Plateforme (`organization_id` NULL) ou
- * Organization. Ecrite UNIQUEMENT par `AiUserCreditSettings` ; jamais
- * modifiee.
+ * Trace d'un changement de reglage IA : qui, quand, quoi (avant / apres).
+ * Plateforme (`organization_id` NULL) ou Organization. Jamais modifiee apres
+ * ecriture.
+ *
+ * TASK-1229 l'a creee pour le credit IA par utilisateur, et le nom de la table
+ * en garde la marque. TASK-1563 lui a ajoute une SECONDE nature de reglage —
+ * l'autorisation de rerank — sans la renommer : `UserDataLifecycleRegistry`
+ * porte une politique RGPD nommee sur cette table.
+ *
+ * Elle a donc DEUX ecrivains, `AiUserCreditSettings` et `AiRerankSettings`, et
+ * `setting_kind` dit lequel a parle. TOUT lecteur doit filtrer dessus :
+ * l'oublier fait afficher un changement de rerank comme un changement de
+ * credit — ce qui s'est produit sur l'historique de /admin/ai-monetization
+ * avant que la revue de TASK-1563 ne l'attrape.
  */
 class AiCreditSettingChange extends Model
 {

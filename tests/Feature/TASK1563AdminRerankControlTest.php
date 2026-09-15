@@ -370,6 +370,45 @@ class TASK1563AdminRerankControlTest extends TestCase
     }
 
     /**
+     * REQ 20 bis — l'HISTORIQUE de /admin/ai-monetization ne montre aucun
+     * changement de rerank.
+     *
+     * Trouve par la revue SENSITIVE du SHA 26ab7bbc, et c'est le defaut que
+     * `setting_kind` etait cense empecher. Il y avait TROIS lecteurs de cette
+     * table, pas deux : les deux `lastChange()` filtraient, la requete
+     * `history` du controleur de monetisation etait restee nue. Le formateur du
+     * Blade rend n'importe quel champ de `changes` de facon generique, donc
+     * « rerank_enabled : off -> on » s'affichait au milieu des quotas.
+     *
+     * Ce test mesure le RENDU, pas la requete : c'est ce que voit l'exploitant.
+     */
+    public function test_the_monetization_history_never_shows_a_rerank_change(): void
+    {
+        $admin = $this->superAdmin();
+        $organization = Organization::factory()->create();
+        OrganizationAiSetting::factory()->create(['organization_id' => $organization->id]);
+
+        // Un changement de CREDIT — il DOIT rester visible...
+        app(AiUserCreditSettings::class)->updatePlatform(
+            ['free_enabled' => true, 'monthly_uses' => 77, 'alert_percent' => 80, 'offer_subscription' => true],
+            $admin,
+        );
+
+        // ...et un changement de RERANK, qui ne doit PAS apparaitre.
+        app(AiRerankSettings::class)->updatePlatform(true, $admin);
+        app(AiRerankSettings::class)->updateOrganization($organization, true, $admin);
+
+        $reponse = $this->actingAs($admin)->get(route('admin.ai-monetization'))->assertOk();
+
+        // La garde qui compte.
+        $reponse->assertDontSee('rerank_enabled');
+
+        // Et la contre-garde : l'ecran n'est pas simplement vide. Sans elle, un
+        // historique casse passerait ce test pour la mauvaise raison.
+        $reponse->assertSee('monthly_uses');
+    }
+
+    /**
      * REQ 21 — les lignes historiques, ecrites avant le discriminant, sont
      * qualifiees CREDIT.
      *
