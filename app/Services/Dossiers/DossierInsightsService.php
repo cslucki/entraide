@@ -26,6 +26,7 @@ use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiRefusedException;
+use App\Support\Ai\AiTurnTrace;
 use App\Support\Ai\AiUsage;
 use DomainException;
 use Illuminate\Support\Facades\Gate;
@@ -1328,6 +1329,12 @@ final class DossierInsightsService
                 // TASK-1556 : les invocations embedding (query) que CE tour a
                 // declenchees, reclamees une seule fois — `[]` mesure, jamais null.
                 RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
+                // TASK-1566 / CDC-01 V0-A — l'IDENTITE canonique du tour, et
+                // rien d'autre. Ce moteur avait deja un `turnId` COHERENT de
+                // bout en bout (`answer()` le genere, `answerOverSources()` le
+                // transmet au `ContexteIa`) : il ne manquait que de l'ECRIRE.
+                // Son instrumentation complete appartient a V0-G.
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::identityOnly($contexte->turnId),
                 'failure' => $failure,
                 'retrieval' => ['consulted' => $ids($consulted), 'cited' => $ids($cited)],
                 // TASK-1554 / W3A — la graphie canonique du contrat commun,

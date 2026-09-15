@@ -24,6 +24,7 @@ use App\Services\Ai\DTO\AssistedInteractionLabResult;
 use App\Support\Ai\AiCorrelation;
 use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
+use App\Support\Ai\AiTurnTrace;
 use App\Support\Ai\AiUsage;
 use DomainException;
 
@@ -589,6 +590,12 @@ class ClarifyUserHelpRequestService implements AiProvider
                 // TASK-1556 : les invocations embedding (query) que CE tour a
                 // declenchees, reclamees une seule fois — `[]` mesure, jamais null.
                 RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
+                // TASK-1566 / CDC-01 V0-A — l'IDENTITE canonique du tour, et
+                // rien d'autre. Les TROIS sorties silencieuses de ce clarifier
+                // (feature coupee, provider absent, refus economique) retombent
+                // sur `FakeAIProvider` sans que rien ne le dise : les rendre
+                // avouables est le perimetre de V0-D, pas de celui-ci.
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::identityOnly($contexte->turnId),
                 'failure' => $failure,
             ], static fn ($value): bool => $value !== null)
                 // TASK-1236 : cle toujours presente, meme a null (aucune doctrine

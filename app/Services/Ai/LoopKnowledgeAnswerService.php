@@ -32,6 +32,8 @@ use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiTurnIdempotency;
 use App\Support\Ai\AiTurnLock;
+use App\Support\Ai\AiTurnState;
+use App\Support\Ai\AiTurnTrace;
 use App\Support\Ai\AiUsage;
 use DomainException;
 use Illuminate\Support\Facades\DB;
@@ -220,6 +222,18 @@ class LoopKnowledgeAnswerService
             query: $question,
         );
 
+        // TASK-1566 / CDC-01 V0-A — ce chemin est le PRODUCTEUR PILOTE du bloc
+        // `turn`. Il depose ce qu'il traverse au fur et a mesure ; le writer
+        // unique (`recordInteraction`) reclame le tout et persiste. Aucun de ces
+        // depots ne change quoi que ce soit au comportement : coupes, ils sont
+        // inertes et la reponse est identique (garde de non-dependance).
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'surface' => 'loop_chat',
+            'mode' => $mode,
+            'execution_path' => $mode === self::MODE_HYBRID ? 'loop_chat.ia_dossiers' : 'loop_chat.dossiers',
+            'capability' => $capability,
+        ]);
+
         // P4 : sans configuration IA d'Organization, aucun appel, aucun repli.
         // TASK-1229 : etat « credential absent », code stable, distinct des
         // deux refus economiques ci-dessous.
@@ -228,6 +242,20 @@ class LoopKnowledgeAnswerService
         } catch (DomainException $exception) {
             throw AiRefusedException::notConfigured($exception);
         }
+
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            // `provider_requested` n'est PAS ecrit : `ResolvedModel` ne porte
+            // que ce qui a ete resolu, et le depot n'a aucune autre source
+            // honnete pour la valeur demandee. Absent se lit `UNAVAILABLE` ;
+            // une valeur recopiee depuis l'effectif se lirait comme une mesure.
+            'provider_effective' => $resolved->provider,
+            'model' => $resolved->trace(),
+            // FACT : `FakeAIProvider` n'est jamais selectionne par
+            // `ProviderResolver` (doctrine P4, aucun fallback silencieux) — il
+            // n'est injecte que dans `ClarifyUserHelpRequestService`. Sur CE
+            // chemin, l'absence de fallback est donc une mesure, pas un defaut.
+            'fallback_used' => false,
+        ]);
 
         // TASK-1229 : le demandeur est passe a la garde — son credit IA du
         // mois (utilisations) s'applique ICI, dans l'autorite existante, avant
@@ -243,10 +271,20 @@ class LoopKnowledgeAnswerService
         );
 
         if (! $verdict->allowed) {
+            // TASK-1566 : le depot a lieu AVANT le `throw`, pour que l'etage
+            // qui a arrete le tour soit celui que la trace nomme. Ce tour
+            // n'ecrira pourtant AUCUNE interaction en V0-A — c'est V0-B qui
+            // persistera les arrets anticipes. La trace part donc avec le
+            // processus, exactement comme avant : rien n'est promis ici qui ne
+            // soit tenu.
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'denied', $verdict->reason);
+
             // Trois etats, trois messages, trois codes : credit utilisateur
             // epuise / budget Organization atteint / autre indisponibilite.
             throw AiRefusedException::fromVerdict($verdict);
         }
+
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'executed');
 
         // Le prompt administrable est requis AVANT toute depense (embedding
         // compris) : sans lui, indisponibilite explicite.
@@ -293,6 +331,15 @@ class LoopKnowledgeAnswerService
             ...$borne->provenanceFor(DossierManifestSource::NAME),
             ...$borne->provenanceFor(DossierRetrievalSource::NAME),
         ];
+
+        // TASK-1566 : `ContextBuilder` a bien tourne sur ce chemin — c'est
+        // precisement ce qui le distingue des branches documentaires du Shell,
+        // qui l'ignorent. Le compteur `consulted` mesure ce que les TROIS
+        // sources autorisees ont rendu ensemble ; le detail par etage du
+        // retrieval reste sous `retrieval_trace`, qui ne bouge pas (T1565).
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'context_builder', 'executed', null, [
+            'consulted' => count($consulted),
+        ]);
 
         // TASK-1309 : le refus « aucune source » n'appartient QU'au mode
         // Dossiers. En mode IA + Dossiers, l'absence de provenance
@@ -367,12 +414,16 @@ class LoopKnowledgeAnswerService
                 model: $resolved->model,
             );
         } catch (\Throwable $exception) {
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'provider_call', 'failed');
+
             $this->recordInteraction($loop, $requester, $contexte, $definition, $resolved, $prompt, null,
                 AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null, 'failed', $startedAt, null,
                 $exception::class, $consulted, [], $doctrineVersion, $borne);
 
             throw new RuntimeException(__('loops.ai_error'), 0, $exception);
         }
+
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'provider_call', 'executed');
 
         // TASK-1391 : normaliser les citations AVANT d'assainir.
         //
@@ -791,6 +842,13 @@ class LoopKnowledgeAnswerService
             $sources,
         ));
 
+        // TASK-1566 : la latence est mesuree UNE fois et partagee par
+        // `metadata.latency_ms` (cle historique, inchangee) et `turn.latency_ms`.
+        // Deux appels a `microtime()` rendraient deux valeurs differentes pour
+        // la meme duree — un ecart minuscule, mais qui suffirait a faire douter
+        // d'une trace le jour ou quelqu'un les comparerait.
+        $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
+
         return AiInteraction::create([
             'user_id' => $requester->id,
             'organization_id' => $contexte->organizationId,
@@ -810,7 +868,7 @@ class LoopKnowledgeAnswerService
             'metadata' => array_filter([
                 'loop_id' => $loop->id,
                 'requested_by' => $requester->id,
-                'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'latency_ms' => $latencyMs,
                 'provider' => $resolved->provider,
                 'capability' => $definition->id,
                 'status' => $status,
@@ -852,6 +910,48 @@ class LoopKnowledgeAnswerService
                     'sources_denied' => $borne->sourcesDenied,
                     'dossier_retrieval' => DossierRetrievalTraceRecorder::claim($contexte->organizationId, $contexte->turnId),
                 ],
+                // TASK-1566 / CDC-01 V0-A — le bloc canonique du TOUR.
+                //
+                // Ce chemin est le PRODUCTEUR PILOTE : il est le premier a
+                // ecrire le bloc complet que le schema v1 prevoit A CE STADE.
+                // « A ce stade » est litteral — trois sous-blocs prevus par le
+                // schema sont DELIBEREMENT absents, parce que les TASKs qui les
+                // produisent n'ont pas encore eu lieu :
+                //
+                //   `sources`  -> V0-E (les quatre familles)
+                //   `history`  -> V0-L (ce que le tour a vu de la conversation)
+                //   `state`    -> V0-F (le grounding se lit, axe 2 ecrit)
+                //
+                // Les ecrire ici « puisque la valeur est a portee de main »
+                // serait exactement la derive que le decoupage evite : une cle
+                // a moitie alimentee est plus dangereuse qu'une cle absente,
+                // parce qu'elle se lit comme une mesure. Absentes, elles se
+                // lisent `UNAVAILABLE` (CDC-01 §11) — ce qui est la verite.
+                //
+                // Ce bloc n'est lu par AUCUN lecteur produit : il voyage sous
+                // `turn`, imbrique, pour la meme raison exactement que
+                // `retrieval_trace` ci-dessus.
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
+                    $contexte->turnId,
+                    AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
+                    [
+                        // Le vocabulaire du TOUR n'est pas celui de la ligne :
+                        // `metadata.status` conserve ses valeurs historiques
+                        // (`completed`/`failed`, lues par des tiers), tandis que
+                        // `turn.status` parle le vocabulaire des trois axes.
+                        // Traduire ici, c'est eviter de renommer une valeur que
+                        // des lecteurs consomment deja (invariant I8).
+                        'status' => $status === 'failed'
+                            ? AiTurnState::TURN_FAILED
+                            : AiTurnState::TURN_ANSWERED,
+                        'stage' => $status === 'failed' ? 'generation' : null,
+                        'decided_by' => class_basename(self::class),
+                        // La MEME mesure que `latency_ms` ci-dessus — jamais un
+                        // second chronometre, qui donnerait deux valeurs pour
+                        // une seule duree (correction C7 du CDC).
+                        'latency_ms' => $latencyMs,
+                    ],
+                ),
             ], static fn ($value): bool => $value !== null)
                 // TASK-1236 : cle toujours presente, meme a null (aucune doctrine
                 // active) — sa PRESENCE distingue une interaction tracee d'une
