@@ -205,15 +205,28 @@ class TASK1522DocxTableStructureTest extends TestCase
     }
 
     /**
-     * Seule une cellule COURTE recoit son en-tete. Une cellule de la longueur
-     * d'une phrase porte deja son sens ; la prefixer repete l'en-tete a
-     * chaque ligne et sature l'embedding du chunk. Mesure sur ARIA : le
-     * tableau des risques passait en tete du retrieval pour une question de
-     * budget, et le fait en prose « €720,000 » tombait du rang 1 au rang 20.
+     * TASK-1564 — ce test a change de contrat, et il faut dire pourquoi.
      *
-     * Sabotage : prefixer toute cellule quelle que soit sa longueur → rouge.
+     * Il exigeait l'inverse : seule une cellule COURTE recevait son en-tete,
+     * « un en-tete repete devant chaque phrase saturerait le chunk ». La
+     * mesure de TASK-1522 le justifiait : les chunks du tableau des risques
+     * passaient devant la prose pour « budget total du FSTP ».
+     *
+     * TASK-1564 a supprime cette cause en amont — un fragment de tableau fait
+     * desormais 3 lignes, plus 21. Re-mesure sous ce decoupage, meme question,
+     * meme corpus : le gold « €720,000 » reste **rang 1 sur 9**, avant comme
+     * apres prefixage ; Enrica 0.5035 -> 0.5038 ; WP5 inchange ; total
+     * person-months 0.5793 -> 0.5785. Le cout est nul.
+     *
+     * Le gain, lui, est a la GENERATION : avec trois colonnes longues muettes,
+     * le modele repondait « Enrica De Cian […] en tant que membre du role CO
+     * (Coordinateur) » — le role de l'ORGANISATION attribue a une PERSONNE.
+     * Avec les cles : « identifiee comme Team Lead pour l'organisation ».
+     *
+     * Ce que le test protege desormais : toute cellule porte sa colonne,
+     * SAUF si l'en-tete est absent ou de la longueur d'un paragraphe.
      */
-    public function test_only_a_short_cell_receives_its_header(): void
+    public function test_every_cell_receives_its_header_when_one_exists(): void
     {
         $phrase = 'The coordinator is constantly monitoring the partners and will reallocate effort if needed.';
         $texte = $this->extrait($this->docxAvecTableau([
@@ -222,9 +235,9 @@ class TASK1522DocxTableStructureTest extends TestCase
         ]));
 
         $this->assertStringContainsString('WP: 6', $texte, 'un nombre nu recoit sa colonne');
-        $this->assertStringContainsString('|'.$phrase.'¶', $texte, 'la phrase reste nue');
-        $this->assertStringNotContainsString('Mitigation: The coordinator', $texte,
-            'un en-tete repete devant chaque phrase saturerait le chunk');
+        $this->assertStringContainsString('Risk: Delays', $texte, 'un libelle court recoit sa colonne');
+        $this->assertStringContainsString('Mitigation: '.$phrase, $texte,
+            'une cellule longue recoit AUSSI sa colonne : sans elle, le modele ne sait pas de quoi elle parle');
     }
 
     /**
@@ -292,8 +305,25 @@ class TASK1522DocxTableStructureTest extends TestCase
         $ligne = $this->lignesDeTableau($texte)[1];
         $mots = preg_match_all('/\S+/u', $ligne);
 
-        $this->assertSame(9, $mots,
-            'Universita di Venezia (3) + IT (1) + Environmental economics and organization studies (5) = 9, pas un de plus');
+        // TASK-1564 : le NOMBRE change parce que chaque cellule porte
+        // desormais sa colonne (3 cles de plus). La GARANTIE, elle, est
+        // intacte et c'est la seule que ce test defend : `|` et `¶` sont
+        // COLLES aux cellules, donc ils ne coutent aucun mot.
+        //
+        //   Name: Universita di Venezia|Country: IT|Expertise: Environmental…
+        //   ^^^^^ 1   ^^^^^^^^^^ 2  ^^ 3  ^^^^^^^^^^^^^^^ 4 (le `|` est
+        //                                    dans le meme jeton que Venezia)
+        //
+        // 3 cles + 9 mots de contenu = 12 jetons SI les barres etaient
+        // isolees. Elles ne le sont pas : deux d'entre elles se fondent dans
+        // le jeton precedent, d'ou 10.
+        $this->assertSame(10, $mots,
+            '3 cles + 9 mots de contenu, moins les 2 barres fondues dans le jeton precedent');
+
+        $this->assertStringNotContainsString(' | ', $ligne,
+            'une barre entouree d espaces couterait un mot par cellule');
+        $this->assertStringNotContainsString(' ¶', $ligne,
+            'un pilcrow detache couterait un mot par ligne');
     }
 
     // ── Non-regression ──────────────────────────────────────────────────────
