@@ -323,6 +323,41 @@ return [
         'top_k' => (int) env('AI_KNOWLEDGE_TOP_K', 5),
         'max_distance' => (float) env('AI_KNOWLEDGE_MAX_DISTANCE', 0.60),
 
+        /*
+         * TASK-1560 — RERANK entre le bassin de candidats et la selection
+         * finale. Le Bench a mesure que le reranker recupere le bon passage
+         * 9 fois sur 10 quand il est dans le bassin ; c'est la SEULE etape
+         * ajoutee au chemin documentaire, et elle ne change JAMAIS l'univers
+         * des candidats : elle ne fait que les reordonner.
+         *
+         * `url` pointe OpenRouter : `laravel/ai` fournit deja une gateway
+         * Cohere dont l'URL est configurable, et la cle du tenant est une cle
+         * OpenRouter. Aucun nouveau provider, aucune nouvelle dependance.
+         *
+         * Desactive (`enabled = false`) ou sans credential tenant, le chemin
+         * retombe sur l'ordre dense existant — deterministe, et teste.
+         *
+         * DEFAULT_OFF_BY_DESIGN — le defaut est `false`, et ce n'est pas une
+         * precaution timide : TASK-1560 livre une CAPACITE, pas une mise en
+         * service. Un defaut `true` aurait allume le rerank en production au
+         * merge, sans que personne ne l'ait decide — un appel provider de plus
+         * a CHAQUE question documentaire, facture au tenant.
+         *
+         * L'activation reste donc explicite et reversible, environnement par
+         * environnement :
+         *
+         *     AI_KNOWLEDGE_RERANK_ENABLED=true
+         *
+         * Arbitrage Cockpit du 15/09/2026 — 01:30 CEST : "Capability merged
+         * dormant; production activation requires explicit
+         * AI_KNOWLEDGE_RERANK_ENABLED=true."
+         */
+        'rerank' => [
+            'enabled' => (bool) env('AI_KNOWLEDGE_RERANK_ENABLED', false),
+            'model' => env('AI_KNOWLEDGE_RERANK_MODEL', 'cohere/rerank-v3.5'),
+            'url' => env('AI_KNOWLEDGE_RERANK_URL', 'https://openrouter.ai/api/v1'),
+        ],
+
         // TASK-1539 — la fenetre d'INACTIVITE apres laquelle une conversation
         // est consideree posee, et donc compilable. Ce n'est pas un reglage de
         // frequence d'appel : c'est la duree au bout de laquelle on admet que

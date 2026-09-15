@@ -11,6 +11,7 @@ use App\Services\Dossiers\DossierChunkEmbeddingService;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use DomainException;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Source RAG `dossier.retrieval` (TASK-1213 / IA RAG V1).
@@ -117,6 +118,8 @@ final class DossierRetrievalSource implements ContextSource
         // TASK-1534 : l'autorite qui borne la connaissance derivee aux Boucles
         // lisibles par cet utilisateur.
         private readonly DerivedChunkEligibility $derivedEligibility,
+        // TASK-1560 : le rerank du bassin. Il REORDONNE, il ne cherche rien.
+        private readonly DossierRerank $rerank,
     ) {}
 
     public function name(): string
@@ -201,7 +204,22 @@ final class DossierRetrievalSource implements ContextSource
 
         $maxDistance = (float) config('ai.knowledge.max_distance', 1.0);
         $rows = array_values(array_filter($rows, fn (array $row): bool => $row['distance'] <= $maxDistance));
-        $rows = $this->diversify($rows, $topK);
+
+        // TASK-1560 — le rerank REORDONNE le bassin, il ne le change pas.
+        // L'univers des candidats a ete borne par l'ACL bien plus haut ; rien
+        // ici ne peut en faire entrer un de plus.
+        //
+        // L'ordre du bassin est ensuite consomme par `diversify()`, qui garde
+        // son plafond de TASK-1307 (au plus 2 extraits du meme document). Le
+        // final5 produit n'est donc pas byte-equivalent au final5 du Bench des
+        // que ce plafond mord — c'est une contrainte PRODUIT assumee, pas une
+        // derive :
+        //
+        //   BENCH_PRODUCT_PARITY — "Rerank parity with one intentional product
+        //   constraint: the existing per-document diversity cap is applied
+        //   after Cohere."
+        $rerank = $this->rerank->order($contexte, $query, $rows);
+        $rows = $this->diversify($rerank->rows, $topK);
 
         // TASK-1309 (revue) : le complement panoramique depend de la FORME DE
         // LA QUESTION, et d'elle seule.
@@ -292,6 +310,38 @@ final class DossierRetrievalSource implements ContextSource
                 },
             ];
         }
+
+        // TASK-1560 — l'UNIQUE evenement structure du rerank, emis ici parce
+        // que c'est le seul endroit qui connaisse les DEUX nombres : le
+        // reranker ignore combien de sources survivront a `diversify()`, au
+        // plafond de caracteres et a la vue d'ensemble.
+        //
+        // `final_count` est le nombre de sources REELLEMENT citees, pas
+        // `topK` : un budget de caracteres epuise peut en retenir moins, et
+        // annoncer 5 quand 3 sont rendues serait une fabrication.
+        //
+        // Il est emis AVANT le retour a vide, et non apres : un rerank peut
+        // avoir ete tente, paye, et ne rien laisser passer parce que le budget
+        // de caracteres etait epuise. C'est precisement le cas qu'un
+        // exploitant a besoin de voir — `final_count = 0` est une mesure, pas
+        // un silence.
+        //
+        // Aucun passage, aucun titre, aucune cle : des compteurs et des
+        // identifiants techniques.
+        Log::info('ai.rerank', [
+            'organization_id' => $contexte->organizationId,
+            'correlation_id' => $contexte->correlationId,
+            'capability' => $contexte->capability,
+            'rerank_attempted' => $rerank->attempted,
+            'rerank_success' => $rerank->succeeded,
+            'fallback' => $rerank->fellBack(),
+            'failure_reason' => $rerank->failureReason,
+            'provider' => $rerank->provider,
+            'model' => $rerank->model,
+            'candidate_count' => $rerank->candidateCount,
+            'final_count' => count($provenance),
+            'duration_ms' => $rerank->durationMs,
+        ]);
 
         if ($provenance === []) {
             return SourceFragment::empty();
