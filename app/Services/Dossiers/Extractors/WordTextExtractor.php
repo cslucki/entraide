@@ -36,12 +36,6 @@ use PhpOffice\PhpWord\Settings;
  */
 class WordTextExtractor implements DocumentTextExtractor
 {
-    /**
-     * Longueur maximale d'une cellule qui recoit son en-tete de colonne
-     * (TASK-1522). Au-dela, c'est du texte qui se suffit a lui-meme.
-     */
-    private const KEYED_CELL_MAX_CHARS = 24;
-
     public const MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
     public function __construct(
@@ -210,16 +204,39 @@ class WordTextExtractor implements DocumentTextExtractor
             $keyed = [];
             foreach ($cells as $position => $cell) {
                 $key = trim((string) ($headers[$position] ?? ''));
-                // Un en-tete vide (colonne des libelles) ou un en-tete de la
-                // longueur d'un paragraphe ne fait pas une cle utile. Et seule
-                // une cellule COURTE — un nombre, un code, une date — recoit la
-                // sienne : une phrase porte deja son sens. Mesure sur ARIA
-                // quand toute cellule etait prefixee : les chunks du tableau
-                // des risques (jusqu'a 103 cles) passaient en tete du
-                // retrieval pour « budget total du FSTP » et le fait en prose
-                // « €720,000 » tombait du rang 1 au rang 20.
-                $courte = mb_strlen($cell) <= self::KEYED_CELL_MAX_CHARS;
-                $keyed[] = $key === '' || mb_strlen($key) > 60 || ! $courte ? $cell : $key.': '.$cell;
+                // Un en-tete vide (colonne des libelles) ou de la longueur d'un
+                // paragraphe ne fait pas une cle utile. En dehors de ces deux
+                // cas, TOUTE cellule recoit la sienne.
+                //
+                // TASK-1522 reservait la cle aux cellules COURTES. La raison
+                // etait mesuree : tout prefixer faisait passer les chunks du
+                // tableau des risques (jusqu'a 103 cles) devant la prose pour
+                // « budget total du FSTP », et « €720,000 » tombait du rang 1
+                // au rang 20.
+                //
+                // TASK-1564 a supprime cette cause en amont : un fragment de
+                // tableau ne fait plus 4000 caracteres de 21 lignes, mais
+                // 3 lignes. Re-mesure sous ce nouveau decoupage, meme question,
+                // meme corpus :
+                //
+                //     gold « €720,000 »   rang 1 sur 9 AVANT prefixage
+                //                         rang 1 sur 9 APRES prefixage
+                //     Enrica              0.5035 -> 0.5038
+                //     effort WP5          0.5139 -> 0.5139
+                //     total person-months 0.5793 -> 0.5785
+                //
+                // Le cout est nul. Le gain, lui, est a la GENERATION, et c'est
+                // pour cela que ce seuil devait tomber : avec trois colonnes
+                // longues muettes, le modele lisait « Role: CO » suivi d'une
+                // liste de noms sans etiquette, et repondait « Enrica De Cian
+                // […] en tant que membre du role CO (Coordinateur) » — le role
+                // de l'ORGANISATION attribue a une PERSONNE. Avec les cles :
+                // « Enrica De Cian est identifiee comme Team Lead pour
+                // l'organisation Universita Ca' Foscari Venezia ».
+                //
+                // Une cellule ne dit pas de quelle colonne elle vient. Son
+                // en-tete, si.
+                $keyed[] = $key === '' || mb_strlen($key) > 60 ? $cell : $key.': '.$cell;
             }
 
             $lines[] = implode('|', $keyed).'¶';
