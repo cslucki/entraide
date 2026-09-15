@@ -205,15 +205,6 @@ class TASK1522DocxTableStructureTest extends TestCase
     }
 
     /**
-     * Seule une cellule COURTE recoit son en-tete. Une cellule de la longueur
-     * d'une phrase porte deja son sens ; la prefixer repete l'en-tete a
-     * chaque ligne et sature l'embedding du chunk. Mesure sur ARIA : le
-     * tableau des risques passait en tete du retrieval pour une question de
-     * budget, et le fait en prose « €720,000 » tombait du rang 1 au rang 20.
-     *
-     * Sabotage : prefixer toute cellule quelle que soit sa longueur → rouge.
-     */
-    /**
      * TASK-1564 — ce test a change de contrat, et il faut dire pourquoi.
      *
      * Il exigeait l'inverse : seule une cellule COURTE recevait son en-tete,

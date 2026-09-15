@@ -242,12 +242,6 @@ class ArticleChunker
         // une : au moins deux lignes, sinon « l'en-tete » EST la donnee.
         $entete = count($lignes) >= 2 ? array_shift($lignes) : null;
 
-        if ($lignes === []) {
-            // Tableau d'une seule ligne : elle est la donnee, pas un en-tete.
-            $lignes = [$entete];
-            $entete = null;
-        }
-
         $fragments = [];
 
         foreach (array_chunk($lignes, self::TABLE_ROWS_PER_FRAGMENT) as $bloc) {

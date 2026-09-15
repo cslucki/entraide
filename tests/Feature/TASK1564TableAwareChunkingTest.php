@@ -59,9 +59,17 @@ class TASK1564TableAwareChunkingTest extends TestCase
             if ($tabulaire) {
                 $this->assertStringNotContainsString('paragraphe apres', $contenu,
                     'un fragment de tableau a avale la prose suivante');
-            } else {
-                $this->assertStringNotContainsString('¶', $contenu,
-                    'un chunk de prose porte une ligne de tableau');
+
+                continue;
+            }
+
+            // Ici `¶` est deja absent PAR DEFINITION de la ligne au-dessus :
+            // l'affirmer ne garderait rien. C'est le CONTENU qu'il faut
+            // interroger — de la matiere tabulaire peut migrer dans un chunk
+            // de prose en ayant perdu son pilcrow en chemin.
+            foreach (['EnteteA', 'L1', '1 valeur', '1 fin'] as $cellule) {
+                $this->assertStringNotContainsString($cellule, $contenu,
+                    "un chunk de prose porte la cellule « {$cellule} » du tableau");
             }
         }
     }
@@ -197,6 +205,36 @@ class TASK1564TableAwareChunkingTest extends TestCase
             static fn (array $c): array => ['content' => $c['content'], 'token_count' => $c['token_count']],
             $this->chunker->chunk($note),
         ));
+    }
+
+    /**
+     * REQ 12 — le tableau multi-colonnes reduit a UNE SEULE ligne.
+     *
+     * C'est precisement le cas que pretendait traiter le bloc mort retire par
+     * F1, et aucun test ne le couvrait — ni avant, ni apres. Quand `rows()` ne
+     * rend qu'une ligne, il n'y a pas d'en-tete a extraire : cette ligne EST
+     * la donnee. Elle doit ressortir entiere, une seule fois, dans un unique
+     * fragment.
+     *
+     * Sabotage : traiter la ligne unique comme un en-tete -> le fragment perd
+     * sa donnee, ou la repete, et le test rougit.
+     */
+    public function test_a_single_row_table_keeps_its_row_as_data(): void
+    {
+        $fragments = array_values(array_filter(
+            $this->contenus($this->chunker->chunk('Rome|2026|termine¶')),
+            static fn (string $c): bool => str_contains($c, '¶'),
+        ));
+
+        $this->assertCount(1, $fragments, 'une ligne tabulaire doit rendre exactement un fragment');
+
+        foreach (['Rome', '2026', 'termine'] as $cellule) {
+            $this->assertStringContainsString($cellule, $fragments[0],
+                "la cellule « {$cellule} » de la ligne unique a ete perdue");
+        }
+
+        $this->assertSame(1, substr_count($fragments[0], 'Rome'),
+            'la ligne unique a ete dupliquee, comme si elle etait aussi un en-tete');
     }
 
     // ───────────────────────────────────────────────────────── harnais
