@@ -53,6 +53,49 @@
             @csrf
             @method('PUT')
 
+            {{-- TASK-1563 — l'autorisation de reranker, pour CETTE Organization.
+                 Placee ici, dans le formulaire, juste sous le resume IA en
+                 lecture seule : c'est la qu'on la cherche. Le bloc au-dessus
+                 n'est pas un formulaire, et cette case doit etre soumise avec
+                 le reste.
+
+                 Le rerank ne s'allumera PAS pour autant si la plateforme est
+                 eteinte : les deux verrous sont en serie, et l'ecran le dit
+                 plutot que de laisser croire a une activation. --}}
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-3" data-admin-org-rerank-block>
+                <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">{{ __('admin.organization_rerank_title') }}</h2>
+
+                <label class="flex items-center gap-2 text-sm {{ $rerankCanBeEnabled ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500' }}">
+                    <input type="checkbox" name="rerank_enabled" value="1" @checked($rerankEnabled) @disabled(! $rerankCanBeEnabled) class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50" data-admin-org-rerank-toggle>
+                    {{ __('admin.organization_rerank_label') }}
+                </label>
+                <p class="text-xs text-gray-400 dark:text-gray-500 ml-6">{{ __('admin.organization_rerank_desc') }}</p>
+
+                {{-- TASK-1563 : sans configuration IA, cette Organization n'a
+                     aucun credential — elle ne rerankerait pas meme autorisee.
+                     On le DIT, plutot que d'accepter un clic sans effet. --}}
+                @unless($rerankCanBeEnabled)
+                    <p class="text-xs text-amber-700 dark:text-amber-300 ml-6" data-admin-org-rerank-no-ai-config>
+                        {{ __('admin.organization_rerank_requires_ai_config') }}
+                    </p>
+                @endunless
+
+                @unless($rerankPlatformEnabled)
+                    <p class="text-xs text-amber-700 dark:text-amber-300 ml-6" data-admin-org-rerank-platform-off>
+                        {{ __('admin.organization_rerank_platform_off') }}
+                    </p>
+                @endunless
+
+                @if($rerankLastChange)
+                    <p class="text-xs text-gray-400 dark:text-gray-500 ml-6">
+                        {{ __('admin.ai_rerank_last_change', [
+                            'author' => $rerankLastChange->author?->name ?? __('admin.ai_rerank_unknown_author'),
+                            'date' => $rerankLastChange->created_at->isoFormat('LLL'),
+                        ]) }}
+                    </p>
+                @endif
+            </div>
+
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
                 <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Informations</h2>
 

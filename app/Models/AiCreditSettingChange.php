@@ -20,10 +20,24 @@ class AiCreditSettingChange extends Model
 
     public const SCOPE_ORGANIZATION = 'organization';
 
+    /**
+     * TASK-1563 — la NATURE du reglage dont cette ligne trace le changement.
+     *
+     * Cette table ne portait qu'une seule nature, et ses lecteurs ne
+     * filtraient donc que par perimetre. Depuis qu'il en existe deux, ce
+     * filtre ne suffit plus : sans discriminant, un changement de rerank
+     * remonterait sur l'ecran de monetisation presente comme un changement de
+     * credit.
+     */
+    public const KIND_CREDIT = 'credit';
+
+    public const KIND_RERANK = 'rerank';
+
     public const UPDATED_AT = null;
 
     protected $fillable = [
         'scope',
+        'setting_kind',
         'organization_id',
         'changes',
         'changed_by',

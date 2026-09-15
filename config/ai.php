@@ -343,48 +343,39 @@ return [
          * merge, sans que personne ne l'ait decide — un appel provider de plus
          * a CHAQUE question documentaire, facture au tenant.
          *
-         * L'activation reste donc explicite et reversible, environnement par
-         * environnement :
-         *
-         *     AI_KNOWLEDGE_RERANK_ENABLED=true
+         * L'activation reste donc explicite et reversible. TASK-1560 la posait
+         * environnement par environnement (`AI_KNOWLEDGE_RERANK_ENABLED=true`) ;
+         * depuis TASK-1563 elle se fait A L'ECRAN, dans /admin/ai-config, et se
+         * coupe de la meme facon — voir le bloc `rerank` ci-dessous.
          *
          * Arbitrage Cockpit du 15/09/2026 — 01:30 CEST : "Capability merged
          * dormant; production activation requires explicit
-         * AI_KNOWLEDGE_RERANK_ENABLED=true."
+         * AI_KNOWLEDGE_RERANK_ENABLED=true." — TASK-1563 ne leve pas cette
+         * exigence, elle en DEPLACE le geste : le defaut reste ferme, et
+         * l'activation reste un acte volontaire, simplement tracable et
+         * reversible sans acces serveur.
          */
         'rerank' => [
+            /*
+             * TASK-1563 — ce drapeau n'est plus l'autorite, c'est un DEFAUT
+             * D'AMORCAGE.
+             *
+             * Le pilotage se fait depuis /admin/ai-config, et la valeur
+             * d'ecran est stockee en base (`ai_configs.rerank_enabled`). Elle
+             * l'emporte des qu'un administrateur a touche l'interrupteur.
+             * Cette variable ne repond donc que TANT QUE PERSONNE n'a
+             * tranche — premier deploiement, ou base jamais ecrite.
+             *
+             * L'allowlist par Organization qui vivait ici a ete RETIREE :
+             * `organization_ai_settings.rerank_enabled` est desormais la seule
+             * autorite par tenant. Deux sources pour une meme decision
+             * rendaient la table de verite indefendable.
+             *
+             * Lire `AiRerankSettings`, jamais cette cle directement.
+             */
             'enabled' => (bool) env('AI_KNOWLEDGE_RERANK_ENABLED', false),
             'model' => env('AI_KNOWLEDGE_RERANK_MODEL', 'cohere/rerank-v3.5'),
             'url' => env('AI_KNOWLEDGE_RERANK_URL', 'https://openrouter.ai/api/v1'),
-
-            /*
-             * TASK-1562 — QUI, dans cet environnement, reranke reellement.
-             *
-             * Le drapeau ci-dessus est un interrupteur d'ENVIRONNEMENT : tout
-             * ou rien. Un pilote qu'on ne peut pas borner a une Organization
-             * n'est pas un pilote — chaque question documentaire de CHAQUE
-             * tenant partirait chez le provider, a ses frais.
-             *
-             * Ces deux listes designent nommement les Organizations
-             * concernees, par id ou par slug. Vides — leur defaut — elles
-             * n'autorisent PERSONNE : `DossierRerankGate` rend `false`.
-             * L'activation d'un tenant passe donc par un geste explicite, et
-             * jamais par omission.
-             *
-             * Deux verrous en serie : couper `enabled` eteint tout
-             * l'environnement sans avoir a defaire les listes.
-             *
-             * Meme forme que `ai.dossiers.semantic_search.organization_ids` —
-             * motif deja eprouve, pas une invention.
-             */
-            'organization_ids' => array_values(array_filter(array_map(
-                'trim',
-                explode(',', (string) env('AI_KNOWLEDGE_RERANK_ORGANIZATION_IDS', '')),
-            ))),
-            'organization_slugs' => array_values(array_filter(array_map(
-                'trim',
-                explode(',', (string) env('AI_KNOWLEDGE_RERANK_ORGANIZATION_SLUGS', '')),
-            ))),
         ],
 
         // TASK-1539 — la fenetre d'INACTIVITE apres laquelle une conversation

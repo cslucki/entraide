@@ -63,6 +63,9 @@ class OrganizationAiSetting extends Model
         'user_credit_mode',
         'user_credit_monthly_uses',
         'is_enabled',
+        // TASK-1563 : cette Organization est-elle AUTORISEE a reranker.
+        // Defaut ferme en base ; une activation est un geste, jamais un heritage.
+        'rerank_enabled',
         'credential_management_mode',
         'api_key_updated_at',
     ];
@@ -76,6 +79,7 @@ class OrganizationAiSetting extends Model
             'monthly_budget_usd' => 'decimal:2',
             'user_credit_monthly_uses' => 'integer',
             'is_enabled' => 'boolean',
+            'rerank_enabled' => 'boolean',
             'api_key_updated_at' => 'datetime',
         ];
     }

@@ -70,7 +70,6 @@ use Tests\TestCase;
 class TASK1229UserAiCreditTest extends TestCase
 {
     use RecordsAiConsumption;
-
     use RefreshDatabase;
 
     private Organization $orgA;
@@ -749,12 +748,21 @@ class TASK1229UserAiCreditTest extends TestCase
     // G. MIGRATIONS — additives, reversibles, remplissage deterministe
     // =====================================================================
 
-    public function test_the_three_migrations_roll_back_and_re_apply_and_the_backfill_follows_the_correlation(): void
+    public function test_the_migrations_roll_back_and_re_apply_and_the_backfill_follows_the_correlation(): void
     {
+        // TASK-1563 : elles etaient trois, elles sont quatre.
+        //
+        // `ai_credit_setting_changes` a gagne un discriminant `setting_kind`,
+        // parce qu'elle porte desormais DEUX natures de reglage. Cette
+        // migration appartient donc a la lignee de cette table : l'omettre ici
+        // ferait re-appliquer la table SANS sa colonne, et l'ecriture d'une
+        // trace echouerait aussitot apres — ce que ce test a effectivement
+        // attrape.
         $paths = [
             database_path('migrations/2026_08_18_150000_add_user_credit_to_organization_ai_settings_table.php'),
             database_path('migrations/2026_08_18_150100_create_ai_credit_setting_changes_table.php'),
             database_path('migrations/2026_08_18_150200_add_feature_to_ai_provider_invocations_table.php'),
+            database_path('migrations/2026_09_15_120100_add_setting_kind_to_ai_credit_setting_changes_table.php'),
         ];
         $migrations = array_map(static fn (string $path) => require $path, $paths);
 
@@ -785,6 +793,8 @@ class TASK1229UserAiCreditTest extends TestCase
 
         $this->assertTrue(Schema::hasColumn('organization_ai_settings', 'user_credit_monthly_uses'));
         $this->assertTrue(Schema::hasTable('ai_credit_setting_changes'));
+        // TASK-1563 : et son discriminant revient avec elle.
+        $this->assertTrue(Schema::hasColumn('ai_credit_setting_changes', 'setting_kind'));
         // Le remplissage suit la correlation : la recherche de l'essai est
         // taguee, la recherche productive ne l'est pas.
         $this->assertSame(OrganizationDoctrineSandbox::FEATURE, $sandboxSearch->fresh()->feature);
@@ -858,7 +868,6 @@ class TASK1229UserAiCreditTest extends TestCase
             $at,
         );
     }
-
 
     private function embedding(Organization $organization, User $user, ?string $operation, ?float $cost, ?string $feature = null): AiProviderInvocation
     {
