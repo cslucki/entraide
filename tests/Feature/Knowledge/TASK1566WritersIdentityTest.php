@@ -162,7 +162,10 @@ class TASK1566WritersIdentityTest extends TestCase
         $this->assertArrayHasKey('count', $history);
         $this->assertArrayHasKey('chars', $history);
         $this->assertArrayHasKey('budget_exhausted', $history);
-        $this->assertNotNull($history['trigger_id'], 'le declencheur de ce tour est connu');
+        // `trigger_id` = le message AUQUEL on repondait (CDC-01 P0.12). Ici le
+        // declencheur n'est pas lui-meme une reply : `null` est donc la valeur
+        // EXACTE, et non un trou.
+        $this->assertNull($history['trigger_id']);
     }
 
     public function test_chatloop_deux_tours_ont_deux_identites_mais_une_seule_correlation(): void

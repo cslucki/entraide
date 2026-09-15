@@ -144,6 +144,51 @@ class TASK1567TurnHistoryTest extends TestCase
         $this->assertSame('shell_thread', $history['strategy']);
     }
 
+    public function test_hard_un_tour_dont_le_dossier_n_est_plus_visible_sort_de_la_trace(): void
+    {
+        // Jumeau du test precedent, sur l'autre frontiere — celle qui touche
+        // vraiment au tenant. T1530 : un tour documentaire dont l'objet n'est
+        // PLUS visible ne repart vers aucun fournisseur. Il doit donc, a plus
+        // forte raison, ne pas apparaitre dans ce que le tour declare avoir vu.
+        $this->tourPrecedent('Qui organise ?', 'Marin organise.', AiShellResponder::STATUS_ANSWERED);
+
+        $thread = app(AiShellThread::class);
+        $declencheur = $thread->appendUser($this->organization, $this->membre, 'Que dit le Dossier ?');
+        $surDossierDisparu = (string) $thread->appendAssistant(
+            $this->organization,
+            $this->membre,
+            'Le Dossier indique X.',
+            $declencheur,
+            [
+                'status' => AiShellResponder::STATUS_ANSWERED,
+                'page_context' => [
+                    'object_type' => AiShellPageContext::KIND_DOSSIER,
+                    // Un Dossier qui n'existe pas / plus : la garde de
+                    // visibilite le refuse a la relecture.
+                    'object_id' => '99999999-9999-4999-8999-999999999999',
+                ],
+            ],
+        )->id;
+
+        $this->fakeGeneral('Reponse.');
+        $this->envoyer('Resume ?');
+
+        $history = $this->historyDuDernierTour();
+
+        $fenetre = app(AiShellThread::class)
+            ->messages($this->organization, $this->membre)
+            ->pluck('id')
+            ->map(static fn ($id): string => (string) $id)
+            ->all();
+
+        $this->assertContains($surDossierDisparu, $fenetre, 'le message est bien dans la fenetre candidate');
+        $this->assertNotContains(
+            $surDossierDisparu,
+            $history['message_ids'],
+            'un tour dont l objet n est plus visible ne doit JAMAIS figurer dans la trace',
+        );
+    }
+
     public function test_l_ordre_trace_est_l_ordre_d_injection(): void
     {
         $this->tourPrecedent('Premier sujet ?', 'Reponse au premier.', AiShellResponder::STATUS_ANSWERED);
@@ -254,7 +299,12 @@ class TASK1567TurnHistoryTest extends TestCase
             $history['message_ids'],
             'la bulle IA du tour precedent doit figurer dans ce que le tour a vu',
         );
-        $this->assertSame((string) $suivant->id, $history['trigger_id']);
+        // `trigger_id` est le message AUQUEL l'utilisateur repondait — donc la
+        // bulle IA —, jamais le message courant. La distinction n'est pas
+        // cosmetique : CDC-02 relie les tours en remontant `reply_to_id`, et un
+        // `trigger_id` pointant le message courant ferait boucler cette remontee
+        // sur elle-meme.
+        $this->assertSame((string) $reponseIa->id, $history['trigger_id']);
     }
 
     public function test_scenario13b_un_tour_sans_reply_voit_zero_et_le_dit_sans_erreur(): void
@@ -274,6 +324,11 @@ class TASK1567TurnHistoryTest extends TestCase
         // recoit aucun historique. La trace l'ecrit TEL QUEL.
         $this->assertSame(0, $history['count']);
         $this->assertSame([], $history['message_ids']);
+
+        // L'assertion que le scenario 13(b) du CDC exige, et que ce test avait
+        // d'abord OMISE — c'est cette omission qui a laisse passer une
+        // semantique de `trigger_id` divergente de sa spec.
+        $this->assertNull($history['trigger_id']);
 
         // Et surtout : la strategie reste `reply_chain`. C'est bien elle qui a
         // ete TENTEE. Ecrire `none` laisserait croire qu'aucune strategie

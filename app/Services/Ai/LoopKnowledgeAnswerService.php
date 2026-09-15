@@ -411,7 +411,9 @@ class LoopKnowledgeAnswerService
             'message_ids' => $conversation->messageIds,
             'count' => count($conversation->messageIds),
             'chars' => $conversation->chars,
-            'trigger_id' => $inThreadTrigger?->id,
+            // Le message AUQUEL l'utilisateur repondait, jamais le message
+            // courant (CDC-01 P0.12).
+            'trigger_id' => $inThreadTrigger?->reply_to_id,
             'budget_exhausted' => $conversation->budgetExhausted,
         ];
         $thread = $conversation->text;

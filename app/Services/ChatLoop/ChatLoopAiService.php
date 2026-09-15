@@ -173,7 +173,11 @@ class ChatLoopAiService
                     'message_ids' => $conversation->messageIds,
                     'count' => count($conversation->messageIds),
                     'chars' => $conversation->chars,
-                    'trigger_id' => $triggerMessage->id,
+                    // Le message AUQUEL l'utilisateur repondait, jamais le
+                    // message courant (CDC-01 P0.12). `null` quand le
+                    // declencheur n'est pas lui-meme une reply — et c'est alors
+                    // coherent avec `count = 0` : il n'y avait rien a remonter.
+                    'trigger_id' => $triggerMessage->reply_to_id,
                     'budget_exhausted' => $conversation->budgetExhausted,
                 ],
             );
