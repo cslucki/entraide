@@ -71,8 +71,17 @@ final class DossierRerank
      */
     public function order(ContexteIa $contexte, string $query, array $rows): DossierRerankOutcome
     {
-        if (count($rows) < self::MIN_CANDIDATES || trim($query) === '') {
-            return DossierRerankOutcome::notAttempted($rows);
+        // TASK-1565 : meme decision qu'avant, meme valeur rendue — la condition
+        // est seulement DEDOUBLEE pour que la trace puisse dire LAQUELLE des
+        // deux causes s'est produite. L'ordre reprend celui de l'expression
+        // d'origine, donc la raison rendue quand les deux sont vraies est
+        // stable.
+        if (count($rows) < self::MIN_CANDIDATES) {
+            return DossierRerankOutcome::notAttempted($rows, null, DossierRerankOutcome::REASON_BELOW_MINIMUM_CANDIDATES);
+        }
+
+        if (trim($query) === '') {
+            return DossierRerankOutcome::notAttempted($rows, null, DossierRerankOutcome::REASON_EMPTY_QUERY);
         }
 
         // La RESOLUTION du credential est sous le meme filet que l'appel
@@ -88,18 +97,21 @@ final class DossierRerank
         // Cette classe promet qu'aucune defaillance ne traverse. Une promesse
         // qui a une exception n'en est pas une.
         try {
-            $instance = $this->providers->resolveRerankingInstance($contexte->organizationId);
+            // TASK-1565 : `$raison` est renseignee PAR le resolveur, a la
+            // branche exacte ou il renonce. Le rerank ne la deduit pas — il ne
+            // sait rien de la porte ni des reglages du tenant.
+            $instance = $this->providers->resolveRerankingInstance($contexte->organizationId, $raison);
         } catch (Throwable $exception) {
             // La raison est portee jusqu'au log : une configuration cassee qui
             // desactive le rerank en silence serait indiscernable d'un tenant
             // sans credential, et se deguiserait en « rien a reranker ».
-            return DossierRerankOutcome::notAttempted($rows, $exception::class);
+            return DossierRerankOutcome::notAttempted($rows, $exception::class, DossierRerankOutcome::REASON_PROVIDER_UNAVAILABLE);
         }
 
         // Pas de credential tenant capable de reranker : le chemin documentaire
         // continue sur l'ordre dense. Aucun repli plateforme, jamais.
         if ($instance === null) {
-            return DossierRerankOutcome::notAttempted($rows);
+            return DossierRerankOutcome::notAttempted($rows, null, $raison);
         }
 
         $model = (string) config('ai.knowledge.rerank.model');

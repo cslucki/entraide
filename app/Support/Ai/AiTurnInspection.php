@@ -2,6 +2,7 @@
 
 namespace App\Support\Ai;
 
+use App\Ai\Context\DossierRetrievalTraceRecorder;
 use App\Listeners\RecordSdkEmbeddingsInvocation;
 use App\Models\AiInteraction;
 use App\Services\Ai\DTO\KnowledgeAnswer;
@@ -27,12 +28,18 @@ use App\Services\Ai\DTO\KnowledgeAnswer;
  * mesure n'en est pas une, et les confondre transformerait cet outil en source
  * de fausses certitudes — exactement ce qu'il existe pour empecher.
  *
- * C'est pourquoi `candidates_found` vaut `null` en v0 : le bassin de candidats
+ * C'est pourquoi `candidates_found` valait `null` en v0 : le bassin de candidats
  * vit a l'interieur de `DossierRetrievalSource`, avant `max_distance` et avant
- * `diversify()`, et rien ne l'expose. Le mesurer exigerait soit une requete
+ * `diversify()`, et rien ne l'exposait. Le mesurer aurait exige soit une requete
  * artificielle — qui n'observerait plus le meme tour — soit une instrumentation
- * du moteur. Les deux sont hors de ce v0, et le dire est plus utile que de
- * rendre un chiffre qui ressemblerait a une mesure.
+ * du moteur.
+ *
+ * TASK-1565 a choisi la seconde, dans le seul sens acceptable : **le pipeline
+ * reel produit sa trace, l'inspecteur la lit.** `candidates_found` rend
+ * desormais le bassin DENSE reellement interroge — lu dans
+ * `metadata['retrieval_trace']`, ecrit par la source elle-meme. La regle ne
+ * bouge pas d'un iota : sans trace sur l'interaction, la valeur reste `null`,
+ * et jamais `0`.
  *
  * ## G/H
  *
@@ -63,7 +70,10 @@ final class AiTurnInspection
             'run' => self::run($metadata, $interaction),
             'identity' => $identity,
             'scope' => $scope,
-            'retrieval' => self::retrieval($question, $answer),
+            'retrieval' => self::retrieval($question, $answer, $metadata),
+            // TASK-1565 — les etages que le retrieval a REELLEMENT traverses.
+            // `null` quand cette interaction ne porte pas la trace.
+            'retrieval_trace' => self::retrievalTrace($metadata),
             'selection' => self::selection($answer),
             'llm_input' => self::llmInput($answer),
             'output' => self::output($answer, $metadata),
@@ -91,8 +101,10 @@ final class AiTurnInspection
      * ne reecrit la requete documentaire (mesure T1519 — prefixer la question
      * precedente DEGRADE le classement dans 3 cas sur 5). La rendre telle
      * quelle est donc exact, et non une approximation.
+     *
+     * @param  array<string, mixed>  $metadata
      */
-    private static function retrieval(string $question, KnowledgeAnswer $answer): array
+    private static function retrieval(string $question, KnowledgeAnswer $answer, array $metadata): array
     {
         $lignes = [];
 
@@ -120,14 +132,101 @@ final class AiTurnInspection
             ];
         }
 
+        // TASK-1565 : le bassin dense, lu dans la trace que la source a ecrite.
+        // Absente, la valeur reste `null` — la regle de tete est inchangee.
+        $trace = self::dossierRetrievalTrace($metadata);
+
         return [
             'query' => $question,
-            // Voir le bloc de tete : non observable sans requete artificielle
-            // ni instrumentation du moteur. `null`, jamais 0.
-            'candidates_found' => null,
+            'candidates_found' => self::intOrNull($trace['dense_candidates_count'] ?? null),
             'consulted_count' => count($answer->consulted),
             'entries' => $lignes,
         ];
+    }
+
+    /**
+     * TASK-1565 — les etages du retrieval documentaire, tels que le pipeline
+     * les a ecrits.
+     *
+     * Aucune valeur n'est recomposee ici : ce qui n'a pas ete trace est `null`,
+     * et un `null` ne devient jamais un `0`. La section entiere vaut `null`
+     * quand l'interaction ne porte pas la cle — une trace anterieure a T1565,
+     * ou un tour dont la collecte etait coupee.
+     *
+     * @param  array<string, mixed>  $metadata
+     * @return array<string, mixed>|null
+     */
+    private static function retrievalTrace(array $metadata): ?array
+    {
+        $bloc = $metadata[DossierRetrievalTraceRecorder::TURN_METADATA_KEY] ?? null;
+
+        if (! is_array($bloc)) {
+            return null;
+        }
+
+        $trace = self::dossierRetrievalTrace($metadata);
+
+        return [
+            // T1554 / W3A — porte ici et non au premier niveau de la metadata :
+            // au premier niveau, cette cle allume un bandeau visible par le
+            // membre (`AiResponseExplanationService` -> `loops.why_denied`).
+            // L'inspection la voit, le produit ne change pas.
+            'sources_denied' => is_array($bloc['sources_denied'] ?? null) ? $bloc['sources_denied'] : null,
+            'dense_candidates_count' => self::intOrNull($trace['dense_candidates_count'] ?? null),
+            'after_distance_filter_count' => self::intOrNull($trace['after_distance_filter_count'] ?? null),
+            'max_distance' => isset($trace['max_distance']) ? (float) $trace['max_distance'] : null,
+            'rerank_attempted' => self::boolOrNull($trace['rerank_attempted'] ?? null),
+            'rerank_succeeded' => self::boolOrNull($trace['rerank_succeeded'] ?? null),
+            'reason_not_attempted' => self::stringOrNull($trace['reason_not_attempted'] ?? null),
+            'candidates_sent_to_rerank_count' => self::intOrNull($trace['candidates_sent_to_rerank_count'] ?? null),
+            'rerank_result_count' => self::intOrNull($trace['rerank_result_count'] ?? null),
+            'rerank_provider' => self::stringOrNull($trace['rerank_provider'] ?? null),
+            'rerank_model' => self::stringOrNull($trace['rerank_model'] ?? null),
+            'rerank_duration_ms' => self::intOrNull($trace['rerank_duration_ms'] ?? null),
+            'rerank_failure_reason' => self::stringOrNull($trace['rerank_failure_reason'] ?? null),
+            'overview' => self::boolOrNull($trace['overview'] ?? null),
+            'final_context_count' => self::intOrNull($trace['final_context_count'] ?? null),
+            'candidates' => is_array($trace['candidates'] ?? null) ? array_values($trace['candidates']) : [],
+        ];
+    }
+
+    /**
+     * Les refus portes par `retrieval_trace`, quand le premier niveau ne les
+     * porte pas (chemin Loop, T1565). `null` quand ni l'un ni l'autre ne les a.
+     *
+     * @param  array<string, mixed>  $metadata
+     * @return array<string, string>|null
+     */
+    private static function deniedFromTrace(array $metadata): ?array
+    {
+        $bloc = $metadata[DossierRetrievalTraceRecorder::TURN_METADATA_KEY] ?? null;
+
+        if (! is_array($bloc) || ! is_array($bloc['sources_denied'] ?? null)) {
+            return null;
+        }
+
+        return $bloc['sources_denied'];
+    }
+
+    /**
+     * La sous-trace ecrite par `DossierRetrievalSource`, ou `[]`.
+     *
+     * `[]` et non `null` parce que les appelants y piochent cle par cle avec
+     * `?? null` : c'est le tableau qui est absent, jamais la valeur qui devient
+     * zero.
+     *
+     * @param  array<string, mixed>  $metadata
+     * @return array<string, mixed>
+     */
+    private static function dossierRetrievalTrace(array $metadata): array
+    {
+        $bloc = $metadata[DossierRetrievalTraceRecorder::TURN_METADATA_KEY] ?? null;
+
+        if (! is_array($bloc) || ! is_array($bloc['dossier_retrieval'] ?? null)) {
+            return [];
+        }
+
+        return $bloc['dossier_retrieval'];
     }
 
     /**
@@ -230,15 +329,19 @@ final class AiTurnInspection
             'cost_usd' => $interaction?->cost_usd !== null ? (float) $interaction->cost_usd : null,
             'input_tokens' => self::intOrNull($interaction?->input_tokens),
             'output_tokens' => self::intOrNull($interaction?->output_tokens),
-            // T1554 : ecrites par `DossierInsightsService`, PAS par le chemin
-            // Loop (dette nommee). `null` dit « cette trace ne les porte pas »,
-            // et surtout pas « aucune source refusee ».
+            // T1554 : ecrites par `DossierInsightsService` ; T1565 : le chemin
+            // Loop les porte enfin (dette W3A payee). `null` dit « cette trace
+            // ne les porte pas », et surtout pas « aucune source refusee ».
             'sources_used' => isset($metadata['sources_used']) && is_array($metadata['sources_used'])
                 ? array_values($metadata['sources_used'])
                 : null,
+            // T1565 : le chemin Loop les depose dans `retrieval_trace` et non
+            // au premier niveau — au premier niveau, la cle allume un bandeau
+            // visible par le membre. Les deux emplacements sont lus ici pour
+            // que l'inspection rende UNE reponse, quelle que soit l'ecriture.
             'sources_denied' => isset($metadata['sources_denied']) && is_array($metadata['sources_denied'])
                 ? $metadata['sources_denied']
-                : null,
+                : self::deniedFromTrace($metadata),
         ];
     }
 
@@ -265,5 +368,11 @@ final class AiTurnInspection
     private static function intOrNull(mixed $valeur): ?int
     {
         return $valeur === null ? null : (int) $valeur;
+    }
+
+    /** `false` est une MESURE, `null` une absence de mesure : jamais confondus. */
+    private static function boolOrNull(mixed $valeur): ?bool
+    {
+        return $valeur === null ? null : (bool) $valeur;
     }
 }

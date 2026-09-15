@@ -109,6 +109,14 @@ final class DossierRetrievalSource implements ContextSource
      */
     private const CANDIDATE_POOL_SIZE = 20;
 
+    /**
+     * TASK-1565 : borne DURE du nombre de candidats decrits dans la trace.
+     * Elle vaut le bassin lui-meme — la trace n'a donc rien a tronquer
+     * aujourd'hui — et existe pour qu'un elargissement futur du bassin ne
+     * fasse pas grossir sans controle une metadata persistee.
+     */
+    private const TRACE_MAX_CANDIDATES = self::CANDIDATE_POOL_SIZE;
+
     public function __construct(
         private readonly DossierSemanticSearchService $search,
         private readonly DossierSemanticSearchGate $gate,
@@ -202,8 +210,15 @@ final class DossierRetrievalSource implements ContextSource
             $this->derivedEligibility->authorizedLoopIds($contexte->organizationId, $user),
         );
 
+        // TASK-1565 — l'etat du bassin AVANT le filtre absolu. C'est la seule
+        // photographie qui permette de repondre a « le bon passage etait-il
+        // la ? » quand le filtre a tout ecarte : apres la ligne suivante, elle
+        // n'existe plus nulle part.
+        $denseCandidates = $rows;
+
         $maxDistance = (float) config('ai.knowledge.max_distance', 1.0);
         $rows = array_values(array_filter($rows, fn (array $row): bool => $row['distance'] <= $maxDistance));
+        $afterDistanceFilterCount = count($rows);
 
         // TASK-1560 — le rerank REORDONNE le bassin, il ne le change pas.
         // L'univers des candidats a ete borne par l'ACL bien plus haut ; rien
@@ -244,6 +259,21 @@ final class DossierRetrievalSource implements ContextSource
         }
 
         if ($rows === []) {
+            // TASK-1565 — LE cas que cette TASK existe pour rendre visible.
+            //
+            // Ce retour precede de ~85 lignes le `Log::info('ai.rerank')` qu'il
+            // court-circuite : une question precise dont aucun chunk ne passe
+            // `max_distance` ne laissait donc AUCUNE trace, nulle part. Ni log
+            // (saute), ni `sourcesDenied` (rien n'a ete refuse : une recherche
+            // infructueuse n'est pas une porte fermee), ni `sourcesUsed` (le
+            // fragment vide est purge par `ContextBuilder`). Trois autorites
+            // aveugles au meme instant.
+            //
+            // Le retour lui-meme n'est ni deplace ni supprime : la trace est
+            // deposee AVANT, et le comportement produit est identique au
+            // caractere pres.
+            $this->recordTrace($contexte, $denseCandidates, $afterDistanceFilterCount, $maxDistance, $rerank, $overview, [], 0);
+
             return SourceFragment::empty();
         }
 
@@ -343,11 +373,145 @@ final class DossierRetrievalSource implements ContextSource
             'duration_ms' => $rerank->durationMs,
         ]);
 
+        // TASK-1565 — la meme mesure que le log ci-dessus, mais DURABLE et
+        // rattachee au tour : le log dit ce qui s'est passe a qui lit les logs,
+        // la trace le dit a `ai:inspect-turn` et a l'Inspector. Les deux sont
+        // composes ici parce que c'est le seul niveau qui connaisse a la fois
+        // le bassin d'entree et la selection finale.
+        //
+        // `final_context_count` est le nombre de sources REELLEMENT rendues,
+        // pas `topK` : un budget de caracteres epuise peut en retenir moins.
+        $this->recordTrace($contexte, $denseCandidates, $afterDistanceFilterCount, $maxDistance, $rerank, $overview,
+            array_values(array_filter(array_column($provenance, 'chunk_id'))), count($provenance));
+
         if ($provenance === []) {
             return SourceFragment::empty();
         }
 
         return new SourceFragment(implode("\n\n", $lines), $provenance);
+    }
+
+    /**
+     * TASK-1565 — depose ce que CE tour a observe de ses propres etages.
+     *
+     * Elle ne recalcule rien : chaque valeur vient d'une variable que le
+     * pipeline avait deja sous la main. Elle ne decide rien non plus — aucun
+     * retour, aucun filtre, aucune selection ne depend de son execution.
+     * Coupee (`ai.knowledge.retrieval_trace.enabled`), le tour rend exactement
+     * la meme chose.
+     *
+     * Ce qui entre : des compteurs, des rangs, des distances, des drapeaux, et
+     * les identifiants techniques `chunk_id` / `dossier_id` — les MEMES que
+     * `AiInteraction.metadata['retrieval']` porte deja pour les sources
+     * consultees, et dont l'univers a ete borne par l'ACL bien plus haut.
+     * Ce qui n'entre jamais : un texte de chunk, un titre, un extrait, une
+     * question, un credential.
+     *
+     * Les candidats listes sont ceux du bassin DENSE (avant `max_distance`).
+     * Une ligne ajoutee par la vue d'ensemble n'y figure donc pas : elle n'a
+     * jamais ete un candidat semantique. Elle est bien comptee, elle, dans
+     * `final_context_count`.
+     *
+     * @param  list<array<string, mixed>>  $denseCandidates  le bassin AVANT `max_distance`
+     * @param  list<string>  $finalChunkIds  les chunks REELLEMENT rendus
+     */
+    private function recordTrace(
+        ContexteIa $contexte,
+        array $denseCandidates,
+        int $afterDistanceFilterCount,
+        float $maxDistance,
+        DossierRerankOutcome $rerank,
+        bool $overview,
+        array $finalChunkIds,
+        int $finalContextCount,
+    ): void {
+        // Le rang de rerank n'a de sens que si le rerank a REUSSI : en repli,
+        // `$rerank->rows` est le tableau dense inchange, et rendre sa position
+        // sous le nom `rerank_rank` ferait passer l'ordre dense pour un
+        // classement Cohere.
+        $rerankRanks = [];
+
+        if ($rerank->succeeded) {
+            foreach (array_values($rerank->rows) as $position => $row) {
+                $id = $row['chunk_id'] ?? null;
+
+                if (is_string($id) && $id !== '') {
+                    $rerankRanks[$id] = $position + 1;
+                }
+            }
+        }
+
+        $final = array_flip($finalChunkIds);
+        $candidates = [];
+
+        foreach (array_slice(array_values($denseCandidates), 0, self::TRACE_MAX_CANDIDATES) as $rang => $row) {
+            $id = $row['chunk_id'] ?? null;
+            $id = is_string($id) && $id !== '' ? $id : null;
+            $distance = $row['distance'] ?? null;
+
+            $candidates[] = [
+                'chunk_id' => $id,
+                'dossier_id' => is_string($row['dossier_id'] ?? null) ? $row['dossier_id'] : null,
+                'dense_rank' => $rang + 1,
+                'dense_distance' => $distance === null ? null : round((float) $distance, 4),
+                // Le drapeau qui rend le seuil mesurable : un `false` sur le
+                // candidat de rang 1 dit que le MEILLEUR passage du corpus a
+                // ete ecarte par le filtre absolu, avant tout rerank.
+                'passed_distance_filter' => $distance !== null && (float) $distance <= $maxDistance,
+                'rerank_rank' => $id === null ? null : ($rerankRanks[$id] ?? null),
+                'selected_final' => $id !== null && isset($final[$id]),
+            ];
+        }
+
+        DossierRetrievalTraceRecorder::record($contexte->organizationId, $contexte->turnId, [
+            'dense_candidates_count' => count($denseCandidates),
+            'after_distance_filter_count' => $afterDistanceFilterCount,
+            'max_distance' => $maxDistance,
+            'rerank_attempted' => $rerank->attempted,
+            'rerank_succeeded' => $rerank->succeeded,
+            'reason_not_attempted' => $this->reasonNotAttempted($rerank, $afterDistanceFilterCount),
+            // Ce qui est REELLEMENT parti chez le provider : zero quand rien
+            // n'a ete tente. `candidateCount` seul aurait annonce un envoi qui
+            // n'a pas eu lieu.
+            'candidates_sent_to_rerank_count' => $rerank->attempted ? $rerank->candidateCount : 0,
+            'rerank_result_count' => count($rerank->rows),
+            'rerank_provider' => $rerank->provider,
+            'rerank_model' => $rerank->model,
+            'rerank_duration_ms' => $rerank->durationMs,
+            'rerank_failure_reason' => $rerank->failureReason,
+            'overview' => $overview,
+            'final_context_count' => $finalContextCount,
+            'candidates' => $candidates,
+        ]);
+    }
+
+    /**
+     * TASK-1565 — POURQUOI le rerank n'a pas eu lieu, dans le vocabulaire
+     * borne de `DossierRerankOutcome`.
+     *
+     * Une seule traduction est faite ici, et elle est la raison d'etre de cette
+     * methode : le rerank ne voit qu'un tableau trop court et dit
+     * `below_minimum_candidates`. Cette source-ci est la SEULE a savoir d'ou
+     * venait ce tableau — directement du filtre `max_distance`. Elle distingue
+     * donc le bassin VIDE (`empty_after_distance_filter`, le cas critique) du
+     * candidat UNIQUE (`not_applicable`, ou reordonner n'a pas d'alternative).
+     *
+     * Rien d'autre n'est deduit : toute autre cause est rendue telle que le
+     * resolveur l'a nommee.
+     */
+    private function reasonNotAttempted(DossierRerankOutcome $rerank, int $afterDistanceFilterCount): ?string
+    {
+        if ($rerank->attempted) {
+            return null;
+        }
+
+        if ($rerank->reasonNotAttempted === DossierRerankOutcome::REASON_BELOW_MINIMUM_CANDIDATES) {
+            return $afterDistanceFilterCount === 0
+                ? DossierRerankOutcome::REASON_EMPTY_AFTER_DISTANCE_FILTER
+                : DossierRerankOutcome::REASON_NOT_APPLICABLE;
+        }
+
+        return $rerank->reasonNotAttempted;
     }
 
     /**

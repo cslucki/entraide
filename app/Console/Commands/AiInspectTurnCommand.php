@@ -292,6 +292,37 @@ class AiInspectTurnCommand extends Command
                 $this->afficher($e['selection']), $this->afficher($e['title'] ?? null)));
         }
 
+        // TASK-1565 — les etages que le retrieval a traverses, tels que le
+        // pipeline les a ecrits. Rien n'est recalcule ici.
+        $this->info('── RETRIEVAL TRACE');
+        $rt = $trace['retrieval_trace'];
+
+        if ($rt === null) {
+            $this->line('  (cette interaction ne porte pas de trace de retrieval)');
+        } else {
+            $this->line(sprintf('  %-28s %s', 'dense_candidates_count', $this->afficher($rt['dense_candidates_count'])));
+            $this->line(sprintf('  %-28s %s   (max_distance=%s)', 'after_distance_filter_count',
+                $this->afficher($rt['after_distance_filter_count']), $this->afficher($rt['max_distance'])));
+            $this->line(sprintf('  %-28s %s', 'rerank_attempted', $this->afficher($rt['rerank_attempted'])));
+            $this->line(sprintf('  %-28s %s', 'reason_not_attempted', $this->afficher($rt['reason_not_attempted'])));
+            $this->line(sprintf('  %-28s %s', 'candidates_sent_to_rerank', $this->afficher($rt['candidates_sent_to_rerank_count'])));
+            $this->line(sprintf('  %-28s %s', 'rerank_result_count', $this->afficher($rt['rerank_result_count'])));
+            $this->line(sprintf('  %-28s %s', 'final_context_count', $this->afficher($rt['final_context_count'])));
+            $this->line(sprintf('  %-28s %s', 'sources_denied', $rt['sources_denied'] === null
+                ? 'null'
+                : ($rt['sources_denied'] === [] ? '(aucune)' : json_encode($rt['sources_denied'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))));
+
+            foreach ($rt['candidates'] as $c) {
+                $this->line(sprintf('   #%-2s dist=%-8s pass=%-5s rerank=%-4s final=%-5s %s',
+                    $this->afficher($c['dense_rank'] ?? null),
+                    $this->afficher($c['dense_distance'] ?? null),
+                    $this->afficher($c['passed_distance_filter'] ?? null),
+                    $this->afficher($c['rerank_rank'] ?? null),
+                    $this->afficher($c['selected_final'] ?? null),
+                    $this->afficher($c['chunk_id'] ?? null)));
+            }
+        }
+
         $this->info('── LLM INPUT');
         $this->line("  chunks envoyes     {$trace['llm_input']['chunks_sent']}");
 
