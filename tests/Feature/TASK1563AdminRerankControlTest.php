@@ -403,9 +403,17 @@ class TASK1563AdminRerankControlTest extends TestCase
         // La garde qui compte.
         $reponse->assertDontSee('rerank_enabled');
 
-        // Et la contre-garde : l'ecran n'est pas simplement vide. Sans elle, un
-        // historique casse passerait ce test pour la mauvaise raison.
-        $reponse->assertSee('monthly_uses');
+        // Et la contre-garde : l'historique n'est pas simplement VIDE. Sans
+        // elle, un filtre inverse — ou une colonne mal nommee — viderait
+        // silencieusement le cote CREDIT et ce test resterait vert.
+        //
+        // Elle porte sur le MARQUEUR DE LIGNE de l'historique, pas sur une
+        // chaine libre : une premiere version assertait « monthly_uses », qui
+        // est aussi le `name` d'un champ du formulaire plateforme rendu juste
+        // au-dessus (index.blade.php:87). Elle passait donc quel que soit
+        // l'etat de l'historique — une contre-garde qui ne gardait rien.
+        // Trouve par la re-review du SHA f7fa8295.
+        $reponse->assertSee('data-ai-monetization-history-row', false);
     }
 
     /**
