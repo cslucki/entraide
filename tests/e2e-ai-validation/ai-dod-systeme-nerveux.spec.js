@@ -27,6 +27,30 @@
 // LIVRABLE : PNG 01..N + video dans _local/captures/TASK-1232/. AUCUN mot de
 // passe en clair (credential de banc via env AI_VALIDATION_PASSWORD).
 //
+//
+// ── PREREQUIS DU BANC (TASK-1561) ───────────────────────────────────────────
+//
+// CAUSE_D, reparee localement mais NON PORTABLE : le worker de queue du banc
+// doit ecouter la file DEDIEE de l'indexation, sinon RIEN ne s'indexe et cette
+// recette echoue sur « indexation non observee » — alors que l'upload, lui,
+// reussit.
+//
+//     php artisan queue:work --queue=dossier-files-indexing,default
+//
+// Pourquoi : TASK-1268 puis TASK-1407 ont deplace TOUTE l'indexation de
+// fichiers vers `DossierFileIndexingDispatcher::DEDICATED_QUEUE`,
+// auto-indexation de l'Observer comprise. Un worker sur `default` seul ne voit
+// jamais ces jobs : ils s'empilent, 0 en echec, et personne ne les prend.
+//
+// Le script du banc (`ai/scripts/ai-validation-worker.sh`) a ete corrige, mais
+// `ai/` est GITIGNORE : ce correctif ne voyage pas avec le depot. Sur une autre
+// machine, ou apres un clone, la panne se reproduira a l'identique. D'ou cette
+// note ici, dans un fichier qui, lui, est versionne.
+//
+// AI_VALIDATION_SERVER = SINGLE_PROCESS : un seul `php -S` sert le port 8010.
+// Lancer les recettes UNE A LA FOIS (`--workers=1`) ; en parallele, elles se
+// bloquent mutuellement et le symptome ressemble a un defaut produit.
+//
 // Usage : npx playwright test --config=playwright.ai-validation.config.mjs tests/e2e-ai-validation/ai-dod-systeme-nerveux.spec.js
 
 import { test, expect } from '@playwright/test';
@@ -48,7 +72,27 @@ const OTHER_ORG_SLUG = 'ai-validation-org-b';
 const OTHER_MEMBER = 'member1@ai-validation-org-b.ai-validation.test';
 const OTHER_LOOP = `/org/${OTHER_ORG_SLUG}/loops/ai-validation-org-b-loop-principale`;
 
-const DOSSIER_ID = '019ffb69-cb3f-720e-b192-659b1fe5c64b'; // Emergence — Session 01 (Dossier de la Boucle Emergence)
+// TASK-1561 — le Dossier se designe par son CONTENU, jamais par son UUID.
+//
+// Cette constante figeait `019ffb69-cb3f-720e-b192-659b1fe5c64b`, devenu un
+// identifiant MORT : le banc ai-validation regenere ses UUID a chaque
+// re-semis. La page visee n'existait plus, donc la zone de depot — rendue
+// seulement sous `@if($canManageFiles)` — n'etait jamais dans le DOM, et le
+// test echouait sur « no-zone » AVANT tout retrieval. Le produit n'avait rien
+// perdu : c'est la spec qui ne trouvait plus la porte.
+//
+// Un UUID fige est une bombe a retardement qui se rearme a chaque reset du
+// banc. Le nom, lui, survit.
+function resolveDossierId(nom) {
+    const out = execFileSync('php', ['artisan', 'tinker', '--execute', `
+        $org = \\App\\Models\\Organization::where('slug', '${ORG_SLUG}')->firstOrFail();
+        echo json_encode(['id' => \\App\\Models\\Dossier::where('organization_id', $org->id)->where('name', '${nom}')->firstOrFail()->id]);`,
+    ], { env: { ...process.env, APP_ENV: 'ai-validation' }, encoding: 'utf8' });
+    const m = out.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error(`Dossier « ${nom} » introuvable sur le banc ai-validation: ${out}`);
+    return JSON.parse(m[0]).id;
+}
+const DOSSIER_ID = resolveDossierId('Emergence — Session 01');
 const DOSSIER_URL = `${ORG_ROOT}/dossiers/${DOSSIER_ID}`;
 const LOOP_URL = `${ORG_ROOT}/loops/artscilab-emergence`;
 const ORG_AI_PAGE = `${ORG_ROOT}/admin/ai`;
@@ -111,12 +155,41 @@ function assertClean(w) {
     expect(w.serverErrors, w.serverErrors.join('\n')).toEqual([]);
 }
 
-// Lecture DB (APP_ENV=ai-validation, tinker) — read-only.
+// Acces DB du banc (APP_ENV=ai-validation, tinker).
+//
+// TASK-1561 : ce helper etait annonce « read-only ». Il ne l'est plus tout a
+// fait — `nettoyagePrealable()` ci-dessous s'en sert pour SUPPRIMER les
+// fixtures residuelles. L'etiquette est corrigee plutot que laissee a
+// mentir : tout le reste de ses usages, lui, lit sans ecrire.
+
 function tinker(php, extraEnv = {}) {
     const out = execFileSync('php', ['artisan', 'tinker', '--execute', php], { env: { ...process.env, APP_ENV: 'ai-validation', ...extraEnv }, encoding: 'utf8' });
     const m = out.match(/\{[\s\S]*\}/);
     if (!m) throw new Error(`tinker: sortie inattendue: ${out}`);
     return JSON.parse(m[0]);
+}
+
+// TASK-1561 — nettoyage PREALABLE, borne aux fixtures de cette recette.
+//
+// Ces specs suppriment leur fichier a la FIN. Un run interrompu — timeout,
+// Ctrl-C, harnais qui coupe — n'y arrive jamais et laisse `TEST-dod-*.md` dans
+// le Dossier. L'upload suivant est alors rejete :
+//
+//     HTTP 422 — « Un fichier avec ce nom existe déjà dans ce dossier. »
+//
+// Le message ne designe pas la vraie cause : le run suivant echoue sur un
+// symptome HERITE, et on cherche un defaut la ou il n'y en a pas. Rencontre
+// deux fois pendant TASK-1561, dont une prise sur le moment pour un cinquieme
+// defaut.
+//
+// Strictement borne : le prefixe fixture `TEST-dod-`, sur le banc
+// ai-validation, et rien d'autre. Aucun fichier utilisateur, aucun contenu
+// hors prefixe. Idempotent : sans residu, il ne fait rien et rend 0.
+function nettoyagePrealable() {
+    return tinker(`
+        $n = 0;
+        foreach (\\App\\Models\\DossierFile::where('original_name', 'like', 'TEST-dod-%')->get() as $f) { $f->delete(); $n++; }
+        echo json_encode(['supprimes' => $n]);`);
 }
 function counters(email) {
     return tinker(`
@@ -158,6 +231,32 @@ function chain(email, sinceIso) {
 
 async function ask(page, question) {
     await page.goto(LOOP_URL);
+
+    // TASK-1561 — CAUSE_E = PREEXISTING_PRODUCT_ATTESTATION_DRIFT.
+    //
+    // Cette recette pilote l'ancien scenario :   FAB -> panneau -> dialogue
+    // Le produit fait, depuis TASK-1315 :        FAB -> AI Shell persistant
+    //
+    // Le bouton `data-ai-fab-toggle` existe toujours, mais sa DESTINATION a
+    // change : quand `ai.shell.enabled` est vrai, il ouvre le Shell, et
+    // `[data-ai-fab-panel]` n'apparait jamais — le panneau n'a plus de role
+    // que lorsqu'AUCUN Shell n'existe, ce que le code dit explicitement.
+    //
+    // Ce n'est donc PAS un selecteur a reparer : la recette atteste une
+    // interaction que le produit a remplacee. La realigner sur le Shell est une
+    // decision fonctionnelle, pas une correction de harnais — elle appartient a
+    // une TASK dediee.
+    //
+    // A quoi s'ajoute, en amont : UNKNOWN_PRE_ASK_STALL — un enlisement NON
+    // diagnostique entre l'etape « 02 INDEXATION » et cet appel, qui empeche
+    // meme d'arriver jusqu'ici. Mesure sur deux runs de 8 a 10 minutes sans
+    // depasser l'etape 02. Ce n'est ni la connexion de Jonas (sonde isolee :
+    // 1241 ms, reussie), ni les attentes de l'Observatoire (delais bornes a
+    // 20 s et 60 s).
+    //
+    // Un garde diagnostique a ete essaye ici puis RETIRE : il etait juste, mais
+    // inatteignable a cause de cet enlisement anterieur. Un filet qu'on
+    // n'atteint jamais ne doit pas etre presente comme une protection.
     await page.locator('[data-ai-fab-toggle]').click();
     await expect(page.locator('[data-ai-fab-panel]')).toBeVisible();
     await page.locator('[data-ai-fab-action="loop_knowledge"]').click();
@@ -217,6 +316,11 @@ test.describe('TASK-1232 Recette DoD systeme nerveux IA V1', () => {
         let createdFileId = null;
 
         try {
+            // TASK-1561 — repartir d'un banc propre, quoi qu'ait laisse le run
+            // precedent. Un `0` ici est le cas nominal, pas un silence.
+            const prealable = nettoyagePrealable();
+            note(`00 PRE-NETTOYAGE — fixtures TEST-dod-* residuelles supprimees : ${prealable.supprimes}`);
+
             // ── 01 Contenu inedit depose par Maya (UI reelle : drop) ─────────────
             await login(page, ORG_SLUG, MAYA);
             await page.goto(DOSSIER_URL);
