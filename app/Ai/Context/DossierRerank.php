@@ -75,7 +75,26 @@ final class DossierRerank
             return DossierRerankOutcome::notAttempted($rows);
         }
 
-        $instance = $this->providers->resolveRerankingInstance($contexte->organizationId);
+        // La RESOLUTION du credential est sous le meme filet que l'appel
+        // provider, et pas devant lui.
+        //
+        // `resolveRerankingInstance()` ne rend pas seulement `null` : sur une
+        // configuration incomplete — rerank actif mais `url` ou `model` vide —
+        // elle leve `DomainException`. Hors du `try`, cette exception
+        // traversait tout : `ContextBuilder` n'attrape que `SourceDenied`, donc
+        // une variable d'environnement videe faisait tomber la source
+        // documentaire ENTIERE au lieu de la laisser continuer en ordre dense.
+        //
+        // Cette classe promet qu'aucune defaillance ne traverse. Une promesse
+        // qui a une exception n'en est pas une.
+        try {
+            $instance = $this->providers->resolveRerankingInstance($contexte->organizationId);
+        } catch (Throwable $exception) {
+            // La raison est portee jusqu'au log : une configuration cassee qui
+            // desactive le rerank en silence serait indiscernable d'un tenant
+            // sans credential, et se deguiserait en « rien a reranker ».
+            return DossierRerankOutcome::notAttempted($rows, $exception::class);
+        }
 
         // Pas de credential tenant capable de reranker : le chemin documentaire
         // continue sur l'ordre dense. Aucun repli plateforme, jamais.

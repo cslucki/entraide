@@ -220,6 +220,91 @@ class PgvectorTASK1560CohereRerankTest extends TestCase
     }
 
     /**
+     * REVUE — un provider qui rend des index INCOHERENTS ne corrompt pas la
+     * sortie.
+     *
+     * Un reranker distant n'est pas tenu de bien se conduire. S'il renvoie deux
+     * fois le meme index, ou un index hors bornes, la garantie « permutation du
+     * bassin d'entree » doit tenir quand meme : ni doublon, ni ligne fantome,
+     * ni perte de candidat.
+     *
+     * Ce cas n'etait couvert que par LECTURE avant la revue du SHA f76ce414.
+     * Il l'est desormais par mesure.
+     */
+    public function test_an_incoherent_provider_response_cannot_corrupt_the_pool(): void
+    {
+        [$organization, $member, $loop, $dossier] = $this->tenant();
+
+        foreach (['alpha', 'bravo', 'charlie'] as $i => $mot) {
+            $this->chunk($organization, $dossier, $member, $this->vector($i * 0.1), $mot);
+        }
+
+        // Le meme index deux fois, un index hors bornes, un index negatif.
+        // Aucun de ces trois ne doit pouvoir fabriquer ni dupliquer une ligne.
+        Reranking::fake(fn (RerankingPrompt $prompt): array => [
+            new RankedDocument(index: 2, document: $prompt->documents[2], score: 0.9),
+            new RankedDocument(index: 2, document: $prompt->documents[2], score: 0.8),
+            new RankedDocument(index: 99, document: 'document fantome', score: 0.7),
+            new RankedDocument(index: -1, document: 'document fantome', score: 0.6),
+        ])->preventStrayRerankings();
+
+        $texte = $this->ask($organization, $member, $loop);
+
+        // L'unique index valide est honore : charlie passe premier. Les deux
+        // non classes reprennent leur rang DENSE derriere lui, dans l'ordre.
+        // Le doublon n'a donc pas duplique, et les index invalides n'ont rien
+        // fabrique — la sortie est exactement une permutation du bassin.
+        $this->assertStringContainsString('[S1] Article charlie', $texte);
+        $this->assertStringContainsString('[S2] Article alpha', $texte);
+        $this->assertStringContainsString('[S3] Article bravo', $texte);
+
+        // Chaque citation exactement une fois, et pas de quatrieme.
+        foreach (['S1', 'S2', 'S3'] as $ref) {
+            $this->assertSame(1, substr_count($texte, "[{$ref}] Article "), "[{$ref}] doit etre cite une seule fois.");
+        }
+
+        $this->assertStringNotContainsString('[S4]', $texte, 'Aucune ligne fantome ne doit apparaitre.');
+        $this->assertStringNotContainsString('document fantome', $texte);
+    }
+
+    /**
+     * REVUE — une configuration cassee ne fait pas tomber la source
+     * documentaire.
+     *
+     * `resolveRerankingInstance()` leve `DomainException` quand le rerank est
+     * actif mais que son URL ou son modele est vide. Cet appel se trouvait HORS
+     * du filet : `ContextBuilder` n'attrapant que `SourceDenied`, une variable
+     * d'environnement videe faisait tomber tout le chemin documentaire au lieu
+     * de le laisser continuer en ordre dense.
+     *
+     * Defaut trouve par la revue du SHA f76ce414, corrige, et garde ici.
+     */
+    public function test_a_broken_rerank_configuration_falls_back_instead_of_breaking_retrieval(): void
+    {
+        [$organization, $member, $loop, $dossier] = $this->tenant();
+
+        foreach (['alpha', 'bravo', 'charlie'] as $i => $mot) {
+            $this->chunk($organization, $dossier, $member, $this->vector($i * 0.1), $mot);
+        }
+
+        // Rerank ACTIF, mais sans URL : la resolution du credential echoue.
+        config(['ai.knowledge.rerank.url' => '']);
+
+        Reranking::fake()->preventStrayRerankings();
+
+        $texte = $this->ask($organization, $member, $loop);
+
+        // Le chemin documentaire a survecu, dans l'ordre dense exact.
+        $this->assertStringContainsString('[S1] Article alpha', $texte);
+        $this->assertStringContainsString('[S2] Article bravo', $texte);
+
+        // Et rien n'a ete facture : la tentative n'a jamais eu lieu.
+        $this->assertSame(0, AiProviderInvocation::query()
+            ->where('operation', AiProviderInvocation::OPERATION_RERANK)
+            ->count());
+    }
+
+    /**
      * REQ 8 — le chemin « aucune preuve » n'est pas regresse : sans candidat
      * au-dessus du seuil de distance, la source reste vide et AUCUN rerank
      * n'est tente. On ne paie pas un provider pour trier le vide.

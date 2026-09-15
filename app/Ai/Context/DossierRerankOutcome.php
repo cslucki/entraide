@@ -36,9 +36,15 @@ final class DossierRerankOutcome
      * Le chemin n'a pas ete tente : rerank desactive, aucun credential tenant,
      * ou bassin trop petit pour que reordonner ait un sens.
      *
+     * `$raison` n'est renseignee que lorsque la non-tentative vient d'une
+     * DEFAILLANCE et non d'un choix — typiquement une configuration incomplete
+     * qui fait echouer la resolution du credential. Sans elle, une installation
+     * cassee serait indiscernable d'un tenant qui n'a simplement pas de cle, et
+     * un refus deterministe se deguiserait en « rien a reranker ».
+     *
      * @param  list<array<string, mixed>>  $rows
      */
-    public static function notAttempted(array $rows): self
+    public static function notAttempted(array $rows, ?string $raison = null): self
     {
         return new self(
             rows: $rows,
@@ -48,6 +54,7 @@ final class DossierRerankOutcome
             provider: null,
             model: null,
             durationMs: null,
+            failureReason: $raison,
         );
     }
 

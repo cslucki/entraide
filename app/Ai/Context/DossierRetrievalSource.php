@@ -311,10 +311,6 @@ final class DossierRetrievalSource implements ContextSource
             ];
         }
 
-        if ($provenance === []) {
-            return SourceFragment::empty();
-        }
-
         // TASK-1560 — l'UNIQUE evenement structure du rerank, emis ici parce
         // que c'est le seul endroit qui connaisse les DEUX nombres : le
         // reranker ignore combien de sources survivront a `diversify()`, au
@@ -323,6 +319,12 @@ final class DossierRetrievalSource implements ContextSource
         // `final_count` est le nombre de sources REELLEMENT citees, pas
         // `topK` : un budget de caracteres epuise peut en retenir moins, et
         // annoncer 5 quand 3 sont rendues serait une fabrication.
+        //
+        // Il est emis AVANT le retour a vide, et non apres : un rerank peut
+        // avoir ete tente, paye, et ne rien laisser passer parce que le budget
+        // de caracteres etait epuise. C'est precisement le cas qu'un
+        // exploitant a besoin de voir — `final_count = 0` est une mesure, pas
+        // un silence.
         //
         // Aucun passage, aucun titre, aucune cle : des compteurs et des
         // identifiants techniques.
@@ -340,6 +342,10 @@ final class DossierRetrievalSource implements ContextSource
             'final_count' => count($provenance),
             'duration_ms' => $rerank->durationMs,
         ]);
+
+        if ($provenance === []) {
+            return SourceFragment::empty();
+        }
 
         return new SourceFragment(implode("\n\n", $lines), $provenance);
     }
