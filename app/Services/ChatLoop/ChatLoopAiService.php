@@ -33,6 +33,7 @@ use App\Support\Ai\AiProcess;
 use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiTurnIdempotency;
 use App\Support\Ai\AiTurnLock;
+use App\Support\Ai\AiTurnTrace;
 use App\Support\Ai\AiUsage;
 use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Facades\DB;
@@ -915,6 +916,17 @@ class ChatLoopAiService
                 // TASK-1556 : les invocations embedding (query) que CE tour a
                 // declenchees, reclamees une seule fois — `[]` mesure, jamais null.
                 RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
+                // TASK-1566 / CDC-01 V0-A — l'IDENTITE canonique du tour, et
+                // rien d'autre. Ce writer n'est pas le pilote : son
+                // instrumentation complete (`execution_path`, etapes, bypass)
+                // appartient a V0-G. Ce qui ne pouvait pas attendre, c'est
+                // l'identite — sans elle, ce tour ne peut etre relie ni a ses
+                // invocations au ledger, ni plus tard a un autre tour (CDC-02).
+                //
+                // FACT corrige par cette TASK : ce chemin ne persistait AUCUN
+                // `turn_id`, alors que son `ContexteIa` en porte un depuis
+                // TASK-1556.
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::identityOnly($contexte->turnId),
                 'failure' => $failure,
                 ...$extraMetadata,
             ], static fn ($value): bool => $value !== null)

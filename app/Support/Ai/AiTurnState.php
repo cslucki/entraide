@@ -67,6 +67,29 @@ final class AiTurnState
 
     public const TURN_UNAVAILABLE = AiShellResponder::STATUS_UNAVAILABLE;
 
+    /**
+     * TASK-1566 / CDC-01 V0-A — les trois issues que le produit SAIT produire
+     * mais ne SAVAIT PAS DIRE.
+     *
+     * Elles n'existent nulle part ailleurs dans le depot : contrairement aux
+     * quatre ci-dessus, empruntees au Shell, celles-ci sont nouvelles — parce
+     * que les etats qu'elles nomment n'ont jamais eu de nom. Un tour qui
+     * s'abstient faute de source, un refus economique pre-provider, une erreur
+     * controlee : tous trois se terminent aujourd'hui sans qu'aucune ligne ne
+     * dise lequel des trois s'est produit.
+     *
+     * Elles sont DECLAREES ici en V0-A, ou le schema du tour se fixe. Les
+     * chemins qui les EMETTENT sont V0-B (arrets anticipes). Declarer avant
+     * d'emettre est deliberé : c'est ce qui permet au lecteur et au test de
+     * connaitre le vocabulaire complet avant que les producteurs n'arrivent,
+     * plutot que de le decouvrir au fil des TASKs.
+     */
+    public const TURN_ABSTAINED = 'abstained';
+
+    public const TURN_REFUSED = 'refused';
+
+    public const TURN_FAILED = 'failed';
+
     // ──────────────────── axe 2 : l'affirmation est-elle etayee ?
 
     public const VERIFICATION_SUPPORTED = 'supported';
@@ -192,6 +215,59 @@ final class AiTurnState
             verificationStatus: self::verificationFrom($turn),
             degradedReason: self::degradedFrom($turn, $interaction),
             awaitingClarification: self::clarificationPending($turn),
+        );
+    }
+
+    /**
+     * TASK-1566 / CDC-01 V0-A — la lecture du BLOC `turn`, entree neuve.
+     *
+     * ## Pourquoi une seconde entree, et pas une extension de la premiere
+     *
+     * Le mot « turn » designe DEUX choses differentes dans ce fichier, et les
+     * confondre serait la premiere erreur a commettre :
+     *
+     *   `fromTurnMetadata($turn)`  -> `$turn` = la metadata COMPLETE d'un
+     *                                 `AiShellMessage`, format historique ;
+     *   `fromTurnBlock($turnBlock)` -> `$turnBlock` = le bloc `metadata['turn']`
+     *                                 du schema canonique v1 (TASK-1566), un
+     *                                 SOUS-ENSEMBLE d'une metadata.
+     *
+     * Les deux coexistent volontairement : l'ancien format reste lu tel quel
+     * (compatibilite, CDC-01 §11), le nouveau est lu sans heuristique. Fusionner
+     * les deux signatures obligerait a deviner, a l'execution, lequel des deux
+     * formats on tient — exactement le genre d'inference que l'invariant I12
+     * interdit.
+     *
+     * ## Ce qu'elle ne fait jamais
+     *
+     * Aucune derivation depuis `grounded`, aucune valeur par defaut
+     * rassurante, aucune requete. Un champ absent du bloc rend l'etat le plus
+     * neutre (`not_applicable` / `null`) — jamais une valeur inventee.
+     *
+     * @param  array<string, mixed>  $turnBlock  le contenu de `metadata['turn']`
+     */
+    public static function fromTurnBlock(array $turnBlock): self
+    {
+        $status = is_string($turnBlock['status'] ?? null) ? $turnBlock['status'] : null;
+        $state = is_array($turnBlock['state'] ?? null) ? $turnBlock['state'] : [];
+
+        $verification = $state['verification_status'] ?? null;
+        $degraded = $state['degraded_reason'] ?? null;
+
+        return new self(
+            turnStatus: $status,
+            // NULL RESTE NULL : un bloc qui ne declare pas son axe 2 rend
+            // `not_applicable`, jamais `supported`. Aucune derivation depuis
+            // `grounded` ici — c'est precisement ce que `fromTurnMetadata()`
+            // fait pour l'ANCIEN format, faute de mieux. Le bloc `turn`, lui,
+            // ecrit ce qu'il a mesure ou n'ecrit rien.
+            verificationStatus: is_string($verification) && in_array($verification, self::VERIFICATION_VALUES, true)
+                ? $verification
+                : self::VERIFICATION_NOT_APPLICABLE,
+            degradedReason: is_string($degraded) && $degraded !== '' ? $degraded : null,
+            // AUCUNE inference : l'attente de clarification est un etat produit
+            // que le bloc porte explicitement ou pas du tout.
+            awaitingClarification: ($turnBlock['awaiting_clarification'] ?? null) === true,
         );
     }
 
