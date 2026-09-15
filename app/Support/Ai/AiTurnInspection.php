@@ -74,6 +74,10 @@ final class AiTurnInspection
             // TASK-1565 — les etages que le retrieval a REELLEMENT traverses.
             // `null` quand cette interaction ne porte pas la trace.
             'retrieval_trace' => self::retrievalTrace($metadata),
+            // TASK-1567 / CDC-01 V0-L — ce que le tour a VU de la conversation.
+            // `null` quand le chemin ne l'a pas ecrit : UNAVAILABLE, jamais une
+            // reconstruction.
+            'history' => self::history($metadata),
             'selection' => self::selection($answer),
             'llm_input' => self::llmInput($answer),
             'output' => self::output($answer, $metadata),
@@ -227,6 +231,35 @@ final class AiTurnInspection
         }
 
         return $bloc['dossier_retrieval'];
+    }
+
+    /**
+     * L'historique conversationnel que le tour a REELLEMENT recu.
+     *
+     * Lecture PURE du bloc `turn.history` ecrit par le moteur. Aucune
+     * reconstruction : ni depuis `context_message_ids` (qui vit sur la BULLE et
+     * non sur le tour), ni depuis `AiShellThread`, ni depuis aucune autre
+     * source. Ces sources secondaires decrivent la fenetre CANDIDATE, pas le
+     * contexte injecte — et un lecteur qui comble un trou avec une valeur
+     * voisine fabrique une certitude que personne n'a mesuree.
+     *
+     * `null` signifie « ce tour n'a pas ecrit son historique » : un tour
+     * anterieur a V0-L, ou un chemin qui n'en a pas.
+     *
+     * @param  array<string, mixed>  $metadata
+     * @return array<string, mixed>|null
+     */
+    private static function history(array $metadata): ?array
+    {
+        $turn = $metadata[AiTurnTrace::TURN_METADATA_KEY] ?? null;
+
+        if (! is_array($turn)) {
+            return null;
+        }
+
+        $history = $turn['history'] ?? null;
+
+        return is_array($history) && $history !== [] ? $history : null;
     }
 
     /**

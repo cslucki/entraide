@@ -263,11 +263,14 @@ class TASK1566TurnBlockPilotTest extends TestCase
     {
         $steps = $this->blocDuTour()['steps'];
 
+        // TASK-1567 / V0-L a insere `conversation_history` entre la
+        // construction du contexte et l'appel provider — c'est l'ordre reel
+        // d'execution du moteur, pas un rangement d'affichage.
         $this->assertSame(
-            ['economic_check', 'context_builder', 'provider_call'],
+            ['economic_check', 'context_builder', 'conversation_history', 'provider_call'],
             array_column($steps, 'name'),
         );
-        $this->assertSame(['executed', 'executed', 'executed'], array_column($steps, 'status'));
+        $this->assertSame(['executed', 'executed', 'executed', 'executed'], array_column($steps, 'status'));
     }
 
     public function test_la_latence_est_mesuree_une_seule_fois_pour_les_deux_cles(): void
@@ -286,11 +289,17 @@ class TASK1566TurnBlockPilotTest extends TestCase
     {
         $turn = $this->blocDuTour();
 
-        // `sources` -> V0-E, `history` -> V0-L, `state` -> V0-F.
+        // `sources` -> V0-E, `state` -> V0-F : toujours absents.
         // Une cle presente mais vide se lirait comme « mesure a zero ».
-        foreach (['sources', 'history', 'state'] as $aVenir) {
-            $this->assertArrayNotHasKey($aVenir, $turn, "`{$aVenir}` n'appartient pas a V0-A : absent, pas vide.");
+        foreach (['sources', 'state'] as $aVenir) {
+            $this->assertArrayNotHasKey($aVenir, $turn, "`{$aVenir}` n'appartient pas encore a ce stade : absent, pas vide.");
         }
+
+        // `history` appartenait a cette liste jusqu'a TASK-1567 (V0-L), qui l'a
+        // livre. La garde ne disparait pas pour autant : elle CHANGE DE SENS et
+        // exige desormais la presence. C'est la difference entre mettre un test
+        // a jour et l'affaiblir.
+        $this->assertArrayHasKey('history', $turn, '`history` est livre par V0-L : il doit etre present.');
     }
 
     public function test_aucune_etape_de_grounding_ni_de_generation_n_est_fabriquee(): void

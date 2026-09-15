@@ -148,8 +148,21 @@ class TASK1566WritersIdentityTest extends TestCase
         $interaction = $this->executerChatLoop('Quelle est la prochaine etape ?');
 
         $this->assertIdentiteVientDuContexteIa($vu, $interaction);
-        $this->assertIdentiteSeule($interaction);
+        // TASK-1567 (V0-L) : ce writer a un historique conversationnel reel
+        // (chaine de reply), il porte donc `history` en plus de son identite.
+        // Les trois autres writers gardent `['schema','id']` : la garde evolue
+        // writer par writer, jamais en bloc.
+        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'history']);
         $this->assertLegacyPreservee($interaction, ['loop_id', 'requested_by', 'latency_ms', 'provider', 'capability', 'status']);
+
+        $history = $interaction->metadata[AiTurnTrace::TURN_METADATA_KEY]['history'];
+
+        $this->assertSame('reply_chain', $history['strategy']);
+        $this->assertArrayHasKey('message_ids', $history);
+        $this->assertArrayHasKey('count', $history);
+        $this->assertArrayHasKey('chars', $history);
+        $this->assertArrayHasKey('budget_exhausted', $history);
+        $this->assertNotNull($history['trigger_id'], 'le declencheur de ce tour est connu');
     }
 
     public function test_chatloop_deux_tours_ont_deux_identites_mais_une_seule_correlation(): void
@@ -294,8 +307,18 @@ class TASK1566WritersIdentityTest extends TestCase
 
     // ────────────────────────────── assertions communes
 
-    /** Le contrat V0-A d'un writer NON pilote : l'identite, et rien d'autre. */
-    private function assertIdentiteSeule(AiInteraction $interaction): void
+    /**
+     * Le contrat d'un writer NON pilote.
+     *
+     * A l'origine (V0-A) : l'identite, et rien d'autre. TASK-1567 (V0-L) ajoute
+     * `history` aux SEULS writers qui ont reellement un historique
+     * conversationnel. Le jeu de cles attendu est donc passe PAR WRITER, jamais
+     * elargi globalement : un writer qui se mettrait a ecrire une semantique
+     * qui ne lui revient pas doit continuer de faire rougir son propre test.
+     *
+     * @param  list<string>  $clesAttendues
+     */
+    private function assertIdentiteSeule(AiInteraction $interaction, array $clesAttendues = ['schema', 'id']): void
     {
         $metadata = $interaction->metadata;
 
@@ -306,10 +329,10 @@ class TASK1566WritersIdentityTest extends TestCase
         $this->assertSame(1, $turn['schema']);
         $this->assertTrue(Str::isUuid($turn['id']), '`turn.id` doit etre un uuid');
 
-        // EXACTEMENT ces deux cles — toute semantique supplementaire chez un
-        // writer non pilote serait une anticipation de V0-G. Canonicalise :
-        // c'est le JEU de cles qui est contractuel, pas leur ordre d'insertion.
-        $this->assertEqualsCanonicalizing(['schema', 'id'], array_keys($turn));
+        // EXACTEMENT ces cles — toute semantique supplementaire chez ce writer
+        // serait une anticipation de V0-G. Canonicalise : c'est le JEU de cles
+        // qui est contractuel, pas leur ordre d'insertion.
+        $this->assertEqualsCanonicalizing($clesAttendues, array_keys($turn));
 
         // `turn.id` n'est JAMAIS le `correlation_id` (CDC-01 §5.0.2). On lit
         // l'interaction DEJA isolee par ce tour, jamais une relecture par date :

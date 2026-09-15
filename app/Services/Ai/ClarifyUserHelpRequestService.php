@@ -98,12 +98,13 @@ class ClarifyUserHelpRequestService implements AiProvider
         Organization $organization,
         User $requester,
         string $phrase,
+        array $history = [],
     ): AssistedInteractionLabResult {
         if ($requester->organization_id !== $organization->id) {
             throw new DomainException('The requester does not belong to this Organization.');
         }
 
-        return $this->clarifyInContext($organization, $requester, $phrase, null);
+        return $this->clarifyInContext($organization, $requester, $phrase, null, $history);
     }
 
     private function clarifyInContext(
@@ -111,6 +112,7 @@ class ClarifyUserHelpRequestService implements AiProvider
         User $requester,
         string $phrase,
         ?Loop $loop,
+        array $history = [],
     ): AssistedInteractionLabResult {
         // Meme coupe-circuit que `analyze()` : quand la clarification IA est
         // desactivee, aucun appel provider n'est tente — et la clarification
@@ -212,7 +214,7 @@ class ClarifyUserHelpRequestService implements AiProvider
             $this->recordInteraction(
                 $loop, $requester, $contexte, $definition, $resolved, $phrase,
                 null, AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null,
-                'failed', $startedAt, null, $exception::class, $doctrineVersion, $constitutionVersions,
+                'failed', $startedAt, null, $exception::class, $doctrineVersion, $constitutionVersions, $history,
             );
 
             // Un echec ne bloque pas le membre : il retombe sur la clarification
@@ -232,7 +234,7 @@ class ClarifyUserHelpRequestService implements AiProvider
         $interaction = $this->recordInteraction(
             $loop, $requester, $contexte, $definition, $resolved, $phrase,
             json_encode($structured, JSON_UNESCAPED_UNICODE), $usage, $cost->traceAttributes(), $cost,
-            'success', $startedAt, $response->invocationId, null, $doctrineVersion, $constitutionVersions,
+            'success', $startedAt, $response->invocationId, null, $doctrineVersion, $constitutionVersions, $history,
         );
 
         return $this->mapStructuredToDto(
@@ -551,6 +553,7 @@ class ClarifyUserHelpRequestService implements AiProvider
         ?string $failure,
         ?int $doctrineVersion,
         array $constitutionVersions = [],
+        array $history = [],
     ): AiInteraction {
         $this->ledger->recordGeneration(
             organizationId: $contexte->organizationId,
@@ -595,7 +598,11 @@ class ClarifyUserHelpRequestService implements AiProvider
                 // (feature coupee, provider absent, refus economique) retombent
                 // sur `FakeAIProvider` sans que rien ne le dise : les rendre
                 // avouables est le perimetre de V0-D, pas de celui-ci.
-                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::identityOnly($contexte->turnId),
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
+                    $contexte->turnId,
+                    null,
+                    $history === [] ? [] : ['history' => $history],
+                ),
                 'failure' => $failure,
             ], static fn ($value): bool => $value !== null)
                 // TASK-1236 : cle toujours presente, meme a null (aucune doctrine
