@@ -125,6 +125,9 @@ final class OrganizationAiEconomicUsage
         // le plafond du guard, elle doit donc apparaitre ici — dans son seau
         // « non declaree », jamais nulle part.
         $undeclared = $this->embeddingSlice($organizationId, $from, $to, null, $userId);
+        // TASK-1562 : le rerank documentaire. Additif — il n'entre dans aucun
+        // des totaux calcules plus bas.
+        $rerank = $this->rerankSlice($organizationId, $from, $to, $userId);
 
         $knownParts = array_filter(
             [
@@ -150,6 +153,10 @@ final class OrganizationAiEconomicUsage
             'embedding_ingestion' => $ingestion,
             'embedding_query' => $query,
             'embedding_undeclared' => $undeclared,
+            // TASK-1562 : rendu VISIBLE, jamais additionne. Son cout est
+            // inconnu par nature (le SDK ne rend aucun usage sur un rerank) :
+            // l'ajouter aux totaux connus le ferait passer pour gratuit.
+            'rerank' => $rerank,
             // NULL tant qu'aucune mesure reelle n'existe : la somme d'un vide
             // n'est pas un zero.
             'total_known_cost_usd' => $knownParts === [] ? null : array_sum($knownParts),
@@ -231,6 +238,29 @@ final class OrganizationAiEconomicUsage
             $rows[$key][$bucket] = $this->mergeEmbeddingRows($rows[$key][$bucket], $this->embeddingRow($row));
         }
 
+        // TASK-1562 : la ventilation rerank, meme motif que les embeddings
+        // ci-dessus. Elle remplit sa propre tranche et ne touche a rien d'autre.
+        $reranks = DB::table('ai_provider_invocations')
+            ->leftJoin('users', function ($join) use ($organizationId): void {
+                $join->on('users.id', '=', 'ai_provider_invocations.user_id')
+                    ->where('users.organization_id', '=', $organizationId);
+            })
+            ->where('ai_provider_invocations.organization_id', $organizationId)
+            ->where('ai_provider_invocations.operation', AiProviderInvocation::OPERATION_RERANK)
+            ->where('ai_provider_invocations.created_at', '>=', $from)
+            ->where('ai_provider_invocations.created_at', '<', $to)
+            ->selectRaw('users.id as user_id')
+            ->selectRaw('MAX(users.name) as name')
+            ->selectRaw($this->embeddingSelect())
+            ->groupBy('users.id')
+            ->get();
+
+        foreach ($reranks as $row) {
+            $key = $row->user_id !== null ? (string) $row->user_id : '';
+            $rows[$key] ??= $this->emptyUserRow($row->user_id !== null ? (string) $row->user_id : null, $row->name !== null ? (string) $row->name : null);
+            $rows[$key]['rerank'] = $this->mergeEmbeddingRows($rows[$key]['rerank'], $this->embeddingRow($row));
+        }
+
         $rows = array_map(fn (array $row): array => $this->withUserTotals($row), $rows);
 
         usort($rows, static function (array $a, array $b): int {
@@ -276,6 +306,16 @@ final class OrganizationAiEconomicUsage
             ->groupBy('organization_id', 'embedding_operation')
             ->get();
 
+        // TASK-1562 : meme lecture, pour le rerank documentaire.
+        $reranks = DB::table('ai_provider_invocations')
+            ->where('operation', AiProviderInvocation::OPERATION_RERANK)
+            ->where('created_at', '>=', $from)
+            ->where('created_at', '<', $to)
+            ->selectRaw('organization_id')
+            ->selectRaw($this->embeddingSelect())
+            ->groupBy('organization_id')
+            ->get();
+
         $users = $this->aiUsersByOrganization($from, $to);
 
         $organizations = [];
@@ -289,6 +329,12 @@ final class OrganizationAiEconomicUsage
         foreach ($sandbox as $key => $row) {
             $organizations[$key] ??= $this->emptyOrganizationRow();
             $organizations[$key]['generation_sandbox'] = $row;
+        }
+
+        foreach ($reranks as $row) {
+            $key = (string) $row->organization_id;
+            $organizations[$key] ??= $this->emptyOrganizationRow();
+            $organizations[$key]['rerank'] = $this->mergeEmbeddingRows($organizations[$key]['rerank'], $this->embeddingRow($row));
         }
 
         foreach ($embeddings as $row) {
@@ -810,11 +856,31 @@ final class OrganizationAiEconomicUsage
             'embedding_ingestion' => $embedding,
             'embedding_query' => $embedding,
             'embedding_undeclared' => $embedding,
+            // TASK-1562 : additive. Presente dans la ligne, absente des totaux.
+            'rerank' => $embedding,
             'ai_users_count' => 0,
         ];
     }
 
     /**
+     * TASK-1562 — POURQUOI `rerank` N'EST PAS DANS CES TOTAUX.
+     *
+     * Ce n'est pas un oubli, et cette methode enumere ses tranches une par une
+     * precisement pour qu'aucune addition ne se fasse par inadvertance.
+     *
+     * `total_known_cost_usd` : le cout d'un rerank est `provider_cost = NULL`,
+     * `cost_status = unknown` — le SDK ne rend aucun usage. L'ajouter a une
+     * somme de couts CONNUS reviendrait a l'y compter pour zero, c'est-a-dire a
+     * affirmer qu'il est gratuit. NULL n'est pas zero.
+     *
+     * `total_count` et `total_unknown_count` : ils comptent ce qu'ils comptaient
+     * avant TASK-1562. Un total qui change de definition SANS changer de nom
+     * rendrait faux, en silence, tout releve anterieur au merge — et le lecteur
+     * n'aurait aucun moyen de s'en apercevoir.
+     *
+     * La tranche `rerank` est donc strictement ADDITIVE : elle rend le rerank
+     * visible, et ne fait mentir aucun chiffre existant.
+     *
      * @param  array<string, mixed>  $row
      * @return array<string, mixed>
      */
@@ -940,6 +1006,42 @@ final class OrganizationAiEconomicUsage
             'unevaluated_count' => $summary['unevaluated_count'],
             'trace_count' => $summary['trace_count'],
         ];
+    }
+
+    /**
+     * TASK-1562 — la tranche RERANK.
+     *
+     * Meme forme, memes agregats et meme defense tenant que la tranche
+     * embeddings : seul le predicat d'operation change. Elle existe parce que
+     * sans elle, un rerank n'apparaissait NULLE PART — ni dans un releve, ni
+     * dans une console, ni dans une vue d'usage. TASK-1560 l'ecrivait au
+     * ledger, et personne ne pouvait le lire.
+     *
+     * Ce qu'elle ne fait PAS : entrer dans les totaux. Voir
+     * `withOrganizationTotals()`.
+     *
+     * @return array{known_cost_usd: ?float, measured_count: int, unknown_count: int, invocation_count: int, failed_count: int}
+     */
+    private function rerankSlice(
+        string $organizationId,
+        CarbonImmutable $from,
+        CarbonImmutable $to,
+        ?string $userId = null,
+    ): array {
+        $row = AiProviderInvocation::query()
+            ->where('organization_id', $organizationId)
+            // Meme defense tenant que les autres tranches : un identifiant
+            // d'utilisateur d'une AUTRE Organization ne selectionne rien.
+            ->when($userId !== null, static fn ($query) => $query->whereIn('user_id', static function ($sub) use ($userId, $organizationId): void {
+                $sub->select('id')->from('users')->where('id', $userId)->where('organization_id', $organizationId);
+            }))
+            ->where('operation', AiProviderInvocation::OPERATION_RERANK)
+            ->where('created_at', '>=', $from)
+            ->where('created_at', '<', $to)
+            ->selectRaw($this->embeddingSelect())
+            ->first();
+
+        return $this->embeddingRow($row);
     }
 
     /**

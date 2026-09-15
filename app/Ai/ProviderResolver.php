@@ -4,6 +4,7 @@ namespace App\Ai;
 
 use App\Models\AiProviderInvocation;
 use App\Models\OrganizationAiSetting;
+use App\Services\Dossiers\DossierRerankGate;
 use DomainException;
 use Illuminate\Support\Facades\Context;
 use Laravel\Ai\Ai;
@@ -193,7 +194,10 @@ final class ProviderResolver
      */
     public function resolveRerankingInstance(string $organizationId): ?string
     {
-        if (! (bool) config('ai.knowledge.rerank.enabled', false)) {
+        // TASK-1562 : ce n'est plus l'environnement qui decide seul, c'est la
+        // porte — drapeau maitre PUIS allowlist par Organization. Le defaut
+        // reste ferme : sans allowlist, personne ne reranke.
+        if (! app(DossierRerankGate::class)->isEnabledFor($organizationId)) {
             return null;
         }
 

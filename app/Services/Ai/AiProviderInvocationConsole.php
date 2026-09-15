@@ -106,20 +106,38 @@ final class AiProviderInvocationConsole
 
         $generation = $this->withLedgerStatuses($organizationId, $userId, $generation);
 
+        // TASK-1562 : le RERANK documentaire entre dans la MEME lecture que les
+        // embeddings, et non dans une requete de plus.
+        //
+        // Sans lui, un rerank n'apparaissait nulle part pour l'utilisateur qui
+        // venait pourtant de le declencher : TASK-1560 l'inscrivait au ledger,
+        // et aucune surface ne le rendait.
+        //
+        // Le joindre ici plutot qu'a cote est deliberé : TASK-1257 garde le
+        // budget de cette methode a DEUX requetes, et cette garde vaut mieux
+        // qu'une lecture separee. Les deux operations partagent exactement les
+        // memes colonnes de sortie — seul le libelle `kind` les distingue.
         $embeddings = AiProviderInvocation::query()
             ->where('organization_id', $organizationId)
             ->where('user_id', $userId)
-            ->where('operation', AiProviderInvocation::OPERATION_EMBEDDING)
+            ->whereIn('operation', [
+                AiProviderInvocation::OPERATION_EMBEDDING,
+                AiProviderInvocation::OPERATION_RERANK,
+            ])
             ->orderByDesc('created_at')
             ->limit($limit)
             ->get()
             ->map(static fn (AiProviderInvocation $row): array => [
                 'at' => CarbonImmutable::parse((string) $row->created_at),
-                'kind' => match ($row->embedding_operation) {
-                    AiProviderInvocation::EMBEDDING_OPERATION_QUERY => 'embedding_query',
-                    AiProviderInvocation::EMBEDDING_OPERATION_INGESTION => 'embedding_ingestion',
-                    default => 'embedding_undeclared',
-                },
+                // Un rerank n'a pas d'`embedding_operation` : il se nomme par
+                // son operation, pas par une sous-nature qu'il ne porte pas.
+                'kind' => $row->operation === AiProviderInvocation::OPERATION_RERANK
+                    ? 'rerank'
+                    : match ($row->embedding_operation) {
+                        AiProviderInvocation::EMBEDDING_OPERATION_QUERY => 'embedding_query',
+                        AiProviderInvocation::EMBEDDING_OPERATION_INGESTION => 'embedding_ingestion',
+                        default => 'embedding_undeclared',
+                    },
                 'process' => $row->process !== null ? (string) $row->process : null,
                 // TASK-1229 : la feature du ledger (recherche d'un essai de
                 // doctrine) — le libelle produit dit « essai de doctrine ».
