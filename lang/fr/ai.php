@@ -320,6 +320,9 @@ return [
     'usage_type_embedding_ingestion' => 'Indexation documentaire',
     'usage_type_embedding_query' => 'Recherche documentaire',
     'usage_type_embedding' => 'Autre traitement documentaire',
+    // TASK-1562 : le rerank, nomme par ce qu'il FAIT pour le lecteur — il
+    // classe les sources trouvees, il n'en cherche aucune.
+    'usage_type_rerank' => 'Classement des sources',
     'usage_status_success' => 'Réussi',
     'usage_status_failed' => 'Échec',
     'cockpit_title' => 'IA & connaissances',
@@ -557,6 +560,7 @@ return [
     'economy_nature_embedding_query' => 'Recherches documentaires',
     'economy_nature_embedding_ingestion' => 'Indexations documentaires',
     'economy_nature_embedding_undeclared' => 'Autres traitements documentaires (nature non déclarée)',
+    'economy_nature_rerank' => 'Classements de sources',
     'economy_nature_sandbox' => 'dont essais de doctrine (bac à sable)',
     'economy_unattributed' => 'Non attribuable',
     'economy_authority_note' => 'Ces chiffres sont exactement ceux que la garde budgétaire applique : générations (registre des interactions IA) et recherches / indexations documentaires (registre canonique), sur la même période. Un coût non mesurable est compté, jamais additionné ni pris pour zéro.',

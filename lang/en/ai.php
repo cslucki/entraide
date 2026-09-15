@@ -318,6 +318,9 @@ return [
     'usage_type_embedding_ingestion' => 'Document indexing',
     'usage_type_embedding_query' => 'Document search',
     'usage_type_embedding' => 'Other document processing',
+    // TASK-1562: the rerank, named for what it DOES for the reader — it ranks
+    // the sources already found, it searches for none.
+    'usage_type_rerank' => 'Source ranking',
     'usage_status_success' => 'Succeeded',
     'usage_status_failed' => 'Failed',
     'cockpit_title' => 'AI & knowledge',
@@ -555,6 +558,7 @@ return [
     'economy_nature_embedding_query' => 'Document searches',
     'economy_nature_embedding_ingestion' => 'Document indexings',
     'economy_nature_embedding_undeclared' => 'Other document processing (undeclared nature)',
+    'economy_nature_rerank' => 'Source rankings',
     'economy_nature_sandbox' => 'of which doctrine tests (sandbox)',
     'economy_unattributed' => 'Unattributable',
     'economy_authority_note' => 'These figures are exactly the ones the budget guard applies: generations (AI interactions register) and document searches / indexings (canonical ledger), over the same period. An unmeasurable cost is counted, never summed nor taken as zero.',

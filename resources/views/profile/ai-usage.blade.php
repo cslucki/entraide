@@ -40,6 +40,7 @@
         'generation' => __('ai.usage_type_generation'),
         'embedding_query' => __('ai.usage_type_embedding_query'),
         'embedding_ingestion' => __('ai.usage_type_embedding_ingestion'),
+        'rerank' => __('ai.usage_type_rerank'),
         default => __('ai.usage_type_embedding'),
     };
     $totalCount = $usage['generation']['trace_count']
@@ -51,6 +52,8 @@
         ['key' => 'embedding_query', 'label' => __('ai.economy_nature_embedding_query'), 'count' => $usage['embedding_query']['invocation_count'], 'unknown' => $usage['embedding_query']['unknown_count']],
         ['key' => 'embedding_ingestion', 'label' => __('ai.economy_nature_embedding_ingestion'), 'count' => $usage['embedding_ingestion']['invocation_count'], 'unknown' => $usage['embedding_ingestion']['unknown_count']],
         ['key' => 'embedding_undeclared', 'label' => __('ai.economy_nature_embedding_undeclared'), 'count' => $usage['embedding_undeclared']['invocation_count'], 'unknown' => $usage['embedding_undeclared']['unknown_count']],
+        // TASK-1562 : visible, jamais additionne a $totalCount ci-dessus.
+        ['key' => 'rerank', 'label' => __('ai.economy_nature_rerank'), 'count' => $usage['rerank']['invocation_count'], 'unknown' => $usage['rerank']['unknown_count']],
     ];
 @endphp
 

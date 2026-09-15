@@ -356,6 +356,35 @@ return [
             'enabled' => (bool) env('AI_KNOWLEDGE_RERANK_ENABLED', false),
             'model' => env('AI_KNOWLEDGE_RERANK_MODEL', 'cohere/rerank-v3.5'),
             'url' => env('AI_KNOWLEDGE_RERANK_URL', 'https://openrouter.ai/api/v1'),
+
+            /*
+             * TASK-1562 — QUI, dans cet environnement, reranke reellement.
+             *
+             * Le drapeau ci-dessus est un interrupteur d'ENVIRONNEMENT : tout
+             * ou rien. Un pilote qu'on ne peut pas borner a une Organization
+             * n'est pas un pilote — chaque question documentaire de CHAQUE
+             * tenant partirait chez le provider, a ses frais.
+             *
+             * Ces deux listes designent nommement les Organizations
+             * concernees, par id ou par slug. Vides — leur defaut — elles
+             * n'autorisent PERSONNE : `DossierRerankGate` rend `false`.
+             * L'activation d'un tenant passe donc par un geste explicite, et
+             * jamais par omission.
+             *
+             * Deux verrous en serie : couper `enabled` eteint tout
+             * l'environnement sans avoir a defaire les listes.
+             *
+             * Meme forme que `ai.dossiers.semantic_search.organization_ids` —
+             * motif deja eprouve, pas une invention.
+             */
+            'organization_ids' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('AI_KNOWLEDGE_RERANK_ORGANIZATION_IDS', '')),
+            ))),
+            'organization_slugs' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('AI_KNOWLEDGE_RERANK_ORGANIZATION_SLUGS', '')),
+            ))),
         ],
 
         // TASK-1539 — la fenetre d'INACTIVITE apres laquelle une conversation
