@@ -6,6 +6,7 @@ use App\Ai\Agents\HelpRequestClarifierAgent;
 use App\Ai\Agents\LoopDirectAnswerAgent;
 use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Ai\Agents\ShellGeneralAnswerAgent;
+use App\Ai\ContexteIa;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
 use App\Models\Dossier;
@@ -29,6 +30,7 @@ use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\StructuredTextResponse;
 use Laravel\Ai\Responses\TextResponse;
 use PHPUnit\Framework\Attributes\Group;
+use Ramsey\Uuid\Uuid;
 use Tests\TestCase;
 
 /**
@@ -47,32 +49,39 @@ use Tests\TestCase;
  * ## Ce que ces tests gardent, writer par writer
  *
  *  1. `turn.schema === 1` — le tour est versionne ;
- *  2. `turn` contient EXACTEMENT `schema` et `id` — aucune sematique V0-G
- *     (`execution_path`, `steps`, `identity`…) n'a fuite chez un writer qui
- *     ne doit porter QUE l'identite a ce stade ;
+ *  2. `turn` contient EXACTEMENT `schema` et `id` — aucune semantique V0-G
+ *     (`execution_path`, `steps`, `identity`…) n'a fuite chez un writer qui ne
+ *     doit porter QUE l'identite a ce stade ;
  *  3. aucune cle de PREMIER NIVEAU nouvelle hors `turn` — le garde I8, celui
  *     qui empeche d'allumer un bandeau membre par megarde ;
  *  4. la metadata legacy de chaque writer est preservee ;
- *  5. `turn.id` est bien l'identite DU TOUR, et non une identite partagee :
- *     deux tours successifs rendent deux ids differents, et cet id n'est
- *     JAMAIS le `correlation_id` — c'est l'invariant fondateur de CDC-01
- *     §5.0.2, celui qui justifie l'existence meme de `ContexteIa::$turnId`.
+ *  5. `turn.id` est l'identite DU TOUR : elle change a chaque tour, et n'est
+ *     JAMAIS le `correlation_id` — l'invariant fondateur de CDC-01 §5.0.2,
+ *     celui qui justifie l'existence meme de `ContexteIa::$turnId` ;
+ *  6. et surtout : cette identite est bien celle qu'un `ContexteIa` a generee.
  *
- * ## Une limite de preuve, declaree plutot que masquee
+ * ## Comment le point 6 est prouve sans toucher une ligne applicative
  *
- * Pour `DossierInsightsService`, l'egalite `turn.id === ContexteIa::$turnId`
- * est prouvee LITTERALEMENT : `answerOverSources()` accepte un `turnId`
- * explicite, qu'on peut donc injecter et comparer.
+ * Pour `DossierInsightsService`, directement : `answerOverSources()` accepte un
+ * `turnId` explicite, qu'on injecte puis compare.
  *
  * Pour les trois autres, le `turnId` est auto-genere au plus profond du moteur
- * et aucune couture ne l'expose : `ProviderResolver` — le seul collaborateur
- * qui recoit le `ContexteIa` sur les trois chemins — est une classe `final`,
- * donc ni extensible ni mockable. Plutot que de fabriquer une couture dans le
- * code applicatif pour le confort d'un test (ce que V0-A interdit), ces trois
- * writers sont prouves par les proprietes OBSERVABLES de leur identite :
- * unicite par tour et distinction d'avec le `correlation_id`. C'est une preuve
- * de comportement, pas d'implementation — et elle echouerait si un writer
- * ecrivait une constante, un id partage ou le `correlation_id`.
+ * (`ContexteIa:78`, `Str::uuid()`) et aucune couture ne l'expose :
+ * `ProviderResolver` — le seul collaborateur qui recoit le `ContexteIa` sur ces
+ * chemins — est une classe `final`, donc ni extensible ni mockable. Fabriquer
+ * une couture DANS le code applicatif pour le confort d'un test est exactement
+ * ce que V0-A interdit.
+ *
+ * La solution ne coute pourtant aucune ligne applicative : un
+ * GENERATEUR-OBSERVATEUR d'uuid (`observerLesTurnIds()`), qui rend de VRAIS
+ * uuid mais retient ceux frappes DEPUIS `ContexteIa::__construct`.
+ *
+ * Ce qui rend cette preuve reelle et non decorative : un writer qui frapperait
+ * son PROPRE `Str::uuid()` au moment de persister — l'erreur la plus plausible,
+ * puisqu'elle produit un uuid parfaitement valide et unique a chaque tour — ne
+ * serait pas dans le jeu capture, et ferait rougir le test. Les proprietes
+ * observables seules (unicite, difference d'avec `correlation_id`) laissaient
+ * precisement passer ce cas.
  */
 #[Group('ai')]
 #[Group('sensitive')]
@@ -125,6 +134,7 @@ class TASK1566WritersIdentityTest extends TestCase
     protected function tearDown(): void
     {
         AiTurnTrace::forgetJournal();
+        Str::createUuidsNormally();
 
         parent::tearDown();
     }
@@ -133,10 +143,13 @@ class TASK1566WritersIdentityTest extends TestCase
 
     public function test_chatloop_ai_service_porte_l_identite_canonique(): void
     {
-        $metadata = $this->executerChatLoop('Quelle est la prochaine etape ?');
+        $vu = $this->observerLesTurnIds();
 
-        $this->assertIdentiteSeule($metadata);
-        $this->assertLegacyPreservee($metadata, ['loop_id', 'requested_by', 'latency_ms', 'provider', 'capability', 'status']);
+        $interaction = $this->executerChatLoop('Quelle est la prochaine etape ?');
+
+        $this->assertIdentiteVientDuContexteIa($vu, $interaction);
+        $this->assertIdentiteSeule($interaction);
+        $this->assertLegacyPreservee($interaction, ['loop_id', 'requested_by', 'latency_ms', 'provider', 'capability', 'status']);
     }
 
     public function test_chatloop_deux_tours_ont_deux_identites_mais_une_seule_correlation(): void
@@ -149,21 +162,33 @@ class TASK1566WritersIdentityTest extends TestCase
         $second = $this->executerChatLoop('Seconde question');
 
         $this->assertNotSame($this->identite($premier), $this->identite($second));
+
+        // Le nom de ce test promet DEUX choses : il en prouve donc deux. La
+        // correlation, elle, EST partagee — c'est precisement ce qui rend
+        // `turn.id` necessaire.
+        $this->assertSame(
+            (string) $premier->correlation_id,
+            (string) $second->correlation_id,
+            'les deux tours appartiennent a la meme operation metier',
+        );
     }
 
     // ────────────────────────────── writer 3 : ShellGeneralAnswerService
 
     public function test_shell_general_answer_service_porte_l_identite_canonique(): void
     {
-        $metadata = $this->executerShellGeneral('A quoi sert cette page ?');
+        $vu = $this->observerLesTurnIds();
 
-        $this->assertIdentiteSeule($metadata);
-        $this->assertLegacyPreservee($metadata, ['requested_by', 'latency_ms', 'provider', 'capability', 'status', 'general_contract_hash']);
+        $interaction = $this->executerShellGeneral('A quoi sert cette page ?');
+
+        $this->assertIdentiteVientDuContexteIa($vu, $interaction);
+        $this->assertIdentiteSeule($interaction);
+        $this->assertLegacyPreservee($interaction, ['requested_by', 'latency_ms', 'provider', 'capability', 'status', 'general_contract_hash']);
 
         // FACT preexistant a TASK-1566, volontairement NON corrige ici : ce
         // writer ecrit `sources_denied` au PREMIER niveau. La TASK ne l'a ni
         // ajoute ni retire. L'asserter documente la dette la ou elle vit.
-        $this->assertArrayHasKey('sources_denied', $metadata);
+        $this->assertArrayHasKey('sources_denied', $interaction->metadata);
     }
 
     public function test_shell_general_deux_tours_ont_deux_identites(): void
@@ -178,37 +203,102 @@ class TASK1566WritersIdentityTest extends TestCase
 
     public function test_clarify_user_help_request_service_porte_l_identite_canonique(): void
     {
-        $metadata = $this->executerClarify('Je cherche de l aide pour cadrer nos usages');
+        $vu = $this->observerLesTurnIds();
 
-        $this->assertIdentiteSeule($metadata);
-        $this->assertLegacyPreservee($metadata, ['requested_by', 'latency_ms', 'provider', 'capability', 'status']);
+        $interaction = $this->executerClarify('Je cherche de l aide pour cadrer nos usages');
+
+        $this->assertIdentiteVientDuContexteIa($vu, $interaction);
+        $this->assertIdentiteSeule($interaction);
+        $this->assertLegacyPreservee($interaction, ['requested_by', 'latency_ms', 'provider', 'capability', 'status']);
+    }
+
+    public function test_clarify_deux_tours_ont_deux_identites(): void
+    {
+        // Symetrique des deux autres writers. Sans lui, une CONSTANTE uuid
+        // codee en dur passerait pour ce writer — c'est exactement le trou que
+        // l'audit delta a releve.
+        $premier = $this->executerClarify('Premiere demande');
+        $second = $this->executerClarify('Seconde demande');
+
+        $this->assertNotSame($this->identite($premier), $this->identite($second));
     }
 
     // ────────────────────────────── writer 5 : DossierInsightsService
 
     public function test_dossier_insights_service_ecrit_exactement_le_turn_id_du_tour(): void
     {
-        // Le SEUL des quatre ou l'egalite litterale est prouvable : le turnId
+        // Le seul des quatre ou l'egalite est prouvable DIRECTEMENT : le turnId
         // est un parametre explicite, transmis au `ContexteIa` (correction
         // C2-bis du CDC).
         $turnId = (string) Str::uuid();
 
-        $metadata = $this->executerDossierInsights($turnId);
+        $interaction = $this->executerDossierInsights($turnId);
 
-        $this->assertSame($turnId, $metadata[AiTurnTrace::TURN_METADATA_KEY]['id']);
-        $this->assertIdentiteSeule($metadata);
-        $this->assertLegacyPreservee($metadata, ['dossier_id', 'requested_by', 'latency_ms', 'provider', 'capability', 'status', 'retrieval']);
+        $this->assertSame($turnId, $this->identite($interaction));
+        $this->assertIdentiteSeule($interaction);
+        $this->assertLegacyPreservee($interaction, ['dossier_id', 'requested_by', 'latency_ms', 'provider', 'capability', 'status', 'retrieval']);
+    }
+
+    // ────────────────────────────── la preuve d'identite
+
+    /**
+     * Installe un GENERATEUR-OBSERVATEUR d'uuid.
+     *
+     * Il ne FIGE rien : il rend de vrais uuid v4, tous distincts, pour que
+     * `HasUuids` (cles primaires) et `AiCorrelation` continuent de fonctionner.
+     * Figer la fabrique serait d'ailleurs impossible ici — `Str::orderedUuid()`
+     * consulte LA MEME fabrique que `Str::uuid()` (`Str.php:1948-1951`), donc
+     * un uuid constant ferait collisionner les cles primaires.
+     *
+     * Son seul role est d'OBSERVER : il note les uuid frappes depuis
+     * `ContexteIa::__construct`, c'est-a-dire les identites de tour. La pile est
+     * examinee sur 4 niveaux au plus — assez pour voir l'appelant, assez peu
+     * pour ne rien couter.
+     */
+    private function observerLesTurnIds(): object
+    {
+        $vu = new class
+        {
+            /** @var list<string> */
+            public array $turnIds = [];
+        };
+
+        Str::createUuidsUsing(function () use ($vu) {
+            $uuid = Uuid::uuid4();
+
+            foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 4) as $frame) {
+                if (($frame['class'] ?? null) === ContexteIa::class) {
+                    $vu->turnIds[] = (string) $uuid;
+
+                    break;
+                }
+            }
+
+            return $uuid;
+        });
+
+        return $vu;
+    }
+
+    /** L'identite ecrite est-elle bien celle qu'un `ContexteIa` a generee ? */
+    private function assertIdentiteVientDuContexteIa(object $vu, AiInteraction $interaction): void
+    {
+        $this->assertNotEmpty($vu->turnIds, 'le tour doit avoir construit un ContexteIa');
+
+        $this->assertContains(
+            $this->identite($interaction),
+            $vu->turnIds,
+            'turn.id doit etre le turnId du ContexteIa du tour, jamais un uuid frappe ailleurs',
+        );
     }
 
     // ────────────────────────────── assertions communes
 
-    /**
-     * Le contrat V0-A d'un writer NON pilote : l'identite, et rien d'autre.
-     *
-     * @param  array<string, mixed>  $metadata
-     */
-    private function assertIdentiteSeule(array $metadata): void
+    /** Le contrat V0-A d'un writer NON pilote : l'identite, et rien d'autre. */
+    private function assertIdentiteSeule(AiInteraction $interaction): void
     {
+        $metadata = $interaction->metadata;
+
         $this->assertArrayHasKey(AiTurnTrace::TURN_METADATA_KEY, $metadata, 'ce writer doit porter le bloc `turn`');
 
         $turn = $metadata[AiTurnTrace::TURN_METADATA_KEY];
@@ -216,12 +306,14 @@ class TASK1566WritersIdentityTest extends TestCase
         $this->assertSame(1, $turn['schema']);
         $this->assertTrue(Str::isUuid($turn['id']), '`turn.id` doit etre un uuid');
 
-        // EXACTEMENT deux cles : toute semantique supplementaire chez un writer
-        // non pilote serait une anticipation de V0-G.
-        $this->assertSame(['schema', 'id'], array_keys($turn));
+        // EXACTEMENT ces deux cles — toute semantique supplementaire chez un
+        // writer non pilote serait une anticipation de V0-G. Canonicalise :
+        // c'est le JEU de cles qui est contractuel, pas leur ordre d'insertion.
+        $this->assertEqualsCanonicalizing(['schema', 'id'], array_keys($turn));
 
-        // `turn.id` n'est JAMAIS le `correlation_id` (CDC-01 §5.0.2).
-        $interaction = AiInteraction::query()->latest('created_at')->firstOrFail();
+        // `turn.id` n'est JAMAIS le `correlation_id` (CDC-01 §5.0.2). On lit
+        // l'interaction DEJA isolee par ce tour, jamais une relecture par date :
+        // deux tours d'un meme test partagent la seconde.
         $this->assertNotSame((string) $interaction->correlation_id, $turn['id']);
     }
 
@@ -229,11 +321,12 @@ class TASK1566WritersIdentityTest extends TestCase
      * Garde I8 + non-regression des lecteurs : `turn` est la seule cle nouvelle,
      * et rien de ce qui existait n'a disparu.
      *
-     * @param  array<string, mixed>  $metadata
      * @param  list<string>  $legacy
      */
-    private function assertLegacyPreservee(array $metadata, array $legacy): void
+    private function assertLegacyPreservee(AiInteraction $interaction, array $legacy): void
     {
+        $metadata = $interaction->metadata;
+
         foreach ($legacy as $cle) {
             $this->assertArrayHasKey($cle, $metadata, "la cle legacy `{$cle}` doit survivre a TASK-1566");
         }
@@ -245,16 +338,14 @@ class TASK1566WritersIdentityTest extends TestCase
         $this->assertArrayNotHasKey('turn_id', $metadata, 'seul le pilote porte la cle historique `turn_id`');
     }
 
-    /** @param  array<string, mixed>  $metadata */
-    private function identite(array $metadata): string
+    private function identite(AiInteraction $interaction): string
     {
-        return $metadata[AiTurnTrace::TURN_METADATA_KEY]['id'];
+        return $interaction->metadata[AiTurnTrace::TURN_METADATA_KEY]['id'];
     }
 
     // ────────────────────────────── harnais par writer
 
-    /** @return array<string, mixed> */
-    private function executerChatLoop(string $question): array
+    private function executerChatLoop(string $question): AiInteraction
     {
         $deja = AiInteraction::query()->pluck('id')->all();
 
@@ -276,8 +367,7 @@ class TASK1566WritersIdentityTest extends TestCase
         return $this->interactionNouvelle($deja);
     }
 
-    /** @return array<string, mixed> */
-    private function executerShellGeneral(string $question): array
+    private function executerShellGeneral(string $question): AiInteraction
     {
         $deja = AiInteraction::query()->pluck('id')->all();
 
@@ -290,8 +380,7 @@ class TASK1566WritersIdentityTest extends TestCase
         return $this->interactionNouvelle($deja);
     }
 
-    /** @return array<string, mixed> */
-    private function executerClarify(string $phrase): array
+    private function executerClarify(string $phrase): AiInteraction
     {
         $deja = AiInteraction::query()->pluck('id')->all();
 
@@ -324,8 +413,7 @@ class TASK1566WritersIdentityTest extends TestCase
         return $this->interactionNouvelle($deja);
     }
 
-    /** @return array<string, mixed> */
-    private function executerDossierInsights(string $turnId): array
+    private function executerDossierInsights(string $turnId): AiInteraction
     {
         $deja = AiInteraction::query()->pluck('id')->all();
 
@@ -359,15 +447,14 @@ class TASK1566WritersIdentityTest extends TestCase
      * et non par `latest()` : deux tours d'un meme test partagent la seconde.
      *
      * @param  list<mixed>  $deja
-     * @return array<string, mixed>
      */
-    private function interactionNouvelle(array $deja): array
+    private function interactionNouvelle(array $deja): AiInteraction
     {
         $nouvelles = AiInteraction::query()->whereNotIn('id', $deja)->get();
 
         $this->assertCount(1, $nouvelles, 'un tour doit ecrire EXACTEMENT une interaction');
 
-        return $nouvelles->first()->metadata;
+        return $nouvelles->first();
     }
 
     /** @return array<string, mixed> */
