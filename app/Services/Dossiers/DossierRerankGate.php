@@ -116,8 +116,22 @@ class DossierRerankGate
         ));
     }
 
+    /**
+     * `mb_strtolower(trim())`, comme `DossierSemanticSearchGate` — et pas
+     * seulement `trim()`.
+     *
+     * La revue du SHA dff7fe52 a trouve l'ecart : mon docblock annoncait la
+     * MEME semantique que le Gate voisin, et la casse n'etait pas traitee. Un
+     * slug d'allowlist saisi `Pilote-Cohere` alors que la base porte
+     * `pilote-cohere` ne matchait pas.
+     *
+     * L'echec etait FERME, donc sans danger. Mais il etait SILENCIEUX, et il
+     * se produisait au moment precis ou un exploitant croit ouvrir son pilote.
+     * Une porte qui refuse sans rien dire a quelqu'un qui vient de la
+     * deverrouiller est un piege, pas une securite.
+     */
     private function normalize(string $valeur): string
     {
-        return trim($valeur);
+        return mb_strtolower(trim($valeur));
     }
 }

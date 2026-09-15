@@ -108,6 +108,37 @@ class TASK1562CoherePilotControlTest extends TestCase
     }
 
     /**
+     * REVUE — un slug d'allowlist saisi dans une autre casse ouvre quand meme.
+     *
+     * Trouve par la revue du SHA dff7fe52 : mon `normalize()` ne faisait que
+     * `trim()`, la ou le Gate voisin fait `mb_strtolower(trim())` — alors que
+     * mon docblock annoncait la MEME semantique.
+     *
+     * L'echec etait ferme, donc sans danger. Mais il etait SILENCIEUX, et il
+     * frappait au moment precis ou un exploitant croit ouvrir son pilote : il
+     * ecrit `Pilote-Cohere`, la base porte `pilote-cohere`, et rien ne se
+     * passe. Une porte qui refuse sans rien dire a quelqu'un qui vient de la
+     * deverrouiller est un piege, pas une securite.
+     */
+    public function test_an_allowlisted_slug_matches_whatever_its_case(): void
+    {
+        $organization = Organization::factory()->create(['slug' => 'pilote-cohere']);
+
+        config([
+            'ai.knowledge.rerank.enabled' => true,
+            'ai.knowledge.rerank.organization_ids' => [],
+            // Saisi en casse MIXTE, avec des espaces autour : ce qu'un humain
+            // ecrit dans un fichier d'environnement.
+            'ai.knowledge.rerank.organization_slugs' => ['  Pilote-Cohere  '],
+        ]);
+
+        $this->assertTrue(
+            app(DossierRerankGate::class)->isEnabledFor($organization->id),
+            'Un slug d\'allowlist doit ouvrir quelle que soit sa casse, comme le Gate voisin.',
+        );
+    }
+
+    /**
      * REQ 7 — aucune allowlist, ou valeur illisible : comportement SECURISE.
      *
      * Le defaut est ferme. Une configuration qu'on ne sait pas lire n'ouvre
