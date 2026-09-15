@@ -81,6 +81,23 @@
                         {{ __('admin.ai_clarification') }}
                     </label>
                     <p class="text-xs text-gray-400 dark:text-gray-500 mt-1 ml-6">{{ __('admin.ai_clarification_desc') }}</p>
+
+                    {{-- TASK-1563 : l'arret d'urgence du rerank documentaire.
+                         Eteint ici, PERSONNE ne reranke, quelles que soient les
+                         autorisations posees Organization par Organization. --}}
+                    <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 mt-4">
+                        <input type="checkbox" name="rerank_enabled" value="1" @checked($rerankEnabled) class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                        {{ __('admin.ai_rerank') }}
+                    </label>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1 ml-6">{{ __('admin.ai_rerank_desc') }}</p>
+                    @if($rerankLastChange)
+                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1 ml-6">
+                            {{ __('admin.ai_rerank_last_change', [
+                                'author' => $rerankLastChange->author?->name ?? __('admin.ai_rerank_unknown_author'),
+                                'date' => $rerankLastChange->created_at->isoFormat('LLL'),
+                            ]) }}
+                        </p>
+                    @endif
                 </div>
 
                 <div class="flex items-center gap-3 pt-2">

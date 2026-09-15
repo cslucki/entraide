@@ -57,6 +57,17 @@ return [
     'ai_features_title' => 'Fonctionnalités',
     'ai_clarification' => 'Clarification',
     'ai_clarification_desc' => 'Affiche l\'aide IA à la clarification dans les boucles.',
+    // TASK-1563 — le rerank, nomme par ce qu'il FAIT : il classe des sources
+    // deja trouvees, il n'en cherche aucune.
+    'ai_rerank' => 'Classement des sources documentaires (Cohere)',
+    'ai_rerank_desc' => 'Interrupteur général. Éteint ici, aucune Organization ne classe ses sources, même autorisée individuellement.',
+    'ai_rerank_last_change' => 'Dernière modification : :author, le :date.',
+    'ai_rerank_unknown_author' => 'auteur inconnu',
+    'organization_rerank_title' => 'Classement des sources (Cohere)',
+    'organization_rerank_label' => 'Autoriser le classement des sources pour cette Organization',
+    'organization_rerank_desc' => 'Ajoute un appel au fournisseur à chaque question documentaire, facturé à cette Organization. Nécessite une clé IA configurée pour elle.',
+    'organization_rerank_requires_ai_config' => 'Cette Organization n\'a aucune configuration IA : elle n\'a donc pas de clé pour classer ses sources. Configurez-la d\'abord.',
+    'organization_rerank_platform_off' => 'L\'interrupteur général est éteint : cette autorisation est enregistrée, mais ne prendra effet qu\'une fois la plateforme activée.',
     'owner_must_belong_to_org' => 'Le propriétaire sélectionné doit appartenir à l\'organisation de la boucle.',
     'owner_select_label' => 'Propriétaire',
     'owner_select_placeholder' => '— Sélectionner un propriétaire —',
@@ -782,7 +793,7 @@ return [
     'guest_shell_month_cost' => 'Coût connu ce mois',
     'guest_shell_avg_cost' => 'Coût moyen / réponse',
     'guest_shell_unknown_cost' => 'au coût inconnu',
-        // TASK-1468 (CDC 21h-23h §3.2) — le DIAGNOSTIC actionnable du Shell Welcome.
+    // TASK-1468 (CDC 21h-23h §3.2) — le DIAGNOSTIC actionnable du Shell Welcome.
     // « Mal configure » recouvrait trois situations sans rapport ; le libelle
     // derive desormais de la RAISON, et chaque raison porte sa cause et son
     // geste. Zone SuperAdmin : nommer la variable d'environnement du plafond

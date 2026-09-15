@@ -551,7 +551,7 @@ class PgvectorTASK1560CohereRerankTest extends TestCase
         $this->assertSame('https://openrouter.ai/api/v1', config('ai.knowledge.rerank.url'));
 
         $organization = Organization::factory()->create();
-        OrganizationAiSetting::factory()->create([
+        $setting = OrganizationAiSetting::factory()->create([
             'organization_id' => $organization->id,
             'provider' => 'openrouter',
             'api_key' => 'sk-tenant',
@@ -560,22 +560,21 @@ class PgvectorTASK1560CohereRerankTest extends TestCase
 
         $resolver = app(ProviderResolver::class);
 
-        // TASK-1562 : l'interrupteur d'environnement ferme NE SUFFIT PLUS a
-        // ouvrir. Il y a desormais DEUX verrous en serie, et le second — nommer
-        // l'Organization — est celui qui fait d'un pilote un pilote.
-        config([
-            'ai.knowledge.rerank.enabled' => true,
-            'ai.knowledge.rerank.organization_ids' => [],
-            'ai.knowledge.rerank.organization_slugs' => [],
-        ]);
+        // TASK-1562 puis TASK-1563 : l'interrupteur d'environnement ferme NE
+        // SUFFIT PLUS a ouvrir. Deux verrous en serie, et le second — autoriser
+        // cette Organization NOMMEMENT — est celui qui fait d'un pilote un
+        // pilote. Il se pose desormais depuis l'admin, sur la ligne de reglages
+        // de l'Organization, plus par une allowlist d'environnement.
+        config(['ai.knowledge.rerank.enabled' => true]);
 
         $this->assertNull(
             $resolver->resolveRerankingInstance($organization->id),
-            'Le drapeau maitre seul ne doit ouvrir a PERSONNE : sans allowlist, la porte reste fermee.',
+            'Le drapeau maitre seul ne doit ouvrir a PERSONNE : sans autorisation, la porte reste fermee.',
         );
 
         // Les deux verrous ouverts, le chemin redevient franchissable.
-        config(['ai.knowledge.rerank.organization_ids' => [$organization->id]]);
+        $setting->rerank_enabled = true;
+        $setting->save();
 
         $this->assertSame(
             "org:{$organization->id}:rerank",
@@ -597,6 +596,11 @@ class PgvectorTASK1560CohereRerankTest extends TestCase
             'organization_id' => $organization->id,
             'provider' => 'openrouter',
             'api_key' => 'sk-tenant',
+            // TASK-1563 : le drapeau maitre ne suffit plus, et l'allowlist
+            // d'environnement n'existe plus. L'autorisation vit desormais ICI,
+            // sur la ligne de reglages de l'Organization. Sans elle, tous les
+            // tests ci-dessous mesureraient un chemin inactif.
+            'rerank_enabled' => true,
         ]);
 
         config([
@@ -610,12 +614,6 @@ class PgvectorTASK1560CohereRerankTest extends TestCase
             'ai.dossiers.semantic_search.organization_ids' => [$organization->id],
             'ai.knowledge.max_distance' => $maxDistance,
             'ai.knowledge.rerank.enabled' => true,
-            // TASK-1562 : le drapeau maitre ne suffit plus. Le rerank se pilote
-            // desormais Organization par Organization, et le defaut est FERME :
-            // sans allowlist, cette Organization ne rerankerait pas, et tous les
-            // tests ci-dessous mesureraient un chemin inactif.
-            'ai.knowledge.rerank.organization_ids' => [$organization->id],
-            'ai.knowledge.rerank.organization_slugs' => [],
             'ai.knowledge.rerank.model' => 'cohere/rerank-v3.5',
             'ai.knowledge.rerank.url' => 'https://openrouter.ai/api/v1',
         ]);

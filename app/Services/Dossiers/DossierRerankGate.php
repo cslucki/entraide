@@ -2,39 +2,44 @@
 
 namespace App\Services\Dossiers;
 
-use App\Models\Organization;
+use App\Services\Ai\AiRerankSettings;
 
 /**
- * TASK-1562 — QUI a le droit de reranker, Organization par Organization.
+ * TASK-1562 puis TASK-1563 — QUI a le droit de reranker, Organization par
+ * Organization.
  *
  * ## Pourquoi une porte, et pas un interrupteur
  *
- * TASK-1560 a livre la CAPACITE de reranker, derriere un unique
- * `ai.knowledge.rerank.enabled`. C'est tout ou rien, par environnement : on ne
- * peut pas l'allumer pour une Organization pilote sans l'allumer pour TOUTES
- * celles qui partagent le meme environnement — avec un appel provider de plus
- * a chaque question documentaire, facture au tenant.
+ * TASK-1560 a livre la CAPACITE de reranker derriere un unique drapeau
+ * d'environnement. C'etait tout ou rien : on ne pouvait pas l'allumer pour une
+ * Organization pilote sans l'allumer pour TOUTES celles qui partagent le meme
+ * environnement — avec un appel provider de plus a chaque question
+ * documentaire, facture au tenant.
  *
  * Un pilote qu'on ne peut pas borner n'est pas un pilote.
  *
+ * ## Deux verrous en serie
+ *
+ *     plateforme OFF            -> PERSONNE ne reranke
+ *     plateforme ON + org OFF   -> cette Organization ne reranke pas
+ *     plateforme ON + org ON    -> cette Organization peut reranker
+ *
+ * Le drapeau plateforme est l'arret d'urgence : le couper eteint tout, sans
+ * avoir a repasser sur chaque Organization.
+ *
  * ## Le defaut est FERME, et ce n'est pas un detail
  *
- * Sans allowlist, les deux listes sont vides et cette porte rend `false`.
- * PERSONNE n'est active par omission. Le seul moyen d'activer une Organization
- * est de la nommer — par son id ou par son slug.
+ * La colonne `organization_ai_settings.rerank_enabled` a `default(false)`, et
+ * une Organization sans reglages IA n'a aucun drapeau. PERSONNE n'est active
+ * par omission : le seul moyen d'ouvrir une Organization est de cocher sa case.
  *
- * Deux verrous en serie, et non un seul : le drapeau maitre
- * `ai.knowledge.rerank.enabled` coupe tout l'environnement, l'allowlist
- * designe qui, dans cet environnement, est concerne. Couper le premier suffit
- * a tout eteindre sans avoir a defaire les listes.
+ * ## Ce que TASK-1563 a retire
  *
- * ## Pourquoi une classe SOEUR de DossierSemanticSearchGate
- *
- * Ce Gate reproduit exactement la semantique de
- * `DossierSemanticSearchGate` — motif deja eprouve dans ce depot. Mais il ne
- * la REUTILISE pas : qu'une Organization ait la recherche semantique n'implique
- * pas qu'elle doive financer un rerank. Ce sont deux decisions distinctes, et
- * les confondre rendrait impossible d'ouvrir le pilote a une seule.
+ * L'allowlist d'environnement par Organization (`..._ORGANIZATION_IDS` /
+ * `_SLUGS`) N'EXISTE PLUS. Elle a ete remplacee par un interrupteur d'ecran, et
+ * les deux ne pouvaient pas coexister : une Organization listee dans
+ * l'environnement mais eteinte a l'ecran aurait rerankee quand meme, ce qui
+ * rendait la table de verite ci-dessus indefendable.
  *
  * ## Tenant
  *
@@ -43,95 +48,17 @@ use App\Models\Organization;
  */
 class DossierRerankGate
 {
+    public function __construct(private readonly AiRerankSettings $settings) {}
+
     public function isEnabledFor(string $organizationId): bool
     {
-        if (! (bool) config('ai.knowledge.rerank.enabled', false)) {
+        // Premier verrou : l'arret d'urgence. On ne lit meme pas la base de
+        // l'Organization si la plateforme est eteinte.
+        if (! $this->settings->platformEnabled()) {
             return false;
         }
 
-        $organizationId = $this->normalize($organizationId);
-
-        if ($organizationId === '') {
-            return false;
-        }
-
-        foreach ($this->configuredOrganizationIds() as $allowedId) {
-            if ($organizationId === $allowedId) {
-                return true;
-            }
-        }
-
-        // Le slug se verifie EN BASE, et borne a cette Organization
-        // (`whereKey`) : un slug de l'allowlist n'autorise que l'Organization
-        // qui le porte, jamais une autre qui aurait le meme identifiant a un
-        // caractere pres.
-        $slugs = $this->configuredOrganizationSlugs();
-
-        return $slugs !== [] && Organization::query()
-            ->whereKey($organizationId)
-            ->whereIn('slug', $slugs)
-            ->exists();
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function configuredOrganizationIds(): array
-    {
-        return $this->listeConfiguree('ai.knowledge.rerank.organization_ids');
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function configuredOrganizationSlugs(): array
-    {
-        return $this->listeConfiguree('ai.knowledge.rerank.organization_slugs');
-    }
-
-    /**
-     * Une liste d'allowlist peut arriver de deux facons : deja decoupee par
-     * `config/ai.php`, ou en une seule chaine separee par des virgules si
-     * quelqu'un l'ecrit ainsi. Les deux sont acceptees, et TOUTE valeur qui
-     * n'est ni l'une ni l'autre rend une liste VIDE — c'est-a-dire ferme la
-     * porte. Une configuration qu'on ne sait pas lire n'ouvre rien.
-     *
-     * @return array<int, string>
-     */
-    private function listeConfiguree(string $cle): array
-    {
-        $valeurs = config($cle, []);
-
-        if (is_string($valeurs)) {
-            $valeurs = explode(',', $valeurs);
-        }
-
-        if (! is_array($valeurs)) {
-            return [];
-        }
-
-        return array_values(array_filter(
-            array_map(fn (mixed $v): string => $this->normalize(is_scalar($v) ? (string) $v : ''), $valeurs),
-            fn (string $v): bool => $v !== ''
-        ));
-    }
-
-    /**
-     * `mb_strtolower(trim())`, comme `DossierSemanticSearchGate` — et pas
-     * seulement `trim()`.
-     *
-     * La revue du SHA dff7fe52 a trouve l'ecart : mon docblock annoncait la
-     * MEME semantique que le Gate voisin, et la casse n'etait pas traitee. Un
-     * slug d'allowlist saisi `Pilote-Cohere` alors que la base porte
-     * `pilote-cohere` ne matchait pas.
-     *
-     * L'echec etait FERME, donc sans danger. Mais il etait SILENCIEUX, et il
-     * se produisait au moment precis ou un exploitant croit ouvrir son pilote.
-     * Une porte qui refuse sans rien dire a quelqu'un qui vient de la
-     * deverrouiller est un piege, pas une securite.
-     */
-    private function normalize(string $valeur): string
-    {
-        return mb_strtolower(trim($valeur));
+        // Second verrou : cette Organization, nommement.
+        return $this->settings->organizationEnabled($organizationId);
     }
 }

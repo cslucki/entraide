@@ -32,10 +32,8 @@ class TASK1562CoherePilotControlTest extends TestCase
     {
         $organization = Organization::factory()->create();
 
-        config([
-            'ai.knowledge.rerank.enabled' => false,
-            'ai.knowledge.rerank.organization_ids' => [$organization->id],
-        ]);
+        $this->autoriser($organization);
+        config(['ai.knowledge.rerank.enabled' => false]);
 
         $this->assertFalse(app(DossierRerankGate::class)->isEnabledFor($organization->id));
     }
@@ -45,10 +43,8 @@ class TASK1562CoherePilotControlTest extends TestCase
     {
         $organization = Organization::factory()->create();
 
-        config([
-            'ai.knowledge.rerank.enabled' => true,
-            'ai.knowledge.rerank.organization_ids' => [$organization->id],
-        ]);
+        $this->autoriser($organization);
+        config(['ai.knowledge.rerank.enabled' => true]);
 
         $this->assertTrue(app(DossierRerankGate::class)->isEnabledFor($organization->id));
     }
@@ -59,10 +55,8 @@ class TASK1562CoherePilotControlTest extends TestCase
         $autorisee = Organization::factory()->create();
         $autre = Organization::factory()->create();
 
-        config([
-            'ai.knowledge.rerank.enabled' => true,
-            'ai.knowledge.rerank.organization_ids' => [$autorisee->id],
-        ]);
+        $this->autoriser($autorisee);
+        config(['ai.knowledge.rerank.enabled' => true]);
 
         $this->assertFalse(app(DossierRerankGate::class)->isEnabledFor($autre->id));
     }
@@ -78,10 +72,8 @@ class TASK1562CoherePilotControlTest extends TestCase
         $a = Organization::factory()->create();
         $b = Organization::factory()->create();
 
-        config([
-            'ai.knowledge.rerank.enabled' => true,
-            'ai.knowledge.rerank.organization_ids' => [$a->id],
-        ]);
+        $this->autoriser($a);
+        config(['ai.knowledge.rerank.enabled' => true]);
 
         $gate = app(DossierRerankGate::class);
 
@@ -89,82 +81,58 @@ class TASK1562CoherePilotControlTest extends TestCase
         $this->assertFalse($gate->isEnabledFor($b->id));
     }
 
-    /** REQ 6 — l'allowlist par SLUG fonctionne, et reste bornee a son porteur. */
-    public function test_the_slug_allowlist_only_opens_the_organization_that_bears_it(): void
+    /**
+     * REQ 6 — autoriser une Organization n'en autorise aucune autre.
+     *
+     * TASK-1563 a RETIRE l'allowlist d'environnement (par id et par slug) : le
+     * drapeau vit desormais sur la ligne de reglages de l'Organization
+     * elle-meme. Les deux tests qui eprouvaient le mecanisme de slug ont donc
+     * disparu avec lui — mais leur GARANTIE, elle, reste, et c'est celle-ci :
+     * une autorisation ne deborde jamais sur une voisine.
+     *
+     * Elle est meme devenue structurelle : le drapeau est une colonne de la
+     * ligne de CETTE Organization. Il n'existe plus de liste centrale ou une
+     * erreur de saisie pourrait designer la mauvaise.
+     */
+    public function test_authorizing_one_organization_writes_nothing_on_another(): void
     {
         $portee = Organization::factory()->create(['slug' => 'pilote-cohere']);
         $autre = Organization::factory()->create(['slug' => 'pas-le-pilote']);
 
-        config([
-            'ai.knowledge.rerank.enabled' => true,
-            'ai.knowledge.rerank.organization_ids' => [],
-            'ai.knowledge.rerank.organization_slugs' => ['pilote-cohere'],
-        ]);
+        $this->autoriser($portee);
+        config(['ai.knowledge.rerank.enabled' => true]);
 
         $gate = app(DossierRerankGate::class);
 
         $this->assertTrue($gate->isEnabledFor($portee->id));
         $this->assertFalse($gate->isEnabledFor($autre->id));
+
+        // Et rien n'a ete ecrit sur la voisine — pas meme une ligne de reglages.
+        $this->assertDatabaseMissing('organization_ai_settings', ['organization_id' => $autre->id]);
     }
 
     /**
-     * REVUE — un slug d'allowlist saisi dans une autre casse ouvre quand meme.
+     * REQ 7 — aucune autorisation, ou etat illisible : comportement SECURISE.
      *
-     * Trouve par la revue du SHA dff7fe52 : mon `normalize()` ne faisait que
-     * `trim()`, la ou le Gate voisin fait `mb_strtolower(trim())` — alors que
-     * mon docblock annoncait la MEME semantique.
-     *
-     * L'echec etait ferme, donc sans danger. Mais il etait SILENCIEUX, et il
-     * frappait au moment precis ou un exploitant croit ouvrir son pilote : il
-     * ecrit `Pilote-Cohere`, la base porte `pilote-cohere`, et rien ne se
-     * passe. Une porte qui refuse sans rien dire a quelqu'un qui vient de la
-     * deverrouiller est un piege, pas une securite.
+     * Le defaut est ferme, et une valeur qu'on ne sait pas lire ne « degrade »
+     * pas vers l'ouverture : elle ferme.
      */
-    public function test_an_allowlisted_slug_matches_whatever_its_case(): void
-    {
-        $organization = Organization::factory()->create(['slug' => 'pilote-cohere']);
-
-        config([
-            'ai.knowledge.rerank.enabled' => true,
-            'ai.knowledge.rerank.organization_ids' => [],
-            // Saisi en casse MIXTE, avec des espaces autour : ce qu'un humain
-            // ecrit dans un fichier d'environnement.
-            'ai.knowledge.rerank.organization_slugs' => ['  Pilote-Cohere  '],
-        ]);
-
-        $this->assertTrue(
-            app(DossierRerankGate::class)->isEnabledFor($organization->id),
-            'Un slug d\'allowlist doit ouvrir quelle que soit sa casse, comme le Gate voisin.',
-        );
-    }
-
-    /**
-     * REQ 7 — aucune allowlist, ou valeur illisible : comportement SECURISE.
-     *
-     * Le defaut est ferme. Une configuration qu'on ne sait pas lire n'ouvre
-     * rien : elle ne « degrade » pas vers l'ouverture, elle ferme.
-     */
-    public function test_an_absent_or_unreadable_allowlist_opens_nothing(): void
+    public function test_an_absent_or_unreadable_state_opens_nothing(): void
     {
         $organization = Organization::factory()->create();
         $gate = app(DossierRerankGate::class);
 
-        // Rien du tout.
-        config([
-            'ai.knowledge.rerank.enabled' => true,
-            'ai.knowledge.rerank.organization_ids' => [],
-            'ai.knowledge.rerank.organization_slugs' => [],
-        ]);
-        $this->assertFalse($gate->isEnabledFor($organization->id), 'Aucune allowlist ne doit ouvrir a personne.');
+        config(['ai.knowledge.rerank.enabled' => true]);
 
-        // Valeurs illisibles : un booleen, un entier, un objet.
-        foreach ([true, 42, new \stdClass] as $illisible) {
-            config(['ai.knowledge.rerank.organization_ids' => $illisible]);
-            $this->assertFalse($gate->isEnabledFor($organization->id), 'Une allowlist illisible doit fermer, jamais ouvrir.');
-        }
+        // Aucune ligne de reglages du tout.
+        $this->assertFalse($gate->isEnabledFor($organization->id), 'Une Organization sans reglages ne doit pas reranker.');
+
+        // Une ligne, mais l'autorisation a son defaut ferme.
+        OrganizationAiSetting::factory()->create(['organization_id' => $organization->id]);
+        $this->assertFalse($gate->isEnabledFor($organization->id), 'Le defaut de la colonne doit fermer.');
 
         // Identifiant vide cote appelant.
-        config(['ai.knowledge.rerank.organization_ids' => [$organization->id]]);
+        $this->autoriser($organization);
         $this->assertFalse($gate->isEnabledFor(''), 'Un identifiant vide ne doit rien ouvrir.');
     }
 
@@ -188,17 +156,15 @@ class TASK1562CoherePilotControlTest extends TestCase
             'ai.providers.openrouter.driver' => 'openrouter',
             'ai.providers.openrouter.key' => 'PLATEFORME_NE_DOIT_PAS_SERVIR',
             'ai.knowledge.rerank.enabled' => true,
-            'ai.knowledge.rerank.organization_ids' => [],
-            'ai.knowledge.rerank.organization_slugs' => [],
         ]);
 
         $resolver = app(ProviderResolver::class);
 
-        // Hors allowlist : aucune instance, et surtout aucun repli plateforme.
+        // Non autorisee : aucune instance, et surtout aucun repli plateforme.
         $this->assertNull($resolver->resolveRerankingInstance($organization->id));
 
-        // Nommee : l'instance est celle du tenant, nommement.
-        config(['ai.knowledge.rerank.organization_ids' => [$organization->id]]);
+        // Autorisee : l'instance est celle du tenant, nommement.
+        $this->autoriser($organization);
 
         $this->assertSame(
             "org:{$organization->id}:rerank",
@@ -378,6 +344,28 @@ class TASK1562CoherePilotControlTest extends TestCase
     }
 
     // ───────────────────────────────────────────────────── harnais
+
+    /**
+     * TASK-1563 — autorise une Organization par le chemin qui fait DESORMAIS
+     * autorite.
+     *
+     * TASK-1562 la designait par une allowlist d'environnement ; celle-ci a ete
+     * retiree au profit d'un interrupteur d'administration, et le drapeau vit
+     * sur la ligne de reglages de l'Organization. Les tests gardent leurs
+     * garanties, seul le mecanisme d'activation change.
+     */
+    private function autoriser(Organization $organization, bool $autorisee = true): void
+    {
+        // La factory fournit `provider` et `model`, qui sont NOT NULL : une
+        // Organization sans configuration IA ne peut pas porter ce drapeau, et
+        // ce n'est pas un contournement — sans credential tenant elle ne
+        // rerankerait pas de toute facon.
+        $setting = OrganizationAiSetting::query()->where('organization_id', $organization->id)->first()
+            ?? OrganizationAiSetting::factory()->create(['organization_id' => $organization->id]);
+
+        $setting->rerank_enabled = $autorisee;
+        $setting->save();
+    }
 
     /** @return array{0: Organization, 1: User} */
     private function tenant(): array

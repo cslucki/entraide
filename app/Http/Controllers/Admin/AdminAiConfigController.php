@@ -7,6 +7,7 @@ use App\Models\AiConfig;
 use App\Models\BlogAiConfig;
 use App\Models\Organization;
 use App\Models\OrganizationGuestShellPolicy;
+use App\Services\Ai\AiRerankSettings;
 use App\Services\Ai\SupervisionProviderResolver;
 use App\Services\GuestShell\GuestShellPolicyService;
 use App\Support\GuestShell\GuestShellDisplayMode;
@@ -18,6 +19,7 @@ class AdminAiConfigController extends Controller
 {
     public function __construct(
         private readonly SupervisionProviderResolver $resolver,
+        private readonly AiRerankSettings $rerankSettings,
     ) {}
 
     public function index(): View
@@ -44,6 +46,10 @@ class AdminAiConfigController extends Controller
             'organizations' => $organizations,
             'blogConfigs' => $blogConfigs,
             'clarificationEnabled' => $clarificationEnabled,
+            // TASK-1563 : l'arret d'urgence du rerank documentaire. Lu par le
+            // service, qui fait primer la base sur le defaut d'environnement.
+            'rerankEnabled' => $this->rerankSettings->platformEnabled(),
+            'rerankLastChange' => $this->rerankSettings->lastChange(null),
         ]);
     }
 
@@ -80,6 +86,7 @@ class AdminAiConfigController extends Controller
             'default_provider' => ['nullable', 'string', 'in:openai,ollama,openrouter'],
             'default_model' => ['nullable', 'string', 'max:255'],
             'clarification_enabled' => 'sometimes|boolean',
+            'rerank_enabled' => 'sometimes|boolean',
         ]);
 
         if ($validated['default_provider'] ?? null) {
@@ -94,6 +101,17 @@ class AdminAiConfigController extends Controller
 
         AiConfig::set('clarification_enabled', $validated['clarification_enabled'] ?? false);
         config(['ai.clarification_enabled' => $validated['clarification_enabled'] ?? false]);
+
+        // TASK-1563 — l'arret d'urgence du rerank documentaire.
+        //
+        // Passe par le service, et pas par un `AiConfig::set()` en ligne :
+        // c'est lui qui ecrit '1'/'0' en chaines et qui TRACE qui a bascule
+        // l'interrupteur. Un reglage qui decide si des tenants paient un
+        // provider ne doit pas pouvoir changer sans signature.
+        $this->rerankSettings->updatePlatform(
+            (bool) ($validated['rerank_enabled'] ?? false),
+            $request->user(),
+        );
 
         return redirect()->route('admin.ai-config')
             ->with('success', 'Configuration IA mise à jour.');

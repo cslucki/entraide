@@ -57,6 +57,17 @@ return [
     'ai_features_title' => 'Features',
     'ai_clarification' => 'Clarification',
     'ai_clarification_desc' => 'Shows AI-assisted clarification inside loops.',
+    // TASK-1563 — the rerank, named for what it DOES: it ranks sources already
+    // found, it searches for none.
+    'ai_rerank' => 'Document source ranking (Cohere)',
+    'ai_rerank_desc' => 'Master switch. Turned off here, no Organization ranks its sources, even one allowed individually.',
+    'ai_rerank_last_change' => 'Last change: :author, on :date.',
+    'ai_rerank_unknown_author' => 'unknown author',
+    'organization_rerank_title' => 'Source ranking (Cohere)',
+    'organization_rerank_label' => 'Allow source ranking for this Organization',
+    'organization_rerank_desc' => 'Adds one provider call to every document question, billed to this Organization. Requires an AI key configured for it.',
+    'organization_rerank_requires_ai_config' => 'This Organization has no AI configuration, so it has no key to rank its sources. Configure it first.',
+    'organization_rerank_platform_off' => 'The master switch is off: this permission is saved, but takes effect only once the platform is enabled.',
     'owner_must_belong_to_org' => 'The selected owner must belong to the loop organization.',
     'owner_select_label' => 'Owner',
     'owner_select_placeholder' => '— Select an owner —',
@@ -778,7 +789,7 @@ return [
     'guest_shell_month_cost' => 'Known cost this month',
     'guest_shell_avg_cost' => 'Average cost / answer',
     'guest_shell_unknown_cost' => 'with unknown cost',
-        // TASK-1468 — see the French file for the reasoning behind these keys.
+    // TASK-1468 — see the French file for the reasoning behind these keys.
     // TASK-1470 : les cles `guest_shell_state_*` et `guest_shell_reason_*` ont ete
     // retirees ici. Elles etaient devenues ORPHELINES — les trois surfaces admin
     // lisent desormais `GuestShellDiagnosis` — et l'une d'elles nommait une
