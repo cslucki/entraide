@@ -5,14 +5,18 @@ namespace Tests\Feature;
 use App\Ai\Agents\HelpRequestClarifierAgent;
 use App\Models\AdminAiPrompt;
 use App\Models\AiConfig;
+use App\Models\AiInteraction;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\LoopService;
+use App\Support\Ai\AiTurnState;
 use App\Support\Loops\HelpRequestHandoff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -86,7 +90,7 @@ class TASK1322ChatLoopSansIaTest extends TestCase
     }
 
     /**
-     * @return \Illuminate\Testing\TestResponse<\Illuminate\Http\Response>
+     * @return TestResponse<Response>
      */
     private function analyze(string $intention = 'Je cherche des retours pour structurer une demande de mentorat')
     {
@@ -243,9 +247,14 @@ class TASK1322ChatLoopSansIaTest extends TestCase
         $post = $this->analyze();
         $post->assertRedirect();
 
-        // Refus pre-provider : aucune trace, aucune consommation fictive.
-        $this->assertDatabaseCount('ai_interactions', 0);
+        // Refus pre-provider : aucune consommation fictive, aucune generation.
+        // TASK-1572 / V0-D : le repli deterministe laisse UN tour qui l'avoue
+        // (statut de ligne `fallback`, code du garde), sans cout ni ledger.
         $this->assertDatabaseCount('ai_provider_invocations', 0);
+        $repli = AiInteraction::query()->sole();
+        $this->assertSame(AiTurnState::LINE_FALLBACK, $repli->metadata['status']);
+        $this->assertSame(0, $repli->input_tokens);
+        $this->assertTrue($repli->metadata['turn']['identity']['fallback_used']);
 
         $html = $this->actingAs($this->member)
             ->get($post->headers->get('Location'))

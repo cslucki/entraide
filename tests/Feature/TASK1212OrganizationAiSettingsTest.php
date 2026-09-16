@@ -20,6 +20,7 @@ use App\Services\Ai\Contracts\AiProvider;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopService;
 use App\Support\Ai\AiEconomicGuard;
+use App\Support\Ai\AiTurnState;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -210,7 +211,14 @@ class TASK1212OrganizationAiSettingsTest extends TestCase
 
         $this->assertSame('deterministic_fallback', $result->producer);
         HelpRequestClarifierAgent::assertNotPrompted(fn (AgentPrompt $prompt): bool => true);
-        $this->assertDatabaseCount('ai_interactions', 0);
+        // TASK-1572 / V0-D : aucune generation, aucun ledger ; UN tour de repli
+        // avoue (`ai_not_configured`), sans modele invente.
+        $this->assertSame(0, AiInteraction::query()->whereNot(static fn ($q) => $q->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES))->count());
+        $this->assertDatabaseCount('ai_provider_invocations', 0);
+        $repli = AiInteraction::query()->sole();
+        $this->assertSame(AiTurnState::LINE_FALLBACK, $repli->metadata['status']);
+        $this->assertSame('ai_not_configured', $repli->metadata['turn']['identity']['fallback_reason']);
+        $this->assertSame('', $repli->model);
     }
 
     public function test_the_clarification_is_prompted_on_the_tenant_instance(): void
