@@ -2,6 +2,7 @@
 
 namespace App\Support\AiLab;
 
+use App\Ai\ProviderResolver;
 use App\Models\Dossier;
 use App\Models\DossierChunk;
 use App\Models\DossierFile;
@@ -38,7 +39,7 @@ final class LabPreconditions
 
     public const UNAVAILABLE = 'UNAVAILABLE';
 
-    public function __construct(private readonly AiEconomicGuard $guard, private readonly DerivedChunkEligibility $eligibility) {}
+    public function __construct(private readonly AiEconomicGuard $guard, private readonly DerivedChunkEligibility $eligibility, private readonly ProviderResolver $providers) {}
 
     /**
      * @return array{verdict: string, checks: array<string, array{expected: string, actual: mixed, status: string, detail?: string}>}
@@ -103,9 +104,11 @@ final class LabPreconditions
                 // ne part (doctrine T1214/T1225 : aucun repli plateforme, voir
                 // `ProviderResolver::tenantEmbeddingKey`). Le pack ne pose jamais
                 // de cle ; l'operateur du Lab la pose (T1587 D1) — revue Opus #1.
-                $configured = OrganizationAiSetting::query()->where('organization_id', (string) $organization->id)->whereNotNull('api_key')->exists();
+                // MEME predicat que l'autorite (cle non vide, reglage utilisable,
+                // famille = celle de l'index) : ni plus large, ni plus etroit.
+                $configured = $this->providers->resolveEmbeddingInstance((string) $organization->id) !== null;
                 if (! $configured) {
-                    $checks['quota'] = ['expected' => 'YES', 'actual' => 'UNKNOWN', 'status' => self::UNAVAILABLE, 'detail' => 'aucune cle IA TENANT : sans cle propre aucun embedding ne part (T1214/T1225, pas de repli plateforme) — l\'operateur du Lab pose la cle'];
+                    $checks['quota'] = ['expected' => 'YES', 'actual' => 'UNKNOWN', 'status' => self::UNAVAILABLE, 'detail' => 'aucune instance d\'embedding TENANT resolvable (cle vide, reglage inutilisable ou famille ≠ index ; T1214/T1225, pas de repli plateforme) — l\'operateur du Lab pose la cle'];
                 } else {
                     $verdict = $this->guard->authorizeEmbeddings($organization, $user instanceof User && (string) $user->organization_id === (string) $organization->id ? $user : null);
                     $checks['quota'] = ['expected' => 'YES', 'actual' => $verdict->allowed ? 'YES' : 'NO', 'status' => $verdict->allowed ? self::YES : self::NO, 'detail' => $verdict->reason ?? 'ok'];

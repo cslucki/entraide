@@ -174,7 +174,8 @@ final class LabRunner
                 // dans la Boucle du Lab (c'est le but du Lab) et marque.
                 $message = $this->messages->sendUserMessage($loop, $user, $spec['question'], ['lab_scenario_key' => $scenario->key, 'lab_run_id' => $runId], $replyTo !== null ? (string) $replyTo : null);
             } catch (\Throwable $e) {
-                $turns[] = ['order' => $spec['order'], 'refused' => true, 'refusal' => 'surface : '.$e->getMessage(), 'refused_before_run' => true, 'inspection' => null, 'projection' => null, 'history_derived' => null, 'response' => null, 'interaction_id' => null, 'message_id' => null, 'bubble_id' => null];
+                // Une panne a l'envoi n'est PAS un refus de surface : non etabli.
+                $turns[] = $this->tourNonEtabli($spec['order'], 'envoi du message humain impossible : '.$e::class.' — '.$e->getMessage(), null);
                 break;
             }
             $previousUserMessage = $message;

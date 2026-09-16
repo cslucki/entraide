@@ -78,7 +78,7 @@ class AiLabRunCommand extends Command
 
         foreach ($result['turns'] as $turn) {
             $this->line('');
-            $this->line(sprintf('  tour %d : %s', $turn['order'], $turn['refused'] ? 'REFUSE — '.($turn['refusal'] ?? '') : 'execute'));
+            $this->line(sprintf('  tour %d : %s', $turn['order'], ($turn['not_established'] ?? false) ? 'NON ETABLI — '.($turn['refusal'] ?? '') : ($turn['refused'] ? 'REFUSE — '.($turn['refusal'] ?? '') : 'execute')));
             if (! $turn['refused']) {
                 $this->line(sprintf('    turn_id=%s status=%s execution_path=%s bubble=%s', $turn['turn_id'] ?? '(aucun)', $turn['status'] ?? '(aucun)', $turn['execution_path'] ?? '(aucun)', $turn['bubble_id'] ?? '(aucune)'));
                 if (($turn['manifest_failure'] ?? null) !== null) {

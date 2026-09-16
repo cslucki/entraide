@@ -186,6 +186,9 @@ final class LabVerdict
         }
 
         $first = self::firstComponent($divergences);
+        // La liste rendue suit le MEME ordre que first_failed_component.
+        $order = array_flip([self::COMPONENT_DATA, ...AiTurnComparison::STEPS]);
+        usort($divergences, static fn (array $a, array $b): int => ($order[$a['component']] ?? 99) <=> ($order[$b['component']] ?? 99));
 
         return self::result($divergences === [] ? self::PASS : self::FAIL, $first, $divergences, $leak, null);
     }

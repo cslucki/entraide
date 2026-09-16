@@ -227,7 +227,7 @@ class TASK1591LabRunnerTest extends TestCase
 
         $this->assertSame(LabVerdict::UNAVAILABLE, $result['result']);
         $this->assertSame(LabPreconditions::UNAVAILABLE, $result['preconditions']['checks']['quota']['status']);
-        $this->assertStringContainsString('cle IA TENANT', $result['preconditions']['checks']['quota']['detail']);
+        $this->assertStringContainsString('embedding TENANT', $result['preconditions']['checks']['quota']['detail']);
         $this->assertSame(0, AiInteraction::query()->count());
     }
 
