@@ -157,7 +157,7 @@ class TASK1566WritersIdentityTest extends TestCase
         // La garde evolue writer par writer, jamais en bloc.
         // TASK-1570 (V0-B) : ce writer ecrit son VERDICT (`status`, `decided_by`,
         // `latency_ms` ; `stage`/`reason_code` absents sur un tour repondu).
-        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'history', 'status', 'decided_by', 'latency_ms']);
+        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'history', 'status', 'decided_by', 'latency_ms', 'state']);
         $this->assertLegacyPreservee($interaction, ['loop_id', 'requested_by', 'latency_ms', 'provider', 'capability', 'status']);
 
         $history = $interaction->metadata[AiTurnTrace::TURN_METADATA_KEY]['history'];
@@ -204,7 +204,7 @@ class TASK1566WritersIdentityTest extends TestCase
 
         $this->assertIdentiteVientDuContexteIa($vu, $interaction);
         // TASK-1568 (V0-G) : `identity` et `steps` ; TASK-1573 (V0-E) : `sources`.
-        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'sources']);
+        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'sources', 'state']);
         $this->assertLegacyPreservee($interaction, ['requested_by', 'latency_ms', 'provider', 'capability', 'status', 'general_contract_hash']);
 
         // FACT preexistant a TASK-1566, volontairement NON corrige ici : ce
@@ -232,7 +232,7 @@ class TASK1566WritersIdentityTest extends TestCase
         $this->assertIdentiteVientDuContexteIa($vu, $interaction);
         // TASK-1568 (V0-G) : `identity` et `steps` ; TASK-1572 (V0-D) : le verdict
         // (`status`, `decided_by`) — `stage`/`reason_code` absents sur un tour repondu.
-        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'status', 'decided_by', 'sources']);
+        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'status', 'decided_by', 'sources', 'state']);
         $this->assertLegacyPreservee($interaction, ['requested_by', 'latency_ms', 'provider', 'capability', 'status']);
     }
 
@@ -260,7 +260,7 @@ class TASK1566WritersIdentityTest extends TestCase
 
         $this->assertSame($turnId, $this->identite($interaction));
         // TASK-1568 (V0-G) : `identity` et `steps` ; TASK-1573 (V0-E) : `sources`.
-        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'sources']);
+        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'sources', 'state']);
         $this->assertLegacyPreservee($interaction, ['dossier_id', 'requested_by', 'latency_ms', 'provider', 'capability', 'status', 'retrieval']);
     }
 
@@ -330,8 +330,9 @@ class TASK1566WritersIdentityTest extends TestCase
      *
      * TASK-1568 (V0-G) a ajoute `identity` et `steps` aux quatre ; TASK-1570
      * (V0-B) le verdict a ChatLoop, TASK-1572 (V0-D) au clarifier ; TASK-1573
-     * (V0-E) `sources` la ou une borne existe (pas sur `respondInThread`). Ce
-     * qui reste INTERDIT tant que V0-F n'a pas eu lieu : `state`.
+     * (V0-E) `sources` la ou une borne existe (pas sur `respondInThread`) ;
+     * TASK-1574 (V0-F) `state` partout. Le schema v1 est complet : toute cle
+     * nouvelle est desormais un `schema = 2`.
      *
      * @param  list<string>  $clesAttendues
      */
