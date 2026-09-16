@@ -202,18 +202,17 @@ final class DossierRetrievalSource implements ContextSource
             // recherche jusqu'au ledger.
             // TASK-1556 : l'identite du tour suit la recherche jusqu'au
             // listener, qui journalise l'invocation embedding sous elle.
-            ['capability' => $contexte->capability, 'loop_id' => $contexte->loopId, 'feature' => $contexte->feature, 'turn_id' => $contexte->turnId],
+            // TASK-1585 (review-fix) : l'ACTEUR du tour, deja valide tenant
+            // par le ContexteIa, suit la recherche jusqu'au ledger embedding —
+            // declare, jamais reconstruit depuis Auth::id() (le SuperAdmin sur
+            // un test Inspector, personne en CLI).
+            ['capability' => $contexte->capability, 'loop_id' => $contexte->loopId, 'feature' => $contexte->feature, 'turn_id' => $contexte->turnId, 'user_id' => $contexte->userId],
             max($topK, self::CANDIDATE_POOL_SIZE),
             null,
             // TASK-1534 — la troisieme famille de chunk est bornee par les
             // Boucles que CET utilisateur peut lire. `$user` a deja ete
             // recharge et reverifie tenant plus haut.
             $this->derivedEligibility->authorizedLoopIds($contexte->organizationId, $user),
-            // TASK-1585 (review-fix) — l'ACTEUR du tour, deja valide tenant
-            // par le ContexteIa, suit la recherche jusqu'au ledger embedding :
-            // declare, jamais reconstruit depuis Auth::id() (qui est le
-            // SuperAdmin sur un test Inspector, personne en CLI).
-            userId: $contexte->userId,
         );
 
         // TASK-1565 — l'etat du bassin AVANT le filtre absolu. C'est la seule

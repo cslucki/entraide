@@ -419,6 +419,26 @@ class TASK1585InspectorTestRequestTest extends TestCase
         $this->assertSame(AiProviderInvocation::EMBEDDING_OPERATION_QUERY, $embedding->embedding_operation);
     }
 
+    public function test_d6_un_refus_qui_n_ecrit_rien_ne_remonte_jamais_le_tour_precedent_du_run(): void
+    {
+        // Review Opus F7 — serie CLI sous un meme run : tour 1 reussi, puis un
+        // refus AVANT toute ecriture (declencheur deja repondu, idempotence).
+        $runId = $this->runId();
+        $executor = app(AiTurnExecutor::class);
+        $premier = $executor->execute($this->organization, $this->membre, $this->loop, 'dossiers', 'Que dit le document ?', null, $runId, AiTurnTrace::RUN_KIND_CLI);
+        $this->assertFalse($premier->refused());
+        AiTurnLock::forgetRequestState();
+
+        $trigger = LoopMessage::create(['loop_id' => $this->loop->id, 'organization_id' => $this->organization->id, 'sender_id' => $this->membre->id, 'body' => 'Q', 'type' => 'user']);
+        LoopMessage::create(['loop_id' => $this->loop->id, 'organization_id' => $this->organization->id, 'sender_id' => $this->membre->id, 'body' => 'R', 'type' => 'ai', 'reply_to_id' => $trigger->id]);
+        $second = $executor->execute($this->organization, $this->membre, $this->loop, 'ia', 'Q', $trigger, $runId, AiTurnTrace::RUN_KIND_CLI);
+
+        $this->assertTrue($second->refused());
+        $this->assertNull($second->interaction, 'rien n\'a ete ecrit : aucun tour a inspecter, surtout pas celui d\'avant');
+        $this->assertSame([(string) $premier->interaction->id], array_column(AiRunManifest::load($runId)['turns'], 'interaction_id'), 'le manifeste n\'est pas pollue par un doublon');
+        $this->assertSame(1, AiInteraction::query()->count());
+    }
+
     // ────────────────────────────── E/F. non-publication, aucun effet au GET
 
     public function test_e1_rien_n_est_publie_dans_la_boucle_et_le_get_n_ecrit_rien(): void
@@ -489,6 +509,14 @@ class TASK1585InspectorTestRequestTest extends TestCase
         return substr($html, $debut, $fin === false ? null : $fin - $debut);
     }
 
+    private function runId(): string
+    {
+        $id = (string) Str::uuid();
+        $this->runs[] = $id;
+
+        return $id;
+    }
+
     private function fakeEmbeddings(): void
     {
         config(['ai.providers.openrouter.models.embeddings.dimensions' => 8]);
@@ -513,8 +541,10 @@ class TASK1585InspectorTestRequestTest extends TestCase
         $mock = $this->mock(DossierSemanticSearchService::class);
         $mock->shouldReceive('representativeChunksAcrossDossiers')->andReturn([])->byDefault();
         $mock->shouldReceive('searchAcrossDossiers')->andReturnUsing(
-            function (string $organizationId, array $dossierIds, string $query, string $instance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null, ?array $onlyFiles = null, ?array $loops = null, ?string $userId = null) use ($ligne): array {
-                $this->embedderHorsTour(AiProviderInvocation::EMBEDDING_OPERATION_QUERY, $traceMetadata, $userId, $organizationId, $instance);
+            function (string $organizationId, array $dossierIds, string $query, string $instance, int $limit = 5, array $traceMetadata = []) use ($ligne): array {
+                $userId = $traceMetadata['user_id'] ?? null;
+                unset($traceMetadata['user_id']);
+                $this->embedderHorsTour(AiProviderInvocation::EMBEDDING_OPERATION_QUERY, $traceMetadata, is_string($userId) ? $userId : null, $organizationId, $instance);
 
                 return [$ligne];
             },
