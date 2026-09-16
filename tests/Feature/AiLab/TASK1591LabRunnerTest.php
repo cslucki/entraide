@@ -4,6 +4,7 @@ namespace Tests\Feature\AiLab;
 
 use App\Ai\Agents\LoopDirectAnswerAgent;
 use App\Ai\Agents\LoopKnowledgeAgent;
+use App\Ai\Context\DossierRetrievalTraceRecorder;
 use App\Models\AiInteraction;
 use App\Models\DerivedKnowledgeNote;
 use App\Models\Dossier;
@@ -15,7 +16,6 @@ use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\ScenarioPackLoad;
 use App\Models\User;
-use App\Ai\Context\DossierRetrievalTraceRecorder;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Support\Ai\AiRunManifest;
 use App\Support\Ai\AiTurnExecutor;
@@ -63,6 +63,9 @@ class TASK1591LabRunnerTest extends TestCase
     /** @var list<string> */
     private array $reponses = [];
 
+    /** Stockage TEMPORAIRE du test — le seul que tearDown ait le droit d'effacer. */
+    private string $stockage = '';
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -71,7 +74,8 @@ class TASK1591LabRunnerTest extends TestCase
         AiTurnTrace::forgetJournal();
         DossierRetrievalTraceRecorder::forgetJournal();
         AiTurnLock::forgetRequestState();
-        app()->useStoragePath(sys_get_temp_dir().'/lab-1591-'.Str::random(8));
+        $this->stockage = sys_get_temp_dir().'/lab-1591-'.Str::random(8);
+        app()->useStoragePath($this->stockage);
 
         // L'Organization est pre-creee pour porter la cle et la porte
         // semantique AVANT le chargement (le pack n'ecrit jamais de cle).
@@ -99,7 +103,12 @@ class TASK1591LabRunnerTest extends TestCase
 
     protected function tearDown(): void
     {
-        File::deleteDirectory(app()->storagePath());
+        // Jamais `app()->storagePath()` : si setUp a echoue AVANT la
+        // redirection, c'est le VRAI storage/ qui y serait (vecu : .gitignore
+        // efface). On n'efface que le repertoire temporaire cree ici.
+        if ($this->stockage !== '' && str_starts_with($this->stockage, sys_get_temp_dir().'/lab-1591-')) {
+            File::deleteDirectory($this->stockage);
+        }
         AiTurnTrace::forgetJournal();
         DossierRetrievalTraceRecorder::forgetJournal();
 

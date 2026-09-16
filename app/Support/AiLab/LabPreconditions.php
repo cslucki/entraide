@@ -11,6 +11,7 @@ use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\ScenarioPackLoad;
 use App\Models\User;
+use App\Services\Dossiers\DerivedChunkEligibility;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\ScenarioPacks\Packs\AiLabPack;
 
@@ -37,7 +38,7 @@ final class LabPreconditions
 
     public const UNAVAILABLE = 'UNAVAILABLE';
 
-    public function __construct(private readonly AiEconomicGuard $guard) {}
+    public function __construct(private readonly AiEconomicGuard $guard, private readonly DerivedChunkEligibility $eligibility) {}
 
     /**
      * @return array{verdict: string, checks: array<string, array{expected: string, actual: mixed, status: string, detail?: string}>}
@@ -88,9 +89,10 @@ final class LabPreconditions
             $checks['gold_access'] = ['expected' => $expectedAccess, 'actual' => $actual, 'status' => $actual === $expectedAccess ? self::YES : self::NO];
         }
 
-        // derived_chunks_absent — aucun chunk derive (knowledge:derive-due) dans les Dossiers du scenario.
+        // derived_chunks_absent — aucun chunk derive (knowledge:derive-due) dans
+        // les Dossiers du scenario ; le COMPTE vient de l'autorite (T1539).
         if (($declared['derived_chunks_absent'] ?? 'required') === 'required') {
-            $derives = $dossierIds === [] ? 0 : DossierChunk::query()->whereIn('dossier_id', $dossierIds)->whereNotNull('derived_knowledge_note_id')->count();
+            $derives = $this->eligibility->derivedChunkCount((string) $organization->id, $dossierIds);
             $checks['derived_chunks_absent'] = ['expected' => 0, 'actual' => $derives, 'status' => $loop === null ? self::UNAVAILABLE : ($derives === 0 ? self::YES : self::NO), 'detail' => $derives === 0 ? 'aucun chunk derive' : "{$derives} chunk(s) derive(s) : le Lab n'est pas propre (reset requis)"];
         }
 
