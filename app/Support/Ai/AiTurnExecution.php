@@ -3,6 +3,7 @@
 namespace App\Support\Ai;
 
 use App\Models\AiInteraction;
+use App\Models\LoopMessage;
 use App\Services\Ai\DTO\KnowledgeAnswer;
 
 /**
@@ -31,6 +32,11 @@ final class AiTurnExecution
          * dit tel quel, jamais confondu avec « rien n'est parti ».
          */
         public readonly ?string $manifestFailure = null,
+        /**
+         * TASK-1591 — la bulle IA publiee (Lab seulement, `executeForLab`) :
+         * le tour suivant d'un scenario y REPOND. Toujours `null` hors Lab.
+         */
+        public readonly ?LoopMessage $publishedMessage = null,
     ) {}
 
     public function refused(): bool
