@@ -201,11 +201,14 @@ class TASK1568ExecutionPathTest extends TestCase
         // doivent apparaitre QUE dans le registre.
         // TASK-1576 / V0-I : les 4 chemins reserves sont desormais ecrits — par
         // `AiShellResponder` SEUL (la branche zero-provider est son propre writer).
+        // TASK-1579 / TRACE-1A : `AiConversationTrace` LIT `AI_SHELL_REFERENCE`
+        // (derive REFERENT_RESOLUTION) — un lecteur, pas un writer.
+        $lecteurs = ['AI_SHELL_REFERENCE' => ['Support/Ai/AiConversationTrace.php']];
         foreach (['AI_SHELL_SELF_KNOWLEDGE', 'AI_SHELL_REFERENCE', 'AI_SHELL_PEOPLE_MATCHING', 'AI_SHELL_PEOPLE_SELF'] as $constante) {
-            $this->assertSame(
-                ['Services/Ai/AiShellResponder.php'],
+            $this->assertEqualsCanonicalizing(
+                ['Services/Ai/AiShellResponder.php', ...($lecteurs[$constante] ?? [])],
                 $this->fichiersApplicatifsContenant('AiExecutionPath::'.$constante),
-                "`{$constante}` n'est ecrite que par la branche Shell zero-provider (V0-I)",
+                "`{$constante}` n'est ecrite que par la branche Shell zero-provider (V0-I) — et lue par les lecteurs nommes",
             );
         }
     }
