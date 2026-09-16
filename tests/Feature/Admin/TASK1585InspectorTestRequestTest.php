@@ -178,6 +178,37 @@ class TASK1585InspectorTestRequestTest extends TestCase
             ->assertOk()->assertDontSee('Boucle etrangere')->assertDontSee('Boucle testee');
     }
 
+    public function test_b2_l_executeur_revalide_le_tenant_lui_meme_avant_toute_execution(): void
+    {
+        // Defense en profondeur : meme un appelant qui aurait resolu de travers
+        // (pas le controleur, qui filtre) est refuse PAR L'EXECUTEUR, avant
+        // tout service, tout run, tout provider.
+        $ailleurs = Organization::factory()->create(['is_active' => true, 'slug' => 'ailleurs-1585-b2', 'loops_enabled' => true, 'members_can_create_loops' => true]);
+        $etranger = User::factory()->complete()->create(['organization_id' => $ailleurs->id]);
+        $loopEtrangere = (new LoopService)->createLoop($etranger, 'Boucle etrangere b2');
+        $executor = app(AiTurnExecutor::class);
+        $manifestes = count(File::glob(dirname(AiRunManifest::path((string) Str::uuid())).'/*.json') ?: []);
+
+        foreach ([
+            [$this->organization, $etranger, $this->loop, 'dossiers', null],
+            [$this->organization, $this->membre, $loopEtrangere, 'dossiers', null],
+            [$this->organization, $this->membre, $this->loop, 'ia', null],
+            [$this->organization, $this->membre, $this->loop, 'ia', LoopMessage::create(['loop_id' => $loopEtrangere->id, 'organization_id' => $ailleurs->id, 'sender_id' => $etranger->id, 'body' => 'Q', 'type' => 'user'])],
+            [$this->organization, $this->membre, $this->loop, 'shell', null],
+        ] as [$org, $user, $loop, $mode, $trigger]) {
+            try {
+                $executor->execute($org, $user, $loop, $mode, 'Q ?', $trigger, null, AiTurnTrace::RUN_KIND_INSPECTOR);
+                $this->fail("l'executeur devait refuser ({$mode})");
+            } catch (\InvalidArgumentException) {
+            }
+        }
+
+        $this->assertSame(0, AiInteraction::query()->count());
+        $this->assertSame(0, AiProviderInvocation::query()->count());
+        $this->assertSame($manifestes, count(File::glob(dirname(AiRunManifest::path((string) Str::uuid())).'/*.json') ?: []), 'aucun run ouvert par un refus d\'entree');
+        $this->assertNull(AiTurnTrace::currentRun());
+    }
+
     // ────────────────────────────── C. modes reels + redirect + run
 
     public function test_c1_mode_dossiers_produit_un_vrai_tour_et_redirige_vers_sa_fiche(): void
