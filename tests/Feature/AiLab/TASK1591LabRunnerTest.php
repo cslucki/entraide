@@ -474,20 +474,47 @@ class TASK1591LabRunnerTest extends TestCase
         $this->assertSame(0, LoopMessage::query()->where('type', 'ai')->where('metadata->ai_interaction_id', '!=', '')->count());
     }
 
-    public function test_e3_un_tour_1_repondu_mais_sans_bulle_publiee_rend_le_tour_2_non_etabli_unavailable(): void
+    public function test_e3_un_tour_1_repondu_mais_sans_bulle_retrouvee_rend_le_tour_2_non_etabli_unavailable(): void
     {
         $this->chargerLePack();
         $this->rechercheRendLeChunkReel('L2');
-        // Le VRAI tour 1 a lieu ; seule sa BULLE ne s'ecrit pas (publication
-        // perdue) : le tour 2 `reply_to: previous_ai` n'a plus de cible.
-        LoopMessage::creating(static fn (LoopMessage $m): bool => $m->type !== 'ai');
+        // Le VRAI tour 1 a lieu et repond ; sa bulle est ecrite mais PERD son
+        // lien `ai_interaction_id` (publication non retrouvable) : le tour 2
+        // `reply_to: previous_ai` n'a plus de cible declaree — non juge.
+        LoopMessage::created(static function (LoopMessage $m): void {
+            if ($m->type === 'ai') {
+                $meta = $m->metadata;
+                unset($meta['ai_interaction_id']);
+                $m->forceFill(['metadata' => $meta])->saveQuietly();
+            }
+        });
 
         $result = $this->runner()->run($this->scenario('LAB.MULTITURN_REFERENT_1'));
 
         $this->assertSame(LabVerdict::UNAVAILABLE, $result['result'], json_encode($result['turns']));
-        $this->assertSame(1, AiInteraction::query()->count(), 'le tour 1 a eu lieu ; le tour 2 n\'est pas execute sans sa cible');
-        $this->assertSame(0, LoopMessage::query()->where('type', 'ai')->where('metadata->ai_interaction_id', '!=', '')->count());
-        $this->assertTrue(end($result['turns'])['not_established'] ?? false, 'le run est NON ETABLI, pas juge : '.json_encode($result['turns']));
+        $this->assertCount(2, $result['turns']);
+        $this->assertFalse($result['turns'][0]['refused']);
+        $this->assertSame('answered', $result['turns'][0]['status']);
+        $this->assertNull($result['turns'][0]['bubble_id']);
+        $this->assertTrue($result['turns'][1]['not_established'] ?? false);
+        $this->assertStringContainsString('aucune bulle', $result['unavailable_reason']);
+        $this->assertSame(1, AiInteraction::query()->count(), 'le tour 2 n\'est pas execute sans sa cible');
+    }
+
+    public function test_e4_un_plantage_apres_le_message_humain_rend_un_tour_non_etabli_jamais_un_verdict(): void
+    {
+        $this->chargerLePack();
+        $this->rechercheRendLeChunkReel('L1');
+        // La bulle refuse de s'ecrire : le service plante APRES un tour paye.
+        // Le runner ne juge pas, il dit « non etabli » (revue Opus #10).
+        LoopMessage::creating(static fn (LoopMessage $m): bool => $m->type !== 'ai');
+
+        $result = $this->runner()->run($this->scenario('LAB.POSITIVE_SIMPLE_1'));
+
+        $this->assertSame(LabVerdict::UNAVAILABLE, $result['result']);
+        $this->assertTrue($result['turns'][0]['not_established'] ?? false);
+        $this->assertStringContainsString('execution interrompue', $result['unavailable_reason']);
+        $this->assertNotNull($result['turns'][0]['message_id'], 'le message humain a ete ecrit : on le dit');
     }
 
     // ────────────────────────────── F. commande
