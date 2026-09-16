@@ -266,8 +266,14 @@ class TASK1558InspectorCliTest extends TestCase
         // TASK-1565 : `retrieval_trace` s'ajoute aux huit sections d'origine —
         // les etages que le retrieval a REELLEMENT traverses, ecrits par le
         // pipeline et lus ici.
+        //
+        // TASK-1567 / V0-L : `history` s'y ajoute a son tour — ce que le tour a
+        // REELLEMENT recu de la conversation. La garde ne s'assouplit pas : elle
+        // reste une egalite STRICTE sur la liste ET sur l'ordre, parce que
+        // `--json` est un contrat machine-readable. Une section de plus doit
+        // donc toujours se declarer ici, jamais se glisser en silence.
         $this->assertSame(
-            ['run', 'identity', 'scope', 'retrieval', 'retrieval_trace', 'selection', 'llm_input', 'output', 'provider'],
+            ['run', 'identity', 'scope', 'retrieval', 'retrieval_trace', 'history', 'selection', 'llm_input', 'output', 'provider'],
             array_keys($sortie),
         );
         $this->assertSame('loop_knowledge_answer', $sortie['run']['capability']);

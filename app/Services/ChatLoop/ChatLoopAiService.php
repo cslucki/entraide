@@ -157,6 +157,29 @@ class ChatLoopAiService
                     'question' => $question,
                 ],
                 doctrineVersion: $doctrineVersion,
+                // TASK-1567 / CDC-01 V0-L — ce que CE tour a REELLEMENT recu de
+                // la conversation. Les valeurs sont celles que le moteur vient
+                // d'utiliser pour son prompt : rien n'est relu, rien n'est
+                // recalcule.
+                //
+                // `count = 0` s'ecrit TEL QUEL, sans statut d'erreur : un
+                // follow-up sans reply explicite ne recoit aucun historique, et
+                // c'est le comportement produit actuel (CDC-01 P0.12). La
+                // strategie reste `reply_chain` — c'est bien elle qui a ete
+                // tentee ; ecrire `none` laisserait croire qu'aucune n'a ete
+                // essayee.
+                history: [
+                    'strategy' => 'reply_chain',
+                    'message_ids' => $conversation->messageIds,
+                    'count' => count($conversation->messageIds),
+                    'chars' => $conversation->chars,
+                    // Le message AUQUEL l'utilisateur repondait, jamais le
+                    // message courant (CDC-01 P0.12). `null` quand le
+                    // declencheur n'est pas lui-meme une reply — et c'est alors
+                    // coherent avec `count = 0` : il n'y avait rien a remonter.
+                    'trigger_id' => $triggerMessage->reply_to_id,
+                    'budget_exhausted' => $conversation->budgetExhausted,
+                ],
             );
 
             $answer = AiMarkdownSanitizer::sanitize(
@@ -770,6 +793,7 @@ class ChatLoopAiService
         string $prompt,
         array $extraMetadata,
         ?int $doctrineVersion,
+        array $history = [],
     ): AiInteraction {
         $startedAt = microtime(true);
 
@@ -808,6 +832,7 @@ class ChatLoopAiService
                 sdkInvocationId: null,
                 failure: $exception::class,
                 doctrineVersion: $doctrineVersion,
+                history: $history,
             );
 
             throw new \RuntimeException(__('loops.ai_error'), 0, $exception);
@@ -842,6 +867,7 @@ class ChatLoopAiService
             sdkInvocationId: $response->invocationId,
             failure: null,
             doctrineVersion: $doctrineVersion,
+            history: $history,
         );
     }
 
@@ -868,6 +894,7 @@ class ChatLoopAiService
         ?string $sdkInvocationId,
         ?string $failure,
         ?int $doctrineVersion,
+        array $history = [],
     ): AiInteraction {
         // TASK-1220 : ligne canonique du ledger `ai_provider_invocations`,
         // memes points que la trace P1 (succes ET echec). Les refus
@@ -926,7 +953,18 @@ class ChatLoopAiService
                 // FACT corrige par cette TASK : ce chemin ne persistait AUCUN
                 // `turn_id`, alors que son `ContexteIa` en porte un depuis
                 // TASK-1556.
-                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::identityOnly($contexte->turnId),
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
+                    $contexte->turnId,
+                    null,
+                    // TASK-1567 / V0-L — `history` n'apparait que sur les
+                    // chemins qui en ONT un. Les chemins herites (`ask()`,
+                    // `answer()`, resume, suggestion de decision) fenetrent
+                    // `loop.messages` et non une chaine de reply : ils ne
+                    // passent rien, la cle reste absente, et absente se lit
+                    // `UNAVAILABLE` — jamais un historique vide qui se lirait
+                    // comme « ce tour n'a rien vu ».
+                    $history === [] ? [] : ['history' => $history],
+                ),
                 'failure' => $failure,
                 ...$extraMetadata,
             ], static fn ($value): bool => $value !== null)
