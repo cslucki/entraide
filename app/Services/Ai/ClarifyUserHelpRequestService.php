@@ -6,6 +6,7 @@ use App\Ai\Agents\HelpRequestClarifierAgent;
 use App\Ai\CapabilityDefinition;
 use App\Ai\CapabilityRegistry;
 use App\Ai\Context\ContextBuilder;
+use App\Ai\Context\ContexteBorne;
 use App\Ai\Context\OrganizationCategoriesSource;
 use App\Ai\Context\UserLoopsSource;
 use App\Ai\ContexteIa;
@@ -192,7 +193,7 @@ class ClarifyUserHelpRequestService implements AiProvider
             $resolved = $this->providers->resolve($capability, $contexte);
         } catch (DomainException) {
             // TASK-1572 / V0-D — repli avoue : aucun modele resolu.
-            return $this->fallbackAvoue($loop, $requester, $contexte, $definition, null, AiTurnReason::REFUSED_NOT_CONFIGURED, $phrase, $history, null);
+            return $this->fallbackAvoue($loop, $requester, $contexte, $definition, null, AiTurnReason::REFUSED_NOT_CONFIGURED, $phrase, $history, null, $borne);
         }
 
         // Budget mensuel de l'Organization et de la capability : un refus est
@@ -215,7 +216,7 @@ class ClarifyUserHelpRequestService implements AiProvider
             // TASK-1572 / V0-D — repli avoue, code du GARDE ; ledger vierge.
             AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'denied', $verdict->reason);
 
-            return $this->fallbackAvoue($loop, $requester, $contexte, $definition, $resolved, $verdict->reason, $phrase, $history, null);
+            return $this->fallbackAvoue($loop, $requester, $contexte, $definition, $resolved, $verdict->reason, $phrase, $history, null, $borne);
         }
 
         AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'executed');
@@ -273,7 +274,7 @@ class ClarifyUserHelpRequestService implements AiProvider
                 $loop, $requester, $contexte, $definition, $resolved, $phrase,
                 null, AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null,
                 'failed', $startedAt, null, $exception::class, $doctrineVersion, $constitutionVersions, $history,
-                AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED,
+                AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED, $borne,
             );
 
             // Un echec ne bloque pas le membre : il retombe sur la clarification
@@ -294,6 +295,7 @@ class ClarifyUserHelpRequestService implements AiProvider
             $loop, $requester, $contexte, $definition, $resolved, $phrase,
             json_encode($structured, JSON_UNESCAPED_UNICODE), $usage, $cost->traceAttributes(), $cost,
             'success', $startedAt, $response->invocationId, null, $doctrineVersion, $constitutionVersions, $history,
+            null, $borne,
         );
 
         return $this->mapStructuredToDto(
@@ -609,6 +611,7 @@ class ClarifyUserHelpRequestService implements AiProvider
         string $phrase,
         array $history,
         ?array $constitutionVersions,
+        ?ContexteBorne $borne = null,
     ): AssistedInteractionLabResult {
         $this->identiteDuRepli($contexte, $reason);
         AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'generation', 'fallback', AiTurnReason::FALLBACK_FAKE_PROVIDER);
@@ -640,6 +643,9 @@ class ClarifyUserHelpRequestService implements AiProvider
                         'status' => AiTurnState::TURN_ANSWERED,
                         'decided_by' => class_basename(self::class),
                         'history' => $history,
+                        // TASK-1573 / V0-E — absent sur la sortie « feature
+                        // coupee » (builder jamais appele), mesure ensuite.
+                        'sources' => $borne === null ? [] : AiTurnTrace::sourcesBlock($borne->sourcesUsed, $borne->sourcesDenied),
                     ],
                 ),
             ], static fn ($value): bool => $value !== null)
@@ -698,6 +704,7 @@ class ClarifyUserHelpRequestService implements AiProvider
         array $constitutionVersions = [],
         array $history = [],
         ?string $reasonCode = null,
+        ?ContexteBorne $borne = null,
     ): AiInteraction {
         $this->ledger->recordGeneration(
             organizationId: $contexte->organizationId,
@@ -756,6 +763,8 @@ class ClarifyUserHelpRequestService implements AiProvider
                         'reason_code' => $reasonCode,
                         'decided_by' => class_basename(self::class),
                         'history' => $history,
+                        // TASK-1573 / V0-E — `used`/`denied` de la borne (W3A).
+                        'sources' => $borne === null ? [] : AiTurnTrace::sourcesBlock($borne->sourcesUsed, $borne->sourcesDenied),
                     ],
                 ),
                 'failure' => $failure,

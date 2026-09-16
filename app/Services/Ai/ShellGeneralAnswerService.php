@@ -337,7 +337,11 @@ final class ShellGeneralAnswerService
                 AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
                     $contexte->turnId,
                     AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
-                    $history === [] ? [] : ['history' => $history],
+                    [
+                        'history' => $history,
+                        // TASK-1573 / V0-E — `used`/`denied` de la borne (W3A).
+                        'sources' => AiTurnTrace::sourcesBlock($sourcesUsed, $sourcesDenied),
+                    ],
                 ),
                 'failure' => $failure,
                 'sources_used' => $sourcesUsed,

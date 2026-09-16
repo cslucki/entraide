@@ -289,17 +289,17 @@ class TASK1566TurnBlockPilotTest extends TestCase
     {
         $turn = $this->blocDuTour();
 
-        // `sources` -> V0-E, `state` -> V0-F : toujours absents.
+        // `state` -> V0-F : toujours absent.
         // Une cle presente mais vide se lirait comme « mesure a zero ».
-        foreach (['sources', 'state'] as $aVenir) {
-            $this->assertArrayNotHasKey($aVenir, $turn, "`{$aVenir}` n'appartient pas encore a ce stade : absent, pas vide.");
-        }
+        $this->assertArrayNotHasKey('state', $turn, '`state` n\'appartient pas encore a ce stade : absent, pas vide.');
 
-        // `history` appartenait a cette liste jusqu'a TASK-1567 (V0-L), qui l'a
-        // livre. La garde ne disparait pas pour autant : elle CHANGE DE SENS et
-        // exige desormais la presence. C'est la difference entre mettre un test
-        // a jour et l'affaiblir.
+        // `history` (V0-L, T1567) puis `sources` (V0-E, T1573) appartenaient a
+        // cette liste jusqu'a leur TASK. La garde ne disparait pas pour autant :
+        // elle CHANGE DE SENS et exige desormais la presence. C'est la
+        // difference entre mettre un test a jour et l'affaiblir.
         $this->assertArrayHasKey('history', $turn, '`history` est livre par V0-L : il doit etre present.');
+        $this->assertArrayHasKey('sources', $turn, '`sources` est livre par V0-E : il doit etre present.');
+        $this->assertSame(['retrieved', 'reranked', 'used', 'denied'], array_keys($turn['sources']));
     }
 
     public function test_aucune_etape_de_grounding_ni_de_generation_n_est_fabriquee(): void

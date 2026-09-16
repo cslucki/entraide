@@ -1115,6 +1115,12 @@ class ChatLoopAiService
                         // TASK-1567 / V0-L — `history` n'apparait que sur les
                         // chemins qui en ONT un ; absente se lit `UNAVAILABLE`.
                         'history' => $history,
+                        // TASK-1573 / V0-E — `used`/`denied` de la borne, que
+                        // les chemins herites passent deja dans `extraMetadata` ;
+                        // `respondInThread()` n'a pas de ContextBuilder : rien.
+                        'sources' => isset($extraMetadata['sources_used']) || isset($extraMetadata['sources_denied'])
+                            ? AiTurnTrace::sourcesBlock($extraMetadata['sources_used'] ?? null, $extraMetadata['sources_denied'] ?? null)
+                            : [],
                     ],
                 ),
                 'failure' => $failure,

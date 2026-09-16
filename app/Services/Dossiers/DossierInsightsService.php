@@ -1416,7 +1416,15 @@ final class DossierInsightsService
                 AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
                     $contexte->turnId,
                     AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
-                    $history === [] ? [] : ['history' => $history],
+                    [
+                        'history' => $history,
+                        // TASK-1573 / V0-E — `used` et `denied` tels que ce
+                        // moteur les ecrit deja au premier niveau ; ni
+                        // `retrieved` ni `reranked` : la recherche passe par
+                        // `DossierSemanticSearchService`, hors de la source qui
+                        // ecrit `retrieval_trace` — rien a formater, rien a inventer.
+                        'sources' => AiTurnTrace::sourcesBlock($consulted === [] ? [] : [self::SOURCE_NAME], []),
+                    ],
                 ),
                 'failure' => $failure,
                 'retrieval' => ['consulted' => $ids($consulted), 'cited' => $ids($cited)],

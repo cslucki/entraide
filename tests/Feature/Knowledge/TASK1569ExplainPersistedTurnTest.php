@@ -229,8 +229,8 @@ class TASK1569ExplainPersistedTurnTest extends TestCase
         $this->assertSame('turn', $trace['state']['source']);
         $this->assertSame($turn['status'], $trace['state']['turn_status']);
         $this->assertNotNull($trace['retrieval_trace']);
-        // V0-E n'a pas eu lieu : `sources` n'est pas fabrique.
-        $this->assertNull($trace['sources']);
+        // V0-E (T1573) : les quatre familles, telles qu'ecrites — pas fabriquees.
+        $this->assertSame($turn['sources'], $trace['sources']);
         $this->assertSame($interaction->response, $trace['output']['response']);
     }
 

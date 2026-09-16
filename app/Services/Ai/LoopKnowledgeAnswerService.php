@@ -918,6 +918,9 @@ class LoopKnowledgeAnswerService
         array $history,
         ?int $doctrineVersion,
     ): AiInteraction {
+        // TASK-1573 / V0-E — un seul claim, partage (voir `recordInteraction`).
+        $dossierRetrieval = $borne === null ? null : DossierRetrievalTraceRecorder::claim($contexte->organizationId, $contexte->turnId);
+
         return AiInteraction::create([
             'user_id' => $requester->id,
             'organization_id' => $contexte->organizationId,
@@ -942,7 +945,7 @@ class LoopKnowledgeAnswerService
                 'sources_used' => $borne?->sourcesUsed,
                 DossierRetrievalTraceRecorder::TURN_METADATA_KEY => $borne === null ? null : [
                     'sources_denied' => $borne->sourcesDenied,
-                    'dossier_retrieval' => DossierRetrievalTraceRecorder::claim($contexte->organizationId, $contexte->turnId),
+                    'dossier_retrieval' => $dossierRetrieval,
                 ],
                 AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
                     $contexte->turnId,
@@ -953,6 +956,9 @@ class LoopKnowledgeAnswerService
                         'reason_code' => $reasonCode,
                         'decided_by' => class_basename(self::class),
                         'history' => $history,
+                        // TASK-1573 / V0-E — sur une abstention, les familles
+                        // disent ce qui a ete cherche, retenu (rien) et refuse.
+                        'sources' => $borne === null ? [] : AiTurnTrace::sourcesBlock($borne->sourcesUsed, $borne->sourcesDenied, $dossierRetrieval),
                     ],
                 ),
             ], static fn ($value): bool => $value !== null)
@@ -1018,6 +1024,11 @@ class LoopKnowledgeAnswerService
         // d'une trace le jour ou quelqu'un les comparerait.
         $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
 
+        // TASK-1573 / V0-E — la trace de retrieval est reclamee UNE fois et
+        // sert deux cles : `retrieval_trace` (detail fin, T1565) et
+        // `turn.sources` (compteurs). Deux claims rendraient `null` au second.
+        $dossierRetrieval = DossierRetrievalTraceRecorder::claim($contexte->organizationId, $contexte->turnId);
+
         return AiInteraction::create([
             'user_id' => $requester->id,
             'organization_id' => $contexte->organizationId,
@@ -1077,7 +1088,7 @@ class LoopKnowledgeAnswerService
                 // se lirait comme une mesure a zero.
                 DossierRetrievalTraceRecorder::TURN_METADATA_KEY => [
                     'sources_denied' => $borne->sourcesDenied,
-                    'dossier_retrieval' => DossierRetrievalTraceRecorder::claim($contexte->organizationId, $contexte->turnId),
+                    'dossier_retrieval' => $dossierRetrieval,
                 ],
                 // TASK-1566 / CDC-01 V0-A — le bloc canonique du TOUR.
                 //
@@ -1128,6 +1139,9 @@ class LoopKnowledgeAnswerService
                         // conversation. Valeurs deja calculees par le moteur
                         // pour son prompt ; aucune relecture, aucun recalcul.
                         'history' => $history,
+                        // TASK-1573 / V0-E — les quatre familles, formatees
+                        // depuis la borne et la trace deja en main.
+                        'sources' => AiTurnTrace::sourcesBlock($borne->sourcesUsed, $borne->sourcesDenied, $dossierRetrieval),
                     ],
                 ),
             ], static fn ($value): bool => $value !== null)
