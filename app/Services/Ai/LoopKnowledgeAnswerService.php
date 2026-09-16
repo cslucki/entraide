@@ -454,6 +454,10 @@ class LoopKnowledgeAnswerService
             // courant (CDC-01 P0.12).
             'trigger_id' => $inThreadTrigger?->reply_to_id,
             'budget_exhausted' => $conversation->budgetExhausted,
+            // TASK-1576 / V0-I (C21) — le declencheur reel quand il existe
+            // (composeur en fil) ; `null` = UNAVAILABLE pour l'endpoint JSON,
+            // qui n'a pas de message declencheur. Jamais reconstruit.
+            'input_message_id' => $inThreadTrigger?->id !== null ? (string) $inThreadTrigger->id : null,
         ];
         $thread = $conversation->text;
         // TASK-1309 : en mode IA + Dossiers sans AUCUNE provenance, le bloc

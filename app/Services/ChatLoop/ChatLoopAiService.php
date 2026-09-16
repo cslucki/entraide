@@ -171,6 +171,9 @@ class ChatLoopAiService
                 'chars' => $conversation->chars,
                 'trigger_id' => $triggerMessage->reply_to_id,
                 'budget_exhausted' => $conversation->budgetExhausted,
+                // TASK-1576 / V0-I (C21) — le message utilisateur qui a
+                // DECLENCHE ce tour : il est en main, rien n'est cherche.
+                'input_message_id' => (string) $triggerMessage->id,
             ];
 
             try {

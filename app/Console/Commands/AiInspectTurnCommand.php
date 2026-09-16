@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Ai\Context\DossierAccessScope;
 use App\Models\AiInteraction;
+use App\Models\AiShellMessage;
 use App\Models\Dossier;
 use App\Models\DossierFile;
 use App\Models\Loop;
@@ -71,9 +72,10 @@ class AiInspectTurnCommand extends Command
         {--interaction= : EXPLAIN — uuid d\'une ligne ai_interactions deja persistee (aucune execution)}
         {--turn= : EXPLAIN — turn_id canonique (turn.id, repli metadata.turn_id pour les anciens tours)}
         {--message= : EXPLAIN — uuid d\'un loop_message, remonte a son ai_interaction_id}
+        {--shell-message= : EXPLAIN — uuid d\'un ai_shell_message (ligne assistant) : suit ai_interaction_id, sinon lit le bloc turn zero-provider}
         {--json : Sortie JSON machine-readable}';
 
-    protected $description = 'Execute et observe le vrai chemin BouclePro derriere une question (EXECUTE), ou lit un tour deja persiste sans le rejouer (EXPLAIN : --interaction, --turn, --message).';
+    protected $description = 'Execute et observe le vrai chemin BouclePro derriere une question (EXECUTE), ou lit un tour deja persiste sans le rejouer (EXPLAIN : --interaction, --turn, --message, --shell-message).';
 
     /** Les surfaces et modes REELLEMENT reproductibles en v0. */
     private const SURFACES = ['loop'];
@@ -88,7 +90,7 @@ class AiInspectTurnCommand extends Command
         // TASK-1569 / CDC-01 V0-H0 — mode EXPLAIN : une cle de lookup suffit,
         // et elle exclut toute execution. Le tenant reste OBLIGATOIRE : une
         // ligne d'une autre Organization est « introuvable », jamais rendue.
-        if ($this->option('interaction') !== null || $this->option('turn') !== null || $this->option('message') !== null) {
+        if ($this->option('interaction') !== null || $this->option('turn') !== null || $this->option('message') !== null || $this->option('shell-message') !== null) {
             return $this->expliquer();
         }
 
@@ -99,6 +101,14 @@ class AiInspectTurnCommand extends Command
         // Un mode non reproductible est REFUSE, jamais approxime. Rendre une
         // trace pour un chemin qu'on n'a pas execute serait le defaut que cet
         // outil existe pour empecher.
+        // TASK-1576 / V0-I — le Shell est EXPLAIN-ONLY en V0 (CDC-01 §9.2, repli
+        // assume) : un seam de non-persistance du fil traverserait `respond()`
+        // de bout en bout. Ses tours se produisent par la surface reelle et
+        // s'expliquent ensuite par `--shell-message`.
+        if ($surface === 'shell') {
+            return $this->refuser('Surface « shell » : explain-only en v0. Produisez le tour par la surface reelle, puis --shell-message=<uuid>.');
+        }
+
         if (! in_array($surface, self::SURFACES, true)) {
             return $this->refuser("Surface non reproductible en v0 : « {$surface} ». Disponible : ".implode(', ', self::SURFACES));
         }
@@ -270,10 +280,11 @@ class AiInspectTurnCommand extends Command
             'interaction' => $this->option('interaction'),
             'turn' => $this->option('turn'),
             'message' => $this->option('message'),
+            'shell-message' => $this->option('shell-message'),
         ], static fn ($v): bool => $v !== null && trim((string) $v) !== '');
 
         if (count($cles) !== 1) {
-            return $this->refuser('EXPLAIN : exactement UNE cle parmi --interaction, --turn, --message.');
+            return $this->refuser('EXPLAIN : exactement UNE cle parmi --interaction, --turn, --message, --shell-message.');
         }
 
         if ($this->option('question') !== null || $this->option('loop') !== null) {
@@ -292,8 +303,12 @@ class AiInspectTurnCommand extends Command
         // Minor H0 : un id qui n'est pas un uuid ne peut correspondre a rien —
         // le dire proprement plutot que laisser PostgreSQL lever une
         // `QueryException` sur un cast de colonne uuid.
-        if (in_array($cle, ['interaction', 'message'], true) && ! Str::isUuid($valeur)) {
+        if (in_array($cle, ['interaction', 'message', 'shell-message'], true) && ! Str::isUuid($valeur)) {
             return $this->refuser("--{$cle} doit etre un uuid.");
+        }
+
+        if ($cle === 'shell-message') {
+            return $this->expliquerLigneShell($organization, $valeur);
         }
 
         $interaction = $this->interactionPersistee($organization, $cle, $valeur);
@@ -303,6 +318,37 @@ class AiInspectTurnCommand extends Command
         }
 
         return $this->rendreExplain(AiTurnInspection::fromPersistedTurn($interaction));
+    }
+
+    /**
+     * TASK-1576 / V0-I — une ligne assistant du Shell. Deux cas, un seul
+     * lecteur : la branche a moteur a pose `ai_interaction_id` (on lit
+     * l'interaction, la ligne Shell en second pour ses declins) ; la branche
+     * zero-provider a compose son bloc `turn` dans la ligne meme. Un
+     * `ai_interaction_id` qui ne resout rien dans CE tenant est rendu tel quel
+     * dans `shell.ai_interaction_id`, et la ligne se lit seule — jamais une
+     * interaction d'ailleurs.
+     */
+    private function expliquerLigneShell(Organization $organization, string $messageId): int
+    {
+        $message = AiShellMessage::query()
+            ->whereKey($messageId)
+            ->where('organization_id', (string) $organization->id)
+            ->where('role', AiShellMessage::ROLE_ASSISTANT)
+            ->first();
+
+        if (! $message instanceof AiShellMessage) {
+            return $this->refuser('Aucune ligne assistant du Shell ne correspond a cette cle dans cette Organization.');
+        }
+
+        $interactionId = is_array($message->metadata) ? ($message->metadata['ai_interaction_id'] ?? null) : null;
+        $interaction = is_string($interactionId) && Str::isUuid($interactionId)
+            ? AiInteraction::query()->where('organization_id', (string) $organization->id)->whereKey($interactionId)->first()
+            : null;
+
+        return $this->rendreExplain($interaction instanceof AiInteraction
+            ? AiTurnInspection::fromPersistedTurn($interaction, $message)
+            : AiTurnInspection::fromPersistedTurn($message));
     }
 
     private function interactionPersistee(Organization $organization, string $cle, string $valeur): ?AiInteraction
@@ -417,6 +463,20 @@ class AiInspectTurnCommand extends Command
         $this->info('── PROVIDER');
         foreach (['provider', 'model', 'generation_sdk_invocation_id', 'latency_ms', 'cost_usd', 'input_tokens', 'output_tokens'] as $cle) {
             $this->line(sprintf('  %-30s %s', $cle, $this->afficher($trace['provider'][$cle])));
+        }
+
+        $this->info('── SHELL');
+        if ($trace['shell'] === null) {
+            $this->line('  null  (tour hors Shell)');
+        } else {
+            foreach (['message_id', 'producer', 'status', 'ai_interaction_id'] as $cle) {
+                $this->line(sprintf('  %-20s %s', $cle, $this->afficher($trace['shell'][$cle])));
+            }
+            $declins = $trace['shell']['fallthroughs'];
+            $this->line(sprintf('  %-20s %s', 'fallthroughs', $declins === null ? 'null' : ($declins === [] ? '(aucun)' : '')));
+            foreach ($declins ?? [] as $declin) {
+                $this->line(sprintf('    %-22s %-10s %s', $declin['branch'] ?? '?', $declin['status'] ?? '?', $declin['reason_code'] ?? '?'));
+            }
         }
 
         // TASK-1575 / V0-H — d'ou vient chaque valeur. Le detail complet est

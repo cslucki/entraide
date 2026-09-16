@@ -32,7 +32,9 @@ use App\Support\Ai\AiShellThread;
 use App\Support\Ai\AiShellTurnCards;
 use App\Support\Ai\AiShellUsageReference;
 use App\Support\Ai\AiTurnLock;
+use App\Support\Ai\AiTurnReason;
 use App\Support\Ai\AiTurnState;
+use App\Support\Ai\AiTurnTrace;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -520,7 +522,16 @@ final class AiShellResponder
                 // provider. Consequence mesurable : un tour de self-knowledge
                 // n'ecrit ni `AiInteraction`, ni ligne de ledger, et ne
                 // consomme aucun credit.
-                [$content, $metadata] = $this->selfKnowledgeTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
+                // TASK-1576 / CDC-01 V0-I (C20, option 1 MASTER) — les DECLINS
+                // de ce tour : une variable locale, rien d'autre. Chaque branche
+                // qui rend `null` dit ici pourquoi (code du registre, famille
+                // `fallthrough`). Aucun turnId au dispatcher, aucun bucket,
+                // aucune re-cle : le tableau vit le temps de cette fermeture et
+                // est ecrit sur la ligne assistant, seul objet qui est
+                // FACTUELLEMENT le resultat de ces declins.
+                $declins = [];
+
+                [$content, $metadata] = $this->selfKnowledgeTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $declins)
                     // TASK-1546 : AVANT les branches documentaires, et l'ordre
                     // est le sujet. « Et moi ? » pose sur une page Dossier
                     // serait sinon captee par `dossierAnswerTurn()`, qui
@@ -528,12 +539,12 @@ final class AiShellResponder
                     // qui n'en demande aucun. La garde est etroite — une forme
                     // locale ET un referent herite — donc rien d'autre ne
                     // change de chemin.
-                    ?? $this->peopleTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
-                    ?? $this->dossierAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory->text, $documentaryMemory->history())
-                    ?? $this->articleAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory->text, $documentaryMemory->history())
+                    ?? $this->peopleTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $declins)
+                    ?? $this->dossierAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory->text, $documentaryMemory->history(), $declins)
+                    ?? $this->articleAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory->text, $documentaryMemory->history(), $declins)
                     // TASK-1530 : entre l'objet COURANT et le chemin general.
                     // Voir le docblock de la branche pour l'ordre des roles.
-                    ?? $this->dossierContinuationTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $continuationDossierId, $continuationMemory->text, $continuationMemory->history())
+                    ?? $this->dossierContinuationTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $continuationDossierId, $continuationMemory->text, $continuationMemory->history(), $declins)
                     // TASK-1531 : en dernier recours documentaire — ni objet
                     // courant, ni objet deja discute. Sa garde de declenchement
                     // s'execute avant tout balayage de perimetre.
@@ -542,10 +553,22 @@ final class AiShellResponder
                     // nomme pas son sujet : la recherche semantique y
                     // repondrait par le document le plus proche des mots
                     // « projet » et « parlait », c'est-a-dire n'importe quoi.
-                    ?? $this->referenceResolutionTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
-                    ?? $this->dossierDiscoveryTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
-                    ?? $this->generalAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $generalMemory->text, $generalMemory->history())
+                    ?? $this->referenceResolutionTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $declins)
+                    ?? $this->dossierDiscoveryTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $declins)
+                    ?? $this->generalAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $generalMemory->text, $generalMemory->history(), $declins)
                     ?? $this->generate($organization, $user, $prompt, $pageContext, $pinnedContext, $memory->text, $memory->history());
+
+                // V0-I — ce que la ligne assistant sait de son propre tour et
+                // que seule cette fermeture detient : les declins (toujours
+                // ecrits, `[]` est une mesure) et, pour un tour zero-provider
+                // dont le bloc `turn` a ete compose par la branche, le message
+                // utilisateur qui l'a declenche (`history.input_message_id`,
+                // cle reservee C21 — `$trigger` est en main, rien n'est cherche).
+                $metadata['fallthroughs'] = $declins;
+
+                if (is_array($metadata['turn'] ?? null)) {
+                    $metadata['turn']['history']['input_message_id'] = (string) $trigger->id;
+                }
 
                 $answer = $this->thread->appendAssistant($organization, $user, $content, $trigger, $metadata);
 
@@ -1149,6 +1172,78 @@ final class AiShellResponder
     }
 
     /**
+     * TASK-1576 / CDC-01 V0-I — le bloc `turn` d'une branche ZERO-PROVIDER.
+     *
+     * La branche est le writer final de sa ligne assistant : elle mint son
+     * propre turnId, comme tout moteur (jamais le dispatcher — C20, G-β), et
+     * dit honnetement ce qu'elle est : un chemin nomme (`execution_path`
+     * reserve par V0-G, persiste ici), un producteur deterministe, AUCUN
+     * provider (`provider_effective = none`, `fallback_used = false` — il n'y
+     * a pas eu de repli, il n'y a jamais eu d'appel), aucun ContextBuilder,
+     * aucun historique transmis a quiconque. Les etapes ne sont pas
+     * `bypassed` (rien n'a ete contourne) : elles sont `not_applicable`.
+     *
+     * Schema v1 inchange : memes cles, memes vocabulaires ; le support est
+     * `ai_shell_messages.metadata['turn']` (CDC-01 §6.1, jsonb — C5).
+     * `history.input_message_id` est pose par `respond()`, seul detenteur du
+     * declencheur.
+     *
+     * @return array<string, mixed>
+     */
+    private function tourZeroProvider(string $executionPath, string $producer, string $decidedBy): array
+    {
+        $turnId = (string) Str::uuid();
+
+        return AiTurnTrace::compose($turnId, [
+            'steps' => [
+                ['name' => 'conversation_history', 'status' => 'not_applicable'],
+                ['name' => 'context_builder', 'status' => 'not_applicable'],
+                ['name' => 'provider_call', 'status' => 'not_applicable'],
+            ],
+        ], [
+            'identity' => [
+                'surface' => 'ai_shell',
+                'mode' => 'zero_provider',
+                'execution_path' => $executionPath,
+                'producer' => $producer,
+                'provider_effective' => 'none',
+                'fallback_used' => false,
+            ],
+            'status' => AiTurnState::TURN_ANSWERED,
+            'decided_by' => class_basename($decidedBy),
+            'history' => [
+                'strategy' => 'none',
+                'message_ids' => [],
+                'count' => 0,
+                'chars' => 0,
+                'trigger_id' => null,
+                'budget_exhausted' => false,
+            ],
+            'sources' => AiTurnTrace::sourcesBlock([], []),
+            'state' => AiTurnTrace::stateBlock(null, []),
+        ]);
+    }
+
+    /**
+     * V0-I (C20, option 1) — une branche decline et le DIT. Rend `null` pour
+     * que la chaine `??` continue exactement comme avant ; le declin est
+     * ajoute au tableau local de `respond()`. `skipped` = une garde de la
+     * branche n'est pas franchie ; `failed` = la branche a essaye et a leve
+     * (`catch (\Throwable)` + `report()`).
+     *
+     * `OBJECT_NOT_ACCESSIBLE` fusionne deliberement « introuvable » et
+     * « interdit » : la trace ne doit pas etre un oracle d'existence.
+     *
+     * @param  list<array{branch: string, status: string, reason_code: string}>  $declins
+     */
+    private function decline(array &$declins, string $branche, string $code, string $statut = 'skipped'): ?array
+    {
+        $declins[] = ['branch' => $branche, 'status' => $statut, 'reason_code' => $code];
+
+        return null;
+    }
+
+    /**
      * TASK-1350 — le tour de self-knowledge, ou `null` quand l'enonce n'en est
      * pas un (le cas de l'immense majorite des tours).
      *
@@ -1180,12 +1275,13 @@ final class AiShellResponder
         string $prompt,
         array $pageContext,
         array $pinnedContext,
+        array &$declins = [],
     ): ?array {
         try {
             $topic = $this->selfKnowledge->topicFor($prompt);
 
             if ($topic === null) {
-                return null;
+                return $this->decline($declins, 'self_knowledge', AiTurnReason::FALLTHROUGH_BRANCH_SHAPE_NOT_MATCHED);
             }
 
             // TASK-1359 : le contexte de page etait DEJA resolu ici, et n'etait
@@ -1195,18 +1291,19 @@ final class AiShellResponder
 
             // Une reponse vide n'est pas une reponse : mieux vaut le provider.
             if ($content === '') {
-                return null;
+                return $this->decline($declins, 'self_knowledge', AiTurnReason::FALLTHROUGH_CONTEXT_EMPTY);
             }
         } catch (\Throwable $exception) {
             report($exception);
 
-            return null;
+            return $this->decline($declins, 'self_knowledge', AiTurnReason::FALLTHROUGH_ENGINE_EXCEPTION, 'failed');
         }
 
         return [$content, [
             'status' => self::STATUS_NON_INTERACTION,
             'producer' => AiSelfKnowledge::PRODUCER,
             'page_context' => $this->traceable($pageContext),
+            'turn' => $this->tourZeroProvider(AiExecutionPath::AI_SHELL_SELF_KNOWLEDGE, AiSelfKnowledge::PRODUCER, AiSelfKnowledge::class),
         ] + $this->pinnedTrace($pinnedContext)];
     }
 
@@ -1259,21 +1356,22 @@ final class AiShellResponder
         array $pinnedContext,
         string $memory,
         array $history = [],
+        array &$declins = [],
     ): ?array {
         if (($pageContext['kind'] ?? null) !== AiShellPageContext::KIND_DOSSIER) {
-            return null;
+            return $this->decline($declins, 'dossier_answer', AiTurnReason::FALLTHROUGH_BRANCH_SHAPE_NOT_MATCHED);
         }
 
         $objectId = $pageContext['object']['id'] ?? null;
 
         if (! is_string($objectId) || $objectId === '') {
-            return null;
+            return $this->decline($declins, 'dossier_answer', AiTurnReason::FALLTHROUGH_CONTEXT_OBJECT_ABSENT);
         }
 
         $dossier = Dossier::query()->find($objectId);
 
         if (! $dossier instanceof Dossier || $user->cannot('view', $dossier)) {
-            return null;
+            return $this->decline($declins, 'dossier_answer', AiTurnReason::FALLTHROUGH_OBJECT_NOT_ACCESSIBLE);
         }
 
         try {
@@ -1284,7 +1382,7 @@ final class AiShellResponder
         } catch (\Throwable $exception) {
             report($exception);
 
-            return null;
+            return $this->decline($declins, 'dossier_answer', AiTurnReason::FALLTHROUGH_ENGINE_EXCEPTION, 'failed');
         }
 
         // La branche documentaire ne parle QUE si elle a des documents.
@@ -1296,13 +1394,13 @@ final class AiShellResponder
         // trouve dans ce Dossier » serait moins utile que le chemin habituel.
         // On s'efface donc, et le tour suit son cours normal.
         if ($answer->consulted === []) {
-            return null;
+            return $this->decline($declins, 'dossier_answer', AiTurnReason::FALLTHROUGH_NO_SOURCES_FOUND);
         }
 
         $content = trim($answer->answer);
 
         if ($content === '') {
-            return null;
+            return $this->decline($declins, 'dossier_answer', AiTurnReason::FALLTHROUGH_EMPTY_MODEL_ANSWER);
         }
 
         return [$content, [
@@ -1365,15 +1463,16 @@ final class AiShellResponder
         array $pinnedContext,
         string $memory,
         array $history = [],
+        array &$declins = [],
     ): ?array {
         if (($pageContext['kind'] ?? null) !== AiShellPageContext::KIND_ARTICLE) {
-            return null;
+            return $this->decline($declins, 'article_answer', AiTurnReason::FALLTHROUGH_BRANCH_SHAPE_NOT_MATCHED);
         }
 
         $objectId = $pageContext['object']['id'] ?? null;
 
         if (! is_string($objectId) || $objectId === '') {
-            return null;
+            return $this->decline($declins, 'article_answer', AiTurnReason::FALLTHROUGH_CONTEXT_OBJECT_ABSENT);
         }
 
         // La MEME garde que la resolution de page, rejouee — jamais un
@@ -1386,19 +1485,19 @@ final class AiShellResponder
         );
 
         if (($sujet['object']['id'] ?? null) !== $objectId) {
-            return null;
+            return $this->decline($declins, 'article_answer', AiTurnReason::FALLTHROUGH_OBJECT_NOT_ACCESSIBLE);
         }
 
         $post = BlogPost::query()->find($objectId);
 
         if (! $post instanceof BlogPost) {
-            return null;
+            return $this->decline($declins, 'article_answer', AiTurnReason::FALLTHROUGH_OBJECT_NOT_ACCESSIBLE);
         }
 
         $texte = trim(strip_tags((string) $post->content));
 
         if ($texte === '') {
-            return null;
+            return $this->decline($declins, 'article_answer', AiTurnReason::FALLTHROUGH_CONTEXT_EMPTY);
         }
 
         // Le Dossier de rattachement sert de porte-trace, pas de perimetre :
@@ -1412,7 +1511,7 @@ final class AiShellResponder
         $dossier = is_string($dossierId) ? Dossier::query()->find($dossierId) : null;
 
         if (! $dossier instanceof Dossier) {
-            return null;
+            return $this->decline($declins, 'article_answer', AiTurnReason::FALLTHROUGH_CONTEXT_OBJECT_ABSENT);
         }
 
         try {
@@ -1446,13 +1545,13 @@ final class AiShellResponder
         } catch (\Throwable $exception) {
             report($exception);
 
-            return null;
+            return $this->decline($declins, 'article_answer', AiTurnReason::FALLTHROUGH_ENGINE_EXCEPTION, 'failed');
         }
 
         $content = trim($answer->answer);
 
         if ($content === '') {
-            return null;
+            return $this->decline($declins, 'article_answer', AiTurnReason::FALLTHROUGH_EMPTY_MODEL_ANSWER);
         }
 
         return [$content, [
@@ -1527,19 +1626,20 @@ final class AiShellResponder
         ?string $dossierId,
         string $memory,
         array $history = [],
+        array &$declins = [],
     ): ?array {
         if ($dossierId === null) {
-            return null;
+            return $this->decline($declins, 'dossier_continuation', AiTurnReason::FALLTHROUGH_CONTEXT_OBJECT_ABSENT);
         }
 
         // Un objet courant garde la main : on ne reprend un Dossier ancien que
         // depuis une page qui n'est elle-meme aucune autorite documentaire.
         if (in_array($pageContext['kind'] ?? null, [AiShellPageContext::KIND_DOSSIER, AiShellPageContext::KIND_ARTICLE], true)) {
-            return null;
+            return $this->decline($declins, 'dossier_continuation', AiTurnReason::FALLTHROUGH_BRANCH_SHAPE_NOT_MATCHED);
         }
 
         if (! $this->isDocumentaryContinuation($prompt)) {
-            return null;
+            return $this->decline($declins, 'dossier_continuation', AiTurnReason::FALLTHROUGH_BRANCH_SHAPE_NOT_MATCHED);
         }
 
         $dossier = Dossier::query()->find($dossierId);
@@ -1550,7 +1650,7 @@ final class AiShellResponder
         if (! $dossier instanceof Dossier
             || (string) $dossier->organization_id !== (string) $organization->id
             || $user->cannot('view', $dossier)) {
-            return null;
+            return $this->decline($declins, 'dossier_continuation', AiTurnReason::FALLTHROUGH_OBJECT_NOT_ACCESSIBLE);
         }
 
         try {
@@ -1560,20 +1660,20 @@ final class AiShellResponder
         } catch (\Throwable $exception) {
             report($exception);
 
-            return null;
+            return $this->decline($declins, 'dossier_continuation', AiTurnReason::FALLTHROUGH_ENGINE_EXCEPTION, 'failed');
         }
 
         // Meme effacement que la branche courante : sans document consulte, la
         // branche documentaire se tait et laisse le chemin general repondre
         // honnetement. Rien n'est fabrique depuis la memoire.
         if ($answer->consulted === []) {
-            return null;
+            return $this->decline($declins, 'dossier_continuation', AiTurnReason::FALLTHROUGH_NO_SOURCES_FOUND);
         }
 
         $content = trim($answer->answer);
 
         if ($content === '') {
-            return null;
+            return $this->decline($declins, 'dossier_continuation', AiTurnReason::FALLTHROUGH_EMPTY_MODEL_ANSWER);
         }
 
         return [$content, [
@@ -1674,6 +1774,7 @@ final class AiShellResponder
         string $prompt,
         array $pageContext,
         array $pinnedContext,
+        array &$declins = [],
     ): ?array {
         // La CORRECTION d'abord : elle repond a un tour qu'on vient de tenir,
         // et sa phrase ne porte plus de marqueur de reference indirecte.
@@ -1690,7 +1791,7 @@ final class AiShellResponder
         $resolution = $this->references->resoudre((string) $organization->id, $user, $prompt);
 
         if ($resolution['candidats'] === []) {
-            return null;
+            return $this->decline($declins, 'reference_resolution', AiTurnReason::FALLTHROUGH_NO_REFERENCE_CANDIDATE);
         }
 
         return $this->tourDeReference($organization, $user, $pageContext, $pinnedContext, $resolution);
@@ -1752,6 +1853,7 @@ final class AiShellResponder
         return [$content, [
             'status' => self::STATUS_NON_INTERACTION,
             'producer' => self::PRODUCER_REFERENCE_RESOLUTION,
+            'turn' => $this->tourZeroProvider(AiExecutionPath::AI_SHELL_REFERENCE, self::PRODUCER_REFERENCE_RESOLUTION, self::class),
             'page_context' => [
                 'route' => (string) ($pageContext['route'] ?? ''),
                 'kind' => (string) ($pageContext['kind'] ?? 'other'),
@@ -2004,6 +2106,7 @@ final class AiShellResponder
         string $prompt,
         array $pageContext,
         array $pinnedContext,
+        array &$declins = [],
     ): ?array {
         // SELF d'abord : « Et moi, je pourrais aider ? » porte les deux
         // formes, et la personne interroge sa PROPRE place. Rendre une liste
@@ -2011,7 +2114,7 @@ final class AiShellResponder
         $self = PeopleQuestionShape::isSelf($prompt);
 
         if (! $self && ! PeopleQuestionShape::isPeople($prompt)) {
-            return null;
+            return $this->decline($declins, 'people', AiTurnReason::FALLTHROUGH_BRANCH_SHAPE_NOT_MATCHED);
         }
 
         $herite = $this->referentHerite($organization, $user);
@@ -2020,7 +2123,7 @@ final class AiShellResponder
         // INTACT. C'est le seul cas ou ce tour s'efface — et c'est ce qui le
         // rend purement additif.
         if ($herite === null) {
-            return null;
+            return $this->decline($declins, 'people', AiTurnReason::FALLTHROUGH_CONTEXT_OBJECT_ABSENT);
         }
 
         $locale = str_starts_with((string) app()->getLocale(), 'en') ? 'en' : 'fr';
@@ -2080,6 +2183,11 @@ final class AiShellResponder
         return [trans($cle, [], $locale), [
             'status' => self::STATUS_NON_INTERACTION,
             'producer' => $self ? self::PRODUCER_SELF_MATCHING : self::PRODUCER_PEOPLE_MATCHING,
+            'turn' => $this->tourZeroProvider(
+                $self ? AiExecutionPath::AI_SHELL_PEOPLE_SELF : AiExecutionPath::AI_SHELL_PEOPLE_MATCHING,
+                $self ? self::PRODUCER_SELF_MATCHING : self::PRODUCER_PEOPLE_MATCHING,
+                self::class,
+            ),
             'page_context' => $this->traceablePeoplePage($pageContext),
             ($self ? 'self' : 'people') => [
                 'referent_loop_id' => null,
@@ -2113,6 +2221,7 @@ final class AiShellResponder
             'status' => self::STATUS_NON_INTERACTION,
             'producer' => self::PRODUCER_PEOPLE_MATCHING,
             'page_context' => $this->traceablePeoplePage($pageContext),
+            'turn' => $this->tourZeroProvider(AiExecutionPath::AI_SHELL_PEOPLE_MATCHING, self::PRODUCER_PEOPLE_MATCHING, self::class),
             // TASK-1552 — le tour People DEBOUCHE, au lieu de s'arreter la.
             //
             // « Qui peut m'aider sur la charpente ? » nommait des personnes
@@ -2201,6 +2310,7 @@ final class AiShellResponder
             'status' => self::STATUS_NON_INTERACTION,
             'producer' => self::PRODUCER_SELF_MATCHING,
             'page_context' => $this->traceablePeoplePage($pageContext),
+            'turn' => $this->tourZeroProvider(AiExecutionPath::AI_SHELL_PEOPLE_SELF, self::PRODUCER_SELF_MATCHING, self::class),
             'self' => [
                 'referent_loop_id' => (string) $loop->id,
                 'need_derived' => $besoin !== '',
@@ -2427,22 +2537,23 @@ final class AiShellResponder
         string $prompt,
         array $pageContext,
         array $pinnedContext,
+        array &$declins = [],
     ): ?array {
         // Un objet documentaire COURANT garde la main : ses branches sont
         // passees avant, et une page Dossier/Article n'a pas a declencher une
         // recherche a l'echelle de l'Organization.
         if (in_array($pageContext['kind'] ?? null, [AiShellPageContext::KIND_DOSSIER, AiShellPageContext::KIND_ARTICLE], true)) {
-            return null;
+            return $this->decline($declins, 'dossier_discovery', AiTurnReason::FALLTHROUGH_BRANCH_SHAPE_NOT_MATCHED);
         }
 
         // LA garde de cout, et elle est la PREMIERE. Rien de ce qui suit ne
         // doit s'executer pour un « comment ca va ? » ou une demande d'aide.
         if (! $this->isDocumentarySearch($prompt)) {
-            return null;
+            return $this->decline($declins, 'dossier_discovery', AiTurnReason::FALLTHROUGH_BRANCH_SHAPE_NOT_MATCHED);
         }
 
         if (! $this->semanticSearchGate->isEnabledFor((string) $organization->id)) {
-            return null;
+            return $this->decline($declins, 'dossier_discovery', AiTurnReason::FALLBACK_FEATURE_DISABLED);
         }
 
         // Le credential d'embedding est celui de l'ORGANIZATION. NULL = pas
@@ -2450,7 +2561,7 @@ final class AiShellResponder
         $embeddingInstance = $this->providers->resolveEmbeddingInstance((string) $organization->id);
 
         if ($embeddingInstance === null) {
-            return null;
+            return $this->decline($declins, 'dossier_discovery', AiTurnReason::REFUSED_NOT_CONFIGURED);
         }
 
         // Le perimetre AUTORISE, etabli avant toute recherche. `null` en
@@ -2458,7 +2569,7 @@ final class AiShellResponder
         $dossierIds = $this->dossierAccessScope->accessibleDossierIds((string) $organization->id, $user, null);
 
         if ($dossierIds === []) {
-            return null;
+            return $this->decline($declins, 'dossier_discovery', AiTurnReason::FALLTHROUGH_NO_SOURCES_FOUND);
         }
 
         // TASK-1556 : le tour documentaire nait ici, avant la recherche ; son
@@ -2487,7 +2598,7 @@ final class AiShellResponder
         } catch (\Throwable $exception) {
             report($exception);
 
-            return null;
+            return $this->decline($declins, 'dossier_discovery', AiTurnReason::FALLTHROUGH_ENGINE_EXCEPTION, 'failed');
         }
 
         $maxDistance = (float) config('ai.knowledge.max_distance', 1.0);
@@ -2497,7 +2608,7 @@ final class AiShellResponder
         ));
 
         if ($rows === []) {
-            return null;
+            return $this->decline($declins, 'dossier_discovery', AiTurnReason::FALLTHROUGH_NO_SOURCES_FOUND);
         }
 
         // Le Dossier de rattachement de TRACE : celui du meilleur extrait. Il
@@ -2509,7 +2620,7 @@ final class AiShellResponder
         if (! $traceDossier instanceof Dossier
             || (string) $traceDossier->organization_id !== (string) $organization->id
             || $user->cannot('view', $traceDossier)) {
-            return null;
+            return $this->decline($declins, 'dossier_discovery', AiTurnReason::FALLTHROUGH_OBJECT_NOT_ACCESSIBLE);
         }
 
         try {
@@ -2519,19 +2630,19 @@ final class AiShellResponder
         } catch (\Throwable $exception) {
             report($exception);
 
-            return null;
+            return $this->decline($declins, 'dossier_discovery', AiTurnReason::FALLTHROUGH_ENGINE_EXCEPTION, 'failed');
         }
 
         // Meme effacement que les autres branches documentaires : sans source
         // consultee, elle se tait et laisse le chemin general repondre.
         if ($answer->consulted === []) {
-            return null;
+            return $this->decline($declins, 'dossier_discovery', AiTurnReason::FALLTHROUGH_NO_SOURCES_FOUND);
         }
 
         $content = trim($answer->answer);
 
         if ($content === '') {
-            return null;
+            return $this->decline($declins, 'dossier_discovery', AiTurnReason::FALLTHROUGH_EMPTY_MODEL_ANSWER);
         }
 
         return [$content, [
@@ -2577,9 +2688,10 @@ final class AiShellResponder
         array $pinnedContext,
         string $memory,
         array $history = [],
+        array &$declins = [],
     ): ?array {
         if (! $this->isGeneralQuestion($prompt)) {
-            return null;
+            return $this->decline($declins, 'general_answer', AiTurnReason::FALLTHROUGH_BRANCH_SHAPE_NOT_MATCHED);
         }
 
         try {

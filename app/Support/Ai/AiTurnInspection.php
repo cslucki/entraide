@@ -5,6 +5,7 @@ namespace App\Support\Ai;
 use App\Ai\Context\DossierRetrievalTraceRecorder;
 use App\Listeners\RecordSdkEmbeddingsInvocation;
 use App\Models\AiInteraction;
+use App\Models\AiShellMessage;
 use App\Services\Ai\DTO\KnowledgeAnswer;
 
 /**
@@ -121,8 +122,17 @@ final class AiTurnInspection
      *
      * @return array<string, mixed>
      */
-    public static function fromPersistedTurn(AiInteraction $interaction): array
+    public static function fromPersistedTurn(AiInteraction|AiShellMessage $interaction, ?AiShellMessage $shellMessage = null): array
     {
+        // TASK-1576 / V0-I — une ligne assistant du Shell est un support de
+        // tour a part entiere (CDC-01 §6.1) : les branches zero-provider y
+        // composent leur bloc `turn` ; les branches a moteur y posent
+        // `ai_interaction_id` et l'appelant a alors deja resolu l'interaction
+        // (elle arrive en premier argument, la ligne Shell en second).
+        if ($interaction instanceof AiShellMessage) {
+            return self::fromShellMessage($interaction);
+        }
+
         $metadata = is_array($interaction->metadata) ? $interaction->metadata : [];
         $turn = $metadata[AiTurnTrace::TURN_METADATA_KEY] ?? null;
         $turn = is_array($turn) ? $turn : null;
@@ -141,12 +151,101 @@ final class AiTurnInspection
             'state' => self::persistedState($metadata, $turn),
             'output' => self::persistedOutput($metadata, $interaction),
             'provider' => self::provider($metadata, $interaction),
+            // V0-I — la ligne Shell d'ou l'on vient, quand on vient du Shell :
+            // ses declins (C20) et son lien. `null` pour un tour LoopChat.
+            'shell' => $shellMessage !== null ? self::shell($shellMessage) : null,
         ];
 
         // TASK-1575 / V0-H — la verite de chaque champ, section du LECTEUR.
         $inspection['truth'] = self::truthLabels($inspection, $turn);
 
         return $inspection;
+    }
+
+    /**
+     * TASK-1576 / V0-I — un tour Shell ZERO-PROVIDER, lu depuis sa ligne
+     * assistant (`ai_shell_messages.metadata['turn']`, compose par la branche).
+     * Memes sections, meme lecteur, memes labels : ce qui n'existe pas pour
+     * ce support (`retrieval_trace`, tokens, cout, `sdk_invocation_id`) est
+     * `null` — UNAVAILABLE, pas « zero ».
+     *
+     * @return array<string, mixed>
+     */
+    private static function fromShellMessage(AiShellMessage $message): array
+    {
+        $metadata = is_array($message->metadata) ? $message->metadata : [];
+        $turn = $metadata[AiTurnTrace::TURN_METADATA_KEY] ?? null;
+        $turn = is_array($turn) ? $turn : null;
+
+        $inspection = [
+            'mode' => 'explain',
+            'run' => [
+                'turn_id' => self::stringOrNull($turn['id'] ?? null),
+                'turn_id_source' => isset($turn['id']) ? 'turn.id' : null,
+                'turn_schema' => self::intOrNull($turn['schema'] ?? null),
+                'correlation_id' => null,
+                'ai_interaction_id' => self::stringOrNull($metadata['ai_interaction_id'] ?? null),
+                'organization_id' => self::stringOrNull($message->organization_id),
+                'capability' => null,
+                'process' => null,
+                'feature' => null,
+                'status' => self::stringOrNull($metadata['status'] ?? null),
+                'created_at' => $message->created_at?->toIso8601String(),
+            ],
+            'identity' => is_array($turn['identity'] ?? null) && $turn['identity'] !== [] ? $turn['identity'] : null,
+            'decision' => self::decision($turn),
+            'steps' => is_array($turn['steps'] ?? null) && $turn['steps'] !== [] ? array_values($turn['steps']) : null,
+            'history' => is_array($turn['history'] ?? null) && $turn['history'] !== [] ? $turn['history'] : null,
+            'sources' => is_array($turn['sources'] ?? null) && $turn['sources'] !== [] ? $turn['sources'] : null,
+            'retrieval_trace' => null,
+            'state' => self::persistedState(['status' => $metadata['status'] ?? null, 'grounded' => $metadata['grounded'] ?? null], $turn),
+            'output' => [
+                'response' => self::stringOrNull($message->content),
+                'failure' => null,
+                'grounded' => self::boolOrNull($metadata['grounded'] ?? null),
+                'consulted_chunk_ids' => null,
+                'cited_chunk_ids' => null,
+            ],
+            'provider' => [
+                'provider' => null,
+                'model' => null,
+                'generation_sdk_invocation_id' => null,
+                'embedding_sdk_invocation_ids' => null,
+                'latency_ms' => null,
+                'cost_usd' => null,
+                'input_tokens' => null,
+                'output_tokens' => null,
+                'sources_used' => null,
+                'sources_denied' => null,
+            ],
+            'shell' => self::shell($message),
+        ];
+
+        $inspection['truth'] = self::truthLabels($inspection, $turn);
+
+        return $inspection;
+    }
+
+    /**
+     * La ligne Shell : son id, son producteur, son lien eventuel vers
+     * l'interaction, et les DECLINS du tour (C20 — `[]` est une mesure :
+     * aucune branche n'a decline ; `null` = ligne anterieure a V0-I).
+     *
+     * @return array<string, mixed>
+     */
+    private static function shell(AiShellMessage $message): array
+    {
+        $metadata = is_array($message->metadata) ? $message->metadata : [];
+
+        return [
+            'message_id' => (string) $message->id,
+            'conversation_id' => self::stringOrNull($message->conversation_id),
+            'reply_to_id' => self::stringOrNull($message->reply_to_id),
+            'producer' => self::stringOrNull($metadata['producer'] ?? null),
+            'status' => self::stringOrNull($metadata['status'] ?? null),
+            'ai_interaction_id' => self::stringOrNull($metadata['ai_interaction_id'] ?? null),
+            'fallthroughs' => is_array($metadata['fallthroughs'] ?? null) ? array_values($metadata['fallthroughs']) : null,
+        ];
     }
 
     /**
@@ -159,7 +258,7 @@ final class AiTurnInspection
     private const DECLARED_FIELDS = [
         'run.capability', 'run.process', 'run.feature',
         'identity.surface', 'identity.mode', 'identity.execution_path', 'identity.capability', 'identity.producer',
-        'provider.provider',
+        'provider.provider', 'shell.producer',
     ];
 
     /**
@@ -198,7 +297,7 @@ final class AiTurnInspection
     {
         $labels = [];
 
-        foreach (['run', 'identity', 'decision', 'history', 'sources', 'retrieval_trace', 'state', 'output', 'provider'] as $section) {
+        foreach (['run', 'identity', 'decision', 'history', 'sources', 'retrieval_trace', 'state', 'output', 'provider', 'shell'] as $section) {
             $valeurs = $inspection[$section] ?? null;
 
             if (! is_array($valeurs)) {
