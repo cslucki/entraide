@@ -220,6 +220,65 @@ final class AiTurnTrace
     }
 
     /**
+     * TASK-1573 / CDC-01 V0-E — le bloc `turn.sources`, FORMATE depuis ce que
+     * le writer a deja en main. Quatre familles (P0.6), aucune mesure nouvelle :
+     *
+     *   `retrieved` / `reranked`  compteurs lus dans la trace que
+     *                             `DossierRetrievalSource` a ecrite (T1565) et
+     *                             que le writer vient de reclamer — le detail
+     *                             fin reste sous `retrieval_trace` ;
+     *   `used`                    `ContexteBorne::sourcesUsed` (W3A) ;
+     *   `denied`                  `ContexteBorne::sourcesDenied`, source => raison,
+     *                             rendue en liste `{source, reason}` (§5.2) —
+     *                             CHAQUE refus avec sa raison, jamais un compte.
+     *
+     * Une famille que le writer n'a pas est ABSENTE (UNAVAILABLE), jamais
+     * remplie : un chemin sans `ContextBuilder` n'a pas de `used`, un moteur
+     * qui ne passe pas par `DossierRetrievalSource` n'a pas de `retrieved`.
+     * `used = []` et `denied = []`, eux, sont des MESURES et s'ecrivent.
+     *
+     * @param  list<string>|null  $used
+     * @param  array<string, string>|null  $denied
+     * @param  array<string, mixed>|null  $dossierRetrieval  sous-bloc `dossier_retrieval` de `retrieval_trace`
+     * @return array<string, mixed>
+     */
+    public static function sourcesBlock(?array $used, ?array $denied, ?array $dossierRetrieval = null): array
+    {
+        $bloc = [];
+
+        if (is_array($dossierRetrieval) && array_key_exists('dense_candidates_count', $dossierRetrieval)) {
+            $bloc['retrieved'] = [
+                'candidates' => $dossierRetrieval['dense_candidates_count'],
+                'after_filter' => $dossierRetrieval['after_distance_filter_count'] ?? null,
+                'final' => $dossierRetrieval['final_context_count'] ?? null,
+            ];
+
+            if (array_key_exists('rerank_attempted', $dossierRetrieval)) {
+                $bloc['reranked'] = [
+                    'attempted' => (bool) $dossierRetrieval['rerank_attempted'],
+                    'succeeded' => $dossierRetrieval['rerank_succeeded'] ?? null,
+                    'sent' => $dossierRetrieval['candidates_sent_to_rerank_count'] ?? null,
+                    'result_count' => $dossierRetrieval['rerank_result_count'] ?? null,
+                ];
+            }
+        }
+
+        if ($used !== null) {
+            $bloc['used'] = array_values($used);
+        }
+
+        if ($denied !== null) {
+            $liste = [];
+            foreach ($denied as $source => $reason) {
+                $liste[] = ['source' => (string) $source, 'reason' => (string) $reason];
+            }
+            $bloc['denied'] = $liste;
+        }
+
+        return $bloc;
+    }
+
+    /**
      * Reclame la trace de CE tour, UNE seule fois.
      *
      * `null` signifie « ce tour n'a depose aucune observation » — le moteur

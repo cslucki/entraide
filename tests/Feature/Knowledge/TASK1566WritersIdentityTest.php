@@ -203,8 +203,8 @@ class TASK1566WritersIdentityTest extends TestCase
         $interaction = $this->executerShellGeneral('A quoi sert cette page ?');
 
         $this->assertIdentiteVientDuContexteIa($vu, $interaction);
-        // TASK-1568 (V0-G) : `identity` et `steps` sont reclames par le writer.
-        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps']);
+        // TASK-1568 (V0-G) : `identity` et `steps` ; TASK-1573 (V0-E) : `sources`.
+        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'sources']);
         $this->assertLegacyPreservee($interaction, ['requested_by', 'latency_ms', 'provider', 'capability', 'status', 'general_contract_hash']);
 
         // FACT preexistant a TASK-1566, volontairement NON corrige ici : ce
@@ -232,7 +232,7 @@ class TASK1566WritersIdentityTest extends TestCase
         $this->assertIdentiteVientDuContexteIa($vu, $interaction);
         // TASK-1568 (V0-G) : `identity` et `steps` ; TASK-1572 (V0-D) : le verdict
         // (`status`, `decided_by`) — `stage`/`reason_code` absents sur un tour repondu.
-        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'status', 'decided_by']);
+        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'status', 'decided_by', 'sources']);
         $this->assertLegacyPreservee($interaction, ['requested_by', 'latency_ms', 'provider', 'capability', 'status']);
     }
 
@@ -259,8 +259,8 @@ class TASK1566WritersIdentityTest extends TestCase
         $interaction = $this->executerDossierInsights($turnId);
 
         $this->assertSame($turnId, $this->identite($interaction));
-        // TASK-1568 (V0-G) : `identity` et `steps` sont reclames par le writer.
-        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps']);
+        // TASK-1568 (V0-G) : `identity` et `steps` ; TASK-1573 (V0-E) : `sources`.
+        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'sources']);
         $this->assertLegacyPreservee($interaction, ['dossier_id', 'requested_by', 'latency_ms', 'provider', 'capability', 'status', 'retrieval']);
     }
 
@@ -329,9 +329,9 @@ class TASK1566WritersIdentityTest extends TestCase
      * qui ne lui revient pas doit continuer de faire rougir son propre test.
      *
      * TASK-1568 (V0-G) a ajoute `identity` et `steps` aux quatre ; TASK-1570
-     * (V0-B) le verdict (`status`, `decided_by`, `latency_ms`) a ChatLoop. Ce
-     * qui reste INTERDIT tant que V0-C/V0-E/V0-F n'ont pas eu lieu :
-     * `sources`, `state` ; et le verdict chez les trois writers Shell/Dossier.
+     * (V0-B) le verdict a ChatLoop, TASK-1572 (V0-D) au clarifier ; TASK-1573
+     * (V0-E) `sources` la ou une borne existe (pas sur `respondInThread`). Ce
+     * qui reste INTERDIT tant que V0-F n'a pas eu lieu : `state`.
      *
      * @param  list<string>  $clesAttendues
      */
