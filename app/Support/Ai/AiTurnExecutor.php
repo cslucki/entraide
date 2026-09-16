@@ -102,9 +102,13 @@ final class AiTurnExecutor
         // ou si son manifeste est corrompu — AVANT toute execution.
         AiRunManifest::start($runId, $runKind, $orgId);
         AiTurnTrace::beginRun($runId, $runKind);
+        // Review Opus F7 — les ids d'interaction que le run portait DEJA :
+        // un refus qui n'ecrit rien (verrou, idempotence) ne doit jamais
+        // faire remonter le tour d'une invocation precedente de la serie.
+        $dejaConnus = array_map(static fn ($id): string => (string) $id, $this->idsDuRun($organization, $runId));
 
         try {
-            return $this->dansLeTenant($organization, function () use ($organization, $user, $loop, $mode, $question, $trigger, $runId, $runKind): AiTurnExecution {
+            return $this->dansLeTenant($organization, function () use ($organization, $user, $loop, $mode, $question, $trigger, $runId, $runKind, $dejaConnus): AiTurnExecution {
                 try {
                     if ($mode === 'ia') {
                         $interaction = $this->chatLoop->respondInThread($loop, $user, $question, $trigger, publish: false);
@@ -135,7 +139,7 @@ final class AiTurnExecutor
                     // Un refus du service — ACL, economie, idempotence, panne —
                     // est un RESULTAT d'observation. Le tour ecrit par l'arret
                     // anticipe, s'il existe, est retrouve par son run.
-                    $interaction = $this->tourDuRun($organization, $runId);
+                    $interaction = $this->tourDuRun($organization, $runId, $dejaConnus);
                     $this->inscrireAuManifeste($runId, $interaction);
 
                     return new AiTurnExecution($mode, $runId, $runKind, $interaction, null, $exception->getMessage(), $exception::class);
@@ -173,14 +177,31 @@ final class AiTurnExecutor
             ->get(['id', 'name', 'organization_id']);
     }
 
-    private function tourDuRun(Organization $organization, string $runId): ?AiInteraction
+    /**
+     * Le tour que CETTE execution a ecrit sous le run — jamais un tour deja
+     * connu du run avant elle.
+     *
+     * @param  list<string>  $dejaConnus
+     */
+    private function tourDuRun(Organization $organization, string $runId, array $dejaConnus): ?AiInteraction
     {
         return AiInteraction::query()
             ->where('organization_id', (string) $organization->id)
             ->where('metadata->'.AiTurnTrace::TURN_METADATA_KEY.'->run->id', $runId)
+            ->when($dejaConnus !== [], static fn ($q) => $q->whereNotIn('id', $dejaConnus))
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->first();
+    }
+
+    /** @return list<string> */
+    private function idsDuRun(Organization $organization, string $runId): array
+    {
+        return AiInteraction::query()
+            ->where('organization_id', (string) $organization->id)
+            ->where('metadata->'.AiTurnTrace::TURN_METADATA_KEY.'->run->id', $runId)
+            ->pluck('id')
+            ->all();
     }
 
     /** TRACE-1B — des ids, rien d'autre. */

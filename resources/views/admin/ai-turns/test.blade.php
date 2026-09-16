@@ -54,7 +54,6 @@
                 </label>
             </div>
             <input type="hidden" name="mode" value="{{ $mode }}">
-            <input type="hidden" name="question" value="{{ $question }}">
             <div class="flex justify-end">
                 <button type="submit" class="px-4 py-2 bg-gray-700 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition">Actualiser les choix</button>
             </div>
@@ -79,11 +78,11 @@
                     @endforeach
                 </fieldset>
                 <label class="text-sm md:col-span-2">
-                    <span class="block text-xs uppercase text-gray-500 dark:text-gray-400 mb-1">Déclencheur <span class="normal-case text-gray-400">(mode ia seulement — un message humain du fil, jamais créé par le test)</span></span>
+                    <span class="block text-xs uppercase text-gray-500 dark:text-gray-400 mb-1">Déclencheur <span class="normal-case text-gray-400">(mode ia seulement — un message humain du fil, désigné par sa date et son identifiant, jamais créé par le test)</span></span>
                     <select name="trigger" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 text-sm" data-inspector-test-trigger @disabled($loopChoisie === null)>
                         <option value="">{{ $loopChoisie === null ? 'choisir une Boucle d\'abord' : ($triggers->isEmpty() ? 'aucun message humain dans cette Boucle' : '— aucun (modes documentaires) —') }}</option>
                         @foreach ($triggers as $t)
-                            <option value="{{ $t->id }}" @selected($trigger?->id === $t->id)>{{ $t->created_at?->format('d/m H:i') }} — {{ \Illuminate\Support\Str::limit((string) $t->body, 80) }}</option>
+                            <option value="{{ $t->id }}" @selected($trigger?->id === $t->id)>{{ $t->created_at?->format('d/m H:i') }} — {{ \Illuminate\Support\Str::substr((string) $t->id, 0, 8) }}… — auteur {{ \Illuminate\Support\Str::substr((string) $t->sender_id, 0, 8) }}…{{ $t->already_answered ? ' — déjà répondu (sera refusé)' : '' }}</option>
                         @endforeach
                     </select>
                 </label>
@@ -91,7 +90,7 @@
 
             <label class="block text-sm">
                 <span class="block text-xs uppercase text-gray-500 dark:text-gray-400 mb-1">Question</span>
-                <textarea name="question" rows="3" maxlength="4000" required class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 text-sm" data-inspector-test-question placeholder="La question telle qu'un membre la poserait dans la Boucle">{{ $question }}</textarea>
+                <textarea name="question" rows="3" maxlength="5000" minlength="3" required class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 text-sm" data-inspector-test-question placeholder="La question telle qu'un membre la poserait dans la Boucle">{{ $question }}</textarea>
             </label>
 
             <div class="flex items-center justify-between gap-4">

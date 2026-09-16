@@ -330,10 +330,18 @@ class RecordSdkEmbeddingsInvocation
         );
         $capability = $trace['metadata']['capability'] ?? null;
         $feature = $trace['metadata']['feature'] ?? null;
+        // TASK-1585 (review-fix) — l'acteur DECLARE par l'appelant prime ;
+        // `Auth::id()` n'est que le repli historique quand personne n'a
+        // declare (ingestion : aucun acteur, `null` par design). Jamais de
+        // reconstruction, jamais de lookup.
+        $declare = $trace['user_id'] ?? null;
+        $userId = is_string($declare) && $declare !== ''
+            ? $declare
+            : (Auth::id() !== null ? (string) Auth::id() : null);
 
         app(AiProviderInvocationLedger::class)->recordEmbedding(
             organizationId: (string) $trace['organization_id'],
-            userId: Auth::id() !== null ? (string) Auth::id() : null,
+            userId: $userId,
             capability: is_string($capability) ? $capability : null,
             process: AiProcess::fromScenarioId($trace['scenario_id']),
             embeddingOperation: is_string($embeddingOperation) ? $embeddingOperation : null,
@@ -353,7 +361,8 @@ class RecordSdkEmbeddingsInvocation
 
         AdminAiInteraction::create([
             'organization_id' => $trace['organization_id'],
-            'user_id' => Auth::id(),
+            // Meme acteur que la ligne du ledger : un tour n'a qu'un acteur.
+            'user_id' => $userId,
             'correlation_id' => AiCorrelation::id(),
             'process' => AiProcess::fromScenarioId($trace['scenario_id']),
             'scenario_id' => $trace['scenario_id'],

@@ -5,6 +5,7 @@ namespace Tests\Feature\Admin;
 use App\Ai\Agents\LoopDirectAnswerAgent;
 use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Ai\Context\DossierRetrievalTraceRecorder;
+use App\Listeners\RecordSdkEmbeddingsInvocation;
 use App\Models\AiInteraction;
 use App\Models\AiProviderInvocation;
 use App\Models\Dossier;
@@ -14,6 +15,7 @@ use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Ai\AiUserCreditSettings;
+use App\Services\Dossiers\DossierChunkEmbeddingService;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Services\LoopService;
 use App\Support\Ai\AiEconomicGuard;
@@ -23,11 +25,16 @@ use App\Support\Ai\AiTurnExecutor;
 use App\Support\Ai\AiTurnLock;
 use App\Support\Ai\AiTurnTrace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Context;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Laravel\Ai\Embeddings;
+use Laravel\Ai\Prompts\EmbeddingsPrompt;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
+use Laravel\Ai\Responses\EmbeddingsResponse;
 use Laravel\Ai\Responses\TextResponse;
 use PHPUnit\Framework\Attributes\Group;
 use Tests\Support\Ai\RecordsAiConsumption;
@@ -263,9 +270,29 @@ class TASK1585InspectorTestRequestTest extends TestCase
         $this->actingAs($this->admin)->post(route('admin.ai-turns.test.run'), $this->charge(['mode' => 'ia', 'trigger' => (string) $trigger->id, 'question' => 'Quelle est la capitale ?']))->assertRedirect();
         $this->assertSame(2, AiInteraction::query()->count());
         $this->assertSame($messages, LoopMessage::query()->count());
-        // Le declencheur est propose dans le formulaire, tronque.
-        $this->get(route('admin.ai-turns.test', ['organization' => (string) $this->organization->id, 'user' => (string) $this->membre->id, 'loop' => (string) $this->loop->id]))
-            ->assertOk()->assertSee('Quelle est la capitale ?');
+        // Le declencheur est propose dans le formulaire par sa date et son id —
+        // JAMAIS par son contenu (review Opus F1, I9) ; un declencheur deja
+        // repondu est marque (F5).
+        $repondu = LoopMessage::create(['loop_id' => $this->loop->id, 'organization_id' => $this->organization->id, 'sender_id' => $this->membre->id, 'body' => 'CONTENU PRIVE DU MEMBRE', 'type' => 'user']);
+        LoopMessage::create(['loop_id' => $this->loop->id, 'organization_id' => $this->organization->id, 'sender_id' => $this->membre->id, 'body' => 'reponse', 'type' => 'ai', 'reply_to_id' => $repondu->id]);
+        $page = $this->get(route('admin.ai-turns.test', ['organization' => (string) $this->organization->id, 'user' => (string) $this->membre->id, 'loop' => (string) $this->loop->id]))->assertOk();
+        $page->assertSee(Str::substr((string) $trigger->id, 0, 8))->assertDontSee('Quelle est la capitale ?')->assertDontSee('CONTENU PRIVE')->assertSee('déjà répondu');
+    }
+
+    public function test_c3_la_question_a_les_bornes_du_produit_et_ne_transite_pas_par_l_url(): void
+    {
+        $this->actingAs($this->admin);
+        // F3 : 501 caracteres en documentaire -> refuse par la validation, aucun tour.
+        $this->post(route('admin.ai-turns.test.run'), $this->charge(['question' => str_repeat('a', 501)]))->assertSessionHasErrors('question');
+        $this->post(route('admin.ai-turns.test.run'), $this->charge(['question' => 'ab']))->assertSessionHasErrors('question');
+        $this->assertSame(0, AiInteraction::query()->count());
+        // F2 : apres un refus tenant, la question revient par la session, pas par l'URL.
+        $reponse = $this->post(route('admin.ai-turns.test.run'), $this->charge(['loop' => (string) Str::uuid(), 'question' => 'Question privee ?']));
+        $reponse->assertRedirect()->assertSessionHas('inspector_test_question', 'Question privee ?');
+        $this->assertStringNotContainsString('Question', (string) $reponse->headers->get('Location'));
+        $this->assertStringNotContainsString('question=', (string) $reponse->headers->get('Location'));
+        // F4 : la route d'execution est throttlee.
+        $this->assertContains('throttle:10,1', app('router')->getRoutes()->getByName('admin.ai-turns.test.run')->middleware());
     }
 
     // ────────────────────────────── D. economie
@@ -312,6 +339,86 @@ class TASK1585InspectorTestRequestTest extends TestCase
         $this->assertSame($ledger, AiProviderInvocation::query()->count());
     }
 
+    // ────────────────────────────── D'. attribution de l'acteur (review-fix MASTER)
+
+    /**
+     * SENTINELLE : SuperAdmin authentifie, Maya selectionnee -> TOUTES les
+     * lignes du ledger du tour (embedding query, generation) portent Maya,
+     * jamais le SuperAdmin. Le mock de la recherche rejoue EXACTEMENT ce que
+     * `searchAcrossDossiers()` fait autour de l'appel provider — trace posee
+     * avec l'acteur DECLARE (10e argument), `embed()` reel (SDK fake).
+     */
+    public function test_d3_l_acteur_declare_suit_le_tour_jusqu_au_ledger_embedding_jamais_le_superadmin(): void
+    {
+        $this->fakeEmbeddings();
+        $this->rechercheQuiEmbeddeCommeLeService();
+        RecordSdkEmbeddingsInvocation::forgetJournal();
+
+        $this->actingAs($this->admin)->post(route('admin.ai-turns.test.run'), $this->charge())->assertRedirect();
+
+        $interaction = AiInteraction::query()->sole();
+        $lignes = AiProviderInvocation::query()->where('correlation_id', $interaction->correlation_id)->get();
+        $this->assertEqualsCanonicalizing(['embedding', 'generation'], $lignes->pluck('operation')->all());
+        foreach ($lignes as $ligne) {
+            $this->assertSame((string) $this->membre->id, (string) $ligne->user_id, "{$ligne->operation} : l'acteur est Maya");
+            $this->assertNotSame((string) $this->admin->id, (string) $ligne->user_id, "{$ligne->operation} : jamais le SuperAdmin");
+            $this->assertSame((string) $this->organization->id, (string) $ligne->organization_id);
+            $this->assertSame('organization', $ligne->credential_source);
+            $this->assertSame(AiProviderInvocation::STATUS_SUCCESS, $ligne->status);
+            $this->assertSame($interaction->correlation_id, $ligne->correlation_id);
+        }
+        $embedding = $lignes->firstWhere('operation', 'embedding');
+        $this->assertSame(AiProviderInvocation::EMBEDDING_OPERATION_QUERY, $embedding->embedding_operation);
+        $this->assertNotNull($embedding->cost_status);
+        // Le tour reclame bien SON embedding (T1556) : la jointure est intacte.
+        $this->assertSame([$embedding->sdk_invocation_id], $interaction->metadata[RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY]);
+    }
+
+    public function test_d4_sans_acteur_declare_le_repli_auth_reste_et_l_ingestion_reste_null(): void
+    {
+        $this->fakeEmbeddings();
+        $this->actingAs($this->admin);
+
+        // Sans acteur declare (appelant historique) : repli Auth::id() = admin.
+        $this->embedderHorsTour(AiProviderInvocation::EMBEDDING_OPERATION_QUERY, userId: null);
+        $this->assertSame((string) $this->admin->id, (string) AiProviderInvocation::query()->latest('created_at')->orderByDesc('id')->first()->user_id);
+        // Acteur declare : il prime sur Auth::id().
+        $this->embedderHorsTour(AiProviderInvocation::EMBEDDING_OPERATION_QUERY, userId: (string) $this->membre->id);
+        $this->assertSame((string) $this->membre->id, (string) AiProviderInvocation::query()->where('user_id', $this->membre->id)->sole()->user_id);
+        // Ingestion : aucun acteur declare, et le chemin d'ingestion tourne
+        // hors requete -> NULL par design, inchange.
+        auth()->logout();
+        $this->embedderHorsTour(AiProviderInvocation::EMBEDDING_OPERATION_INGESTION, userId: null);
+        $this->assertNull(AiProviderInvocation::query()->where('embedding_operation', AiProviderInvocation::EMBEDDING_OPERATION_INGESTION)->sole()->user_id);
+        // Ni l'un ni l'autre : NULL.
+        $avant = AiProviderInvocation::query()->count();
+        $this->embedderHorsTour(AiProviderInvocation::EMBEDDING_OPERATION_QUERY, userId: null);
+        $this->assertSame($avant + 1, AiProviderInvocation::query()->count());
+        $this->assertNull(AiProviderInvocation::query()->latest('created_at')->orderByDesc('id')->first()->user_id);
+    }
+
+    /**
+     * La VRAIE `DossierSemanticSearchService` (PostgreSQL seulement : pgvector)
+     * pose l'acteur declare dans la trace — prouve sans mock, sur le vrai
+     * chemin `DossierRetrievalSource -> searchAcrossDossiers -> embed`.
+     */
+    public function test_d5_pg_le_vrai_service_de_recherche_declare_l_acteur(): void
+    {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('pgvector : rejoue en PostgreSQL (phpunit.ci-feature.xml).');
+        }
+        $this->fakeEmbeddings();
+        // Retire le mock de setUp : le vrai service repond (index vide -> 0 chunk).
+        app()->forgetInstance(DossierSemanticSearchService::class);
+        RecordSdkEmbeddingsInvocation::forgetJournal();
+
+        $this->actingAs($this->admin)->post(route('admin.ai-turns.test.run'), $this->charge())->assertRedirect();
+
+        $embedding = AiProviderInvocation::query()->where('operation', 'embedding')->sole();
+        $this->assertSame((string) $this->membre->id, (string) $embedding->user_id, 'le vrai service declare Maya, pas le SuperAdmin authentifie');
+        $this->assertSame(AiProviderInvocation::EMBEDDING_OPERATION_QUERY, $embedding->embedding_operation);
+    }
+
     // ────────────────────────────── E/F. non-publication, aucun effet au GET
 
     public function test_e1_rien_n_est_publie_dans_la_boucle_et_le_get_n_ecrit_rien(): void
@@ -322,7 +429,8 @@ class TASK1585InspectorTestRequestTest extends TestCase
         $manifestes = count(File::glob(dirname(AiRunManifest::path((string) Str::uuid())).'/*.json') ?: []);
 
         $this->actingAs($this->admin)
-            ->get(route('admin.ai-turns.test', ['organization' => (string) $this->organization->id, 'user' => (string) $this->membre->id, 'loop' => (string) $this->loop->id, 'mode' => 'dossiers', 'question' => 'Que dit le document ?']))
+            ->withSession(['inspector_test_question' => 'Que dit le document ?'])
+            ->get(route('admin.ai-turns.test', ['organization' => (string) $this->organization->id, 'user' => (string) $this->membre->id, 'loop' => (string) $this->loop->id, 'mode' => 'dossiers']))
             ->assertOk()->assertSee('Que dit le document ?');
 
         $this->assertSame($interactions, AiInteraction::query()->count(), 'GET : aucun tour');
@@ -379,6 +487,56 @@ class TASK1585InspectorTestRequestTest extends TestCase
         $fin = strpos($html, 'data-inspector-', $debut + strlen($marqueur));
 
         return substr($html, $debut, $fin === false ? null : $fin - $debut);
+    }
+
+    private function fakeEmbeddings(): void
+    {
+        config(['ai.providers.openrouter.models.embeddings.dimensions' => 8]);
+        Embeddings::fake(function (EmbeddingsPrompt $prompt): EmbeddingsResponse {
+            return new EmbeddingsResponse(array_map(fn (): array => array_fill(0, 8, 0.1), $prompt->inputs), count($prompt->inputs) * 3, new Meta($prompt->provider->name(), $prompt->model));
+        })->preventStrayEmbeddings();
+    }
+
+    /**
+     * Rejoue, autour de l'appel provider, EXACTEMENT ce que
+     * `DossierSemanticSearchService::searchAcrossDossiers()` fait (meme
+     * signature, meme trace, acteur declare en 10e argument) ; seule la partie
+     * SQL pgvector est remplacee par une ligne fixe.
+     */
+    private function rechercheQuiEmbeddeCommeLeService(): void
+    {
+        $ligne = [
+            'chunk_id' => (string) Str::uuid(), 'dossier_id' => (string) $this->dossier->id, 'dossier_name' => $this->dossier->name, 'source_type' => 'file',
+            'blog_post_id' => null, 'title' => null, 'slug' => null, 'dossier_file_id' => (string) Str::uuid(), 'filename' => 'note.docx',
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'chunk_index' => 0, 'content' => 'Contenu du document.', 'distance' => 0.2,
+        ];
+        $mock = $this->mock(DossierSemanticSearchService::class);
+        $mock->shouldReceive('representativeChunksAcrossDossiers')->andReturn([])->byDefault();
+        $mock->shouldReceive('searchAcrossDossiers')->andReturnUsing(
+            function (string $organizationId, array $dossierIds, string $query, string $instance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null, ?array $onlyFiles = null, ?array $loops = null, ?string $userId = null) use ($ligne): array {
+                $this->embedderHorsTour(AiProviderInvocation::EMBEDDING_OPERATION_QUERY, $traceMetadata, $userId, $organizationId, $instance);
+
+                return [$ligne];
+            },
+        );
+    }
+
+    /** @param  array<string, mixed>  $traceMetadata */
+    private function embedderHorsTour(string $operation, array $traceMetadata = [], ?string $userId = null, ?string $organizationId = null, ?string $instance = null): void
+    {
+        Context::add(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY, [
+            'organization_id' => $organizationId ?? (string) $this->organization->id,
+            'scenario_id' => $operation === AiProviderInvocation::EMBEDDING_OPERATION_QUERY ? 'dossier_embeddings_search' : 'dossier_embeddings_index',
+            'embedding_operation' => $operation,
+            'user_id' => $userId,
+            'metadata' => array_merge(['dossier_id' => (string) $this->dossier->id], $traceMetadata),
+        ]);
+
+        try {
+            app(DossierChunkEmbeddingService::class)->embed(['texte'], $instance ?? 'openrouter');
+        } finally {
+            Context::forget(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY);
+        }
     }
 
     private function reponse(string $texte): TextResponse

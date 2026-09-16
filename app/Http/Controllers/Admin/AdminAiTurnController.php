@@ -174,7 +174,11 @@ class AdminAiTurnController extends Controller
             'user' => ['required', 'uuid'],
             'loop' => ['required', 'uuid'],
             'mode' => ['required', 'in:'.implode(',', AiTurnExecutor::MODES)],
-            'question' => ['required', 'string', 'max:4000'],
+            // Review Opus F3 — les MEMES bornes d'entree que le produit : 500
+            // sur les chemins documentaires (`LoopController`,
+            // `DossierAnswerController`), 5000 sur le composeur ChatLoop. Un
+            // tour qu'aucun membre ne pourrait emettre n'a pas a etre facture.
+            'question' => ['required', 'string', 'min:3', $request->input('mode') === 'ia' ? 'max:5000' : 'max:500'],
             'trigger' => ['nullable', 'uuid'],
         ]);
 
@@ -240,8 +244,10 @@ class AdminAiTurnController extends Controller
         $loop = $uuid('loop') !== null ? $loops->firstWhere('id', $uuid('loop')) : null;
 
         // Declencheurs possibles pour `ia` : les messages humains recents du
-        // fil, dans cette Boucle (tenant du fil). Le texte est tronque : c'est
-        // un choix, pas une lecture.
+        // fil, dans cette Boucle (tenant du fil). Review Opus F1 : AUCUN
+        // contenu de conversation n'est rendu (I9) — date, id court, auteur
+        // (id) ; F5 : ceux qui ont deja leur reponse IA sont marques, parce que
+        // l'idempotence les refusera.
         $triggers = $loop instanceof Loop
             ? LoopMessage::query()
                 ->where('organization_id', (string) $organization->id)
@@ -249,7 +255,10 @@ class AdminAiTurnController extends Controller
                 ->where('type', 'user')
                 ->orderByDesc('created_at')->orderByDesc('id')
                 ->limit(20)
-                ->get(['id', 'body', 'sender_id', 'created_at', 'loop_id', 'organization_id'])
+                ->get(['id', 'sender_id', 'created_at', 'loop_id', 'organization_id'])
+                ->each(function (LoopMessage $m): void {
+                    $m->setAttribute('already_answered', LoopMessage::query()->where('loop_id', $m->loop_id)->where('reply_to_id', $m->id)->where('type', 'ai')->exists());
+                })
             : collect();
         $trigger = $uuid('trigger') !== null ? $triggers->firstWhere('id', $uuid('trigger')) : null;
 
@@ -260,7 +269,9 @@ class AdminAiTurnController extends Controller
             'loops' => $loops, 'loopChoisie' => $loop,
             'triggers' => $triggers, 'trigger' => $trigger,
             'mode' => in_array($entree['mode'] ?? null, AiTurnExecutor::MODES, true) ? $entree['mode'] : 'dossiers',
-            'question' => is_string($entree['question'] ?? null) ? $entree['question'] : '',
+            // Review Opus F2 — la question ne transite jamais par l'URL : elle
+            // revient par la session (flash) apres un refus.
+            'question' => is_string(session('inspector_test_question')) ? session('inspector_test_question') : '',
             'modes' => AiTurnExecutor::MODES,
         ];
     }
@@ -269,7 +280,8 @@ class AdminAiTurnController extends Controller
     private function retourAuFormulaire(array $donnees, string $message): RedirectResponse
     {
         return redirect()
-            ->route('admin.ai-turns.test', Collection::make($donnees)->only(['organization', 'user', 'loop', 'mode', 'question', 'trigger'])->filter()->all())
-            ->with('inspector_test_error', $message);
+            ->route('admin.ai-turns.test', Collection::make($donnees)->only(['organization', 'user', 'loop', 'mode', 'trigger'])->filter()->all())
+            ->with('inspector_test_error', $message)
+            ->with('inspector_test_question', (string) ($donnees['question'] ?? ''));
     }
 }
