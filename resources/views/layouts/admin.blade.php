@@ -327,6 +327,8 @@
                             ['route' => 'admin.ia-usage', 'label' => 'Utilisation IA', 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
                             ['route' => 'admin.ai-benchmark', 'label' => 'Benchmark IA', 'icon' => 'M13 17h8m0 0V9m0 8l-8-8-4 4-6-6'],
                             ['route' => 'admin.ai-interactions', 'label' => 'Historique IA', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
+                            // TASK-1581 : la vue lecteur d'un tour IA (Inspector V0, read-only).
+                            ['route' => 'admin.ai-turns', 'label' => 'Inspector IA', 'icon' => 'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z'],
                             ['route' => 'admin.guest-shell', 'label' => __('admin.guest_shell_observability_nav'), 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'],
                         ];
                         $statsGroupActive = $isGroupActive($statsItems);
