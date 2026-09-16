@@ -4,7 +4,6 @@ namespace Tests\Feature\Admin;
 
 use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Ai\Context\DossierRetrievalTraceRecorder;
-use App\Models\AiConfig;
 use App\Models\AiCreditSettingChange;
 use App\Models\AiInteraction;
 use App\Models\AiProviderInvocation;
