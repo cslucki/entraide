@@ -430,7 +430,7 @@ class TASK1570EarlyStopTurnTest extends TestCase
         $this->assertSame($this->ledgerAvant, AiProviderInvocation::query()->count(), 'ledger vierge (I3)');
 
         $turn = $tour->metadata['turn'];
-        $this->assertSame(1, $turn['schema']);
+        $this->assertSame(AiTurnTrace::SCHEMA_VERSION, $turn['schema']);
         $this->assertTrue(Str::isUuid($turn['id']));
         $this->assertSame($status, $turn['status']);
         $this->assertSame($stage, $turn['stage']);

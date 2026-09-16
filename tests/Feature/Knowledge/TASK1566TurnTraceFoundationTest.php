@@ -329,7 +329,10 @@ class TASK1566TurnTraceFoundationTest extends TestCase
 
     public function test_le_schema_v0a_est_la_version_1(): void
     {
-        $this->assertSame(1, AiTurnTrace::SCHEMA_VERSION);
+        // TASK-1583 / TRACE-1B (arbitrage MASTER 16/09) : schema 2 = la v1 gelee
+        // (TRACE0_SCHEMA_FROZEN) + un lien OPTIONNEL `turn.run`. La v1 reste connue.
+        $this->assertSame(2, AiTurnTrace::SCHEMA_VERSION);
+        $this->assertSame(1, AiTurnTrace::SCHEMA_VERSION_FROZEN_V1);
         $this->assertSame('turn', AiTurnTrace::TURN_METADATA_KEY);
 
         // La cle ne doit JAMAIS etre `sources_denied` au premier niveau : c'est

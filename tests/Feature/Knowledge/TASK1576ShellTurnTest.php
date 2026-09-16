@@ -105,7 +105,7 @@ class TASK1576ShellTurnTest extends TestCase
         $turn = $reponse->metadata['turn'];
 
         $this->assertSame(0, AiInteraction::query()->count(), 'zero-provider : aucune interaction');
-        $this->assertSame(1, $turn['schema']);
+        $this->assertSame(AiTurnTrace::SCHEMA_VERSION, $turn['schema']);
         $this->assertNotSame('', (string) $turn['id']);
         // `ai_shell_messages.metadata` est jsonb (CDC-01 C5) : PostgreSQL ne
         // conserve pas l'ordre des cles. On compare le CONTENU, pas l'ordre.

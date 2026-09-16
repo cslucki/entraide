@@ -220,7 +220,7 @@ class TASK1569ExplainPersistedTurnTest extends TestCase
         $this->assertSame('explain', $trace['mode']);
         $this->assertSame($turn['id'], $trace['run']['turn_id']);
         $this->assertSame('turn.id', $trace['run']['turn_id_source']);
-        $this->assertSame(1, $trace['run']['turn_schema']);
+        $this->assertSame(AiTurnTrace::SCHEMA_VERSION, $trace['run']['turn_schema']); // TASK-1583 : schema 2
         $this->assertSame(AiExecutionPath::LOOP_CONTROLLER_KNOWLEDGE_JSON, $trace['identity']['execution_path']);
         $this->assertSame($turn['identity'], $trace['identity']);
         $this->assertSame($turn['steps'], $trace['steps']);

@@ -344,7 +344,7 @@ class TASK1566WritersIdentityTest extends TestCase
 
         $turn = $metadata[AiTurnTrace::TURN_METADATA_KEY];
 
-        $this->assertSame(1, $turn['schema']);
+        $this->assertSame(AiTurnTrace::SCHEMA_VERSION, $turn['schema']);
         $this->assertTrue(Str::isUuid($turn['id']), '`turn.id` doit etre un uuid');
 
         // EXACTEMENT ces cles — toute semantique supplementaire chez ce writer

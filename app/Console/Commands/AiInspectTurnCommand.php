@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Support\Ai\AiExecutionPath;
+use App\Support\Ai\AiRunManifest;
 use App\Support\Ai\AiTruthLabel;
 use App\Support\Ai\AiTurnInspection;
 use App\Support\Ai\AiTurnProjection;
@@ -70,6 +71,7 @@ class AiInspectTurnCommand extends Command
         {--mode=dossiers : dossiers | ia_dossiers | ia}
         {--question= : La question posee}
         {--trigger-message= : EXECUTE --mode=ia — uuid du loop_message auquel l\'IA repond (obligatoire : le chemin produit repond toujours a un message)}
+        {--run-id= : EXECUTE — uuid d\'un RUN (TRACE-1B) : le tour porte turn.run et s\'ajoute au manifeste storage/app/ai-lab/runs/<run_id>.json ; reutilisable d\'une invocation a l\'autre}
         {--interaction= : EXPLAIN — uuid d\'une ligne ai_interactions deja persistee (aucune execution)}
         {--turn= : EXPLAIN — turn_id canonique (turn.id, repli metadata.turn_id pour les anciens tours)}
         {--message= : EXPLAIN — uuid d\'un loop_message, remonte a son ai_interaction_id}
@@ -149,9 +151,42 @@ class AiInspectTurnCommand extends Command
             return $this->refuser('Boucle introuvable dans cette Organization.');
         }
 
-        if ($mode === 'ia') {
-            return $this->executerIa($chatLoop, $organization, $user, $loop, $question);
+        // TASK-1583 / TRACE-1B — un run nomme : le tour portera `turn.run`
+        // (schema 2) et le manifeste gardera son id. Pose AVANT l'execution,
+        // retire APRES (finally) : le contexte est process-local.
+        $runId = trim((string) $this->option('run-id'));
+
+        if ($runId !== '') {
+            if (! Str::isUuid($runId)) {
+                return $this->refuser('--run-id doit etre un uuid.');
+            }
+
+            try {
+                AiRunManifest::start($runId, AiTurnTrace::RUN_KIND_CLI, (string) $organization->id);
+            } catch (\RuntimeException $exception) {
+                return $this->refuser($exception->getMessage());
+            }
+
+            AiTurnTrace::beginRun($runId, AiTurnTrace::RUN_KIND_CLI);
         }
+
+        try {
+            if ($mode === 'ia') {
+                return $this->executerIa($chatLoop, $organization, $user, $loop, $question);
+            }
+
+            return $this->executerDocumentaire($knowledge, $scope, $organization, $user, $loop, $question, $surface, $mode);
+        } finally {
+            AiTurnTrace::endRun();
+        }
+    }
+
+    /**
+     * EXECUTE `--mode=dossiers|ia_dossiers` (T1558) — extrait tel quel de
+     * `handle()` par TASK-1583 pour partager l'ouverture/fermeture du run.
+     */
+    private function executerDocumentaire(LoopKnowledgeAnswerService $knowledge, DossierAccessScope $scope, Organization $organization, User $user, Loop $loop, string $question, string $surface, string $mode): int
+    {
 
         // TASK-1558 — SANS cette liaison, l'observation ment.
         //
@@ -187,6 +222,8 @@ class AiInspectTurnCommand extends Command
             $interaction = $reponse->interactionId === null
                 ? null
                 : AiInteraction::query()->find($reponse->interactionId);
+
+            $this->inscrireAuManifeste($interaction);
 
             return $this->rendre(AiTurnInspection::build(
                 identity: [
@@ -258,8 +295,30 @@ class AiInspectTurnCommand extends Command
             // Le tour vient d'etre ecrit : il se LIT comme n'importe quel tour
             // persiste — meme lecteur, memes labels. Aucune section « vivante »
             // n'est fabriquee pour ce chemin (il n'a pas de KnowledgeAnswer).
+            $this->inscrireAuManifeste($interaction);
+
             return $this->rendreExplain($this->projeter(AiTurnInspection::fromPersistedTurn($interaction->refresh()), $interaction));
         });
+    }
+
+    /**
+     * TRACE-1B — le tour qui vient d'etre execute rejoint le manifeste du run
+     * courant (des ids, rien d'autre). Sans run, rien.
+     */
+    private function inscrireAuManifeste(?AiInteraction $interaction): void
+    {
+        $run = AiTurnTrace::currentRun();
+
+        if ($run === null || $interaction === null) {
+            return;
+        }
+
+        $turn = is_array($interaction->metadata) ? ($interaction->metadata[AiTurnTrace::TURN_METADATA_KEY] ?? null) : null;
+
+        AiRunManifest::addTurn($run['id'], [
+            'turn_id' => is_array($turn) ? ($turn['id'] ?? null) : null,
+            'interaction_id' => (string) $interaction->id,
+        ]);
     }
 
     /**
