@@ -208,7 +208,7 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Deux règles observables en V0. <strong>Observé sur ce tour</strong> (mesure) et <strong>configuration actuelle</strong> (lue aujourd'hui) sont rendus séparément : l'une ne prouve jamais l'autre.</p>
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 text-sm">
                     <div data-inspector-doctrine-max-distance>
-                        <h4 class="text-xs uppercase text-gray-500 dark:text-gray-400 mb-2">Filtre vectoriel <code>max_distance</code></h4>
+                        <h4 class="text-xs uppercase text-gray-500 dark:text-gray-400 mb-2">Filtre vectoriel &middot; <code>max_distance</code></h4>
                         <dl class="space-y-1">
                             <div class="flex items-baseline gap-2"><dt class="w-40 shrink-0 text-gray-500 dark:text-gray-400">Ce tour</dt><dd class="font-mono">{{ $aff($md['measured']) }}</dd><span class="ml-auto text-[10px] px-1.5 py-0.5 rounded {{ $label($md['measured_label']) }}">{{ $md['measured_label'] }}</span></div>
                             @if ($md['measured'] === null)<div class="text-xs text-gray-400 pl-40">({{ $md['measured_reason'] }})</div>@endif
@@ -224,7 +224,8 @@
                         <p class="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Observé sur ce tour</p>
                         <dl class="space-y-1 mb-3">
                             @foreach (['attempted' => 'Tenté', 'reason_not_attempted' => 'Raison si non tenté', 'provider' => 'Provider', 'model' => 'Modèle', 'duration_ms' => 'Durée (ms)'] as $cle => $titre)
-                                <div class="flex items-baseline gap-2"><dt class="w-40 shrink-0 text-gray-500 dark:text-gray-400">{{ $titre }}</dt><dd class="font-mono">{{ $aff($rk['observed'][$cle]) }}</dd><span class="ml-auto text-[10px] px-1.5 py-0.5 rounded {{ $label($rk['observed'][$cle.'_label']) }}">{{ $rk['observed'][$cle.'_label'] }}</span></div>
+                                <div class="flex items-baseline gap-2"><dt class="w-40 shrink-0 text-gray-500 dark:text-gray-400">{{ $titre }}</dt>{{-- Un `null` ECRIT par la source (rerank non tente : pas de provider) est une mesure « aucun », pas une absence de trace. --}}
+                                <dd class="font-mono">{{ $rk['observed'][$cle] === null && $rk['observed'][$cle.'_label'] === 'MEASURED' ? '(aucun)' : $aff($rk['observed'][$cle]) }}</dd><span class="ml-auto text-[10px] px-1.5 py-0.5 rounded {{ $label($rk['observed'][$cle.'_label']) }}">{{ $rk['observed'][$cle.'_label'] }}</span></div>
                             @endforeach
                         </dl>
                         <p class="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Configuration actuelle</p>
