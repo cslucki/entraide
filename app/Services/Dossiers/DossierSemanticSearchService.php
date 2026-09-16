@@ -295,10 +295,6 @@ class DossierSemanticSearchService
         // defaut, parce qu'un appelant qui oublie doit obtenir moins de
         // resultats, jamais une fuite.
         ?array $authorizedLoopIds = null,
-        // TASK-1585 — l'acteur DECLARE par l'appelant (le `ContexteIa` du
-        // tour, deja valide tenant). `null` = aucun acteur declare : le ledger
-        // retombe sur Auth::id() (comportement historique). Jamais deduit ici.
-        ?string $userId = null,
     ): array {
         $query = trim($query);
 
@@ -338,14 +334,19 @@ class DossierSemanticSearchService
 
         AiCorrelation::id();
 
+        // TASK-1585 — l'acteur DECLARE par l'appelant (`traceMetadata.user_id`,
+        // le `ContexteIa` du tour deja valide tenant) est porte a la RACINE de
+        // la trace, jamais recopie dans les metadata (JSON libre). Absent =
+        // aucun acteur declare : le ledger retombe sur Auth::id() (historique).
+        $userId = $traceMetadata['user_id'] ?? null;
+        unset($traceMetadata['user_id']);
+
         Context::add(RecordSdkEmbeddingsInvocation::TRACE_CONTEXT_KEY, [
             'organization_id' => $organizationId,
             'scenario_id' => 'dossier_embeddings_search',
             // TASK-1220 : declaration EXPLICITE pour le ledger canonique.
             'embedding_operation' => AiProviderInvocation::EMBEDDING_OPERATION_QUERY,
-            // TASK-1585 : acteur declare, a part des metadata (jamais recopie
-            // dans un JSON libre).
-            'user_id' => $userId !== null && $userId !== '' ? $userId : null,
+            'user_id' => is_string($userId) && $userId !== '' ? $userId : null,
             'metadata' => array_merge(['dossier_count' => count($dossierIds)], $traceMetadata),
         ]);
 
