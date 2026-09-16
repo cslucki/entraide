@@ -56,6 +56,7 @@ class TASK1590LabScenarioCatalogueTest extends TestCase
         $this->assertFalse($scenarios['LAB.MULTITURN_REFERENT_1B']->publishes());
         $this->assertSame(['dossiers', 'ia'], array_column($scenarios['LAB.MODE_CHANGE_1']->turns(), 'mode'));
         $this->assertFalse($scenarios['LAB.TENANT_NEGATIVE_1']->expectsTurn());
+        $this->assertSame('lab.outsider', $scenarios['LAB.TENANT_NEGATIVE_1']->user(), 'K5 : l\'acteur est d\'une AUTRE Organization');
         $this->assertSame('denied', $scenarios['LAB.TENANT_NEGATIVE_1']->preconditions()['gold_access']['expected'], 'un refus attendu est une precondition, pas un defaut');
         $this->assertSame('lab.member.c', $scenarios['LAB.LOOP_ACL_1']->user());
         $this->assertSame('L2', $scenarios['LAB.LOOP_ACL_1']->loop(), 'membre de L1 seul, cible L2');
