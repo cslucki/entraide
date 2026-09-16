@@ -17,6 +17,8 @@ use App\Models\OrganizationAiSetting;
 use App\Models\ScenarioPackLoad;
 use App\Models\User;
 use App\Services\Dossiers\DossierSemanticSearchService;
+use App\Services\LoopMessageService;
+use App\Services\LoopService;
 use App\Support\Ai\AiRunManifest;
 use App\Support\Ai\AiTurnExecutor;
 use App\Support\Ai\AiTurnLock;
@@ -250,14 +252,21 @@ class TASK1591LabRunnerTest extends TestCase
         $loop = $this->loop('L1');
         $trigger = LoopMessage::query()->where('loop_id', $loop->id)->where('type', 'user')->firstOrFail();
 
-        // Une autre Organization, meme dans l'allowlist, meme avec un pack charge.
-        $autre = Organization::factory()->create(['slug' => 'pas-le-lab', 'is_active' => true, 'loops_enabled' => true]);
+        // Une autre Organization COHERENTE (son membre, sa Boucle, son
+        // declencheur, sa cle), dans l'allowlist, avec un pack charge : seule
+        // la garde de slug peut la refuser — c'est elle qu'on eprouve.
+        $autre = Organization::factory()->create(['slug' => 'pas-le-lab', 'is_active' => true, 'loops_enabled' => true, 'members_can_create_loops' => true]);
+        OrganizationAiSetting::factory()->create(['organization_id' => $autre->id, 'provider' => 'openrouter', 'model' => 'openai/gpt-4o-mini', 'api_key' => 'sk-autre']);
+        $membreAutre = User::factory()->complete()->create(['organization_id' => $autre->id]);
+        $loopAutre = (new LoopService)->createLoop($membreAutre, 'Boucle hors Lab');
+        $triggerAutre = app(LoopMessageService::class)->sendUserMessage($loopAutre, $membreAutre, 'Question hors Lab ?');
         config(['scenario_packs.allowed_organizations' => [...config('scenario_packs.allowed_organizations'), 'pas-le-lab']]);
         ScenarioPackLoad::query()->create(['organization_id' => $autre->id, 'pack_id' => AiLabPack::PACK_ID, 'pack_version' => '0', 'loaded_at' => now()]);
         $refus = 0;
         try {
-            $executor->executeForLab($autre, $labUser, $loop, 'dossiers', 'Q ?', $trigger, (string) Str::uuid(), 'LAB.X_1');
-        } catch (\InvalidArgumentException) {
+            $executor->executeForLab($autre, $membreAutre, $loopAutre, 'dossiers', 'Question hors Lab ?', $triggerAutre, (string) Str::uuid(), 'LAB.X_1');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('reservee a l\'Organization Lab', $e->getMessage());
             $refus++;
         }
 
