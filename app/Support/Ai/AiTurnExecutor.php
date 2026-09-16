@@ -208,7 +208,7 @@ final class AiTurnExecutor
                             throw new \LogicException('Le seam devait rendre l\'AiInteraction du tour (directement, ou par metadata.ai_interaction_id de la bulle).');
                         }
 
-                        $manifeste = $this->inscrireAuManifeste($runId, $interaction);
+                        $manifeste = $this->inscrireAuManifeste($runId, $interaction, $bulle);
 
                         return new AiTurnExecution($mode, $runId, $runKind, $interaction->refresh(), null, manifestFailure: $manifeste, publishedMessage: $bulle);
                     }
@@ -231,7 +231,7 @@ final class AiTurnExecutor
                         ? LoopMessage::query()->where('organization_id', (string) $organization->id)->where('loop_id', (string) $loop->id)->where('type', 'ai')->where('metadata->ai_interaction_id', (string) $interaction->id)->first()
                         : null;
 
-                    $manifeste = $this->inscrireAuManifeste($runId, $interaction);
+                    $manifeste = $this->inscrireAuManifeste($runId, $interaction, $bulle);
 
                     return new AiTurnExecution($mode, $runId, $runKind, $interaction, $reponse, manifestFailure: $manifeste, publishedMessage: $bulle);
                 } catch (\RuntimeException $exception) {
@@ -318,7 +318,7 @@ final class AiTurnExecutor
      * tour existe et se lit, l'echec d'inscription est porte par le resultat,
      * jamais transforme en « rien n'est parti ».
      */
-    private function inscrireAuManifeste(string $runId, ?AiInteraction $interaction): ?string
+    private function inscrireAuManifeste(string $runId, ?AiInteraction $interaction, ?LoopMessage $bulle = null): ?string
     {
         if ($interaction === null) {
             return null;
@@ -330,6 +330,8 @@ final class AiTurnExecutor
             AiRunManifest::addTurn($runId, [
                 'turn_id' => is_array($turn) ? ($turn['id'] ?? null) : null,
                 'interaction_id' => (string) $interaction->id,
+                // TASK-1591 — un tour PUBLIE (Lab) inscrit sa bulle : ids seulement.
+                'loop_message_id' => $bulle?->id !== null ? (string) $bulle->id : null,
             ]);
         } catch (\RuntimeException $exception) {
             return $exception->getMessage();

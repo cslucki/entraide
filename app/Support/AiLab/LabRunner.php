@@ -57,9 +57,10 @@ final class LabRunner
         }
 
         // L'outsider est, par contrat, un utilisateur d'une AUTRE Organization
-        // (jamais une entite du pack) ; tout autre persona vit dans le Lab.
+        // (jamais une entite du pack) — DECLARE par la config, jamais devine ;
+        // tout autre persona vit dans le Lab.
         $user = $scenario->user() === 'lab.outsider'
-            ? User::query()->where('email', AiLabPack::OUTSIDER_EMAIL)->first()
+            ? User::query()->where('email', (string) config('scenario_packs.lab_outsider_email', AiLabPack::OUTSIDER_EMAIL))->first()
             : User::query()->where('organization_id', (string) $organization->id)->where('email', AiLabPack::emailFor($scenario->user()))->first();
         $loop = Loop::query()->where('organization_id', (string) $organization->id)->where('name', AiLabPack::LOOPS[$scenario->loop()]['name'] ?? '')->first();
 
@@ -72,9 +73,17 @@ final class LabRunner
             return $this->unavailable($scenario, null, 'manifeste de run impossible : '.$e->getMessage(), $pre);
         }
 
-        $loopDossiers = $loop instanceof Loop
-            ? Dossier::query()->withoutGlobalScopes()->where('loop_id', (string) $loop->id)->pluck('id')->mapWithKeys(fn ($id): array => [(string) $id => $scenario->loop()])->all()
-            : [];
+        // Carte dossier -> cle de Loop sur TOUT le Lab : une source venue d'une
+        // autre Loop est nommee (L4), pas seulement « pas L1 ».
+        $loopDossiers = [];
+        foreach (AiLabPack::LOOPS as $key => $definition) {
+            $labLoop = Loop::query()->where('organization_id', (string) $organization->id)->where('name', $definition['name'])->first();
+            if ($labLoop instanceof Loop) {
+                foreach (Dossier::query()->withoutGlobalScopes()->where('loop_id', (string) $labLoop->id)->pluck('id') as $id) {
+                    $loopDossiers[(string) $id] = $key;
+                }
+            }
+        }
 
         $turns = [];
 
