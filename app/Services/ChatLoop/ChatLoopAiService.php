@@ -70,7 +70,16 @@ class ChatLoopAiService
      * Absence de reply (question libre, mode IA sans cible) : contexte vide,
      * le prompt est la question seule.
      */
-    public function respondInThread(Loop $loop, User $requester, string $question, LoopMessage $triggerMessage): LoopMessage
+    /**
+     * TASK-1575 / CDC-01 V0-H — `$publish = false` est le SEAM d'observation
+     * (`ai:inspect-turn --mode=ia`), calque sur celui du RAG (T1558,
+     * `LoopKnowledgeAnswerService::respond()`) : tout ce qui precede la
+     * publication — garde d'acces, idempotence, verrou, garde economique,
+     * provider, ledger, `AiInteraction` — s'execute a l'identique ; seule la
+     * bulle `loop_messages` n'est pas ecrite, et l'`AiInteraction` du tour est
+     * rendue a sa place. Ce n'est ni un mode degrade ni un second chemin.
+     */
+    public function respondInThread(Loop $loop, User $requester, string $question, LoopMessage $triggerMessage, bool $publish = true): LoopMessage|AiInteraction
     {
         $this->assertCanRequest($loop, $requester);
 
@@ -83,7 +92,7 @@ class ChatLoopAiService
         // TTL, meme message de refus, meme liberation en `finally`. La cle
         // devient `{organization}:{loop}:{user}` : deux membres d'une meme
         // Boucle sont deux tours differents et ne se bloquent plus.
-        return AiTurnLock::run($loop, $requester, function () use ($loop, $requester, $question, $triggerMessage) {
+        return AiTurnLock::run($loop, $requester, function () use ($loop, $requester, $question, $triggerMessage, $publish) {
             $locale = $this->resolveLocale($requester, $loop);
             $capability = CapabilityRegistry::LOOP_ASK;
             $definition = $this->capabilities->get($capability);
@@ -254,6 +263,10 @@ class ChatLoopAiService
 
             if ($answer === '') {
                 throw new \RuntimeException(__('loops.ai_empty_response'));
+            }
+
+            if (! $publish) {
+                return $interaction;
             }
 
             return DB::transaction(function () use ($loop, $requester, $question, $answer, $resolved, $interaction, $triggerMessage, $conversation) {
