@@ -179,6 +179,47 @@ final class AiTurnTrace
     }
 
     /**
+     * TASK-1568 / V0-G (C18) — l'etape `conversation_history` d'un moteur
+     * PARTAGE, traduite depuis ce que l'appelant lui a deja donne.
+     *
+     * Un moteur partage (Dossier, Shell general, clarifier) ne calcule aucun
+     * historique : il recoit de son point d'entree le bloc `history` que V0-L
+     * a defini (CDC-01 P0.12) — ou rien. Cette methode ne fait que TRADUIRE
+     * cette donnee, deja en main du writer, en etape :
+     *
+     *   - un bloc recu, meme a `count = 0`  → `executed` : le mecanisme
+     *     d'historique de l'appelant a tourne (le fil Shell est toujours
+     *     consulte, il peut simplement etre vide) ;
+     *   - aucun bloc (`[]`)                  → `not_applicable` : l'appelant
+     *     n'a pas d'etage de conversation (page Dossier, formulaire de
+     *     Demande, decouverte documentaire du Shell).
+     *
+     * C'est exactement le meme `$history` qui decide, chez ces writers, si
+     * `turn.history` est ecrit ou absent : aucune heuristique, aucun prefixe
+     * de chemin, aucune donnee nouvelle. Les metriques sont celles du bloc.
+     *
+     * @param  array<string, mixed>  $history
+     */
+    public static function conversationHistoryStep(string $organizationId, string $turnId, array $history): void
+    {
+        if ($history === []) {
+            self::step($organizationId, $turnId, 'conversation_history', 'not_applicable');
+
+            return;
+        }
+
+        $metrics = [];
+
+        foreach (['count', 'chars'] as $cle) {
+            if (array_key_exists($cle, $history) && $history[$cle] !== null) {
+                $metrics[$cle] = $history[$cle];
+            }
+        }
+
+        self::step($organizationId, $turnId, 'conversation_history', 'executed', null, $metrics);
+    }
+
+    /**
      * Reclame la trace de CE tour, UNE seule fois.
      *
      * `null` signifie « ce tour n'a depose aucune observation » — le moteur

@@ -15,12 +15,41 @@ use App\Ai\Context\SourceDenied;
  * vocabulaires qui EXISTENT DEJA dans le depot, references par alias.
  *
  * Ce qu'elle ne contient PAS, et ne doit pas contenir avant V0-C : les codes
- * que CDC-01 P0.4 annonce comme « nouveaux codes necessaires »
- * (`NO_SOURCES_FOUND`, `NO_GROUNDED_EVIDENCE`, `EMPTY_MODEL_ANSWER`,
- * `FAKE_PROVIDER_FALLBACK`, `FEATURE_DISABLED`, `DOCUMENT_PATH_DIRECT_EXECUTION`,
- * `CONTEXT_EMPTY`, `RERANK_NOT_CONFIGURED`). Les inventer ici reviendrait a
+ * que CDC-01 P0.4 annonce comme « nouveaux codes necessaires » et qu'AUCUN
+ * etage n'emet encore (`NO_GROUNDED_EVIDENCE`, `FAKE_PROVIDER_FALLBACK`,
+ * `FEATURE_DISABLED`, `RERANK_NOT_CONFIGURED`). Les inventer ici reviendrait a
  * figer, sans les etages qui les emettent, un vocabulaire que personne n'aurait
  * encore eu l'occasion de confronter au code reel.
+ *
+ * ## Ce que V0-G (TASK-1568) y a ajoute — et a quel titre
+ *
+ * Deux familles NOUVELLES, de statut different, a ne pas confondre :
+ *
+ *   `context_builder` — EMISE par V0-G. Les deux codes de bypass sont ecrits
+ *   des aujourd'hui par les writers dont le moteur n'appelle pas le
+ *   `ContextBuilder` que sa capability declare (CDC-01 P0.3, P0.7, C3).
+ *
+ *   `fallthrough` — VOCABULAIRE GELE, AUCUN EMETTEUR (decision G-β, C20).
+ *   Les 25 `return null` du dispatcher Shell rendent la main a la branche
+ *   suivante sans qu'aucune identite de tour commune n'existe entre la
+ *   tentative declinee et le writer final (`AiShellResponder::respond()` ne
+ *   mint aucun turnId ; chaque moteur mint le sien). Une etape deposee sous le
+ *   turnId d'un moteur qui decline ne serait JAMAIS reclamee : elle
+ *   disparaitrait en silence. `TRACE0_SCHEMA_FROZEN` gele donc le NOM de ces
+ *   codes, et V0-I — qui porte l'identite Shell — les branchera. Ecrire un
+ *   `AiTurnTrace::step()` avec l'un d'eux avant V0-I est une faute : un test
+ *   statique le garde.
+ *
+ *   Trois de ces codes (`NO_SOURCES_FOUND`, `EMPTY_MODEL_ANSWER`,
+ *   `CONTEXT_EMPTY`) sont ceux que P0.4 annoncait pour V0-C : ils sont poses ici
+ *   parce que le mapping des fallthroughs les REFERENCE (arbitrage S1 : V0-C les
+ *   reprend tels quels et reste proprietaire de la fermeture du registre).
+ *
+ *   Ces codes sont ecrits en MAJUSCULES, graphie du CDC (`reason_code:
+ *   DOCUMENT_PATH_DIRECT_EXECUTION`, §5.2 et scenario 8) : ce ne sont pas des
+ *   alias d'un vocabulaire existant, il n'y a donc pas de graphie d'origine a
+ *   respecter. L'harmonisation eventuelle avec les familles 1-5 (minuscules)
+ *   est une decision de V0-C, pas un detail a trancher ici.
  *
  * ## Pourquoi des ALIAS et non des chaines recopiees
  *
@@ -149,6 +178,63 @@ final class AiTurnReason
 
     public const DEGRADED_LOOP_SCOPE = AiTurnState::DEGRADED_LOOP_SCOPE;
 
+    // -----------------------------------------------------------------
+    // Famille 6 — pourquoi le CONTEXT BUILDER a ete bypasse (V0-G, EMISE)
+    // -----------------------------------------------------------------
+
+    /**
+     * `LOOP_ASK` declare `loop.messages`, mais `respondInThread()` ne construit
+     * jamais ce contexte : il lit la chaine de reply via
+     * `AiConversationContextBuilder`, un autre composant (CDC-01 C3). Un FACT
+     * architectural rendu lisible, pas un bug qualifie.
+     */
+    public const CONTEXT_BUILDER_LLM_PATH_NO_CONTEXT_BUILDER = 'LLM_PATH_NO_CONTEXT_BUILDER';
+
+    /**
+     * `DossierInsightsService` recherche et repond directement sur ses sources,
+     * sans passer par le `ContextBuilder` que `LOOP_KNOWLEDGE_ANSWER` declare —
+     * la ou `LoopKnowledgeAnswerService`, sous la MEME capability, l'appelle
+     * (CDC-01 P0.7). Une capability, deux moteurs, deux comportements.
+     */
+    public const CONTEXT_BUILDER_DOCUMENT_PATH_DIRECT_EXECUTION = 'DOCUMENT_PATH_DIRECT_EXECUTION';
+
+    // -----------------------------------------------------------------
+    // Famille 7 — les FALLTHROUGHS du dispatcher Shell (V0-G, VOCABULAIRE SEUL)
+    //
+    // 25 points, 8 codes. `skipped` = la branche n'a pas essaye ; `failed` =
+    // elle a essaye et casse. AUCUN de ces codes n'est emis avant V0-I (C20).
+    // -----------------------------------------------------------------
+
+    /** `skipped` — la page ou la forme de la question ne designe pas cette branche. */
+    public const FALLTHROUGH_BRANCH_SHAPE_NOT_MATCHED = 'BRANCH_SHAPE_NOT_MATCHED';
+
+    /** `skipped` — l'identifiant exige (dossier, article, fichier…) est absent du contexte de page. */
+    public const FALLTHROUGH_CONTEXT_OBJECT_ABSENT = 'CONTEXT_OBJECT_ABSENT';
+
+    /**
+     * `skipped` — objet introuvable OU non visible par ce membre.
+     *
+     * La fusion est VOULUE et ne doit pas etre affinee : deux codes distincts
+     * feraient de la trace un oracle d'existence pour un objet que
+     * l'utilisateur n'a pas le droit de voir (invariant de confidentialite).
+     */
+    public const FALLTHROUGH_OBJECT_NOT_ACCESSIBLE = 'OBJECT_NOT_ACCESSIBLE';
+
+    /** `skipped` — le contenu de l'objet est vide une fois les balises retirees. */
+    public const FALLTHROUGH_CONTEXT_EMPTY = 'CONTEXT_EMPTY';
+
+    /** `failed` — le moteur a ESSAYE et leve (`catch (\Throwable)` + `report()`). */
+    public const FALLTHROUGH_ENGINE_EXCEPTION = 'ENGINE_EXCEPTION';
+
+    /** `skipped` — le moteur a repondu sans consulter aucune source (`consulted === []`). */
+    public const FALLTHROUGH_NO_SOURCES_FOUND = 'NO_SOURCES_FOUND';
+
+    /** `skipped` — le modele a rendu une reponse vide apres nettoyage. */
+    public const FALLTHROUGH_EMPTY_MODEL_ANSWER = 'EMPTY_MODEL_ANSWER';
+
+    /** `skipped` — la resolution de reference n'a produit aucun candidat. */
+    public const FALLTHROUGH_NO_REFERENCE_CANDIDATE = 'NO_REFERENCE_CANDIDATE';
+
     /**
      * Tous les codes que CE squelette connait, par famille d'origine.
      *
@@ -199,6 +285,33 @@ final class AiTurnReason
                 self::DEGRADED_TENANT_SCOPE,
                 self::DEGRADED_LOOP_SCOPE,
             ],
+            'context_builder' => [
+                self::CONTEXT_BUILDER_LLM_PATH_NO_CONTEXT_BUILDER,
+                self::CONTEXT_BUILDER_DOCUMENT_PATH_DIRECT_EXECUTION,
+            ],
+            'fallthrough' => self::fallthroughVocabulary(),
+        ];
+    }
+
+    /**
+     * Le vocabulaire GELE des fallthroughs Shell — sans emetteur avant V0-I.
+     *
+     * Expose a part pour que la garde de scope (aucun `step()` ne porte l'un de
+     * ces codes avant V0-I) puisse l'enumerer sans connaitre les autres familles.
+     *
+     * @return list<string>
+     */
+    public static function fallthroughVocabulary(): array
+    {
+        return [
+            self::FALLTHROUGH_BRANCH_SHAPE_NOT_MATCHED,
+            self::FALLTHROUGH_CONTEXT_OBJECT_ABSENT,
+            self::FALLTHROUGH_OBJECT_NOT_ACCESSIBLE,
+            self::FALLTHROUGH_CONTEXT_EMPTY,
+            self::FALLTHROUGH_ENGINE_EXCEPTION,
+            self::FALLTHROUGH_NO_SOURCES_FOUND,
+            self::FALLTHROUGH_EMPTY_MODEL_ANSWER,
+            self::FALLTHROUGH_NO_REFERENCE_CANDIDATE,
         ];
     }
 

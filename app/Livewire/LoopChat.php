@@ -20,6 +20,7 @@ use App\Services\LoopMessageService;
 use App\Services\Loops\LoopAnswerCapitalizationService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Services\UrlPreviewService;
+use App\Support\Ai\AiExecutionPath;
 use App\Support\Ai\AiTurnLock;
 use App\Support\Ai\LoopAiTurnSignal;
 use App\Support\Loops\LoopPermissionResolver;
@@ -750,8 +751,11 @@ class LoopChat extends Component
     private function respondWithDossiers(LoopMessage $message, string $question, User $user): void
     {
         try {
+            // TASK-1568 / V0-G — le composeur NOMME son chemin (C15) : le
+            // moteur est partage avec l'endpoint JSON et la CLI, il ne peut pas
+            // le deviner.
             $answer = app(LoopKnowledgeAnswerService::class)
-                ->answer($this->loop, $user, $question, inThreadTrigger: $message);
+                ->answer($this->loop, $user, $question, inThreadTrigger: $message, executionPath: AiExecutionPath::LOOP_CHAT_DOSSIERS);
 
             if ($answer->interactionId === null) {
                 // Zero source pertinente : rien n'a coute, rien n'est publie
@@ -779,7 +783,7 @@ class LoopChat extends Component
     {
         try {
             app(LoopKnowledgeAnswerService::class)
-                ->answerHybrid($this->loop, $user, $question, inThreadTrigger: $message);
+                ->answerHybrid($this->loop, $user, $question, inThreadTrigger: $message, executionPath: AiExecutionPath::LOOP_CHAT_IA_DOSSIERS);
         } catch (\RuntimeException $exception) {
             $this->addError('body', $exception->getMessage());
         }

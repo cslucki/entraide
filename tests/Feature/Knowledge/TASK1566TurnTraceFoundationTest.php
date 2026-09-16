@@ -278,12 +278,22 @@ class TASK1566TurnTraceFoundationTest extends TestCase
     public function test_le_registre_n_invente_aucun_code_futur(): void
     {
         // Ces codes sont annonces par CDC-01 P0.4 comme « nouveaux codes
-        // necessaires », a figer en V0-C. Les inventer en V0-A figerait un
-        // vocabulaire sans les etages qui l'emettent.
-        foreach (['NO_SOURCES_FOUND', 'NO_GROUNDED_EVIDENCE', 'FAKE_PROVIDER_FALLBACK', 'DOCUMENT_PATH_DIRECT_EXECUTION'] as $futur) {
+        // necessaires », a figer en V0-C. Les inventer sans les etages qui les
+        // emettent figerait un vocabulaire que personne n'a confronte au code.
+        //
+        // TASK-1568 (V0-G) a legitimement retire deux codes de cette liste :
+        // `DOCUMENT_PATH_DIRECT_EXECUTION` est EMIS (bypass du ContextBuilder,
+        // CDC-01 P0.7) et `NO_SOURCES_FOUND` est GELE comme vocabulaire de
+        // fallthrough Shell (C20, arbitrage S1). Ceux qui restent n'ont
+        // toujours aucun emetteur.
+        //
+        // La garde porte sur la VALEUR connue du registre, pas sur le nom d'une
+        // constante : une constante prefixee par sa famille porterait la meme
+        // valeur et passerait une verification par `defined()`.
+        foreach (['NO_GROUNDED_EVIDENCE', 'FAKE_PROVIDER_FALLBACK', 'FEATURE_DISABLED', 'RERANK_NOT_CONFIGURED'] as $futur) {
             $this->assertFalse(
-                defined(AiTurnReason::class.'::'.$futur),
-                "Le squelette V0-A ne doit pas figer {$futur} : c'est le perimetre de V0-C.",
+                AiTurnReason::isKnown($futur),
+                "Le registre ne doit pas figer {$futur} avant l'etage qui l'emet : c'est le perimetre de V0-C.",
             );
         }
     }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Dossier;
 use App\Models\Organization;
 use App\Services\Dossiers\DossierInsightsService;
+use App\Support\Ai\AiExecutionPath;
 use App\Support\Ai\AiRefusedException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
@@ -37,7 +38,8 @@ class DossierInsightsController extends Controller
         }
 
         try {
-            $answer = $insights->generate($organization, $dossier, $request->user());
+            // TASK-1568 / V0-G — les Insights nomment leur chemin (C15).
+            $answer = $insights->generate($organization, $dossier, $request->user(), executionPath: AiExecutionPath::DOSSIER_PAGE_INSIGHTS);
         } catch (AiRefusedException $exception) {
             // TASK-1229 : credential tenant absent (mandat §9) reste une
             // indisponibilite — 503, jamais confondue avec un refus

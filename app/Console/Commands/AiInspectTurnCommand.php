@@ -10,6 +10,7 @@ use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
+use App\Support\Ai\AiExecutionPath;
 use App\Support\Ai\AiTurnInspection;
 use Illuminate\Console\Command;
 
@@ -132,9 +133,13 @@ class AiInspectTurnCommand extends Command
             $perimetre = $this->perimetre($scope, $organization, $user, $loop);
 
             try {
+                // TASK-1568 / V0-G — un tour observe par la CLI EST un tour
+                // `loop_chat.dossiers` : c'est le meme chemin produit, avec les
+                // memes gardes (docblock ci-dessus). Lui donner un pseudo-chemin
+                // « cli » serait la faute inverse de celle que C15 corrige.
                 $reponse = $mode === 'ia_dossiers'
-                    ? $knowledge->answerHybrid($loop, $user, $question, null, publish: false)
-                    : $knowledge->answer($loop, $user, $question, null, publish: false);
+                    ? $knowledge->answerHybrid($loop, $user, $question, null, publish: false, executionPath: AiExecutionPath::LOOP_CHAT_IA_DOSSIERS)
+                    : $knowledge->answer($loop, $user, $question, null, publish: false, executionPath: AiExecutionPath::LOOP_CHAT_DOSSIERS);
             } catch (\RuntimeException $exception) {
                 // Un refus du service — ACL, economie, panne — est un RESULTAT
                 // d'observation, pas un plantage de l'outil.

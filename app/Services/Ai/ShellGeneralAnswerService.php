@@ -63,8 +63,11 @@ final class ShellGeneralAnswerService
      *                                         conversation. N'influence QUE la
      *                                         trace : ni le prompt, ni la
      *                                         selection, ni le provider.
+     * @param  ?string  $executionPath  TASK-1568 / V0-G — nom du chemin, FOURNI
+     *                                  par le point d'entree (C15). `null` :
+     *                                  la cle reste absente, jamais devinee.
      */
-    public function answer(Organization $organization, User $requester, string $question, array $history = []): ShellGeneralAnswer
+    public function answer(Organization $organization, User $requester, string $question, array $history = [], ?string $executionPath = null): ShellGeneralAnswer
     {
         if ($requester->organization_id !== $organization->id) {
             throw new DomainException('The requester does not belong to this Organization.');
@@ -91,7 +94,24 @@ final class ShellGeneralAnswerService
             source: CapabilityRegistry::SOURCE_PRODUCT_SURFACES,
         );
 
+        // TASK-1568 / CDC-01 V0-G — le chemin tel que l'appelant l'a nomme, et
+        // la capability, que ce moteur connait. Rien d'autre n'est deduit.
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'execution_path' => $executionPath,
+            'capability' => $capability,
+        ]);
+
         $borne = $this->contextBuilder->build($contexte, $definition);
+
+        // TASK-1568 / V0-G — le `ContextBuilder` a tourne : `executed`, avec
+        // le nombre de provenances rendues — des identifiants, jamais du texte.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'context_builder', 'executed', null, [
+            'consulted' => count($borne->provenance),
+        ]);
+
+        // TASK-1568 / V0-G (C18) — l'historique que l'appelant a REELLEMENT
+        // donne a ce tour, traduit en etape (voir `AiTurnTrace`).
+        AiTurnTrace::conversationHistoryStep($contexte->organizationId, $contexte->turnId, $history);
 
         try {
             $resolved = $this->providers->resolve($capability, $contexte);
@@ -299,11 +319,13 @@ final class ShellGeneralAnswerService
                 // TASK-1556 : les invocations embedding (query) que CE tour a
                 // declenchees, reclamees une seule fois — `[]` mesure, jamais null.
                 RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
-                // TASK-1566 / CDC-01 V0-A — l'IDENTITE canonique du tour, et
-                // rien d'autre. Instrumentation complete du Shell : V0-G / V0-I.
+                // TASK-1566 / CDC-01 V0-A — l'IDENTITE canonique du tour.
+                // TASK-1568 / V0-G — le writer RECLAME ce que le tour a depose
+                // (chemin nomme par l'appelant, etape `context_builder`). Le
+                // verdict reste absent : V0-B / V0-C.
                 AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
                     $contexte->turnId,
-                    null,
+                    AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
                     $history === [] ? [] : ['history' => $history],
                 ),
                 'failure' => $failure,

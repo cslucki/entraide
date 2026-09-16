@@ -123,9 +123,9 @@ class LoopKnowledgeAnswerService
      * null, le chemin T-1 est inchange octet pour octet (modal knowledge,
      * flag `ai.knowledge.publish_question` gouvernant).
      */
-    public function answer(Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger = null, bool $publish = true): KnowledgeAnswer
+    public function answer(Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger = null, bool $publish = true, ?string $executionPath = null): KnowledgeAnswer
     {
-        return $this->respond(self::MODE_DOSSIERS, $loop, $requester, $question, $inThreadTrigger, $publish);
+        return $this->respond(self::MODE_DOSSIERS, $loop, $requester, $question, $inThreadTrigger, $publish, $executionPath);
     }
 
     /**
@@ -138,9 +138,9 @@ class LoopKnowledgeAnswerService
      * Dossiers accessibles n'ont rien apporte — jamais en habillant cette
      * connaissance generale d'une reference [Mn]/[Sn].
      */
-    public function answerHybrid(Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger = null, bool $publish = true): KnowledgeAnswer
+    public function answerHybrid(Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger = null, bool $publish = true, ?string $executionPath = null): KnowledgeAnswer
     {
-        return $this->respond(self::MODE_HYBRID, $loop, $requester, $question, $inThreadTrigger, $publish);
+        return $this->respond(self::MODE_HYBRID, $loop, $requester, $question, $inThreadTrigger, $publish, $executionPath);
     }
 
     /**
@@ -149,7 +149,7 @@ class LoopKnowledgeAnswerService
      * Builder, la validation de citations, le ledger, la trace et la
      * publication ne peuvent pas diverger entre Dossiers et IA + Dossiers.
      */
-    private function respond(string $mode, Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger, bool $publish = true): KnowledgeAnswer
+    private function respond(string $mode, Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger, bool $publish = true, ?string $executionPath = null): KnowledgeAnswer
     {
         $question = trim($question);
 
@@ -181,7 +181,7 @@ class LoopKnowledgeAnswerService
         return AiTurnLock::run(
             $loop,
             $requester,
-            fn (): KnowledgeAnswer => $this->generateUnderLock($mode, $loop, $requester, $question, $inThreadTrigger, $publish),
+            fn (): KnowledgeAnswer => $this->generateUnderLock($mode, $loop, $requester, $question, $inThreadTrigger, $publish, $executionPath),
         );
     }
 
@@ -192,7 +192,7 @@ class LoopKnowledgeAnswerService
      * seul but de la separation est que le verrou puisse englober exactement
      * cet acte-la, sans re-indenter deux cents lignes pour le prouver.
      */
-    private function generateUnderLock(string $mode, Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger, bool $publish = true): KnowledgeAnswer
+    private function generateUnderLock(string $mode, Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger, bool $publish = true, ?string $executionPath = null): KnowledgeAnswer
     {
         $capability = $mode === self::MODE_HYBRID
             ? CapabilityRegistry::LOOP_HYBRID_ANSWER
@@ -227,10 +227,23 @@ class LoopKnowledgeAnswerService
         // unique (`recordInteraction`) reclame le tout et persiste. Aucun de ces
         // depots ne change quoi que ce soit au comportement : coupes, ils sont
         // inertes et la reponse est identique (garde de non-dependance).
+        //
+        // TASK-1568 / V0-G — `execution_path` est FOURNI PAR L'APPELANT (C15).
+        // Ce moteur a trois points d'entree (`LoopChat`, `LoopController`,
+        // `ai:inspect-turn`) et ne peut pas savoir lequel l'a appele : V0-A le
+        // derivait du seul `$mode`, et l'endpoint JSON etait trace
+        // `loop_chat.dossiers` — plausible, faux. A `null`, `identity()`
+        // n'ecrit rien : la cle est absente et se lit `UNAVAILABLE`, jamais un
+        // defaut qui se lirait comme une mesure.
+        //
+        // `surface` et `mode` restent ecrits par le moteur : ce chemin est
+        // toujours une surface LoopChat (l'endpoint JSON sert la modale de la
+        // Boucle) et le mode est le sien. Aucune des deux valeurs n'est
+        // deduite du chemin.
         AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
             'surface' => 'loop_chat',
             'mode' => $mode,
-            'execution_path' => $mode === self::MODE_HYBRID ? 'loop_chat.ia_dossiers' : 'loop_chat.dossiers',
+            'execution_path' => $executionPath,
             'capability' => $capability,
         ]);
 
