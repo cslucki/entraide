@@ -198,14 +198,14 @@ class TASK1562CoherePilotControlTest extends TestCase
     }
 
     /**
-     * REQ 10 + REQ 13 — generation et embedding restent INCHANGES, et les
-     * totaux ne gagnent pas un seul rerank.
+     * REQ 10 + REQ 13 (amende par TASK-1586) — generation et embedding restent
+     * INCHANGES ; le cout connu, les non evalues et `total_count` ne bougent
+     * pas d'un rerank ; SEUL `total_unknown_count` gagne les reranks reussis
+     * au cout inconnu (arbitrage MASTER 16/09), jamais les echecs.
      *
-     * Le test compare le MEME releve avant et apres l'ecriture de reranks. Si
-     * un total bougeait, tout releve anterieur au merge deviendrait faux en
-     * silence — et personne ne pourrait s'en apercevoir.
+     * Le test compare le MEME releve avant et apres l'ecriture de reranks.
      */
-    public function test_reranks_never_move_a_single_pre_existing_total(): void
+    public function test_reranks_move_only_the_unknown_count_never_cost_nor_call_totals(): void
     {
         [$organization, $user] = $this->tenant();
         $this->embedding($organization, $user);

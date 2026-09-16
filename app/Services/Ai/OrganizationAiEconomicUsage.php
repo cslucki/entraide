@@ -125,8 +125,8 @@ final class OrganizationAiEconomicUsage
         // le plafond du guard, elle doit donc apparaitre ici — dans son seau
         // « non declaree », jamais nulle part.
         $undeclared = $this->embeddingSlice($organizationId, $from, $to, null, $userId);
-        // TASK-1562 : le rerank documentaire. Additif — il n'entre dans aucun
-        // des totaux calcules plus bas.
+        // TASK-1562 : le rerank documentaire. Visible a part ; TASK-1586 : ses
+        // inconnus comptent dans `total_unknown_count`, jamais dans le cout connu.
         $rerank = $this->rerankSlice($organizationId, $from, $to, $userId);
 
         $knownParts = array_filter(
@@ -1025,7 +1025,8 @@ final class OrganizationAiEconomicUsage
      * dans une console, ni dans une vue d'usage. TASK-1560 l'ecrivait au
      * ledger, et personne ne pouvait le lire.
      *
-     * Ce qu'elle ne fait PAS : entrer dans les totaux. Voir
+     * Ce qu'elle ne fait PAS : entrer dans le cout connu ni dans `total_count`.
+     * Ses inconnus entrent dans `total_unknown_count` depuis TASK-1586. Voir
      * `withOrganizationTotals()`.
      *
      * @return array{known_cost_usd: ?float, measured_count: int, unknown_count: int, invocation_count: int, failed_count: int}

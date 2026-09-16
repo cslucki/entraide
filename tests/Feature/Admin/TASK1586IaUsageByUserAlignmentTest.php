@@ -93,6 +93,10 @@ class TASK1586IaUsageByUserAlignmentTest extends TestCase
         $page->assertSee('data-usage-rerank="'.$this->maya->id.'"', false);
         $page->assertSeeInOrder(['data-usage-rerank="'.$this->maya->id.'"', '2 · 1 inconnu(s) · 1 échec(s)'], false);
         $page->assertSee('Rerank');
+        // « Appels » = total_count de l'autorite (generation + embeddings), comme
+        // l'Org Admin — le rerank reste dans SA colonne (review Opus F4).
+        $page->assertSee('data-usage-total-count="3"', false);
+        $page->assertDontSee('data-usage-total-count="5"', false);
         // L'ingestion (user NULL) est comptee, en « Non attribuable », jamais repartie.
         $page->assertSee('data-usage-row="unattributed" data-usage-org="'.$this->orgA->id.'"', false);
         $page->assertSee('Non attribuable');
@@ -168,9 +172,14 @@ class TASK1586IaUsageByUserAlignmentTest extends TestCase
         $this->actingAs($this->superAdmin);
         $this->get(route('admin.ia-usage-by-user', ['date_from' => now()->subDay()->toDateString(), 'date_to' => now()->toDateString()]))
             ->assertOk()->assertSee('$0.500000')->assertDontSee('$10.490000');
-        // Bornes invalides -> mois courant, jamais une exception.
-        $this->get(route('admin.ia-usage-by-user', ['date_from' => 'hier', 'date_to' => '2026-13-45']))->assertOk()->assertSee('$0.500000');
-        $this->get(route('admin.ia-usage-by-user', ['date_from' => now()->toDateString(), 'date_to' => now()->subDays(3)->toDateString()]))->assertOk()->assertSee('$0.500000');
+        // Bornes invalides -> TOUTE la periode se replie sur le mois courant
+        // (review Opus F5 : Carbon relit 2026-13-45 en 2027-02-14 sans lever ;
+        // l'aller-retour strict le refuse). Preuve : une trace d'il y a 2 mois
+        // n'entre pas, et la fenetre affichee est celle du mois.
+        $mois = now()->startOfMonth()->format('d/m/Y');
+        $this->get(route('admin.ia-usage-by-user', ['date_from' => 'hier', 'date_to' => '2026-13-45']))->assertOk()->assertSee('$0.500000')->assertDontSee('$9.990000')->assertSee('Fenêtre '.$mois);
+        $this->get(route('admin.ia-usage-by-user', ['date_from' => now()->subMonths(3)->toDateString(), 'date_to' => '2026-02-30']))->assertOk()->assertDontSee('$9.990000')->assertSee('Fenêtre '.$mois, 'une borne illisible invalide TOUTE la periode, pas seulement la sienne');
+        $this->get(route('admin.ia-usage-by-user', ['date_from' => now()->toDateString(), 'date_to' => now()->subDays(3)->toDateString()]))->assertOk()->assertSee('$0.500000')->assertSee('Fenêtre '.$mois);
     }
 
     public function test_g1_l_ecran_n_ecrit_rien(): void

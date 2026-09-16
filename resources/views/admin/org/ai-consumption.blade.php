@@ -188,11 +188,12 @@
                 ['key' => 'embedding_ingestion', 'label' => __('ai.economy_nature_embedding_ingestion'), 'count' => $economics['embedding_ingestion']['invocation_count'], 'known' => $economics['embedding_ingestion']['known_cost_usd'], 'unknown' => $economics['embedding_ingestion']['unknown_count'], 'failed' => $economics['embedding_ingestion']['failed_count']],
                 ['key' => 'embedding_query', 'label' => __('ai.economy_nature_embedding_query'), 'count' => $economics['embedding_query']['invocation_count'], 'known' => $economics['embedding_query']['known_cost_usd'], 'unknown' => $economics['embedding_query']['unknown_count'], 'failed' => $economics['embedding_query']['failed_count']],
                 ['key' => 'embedding_undeclared', 'label' => __('ai.economy_nature_embedding_undeclared'), 'count' => $economics['embedding_undeclared']['invocation_count'], 'known' => $economics['embedding_undeclared']['known_cost_usd'], 'unknown' => $economics['embedding_undeclared']['unknown_count'], 'failed' => $economics['embedding_undeclared']['failed_count']],
-                {{-- TASK-1562 : le rerank documentaire, rendu VISIBLE. Il n'entre
-                     dans AUCUN total de cette page : son cout est inconnu par
-                     nature (le SDK ne rend aucun usage sur un rerank), et un
-                     total qui changerait de definition sans changer de nom
-                     rendrait faux tout releve anterieur. --}}
+                {{-- TASK-1562 : le rerank documentaire, rendu VISIBLE. Son cout
+                     est inconnu par nature (le SDK ne rend aucun usage sur un
+                     rerank) : il n'entre JAMAIS dans le cout connu ni dans le
+                     nombre d'appels. TASK-1586 (arbitrage MASTER 16/09) : ses
+                     inconnus COMPTENT dans « non mesures » (bandeau et lignes
+                     par utilisateur) — un inconnu ne devient jamais $0. --}}
                 ['key' => 'rerank', 'label' => __('ai.economy_nature_rerank'), 'count' => $economics['rerank']['invocation_count'], 'known' => $economics['rerank']['known_cost_usd'], 'unknown' => $economics['rerank']['unknown_count'], 'failed' => $economics['rerank']['failed_count']],
             ] as $nature)
                 @if($nature['count'] > 0 || ! in_array($nature['key'], ['embedding_undeclared', 'rerank'], true))

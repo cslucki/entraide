@@ -28,7 +28,7 @@
             <div>
                 <h1 class="text-2xl font-bold dark:text-white">Utilisation IA par utilisateur</h1>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" data-usage-by-user-authority>
-                    Autorité économique canonique (la même que le relevé de chaque Organization Admin) : générations, embeddings (recherche, indexation), rerank — coût connu, appels au coût inconnu et échecs séparés, aucun double comptage. Fenêtre {{ $from->format('d/m/Y') }} → {{ $to->subDay()->format('d/m/Y') }} (UTC).
+                    Autorité économique canonique (la même que le relevé de chaque Organization Admin) : générations, embeddings (recherche, indexation), rerank — coût connu, appels au coût inconnu et échecs séparés, aucun double comptage. Fenêtre {{ $from->format('d/m/Y') }} → {{ $to->subDay()->format('d/m/Y') }} (UTC). Organizations actives seulement ; la dépense d'une Organization supprimée ou sans Organization se lit sur le cockpit plateforme.
                 </p>
             </div>
         </div>
@@ -73,7 +73,7 @@
                         <th class="px-4 py-3 text-right">Embeddings recherche</th>
                         <th class="px-4 py-3 text-right">Embeddings indexation</th>
                         <th class="px-4 py-3 text-right">Rerank</th>
-                        <th class="px-4 py-3 text-right"><a href="{{ $lien('total_count') }}" class="hover:text-gray-700 dark:hover:text-gray-200">Appels{{ $fleche('total_count') }}</a></th>
+                        <th class="px-4 py-3 text-right"><a href="{{ $lien('total_count') }}" class="hover:text-gray-700 dark:hover:text-gray-200" title="Générations + embeddings — le rerank a sa colonne, comme sur le relevé Organization Admin">Appels{{ $fleche('total_count') }}</a></th>
                         <th class="px-4 py-3 text-right"><a href="{{ $lien('known_cost') }}" class="hover:text-gray-700 dark:hover:text-gray-200">Coût connu{{ $fleche('known_cost') }}</a></th>
                         <th class="px-4 py-3 text-right"><a href="{{ $lien('unknown_count') }}" class="hover:text-gray-700 dark:hover:text-gray-200">Non mesurés{{ $fleche('unknown_count') }}</a></th>
                     </tr>
@@ -99,7 +99,7 @@
                                 @if($row['embedding_undeclared']['invocation_count'] > 0)<div class="text-amber-600 dark:text-amber-400">+ {{ $tranche($row['embedding_undeclared']) }} non déclaré(s)</div>@endif
                             </td>
                             <td class="px-4 py-3 text-right font-mono text-xs text-gray-900 dark:text-gray-100" data-usage-rerank="{{ $row['user_id'] ?? 'unattributed' }}">{{ $tranche($row['rerank']) }}<div class="text-gray-500">{{ $cout($row['rerank']['known_cost_usd']) }}</div></td>
-                            <td class="px-4 py-3 text-right font-mono text-xs text-gray-900 dark:text-gray-100">{{ number_format($row['total_count'] + $row['rerank']['invocation_count']) }}</td>
+                            <td class="px-4 py-3 text-right font-mono text-xs text-gray-900 dark:text-gray-100"><span data-usage-total-count="{{ $row['total_count'] }}">{{ number_format($row['total_count']) }}</span></td>
                             <td class="px-4 py-3 text-right font-mono text-xs">
                                 @if($row['total_known_cost_usd'] !== null)
                                     <span class="text-gray-900 dark:text-gray-100">${{ number_format((float) $row['total_known_cost_usd'], 6) }}</span>
@@ -125,7 +125,7 @@
             </table>
         </div>
 
-        <p class="text-xs text-gray-400 dark:text-gray-500">« — » : aucun coût mesuré (pas $0). « Non mesurés » compte les appels réussis au coût inconnu, rerank inclus ; les échecs et les traces historiques non évaluées sont comptés à part.</p>
+        <p class="text-xs text-gray-400 dark:text-gray-500">« — » : aucun coût mesuré (pas $0). « Appels » = générations + embeddings (le rerank a sa colonne, même définition que le relevé Organization Admin). « Non mesurés » compte les appels réussis au coût inconnu, rerank inclus ; les échecs et les traces historiques non évaluées sont comptés à part.</p>
 
         <div class="flex justify-center">{{ $rows->links() }}</div>
     </div>

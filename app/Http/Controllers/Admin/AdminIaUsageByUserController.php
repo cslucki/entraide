@@ -51,6 +51,14 @@ class AdminIaUsageByUserController extends Controller
         $organizations = Organization::query()->orderBy('name')->get(['id', 'name', 'slug']);
         $cibles = $organizationId !== null ? $organizations->where('id', $organizationId) : $organizations;
 
+        // Review Opus F7 — sans filtre, ne ventiler que les Organizations qui
+        // ont depense sur la fenetre (une lecture groupee de la MEME autorite),
+        // au lieu de 3 requetes par Organization vivante.
+        if ($organizationId === null) {
+            $actives = $usage->perOrganization($from, $to)['organizations'];
+            $cibles = $cibles->filter(static fn (Organization $o): bool => isset($actives[(string) $o->id]) && ($actives[(string) $o->id]['total_count'] > 0 || $actives[(string) $o->id]['rerank']['invocation_count'] > 0));
+        }
+
         $rows = [];
 
         foreach ($cibles as $organization) {
@@ -96,7 +104,7 @@ class AdminIaUsageByUserController extends Controller
             $cle = static fn (array $r): mixed => match ($sort) {
                 'known_cost' => (float) ($r['total_known_cost_usd'] ?? -1),
                 'unknown_count' => $r['total_unknown_count'],
-                'total_count' => $r['total_count'] + $r['rerank']['invocation_count'],
+                'total_count' => $r['total_count'],
                 'user' => Str::lower((string) ($r['user']?->name ?? '')),
                 default => 0,
             };
@@ -123,18 +131,27 @@ class AdminIaUsageByUserController extends Controller
     }
 
     /**
-     * La fenetre `[from, to + 1 jour[` — la meme convention semi-ouverte que
-     * `AiConsumptionFilters` ; defaut = mois courant (la fenetre de la garde).
+     * La fenetre `[from, to + 1 jour[` — le MEME contrat de bornes que
+     * `AiConsumptionFilters` : aucune borne -> mois courant ; une borne
+     * illisible (format, ou date qui ne se relit pas a l'identique, ex.
+     * 2026-13-45) ou incoherente invalide TOUTE la periode -> mois courant.
      *
      * @return array{0: CarbonImmutable, 1: CarbonImmutable}
      */
     private function fenetre(Request $request): array
     {
         $mois = AiConsumptionFilters::currentMonth();
-        $from = $this->date($request->query('date_from')) ?? $mois->from;
-        $to = $this->date($request->query('date_to'))?->addDay() ?? $mois->to;
+        $brutFrom = $request->query('date_from');
+        $brutTo = $request->query('date_to');
 
-        if ($to <= $from) {
+        if (($brutFrom === null || $brutFrom === '') && ($brutTo === null || $brutTo === '')) {
+            return [$mois->from, $mois->to];
+        }
+
+        $from = $this->date($brutFrom);
+        $to = $this->date($brutTo)?->addDay();
+
+        if ($from === null || $to === null || $to <= $from) {
             return [$mois->from, $mois->to];
         }
 
@@ -148,10 +165,13 @@ class AdminIaUsageByUserController extends Controller
         }
 
         try {
-            return CarbonImmutable::createFromFormat('Y-m-d', $valeur)->startOfDay();
+            $date = CarbonImmutable::createFromFormat('Y-m-d', $valeur)->startOfDay();
         } catch (\Throwable) {
             return null;
         }
+
+        // Aller-retour strict : `2026-02-30` se « lit » 2 mars — refuse.
+        return $date->format('Y-m-d') === $valeur ? $date : null;
     }
 
     private function uuidOuNull(mixed $valeur): ?string
