@@ -181,6 +181,17 @@ class TASK1587AiLabPackLifecycleTest extends TestCase
         $this->assertNotSame(0, $this->artisan('scenario-pack:load', ['pack' => AiLabPack::PACK_ID, 'organization' => $autre->slug])->run());
         $this->assertSame($avantAutre, [User::query()->where('organization_id', $autre->id)->count(), Loop::query()->withoutGlobalScopes()->where('organization_id', $autre->id)->count(), LoopMessage::query()->where('organization_id', $autre->id)->count()], 'l\'autre Organization est intacte');
 
+        // Defense en profondeur : meme appele directement (hors commande, hors
+        // adoptabilite), le pack refuse une autre Organization AVANT d'ecrire.
+        $loadAutre = ScenarioPackLoad::query()->create(['organization_id' => $autre->id, 'pack_id' => AiLabPack::PACK_ID, 'pack_version' => '0', 'loaded_at' => now()]);
+        try {
+            app(AiLabPack::class)->apply($autre, new ScenarioPackEntityRegistrar($loadAutre));
+            $this->fail('hard-bound attendu');
+        } catch (\LogicException) {
+        }
+        $loadAutre->delete();
+        $this->assertSame($avantAutre, [User::query()->where('organization_id', $autre->id)->count(), Loop::query()->withoutGlobalScopes()->where('organization_id', $autre->id)->count(), LoopMessage::query()->where('organization_id', $autre->id)->count()]);
+
         // L'outsider n'est ni une entite du pack ni un membre du Lab.
         $this->assertSame(0, ScenarioPackEntity::query()->whereHas('scenarioPackLoad', fn ($q) => $q->where('pack_id', AiLabPack::PACK_ID))->where('entity_id', $outsider->id)->count());
         $this->assertSame(0, LoopMember::query()->where('user_id', $outsider->id)->count());
