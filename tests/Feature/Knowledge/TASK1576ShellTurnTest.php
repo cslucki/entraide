@@ -25,6 +25,7 @@ use App\Support\Ai\AiTurnTrace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\TextResponse;
@@ -280,6 +281,33 @@ class TASK1576ShellTurnTest extends TestCase
         $this->artisan('ai:inspect-turn', ['--organization' => $this->organization->slug, '--shell-message' => (string) $humain->id, '--json' => true])
             ->expectsOutputToContain('"refused": true')
             ->assertExitCode(1);
+    }
+
+    public function test_d3bis_un_lien_vers_l_interaction_d_un_autre_tenant_n_est_jamais_suivi(): void
+    {
+        $ailleurs = Organization::factory()->create(['is_active' => true, 'slug' => 'ailleurs-1576-b']);
+        $etranger = User::factory()->create(['organization_id' => $ailleurs->id]);
+        $interactionEtrangere = AiInteraction::create([
+            'user_id' => $etranger->id, 'organization_id' => $ailleurs->id, 'correlation_id' => (string) Str::uuid(),
+            'process' => 'shell.general_answer', 'feature' => 'ai_shell', 'model' => 'x', 'prompt' => 'p', 'response' => 'SECRET D AILLEURS',
+            'input_tokens' => 1, 'output_tokens' => 1,
+            'metadata' => ['turn' => ['schema' => 1, 'id' => 'turn-etranger', 'identity' => ['execution_path' => AiExecutionPath::AI_SHELL_GENERAL]]],
+        ]);
+
+        // Une ligne de CE tenant dont le lien pointe ailleurs (donnee
+        // corrompue ou forgee) : la ligne se lit seule, l'interaction jamais.
+        $ligne = AiShellMessage::create([
+            'organization_id' => $this->organization->id, 'user_id' => $this->membre->id, 'conversation_id' => 'c-1576',
+            'role' => AiShellMessage::ROLE_ASSISTANT, 'content' => 'Reponse.',
+            'metadata' => ['status' => AiShellResponder::STATUS_NON_INTERACTION, 'producer' => 'shell.general_answer', 'ai_interaction_id' => (string) $interactionEtrangere->id, 'fallthroughs' => []],
+        ]);
+
+        $trace = $this->expliquer($ligne);
+
+        $this->assertNull($trace['identity'], 'l\'identite du tour etranger n\'est pas rendue');
+        $this->assertNull($trace['run']['turn_id']);
+        $this->assertStringNotContainsString('SECRET D AILLEURS', json_encode($trace, JSON_THROW_ON_ERROR));
+        $this->assertSame((string) $interactionEtrangere->id, $trace['shell']['ai_interaction_id'], 'le lien est rendu tel quel, pas suivi');
     }
 
     public function test_d4_le_shell_est_explain_only_en_execute(): void
