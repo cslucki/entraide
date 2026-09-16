@@ -95,6 +95,9 @@ final class AiTurnTrace
 
     public const RUN_KIND_LAB = 'lab';
 
+    /** TASK-1585 — un test lance depuis l'Inspector web : un run d'UN tour. */
+    public const RUN_KIND_INSPECTOR = 'inspector';
+
     /**
      * Contexte de RUN process-local (TRACE-1B) : pose par l'executeur (la CLI)
      * avant chaque tour, recopie par le writer dans `turn.run`. Un lien, pas
@@ -465,7 +468,7 @@ final class AiTurnTrace
      */
     public static function beginRun(string $runId, string $kind, ?string $labScenarioKey = null): void
     {
-        if (! in_array($kind, [self::RUN_KIND_CLI, self::RUN_KIND_BROWSER, self::RUN_KIND_LAB], true)) {
+        if (! in_array($kind, [self::RUN_KIND_CLI, self::RUN_KIND_BROWSER, self::RUN_KIND_LAB, self::RUN_KIND_INSPECTOR], true)) {
             throw new \InvalidArgumentException("run kind inconnu : {$kind}");
         }
 
