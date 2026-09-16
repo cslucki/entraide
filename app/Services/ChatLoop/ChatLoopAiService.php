@@ -43,6 +43,9 @@ use Illuminate\Support\Facades\DB;
 
 class ChatLoopAiService
 {
+    /** TASK-1577 / V0-J / P0.2 — le producteur des reponses LLM directes de la Boucle (`turn.identity.producer`). */
+    public const PRODUCER = 'chatloop.direct_answer';
+
     public function __construct(
         private readonly AiEconomicGuard $economicGuard,
         private readonly AiProviderInvocationLedger $ledger,
@@ -122,6 +125,7 @@ class ChatLoopAiService
                 'mode' => 'ia',
                 'execution_path' => AiExecutionPath::LOOP_CHAT_IA,
                 'capability' => $capability,
+                'producer' => self::PRODUCER,
             ]);
 
             $instructions = $this->prompts->compose(
@@ -1334,6 +1338,7 @@ class ChatLoopAiService
             'surface' => 'loop_chat',
             'execution_path' => $executionPath,
             'capability' => $capability,
+            'producer' => self::PRODUCER,
         ]);
 
         // Constitution -> doctrine de l'Organization -> prompt administrable

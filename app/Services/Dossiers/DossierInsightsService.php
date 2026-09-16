@@ -153,6 +153,9 @@ final class DossierInsightsService
      * `loop_knowledge_answer` produite par CE moteur de la meme capability
      * produite par `LoopKnowledgeAnswerService`, ce que rien ne permettait.
      */
+    /** TASK-1577 / V0-J / P0.2 — le producteur de ce moteur (`turn.identity.producer`) ; meme nom que sa source. */
+    public const PRODUCER = 'dossier.insights';
+
     public const SOURCE_NAME = 'dossier.insights';
 
     /**
@@ -1333,8 +1336,11 @@ final class DossierInsightsService
     private function traceDirectExecution(ContexteIa $contexte, string $capability, ?string $executionPath, array $history): void
     {
         AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'surface' => 'dossier',
             'execution_path' => $executionPath,
             'capability' => $capability,
+            // TASK-1577 / V0-J / P0.2 — le moteur documentaire se nomme.
+            'producer' => self::PRODUCER,
         ]);
 
         AiTurnTrace::step(
