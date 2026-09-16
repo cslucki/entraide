@@ -55,6 +55,9 @@
                     <strong>Tour produit par le test</strong> — non publié dans la Boucle.
                 @endif
                 <span class="font-mono text-xs ml-2">run {{ session('inspector_test')['run_id'] }}</span>
+                @if (! empty(session('inspector_test')['manifest_failure']))
+                    <div class="mt-1 text-amber-900 dark:text-amber-200" data-inspector-test-manifest-failure><strong>Tour exécuté et facturé, mais NON inscrit au manifeste du run</strong> — {{ session('inspector_test')['manifest_failure'] }}</div>
+                @endif
             </div>
         @endif
 

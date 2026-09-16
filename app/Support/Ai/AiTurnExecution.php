@@ -25,6 +25,12 @@ final class AiTurnExecution
         public readonly ?KnowledgeAnswer $answer,
         public readonly ?string $refusalMessage = null,
         public readonly ?string $refusalClass = null,
+        /**
+         * TASK-1588 (review Opus F2) — le tour a ete EXECUTE (provider,
+         * ledger, interaction) mais n'a pas pu etre inscrit au manifeste :
+         * dit tel quel, jamais confondu avec « rien n'est parti ».
+         */
+        public readonly ?string $manifestFailure = null,
     ) {}
 
     public function refused(): bool

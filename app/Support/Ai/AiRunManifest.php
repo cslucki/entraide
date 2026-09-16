@@ -122,7 +122,17 @@ final class AiRunManifest
             return null;
         }
 
-        $brut = (string) File::get(self::path($runId));
+        // TASK-1588 (review Opus F1) — un manifeste present mais ILLISIBLE
+        // (mode/proprietaire) est dit en clair, jamais une ErrorException.
+        if (! is_readable(self::path($runId))) {
+            throw new \RuntimeException('Manifeste de run inaccessible en lecture : '.self::path($runId).' (proprietaire/mode ?).');
+        }
+
+        try {
+            $brut = (string) File::get(self::path($runId));
+        } catch (\Throwable $exception) {
+            throw new \RuntimeException('Manifeste de run inaccessible en lecture : '.self::path($runId).' — '.$exception->getMessage(), 0, $exception);
+        }
         $decode = json_decode($brut, true);
 
         if (! is_array($decode) || ($decode['run_id'] ?? null) !== $runId || ! is_array($decode['turns'] ?? null) || ! is_string($decode['organization_id'] ?? null)) {

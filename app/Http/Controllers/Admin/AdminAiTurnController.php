@@ -211,6 +211,7 @@ class AdminAiTurnController extends Controller
                     'run_id' => $execution->runId,
                     'refused' => $execution->refused(),
                     'message' => $execution->refusalMessage,
+                    'manifest_failure' => $execution->manifestFailure,
                 ]);
         }
 

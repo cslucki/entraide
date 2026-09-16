@@ -202,6 +202,47 @@ class TASK1588InspectorTestFlowHotfixTest extends TestCase
         $this->assertSame(0, AiInteraction::query()->count());
     }
 
+    public function test_a4_un_manifeste_illisible_est_dit_en_clair_et_un_echec_d_inscription_apres_le_tour_est_porte(): void
+    {
+        if (posix_geteuid() === 0) {
+            $this->markTestSkipped('root lit partout.');
+        }
+        // F1 : manifeste present mais illisible -> RuntimeException explicite, jamais une ErrorException.
+        $runId = (string) Str::uuid();
+        AiRunManifest::start($runId, AiTurnTrace::RUN_KIND_CLI, (string) $this->organization->id);
+        chmod(AiRunManifest::path($runId), 0200);
+        try {
+            AiRunManifest::load($runId);
+            $this->fail('RuntimeException attendue');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('inaccessible en lecture', $e->getMessage());
+        }
+        $this->artisan('ai:inspect-turn', [
+            '--organization' => $this->organization->slug, '--user' => $this->membre->email, '--loop' => (string) $this->loop->id,
+            '--mode' => 'dossiers', '--question' => 'Q ?', '--run-id' => $runId, '--json' => true,
+        ])->expectsOutputToContain('inaccessible en lecture')->assertExitCode(1);
+        $this->assertSame(0, $this->appelsProvider);
+        chmod(AiRunManifest::path($runId), 0660);
+
+        // F2 : le manifeste devient inecrivable PENDANT le tour (apres start()) :
+        // le tour est execute et facture, la redirection va a SA fiche, et
+        // l'echec d'inscription est DIT — jamais « rien n'est parti ».
+        $runs = $this->storage.'/app/ai-lab/runs';
+        LoopKnowledgeAgent::fake(function () use ($runs): TextResponse {
+            $this->appelsProvider++;
+            chmod($runs, 0550);
+
+            return new TextResponse('Le document dit ceci [S1].', new Usage(20, 10), new Meta('openrouter', 'openai/gpt-4o-mini'));
+        });
+        $reponse = $this->actingAs($this->admin)->post(route('admin.ai-turns.test.run'), $this->charge());
+        chmod($runs, 0770);
+        $interaction = AiInteraction::query()->sole();
+        $reponse->assertRedirect(route('admin.ai-turns.show', ['interaction' => (string) $interaction->id]))
+            ->assertSessionHas('inspector_test', fn (array $t): bool => $t['refused'] === false && str_contains((string) $t['manifest_failure'], 'inaccessible en ecriture'));
+        $this->followRedirects($reponse)->assertOk()->assertSee('NON inscrit au manifeste');
+        $this->assertSame(1, $this->appelsProvider);
+    }
+
     // ────────────────────────────── BUG 2 — selecteurs
 
     public function test_b1_les_selecteurs_soumettent_le_get_et_l_ancienne_organization_ne_survit_pas(): void
