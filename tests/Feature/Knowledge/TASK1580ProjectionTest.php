@@ -295,6 +295,10 @@ class TASK1580ProjectionTest extends TestCase
             ['ai_interaction_id', 'loop_message_id', 'question', 'sources', 'consulted_public', 'chunks', 'consulted_not_cited', 'unavailable_reasons', 'truth'],
             array_keys($trace['projection']),
         );
+        // T1539 : la note derivee n'est jamais nommee par la projection.
+        foreach ($trace['projection']['chunks'] as $chunk) {
+            $this->assertArrayNotHasKey('derived_knowledge_note_id', $chunk);
+        }
         $this->assertSame($trace, $this->expliquer($interaction), 'deterministe');
     }
 

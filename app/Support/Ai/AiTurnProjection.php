@@ -182,7 +182,11 @@ final class AiTurnProjection
                 'dossier_id' => $chunk?->dossier_id !== null ? (string) $chunk->dossier_id : null,
                 'dossier_file_id' => $chunk?->dossier_file_id !== null ? (string) $chunk->dossier_file_id : null,
                 'blog_post_id' => $chunk?->blog_post_id !== null ? (string) $chunk->blog_post_id : null,
-                'derived_knowledge_note_id' => $chunk?->derived_knowledge_note_id !== null ? (string) $chunk->derived_knowledge_note_id : null,
+                // La note derivee n'est PAS nommee : sa colonne ne sert qu'a
+                // CLASSER le chunk (T1539 — la connaissance derivee reste
+                // derriere `DerivedChunkEligibility`, qui a deja statue au
+                // moment du tour pour ce membre ; ici on ne liste, ne cherche
+                // ni n'elargit rien : les ids viennent du tour lui-meme).
                 'chunk_index' => $chunk?->chunk_index,
                 'unavailable_reason' => match (true) {
                     $chunk !== null => null,
