@@ -99,12 +99,18 @@ class ClarifyUserHelpRequestService implements AiProvider
         User $requester,
         string $phrase,
         array $history = [],
+        ?string $executionPath = null,
     ): AssistedInteractionLabResult {
         if ($requester->organization_id !== $organization->id) {
             throw new DomainException('The requester does not belong to this Organization.');
         }
 
-        return $this->clarifyInContext($organization, $requester, $phrase, null, $history);
+        // TASK-1568 / V0-G — `$executionPath` vient de l'appelant (C15). Ce
+        // clarifier a DEUX points d'entree Organization : le Shell
+        // (`ai_shell.clarify`) et le formulaire de Demande
+        // (`RequestController`), qui n'est pas une surface P0 et ne nomme donc
+        // rien — sa trace se lit `UNAVAILABLE`, ce qui est la verite.
+        return $this->clarifyInContext($organization, $requester, $phrase, null, $history, $executionPath);
     }
 
     private function clarifyInContext(
@@ -113,6 +119,7 @@ class ClarifyUserHelpRequestService implements AiProvider
         string $phrase,
         ?Loop $loop,
         array $history = [],
+        ?string $executionPath = null,
     ): AssistedInteractionLabResult {
         // Meme coupe-circuit que `analyze()` : quand la clarification IA est
         // desactivee, aucun appel provider n'est tente — et la clarification
@@ -140,7 +147,24 @@ class ClarifyUserHelpRequestService implements AiProvider
             source: CapabilityRegistry::SOURCE_USER_LOOPS,
         );
 
+        // TASK-1568 / CDC-01 V0-G — le chemin tel que l'appelant l'a nomme, et
+        // la capability, que ce moteur connait. Rien d'autre n'est deduit.
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'execution_path' => $executionPath,
+            'capability' => $capability,
+        ]);
+
         $borne = $this->contextBuilder->build($contexte, $definition);
+
+        // TASK-1568 / V0-G — le `ContextBuilder` a tourne : `executed`, avec
+        // le nombre de provenances rendues — des identifiants, jamais du texte.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'context_builder', 'executed', null, [
+            'consulted' => count($borne->provenance),
+        ]);
+
+        // TASK-1568 / V0-G (C18) — l'historique que l'appelant a REELLEMENT
+        // donne a ce tour, traduit en etape (voir `AiTurnTrace`).
+        AiTurnTrace::conversationHistoryStep($contexte->organizationId, $contexte->turnId, $history);
 
         // Les Boucles reellement offertes au modele. Rien d'autre ne pourra
         // etre retenu comme suggestion.
@@ -598,9 +622,12 @@ class ClarifyUserHelpRequestService implements AiProvider
                 // (feature coupee, provider absent, refus economique) retombent
                 // sur `FakeAIProvider` sans que rien ne le dise : les rendre
                 // avouables est le perimetre de V0-D, pas de celui-ci.
+                //
+                // TASK-1568 / V0-G — le writer RECLAME ce que le tour a depose
+                // (chemin nomme par l'appelant, etape `context_builder`).
                 AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
                     $contexte->turnId,
-                    null,
+                    AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
                     $history === [] ? [] : ['history' => $history],
                 ),
                 'failure' => $failure,

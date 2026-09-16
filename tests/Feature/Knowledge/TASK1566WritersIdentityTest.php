@@ -49,9 +49,11 @@ use Tests\TestCase;
  * ## Ce que ces tests gardent, writer par writer
  *
  *  1. `turn.schema === 1` — le tour est versionne ;
- *  2. `turn` contient EXACTEMENT `schema` et `id` — aucune semantique V0-G
- *     (`execution_path`, `steps`, `identity`…) n'a fuite chez un writer qui ne
- *     doit porter QUE l'identite a ce stade ;
+ *  2. `turn` contient EXACTEMENT le jeu de cles que les TASKs mergees lui
+ *     donnent le droit de porter — a l'origine `schema` et `id` seuls ; V0-L
+ *     (T1567) y a ajoute `history` chez ChatLoop, V0-G (T1568) `identity` et
+ *     `steps` chez les quatre. Aucune semantique d'une TASK non mergee
+ *     (`status`, `sources`, `state`…) ne doit y fuir ;
  *  3. aucune cle de PREMIER NIVEAU nouvelle hors `turn` — le garde I8, celui
  *     qui empeche d'allumer un bandeau membre par megarde ;
  *  4. la metadata legacy de chaque writer est preservee ;
@@ -150,9 +152,10 @@ class TASK1566WritersIdentityTest extends TestCase
         $this->assertIdentiteVientDuContexteIa($vu, $interaction);
         // TASK-1567 (V0-L) : ce writer a un historique conversationnel reel
         // (chaine de reply), il porte donc `history` en plus de son identite.
-        // Les trois autres writers gardent `['schema','id']` : la garde evolue
-        // writer par writer, jamais en bloc.
-        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'history']);
+        // TASK-1568 (V0-G) : il RECLAME desormais ce que le tour a depose —
+        // `identity` (son chemin) et `steps` (le bypass du ContextBuilder).
+        // La garde evolue writer par writer, jamais en bloc.
+        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'history']);
         $this->assertLegacyPreservee($interaction, ['loop_id', 'requested_by', 'latency_ms', 'provider', 'capability', 'status']);
 
         $history = $interaction->metadata[AiTurnTrace::TURN_METADATA_KEY]['history'];
@@ -198,7 +201,8 @@ class TASK1566WritersIdentityTest extends TestCase
         $interaction = $this->executerShellGeneral('A quoi sert cette page ?');
 
         $this->assertIdentiteVientDuContexteIa($vu, $interaction);
-        $this->assertIdentiteSeule($interaction);
+        // TASK-1568 (V0-G) : `identity` et `steps` sont reclames par le writer.
+        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps']);
         $this->assertLegacyPreservee($interaction, ['requested_by', 'latency_ms', 'provider', 'capability', 'status', 'general_contract_hash']);
 
         // FACT preexistant a TASK-1566, volontairement NON corrige ici : ce
@@ -224,7 +228,8 @@ class TASK1566WritersIdentityTest extends TestCase
         $interaction = $this->executerClarify('Je cherche de l aide pour cadrer nos usages');
 
         $this->assertIdentiteVientDuContexteIa($vu, $interaction);
-        $this->assertIdentiteSeule($interaction);
+        // TASK-1568 (V0-G) : `identity` et `steps` sont reclames par le writer.
+        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps']);
         $this->assertLegacyPreservee($interaction, ['requested_by', 'latency_ms', 'provider', 'capability', 'status']);
     }
 
@@ -251,7 +256,8 @@ class TASK1566WritersIdentityTest extends TestCase
         $interaction = $this->executerDossierInsights($turnId);
 
         $this->assertSame($turnId, $this->identite($interaction));
-        $this->assertIdentiteSeule($interaction);
+        // TASK-1568 (V0-G) : `identity` et `steps` sont reclames par le writer.
+        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps']);
         $this->assertLegacyPreservee($interaction, ['dossier_id', 'requested_by', 'latency_ms', 'provider', 'capability', 'status', 'retrieval']);
     }
 
@@ -318,6 +324,11 @@ class TASK1566WritersIdentityTest extends TestCase
      * conversationnel. Le jeu de cles attendu est donc passe PAR WRITER, jamais
      * elargi globalement : un writer qui se mettrait a ecrire une semantique
      * qui ne lui revient pas doit continuer de faire rougir son propre test.
+     *
+     * TASK-1568 (V0-G) a ajoute `identity` et `steps` aux quatre : c'est
+     * precisement la TASK que ce garde attendait. Ce qui reste INTERDIT aux
+     * writers non pilotes tant que V0-B/V0-C/V0-E/V0-F n'ont pas eu lieu :
+     * `status`, `stage`, `reason_code`, `decided_by`, `sources`, `state`.
      *
      * @param  list<string>  $clesAttendues
      */

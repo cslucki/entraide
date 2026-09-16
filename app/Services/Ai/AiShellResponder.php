@@ -24,6 +24,7 @@ use App\Services\People\DTO\RelevantPeopleResult;
 use App\Services\People\DTO\SelfFitResult;
 use App\Services\People\EligiblePeopleService;
 use App\Services\People\RelevantPeopleService;
+use App\Support\Ai\AiExecutionPath;
 use App\Support\Ai\AiSelfKnowledge;
 use App\Support\Ai\AiShellNominativeTurn;
 use App\Support\Ai\AiShellPageContext;
@@ -563,7 +564,9 @@ final class AiShellResponder
     private function generate(Organization $organization, User $user, string $prompt, array $pageContext, array $pinnedContext, string $memory = '', array $history = []): array
     {
         try {
-            $result = $this->clarifier->clarifyForOrganization($organization, $user, $this->situated($prompt, $pageContext, $pinnedContext, $memory), $history);
+            // TASK-1568 / V0-G — `ai_shell.clarify` : le nom du CHEMIN (C6),
+            // pas celui de la methode (`generate()`) ni du producer (C17).
+            $result = $this->clarifier->clarifyForOrganization($organization, $user, $this->situated($prompt, $pageContext, $pinnedContext, $memory), $history, executionPath: AiExecutionPath::AI_SHELL_CLARIFY);
         } catch (DomainException $exception) {
             report($exception);
 
@@ -1274,7 +1277,10 @@ final class AiShellResponder
         }
 
         try {
-            $answer = $this->dossierAnswers->answer($organization, $dossier, $user, $prompt, null, $memory, $history);
+            // TASK-1568 / V0-G — la branche NOMME son chemin (C15) : le moteur
+            // documentaire est partage avec les pages Dossier et deux autres
+            // branches du Shell, il ne peut pas le deviner.
+            $answer = $this->dossierAnswers->answer($organization, $dossier, $user, $prompt, null, $memory, $history, executionPath: AiExecutionPath::AI_SHELL_DOSSIER);
         } catch (\Throwable $exception) {
             report($exception);
 
@@ -1434,6 +1440,8 @@ final class AiShellResponder
                 // La branche Article n'ouvre pas de tour de Dossier : son turnId
                 // reste auto-genere. L'historique, lui, est celui de CETTE branche.
                 history: $history,
+                // TASK-1568 / V0-G — et son chemin est le sien (C15).
+                executionPath: AiExecutionPath::AI_SHELL_ARTICLE,
             );
         } catch (\Throwable $exception) {
             report($exception);
@@ -1546,7 +1554,9 @@ final class AiShellResponder
         }
 
         try {
-            $answer = $this->dossierAnswers->answer($organization, $dossier, $user, $prompt, null, $memory, $history);
+            // TASK-1568 / V0-G — la continuation porte son PROPRE nom, distinct
+            // de la branche Dossier courante : meme moteur, autre chemin.
+            $answer = $this->dossierAnswers->answer($organization, $dossier, $user, $prompt, null, $memory, $history, executionPath: AiExecutionPath::AI_SHELL_CONTINUATION);
         } catch (\Throwable $exception) {
             report($exception);
 
@@ -2503,7 +2513,9 @@ final class AiShellResponder
         }
 
         try {
-            $answer = $this->dossierAnswers->answerOverSources($organization, $traceDossier, $user, $prompt, $rows, turnId: $turnId);
+            // TASK-1568 / V0-G — la decouverte nomme son chemin (C15), comme
+            // elle transmet deja son identite de tour.
+            $answer = $this->dossierAnswers->answerOverSources($organization, $traceDossier, $user, $prompt, $rows, turnId: $turnId, executionPath: AiExecutionPath::AI_SHELL_DISCOVERY);
         } catch (\Throwable $exception) {
             report($exception);
 
@@ -2581,6 +2593,8 @@ final class AiShellResponder
                 // n'ont pas ete retenues : les persister ici decrirait un
                 // contexte que le modele n'a jamais recu.
                 $history,
+                // TASK-1568 / V0-G — le chemin general, nomme par sa branche (C15).
+                executionPath: AiExecutionPath::AI_SHELL_GENERAL,
             );
         } catch (DomainException $exception) {
             report($exception);

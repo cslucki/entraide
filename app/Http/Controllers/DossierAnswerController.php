@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Dossier;
 use App\Models\Organization;
 use App\Services\Dossiers\DossierInsightsService;
+use App\Support\Ai\AiExecutionPath;
 use App\Support\Ai\AiRefusedException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
@@ -58,12 +59,15 @@ class DossierAnswerController extends Controller
         ]);
 
         try {
+            // TASK-1568 / V0-G — la page Dossier NOMME son chemin (C15) : le
+            // moteur est partage avec trois branches du Shell.
             $answer = $insights->answer(
                 $organization,
                 $dossier,
                 $request->user(),
                 $validated['question'],
                 $validated['file'] ?? null,
+                executionPath: AiExecutionPath::DOSSIER_PAGE_ANSWER,
             );
         } catch (AiRefusedException $exception) {
             return response()->json([

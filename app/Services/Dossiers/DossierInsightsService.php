@@ -26,6 +26,7 @@ use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiRefusedException;
+use App\Support\Ai\AiTurnReason;
 use App\Support\Ai\AiTurnTrace;
 use App\Support\Ai\AiUsage;
 use DomainException;
@@ -200,7 +201,12 @@ final class DossierInsightsService
         ) !== [];
     }
 
-    public function generate(Organization $organization, Dossier $dossier, User $requester): KnowledgeAnswer
+    /**
+     * TASK-1568 / V0-G : `$executionPath` est le nom du chemin, FOURNI par le
+     * point d'entree (C15). `null` = l'appelant ne l'a pas dit ; la cle reste
+     * absente de la trace, jamais devinee.
+     */
+    public function generate(Organization $organization, Dossier $dossier, User $requester, ?string $executionPath = null): KnowledgeAnswer
     {
         if ((string) $dossier->organization_id !== (string) $organization->id) {
             throw new SourceDenied(self::SOURCE_NAME, self::REASON_DOSSIER_OUTSIDE_ORGANIZATION,
@@ -248,6 +254,8 @@ final class DossierInsightsService
             source: CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL,
             query: self::presetQuestionSummary(),
         );
+
+        $this->traceDirectExecution($contexte, $capability, $executionPath, []);
 
         // P4 : sans configuration IA d'Organization, aucun appel, aucun repli.
         try {
@@ -380,6 +388,7 @@ final class DossierInsightsService
         ?string $fileHint = null,
         ?string $conversationMemory = null,
         array $history = [],
+        ?string $executionPath = null,
     ): KnowledgeAnswer {
         $question = trim($question);
 
@@ -488,7 +497,7 @@ final class DossierInsightsService
             );
         }
 
-        return $this->answerOverSources($organization, $dossier, $requester, $question, $rows, $conversationMemory, $turnId, $history);
+        return $this->answerOverSources($organization, $dossier, $requester, $question, $rows, $conversationMemory, $turnId, $history, $executionPath);
     }
 
     /**
@@ -509,6 +518,7 @@ final class DossierInsightsService
      *
      * @param  list<array<string, mixed>>  $rows  sources deja retrouvees et autorisees
      * @param  ?string  $turnId  identite du tour si l'appelant l'a deja ouvert (recherche faite)
+     * @param  ?string  $executionPath  nom du chemin, FOURNI par le point d'entree (TASK-1568, C15) — ce moteur en a cinq et ne peut pas deviner lequel l'appelle
      *
      * @throws RuntimeException reponse vide
      */
@@ -521,6 +531,7 @@ final class DossierInsightsService
         ?string $conversationMemory = null,
         ?string $turnId = null,
         array $history = [],
+        ?string $executionPath = null,
     ): KnowledgeAnswer {
         $locale = $this->readerLocale();
         $capability = CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER;
@@ -540,6 +551,8 @@ final class DossierInsightsService
             // cette identite de tour ; sans elle, un tour neuf commence ici.
             turnId: $turnId,
         );
+
+        $this->traceDirectExecution($contexte, $capability, $executionPath, $history);
 
         try {
             $resolved = $this->providers->resolve($capability, $contexte);
@@ -1265,6 +1278,45 @@ final class DossierInsightsService
     }
 
     /**
+     * TASK-1568 / CDC-01 V0-G — ce que ce moteur peut dire de lui-meme, et
+     * rien de plus.
+     *
+     * `execution_path` vient de l'appelant : ce moteur est atteint par CINQ
+     * points d'entree (deux pages Dossier, trois branches du Shell) et V0-A
+     * avait deja montre, sur `LoopKnowledgeAnswerService`, ce que vaut un
+     * chemin devine par un moteur partage (C15). A `null`, `identity()`
+     * n'ecrit rien.
+     *
+     * Le `ContextBuilder` est `bypassed`, pas `not_applicable` : la capability
+     * `LOOP_KNOWLEDGE_ANSWER` declare trois sources de contexte, et
+     * `LoopKnowledgeAnswerService` — sous la MEME capability — les construit.
+     * Ce moteur cherche et repond directement sur ses sources. Une capability,
+     * deux moteurs, deux comportements : c'est exactement ce que la trace
+     * existe pour rendre visible (CDC-01 P0.7, scenario 8).
+     */
+    private function traceDirectExecution(ContexteIa $contexte, string $capability, ?string $executionPath, array $history): void
+    {
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'execution_path' => $executionPath,
+            'capability' => $capability,
+        ]);
+
+        AiTurnTrace::step(
+            $contexte->organizationId,
+            $contexte->turnId,
+            'context_builder',
+            'bypassed',
+            AiTurnReason::CONTEXT_BUILDER_DOCUMENT_PATH_DIRECT_EXECUTION,
+        );
+
+        // TASK-1568 / V0-G (C18) — l'historique que l'appelant a REELLEMENT
+        // donne a ce tour, traduit en etape (voir `AiTurnTrace`). `generate()`
+        // n'en recoit jamais ; `answer()`/`answerOverSources()` en recoivent
+        // du Shell, jamais des pages Dossier.
+        AiTurnTrace::conversationHistoryStep($contexte->organizationId, $contexte->turnId, $history);
+    }
+
+    /**
      * @param  array{cost_usd: ?float, cost_unknown: ?bool}  $costAttributes
      * @param  list<array<string, mixed>>  $consulted
      * @param  list<array<string, mixed>>  $cited
@@ -1332,14 +1384,18 @@ final class DossierInsightsService
                 // TASK-1556 : les invocations embedding (query) que CE tour a
                 // declenchees, reclamees une seule fois — `[]` mesure, jamais null.
                 RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
-                // TASK-1566 / CDC-01 V0-A — l'IDENTITE canonique du tour, et
-                // rien d'autre. Ce moteur avait deja un `turnId` COHERENT de
-                // bout en bout (`answer()` le genere, `answerOverSources()` le
-                // transmet au `ContexteIa`) : il ne manquait que de l'ECRIRE.
-                // Son instrumentation complete appartient a V0-G.
+                // TASK-1566 / CDC-01 V0-A — l'IDENTITE canonique du tour. Ce
+                // moteur avait deja un `turnId` COHERENT de bout en bout
+                // (`answer()` le genere, `answerOverSources()` le transmet au
+                // `ContexteIa`) : il ne manquait que de l'ECRIRE.
+                //
+                // TASK-1568 / V0-G — le writer RECLAME ce que le tour a depose :
+                // le chemin nomme par l'appelant et le bypass du
+                // `ContextBuilder`. Le verdict (`status`, `stage`,
+                // `decided_by`) reste absent : V0-B / V0-C.
                 AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
                     $contexte->turnId,
-                    null,
+                    AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
                     $history === [] ? [] : ['history' => $history],
                 ),
                 'failure' => $failure,

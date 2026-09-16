@@ -28,11 +28,13 @@ use App\Services\Loops\LoopDecisionService;
 use App\Support\Ai\AiCorrelation;
 use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
+use App\Support\Ai\AiExecutionPath;
 use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiProcess;
 use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiTurnIdempotency;
 use App\Support\Ai\AiTurnLock;
+use App\Support\Ai\AiTurnReason;
 use App\Support\Ai\AiTurnTrace;
 use App\Support\Ai\AiUsage;
 use App\Support\Loops\LoopPermissionResolver;
@@ -102,6 +104,16 @@ class ChatLoopAiService
 
             $scenarioId = (string) config('ai.chatloop.ask_scenario', 'chatloop_ai_ask');
 
+            // TASK-1568 / CDC-01 V0-G — ce chemin est son PROPRE point d'entree :
+            // il n'est partage avec personne, il peut donc nommer son chemin
+            // lui-meme sans rien deduire (C15).
+            AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+                'surface' => 'loop_chat',
+                'mode' => 'ia',
+                'execution_path' => AiExecutionPath::LOOP_CHAT_IA,
+                'capability' => $capability,
+            ]);
+
             $instructions = $this->prompts->compose(
                 $capability,
                 $this->resolvePromptOrFail($scenarioId, $locale, 'loops.ai_answer_prompt_missing'),
@@ -109,7 +121,32 @@ class ChatLoopAiService
             );
             $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
 
+            // TASK-1568 / V0-G — `LOOP_ASK` declare `loop.messages`
+            // (`CapabilityRegistry`), mais ce chemin ne construit JAMAIS ce
+            // contexte : il lit la chaine de reply par un autre composant,
+            // juste en dessous. Le `ContextBuilder` injecte n'est pas appele
+            // ici — c'est `bypassed`, pas `not_applicable` (CDC-01 C3, P0.3).
+            // Un FACT architectural rendu lisible ; le qualifier est TRACE-1
+            // puis Fix Campaign, jamais cette trace.
+            AiTurnTrace::step(
+                $contexte->organizationId,
+                $contexte->turnId,
+                'context_builder',
+                'bypassed',
+                AiTurnReason::CONTEXT_BUILDER_LLM_PATH_NO_CONTEXT_BUILDER,
+            );
+
             $conversation = $this->conversationContext->build($triggerMessage);
+
+            // TASK-1568 / V0-G (C18) — le mecanisme d'historique de ce chemin
+            // a TOURNE : `executed`, meme a `count = 0` (un follow-up sans
+            // reply ne recoit rien, et c'est le comportement produit, CDC-01
+            // P0.12). Les valeurs sont celles que `turn.history` porte deja
+            // depuis V0-L : rien de nouveau n'est collecte ni recalcule.
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'conversation_history', 'executed', null, [
+                'count' => count($conversation->messageIds),
+                'chars' => $conversation->chars,
+            ]);
 
             $prompt = $conversation->isEmpty()
                 ? $question
@@ -263,6 +300,7 @@ class ChatLoopAiService
                 scenarioId: $scenarioId,
                 locale: $locale,
                 question: null,
+                executionPath: AiExecutionPath::LOOP_CHAT_LEGACY_ANSWER,
             );
 
             $answer = AiMarkdownSanitizer::sanitize(
@@ -943,19 +981,21 @@ class ChatLoopAiService
                 // TASK-1556 : les invocations embedding (query) que CE tour a
                 // declenchees, reclamees une seule fois — `[]` mesure, jamais null.
                 RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
-                // TASK-1566 / CDC-01 V0-A — l'IDENTITE canonique du tour, et
-                // rien d'autre. Ce writer n'est pas le pilote : son
-                // instrumentation complete (`execution_path`, etapes, bypass)
-                // appartient a V0-G. Ce qui ne pouvait pas attendre, c'est
-                // l'identite — sans elle, ce tour ne peut etre relie ni a ses
-                // invocations au ledger, ni plus tard a un autre tour (CDC-02).
-                //
-                // FACT corrige par cette TASK : ce chemin ne persistait AUCUN
+                // TASK-1566 / CDC-01 V0-A — l'IDENTITE canonique du tour.
+                // FACT corrige par V0-A : ce chemin ne persistait AUCUN
                 // `turn_id`, alors que son `ContexteIa` en porte un depuis
                 // TASK-1556.
+                //
+                // TASK-1568 / V0-G — le writer RECLAME desormais ce que le tour
+                // a depose (`execution_path`, etape `context_builder`) : les
+                // trois chemins de ce moteur (`ia`, `legacy_ask`,
+                // `legacy_answer`) portent chacun leur nom. Le verdict
+                // (`status`, `stage`, `decided_by`) reste ABSENT : il appartient
+                // a V0-B / V0-C, et une cle a moitie alimentee se lirait comme
+                // une mesure.
                 AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
                     $contexte->turnId,
-                    null,
+                    AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
                     // TASK-1567 / V0-L — `history` n'apparait que sur les
                     // chemins qui en ONT un. Les chemins herites (`ask()`,
                     // `answer()`, resume, suggestion de decision) fenetrent
@@ -1050,6 +1090,7 @@ class ChatLoopAiService
                 scenarioId: $scenarioId,
                 locale: $locale,
                 question: trim($question),
+                executionPath: AiExecutionPath::LOOP_CHAT_LEGACY_ASK,
             );
 
             $answer = AiMarkdownSanitizer::sanitize(
@@ -1118,6 +1159,10 @@ class ChatLoopAiService
      * Un refus leve AVANT tout appel provider : rien n'est ecrit, rien n'est
      * publie (la question de `ask` n'est un message qu'apres la reponse).
      *
+     * TASK-1568 / V0-G : `$executionPath` est fourni par l'appelant (`ask()` ou
+     * `answer()`), parce que cette chaine est PARTAGEE et ne sait pas qui l'a
+     * ouverte (C15).
+     *
      * @return array{interaction: AiInteraction, context_message_ids: list<string>, trigger_message_id: ?string, provider: string, model: string}
      */
     private function generateDirectAnswer(
@@ -1127,6 +1172,7 @@ class ChatLoopAiService
         string $scenarioId,
         string $locale,
         ?string $question,
+        string $executionPath,
     ): array {
         $definition = $this->capabilities->get($capability);
 
@@ -1144,6 +1190,14 @@ class ChatLoopAiService
             correlationId: AiCorrelation::id(),
             source: CapabilityRegistry::SOURCE_LOOP_MESSAGES,
         );
+
+        // TASK-1568 / CDC-01 V0-G — l'identite du chemin, telle que l'appelant
+        // l'a nommee. Aucun `mode` : les chemins herites n'en ont pas.
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'surface' => 'loop_chat',
+            'execution_path' => $executionPath,
+            'capability' => $capability,
+        ]);
 
         // Constitution -> doctrine de l'Organization -> prompt administrable
         // (EXIGE, comme summarize/clarify/knowledge : aucun repli hardcode).
@@ -1171,6 +1225,20 @@ class ChatLoopAiService
             static fn (array $entry): string => (string) $entry['id'],
             $borne->provenanceFor(CapabilityRegistry::SOURCE_LOOP_MESSAGES),
         );
+
+        // TASK-1568 / V0-G — le `ContextBuilder` a bien tourne sur cette chaine
+        // (contrairement a `respondInThread()`, qui le bypasse). Le compteur
+        // est la provenance qu'il a rendue — des ids, jamais du texte.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'context_builder', 'executed', null, [
+            'consulted' => count($contextMessageIds),
+        ]);
+
+        // TASK-1568 / V0-G (C18) — les chemins herites fenetrent
+        // `loop.messages` par le ContextBuilder ci-dessus ; ils n'ont AUCUN
+        // mecanisme de conversation (ni chaine de reply, ni fil Shell). L'etage
+        // n'existe pas pour eux : `not_applicable`, jamais un `executed` a zero
+        // qui laisserait croire qu'une strategie a ete tentee.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'conversation_history', 'not_applicable');
 
         // Le declencheur (`reply_to`) est le dernier message humain PARMI ceux
         // que le Builder a retenus : meme ensemble, aucune derive possible.

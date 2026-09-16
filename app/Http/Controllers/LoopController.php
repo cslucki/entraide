@@ -20,6 +20,7 @@ use App\Services\LoopMessageService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Services\Loops\LoopPresetConfigurator;
 use App\Services\LoopService;
+use App\Support\Ai\AiExecutionPath;
 use App\Support\Ai\AiRefusedException;
 use App\Support\Loops\HelpRequestHandoff;
 use App\Support\Loops\LoopCardRegistry;
@@ -1151,7 +1152,11 @@ class LoopController extends Controller
         ]);
 
         try {
-            $answer = app(LoopKnowledgeAnswerService::class)->answer($loop, $user, $data['question']);
+            // TASK-1568 / V0-G — ce point d'entree est l'endpoint JSON, pas le
+            // composeur : il porte son PROPRE nom. V0-A le tracait
+            // `loop_chat.dossiers` parce que le moteur derivait le chemin du
+            // mode — la regression que cette TASK corrige (C15).
+            $answer = app(LoopKnowledgeAnswerService::class)->answer($loop, $user, $data['question'], executionPath: AiExecutionPath::LOOP_CONTROLLER_KNOWLEDGE_JSON);
         } catch (AiRefusedException $exception) {
             // TASK-1229 : refus AVANT appel, avec son code stable (credit
             // utilisateur epuise / budget Organization atteint / IA non
