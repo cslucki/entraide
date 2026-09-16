@@ -259,6 +259,30 @@ class TASK1580ProjectionTest extends TestCase
         $this->assertCount(2, $requetes, 'une requete pour la bulle, UNE pour tous les chunks : '.json_encode(array_column($requetes, 'query')));
     }
 
+    public function test_a8_un_ancien_tour_avec_des_ids_de_chunk_non_uuid_ne_requete_pas_et_le_dit(): void
+    {
+        $ancien = AiInteraction::create([
+            'user_id' => $this->membre->id, 'organization_id' => $this->organization->id, 'correlation_id' => (string) Str::uuid(),
+            'process' => 'knowledge.answer', 'feature' => 'loop_knowledge_answer', 'model' => 'x', 'prompt' => 'p', 'response' => 'r',
+            'input_tokens' => 1, 'output_tokens' => 1,
+            'metadata' => ['status' => 'completed', 'retrieval' => ['consulted' => ['c1', (string) $this->lignes[0]['chunk_id']], 'cited' => ['c1']]],
+        ]);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $p = AiTurnProjection::project($ancien);
+        $requetes = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $parId = array_column($p['chunks'], null, 'chunk_id');
+        $this->assertSame('chunk_id_not_uuid', $parId['c1']['unavailable_reason']);
+        $this->assertFalse($parId['c1']['present']);
+        $this->assertSame(AiTurnProjection::SOURCE_TYPE_FILE, $parId[(string) $this->lignes[0]['chunk_id']]['source_type']);
+        $this->assertSame([(string) $this->lignes[0]['chunk_id']], $p['consulted_not_cited']);
+        $this->assertCount(2, $requetes);
+        $this->assertStringNotContainsString("'c1'", json_encode(array_column($requetes, 'bindings')), 'un id non-uuid ne part jamais en requete');
+    }
+
     // ────────────────────────────── B. la commande
 
     public function test_b1_la_section_projection_est_dans_le_contrat_explain_et_nulle_sans_interaction(): void

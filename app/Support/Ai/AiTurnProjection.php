@@ -5,6 +5,7 @@ namespace App\Support\Ai;
 use App\Models\AiInteraction;
 use App\Models\DossierChunk;
 use App\Models\LoopMessage;
+use Illuminate\Support\Str;
 
 /**
  * TASK-1580 — la PROJECTION d'un tour persiste, pour l'Inspector graphique.
@@ -159,9 +160,14 @@ final class AiTurnProjection
             return [];
         }
 
-        $lignes = DossierChunk::query()
+        // Les anciens tours (avant T1565) portaient des ids qui ne sont pas
+        // des uuid : on ne les envoie jamais a une colonne uuid (PostgreSQL
+        // leverait, 22P02) — ils sont UNAVAILABLE, et le disent.
+        $uuids = array_values(array_filter($ids, static fn (string $id): bool => Str::isUuid($id)));
+
+        $lignes = $uuids === [] ? collect() : DossierChunk::query()
             ->where('organization_id', $organizationId)
-            ->whereIn('id', $ids)
+            ->whereIn('id', $uuids)
             ->get(['id', 'dossier_id', 'dossier_file_id', 'blog_post_id', 'derived_knowledge_note_id', 'chunk_index'])
             ->keyBy(static fn (DossierChunk $c): string => (string) $c->id);
 
@@ -178,7 +184,11 @@ final class AiTurnProjection
                 'blog_post_id' => $chunk?->blog_post_id !== null ? (string) $chunk->blog_post_id : null,
                 'derived_knowledge_note_id' => $chunk?->derived_knowledge_note_id !== null ? (string) $chunk->derived_knowledge_note_id : null,
                 'chunk_index' => $chunk?->chunk_index,
-                'unavailable_reason' => $chunk === null ? 'chunk_missing_or_reindexed' : null,
+                'unavailable_reason' => match (true) {
+                    $chunk !== null => null,
+                    ! Str::isUuid($id) => 'chunk_id_not_uuid',
+                    default => 'chunk_missing_or_reindexed',
+                },
             ];
         }
 
