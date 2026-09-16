@@ -87,6 +87,9 @@ class LoopKnowledgeAnswerService
      * jamais lu depuis une requete : il est choisi par l'appelant, en dur, a
      * l'entree publique correspondante.
      */
+    /** V0-J / P0.2 — le producteur de ce moteur, tel que `turn.identity.producer` le nomme. */
+    public const PRODUCER = 'loop.knowledge_answer';
+
     private const MODE_DOSSIERS = 'dossiers';
 
     private const MODE_HYBRID = 'ia_dossiers';
@@ -246,6 +249,9 @@ class LoopKnowledgeAnswerService
             'mode' => $mode,
             'execution_path' => $executionPath,
             'capability' => $capability,
+            // TASK-1577 / V0-J — le composant qui PRODUIT la reponse (P0.2),
+            // trou trouve par le critere de DONE : le pilote ne se nommait pas.
+            'producer' => self::PRODUCER,
         ]);
 
         // P4 : sans configuration IA d'Organization, aucun appel, aucun repli.
@@ -339,7 +345,24 @@ class LoopKnowledgeAnswerService
         // sur l'interaction enregistree plutot que reconstituee a posteriori.
         $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
 
-        $borne = $this->contextBuilder->build($contexte, $definition);
+        // TASK-1577 / CDC-01 V0-J (scenario 9) — une exception PENDANT le
+        // retrieval (provider d'embeddings injoignable, base vectorielle en
+        // panne) sortait d'ici sans laisser aucune trace : ni interaction, ni
+        // tour. Le produit affichait son erreur, l'inspecteur ne voyait rien.
+        // Le tour est ecrit `failed` a l'etape `retrieval`, puis l'exception
+        // repart TELLE QUELLE : rien ne change pour l'appelant. Un refus de
+        // source (`SourceDenied`) n'est pas une exception ici : le
+        // ContextBuilder le convertit en `sourcesDenied`, chemin nominal.
+        try {
+            $borne = $this->contextBuilder->build($contexte, $definition);
+        } catch (\Throwable $exception) {
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'retrieval', 'failed', AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED);
+            $this->recordEarlyStop($loop, $requester, $contexte, $definition, $resolved,
+                AiTurnState::TURN_FAILED, 'retrieval', AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED, null, [], $doctrineVersion,
+                failure: $exception::class);
+
+            throw $exception;
+        }
         // TASK-1307 (revue) : la connaissance disponible est la provenance des
         // DEUX sources autorisees de cette capability — le manifest
         // (existence des elements du Dossier, [Mn]) ET le retrieval (contenu
@@ -932,6 +955,7 @@ class LoopKnowledgeAnswerService
         ?ContexteBorne $borne,
         array $history,
         ?int $doctrineVersion,
+        ?string $failure = null,
     ): AiInteraction {
         // TASK-1573 / V0-E — un seul claim, partage (voir `recordInteraction`).
         $dossierRetrieval = $borne === null ? null : DossierRetrievalTraceRecorder::claim($contexte->organizationId, $contexte->turnId);
@@ -955,6 +979,9 @@ class LoopKnowledgeAnswerService
                 'provider' => $resolved?->provider,
                 'capability' => $definition->id,
                 'status' => $turnStatus,
+                // V0-J — la CLASSE de l'exception, comme `recordInteraction`
+                // l'ecrit pour une generation qui leve ; jamais son message.
+                'failure' => $failure,
                 'turn_id' => $contexte->turnId,
                 RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
                 'sources_used' => $borne?->sourcesUsed,
