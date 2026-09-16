@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\AdminAiPromptController;
 use App\Http\Controllers\Admin\AdminAiQualityController;
 use App\Http\Controllers\Admin\AdminAiReviewQueueController;
 use App\Http\Controllers\Admin\AdminAiSupervisionController;
+use App\Http\Controllers\Admin\AdminAiTurnController;
 use App\Http\Controllers\Admin\AdminAiUsageController;
 use App\Http\Controllers\Admin\AdminBlogController;
 use App\Http\Controllers\Admin\AdminBlogTodoController;
@@ -710,6 +711,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Historique des interactions IA (TASK-249)
     Route::get('/ai-interactions', [AdminAiInteractionController::class, 'index'])->name('ai-interactions');
     Route::get('/ai-interactions/{interaction}', [AdminAiInteractionController::class, 'show'])->name('ai-interactions.show');
+
+    // TASK-1581 — Inspector UI V0 : la vue lecteur d'un tour IA (CDC-02 T1-E).
+    // Read-only : aucune route POST, aucun bouton RUN.
+    Route::get('/ai-turns', [AdminAiTurnController::class, 'index'])->name('ai-turns');
+    Route::get('/ai-turns/{interaction}', [AdminAiTurnController::class, 'show'])->name('ai-turns.show');
+    Route::get('/ai-shell-turns/{shellMessage}', [AdminAiTurnController::class, 'showShell'])->name('ai-turns.shell');
 
     // Admin AI prompts registry (TASK-252)
     Route::get('/ai-prompts', [AdminAiPromptController::class, 'index'])->name('ai-prompts');
