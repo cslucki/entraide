@@ -131,8 +131,10 @@ class TASK1269Test20260822DogfoodingPackTest extends TestCase
         // reste la meme — une liste EXHAUSTIVE, verifiee ligne a ligne, ou
         // `main` ne peut pas se glisser : c'est la liste qui change, pas la
         // regle.
+        // TASK-1587 : quatrieme slug — l'Organization AI Lab de la campagne
+        // Nervous System (CDC-03 L-A), provisionnee par son pack.
         $this->assertSame(
-            ['artscilab-demo', 'test20260822', 'artscilab-en'],
+            ['artscilab-demo', 'test20260822', 'artscilab-en', 'ai-lab'],
             $config['allowed_organizations'],
             'Seules les Organizations de demonstration sont allowlistees — jamais main.'
         );

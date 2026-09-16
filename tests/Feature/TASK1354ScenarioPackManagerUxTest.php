@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Organization;
 use App\Models\ScenarioPackLoad;
 use App\Models\User;
+use App\Support\ScenarioPacks\Packs\AiLabPack;
 use App\Support\ScenarioPacks\Packs\ArtSciLabDemoPack;
 use App\Support\ScenarioPacks\Packs\ArtSciLabEnglishPack;
 use App\Support\ScenarioPacks\Packs\Test20260822DogfoodingPack;
@@ -65,6 +66,7 @@ class TASK1354ScenarioPackManagerUxTest extends TestCase
             'dogfooding FR' => [Test20260822DogfoodingPack::PACK_ID, 'test20260822'],
             'demo ArtSciLab legacy' => ['artscilab-demo-test', 'artscilab-demo'],
             'dogfooding EN' => [ArtSciLabEnglishPack::PACK_ID, 'artscilab-en'],
+            'AI Lab (CDC-03)' => [AiLabPack::PACK_ID, 'ai-lab'],
         ];
     }
 
