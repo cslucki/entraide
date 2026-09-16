@@ -11,6 +11,7 @@ use App\Models\ScenarioPackLoad;
 use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
 use App\Services\ChatLoop\ChatLoopAiService;
+use App\Support\AiLab\LabScenario;
 use App\Support\ScenarioPacks\Packs\AiLabPack;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -111,7 +112,7 @@ final class AiTurnExecutor
         }
 
         if (! in_array(AiLabPack::ORGANIZATION_SLUG, (array) config('scenario_packs.allowed_organizations', []), true)) {
-            throw new \InvalidArgumentException("REFUS : « ".AiLabPack::ORGANIZATION_SLUG." » n'est pas dans l'allowlist des scenario packs.");
+            throw new \InvalidArgumentException('REFUS : « '.AiLabPack::ORGANIZATION_SLUG." » n'est pas dans l'allowlist des scenario packs.");
         }
 
         $chargee = ScenarioPackLoad::query()
@@ -120,10 +121,10 @@ final class AiTurnExecutor
             ->exists();
 
         if (! $chargee) {
-            throw new \InvalidArgumentException("REFUS : le pack « ".AiLabPack::PACK_ID." » n'est pas charge dans cette Organization.");
+            throw new \InvalidArgumentException('REFUS : le pack « '.AiLabPack::PACK_ID." » n'est pas charge dans cette Organization.");
         }
 
-        if (! preg_match('/^[A-Z]+\\.[A-Z0-9_]+$/', $labScenarioKey)) {
+        if (! preg_match(LabScenario::KEY_PATTERN, $labScenarioKey)) {
             throw new \InvalidArgumentException("lab_scenario_key invalide : {$labScenarioKey}");
         }
 

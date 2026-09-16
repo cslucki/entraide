@@ -66,7 +66,11 @@ final class LabVerdict
 
         // Acces : attendu vs observe.
         $last = $turns === [] ? null : $turns[array_key_last($turns)];
-        $observedDenied = $last !== null && $last['refused'] && $last['inspection'] === null;
+        if ($last !== null && ($last['not_established'] ?? false)) {
+            return self::result(self::UNAVAILABLE, $leak ? self::COMPONENT_DATA : self::UNAVAILABLE, $divergences, $leak, 'tour non etabli : '.$last['refusal']);
+        }
+        // Un refus DANS le pipeline garde son AiInteraction non generative (T1570) : refuse = refuse.
+        $observedDenied = $last !== null && $last['refused'];
         $observedStage = $last !== null && $last['refused_before_run'] ? 'surface_authorization' : 'ai_pipeline';
         $expectedAccess = $x['access']['status'];
 
@@ -87,10 +91,16 @@ final class LabVerdict
         if ($last === null) {
             return self::result(self::UNAVAILABLE, self::UNAVAILABLE, $divergences, $leak, 'aucun tour execute');
         }
-        if ($last['inspection'] === null) {
-            $component = $last['refused_before_run'] ? self::COMPONENT_DATA : 'economic_check';
+        if ($last['inspection'] === null || $last['refused']) {
+            // Acces autorise mais tour refuse (economie, panne) : attendu si le
+            // scenario declare `turn = absent` + classe `refuse`, divergence sinon.
+            $attendu = ($x['turn'] ?? 'present') === 'absent' && $x['answer']['class'] === 'refuse';
+            if ($attendu) {
+                return self::result($divergences === [] ? self::PASS : self::FAIL, self::firstComponent($divergences), $divergences, $leak, null);
+            }
+            $component = $last['refused_before_run'] ? self::COMPONENT_DATA : ($last['inspection']['decision']['stage'] ?? 'economic_check');
 
-            return self::result(self::FAIL, $component, [...$divergences, ['component' => $component, 'field' => 'turn', 'expected' => 'present', 'actual' => 'absent', 'detail' => $last['refusal']]], $leak, null);
+            return self::result(self::FAIL, $component, [...$divergences, ['component' => $component, 'field' => 'turn', 'expected' => 'present', 'actual' => 'refused', 'detail' => $last['refusal']]], $leak, null);
         }
 
         $trace = $last['inspection'];
@@ -199,7 +209,8 @@ final class LabVerdict
         if ($divergences === []) {
             return null;
         }
-        $order = array_flip([...AiTurnComparison::STEPS, self::COMPONENT_DATA]);
+        // `data` (fixture, fuite) prime : on ne juge pas un pipeline sur des donnees fausses.
+        $order = array_flip([self::COMPONENT_DATA, ...AiTurnComparison::STEPS]);
         usort($divergences, static fn (array $a, array $b): int => ($order[$a['component']] ?? 99) <=> ($order[$b['component']] ?? 99));
 
         return $divergences[0]['component'];

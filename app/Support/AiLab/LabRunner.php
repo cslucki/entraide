@@ -50,6 +50,12 @@ final class LabRunner
     /** @return array<string, mixed> */
     public function run(LabScenario $scenario): array
     {
+        // AVANT toute lecture ou ecriture : le runner ne sert que le Lab. Un
+        // scenario d'une autre Organization (schema-legal) n'ecrit rien.
+        if ($scenario->organization() !== AiLabPack::ORGANIZATION_SLUG) {
+            return $this->unavailable($scenario, null, 'scenario hors Organization Lab : '.$scenario->organization());
+        }
+
         $organization = Organization::query()->where('slug', $scenario->organization())->first();
 
         if (! $organization instanceof Organization) {
@@ -62,6 +68,10 @@ final class LabRunner
         $user = $scenario->user() === 'lab.outsider'
             ? User::query()->where('email', (string) config('scenario_packs.lab_outsider_email', AiLabPack::OUTSIDER_EMAIL))->first()
             : User::query()->where('organization_id', (string) $organization->id)->where('email', AiLabPack::emailFor($scenario->user()))->first();
+        if ($scenario->user() === 'lab.outsider' && $user instanceof User && (string) $user->organization_id === (string) $organization->id) {
+            // Un « outsider » du Lab ne prouverait qu'une ACL de Boucle, pas l'isolation tenant.
+            return $this->unavailable($scenario, null, 'lab_outsider_email designe un utilisateur DU Lab : la sentinelle cross-tenant est invalide');
+        }
         $loop = Loop::query()->where('organization_id', (string) $organization->id)->where('name', AiLabPack::LOOPS[$scenario->loop()]['name'] ?? '')->first();
 
         $pre = $this->preconditions->establish($scenario, $organization, $user, $loop);
@@ -152,9 +162,21 @@ final class LabRunner
                 default => null,
             };
 
-            // Le message HUMAIN du tour, par la primitive canonique — publie
-            // dans la Boucle du Lab (c'est le but du Lab) et marque.
-            $message = $this->messages->sendUserMessage($loop, $user, $spec['question'], ['lab_scenario_key' => $scenario->key, 'lab_run_id' => $runId], $replyTo !== null ? (string) $replyTo : null);
+            if ($spec['reply_to'] === 'previous_ai' && $previousBubble === null) {
+                // Le harnais n'a pas la bulle attendue : la conversation
+                // declaree n'est pas reproductible — on n'en juge pas une autre.
+                $turns[] = $this->tourNonEtabli($spec['order'], 'aucune bulle IA precedente pour reply_to=previous_ai', null);
+                break;
+            }
+
+            try {
+                // Le message HUMAIN du tour, par la primitive canonique — publie
+                // dans la Boucle du Lab (c'est le but du Lab) et marque.
+                $message = $this->messages->sendUserMessage($loop, $user, $spec['question'], ['lab_scenario_key' => $scenario->key, 'lab_run_id' => $runId], $replyTo !== null ? (string) $replyTo : null);
+            } catch (\Throwable $e) {
+                $turns[] = ['order' => $spec['order'], 'refused' => true, 'refusal' => 'surface : '.$e->getMessage(), 'refused_before_run' => true, 'inspection' => null, 'projection' => null, 'history_derived' => null, 'response' => null, 'interaction_id' => null, 'message_id' => null, 'bubble_id' => null];
+                break;
+            }
             $previousUserMessage = $message;
 
             try {
@@ -162,13 +184,17 @@ final class LabRunner
             } catch (\InvalidArgumentException $e) {
                 $turns[] = ['order' => $spec['order'], 'refused' => true, 'refusal' => $e->getMessage(), 'refused_before_run' => true, 'inspection' => null, 'projection' => null, 'history_derived' => null, 'response' => null, 'interaction_id' => null, 'message_id' => (string) $message->id, 'bubble_id' => null];
                 break;
+            } catch (\Throwable $e) {
+                // Un tour peut avoir ete PAYE avant de planter : on le dit, on ne l'invente pas.
+                $turns[] = $this->tourNonEtabli($spec['order'], 'execution interrompue : '.$e::class.' — '.$e->getMessage(), (string) $message->id);
+                break;
             }
 
             $interaction = $execution->interaction;
             $inspection = $interaction !== null ? AiTurnInspection::fromPersistedTurn($interaction) : null;
             $projection = $interaction !== null ? AiTurnProjection::project($interaction) : null;
             $bubble = $execution->publishedMessage;
-            $previousBubble = $bubble ?? $previousBubble;
+            $previousBubble = $bubble;
 
             // Les derives d'historique (T1579), lus sur la bulle de CE tour.
             $derived = null;
@@ -205,6 +231,12 @@ final class LabRunner
         }
 
         return $turns;
+    }
+
+    /** @return array<string, mixed> */
+    private function tourNonEtabli(int $order, string $raison, ?string $messageId): array
+    {
+        return ['order' => $order, 'refused' => true, 'refusal' => $raison, 'refused_before_run' => false, 'not_established' => true, 'inspection' => null, 'projection' => null, 'history_derived' => null, 'response' => null, 'interaction_id' => null, 'message_id' => $messageId, 'bubble_id' => null];
     }
 
     /** @return array<string, mixed> */

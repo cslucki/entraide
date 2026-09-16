@@ -99,9 +99,13 @@ final class LabPreconditions
         // quota — le verdict de la VRAIE garde, en lecture ; YES | NO | UNKNOWN (K7).
         if (($declared['quota'] ?? 'required') === 'required') {
             try {
+                // Une cle TENANT est requise : sans cle propre, aucun embedding
+                // ne part (doctrine T1214/T1225 : aucun repli plateforme, voir
+                // `ProviderResolver::tenantEmbeddingKey`). Le pack ne pose jamais
+                // de cle ; l'operateur du Lab la pose (T1587 D1) — revue Opus #1.
                 $configured = OrganizationAiSetting::query()->where('organization_id', (string) $organization->id)->whereNotNull('api_key')->exists();
                 if (! $configured) {
-                    $checks['quota'] = ['expected' => 'YES', 'actual' => 'UNKNOWN', 'status' => self::UNAVAILABLE, 'detail' => 'aucune cle IA configuree pour l\'Organization'];
+                    $checks['quota'] = ['expected' => 'YES', 'actual' => 'UNKNOWN', 'status' => self::UNAVAILABLE, 'detail' => 'aucune cle IA TENANT : sans cle propre aucun embedding ne part (T1214/T1225, pas de repli plateforme) — l\'operateur du Lab pose la cle'];
                 } else {
                     $verdict = $this->guard->authorizeEmbeddings($organization, $user instanceof User && (string) $user->organization_id === (string) $organization->id ? $user : null);
                     $checks['quota'] = ['expected' => 'YES', 'actual' => $verdict->allowed ? 'YES' : 'NO', 'status' => $verdict->allowed ? self::YES : self::NO, 'detail' => $verdict->reason ?? 'ok'];

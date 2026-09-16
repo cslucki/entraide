@@ -82,6 +82,9 @@ class TASK1591LabRunnerTest extends TestCase
         // L'Organization est pre-creee pour porter la cle et la porte
         // semantique AVANT le chargement (le pack n'ecrit jamais de cle).
         $this->lab = Organization::factory()->create(['slug' => AiLabPack::ORGANIZATION_SLUG, 'name' => 'AI Lab', 'locale' => 'fr', 'loops_enabled' => true, 'is_active' => true]);
+        // Cle TENANT posee par l'operateur AVANT le chargement (T1587 D1) : le
+        // pack n'en ecrit jamais, et sans cle propre aucun embedding ne part
+        // (T1214/T1225). C'est le contrat reel du Lab — voir a6.
         OrganizationAiSetting::factory()->create(['organization_id' => $this->lab->id, 'provider' => 'openrouter', 'model' => 'openai/gpt-4o-mini', 'api_key' => 'sk-lab-1591']);
         config([
             'ai.dossiers.semantic_search.enabled' => true,
@@ -126,7 +129,7 @@ class TASK1591LabRunnerTest extends TestCase
 
         $result = $this->runner()->run($this->scenario('LAB.POSITIVE_SIMPLE_1'));
 
-        $this->assertSame(LabVerdict::PASS, $result['result'], json_encode($result['divergences']));
+        $this->assertSame(LabVerdict::PASS, $result['result'], json_encode([$result['divergences'], $result['unavailable_reason'], $result['turns']]));
         $this->assertSame(LabPreconditions::YES, $result['PRECONDITIONS_MATCH_EXPECTED']);
         $this->assertNull($result['first_failed_component']);
         $this->assertFalse($result['leak']);
@@ -208,6 +211,24 @@ class TASK1591LabRunnerTest extends TestCase
         $this->assertSame(LabVerdict::COMPONENT_DATA, $result['first_failed_component']);
         $this->assertSame(LabPreconditions::NO, $result['preconditions']['checks']['derived_chunks_absent']['status']);
         $this->assertSame(0, AiInteraction::query()->count(), 'un Lab sale n\'execute rien');
+    }
+
+    public function test_a6_sans_cle_tenant_le_lab_est_unavailable_et_le_dit_avant_tout_appel(): void
+    {
+        // Revue Opus #1 (conteste, FACT) : le pack livre `platform_managed` sans
+        // cle ; la doctrine T1214/T1225 interdit le repli plateforme pour les
+        // embeddings — le Lab n'est PAS operationnel sans cle tenant, et la
+        // precondition doit le dire (pas l'inventer).
+        OrganizationAiSetting::query()->where('organization_id', $this->lab->id)->update(['api_key' => null]);
+        $this->chargerLePack();
+        $this->rechercheRendUnChunkFictif();
+
+        $result = $this->runner()->run($this->scenario('LAB.POSITIVE_SIMPLE_1'));
+
+        $this->assertSame(LabVerdict::UNAVAILABLE, $result['result']);
+        $this->assertSame(LabPreconditions::UNAVAILABLE, $result['preconditions']['checks']['quota']['status']);
+        $this->assertStringContainsString('cle IA TENANT', $result['preconditions']['checks']['quota']['detail']);
+        $this->assertSame(0, AiInteraction::query()->count());
     }
 
     // ────────────────────────────── B. publication Option B
@@ -379,6 +400,78 @@ class TASK1591LabRunnerTest extends TestCase
         $this->assertNotNull($result['comparison']);
         $this->assertNull($result['comparison']['first_divergent_step']);
         $this->assertCount(2, AiRunManifest::load($result['run_id'])['turns']);
+    }
+
+    public function test_d3_une_fuite_de_la_sentinelle_dans_la_reponse_est_un_stop_leak_true(): void
+    {
+        $this->chargerLePack();
+        $this->rechercheRendLeChunkReel('L1');
+        $this->reponses = ['La responsable du projet Helios est Nadia Ferreira, voir SENTINEL-B [S1].'];
+
+        $result = $this->runner()->run($this->scenario('LAB.POSITIVE_SIMPLE_1'));
+
+        $this->assertTrue($result['leak']);
+        $this->assertSame(LabVerdict::FAIL, $result['result']);
+        $this->assertSame(LabVerdict::COMPONENT_DATA, $result['first_failed_component'], 'une fuite prime sur toute etape');
+        $this->assertSame('tenant.must_not_leak', $result['divergences'][0]['field']);
+    }
+
+    public function test_d4_le_runner_refuse_un_scenario_hors_lab_avant_d_ecrire_le_moindre_message(): void
+    {
+        $this->chargerLePack();
+        $this->rechercheRendLeChunkReel('L1');
+        $autre = Organization::factory()->create(['slug' => 'main', 'is_active' => true, 'loops_enabled' => true, 'members_can_create_loops' => true]);
+        $membre = User::factory()->complete()->create(['organization_id' => $autre->id, 'email' => AiLabPack::emailFor('lab.member.a').'.main']);
+        (new LoopService)->createLoop($membre, AiLabPack::LOOPS['L1']['name']);
+        $avant = LoopMessage::query()->count();
+
+        // Schema-legal (organization ∈ {ai-lab, artscilab-demo, main}), toutes preconditions not_applicable.
+        $data = $this->scenario('LAB.POSITIVE_SIMPLE_1')->data;
+        $data['lab_scenario_key'] = 'MAIN.HORS_LAB_1';
+        $data['organization'] = 'main';
+        $data['preconditions'] = ['pack_loaded' => 'not_applicable', 'gold_exists' => 'not_applicable', 'gold_indexed' => 'not_applicable', 'gold_access' => ['expected' => 'not_applicable'], 'derived_chunks_absent' => 'not_applicable', 'quota' => 'not_applicable'];
+        $this->assertSame([], LabScenario::validate($data));
+        File::ensureDirectoryExists($this->stockage.'/scenarios');
+        File::put($this->stockage.'/scenarios/MAIN.HORS_LAB_1.json', (string) json_encode($data));
+        $result = $this->runner()->run(LabScenario::fromFile($this->stockage.'/scenarios/MAIN.HORS_LAB_1.json'));
+
+        $this->assertSame(LabVerdict::UNAVAILABLE, $result['result']);
+        $this->assertStringContainsString('hors Organization Lab', $result['unavailable_reason']);
+        $this->assertSame($avant, LoopMessage::query()->count(), 'AUCUN message ecrit, nulle part');
+        $this->assertSame(0, AiInteraction::query()->count());
+        $this->assertNull($result['run_id'], 'aucun manifeste ouvert');
+    }
+
+    public function test_d5_un_outsider_qui_est_en_fait_du_lab_rend_la_sentinelle_invalide_unavailable(): void
+    {
+        $this->chargerLePack();
+        $this->rechercheRendLeChunkReel('L1');
+        config(['scenario_packs.lab_outsider_email' => AiLabPack::emailFor('lab.member.c')]);
+
+        $result = $this->runner()->run($this->scenario('LAB.TENANT_NEGATIVE_1'));
+
+        $this->assertSame(LabVerdict::UNAVAILABLE, $result['result']);
+        $this->assertStringContainsString('DU Lab', $result['unavailable_reason']);
+        $this->assertSame(0, LoopMessage::query()->where('metadata->lab_scenario_key', 'LAB.TENANT_NEGATIVE_1')->count());
+    }
+
+    public function test_e2_sans_bulle_au_tour_1_le_tour_2_reply_to_previous_ai_n_est_pas_juge(): void
+    {
+        $this->chargerLePack();
+        $this->rechercheRendLeChunkReel('L2');
+        // Tour 1 : le fournisseur tombe -> tour `failed`, aucune bulle. Le tour 2
+        // (`reply_to: previous_ai`) ne doit pas etre rejoue « sans reply » et
+        // blamer conversation_history : il n'est pas tente.
+        LoopKnowledgeAgent::fake(function (): TextResponse {
+            throw new \RuntimeException('provider down');
+        });
+
+        $result = $this->runner()->run($this->scenario('LAB.MULTITURN_REFERENT_1'));
+
+        $this->assertSame(LabVerdict::FAIL, $result['result'], json_encode($result['turns']));
+        $this->assertTrue($result['turns'][0]['refused']);
+        $this->assertCount(1, $result['turns'], 'le tour 2 n\'est pas tente');
+        $this->assertSame(0, LoopMessage::query()->where('type', 'ai')->where('metadata->ai_interaction_id', '!=', '')->count());
     }
 
     // ────────────────────────────── F. commande

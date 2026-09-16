@@ -79,6 +79,14 @@ class InspectorExecutesThroughTheSharedExecutorTest extends TestCase
         // La voie observee reste `execute()` — et elle ne connait pas la publication.
         $this->assertMatchesRegularExpression('/return \$this->pipeline\([^;]*,\s*null,\s*false\);/', $this->code(self::EXECUTOR), 'execute() passe publish=false, structurellement');
         $this->assertMatchesRegularExpression('/return \$this->pipeline\([^;]*AiTurnTrace::RUN_KIND_LAB,\s*\$labScenarioKey,\s*true\);/', $this->code(self::EXECUTOR), 'executeForLab() passe run_kind=lab et publish=true');
+
+        // Revue Opus T1591 #11 : EXACTEMENT deux appels a pipeline() dans
+        // l'executeur, et UN SEUL passe `true` — une troisieme porte publiante
+        // (`executeForBench()`…) ne peut pas passer inapercue.
+        $code = $this->code(self::EXECUTOR);
+        $this->assertSame(2, preg_match_all('/\$this->pipeline\(/', $code), 'deux call-sites pipeline(), pas un de plus');
+        $this->assertSame(1, preg_match_all('/\$this->pipeline\([^;]*,\s*true\);/s', $code), 'une seule porte publiante');
+        $this->assertSame(1, preg_match_all('/private function pipeline\(/', $code), 'pipeline() reste privee');
     }
 
     /** @return array<string, list<int>> fichier => lignes */
