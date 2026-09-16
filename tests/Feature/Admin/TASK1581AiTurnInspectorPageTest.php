@@ -7,6 +7,7 @@ use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Ai\Context\DossierRetrievalTraceRecorder;
 use App\Livewire\LoopChat;
 use App\Models\AiInteraction;
+use App\Models\AiProviderInvocation;
 use App\Models\AiShellMessage;
 use App\Models\Dossier;
 use App\Models\Loop;
@@ -15,6 +16,7 @@ use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Ai\AiShellResponder;
+use App\Services\Ai\LoopKnowledgeAnswerService;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Services\LoopService;
@@ -144,7 +146,7 @@ class TASK1581AiTurnInspectorPageTest extends TestCase
     {
         $interaction = $this->tourRag();
         $interactionsAvant = AiInteraction::query()->count();
-        $ledgerAvant = \App\Models\AiProviderInvocation::query()->count();
+        $ledgerAvant = AiProviderInvocation::query()->count();
 
         $reponse = $this->actingAs($this->admin)->get(route('admin.ai-turns.show', $interaction));
 
@@ -171,13 +173,13 @@ class TASK1581AiTurnInspectorPageTest extends TestCase
 
         // Zero execution : ni interaction ni ligne de ledger nouvelles.
         $this->assertSame($interactionsAvant, AiInteraction::query()->count());
-        $this->assertSame($ledgerAvant, \App\Models\AiProviderInvocation::query()->count());
+        $this->assertSame($ledgerAvant, AiProviderInvocation::query()->count());
     }
 
     public function test_b2_un_tour_cli_sans_bulle_dit_unavailable_et_n_a_pas_de_conversation(): void
     {
         LoopKnowledgeAgent::fake(fn (): TextResponse => $this->reponse('Le document dit ceci [S1].'));
-        $interaction = $this->tour(fn () => app(\App\Services\Ai\LoopKnowledgeAnswerService::class)->answer($this->loop, $this->membre, 'Que dit le document ?', null, publish: false, executionPath: AiExecutionPath::LOOP_CHAT_DOSSIERS));
+        $interaction = $this->tour(fn () => app(LoopKnowledgeAnswerService::class)->answer($this->loop, $this->membre, 'Que dit le document ?', null, publish: false, executionPath: AiExecutionPath::LOOP_CHAT_DOSSIERS));
 
         $reponse = $this->actingAs($this->admin)->get(route('admin.ai-turns.show', $interaction));
 
