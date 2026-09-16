@@ -8,18 +8,45 @@ use App\Ai\Context\SourceDenied;
 /**
  * TASK-1566 / CDC-01 V0-A — le point d'entree UNIQUE des `reason_code` du tour.
  *
- * ## SQUELETTE — etat declare
+ * ## REGISTRE V1 — finalise par V0-C (TASK-1571), gele par TRACE0_SCHEMA_FROZEN
  *
- * Cette classe est VOLONTAIREMENT incomplete. V0-A la pose ; **V0-C la
- * finalise** (CDC-01 §13). Ce qu'elle contient aujourd'hui : uniquement les
- * vocabulaires qui EXISTENT DEJA dans le depot, references par alias.
+ * V0-A a pose le squelette (alias des vocabulaires existants), V0-G les codes
+ * de bypass et le vocabulaire des fallthroughs, V0-B les statuts terminaux,
+ * V0-C ferme le registre : `isKnown()` est desormais l'AUTORITE — un code que
+ * cette classe ignore est un defaut, plus un « pas encore connu ». Toute
+ * evolution passe par `turn.schema = 2` (CDC-01 §11).
  *
- * Ce qu'elle ne contient PAS, et ne doit pas contenir avant V0-C : les codes
- * que CDC-01 P0.4 annonce comme « nouveaux codes necessaires » et qu'AUCUN
- * etage n'emet encore (`NO_GROUNDED_EVIDENCE`, `FAKE_PROVIDER_FALLBACK`,
- * `FEATURE_DISABLED`, `RERANK_NOT_CONFIGURED`). Les inventer ici reviendrait a
- * figer, sans les etages qui les emettent, un vocabulaire que personne n'aurait
- * encore eu l'occasion de confronter au code reel.
+ * ## La regle que le registre impose (P0.4, I5)
+ *
+ * Toute etape dont le statut est `denied`, `bypassed`, `failed`, `abstained` ou
+ * `fallback`, et tout verdict `turn.status` autre que `answered`, porte un code
+ * de CE registre. `skipped` et `not_applicable` n'en exigent pas (un gate
+ * interne non franchi, un etage qui n'existe pas). Deux gardes le tiennent :
+ * l'une statique sur `app/` (chaque `AiTurnTrace::step()` bloquant passe un
+ * code), l'autre au runtime sur les tours reellement ecrits.
+ *
+ * ## La collision garde / exception est TRANCHEE : non unifiee (V0-C)
+ *
+ * `turn.reason_code` d'un refus economique est ce que le GARDE a mesure
+ * (famille 1, `AiEconomicGuard::REASON_*`) — l'etage `economic_check` parle
+ * la langue de celui qui a decide. `ai_not_configured` (famille 2) reste le
+ * code de la resolution de provider : c'est l'exception qui porte ce refus, il
+ * n'y a pas de verdict de garde a preferer. Les deux familles restent, chacune
+ * chez elle. Unifier les chaines aurait renomme des codes que des lecteurs
+ * consomment deja (`refusalCode` cote produit) pour un gain de lecture nul :
+ * un code se lit toujours avec l'etage qui le porte.
+ *
+ * ## Ce qui est RESERVE — pose, pas encore emis
+ *
+ * La famille `reserved` porte les codes que CDC-01 P0.4 annonce et qu'un lot
+ * ulterieur emettra : `NO_GROUNDED_EVIDENCE` (V0-F, grounding),
+ * `FAKE_PROVIDER_FALLBACK` et `FEATURE_DISABLED` (V0-D, les trois sorties
+ * silencieuses du clarifier). Ils sont dans le registre pour que le gel porte
+ * le vocabulaire complet ; un test garde qu'aucun `step()` ne les emet avant
+ * leur lot. `RERANK_NOT_CONFIGURED` n'est PAS cree : la famille 4
+ * (`DossierRerankOutcome`) dit deja pourquoi le rerank n'a pas ete tente —
+ * `NO_CREDENTIAL`, `ORGANIZATION_SETTING_MISSING_OR_UNUSABLE`, `GATE_CLOSED` —
+ * et un doublon serait un quatrieme vocabulaire.
  *
  * ## Ce que V0-G (TASK-1568) y a ajoute — et a quel titre
  *
@@ -256,12 +283,31 @@ final class AiTurnReason
     public const TERMINAL_EMPTY_MODEL_ANSWER = 'EMPTY_MODEL_ANSWER';
 
     /**
-     * Tous les codes que CE squelette connait, par famille d'origine.
+     * `failed` — le provider a ete APPELE et a leve (timeout, HTTP, SDK). La
+     * classe de l'exception reste dans `metadata.failure` pour le diagnostic ;
+     * ici, le CODE que la machine lit. Une ligne au ledger existe : l'appel est
+     * parti, `cost_status` dira ce qu'il en a coute.
+     */
+    public const TERMINAL_PROVIDER_CALL_FAILED = 'PROVIDER_CALL_FAILED';
+
+    // -----------------------------------------------------------------
+    // Famille 9 — RESERVE (V0-C) : annonces par P0.4, emis par V0-D / V0-F
+    // -----------------------------------------------------------------
+
+    /** `abstained` — des sources trouvees, mais aucune preuve suffisante au grounding (V0-F). */
+    public const RESERVED_NO_GROUNDED_EVIDENCE = 'NO_GROUNDED_EVIDENCE';
+
+    /** `fallback` — `FakeAIProvider` a rendu la reponse a la place du provider (V0-D). */
+    public const RESERVED_FAKE_PROVIDER_FALLBACK = 'FAKE_PROVIDER_FALLBACK';
+
+    /** `fallback` — la capability est coupee par configuration, le repli deterministe repond (V0-D). */
+    public const RESERVED_FEATURE_DISABLED = 'FEATURE_DISABLED';
+
+    /**
+     * Tous les codes du registre, par famille d'origine.
      *
-     * Sert la garde de V0-A : un code ecrit dans une trace doit venir d'ici.
-     * La liste est INCOMPLETE par construction — c'est V0-C qui la fermera, et
-     * c'est seulement a ce moment-la qu'un test pourra exiger que TOUT statut
-     * bloquant porte un code connu.
+     * Complet depuis V0-C : un code ecrit dans une trace doit venir d'ici, et
+     * un test exige que TOUT statut bloquant en porte un.
      *
      * @return array<string, list<string>>
      */
@@ -313,7 +359,24 @@ final class AiTurnReason
             'terminal' => [
                 self::TERMINAL_NO_SOURCES_FOUND,
                 self::TERMINAL_EMPTY_MODEL_ANSWER,
+                self::TERMINAL_PROVIDER_CALL_FAILED,
             ],
+            'reserved' => self::reservedVocabulary(),
+        ];
+    }
+
+    /**
+     * Les codes poses par V0-C pour le gel, dont l'emetteur arrive avec V0-D /
+     * V0-F. Une garde statique verifie qu'aucun `step()` ne les emet avant.
+     *
+     * @return list<string>
+     */
+    public static function reservedVocabulary(): array
+    {
+        return [
+            self::RESERVED_NO_GROUNDED_EVIDENCE,
+            self::RESERVED_FAKE_PROVIDER_FALLBACK,
+            self::RESERVED_FEATURE_DISABLED,
         ];
     }
 
@@ -340,7 +403,7 @@ final class AiTurnReason
     }
 
     /**
-     * La liste plate des codes connus de ce squelette.
+     * La liste plate des codes du registre (collisions dedoublonnees).
      *
      * @return list<string>
      */
@@ -350,10 +413,10 @@ final class AiTurnReason
     }
 
     /**
-     * Ce code vient-il d'un vocabulaire deja etabli du depot ?
+     * Ce code appartient-il au registre V1 ?
      *
-     * `false` ne signifie PAS « code invalide » tant que V0-C n'a pas ferme le
-     * registre : il signifie « ce squelette ne le connait pas encore ».
+     * Depuis V0-C, `false` signifie « code invalide » : le registre est ferme,
+     * et un writer qui ecrirait un code inconnu casse le contrat gele.
      */
     public static function isKnown(?string $code): bool
     {

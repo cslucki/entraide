@@ -478,11 +478,13 @@ class LoopKnowledgeAnswerService
                 model: $resolved->model,
             );
         } catch (\Throwable $exception) {
-            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'provider_call', 'failed');
+            // TASK-1571 / V0-C — l'etape ET le verdict portent le CODE ; la
+            // classe d'exception reste dans `metadata.failure` (diagnostic).
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'provider_call', 'failed', AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED);
 
             $this->recordInteraction($loop, $requester, $contexte, $definition, $resolved, $prompt, null,
                 AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null, 'failed', $startedAt, null,
-                $exception::class, $consulted, [], $doctrineVersion, $borne, $history);
+                $exception::class, $consulted, [], $doctrineVersion, $borne, $history, AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED);
 
             throw new RuntimeException(__('loops.ai_error'), 0, $exception);
         }
@@ -984,6 +986,8 @@ class LoopKnowledgeAnswerService
         ContexteBorne $borne,
         /** @param array<string, mixed> $history ce que le tour a VU (V0-L) */
         array $history,
+        /** TASK-1571 / V0-C — le code du verdict quand il ne coincide pas avec `$failure` */
+        ?string $reasonCode = null,
     ): AiInteraction {
         // TASK-1220 : ligne canonique du ledger, memes points que la trace P1
         // (succes ET echec) ; les refus pre-provider n'arrivent jamais ici.
@@ -1114,7 +1118,7 @@ class LoopKnowledgeAnswerService
                         // du registre : une classe d'exception (`failure` d'un
                         // provider qui leve) n'est pas un `reason_code`, et la
                         // nommer comme tel appartient a V0-C.
-                        'reason_code' => AiTurnReason::isKnown($failure) ? $failure : null,
+                        'reason_code' => $reasonCode ?? (AiTurnReason::isKnown($failure) ? $failure : null),
                         'decided_by' => class_basename(self::class),
                         // La MEME mesure que `latency_ms` ci-dessus — jamais un
                         // second chronometre, qui donnerait deux valeurs pour
