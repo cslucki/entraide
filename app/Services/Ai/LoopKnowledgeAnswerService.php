@@ -391,6 +391,31 @@ class LoopKnowledgeAnswerService
         // moteur — s'insere entre les sources et la question ; partout
         // ailleurs le prompt T-3 est inchange octet pour octet.
         $conversation = $this->conversationContext->build($inThreadTrigger);
+
+        // TASK-1567 / CDC-01 V0-L — ce que CE tour a REELLEMENT recu de la
+        // conversation. Les valeurs sont celles que le moteur vient de
+        // calculer pour son prompt : rien n'est relu, rien n'est recalcule.
+        //
+        // `count = 0` s'ecrit TEL QUEL, sans statut d'erreur : un follow-up
+        // sans reply explicite ne recoit aucun historique, et c'est le
+        // comportement produit actuel (CDC-01 P0.12). La strategie reste
+        // `reply_chain` — c'est bien elle qui a ete tentee ; ecrire `none`
+        // laisserait croire qu'aucune n'a ete essayee.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'conversation_history', 'executed', null, [
+            'count' => count($conversation->messageIds),
+            'chars' => $conversation->chars,
+        ]);
+
+        $history = [
+            'strategy' => 'reply_chain',
+            'message_ids' => $conversation->messageIds,
+            'count' => count($conversation->messageIds),
+            'chars' => $conversation->chars,
+            // Le message AUQUEL l'utilisateur repondait, jamais le message
+            // courant (CDC-01 P0.12).
+            'trigger_id' => $inThreadTrigger?->reply_to_id,
+            'budget_exhausted' => $conversation->budgetExhausted,
+        ];
         $thread = $conversation->text;
         // TASK-1309 : en mode IA + Dossiers sans AUCUNE provenance, le bloc
         // de sources est vide. Le laisser vide, c'est laisser le modele
@@ -418,7 +443,7 @@ class LoopKnowledgeAnswerService
 
             $this->recordInteraction($loop, $requester, $contexte, $definition, $resolved, $prompt, null,
                 AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null, 'failed', $startedAt, null,
-                $exception::class, $consulted, [], $doctrineVersion, $borne);
+                $exception::class, $consulted, [], $doctrineVersion, $borne, $history);
 
             throw new RuntimeException(__('loops.ai_error'), 0, $exception);
         }
@@ -459,7 +484,7 @@ class LoopKnowledgeAnswerService
 
         $interaction = $this->recordInteraction($loop, $requester, $contexte, $definition, $resolved, $prompt,
             $answer, $usage, $cost->traceAttributes(), $cost, 'success', $startedAt, $response->invocationId, null,
-            $consulted, $cited, $doctrineVersion, $borne);
+            $consulted, $cited, $doctrineVersion, $borne, $history);
 
         // TASK-1309 : « Sources utilisées » = sources REELLEMENT CITEES.
         // Jusqu'ici, faute de citation valide, on retombait sur TOUT ce qui
@@ -819,6 +844,8 @@ class LoopKnowledgeAnswerService
         array $cited,
         ?int $doctrineVersion,
         ContexteBorne $borne,
+        /** @param array<string, mixed> $history ce que le tour a VU (V0-L) */
+        array $history,
     ): AiInteraction {
         // TASK-1220 : ligne canonique du ledger, memes points que la trace P1
         // (succes ET echec) ; les refus pre-provider n'arrivent jamais ici.
@@ -950,6 +977,10 @@ class LoopKnowledgeAnswerService
                         // second chronometre, qui donnerait deux valeurs pour
                         // une seule duree (correction C7 du CDC).
                         'latency_ms' => $latencyMs,
+                        // TASK-1567 / V0-L — ce que le tour a VU de la
+                        // conversation. Valeurs deja calculees par le moteur
+                        // pour son prompt ; aucune relecture, aucun recalcul.
+                        'history' => $history,
                     ],
                 ),
             ], static fn ($value): bool => $value !== null)

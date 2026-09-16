@@ -379,6 +379,7 @@ final class DossierInsightsService
         string $question,
         ?string $fileHint = null,
         ?string $conversationMemory = null,
+        array $history = [],
     ): KnowledgeAnswer {
         $question = trim($question);
 
@@ -487,7 +488,7 @@ final class DossierInsightsService
             );
         }
 
-        return $this->answerOverSources($organization, $dossier, $requester, $question, $rows, $conversationMemory, $turnId);
+        return $this->answerOverSources($organization, $dossier, $requester, $question, $rows, $conversationMemory, $turnId, $history);
     }
 
     /**
@@ -519,6 +520,7 @@ final class DossierInsightsService
         array $rows,
         ?string $conversationMemory = null,
         ?string $turnId = null,
+        array $history = [],
     ): KnowledgeAnswer {
         $locale = $this->readerLocale();
         $capability = CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER;
@@ -616,7 +618,7 @@ final class DossierInsightsService
         } catch (\Throwable $exception) {
             $this->recordInteraction($dossier, $requester, $contexte, $definition, $resolved, $prompt, null,
                 AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null, 'failed', $startedAt, null,
-                $exception::class, $consulted, [], $doctrineVersion);
+                $exception::class, $consulted, [], $doctrineVersion, $history);
 
             throw new RuntimeException(__('dossiers.insights_ai_error'), 0, $exception);
         }
@@ -645,7 +647,7 @@ final class DossierInsightsService
 
         $interaction = $this->recordInteraction($dossier, $requester, $contexte, $definition, $resolved, $prompt,
             $answer, $usage, $cost->traceAttributes(), $cost, 'success', $startedAt, $response->invocationId, null,
-            $consulted, $cited, $doctrineVersion);
+            $consulted, $cited, $doctrineVersion, $history);
 
         return new KnowledgeAnswer(
             answer: $answer,
@@ -1285,6 +1287,7 @@ final class DossierInsightsService
         array $consulted,
         array $cited,
         ?int $doctrineVersion,
+        array $history = [],
     ): AiInteraction {
         $this->ledger->recordGeneration(
             organizationId: $contexte->organizationId,
@@ -1334,7 +1337,11 @@ final class DossierInsightsService
                 // bout en bout (`answer()` le genere, `answerOverSources()` le
                 // transmet au `ContexteIa`) : il ne manquait que de l'ECRIRE.
                 // Son instrumentation complete appartient a V0-G.
-                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::identityOnly($contexte->turnId),
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
+                    $contexte->turnId,
+                    null,
+                    $history === [] ? [] : ['history' => $history],
+                ),
                 'failure' => $failure,
                 'retrieval' => ['consulted' => $ids($consulted), 'cited' => $ids($cited)],
                 // TASK-1554 / W3A — la graphie canonique du contrat commun,

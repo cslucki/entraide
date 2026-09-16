@@ -12,6 +12,7 @@ use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\DTO\KnowledgeAnswer;
+use App\Services\Ai\DTO\ShellConversationMemory;
 use App\Services\Dossiers\DerivedChunkEligibility;
 use App\Services\Dossiers\DossierInsightsService;
 use App\Services\Dossiers\DossierSemanticSearchGate;
@@ -481,7 +482,7 @@ final class AiShellResponder
                 // sans cout, autant ne pas payer deux requetes par tour pour
                 // une branche qui ne s'executera pas.
                 $continuationDossierId = null;
-                $continuationMemory = '';
+                $continuationMemory = ShellConversationMemory::vide();
 
                 if (! in_array($pageContext['kind'] ?? null, [AiShellPageContext::KIND_DOSSIER, AiShellPageContext::KIND_ARTICLE], true)
                     && $this->isDocumentaryContinuation($prompt)) {
@@ -527,11 +528,11 @@ final class AiShellResponder
                     // locale ET un referent herite — donc rien d'autre ne
                     // change de chemin.
                     ?? $this->peopleTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
-                    ?? $this->dossierAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory)
-                    ?? $this->articleAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory)
+                    ?? $this->dossierAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory->text, $documentaryMemory->history())
+                    ?? $this->articleAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $documentaryMemory->text, $documentaryMemory->history())
                     // TASK-1530 : entre l'objet COURANT et le chemin general.
                     // Voir le docblock de la branche pour l'ordre des roles.
-                    ?? $this->dossierContinuationTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $continuationDossierId, $continuationMemory)
+                    ?? $this->dossierContinuationTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $continuationDossierId, $continuationMemory->text, $continuationMemory->history())
                     // TASK-1531 : en dernier recours documentaire — ni objet
                     // courant, ni objet deja discute. Sa garde de declenchement
                     // s'execute avant tout balayage de perimetre.
@@ -542,8 +543,8 @@ final class AiShellResponder
                     // « projet » et « parlait », c'est-a-dire n'importe quoi.
                     ?? $this->referenceResolutionTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
                     ?? $this->dossierDiscoveryTurn($organization, $user, $prompt, $pageContext, $pinnedContext)
-                    ?? $this->generalAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $generalMemory)
-                    ?? $this->generate($organization, $user, $prompt, $pageContext, $pinnedContext, $memory);
+                    ?? $this->generalAnswerTurn($organization, $user, $prompt, $pageContext, $pinnedContext, $generalMemory->text, $generalMemory->history())
+                    ?? $this->generate($organization, $user, $prompt, $pageContext, $pinnedContext, $memory->text, $memory->history());
 
                 $answer = $this->thread->appendAssistant($organization, $user, $content, $trigger, $metadata);
 
@@ -559,10 +560,10 @@ final class AiShellResponder
      *                          du declencheur (TASK-1346)
      * @return array{0: string, 1: array<string, mixed>}
      */
-    private function generate(Organization $organization, User $user, string $prompt, array $pageContext, array $pinnedContext, string $memory = ''): array
+    private function generate(Organization $organization, User $user, string $prompt, array $pageContext, array $pinnedContext, string $memory = '', array $history = []): array
     {
         try {
-            $result = $this->clarifier->clarifyForOrganization($organization, $user, $this->situated($prompt, $pageContext, $pinnedContext, $memory));
+            $result = $this->clarifier->clarifyForOrganization($organization, $user, $this->situated($prompt, $pageContext, $pinnedContext, $memory), $history);
         } catch (DomainException $exception) {
             report($exception);
 
@@ -945,24 +946,29 @@ final class AiShellResponder
      * de {@see AiConversationContextBuilder}, prefixes compris : les deux blocs
      * de memoire du produit se lisent de la meme facon pour le modele.
      */
-    private function conversationMemory(Organization $organization, User $user, ?string $onlyObjectKey = null, ?string $generalContractHash = null): string
+    private function conversationMemory(Organization $organization, User $user, ?string $onlyObjectKey = null, ?string $generalContractHash = null): ShellConversationMemory
     {
         $conversationId = $this->thread->persistedConversationId($organization, $user);
 
         if ($conversationId === null) {
-            return '';
+            return ShellConversationMemory::vide();
         }
 
         $budget = max(0, (int) config('ai.shell.max_context_chars', 4000));
 
         if ($budget === 0) {
-            return '';
+            return ShellConversationMemory::vide();
         }
 
         $messages = $this->thread->messages($organization, $user, $conversationId);
 
         $lines = [];
+        $ids = [];
         $total = 0;
+        // TASK-1567 : OBSERVATION seule. Ce drapeau ne participe a AUCUNE
+        // decision de cette boucle — selection, ordre et bornes sont
+        // exactement ceux d'avant.
+        $budgetExhausted = false;
         // Un seul controle de droits par objet distinct du fil, pas un par
         // message : la fenetre est bornee, les objets y sont peu nombreux.
         $visibilityMemo = [];
@@ -1072,26 +1078,38 @@ final class AiShellResponder
             if ($lines === []) {
                 // Le tour le plus recent est conserve meme s'il excede a lui
                 // seul le budget : il est tronque, jamais supprime.
+                if (mb_strlen($line) > $budget) {
+                    $budgetExhausted = true;
+                }
+
                 $line = mb_substr($line, 0, $budget);
                 $lines[] = $line;
+                $ids[] = (string) $message->id;
                 $total = mb_strlen($line);
 
                 continue;
             }
 
             if ($total + mb_strlen($line) + 1 > $budget) {
+                // Un tour existait et ne tient plus : c'est une amputation, a
+                // la difference d'un fil simplement epuise.
+                $budgetExhausted = true;
+
                 break;
             }
 
             $lines[] = $line;
+            $ids[] = (string) $message->id;
             $total += mb_strlen($line) + 1;
         }
 
         if ($lines === []) {
-            return '';
+            return ShellConversationMemory::vide();
         }
 
-        return "Echange precedent dans cette conversation :\n".implode("\n", array_reverse($lines));
+        $text = "Echange precedent dans cette conversation :\n".implode("\n", array_reverse($lines));
+
+        return new ShellConversationMemory($text, array_reverse($ids), mb_strlen($text), $budgetExhausted);
     }
 
     /**
@@ -1237,6 +1255,7 @@ final class AiShellResponder
         array $pageContext,
         array $pinnedContext,
         string $memory,
+        array $history = [],
     ): ?array {
         if (($pageContext['kind'] ?? null) !== AiShellPageContext::KIND_DOSSIER) {
             return null;
@@ -1255,7 +1274,7 @@ final class AiShellResponder
         }
 
         try {
-            $answer = $this->dossierAnswers->answer($organization, $dossier, $user, $prompt, null, $memory);
+            $answer = $this->dossierAnswers->answer($organization, $dossier, $user, $prompt, null, $memory, $history);
         } catch (\Throwable $exception) {
             report($exception);
 
@@ -1339,6 +1358,7 @@ final class AiShellResponder
         array $pageContext,
         array $pinnedContext,
         string $memory,
+        array $history = [],
     ): ?array {
         if (($pageContext['kind'] ?? null) !== AiShellPageContext::KIND_ARTICLE) {
             return null;
@@ -1411,6 +1431,9 @@ final class AiShellResponder
                     'distance' => null,
                 ]],
                 $memory,
+                // La branche Article n'ouvre pas de tour de Dossier : son turnId
+                // reste auto-genere. L'historique, lui, est celui de CETTE branche.
+                history: $history,
             );
         } catch (\Throwable $exception) {
             report($exception);
@@ -1495,6 +1518,7 @@ final class AiShellResponder
         array $pinnedContext,
         ?string $dossierId,
         string $memory,
+        array $history = [],
     ): ?array {
         if ($dossierId === null) {
             return null;
@@ -1522,7 +1546,7 @@ final class AiShellResponder
         }
 
         try {
-            $answer = $this->dossierAnswers->answer($organization, $dossier, $user, $prompt, null, $memory);
+            $answer = $this->dossierAnswers->answer($organization, $dossier, $user, $prompt, null, $memory, $history);
         } catch (\Throwable $exception) {
             report($exception);
 
@@ -2540,6 +2564,7 @@ final class AiShellResponder
         array $pageContext,
         array $pinnedContext,
         string $memory,
+        array $history = [],
     ): ?array {
         if (! $this->isGeneralQuestion($prompt)) {
             return null;
@@ -2550,6 +2575,12 @@ final class AiShellResponder
                 $organization,
                 $user,
                 $this->situated($prompt, $pageContext, $pinnedContext, $memory),
+                // TASK-1567 / V0-L — l'historique de CETTE branche, et d'elle
+                // seule. Les autres memoires calculees pour ce tour
+                // (documentaire, continuite) appartiennent a des branches qui
+                // n'ont pas ete retenues : les persister ici decrirait un
+                // contexte que le modele n'a jamais recu.
+                $history,
             );
         } catch (DomainException $exception) {
             report($exception);

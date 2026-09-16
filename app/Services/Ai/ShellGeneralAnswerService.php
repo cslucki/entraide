@@ -57,7 +57,14 @@ final class ShellGeneralAnswerService
         return hash('sha256', trans('ai.shell_general_instructions', [], $locale));
     }
 
-    public function answer(Organization $organization, User $requester, string $question): ShellGeneralAnswer
+    /**
+     * @param  array<string, mixed>  $history  TASK-1567 / V0-L — ce que le Shell
+     *                                         a REELLEMENT donne de la
+     *                                         conversation. N'influence QUE la
+     *                                         trace : ni le prompt, ni la
+     *                                         selection, ni le provider.
+     */
+    public function answer(Organization $organization, User $requester, string $question, array $history = []): ShellGeneralAnswer
     {
         if ($requester->organization_id !== $organization->id) {
             throw new DomainException('The requester does not belong to this Organization.');
@@ -152,6 +159,7 @@ final class ShellGeneralAnswerService
                 $constitutionVersions,
                 $borne->sourcesUsed,
                 $borne->sourcesDenied,
+                $history,
             );
 
             throw new DomainException('AI generation failed.', 0, $exception);
@@ -186,6 +194,7 @@ final class ShellGeneralAnswerService
                 $constitutionVersions,
                 $borne->sourcesUsed,
                 $borne->sourcesDenied,
+                $history,
             );
 
             throw new DomainException('AI returned an empty answer.');
@@ -209,6 +218,7 @@ final class ShellGeneralAnswerService
             $constitutionVersions,
             $borne->sourcesUsed,
             $borne->sourcesDenied,
+            $history,
         );
 
         return new ShellGeneralAnswer($answer, (string) $interaction->id);
@@ -249,6 +259,7 @@ final class ShellGeneralAnswerService
         array $constitutionVersions,
         array $sourcesUsed,
         array $sourcesDenied,
+        array $history = [],
     ): AiInteraction {
         $this->ledger->recordGeneration(
             organizationId: $contexte->organizationId,
@@ -290,7 +301,11 @@ final class ShellGeneralAnswerService
                 RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
                 // TASK-1566 / CDC-01 V0-A — l'IDENTITE canonique du tour, et
                 // rien d'autre. Instrumentation complete du Shell : V0-G / V0-I.
-                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::identityOnly($contexte->turnId),
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
+                    $contexte->turnId,
+                    null,
+                    $history === [] ? [] : ['history' => $history],
+                ),
                 'failure' => $failure,
                 'sources_used' => $sourcesUsed,
                 'sources_denied' => $sourcesDenied,

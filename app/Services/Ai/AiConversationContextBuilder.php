@@ -56,6 +56,10 @@ class AiConversationContextBuilder
         $ids = [];
         $total = 0;
         $current = $parent;
+        // TASK-1567 : OBSERVATION seule. Ce drapeau ne participe a aucune
+        // decision de ce parcours — la selection, l'ordre et les bornes sont
+        // exactement ceux de T1308.
+        $budgetExhausted = false;
 
         for ($depth = 0; $depth < self::MAX_THREAD_DEPTH && $current !== null; $depth++) {
             if (! in_array($current->type, ['user', 'ai'], true) || $current->loop_id !== $trigger->loop_id) {
@@ -66,6 +70,14 @@ class AiConversationContextBuilder
                 $line = ($current->type === 'ai' ? 'Assistant : ' : 'Membre : ').trim((string) $current->body);
 
                 if ($lines === []) {
+                    // Le parent direct est TOUJOURS garde, tronque au besoin.
+                    // S'il a fallu le couper, l'historique est ampute : c'est
+                    // une exhaustion de budget, au meme titre qu'un message
+                    // abandonne plus bas.
+                    if (mb_strlen($line) > $budget) {
+                        $budgetExhausted = true;
+                    }
+
                     $line = mb_substr($line, 0, $budget);
                     $lines[] = $line;
                     $ids[] = $current->id;
@@ -75,6 +87,12 @@ class AiConversationContextBuilder
                     $ids[] = $current->id;
                     $total += mb_strlen($line) + 1;
                 } else {
+                    // Un message existait et ne tient plus : c'est LA
+                    // difference avec les `break` ci-dessus, qui s'arretent
+                    // parce qu'il n'y a plus rien d'eligible a lire. Confondre
+                    // les deux ferait croire a une perte qui n'a pas eu lieu.
+                    $budgetExhausted = true;
+
                     break;
                 }
             }
@@ -88,6 +106,6 @@ class AiConversationContextBuilder
 
         $text = "Echange precedent dans la Boucle :\n".implode("\n", array_reverse($lines));
 
-        return new ConversationContext($text, array_reverse($ids));
+        return new ConversationContext($text, array_reverse($ids), mb_strlen($text), $budgetExhausted);
     }
 }
