@@ -251,6 +251,29 @@ class TASK1583RunManifestTest extends TestCase
         $this->artisan('ai:run-manifest', ['--organization' => $this->organization->slug, '--run' => 'pas-un-uuid', '--json' => true])->assertExitCode(1);
     }
 
+    public function test_c3_la_requete_de_secours_est_bornee_a_l_organization_du_manifeste(): void
+    {
+        $runId = $this->runId();
+        AiRunManifest::start($runId, AiTurnTrace::RUN_KIND_BROWSER, (string) $this->organization->id);
+
+        // Un bloc `turn` d'une AUTRE Organization qui porterait ce run_id (forge)
+        // ne doit jamais remonter dans le secours de CE manifeste.
+        $ailleurs = Organization::factory()->create(['is_active' => true, 'slug' => 'ailleurs-1583-c']);
+        $etranger = User::factory()->create(['organization_id' => $ailleurs->id]);
+        AiInteraction::create([
+            'user_id' => $etranger->id, 'organization_id' => $ailleurs->id, 'correlation_id' => (string) Str::uuid(),
+            'process' => 'knowledge.answer', 'feature' => 'loop_knowledge_answer', 'model' => 'x', 'prompt' => 'p', 'response' => 'r',
+            'input_tokens' => 1, 'output_tokens' => 1,
+            'metadata' => ['turn' => ['schema' => 2, 'id' => 'turn-etranger', 'run' => ['id' => $runId, 'kind' => 'browser', 'lab_scenario_key' => null]]],
+        ]);
+
+        $code = Artisan::call('ai:run-manifest', ['--organization' => $this->organization->slug, '--run' => $runId, '--json' => true]);
+        $lecture = json_decode(Artisan::output(), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame(0, $code);
+        $this->assertSame([], $lecture['fallback_query']['interaction_ids']);
+        $this->assertTrue($lecture['fallback_query']['consistent'], 'manifeste vide, secours vide : coherent — l\'etranger n\'existe pas ici');
+    }
+
     // ────────────────────────────── fixtures
 
     private function runId(): string
