@@ -129,7 +129,7 @@ class TASK1593ChatLoopProviderCallStepTest extends TestCase
         foreach ($attendu as $nom => $statut) {
             $this->assertSame($statut, $this->etape($t, $nom)['status'], $nom);
         }
-        $this->assertSame(AiTurnReason::LLM_PATH_NO_CONTEXT_BUILDER, $this->etape($t, 'context_builder')['reason_code']);
+        $this->assertSame(AiTurnReason::CONTEXT_BUILDER_LLM_PATH_NO_CONTEXT_BUILDER, $this->etape($t, 'context_builder')['reason_code']);
     }
 
     // ────────────────────────────── B. echec
