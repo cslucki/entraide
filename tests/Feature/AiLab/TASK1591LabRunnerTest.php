@@ -474,6 +474,22 @@ class TASK1591LabRunnerTest extends TestCase
         $this->assertSame(0, LoopMessage::query()->where('type', 'ai')->where('metadata->ai_interaction_id', '!=', '')->count());
     }
 
+    public function test_e3_un_tour_1_repondu_mais_sans_bulle_publiee_rend_le_tour_2_non_etabli_unavailable(): void
+    {
+        $this->chargerLePack();
+        $this->rechercheRendLeChunkReel('L2');
+        // Le VRAI tour 1 a lieu ; seule sa BULLE ne s'ecrit pas (publication
+        // perdue) : le tour 2 `reply_to: previous_ai` n'a plus de cible.
+        LoopMessage::creating(static fn (LoopMessage $m): bool => $m->type !== 'ai');
+
+        $result = $this->runner()->run($this->scenario('LAB.MULTITURN_REFERENT_1'));
+
+        $this->assertSame(LabVerdict::UNAVAILABLE, $result['result'], json_encode($result['turns']));
+        $this->assertSame(1, AiInteraction::query()->count(), 'le tour 1 a eu lieu ; le tour 2 n\'est pas execute sans sa cible');
+        $this->assertSame(0, LoopMessage::query()->where('type', 'ai')->where('metadata->ai_interaction_id', '!=', '')->count());
+        $this->assertTrue(end($result['turns'])['not_established'] ?? false, 'le run est NON ETABLI, pas juge : '.json_encode($result['turns']));
+    }
+
     // ────────────────────────────── F. commande
 
     public function test_f1_la_commande_est_une_enveloppe_du_runner_et_rend_le_json_du_run(): void
