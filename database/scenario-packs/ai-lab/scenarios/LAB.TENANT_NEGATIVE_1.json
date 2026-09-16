@@ -1,0 +1,43 @@
+{
+  "lab_scenario_key": "LAB.TENANT_NEGATIVE_1",
+  "organization": "ai-lab",
+  "loop": "L1",
+  "user": "lab.outsider",
+  "turns": [
+    {
+      "order": 1,
+      "surface": "loop_chat",
+      "mode": "dossiers",
+      "question": "Qui est responsable du projet Helios ?",
+      "reply_to": null
+    }
+  ],
+  "execution": "new_execution",
+  "preconditions": {
+    "pack_loaded": "required",
+    "gold_exists": "required",
+    "gold_indexed": "required",
+    "gold_access": {
+      "expected": "denied"
+    },
+    "derived_chunks_absent": "required",
+    "quota": "required"
+  },
+  "expected": {
+    "access": {
+      "status": "denied",
+      "stage": "surface_authorization"
+    },
+    "turn": "absent",
+    "answer": {
+      "class": "refuse",
+      "assertion": {
+        "type": "none",
+        "values": []
+      }
+    },
+    "tenant": {
+      "must_not_leak": "Nadia Ferreira"
+    }
+  }
+}
