@@ -11,11 +11,8 @@ use App\Models\Loop;
 use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\User;
-use App\Services\Ai\LoopKnowledgeAnswerService;
-use App\Services\ChatLoop\ChatLoopAiService;
-use App\Support\Ai\AiExecutionPath;
-use App\Support\Ai\AiRunManifest;
 use App\Support\Ai\AiTruthLabel;
+use App\Support\Ai\AiTurnExecutor;
 use App\Support\Ai\AiTurnInspection;
 use App\Support\Ai\AiTurnProjection;
 use App\Support\Ai\AiTurnTrace;
@@ -83,13 +80,8 @@ class AiInspectTurnCommand extends Command
     /** Les surfaces et modes REELLEMENT reproductibles en v0. */
     private const SURFACES = ['loop'];
 
-    private const MODES = ['dossiers', 'ia_dossiers', 'ia'];
-
-    public function handle(
-        LoopKnowledgeAnswerService $knowledge,
-        ChatLoopAiService $chatLoop,
-        DossierAccessScope $scope,
-    ): int {
+    public function handle(AiTurnExecutor $executor, DossierAccessScope $scope): int
+    {
         // TASK-1569 / CDC-01 V0-H0 — mode EXPLAIN : une cle de lookup suffit,
         // et elle exclut toute execution. Le tenant reste OBLIGATOIRE : une
         // ligne d'une autre Organization est « introuvable », jamais rendue.
@@ -116,8 +108,8 @@ class AiInspectTurnCommand extends Command
             return $this->refuser("Surface non reproductible en v0 : « {$surface} ». Disponible : ".implode(', ', self::SURFACES));
         }
 
-        if (! in_array($mode, self::MODES, true)) {
-            return $this->refuser("Mode non reproductible en v0 : « {$mode} ». Disponible : ".implode(', ', self::MODES));
+        if (! in_array($mode, AiTurnExecutor::MODES, true)) {
+            return $this->refuser("Mode non reproductible en v0 : « {$mode} ». Disponible : ".implode(', ', AiTurnExecutor::MODES));
         }
 
         if ($question === '') {
@@ -152,173 +144,87 @@ class AiInspectTurnCommand extends Command
         }
 
         // TASK-1583 / TRACE-1B — un run nomme : le tour portera `turn.run`
-        // (schema 2) et le manifeste gardera son id. Pose AVANT l'execution,
-        // retire APRES (finally) : le contexte est process-local.
+        // (schema 2) et le manifeste gardera son id. Sans --run-id, l'executeur
+        // ouvre un run d'UN tour (TASK-1585).
         $runId = trim((string) $this->option('run-id'));
 
-        if ($runId !== '') {
-            if (! Str::isUuid($runId)) {
-                return $this->refuser('--run-id doit etre un uuid.');
-            }
-
-            try {
-                AiRunManifest::start($runId, AiTurnTrace::RUN_KIND_CLI, (string) $organization->id);
-            } catch (\RuntimeException $exception) {
-                return $this->refuser($exception->getMessage());
-            }
-
-            AiTurnTrace::beginRun($runId, AiTurnTrace::RUN_KIND_CLI);
+        if ($runId !== '' && ! Str::isUuid($runId)) {
+            return $this->refuser('--run-id doit etre un uuid.');
         }
 
+        $trigger = null;
+
+        if ($mode === 'ia') {
+            $triggerId = trim((string) $this->option('trigger-message'));
+
+            if ($triggerId === '') {
+                return $this->refuser('--mode=ia exige --trigger-message : le chemin IA repond toujours a un message du fil.');
+            }
+
+            if (! Str::isUuid($triggerId)) {
+                return $this->refuser('--trigger-message doit etre un uuid.');
+            }
+
+            $trigger = LoopMessage::query()
+                ->whereKey($triggerId)
+                ->where('organization_id', (string) $organization->id)
+                ->where('loop_id', (string) $loop->id)
+                ->first();
+
+            if (! $trigger instanceof LoopMessage) {
+                return $this->refuser('Message declencheur introuvable dans cette Boucle.');
+            }
+        }
+
+        // TASK-1585 — l'execution elle-meme vit dans `AiTurnExecutor`, partage
+        // avec l'Inspector web : memes services, memes gardes, meme seam
+        // `publish: false`, meme run. La commande ne fait plus que resoudre et
+        // rendre.
         try {
-            if ($mode === 'ia') {
-                return $this->executerIa($chatLoop, $organization, $user, $loop, $question);
-            }
-
-            return $this->executerDocumentaire($knowledge, $scope, $organization, $user, $loop, $question, $surface, $mode);
-        } finally {
-            AiTurnTrace::endRun();
-        }
-    }
-
-    /**
-     * EXECUTE `--mode=dossiers|ia_dossiers` (T1558) — extrait tel quel de
-     * `handle()` par TASK-1583 pour partager l'ouverture/fermeture du run.
-     */
-    private function executerDocumentaire(LoopKnowledgeAnswerService $knowledge, DossierAccessScope $scope, Organization $organization, User $user, Loop $loop, string $question, string $surface, string $mode): int
-    {
-
-        // TASK-1558 — SANS cette liaison, l'observation ment.
-        //
-        // `DossierPolicy::view` lit `current_organization` dans le conteneur.
-        // Le middleware HTTP le lie ; une commande Artisan, non. Mesure faite
-        // sur le banc reel : sans liaison, `accessibleDossierIds()` rend
-        // **0 dossier** pour le proprietaire meme de la Boucle, le retrieval
-        // n'a plus aucun perimetre, et le CLI aurait accuse le classement
-        // d'un defaut qui n'existait que dans son propre harnais.
-        //
-        // Ce n'est pas un contournement de garde : la policy s'execute, avec le
-        // MEME contexte qu'en production. Idiome repris tel quel de
-        // `DossierFileIndexer` — poser, puis restaurer.
-        return $this->dansLeTenant($organization, function () use (
-            $knowledge, $scope, $organization, $user, $loop, $question, $surface, $mode
-        ): int {
-            $perimetre = $this->perimetre($scope, $organization, $user, $loop);
-
-            try {
-                // TASK-1568 / V0-G — un tour observe par la CLI EST un tour
-                // `loop_chat.dossiers` : c'est le meme chemin produit, avec les
-                // memes gardes (docblock ci-dessus). Lui donner un pseudo-chemin
-                // « cli » serait la faute inverse de celle que C15 corrige.
-                $reponse = $mode === 'ia_dossiers'
-                    ? $knowledge->answerHybrid($loop, $user, $question, null, publish: false, executionPath: AiExecutionPath::LOOP_CHAT_IA_DOSSIERS)
-                    : $knowledge->answer($loop, $user, $question, null, publish: false, executionPath: AiExecutionPath::LOOP_CHAT_DOSSIERS);
-            } catch (\RuntimeException $exception) {
-                // Un refus du service — ACL, economie, panne — est un RESULTAT
-                // d'observation, pas un plantage de l'outil.
-                return $this->refuser($exception->getMessage(), $exception::class);
-            }
-
-            $interaction = $reponse->interactionId === null
-                ? null
-                : AiInteraction::query()->find($reponse->interactionId);
-
-            $this->inscrireAuManifeste($interaction);
-
-            return $this->rendre(AiTurnInspection::build(
-                identity: [
-                    'organization' => $organization->slug,
-                    'organization_id' => (string) $organization->id,
-                    'user' => $user->email,
-                    'user_id' => (string) $user->id,
-                    'surface' => $surface,
-                    'mode' => $mode,
-                    'loop_id' => (string) $loop->id,
-                    'loop_name' => $loop->name,
-                ],
-                scope: $perimetre,
-                question: $question,
-                answer: $reponse,
-                interaction: $interaction,
-            ));
-        });
-    }
-
-    /**
-     * TASK-1575 / CDC-01 V0-H (§9.2) — EXECUTE `--mode=ia` : le VRAI
-     * `ChatLoopAiService::respondInThread()`, avec le seam `publish: false`
-     * equivalent a celui du RAG (T1558) : verrou, idempotence, garde
-     * economique, provider, ledger, `AiInteraction` — tout s'execute ; seule la
-     * bulle `loop_messages` n'est pas ecrite.
-     *
-     * Le declencheur est OBLIGATOIRE parce que le chemin produit repond
-     * toujours a un message : l'historique `reply_chain` (P0.12) et
-     * l'idempotence du tour en dependent. Un pseudo-declencheur fabrique par la
-     * CLI observerait un tour qui n'existe pas dans le produit. Un declencheur
-     * deja repondu est REFUSE par le service (`AiTurnIdempotency`) — c'est un
-     * resultat d'observation ; EXPLAIN `--message` lit alors la reponse
-     * existante.
-     */
-    private function executerIa(ChatLoopAiService $chatLoop, Organization $organization, User $user, Loop $loop, string $question): int
-    {
-        $triggerId = trim((string) $this->option('trigger-message'));
-
-        if ($triggerId === '') {
-            return $this->refuser('--mode=ia exige --trigger-message : le chemin IA repond toujours a un message du fil.');
+            $execution = $executor->execute($organization, $user, $loop, $mode, $question, $trigger, $runId !== '' ? $runId : null, AiTurnTrace::RUN_KIND_CLI);
+        } catch (\InvalidArgumentException|\RuntimeException $exception) {
+            return $this->refuser($exception->getMessage());
         }
 
-        if (! Str::isUuid($triggerId)) {
-            return $this->refuser('--trigger-message doit etre un uuid.');
+        if ($execution->refused()) {
+            // Un refus du service — ACL, economie, panne — est un RESULTAT
+            // d'observation, pas un plantage de l'outil.
+            return $this->refuser((string) $execution->refusalMessage, $execution->refusalClass);
         }
 
-        $trigger = LoopMessage::query()
-            ->whereKey($triggerId)
-            ->where('organization_id', (string) $organization->id)
-            ->where('loop_id', (string) $loop->id)
-            ->first();
-
-        if (! $trigger instanceof LoopMessage) {
-            return $this->refuser('Message declencheur introuvable dans cette Boucle.');
-        }
-
-        return $this->dansLeTenant($organization, function () use ($chatLoop, $user, $loop, $question, $trigger): int {
-            try {
-                $interaction = $chatLoop->respondInThread($loop, $user, $question, $trigger, publish: false);
-            } catch (\RuntimeException $exception) {
-                return $this->refuser($exception->getMessage(), $exception::class);
-            }
-
-            if (! $interaction instanceof AiInteraction) {
+        if ($mode === 'ia') {
+            // TASK-1575 / CDC-01 V0-H (§9.2) — le tour vient d'etre ecrit : il
+            // se LIT comme n'importe quel tour persiste — meme lecteur, memes
+            // labels. Aucune section « vivante » n'est fabriquee pour ce chemin
+            // (il n'a pas de KnowledgeAnswer).
+            if (! $execution->interaction instanceof AiInteraction) {
                 return $this->refuser('Le seam publish:false devait rendre l\'AiInteraction du tour.');
             }
 
-            // Le tour vient d'etre ecrit : il se LIT comme n'importe quel tour
-            // persiste — meme lecteur, memes labels. Aucune section « vivante »
-            // n'est fabriquee pour ce chemin (il n'a pas de KnowledgeAnswer).
-            $this->inscrireAuManifeste($interaction);
-
-            return $this->rendreExplain($this->projeter(AiTurnInspection::fromPersistedTurn($interaction->refresh()), $interaction));
-        });
-    }
-
-    /**
-     * TRACE-1B — le tour qui vient d'etre execute rejoint le manifeste du run
-     * courant (des ids, rien d'autre). Sans run, rien.
-     */
-    private function inscrireAuManifeste(?AiInteraction $interaction): void
-    {
-        $run = AiTurnTrace::currentRun();
-
-        if ($run === null || $interaction === null) {
-            return;
+            return $this->rendreExplain($this->projeter(AiTurnInspection::fromPersistedTurn($execution->interaction), $execution->interaction));
         }
 
-        $turn = is_array($interaction->metadata) ? ($interaction->metadata[AiTurnTrace::TURN_METADATA_KEY] ?? null) : null;
+        // TASK-1558 — la lecture du perimetre passe par la policy, qui lit
+        // `current_organization` : liee le temps de la lecture, comme
+        // l'execution l'a ete dans l'executeur.
+        $perimetre = $this->dansLeTenant($organization, fn (): array => $this->perimetre($scope, $organization, $user, $loop));
 
-        AiRunManifest::addTurn($run['id'], [
-            'turn_id' => is_array($turn) ? ($turn['id'] ?? null) : null,
-            'interaction_id' => (string) $interaction->id,
-        ]);
+        return $this->rendre(AiTurnInspection::build(
+            identity: [
+                'organization' => $organization->slug,
+                'organization_id' => (string) $organization->id,
+                'user' => $user->email,
+                'user_id' => (string) $user->id,
+                'surface' => $surface,
+                'mode' => $mode,
+                'loop_id' => (string) $loop->id,
+                'loop_name' => $loop->name,
+            ],
+            scope: $perimetre,
+            question: $question,
+            answer: $execution->answer,
+            interaction: $execution->interaction,
+        ));
     }
 
     /**
@@ -597,7 +503,7 @@ class AiInspectTurnCommand extends Command
      *
      * @param  callable(): int  $callback
      */
-    private function dansLeTenant(Organization $organization, callable $callback): int
+    private function dansLeTenant(Organization $organization, callable $callback): mixed
     {
         $avait = app()->bound('current_organization');
         $precedent = $avait ? app('current_organization') : null;

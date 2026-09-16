@@ -9,6 +9,11 @@
         is_scalar($v) => (string) $v,
         default => (string) json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
     };
+    // TASK-1585 (nit T1582) — un `null` MESURE n'est pas une absence de
+    // trace : le tour a ecrit « rien » (aucun code, aucune raison). Il se lit
+    // « (aucun) », comme dans le Doctrine Strip ; « UNAVAILABLE » reste
+    // reserve a ce que la trace ne porte pas.
+    $val = static fn ($v, ?string $l): string => $v === null && $l === 'MEASURED' ? '(aucun)' : $aff($v);
     $label = static fn (?string $l): string => match ($l) {
         'MEASURED' => 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
         'DERIVED' => 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
@@ -41,12 +46,24 @@
             <a href="{{ route('admin.ai-turns') }}" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition">← Inspector</a>
         </div>
 
+        @if (is_array(session('inspector_test')))
+            {{-- TASK-1585 — ce tour vient d'etre produit par « Tester une requete ». --}}
+            <div class="rounded-lg border {{ session('inspector_test')['refused'] ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-amber-900 dark:text-amber-200' : 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30 text-green-900 dark:text-green-200' }} px-4 py-3 text-sm" data-inspector-test-result>
+                @if (session('inspector_test')['refused'])
+                    <strong>Tour refusé par le service</strong> — {{ session('inspector_test')['message'] }}. La trace ci-dessous est celle de l'arrêt anticipé.
+                @else
+                    <strong>Tour produit par le test</strong> — non publié dans la Boucle.
+                @endif
+                <span class="font-mono text-xs ml-2">run {{ session('inspector_test')['run_id'] }}</span>
+            </div>
+        @endif
+
         {{-- Verdict --}}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4" data-inspector-decision>
             @foreach (['status' => 'Verdict', 'stage' => 'Étape terminale', 'reason_code' => 'Code', 'decided_by' => 'Décidé par', 'latency_ms' => 'Latence (ms)'] as $cle => $titre)
                 <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                     <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">{{ $titre }}</p>
-                    <p class="text-sm font-medium mt-1 font-mono break-all {{ $cle === 'status' ? $statutClasse : 'text-gray-900 dark:text-gray-100' }}">{{ $aff($decision[$cle] ?? null) }}</p>
+                    <p class="text-sm font-medium mt-1 font-mono break-all {{ $cle === 'status' ? $statutClasse : 'text-gray-900 dark:text-gray-100' }}">{{ $val($decision[$cle] ?? null, $truth['decision.'.$cle] ?? null) }}</p>
                     <span class="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded {{ $label($truth['decision.'.$cle] ?? null) }}">{{ $truth['decision.'.$cle] ?? 'UNAVAILABLE' }}</span>
                 </div>
             @endforeach
@@ -63,7 +80,7 @@
                         @foreach ($trace['identity'] as $cle => $valeur)
                             <div class="flex items-baseline gap-2">
                                 <dt class="w-40 shrink-0 text-gray-500 dark:text-gray-400">{{ $cle }}</dt>
-                                <dd class="font-mono text-gray-900 dark:text-gray-100 break-all">{{ $aff($valeur) }}</dd>
+                                <dd class="font-mono text-gray-900 dark:text-gray-100 break-all">{{ $val($valeur, $truth['identity.'.$cle] ?? null) }}</dd>
                                 <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded {{ $label($truth['identity.'.$cle] ?? null) }}">{{ $truth['identity.'.$cle] ?? 'UNAVAILABLE' }}</span>
                             </div>
                         @endforeach
@@ -78,7 +95,7 @@
                     @foreach (($trace['state'] ?? []) as $cle => $valeur)
                         <div class="flex items-baseline gap-2">
                             <dt class="w-40 shrink-0 text-gray-500 dark:text-gray-400">state.{{ $cle }}</dt>
-                            <dd class="font-mono text-gray-900 dark:text-gray-100">{{ $aff($valeur) }}</dd>
+                            <dd class="font-mono text-gray-900 dark:text-gray-100">{{ $val($valeur, $truth['state.'.$cle] ?? null) }}</dd>
                             <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded {{ $label($truth['state.'.$cle] ?? null) }}">{{ $truth['state.'.$cle] ?? 'UNAVAILABLE' }}</span>
                         </div>
                     @endforeach
