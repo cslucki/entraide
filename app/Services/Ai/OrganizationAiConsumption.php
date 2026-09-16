@@ -3,6 +3,7 @@
 namespace App\Services\Ai;
 
 use App\Services\Ai\DTO\AiConsumptionFilters;
+use App\Support\Ai\AiTurnState;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
@@ -317,7 +318,20 @@ class OrganizationAiConsumption
         $query = DB::table('ai_interactions')
             ->where('ai_interactions.organization_id', $organizationId)
             ->where('ai_interactions.created_at', '>=', $filters->from)
-            ->where('ai_interactions.created_at', '<', $filters->to);
+            ->where('ai_interactions.created_at', '<', $filters->to)
+            // TASK-1570 / CDC-01 V0-B — les lignes NON GENERATIVES (un tour
+            // refuse ou abstenu AVANT tout appel provider) ne sont pas une
+            // consommation : elles n'entrent ni dans `trace_count` — qui
+            // alimente le CREDIT utilisateur (`userCreditUses()`) — ni dans
+            // les compteurs de cout. Sans cette clause, un refus de credit
+            // CONSOMMERAIT un credit (double comptage, A7 / I8).
+            //
+            // NULL-safe a dessein : `NOT IN` seul exclurait les lignes sans
+            // `status` (historique), qui sont des generations reelles.
+            ->where(static function (Builder $query): void {
+                $query->whereNull('ai_interactions.metadata->status')
+                    ->orWhereNotIn('ai_interactions.metadata->status', AiTurnState::NON_GENERATIVE_STATUSES);
+            });
 
         if ($filters->userId !== null) {
             // Le filtre utilisateur est borne au tenant, comme le JOIN de

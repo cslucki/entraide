@@ -5,6 +5,7 @@ namespace App\Support\Ai;
 use App\Models\AiInteraction;
 use App\Models\Organization;
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -130,11 +131,23 @@ final class AiQualityReport
      * Par fonction : le total, et la part reellement EVALUABLE — celle qui est
      * posterieure a l'instrumentation de cette fonction.
      */
+    /** @param  Builder  $query */
+    private static function generativeOnly($query): void
+    {
+        $query->whereNull('metadata->status')
+            ->orWhereNotIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES);
+    }
+
     private function interactionCounts(CarbonImmutable $from, CarbonImmutable $to, ?string $organizationId): Collection
     {
+        // TASK-1570 / CDC-01 V0-B — les tours NON GENERATIFS (refus, abstention
+        // avant tout appel) ne sont pas des interactions evaluables : aucun
+        // modele n'a repondu. Ils sortent des deux compteurs, NULL-safe (les
+        // lignes historiques sans `status` sont des generations reelles).
         $rows = AiInteraction::query()
             ->when($organizationId !== null, fn ($q) => $q->where('organization_id', $organizationId))
             ->whereBetween('created_at', [$from, $to])
+            ->where(self::generativeOnly(...))
             ->selectRaw('feature, count(*) as total')
             ->groupBy('feature')
             ->pluck('total', 'feature');
@@ -150,6 +163,7 @@ final class AiQualityReport
 
             $evaluable = $evaluableFrom->greaterThanOrEqualTo($to) ? 0 : AiInteraction::query()
                 ->when($organizationId !== null, fn ($q) => $q->where('organization_id', $organizationId))
+                ->where(self::generativeOnly(...))
                 ->where('feature', $feature)
                 ->whereBetween('created_at', [$evaluableFrom, $to])
                 ->count();

@@ -4,6 +4,7 @@ namespace App\Services\Ai;
 
 use App\Models\AiInteraction;
 use App\Models\AiProviderInvocation;
+use App\Support\Ai\AiTurnState;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
@@ -84,9 +85,18 @@ final class AiProviderInvocationConsole
                 $model = (string) $row->model;
                 $slash = strpos($model, '/');
 
+                // TASK-1570 / CDC-01 V0-B — arbitrage A7 (MASTER 16/09) : un
+                // tour NON GENERATIF (refuse ou abstenu AVANT tout appel) est
+                // une activite reelle et se montre — mais JAMAIS comme une
+                // generation. Il porte son vrai statut, aucun cout provider
+                // (il n'y en a pas eu : `not_applicable`, pas un 0 qui se
+                // lirait comme une mesure), aucun token, aucune ligne ledger.
+                $status = is_string($row->metadata['status'] ?? null) ? $row->metadata['status'] : null;
+                $nonGeneratif = in_array($status, AiTurnState::NON_GENERATIVE_STATUSES, true);
+
                 return [
                     'at' => CarbonImmutable::parse((string) $row->created_at),
-                    'kind' => 'generation',
+                    'kind' => $nonGeneratif ? 'turn' : 'generation',
                     'process' => $row->process !== null ? (string) $row->process : null,
                     'feature' => $row->feature !== null ? (string) $row->feature : null,
                     'sandbox' => $row->feature === OrganizationDoctrineSandbox::FEATURE,
@@ -96,9 +106,9 @@ final class AiProviderInvocationConsole
                         : ($slash !== false ? substr($model, 0, $slash) : null),
                     'model' => $slash !== false ? substr($model, $slash + 1) : ($model !== '' ? $model : null),
                     // Tri-etat 1132 : connu (0 legitime inclus) / inconnu / jamais evalue.
-                    'cost_state' => $row->cost_unknown === null ? 'unevaluated' : ($row->cost_unknown ? 'unknown' : 'known'),
-                    'cost_usd' => $row->cost_unknown === false && $row->cost_usd !== null ? (float) $row->cost_usd : null,
-                    'status' => is_string($row->metadata['status'] ?? null) ? $row->metadata['status'] : null,
+                    'cost_state' => $nonGeneratif ? 'not_applicable' : ($row->cost_unknown === null ? 'unevaluated' : ($row->cost_unknown ? 'unknown' : 'known')),
+                    'cost_usd' => ! $nonGeneratif && $row->cost_unknown === false && $row->cost_usd !== null ? (float) $row->cost_usd : null,
+                    'status' => $status,
                     'correlation_id' => $row->correlation_id !== null ? (string) $row->correlation_id : null,
                 ];
             })
