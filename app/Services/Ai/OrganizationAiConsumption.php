@@ -321,10 +321,16 @@ class OrganizationAiConsumption
             ->where('ai_interactions.created_at', '<', $filters->to)
             // TASK-1570 / CDC-01 V0-B — les lignes NON GENERATIVES (un tour
             // refuse ou abstenu AVANT tout appel provider) ne sont pas une
-            // consommation : elles n'entrent ni dans `trace_count` — qui
-            // alimente le CREDIT utilisateur (`userCreditUses()`) — ni dans
-            // les compteurs de cout. Sans cette clause, un refus de credit
-            // CONSOMMERAIT un credit (double comptage, A7 / I8).
+            // consommation : elles sortent de `trace_count` et de
+            // `measured_count`, qui alimentent les vues de consommation admin
+            // (par utilisateur, par jour, par process) — sinon un refus se
+            // lirait comme une generation MESUREE a 0 $ (A7 / I8).
+            //
+            // FACT mesure par sabotage (T1570) : le CREDIT utilisateur, lui,
+            // n'etait PAS menace — depuis `CREDIT_LEDGER_AUTHORITY_SINCE` il se
+            // lit au ledger (`userCreditUsesFromLedger()`), que ces lignes ne
+            // touchent jamais. Cette clause ne protege donc pas le credit ; elle
+            // protege la lecture de consommation.
             //
             // NULL-safe a dessein : `NOT IN` seul exclurait les lignes sans
             // `status` (historique), qui sont des generations reelles.

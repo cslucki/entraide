@@ -15,7 +15,9 @@ use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Ai\AiProviderInvocationConsole;
 use App\Services\Ai\AiUserCreditSettings;
+use App\Services\Ai\DTO\AiConsumptionFilters;
 use App\Services\Ai\LoopKnowledgeAnswerService;
+use App\Services\Ai\OrganizationAiConsumption;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Services\LoopService;
@@ -290,15 +292,23 @@ class TASK1570EarlyStopTurnTest extends TestCase
     // ────────────────────────────── C. les lecteurs, mesures
 
     /**
-     * LE garde economique de cette TASK. Sabotage : retirer l'exclusion des
-     * statuts non generatifs de `OrganizationAiConsumption::baseQuery()` →
-     * `used` passe a 3 et ce test rougit.
+     * LE garde economique de cette TASK.
+     *
+     * Deux autorites, deux mesures : le CREDIT lit le ledger depuis le cutover
+     * (il ne bouge pas parce que le ledger reste vierge) ; la CONSOMMATION lit
+     * `ai_interactions` et doit EXCLURE la ligne non generative. Sabotage
+     * verifie : retirer l'exclusion de `OrganizationAiConsumption::baseQuery()`
+     * laisse `used` intact (FACT : le credit n'etait pas menace) mais fait
+     * compter le refus comme une generation mesuree → ce test rougit.
      */
-    public function test_c1_un_refus_ne_consomme_pas_un_credit_et_n_entre_pas_dans_le_budget(): void
+    public function test_c1_un_refus_ne_consomme_pas_un_credit_et_ne_compte_pas_comme_consommation(): void
     {
         $this->creditEpuise();
         $guard = app(AiEconomicGuard::class);
+        $consommation = app(OrganizationAiConsumption::class);
+        $fenetre = new AiConsumptionFilters(CarbonImmutable::now()->startOfMonth(), CarbonImmutable::now()->addDay());
         $avant = $guard->userCreditStatus($this->organization, $this->membre)->used;
+        $consoAvant = $consommation->summary((string) $this->organization->id, $fenetre);
 
         try {
             app(LoopKnowledgeAnswerService::class)->answer($this->loop, $this->membre, 'Que dit le document ?', null, publish: false, executionPath: AiExecutionPath::LOOP_CHAT_DOSSIERS);
@@ -308,6 +318,11 @@ class TASK1570EarlyStopTurnTest extends TestCase
         $this->tourUnique();
         $this->assertSame($avant, $guard->userCreditStatus($this->organization, $this->membre)->used, 'le refus a consomme un credit');
         $this->assertSame($this->ledgerAvant, AiProviderInvocation::query()->count(), 'ledger vierge (I3)');
+
+        $consoApres = $consommation->summary((string) $this->organization->id, $fenetre);
+        $this->assertSame($consoAvant['trace_count'], $consoApres['trace_count'], 'le refus compte comme une generation');
+        $this->assertSame($consoAvant['measured_count'], $consoApres['measured_count'], 'le refus compte comme un cout mesure');
+        $this->assertSame($consoAvant['known_cost_usd'], $consoApres['known_cost_usd']);
 
         // Un second refus non plus — et l'abstention non plus.
         try {
