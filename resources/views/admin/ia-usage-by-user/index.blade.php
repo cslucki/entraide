@@ -98,7 +98,7 @@
                             <td class="px-4 py-3 text-right font-mono text-xs text-gray-900 dark:text-gray-100">{{ $tranche($row['embedding_ingestion']) }}<div class="text-gray-500">{{ $cout($row['embedding_ingestion']['known_cost_usd']) }}</div>
                                 @if($row['embedding_undeclared']['invocation_count'] > 0)<div class="text-amber-600 dark:text-amber-400">+ {{ $tranche($row['embedding_undeclared']) }} non déclaré(s)</div>@endif
                             </td>
-                            <td class="px-4 py-3 text-right font-mono text-xs text-gray-900 dark:text-gray-100">{{ $tranche($row['rerank']) }}<div class="text-gray-500">{{ $cout($row['rerank']['known_cost_usd']) }}</div></td>
+                            <td class="px-4 py-3 text-right font-mono text-xs text-gray-900 dark:text-gray-100" data-usage-rerank="{{ $row['user_id'] ?? 'unattributed' }}">{{ $tranche($row['rerank']) }}<div class="text-gray-500">{{ $cout($row['rerank']['known_cost_usd']) }}</div></td>
                             <td class="px-4 py-3 text-right font-mono text-xs text-gray-900 dark:text-gray-100">{{ number_format($row['total_count'] + $row['rerank']['invocation_count']) }}</td>
                             <td class="px-4 py-3 text-right font-mono text-xs">
                                 @if($row['total_known_cost_usd'] !== null)
