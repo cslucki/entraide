@@ -88,10 +88,10 @@ class TASK1586IaUsageByUserAlignmentTest extends TestCase
         $page->assertSee('data-usage-row="'.$this->maya->id.'" data-usage-org="'.$this->orgA->id.'" data-usage-known-cost="'.$autorite['total_known_cost_usd'].'" data-usage-unknown="2"', false);
         $page->assertSee('$0.500002');
         $page->assertSee('2 non mesuré(s)');
-        // Rerank VISIBLE a part : 1 reussi (inconnu) + 1 echec, dans sa colonne ; les
+        // Rerank VISIBLE a part : 2 invocations = 1 reussie (inconnue) + 1 echec, dans sa colonne ; les
         // echecs ne se deguisent pas en inconnus.
         $page->assertSee('data-usage-rerank="'.$this->maya->id.'"', false);
-        $page->assertSeeInOrder(['data-usage-rerank="'.$this->maya->id.'"', '1 · 1 inconnu(s) · 1 échec(s)'], false);
+        $page->assertSeeInOrder(['data-usage-rerank="'.$this->maya->id.'"', '2 · 1 inconnu(s) · 1 échec(s)'], false);
         $page->assertSee('Rerank');
         // L'ingestion (user NULL) est comptee, en « Non attribuable », jamais repartie.
         $page->assertSee('data-usage-row="unattributed" data-usage-org="'.$this->orgA->id.'"', false);
