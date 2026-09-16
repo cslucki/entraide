@@ -128,11 +128,14 @@ class TASK1569ExplainPersistedTurnTest extends TestCase
         $invocations = AiProviderInvocation::query()->count();
         $messages = LoopMessage::query()->count();
 
-        // Un agent sans AUCUNE reponse preparee : le moindre prompt leverait
-        // et la commande echouerait. Son succes est donc la preuve qu'aucun
-        // provider n'a ete sollicite (le fil `Http::preventStrayRequests` garde
-        // le reste du reseau).
-        LoopKnowledgeAgent::fake([]);
+        // Un agent qui LEVE au moindre prompt : la commande echouerait. Son
+        // succes est donc la preuve qu'aucun provider n'a ete sollicite
+        // (`Http::preventStrayRequests` garde le reste du reseau). Sabotage
+        // verifie : `fake([])` ne suffisait PAS — un fake sans reponse ne leve
+        // pas, et un explain qui rejouait passait vert.
+        LoopKnowledgeAgent::fake(function (): never {
+            throw new \RuntimeException('EXPLAIN a sollicite un provider');
+        });
 
         $this->artisan('ai:inspect-turn', ['--organization' => $this->organization->slug, '--interaction' => (string) $interaction->id])
             ->assertSuccessful();
