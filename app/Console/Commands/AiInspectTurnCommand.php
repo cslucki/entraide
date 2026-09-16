@@ -7,11 +7,13 @@ use App\Models\AiInteraction;
 use App\Models\Dossier;
 use App\Models\DossierFile;
 use App\Models\Loop;
+use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
 use App\Support\Ai\AiExecutionPath;
 use App\Support\Ai\AiTurnInspection;
+use App\Support\Ai\AiTurnTrace;
 use Illuminate\Console\Command;
 
 /**
@@ -62,9 +64,12 @@ class AiInspectTurnCommand extends Command
         {--loop= : UUID de la Boucle}
         {--mode=dossiers : dossiers | ia_dossiers}
         {--question= : La question posee}
+        {--interaction= : EXPLAIN — uuid d\'une ligne ai_interactions deja persistee (aucune execution)}
+        {--turn= : EXPLAIN — turn_id canonique (turn.id, repli metadata.turn_id pour les anciens tours)}
+        {--message= : EXPLAIN — uuid d\'un loop_message, remonte a son ai_interaction_id}
         {--json : Sortie JSON machine-readable}';
 
-    protected $description = 'Execute et observe le vrai chemin BouclePro derriere une question, sans publier dans le fil.';
+    protected $description = 'Execute et observe le vrai chemin BouclePro derriere une question (EXECUTE), ou lit un tour deja persiste sans le rejouer (EXPLAIN : --interaction, --turn, --message).';
 
     /** Les surfaces et modes REELLEMENT reproductibles en v0. */
     private const SURFACES = ['loop'];
@@ -75,6 +80,13 @@ class AiInspectTurnCommand extends Command
         LoopKnowledgeAnswerService $knowledge,
         DossierAccessScope $scope,
     ): int {
+        // TASK-1569 / CDC-01 V0-H0 — mode EXPLAIN : une cle de lookup suffit,
+        // et elle exclut toute execution. Le tenant reste OBLIGATOIRE : une
+        // ligne d'une autre Organization est « introuvable », jamais rendue.
+        if ($this->option('interaction') !== null || $this->option('turn') !== null || $this->option('message') !== null) {
+            return $this->expliquer();
+        }
+
         $surface = (string) $this->option('surface');
         $mode = (string) $this->option('mode');
         $question = trim((string) $this->option('question'));
@@ -167,6 +179,174 @@ class AiInspectTurnCommand extends Command
                 interaction: $interaction,
             ));
         });
+    }
+
+    /**
+     * TASK-1569 / CDC-01 V0-H0 — EXPLAIN : lire un tour persiste, sans le
+     * rejouer.
+     *
+     * READ ONLY absolu : aucun provider, aucun moteur, aucune ecriture, aucune
+     * liaison de tenant dans le conteneur (rien ici n'appelle une policy). Le
+     * perimetre de lecture est la clause `organization_id` de chaque requete —
+     * la MEME garde que `AiInteraction` porte partout ailleurs (I10).
+     *
+     * Trois cles, une seule ligne rendue :
+     *   --interaction  ai_interactions.id
+     *   --turn         turn.id canonique (V0-A) ; repli metadata.turn_id,
+     *                  la cle historique du seul chemin RAG avant V0-A (C19)
+     *   --message      loop_messages.id -> metadata.ai_interaction_id (FACT :
+     *                  la bulle IA porte cet id depuis TASK-1233)
+     *
+     * Une cle qui ne resout rien dans CE tenant est refusee, sans dire si la
+     * ligne existe ailleurs.
+     */
+    private function expliquer(): int
+    {
+        $cles = array_filter([
+            'interaction' => $this->option('interaction'),
+            'turn' => $this->option('turn'),
+            'message' => $this->option('message'),
+        ], static fn ($v): bool => $v !== null && trim((string) $v) !== '');
+
+        if (count($cles) !== 1) {
+            return $this->refuser('EXPLAIN : exactement UNE cle parmi --interaction, --turn, --message.');
+        }
+
+        if ($this->option('question') !== null || $this->option('loop') !== null) {
+            return $this->refuser('EXPLAIN ne prend ni --question ni --loop : il lit un tour, il n\'en joue pas.');
+        }
+
+        $organization = $this->resoudreOrganization();
+
+        if ($organization === null) {
+            return $this->refuser('Organization introuvable.');
+        }
+
+        $interaction = $this->interactionPersistee($organization, array_key_first($cles), trim((string) reset($cles)));
+
+        if ($interaction === null) {
+            return $this->refuser('Aucun tour persiste ne correspond a cette cle dans cette Organization.');
+        }
+
+        return $this->rendreExplain(AiTurnInspection::fromPersistedTurn($interaction));
+    }
+
+    private function interactionPersistee(Organization $organization, string $cle, string $valeur): ?AiInteraction
+    {
+        $tenant = AiInteraction::query()->where('organization_id', (string) $organization->id);
+
+        return match ($cle) {
+            'interaction' => $tenant->whereKey($valeur)->first(),
+            // C19 : le bloc canonique d'abord ; la cle historique seulement si
+            // rien ne repond — jamais l'inverse, jamais les deux melangees.
+            'turn' => $tenant->clone()->where('metadata->'.AiTurnTrace::TURN_METADATA_KEY.'->id', $valeur)->first()
+                ?? $tenant->clone()->where('metadata->turn_id', $valeur)->first(),
+            'message' => $this->interactionDuMessage($organization, $valeur),
+            default => null,
+        };
+    }
+
+    private function interactionDuMessage(Organization $organization, string $messageId): ?AiInteraction
+    {
+        $message = LoopMessage::query()
+            ->whereKey($messageId)
+            ->where('organization_id', (string) $organization->id)
+            ->first();
+
+        $interactionId = is_array($message?->metadata) ? ($message->metadata['ai_interaction_id'] ?? null) : null;
+
+        if (! is_string($interactionId) || $interactionId === '') {
+            return null;
+        }
+
+        return AiInteraction::query()
+            ->where('organization_id', (string) $organization->id)
+            ->whereKey($interactionId)
+            ->first();
+    }
+
+    /** @param  array<string, mixed>  $trace */
+    private function rendreExplain(array $trace): int
+    {
+        if ($this->option('json')) {
+            $this->line((string) json_encode($trace, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+            return self::SUCCESS;
+        }
+
+        $this->line('');
+        $this->info('── RUN (explain — tour persiste, rien n\'est rejoue)');
+        foreach ($trace['run'] as $cle => $valeur) {
+            $this->line(sprintf('  %-20s %s', $cle, $this->afficher($valeur)));
+        }
+
+        $this->info('── IDENTITY');
+        if ($trace['identity'] === null) {
+            $this->line('  null  (ce tour n\'a pas depose son identite : anterieur a V0-A, ou collecte coupee)');
+        } else {
+            foreach ($trace['identity'] as $cle => $valeur) {
+                $this->line(sprintf('  %-20s %s', $cle, $this->afficher(is_scalar($valeur) || $valeur === null ? $valeur : json_encode($valeur))));
+            }
+        }
+
+        $this->info('── DECISION');
+        foreach ($trace['decision'] as $cle => $valeur) {
+            $this->line(sprintf('  %-20s %s', $cle, $this->afficher($valeur)));
+        }
+
+        $this->info('── STEPS');
+        if ($trace['steps'] === null) {
+            $this->line('  null');
+        } else {
+            foreach ($trace['steps'] as $etape) {
+                $this->line(sprintf('  %-22s %-15s %-34s %s',
+                    $this->afficher($etape['name'] ?? null),
+                    $this->afficher($etape['status'] ?? null),
+                    $this->afficher($etape['reason_code'] ?? null),
+                    isset($etape['metrics']) ? json_encode($etape['metrics']) : ''));
+            }
+        }
+
+        $this->info('── HISTORY');
+        if ($trace['history'] === null) {
+            $this->line('  null');
+        } else {
+            foreach ($trace['history'] as $cle => $valeur) {
+                $this->line(sprintf('  %-20s %s', $cle, $this->afficher(is_array($valeur) ? json_encode($valeur) : $valeur)));
+            }
+        }
+
+        $this->info('── RETRIEVAL TRACE');
+        $rt = $trace['retrieval_trace'];
+        if ($rt === null) {
+            $this->line('  null');
+        } else {
+            foreach (['dense_candidates_count', 'after_distance_filter_count', 'max_distance', 'rerank_attempted', 'reason_not_attempted', 'final_context_count'] as $cle) {
+                $this->line(sprintf('  %-28s %s', $cle, $this->afficher($rt[$cle])));
+            }
+        }
+
+        $this->info('── STATE');
+        foreach ($trace['state'] as $cle => $valeur) {
+            $this->line(sprintf('  %-20s %s', $cle, $this->afficher($valeur)));
+        }
+
+        $this->info('── OUTPUT');
+        foreach (['failure', 'grounded'] as $cle) {
+            $this->line(sprintf('  %-20s %s', $cle, $this->afficher($trace['output'][$cle])));
+        }
+        $this->line(sprintf('  %-20s %s', 'consulted_chunk_ids', $trace['output']['consulted_chunk_ids'] === null ? 'null' : count($trace['output']['consulted_chunk_ids'])));
+        $this->line(sprintf('  %-20s %s', 'cited_chunk_ids', $trace['output']['cited_chunk_ids'] === null ? 'null' : count($trace['output']['cited_chunk_ids'])));
+        $this->line('');
+        $this->line($this->afficher($trace['output']['response']));
+
+        $this->info('── PROVIDER');
+        foreach (['provider', 'model', 'generation_sdk_invocation_id', 'latency_ms', 'cost_usd', 'input_tokens', 'output_tokens'] as $cle) {
+            $this->line(sprintf('  %-30s %s', $cle, $this->afficher($trace['provider'][$cle])));
+        }
+        $this->line('');
+
+        return self::SUCCESS;
     }
 
     /**

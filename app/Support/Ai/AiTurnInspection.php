@@ -85,6 +85,158 @@ final class AiTurnInspection
         ];
     }
 
+    /**
+     * TASK-1569 / CDC-01 V0-H0 — lire un tour DEJA persiste, sans le rejouer.
+     *
+     * Mode EXPLAIN (CDC-01 §9.1). Aucun `KnowledgeAnswer` vivant : tout vient
+     * de la ligne `ai_interactions` et de sa metadata, telle que le moteur l'a
+     * ecrite pendant le tour. Rien n'est recalcule, rien n'est infere depuis
+     * `execution_path` ou depuis un autre champ ; un champ que le tour n'a pas
+     * ecrit est `null` — `UNAVAILABLE` chez le lecteur —, jamais une valeur
+     * voisine, jamais un `0`, jamais un `[]`.
+     *
+     * ## Les sections, et pourquoi elles sont fixes
+     *
+     * Le JSON est un CONTRAT machine (tests, diagnostic par agent) : les memes
+     * cles quel que soit l'age du tour. Un tour anterieur a V0-A rend un bloc
+     * `turn` a `null` et des sections vides de valeurs, pas des sections
+     * manquantes.
+     *
+     * ## C19 — l'identite canonique
+     *
+     * `turn.id` (bloc V0-A) est l'identite du tour. `metadata.turn_id`, au
+     * premier niveau, est la cle HISTORIQUE que seul le chemin RAG ecrivait
+     * avant V0-A : elle ne sert de repli QUE pour ces anciens tours, et la
+     * source retenue est rendue (`turn_id_source`) pour qu'un lecteur ne prenne
+     * jamais un repli pour une mesure canonique.
+     *
+     * ## Ce que ce mode ne rend PAS
+     *
+     * Les sections qui exigent la reponse VIVANTE (`retrieval.entries`,
+     * `selection`, `llm_input`) : elles ne sont pas persistees, et les
+     * reconstruire depuis `retrieval.consulted` ou `sources_used` decrirait une
+     * autre chose que ce que le modele a recu. Elles sont `null`, avec ce
+     * docblock pour seule explication — pas un `[]` qui se lirait « rien
+     * envoye ».
+     *
+     * @return array<string, mixed>
+     */
+    public static function fromPersistedTurn(AiInteraction $interaction): array
+    {
+        $metadata = is_array($interaction->metadata) ? $interaction->metadata : [];
+        $turn = $metadata[AiTurnTrace::TURN_METADATA_KEY] ?? null;
+        $turn = is_array($turn) ? $turn : null;
+
+        return [
+            'mode' => 'explain',
+            'run' => self::persistedRun($metadata, $turn, $interaction),
+            // `identity` du bloc `turn` : surface, mode, execution_path,
+            // capability, provider_*, fallback_* — ce que le moteur a DEPOSE.
+            'identity' => is_array($turn['identity'] ?? null) && $turn['identity'] !== [] ? $turn['identity'] : null,
+            'decision' => self::decision($turn),
+            'steps' => is_array($turn['steps'] ?? null) && $turn['steps'] !== [] ? array_values($turn['steps']) : null,
+            'history' => self::history($metadata),
+            'sources' => is_array($turn['sources'] ?? null) && $turn['sources'] !== [] ? $turn['sources'] : null,
+            'retrieval_trace' => self::retrievalTrace($metadata),
+            'state' => self::persistedState($metadata, $turn),
+            'output' => self::persistedOutput($metadata, $interaction),
+            'provider' => self::provider($metadata, $interaction),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     * @param  array<string, mixed>|null  $turn
+     * @return array<string, mixed>
+     */
+    private static function persistedRun(array $metadata, ?array $turn, AiInteraction $interaction): array
+    {
+        $canonique = self::stringOrNull($turn['id'] ?? null);
+        $historique = self::stringOrNull($metadata['turn_id'] ?? null);
+
+        return [
+            'turn_id' => $canonique ?? $historique,
+            'turn_id_source' => $canonique !== null ? 'turn.id' : ($historique !== null ? 'metadata.turn_id' : null),
+            'turn_schema' => self::intOrNull($turn['schema'] ?? null),
+            'correlation_id' => self::stringOrNull($interaction->correlation_id),
+            'ai_interaction_id' => self::stringOrNull($interaction->id),
+            'organization_id' => self::stringOrNull($interaction->organization_id),
+            'capability' => self::stringOrNull($metadata['capability'] ?? null),
+            'process' => self::stringOrNull($interaction->process),
+            'feature' => self::stringOrNull($interaction->feature),
+            'status' => self::stringOrNull($metadata['status'] ?? null),
+            'created_at' => $interaction->created_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Le VERDICT du tour, tel que le writer l'a ecrit (CDC-01 §5.2). Chaque cle
+     * est presente, `null` quand le writer ne l'a pas fournie — les writers non
+     * pilotes n'en ecrivent aucune avant V0-B / V0-C, et c'est exactement ce
+     * que cette section doit montrer.
+     *
+     * @param  array<string, mixed>|null  $turn
+     * @return array<string, mixed>
+     */
+    private static function decision(?array $turn): array
+    {
+        return [
+            'status' => self::stringOrNull($turn['status'] ?? null),
+            'stage' => self::stringOrNull($turn['stage'] ?? null),
+            'reason_code' => self::stringOrNull($turn['reason_code'] ?? null),
+            'decided_by' => self::stringOrNull($turn['decided_by'] ?? null),
+            'latency_ms' => self::intOrNull($turn['latency_ms'] ?? null),
+        ];
+    }
+
+    /**
+     * Les trois axes, lus du bloc `turn` quand il existe (V0-A,
+     * `fromTurnBlock` : aucune derivation), de l'ancien format sinon
+     * (`fromTurnMetadata`, qui derive l'axe 2 de `grounded` — c'est le repli
+     * documente pour les tours anterieurs, et la source est dite).
+     *
+     * @param  array<string, mixed>  $metadata
+     * @param  array<string, mixed>|null  $turn
+     * @return array<string, mixed>
+     */
+    private static function persistedState(array $metadata, ?array $turn): array
+    {
+        $etat = $turn !== null
+            ? AiTurnState::fromTurnBlock($turn)
+            : AiTurnState::fromTurnMetadata(['status' => $metadata['status'] ?? null, 'grounded' => $metadata['grounded'] ?? null], $metadata);
+
+        return [
+            'source' => $turn !== null ? 'turn' : 'legacy_metadata',
+            'turn_status' => $etat->turnStatus,
+            'verification_status' => $etat->verificationStatus,
+            'degraded_reason' => $etat->degradedReason,
+            'rule' => $etat->rule(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     * @return array<string, mixed>
+     */
+    private static function persistedOutput(array $metadata, AiInteraction $interaction): array
+    {
+        $retrieval = is_array($metadata['retrieval'] ?? null) ? $metadata['retrieval'] : null;
+
+        return [
+            'response' => self::stringOrNull($interaction->response),
+            'failure' => self::stringOrNull($metadata['failure'] ?? null),
+            // `grounded` n'est ecrit que par les producteurs documentaires qui
+            // citent ; absent ailleurs, et l'absence est une information.
+            'grounded' => self::boolOrNull($metadata['grounded'] ?? null),
+            // `retrieval.{consulted,cited}` : les ids que le chemin documentaire
+            // ecrit deja (compat lecteurs, CDC-01 P0.6). Des identifiants, pas
+            // les extraits — ceux-la ne sont pas persistes et ne sont pas
+            // reconstruits.
+            'consulted_chunk_ids' => is_array($retrieval['consulted'] ?? null) ? array_values($retrieval['consulted']) : null,
+            'cited_chunk_ids' => is_array($retrieval['cited'] ?? null) ? array_values($retrieval['cited']) : null,
+        ];
+    }
+
     /** @param  array<string, mixed>  $metadata */
     private static function run(array $metadata, ?AiInteraction $interaction): array
     {
