@@ -107,7 +107,9 @@ class TASK1576ShellTurnTest extends TestCase
         $this->assertSame(0, AiInteraction::query()->count(), 'zero-provider : aucune interaction');
         $this->assertSame(1, $turn['schema']);
         $this->assertNotSame('', (string) $turn['id']);
-        $this->assertSame([
+        // `ai_shell_messages.metadata` est jsonb (CDC-01 C5) : PostgreSQL ne
+        // conserve pas l'ordre des cles. On compare le CONTENU, pas l'ordre.
+        $this->assertEqualsCanonicalizing([
             'surface' => 'ai_shell',
             'mode' => 'zero_provider',
             'execution_path' => AiExecutionPath::AI_SHELL_SELF_KNOWLEDGE,
@@ -189,7 +191,7 @@ class TASK1576ShellTurnTest extends TestCase
         $reponse = $this->envoyer('Que puis-je faire ici ?');
 
         $this->assertSame('shell.general_answer', $reponse->metadata['producer']);
-        $this->assertSame(
+        $this->assertEqualsCanonicalizing(
             ['branch' => 'self_knowledge', 'status' => 'failed', 'reason_code' => AiTurnReason::FALLTHROUGH_ENGINE_EXCEPTION],
             $reponse->metadata['fallthroughs'][0],
         );
@@ -297,7 +299,7 @@ class TASK1576ShellTurnTest extends TestCase
         // Une ligne de CE tenant dont le lien pointe ailleurs (donnee
         // corrompue ou forgee) : la ligne se lit seule, l'interaction jamais.
         $ligne = AiShellMessage::create([
-            'organization_id' => $this->organization->id, 'user_id' => $this->membre->id, 'conversation_id' => 'c-1576',
+            'organization_id' => $this->organization->id, 'user_id' => $this->membre->id, 'conversation_id' => (string) Str::uuid(),
             'role' => AiShellMessage::ROLE_ASSISTANT, 'content' => 'Reponse.',
             'metadata' => ['status' => AiShellResponder::STATUS_NON_INTERACTION, 'producer' => 'shell.general_answer', 'ai_interaction_id' => (string) $interactionEtrangere->id, 'fallthroughs' => []],
         ]);
