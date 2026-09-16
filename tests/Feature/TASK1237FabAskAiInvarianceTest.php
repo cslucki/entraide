@@ -13,9 +13,9 @@ use App\Services\LoopService;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiFabContext;
 use App\Support\Ai\AiRefusedException;
+use App\Support\Ai\AiTurnState;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 use Tests\Support\Ai\RecordsAiConsumption;
 use Tests\TestCase;
 
@@ -31,7 +31,6 @@ use Tests\TestCase;
 class TASK1237FabAskAiInvarianceTest extends TestCase
 {
     use RecordsAiConsumption;
-
     use RefreshDatabase;
 
     private Organization $organization;
@@ -142,7 +141,11 @@ class TASK1237FabAskAiInvarianceTest extends TestCase
             ->assertSessionHas('ai_refusal_code', AiRefusedException::CODE_USER_CREDIT_EXHAUSTED)
             ->assertSessionHas('ai_offers_url');
 
-        $this->assertSame($before, $this->counters($this->member), 'zero ledger, zero interaction : le refus precede tout appel');
+        $this->assertSame($before, $this->counters($this->member), 'zero ledger, zero generation : le refus precede tout appel');
+        // TASK-1570 / V0-B : le refus laisse un tour NON GENERATIF, et lui seul.
+        $refus = AiInteraction::query()->where('user_id', $this->member->id)->latest('id')->firstOrFail();
+        $this->assertSame(AiTurnState::TURN_REFUSED, $refus->metadata['turn']['status']);
+        $this->assertNull($refus->response);
 
         // Le FAB, lui, remplace toutes les actions (dont loop_ask) par le
         // refus au plafond — meme regle deja en vigueur depuis TASK-1231 pour
@@ -210,7 +213,10 @@ class TASK1237FabAskAiInvarianceTest extends TestCase
     private function counters(User $user): array
     {
         return [
-            'interactions' => AiInteraction::query()->where('user_id', $user->id)->count(),
+            // TASK-1570 / V0-B : les tours NON GENERATIFS (refus avant tout
+            // appel) sont comptes a part — ils n'ont rien coute.
+            'generations' => AiInteraction::query()->where('user_id', $user->id)
+                ->whereNot(static fn ($q) => $q->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES))->count(),
             'ledger' => AiProviderInvocation::query()->where('user_id', $user->id)->count(),
             'credit_used' => app(AiEconomicGuard::class)->userCreditStatus($this->organization, $user)->used,
         ];

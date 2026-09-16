@@ -21,6 +21,7 @@ use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\Dossiers\DossierArticleIndexer;
 use App\Services\LoopService;
 use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiTurnState;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -313,6 +314,7 @@ class TASK1221NervousSystemConvergenceTest extends TestCase
 
         $ledgerABefore = AiProviderInvocation::query()->where('organization_id', $this->organization->id)->count();
         $idsBefore = AiProviderInvocation::query()->pluck('id')->all();
+        $interactionsAvantA = AiInteraction::query()->where('organization_id', $this->organization->id)->pluck('id')->all();
 
         $answer = app(LoopKnowledgeAnswerService::class)
             ->answer($loopB, $memberB, 'Que contient la valise itinerante ?');
@@ -338,7 +340,12 @@ class TASK1221NervousSystemConvergenceTest extends TestCase
             $this->assertSame(AiProviderInvocation::EMBEDDING_OPERATION_QUERY, $row->embedding_operation);
             $this->assertSame(AiProviderInvocation::CREDENTIAL_ORGANIZATION, $row->credential_source);
         }
-        $this->assertSame(0, AiInteraction::query()->where('organization_id', $orgB->id)->count());
+        // TASK-1570 / V0-B : aucune GENERATION pour B ; le tour non generatif
+        // que son abstention laisse est le sien, et reste dans SON tenant.
+        $this->assertSame(0, AiInteraction::query()->where('organization_id', $orgB->id)
+            ->whereNot(static fn ($q) => $q->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES))->count());
+        $this->assertSame(0, AiInteraction::query()->where('organization_id', $this->organization->id)
+            ->whereNotIn('id', $interactionsAvantA)->count(), 'rien n\'a fui dans le tenant A');
 
         app()->instance('current_organization', $this->organization);
     }
