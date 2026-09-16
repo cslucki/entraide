@@ -49,6 +49,13 @@ class DerivedKnowledgeStaysBehindItsAuthorityTest extends TestCase
         // Le modele qui porte la colonne.
         'app/Models/DossierChunk.php',
         'app/Models/DerivedKnowledgeNote.php',
+        // TASK-1580 (Inspector V0, decision en revue) : la PROJECTION d'un tour
+        // persiste lit la colonne pour CLASSER (`source_type =
+        // derived_knowledge`) les chunks que CE tour a deja consultes — ids
+        // MESURES par le writer, eligibilite deja evaluee au moment du tour
+        // pour ce membre. Elle ne liste pas, ne cherche pas, n'elargit rien,
+        // et ne rend PAS l'id de la note. Un lecteur admin, tenant-bound.
+        'app/Support/Ai/AiTurnProjection.php',
     ];
 
     public function test_aucun_service_ne_court_circuite_l_autorite_d_eligibilite(): void

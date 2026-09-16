@@ -16,6 +16,7 @@ use App\Services\ChatLoop\ChatLoopAiService;
 use App\Support\Ai\AiExecutionPath;
 use App\Support\Ai\AiTruthLabel;
 use App\Support\Ai\AiTurnInspection;
+use App\Support\Ai\AiTurnProjection;
 use App\Support\Ai\AiTurnTrace;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
@@ -133,7 +134,13 @@ class AiInspectTurnCommand extends Command
             return $this->refuser('Utilisateur introuvable dans cette Organization.');
         }
 
-        $loop = Loop::query()->find((string) $this->option('loop'));
+        $loopId = trim((string) $this->option('loop'));
+
+        if (! Str::isUuid($loopId)) {
+            return $this->refuser('--loop doit etre un uuid.');
+        }
+
+        $loop = Loop::query()->find($loopId);
 
         // Le tenant est revalide ICI en plus du service : un identifiant passe
         // en ligne de commande n'est pas une autorisation, exactement comme un
@@ -251,7 +258,7 @@ class AiInspectTurnCommand extends Command
             // Le tour vient d'etre ecrit : il se LIT comme n'importe quel tour
             // persiste — meme lecteur, memes labels. Aucune section « vivante »
             // n'est fabriquee pour ce chemin (il n'a pas de KnowledgeAnswer).
-            return $this->rendreExplain(AiTurnInspection::fromPersistedTurn($interaction->refresh()));
+            return $this->rendreExplain($this->projeter(AiTurnInspection::fromPersistedTurn($interaction->refresh()), $interaction));
         });
     }
 
@@ -317,7 +324,23 @@ class AiInspectTurnCommand extends Command
             return $this->refuser('Aucun tour persiste ne correspond a cette cle dans cette Organization.');
         }
 
-        return $this->rendreExplain(AiTurnInspection::fromPersistedTurn($interaction));
+        return $this->rendreExplain($this->projeter(AiTurnInspection::fromPersistedTurn($interaction), $interaction));
+    }
+
+    /**
+     * TASK-1580 — la projection (question, sources vues, nature des chunks)
+     * s'AJOUTE a l'inspection ; elle vient d'un sibling qui requete, jamais
+     * de l'inspection elle-meme (query-free). Section `projection`, `null`
+     * quand le tour n'a pas d'interaction (ligne Shell zero-provider).
+     *
+     * @param  array<string, mixed>  $trace
+     * @return array<string, mixed>
+     */
+    private function projeter(array $trace, ?AiInteraction $interaction): array
+    {
+        $trace['projection'] = $interaction instanceof AiInteraction ? AiTurnProjection::project($interaction) : null;
+
+        return $trace;
     }
 
     /**
@@ -347,8 +370,8 @@ class AiInspectTurnCommand extends Command
             : null;
 
         return $this->rendreExplain($interaction instanceof AiInteraction
-            ? AiTurnInspection::fromPersistedTurn($interaction, $message)
-            : AiTurnInspection::fromPersistedTurn($message));
+            ? $this->projeter(AiTurnInspection::fromPersistedTurn($interaction, $message), $interaction)
+            : $this->projeter(AiTurnInspection::fromPersistedTurn($message), null));
     }
 
     private function interactionPersistee(Organization $organization, string $cle, string $valeur): ?AiInteraction
@@ -465,6 +488,23 @@ class AiInspectTurnCommand extends Command
             $this->line(sprintf('  %-30s %s', $cle, $this->afficher($trace['provider'][$cle])));
         }
 
+        $this->info('── PROJECTION');
+        $p = $trace['projection'] ?? null;
+        if ($p === null) {
+            $this->line('  null  (aucune interaction a projeter)');
+        } else {
+            $this->line(sprintf('  %-20s %s', 'loop_message_id', $this->afficher($p['loop_message_id'])));
+            $this->line(sprintf('  %-20s %s', 'question', $this->afficher($p['question'])));
+            $this->line(sprintf('  %-20s %s', 'sources', $p['sources'] === null ? 'null' : count($p['sources']).' (refs : '.implode(', ', array_filter(array_column($p['sources'], 'ref'))).')'));
+            $this->line(sprintf('  %-20s %s', 'consulted_not_cited', $p['consulted_not_cited'] === null ? 'null' : count($p['consulted_not_cited'])));
+            foreach ($p['chunks'] as $chunk) {
+                $this->line(sprintf('    %-38s %-6s %-18s %s', $chunk['chunk_id'], $chunk['cited'] ? 'cited' : '', $this->afficher($chunk['source_type']), $chunk['unavailable_reason'] ?? ''));
+            }
+            foreach ($p['unavailable_reasons'] as $cle => $raison) {
+                $this->line(sprintf('  %-20s UNAVAILABLE (%s)', $cle, $raison));
+            }
+        }
+
         $this->info('── SHELL');
         if ($trace['shell'] === null) {
             $this->line('  null  (tour hors Shell)');
@@ -557,8 +597,10 @@ class AiInspectTurnCommand extends Command
             return null;
         }
 
+        // TASK-1580 : un slug qui n'est pas un uuid ne se cherche pas par
+        // cle primaire — PostgreSQL leverait sur le cast (22P02).
         return Organization::query()->where('slug', $cle)->first()
-            ?? Organization::query()->find($cle);
+            ?? (Str::isUuid($cle) ? Organization::query()->find($cle) : null);
     }
 
     private function resoudreUser(Organization $organization): ?User
@@ -569,7 +611,8 @@ class AiInspectTurnCommand extends Command
             return null;
         }
 
-        $user = User::query()->where('email', $cle)->first() ?? User::query()->find($cle);
+        $user = User::query()->where('email', $cle)->first()
+            ?? (Str::isUuid($cle) ? User::query()->find($cle) : null);
 
         // Un utilisateur d'une autre Organization n'est pas « introuvable par
         // hasard » : il est hors tenant, et le dire ici evite de decouvrir le

@@ -48,7 +48,8 @@ class TASK1569ExplainPersistedTurnTest extends TestCase
     use RefreshDatabase;
 
     // TASK-1575 / V0-H : `truth` (labels de verite du lecteur) s'ajoute aux 11 sections de H0.
-    private const SECTIONS = ['mode', 'run', 'identity', 'decision', 'steps', 'history', 'sources', 'retrieval_trace', 'state', 'output', 'provider', 'shell', 'truth'];
+    private const SECTIONS = ['mode', 'run', 'identity', 'decision', 'steps', 'history', 'sources', 'retrieval_trace', 'state', 'output', 'provider', 'shell', 'truth', 'projection'];
+    // TASK-1580 : `projection` (question, sources vues, nature des chunks — sibling qui requete) ferme le contrat.
     // TASK-1576 / V0-I : `shell` (ligne assistant d'origine, declins) — `null` hors Shell.
 
     private Organization $organization;
