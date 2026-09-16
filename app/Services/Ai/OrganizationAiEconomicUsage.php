@@ -125,8 +125,8 @@ final class OrganizationAiEconomicUsage
         // le plafond du guard, elle doit donc apparaitre ici — dans son seau
         // « non declaree », jamais nulle part.
         $undeclared = $this->embeddingSlice($organizationId, $from, $to, null, $userId);
-        // TASK-1562 : le rerank documentaire. Additif — il n'entre dans aucun
-        // des totaux calcules plus bas.
+        // TASK-1562 : le rerank documentaire. Visible a part ; TASK-1586 : ses
+        // inconnus comptent dans `total_unknown_count`, jamais dans le cout connu.
         $rerank = $this->rerankSlice($organizationId, $from, $to, $userId);
 
         $knownParts = array_filter(
@@ -153,9 +153,9 @@ final class OrganizationAiEconomicUsage
             'embedding_ingestion' => $ingestion,
             'embedding_query' => $query,
             'embedding_undeclared' => $undeclared,
-            // TASK-1562 : rendu VISIBLE, jamais additionne. Son cout est
-            // inconnu par nature (le SDK ne rend aucun usage sur un rerank) :
-            // l'ajouter aux totaux connus le ferait passer pour gratuit.
+            // TASK-1562 : rendu VISIBLE. Son cout est inconnu par nature (le SDK
+            // ne rend aucun usage sur un rerank) : il n'entre JAMAIS dans le
+            // cout connu — l'y ajouter le ferait passer pour gratuit.
             'rerank' => $rerank,
             // NULL tant qu'aucune mesure reelle n'existe : la somme d'un vide
             // n'est pas un zero.
@@ -163,10 +163,15 @@ final class OrganizationAiEconomicUsage
             // Seuls les appels REUSSIS au cout non mesurable : les echecs ont
             // leur compteur dedie par tranche, ils ne se deguisent pas en
             // « inconnu » economique.
+            // TASK-1586 (arbitrage MASTER 16/09) : les reranks inconnus COMPTENT
+            // ici — un montant inconnu ne devient jamais $0, et un « rien
+            // d'inconnu » ne doit pas se lire quand du rerank a ete facture.
+            // La tranche `rerank` reste visible a part.
             'total_unknown_count' => $generation['unknown_count']
                 + $ingestion['unknown_count']
                 + $query['unknown_count']
-                + $undeclared['unknown_count'],
+                + $undeclared['unknown_count']
+                + $rerank['unknown_count'],
             // Les traces generation d'avant P1-2, jamais evaluees : rendues au
             // total pour qu'un « rien d'inconnu » ne se lise pas comme « tout
             // est mesure ».
@@ -856,30 +861,32 @@ final class OrganizationAiEconomicUsage
             'embedding_ingestion' => $embedding,
             'embedding_query' => $embedding,
             'embedding_undeclared' => $embedding,
-            // TASK-1562 : additive. Presente dans la ligne, absente des totaux.
+            // TASK-1562 : visible a part ; TASK-1586 : ses inconnus comptent
+            // dans `total_unknown_count`, jamais dans le cout connu.
             'rerank' => $embedding,
             'ai_users_count' => 0,
         ];
     }
 
     /**
-     * TASK-1562 — POURQUOI `rerank` N'EST PAS DANS CES TOTAUX.
+     * TASK-1562 — ou `rerank` entre dans ces totaux, et ou il n'entre pas.
      *
-     * Ce n'est pas un oubli, et cette methode enumere ses tranches une par une
-     * precisement pour qu'aucune addition ne se fasse par inadvertance.
+     * Cette methode enumere ses tranches une par une precisement pour
+     * qu'aucune addition ne se fasse par inadvertance.
      *
-     * `total_known_cost_usd` : le cout d'un rerank est `provider_cost = NULL`,
-     * `cost_status = unknown` — le SDK ne rend aucun usage. L'ajouter a une
-     * somme de couts CONNUS reviendrait a l'y compter pour zero, c'est-a-dire a
-     * affirmer qu'il est gratuit. NULL n'est pas zero.
+     * `total_known_cost_usd` : JAMAIS. Le cout d'un rerank est `provider_cost =
+     * NULL`, `cost_status = unknown` — le SDK ne rend aucun usage. L'ajouter a
+     * une somme de couts CONNUS reviendrait a l'y compter pour zero,
+     * c'est-a-dire a affirmer qu'il est gratuit. NULL n'est pas zero.
      *
-     * `total_count` et `total_unknown_count` : ils comptent ce qu'ils comptaient
-     * avant TASK-1562. Un total qui change de definition SANS changer de nom
-     * rendrait faux, en silence, tout releve anterieur au merge — et le lecteur
-     * n'aurait aucun moyen de s'en apercevoir.
+     * `total_unknown_count` : OUI depuis TASK-1586 (arbitrage MASTER 16/09) —
+     * un rerank reussi au cout inconnu est de l'argent reel non mesure ; le
+     * compteur global des inconnus le dit, et la tranche `rerank` reste
+     * visible a part. Changement de definition ASSUME et date : les releves
+     * anterieurs au 16/09/2026 comptaient les inconnus sans les reranks.
      *
-     * La tranche `rerank` est donc strictement ADDITIVE : elle rend le rerank
-     * visible, et ne fait mentir aucun chiffre existant.
+     * `total_count` : inchange (generation + embeddings) — le rerank a son
+     * propre `invocation_count` dans sa tranche.
      *
      * @param  array<string, mixed>  $row
      * @return array<string, mixed>
@@ -900,7 +907,8 @@ final class OrganizationAiEconomicUsage
         $row['total_unknown_count'] = $row['generation']['unknown_count']
             + $row['embedding_ingestion']['unknown_count']
             + $row['embedding_query']['unknown_count']
-            + $row['embedding_undeclared']['unknown_count'];
+            + $row['embedding_undeclared']['unknown_count']
+            + $row['rerank']['unknown_count'];
         $row['total_unevaluated_count'] = $row['generation']['unevaluated_count'];
         $row['total_count'] = $row['generation']['trace_count']
             + $row['embedding_ingestion']['invocation_count']
@@ -1017,7 +1025,8 @@ final class OrganizationAiEconomicUsage
      * dans une console, ni dans une vue d'usage. TASK-1560 l'ecrivait au
      * ledger, et personne ne pouvait le lire.
      *
-     * Ce qu'elle ne fait PAS : entrer dans les totaux. Voir
+     * Ce qu'elle ne fait PAS : entrer dans le cout connu ni dans `total_count`.
+     * Ses inconnus entrent dans `total_unknown_count` depuis TASK-1586. Voir
      * `withOrganizationTotals()`.
      *
      * @return array{known_cost_usd: ?float, measured_count: int, unknown_count: int, invocation_count: int, failed_count: int}
