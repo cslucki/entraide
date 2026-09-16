@@ -90,6 +90,23 @@ final class AiTurnState
 
     public const TURN_FAILED = 'failed';
 
+    /**
+     * TASK-1570 / CDC-01 V0-B — les statuts d'une `AiInteraction` NON
+     * GENERATIVE : le tour s'est arrete AVANT tout appel provider. Rien n'est
+     * parti, rien ne se paie, rien ne se decompte.
+     *
+     * `failed` n'en fait PAS partie : une ligne `failed` peut etre un appel
+     * provider reellement emis qui a leve (facture au ledger, compte depuis
+     * toujours). La distinguer d'un echec sans appel appartient a V0-C.
+     *
+     * Tout lecteur ECONOMIQUE d'`ai_interactions` (credit utilisateur,
+     * consommation) exclut ces statuts : une ligne qui n'a rien coute ne peut
+     * ni consommer un credit ni compter comme une generation (A7, I8).
+     *
+     * @var list<string>
+     */
+    public const NON_GENERATIVE_STATUSES = [self::TURN_ABSTAINED, self::TURN_REFUSED];
+
     // ──────────────────── axe 2 : l'affirmation est-elle etayee ?
 
     public const VERIFICATION_SUPPORTED = 'supported';

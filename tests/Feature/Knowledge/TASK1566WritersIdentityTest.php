@@ -155,7 +155,9 @@ class TASK1566WritersIdentityTest extends TestCase
         // TASK-1568 (V0-G) : il RECLAME desormais ce que le tour a depose —
         // `identity` (son chemin) et `steps` (le bypass du ContextBuilder).
         // La garde evolue writer par writer, jamais en bloc.
-        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'history']);
+        // TASK-1570 (V0-B) : ce writer ecrit son VERDICT (`status`, `decided_by`,
+        // `latency_ms` ; `stage`/`reason_code` absents sur un tour repondu).
+        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'history', 'status', 'decided_by', 'latency_ms']);
         $this->assertLegacyPreservee($interaction, ['loop_id', 'requested_by', 'latency_ms', 'provider', 'capability', 'status']);
 
         $history = $interaction->metadata[AiTurnTrace::TURN_METADATA_KEY]['history'];
@@ -325,10 +327,10 @@ class TASK1566WritersIdentityTest extends TestCase
      * elargi globalement : un writer qui se mettrait a ecrire une semantique
      * qui ne lui revient pas doit continuer de faire rougir son propre test.
      *
-     * TASK-1568 (V0-G) a ajoute `identity` et `steps` aux quatre : c'est
-     * precisement la TASK que ce garde attendait. Ce qui reste INTERDIT aux
-     * writers non pilotes tant que V0-B/V0-C/V0-E/V0-F n'ont pas eu lieu :
-     * `status`, `stage`, `reason_code`, `decided_by`, `sources`, `state`.
+     * TASK-1568 (V0-G) a ajoute `identity` et `steps` aux quatre ; TASK-1570
+     * (V0-B) le verdict (`status`, `decided_by`, `latency_ms`) a ChatLoop. Ce
+     * qui reste INTERDIT tant que V0-C/V0-E/V0-F n'ont pas eu lieu :
+     * `sources`, `state` ; et le verdict chez les trois writers Shell/Dossier.
      *
      * @param  list<string>  $clesAttendues
      */

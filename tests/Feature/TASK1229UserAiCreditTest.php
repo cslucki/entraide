@@ -253,11 +253,21 @@ class TASK1229UserAiCreditTest extends TestCase
             ->assertJsonPath('error', trans_choice('ai.credit_refusal_user_exhausted', 2, ['used' => 2, 'quota' => 2, 'date' => CarbonImmutable::now()->startOfMonth()->addMonth()->format('d/m/Y')]));
         $this->assertNotNull($response->json('offers_url'));
 
-        // Zero appel provider, zero trace, zero ligne de ledger, rien de decompte.
+        // Zero appel provider, zero ligne de ledger, rien de decompte.
         LoopKnowledgeAgent::assertNotPrompted(fn (AgentPrompt $prompt): bool => true);
         $this->assertNull($this->search->lastCall);
-        $this->assertSame($interactionsBefore, AiInteraction::query()->count());
         $this->assertSame($ledgerBefore, AiProviderInvocation::query()->count());
+
+        // TASK-1570 / CDC-01 V0-B : le refus laisse desormais UNE interaction
+        // NON GENERATIVE (`refused`, stage `economic_check`, code du verdict) —
+        // et c'est la garde qui compte : cette ligne ne CONSOMME PAS un credit.
+        // `userCreditUses()` compte les `ai_interactions` : sans l'exclusion des
+        // statuts non generatifs, un refus de credit en aurait depense un.
+        $this->assertSame($interactionsBefore + 1, AiInteraction::query()->count());
+        $refus = AiInteraction::query()->latest('id')->firstOrFail();
+        $this->assertSame('refused', $refus->metadata['status']);
+        $this->assertSame('economic_check', $refus->metadata['turn']['stage']);
+        $this->assertSame(AiEconomicGuard::REASON_USER_CREDIT_EXHAUSTED, $refus->metadata['turn']['reason_code']);
         $this->assertSame(2, $this->guard()->userCreditStatus($this->orgA, $this->memberA)->used);
     }
 

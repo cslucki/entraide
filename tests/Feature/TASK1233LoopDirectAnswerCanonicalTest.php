@@ -21,9 +21,9 @@ use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopService;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiRefusedException;
+use App\Support\Ai\AiTurnState;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 use Laravel\Ai\Prompts\AgentPrompt;
 use Tests\Support\Ai\RecordsAiConsumption;
 use Tests\TestCase;
@@ -44,7 +44,6 @@ use Tests\TestCase;
 class TASK1233LoopDirectAnswerCanonicalTest extends TestCase
 {
     use RecordsAiConsumption;
-
     use RefreshDatabase;
 
     private Organization $organization;
@@ -153,7 +152,7 @@ class TASK1233LoopDirectAnswerCanonicalTest extends TestCase
 
         // Trace + ledger + provenance + consommation conforme a l'autorite.
         $after = $this->counters($this->member);
-        $this->assertSame($before['interactions'] + 1, $after['interactions']);
+        $this->assertSame($before['generations'] + 1, $after['generations']);
         $this->assertSame($before['ledger'] + 1, $after['ledger']);
         $this->assertSame($before['credit_used'] + 1, $after['credit_used']);
 
@@ -270,7 +269,7 @@ class TASK1233LoopDirectAnswerCanonicalTest extends TestCase
         }
 
         LoopDirectAnswerAgent::assertNeverPrompted();
-        $this->assertSame($before, $this->counters($this->member));
+        $this->assertRefusalLeftOneNonGenerativeTurn($before, $this->member, 'economic_check', AiEconomicGuard::REASON_USER_CREDIT_EXHAUSTED);
         $this->assertSame($messages, LoopMessage::query()->where('loop_id', $this->loop->id)->count(), 'aucune question publiee');
     }
 
@@ -293,7 +292,7 @@ class TASK1233LoopDirectAnswerCanonicalTest extends TestCase
         }
 
         LoopDirectAnswerAgent::assertNeverPrompted();
-        $this->assertSame($before, $this->counters($this->member));
+        $this->assertRefusalLeftOneNonGenerativeTurn($before, $this->member, 'economic_check', AiEconomicGuard::REASON_ORGANIZATION_BUDGET_REACHED);
     }
 
     // =====================================================================
@@ -314,7 +313,7 @@ class TASK1233LoopDirectAnswerCanonicalTest extends TestCase
 
         // La cle plateforme existe en config : elle n'a servi a rien.
         LoopDirectAnswerAgent::assertNeverPrompted();
-        $this->assertSame($before, $this->counters($this->member));
+        $this->assertRefusalLeftOneNonGenerativeTurn($before, $this->member, 'provider_resolution', AiRefusedException::CODE_NOT_CONFIGURED);
     }
 
     // =====================================================================
@@ -422,11 +421,42 @@ class TASK1233LoopDirectAnswerCanonicalTest extends TestCase
     {
         $organization = Organization::query()->find($user->organization_id);
 
+        // TASK-1570 / CDC-01 V0-B : un refus laisse desormais une interaction
+        // NON GENERATIVE. L'invariance mesuree porte donc sur ce qui COUTE —
+        // generations, ledger, credit — et le refus est compte A PART.
+        $nonGeneratif = static fn ($q) => $q->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES);
+
         return [
-            'interactions' => AiInteraction::query()->where('user_id', $user->id)->count(),
+            'generations' => AiInteraction::query()->where('user_id', $user->id)->whereNot($nonGeneratif)->count(),
+            'non_generative' => AiInteraction::query()->where('user_id', $user->id)->where($nonGeneratif)->count(),
             'ledger' => AiProviderInvocation::query()->where('user_id', $user->id)->count(),
             'credit_used' => app(AiEconomicGuard::class)->userCreditStatus($organization, $user)->used,
         ];
+    }
+
+    /**
+     * TASK-1570 / V0-B — le refus a laisse UN tour non generatif, et RIEN
+     * d'autre n'a bouge : ni generation, ni ledger, ni credit. Le tour porte
+     * `refused`, l'etage et le code attendus.
+     *
+     * @param  array<string, int>  $before
+     */
+    private function assertRefusalLeftOneNonGenerativeTurn(array $before, User $user, string $stage, string $reasonCode): void
+    {
+        $after = $this->counters($user);
+
+        $this->assertSame($before['generations'], $after['generations']);
+        $this->assertSame($before['ledger'], $after['ledger']);
+        $this->assertSame($before['credit_used'], $after['credit_used'], 'un refus ne consomme pas un credit');
+        $this->assertSame($before['non_generative'] + 1, $after['non_generative']);
+
+        $refus = AiInteraction::query()->where('user_id', $user->id)->latest('id')->firstOrFail();
+        $this->assertNull($refus->response);
+        $this->assertSame(0, $refus->input_tokens);
+        $this->assertSame('refused', $refus->metadata['status']);
+        $this->assertSame('refused', $refus->metadata['turn']['status']);
+        $this->assertSame($stage, $refus->metadata['turn']['stage']);
+        $this->assertSame($reasonCode, $refus->metadata['turn']['reason_code']);
     }
 
     private function platformQuota(?int $monthlyUses): void

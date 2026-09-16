@@ -235,6 +235,26 @@ final class AiTurnReason
     /** `skipped` — la resolution de reference n'a produit aucun candidat. */
     public const FALLTHROUGH_NO_REFERENCE_CANDIDATE = 'NO_REFERENCE_CANDIDATE';
 
+    // -----------------------------------------------------------------
+    // Famille 8 — le STATUT TERMINAL d'un tour non repondu (V0-B, EMISE)
+    //
+    // `turn.reason_code` d'un tour `abstained` / `failed`. Les refus
+    // (`refused`) reutilisent les familles 1 et 2 : le code du verdict
+    // economique, ou `REFUSED_NOT_CONFIGURED`.
+    //
+    // Deux valeurs sont IDENTIQUES a celles de la famille `fallthrough`
+    // (`NO_SOURCES_FOUND`, `EMPTY_MODEL_ANSWER`) : meme cause, deux etages —
+    // ici le tour ENTIER s'arrete la, la-bas une BRANCHE Shell rend la main.
+    // Meme collision assumee que `provider_unavailable` (familles 4 et 5) : un
+    // code se lit avec l'etape ou l'axe qui le porte, jamais seul.
+    // -----------------------------------------------------------------
+
+    /** `abstained` — mode Dossiers, aucune provenance : le modele n'est pas appele. */
+    public const TERMINAL_NO_SOURCES_FOUND = 'NO_SOURCES_FOUND';
+
+    /** `failed` — le provider a repondu, le texte est vide apres nettoyage ; l'appel a ete paye. */
+    public const TERMINAL_EMPTY_MODEL_ANSWER = 'EMPTY_MODEL_ANSWER';
+
     /**
      * Tous les codes que CE squelette connait, par famille d'origine.
      *
@@ -290,6 +310,10 @@ final class AiTurnReason
                 self::CONTEXT_BUILDER_DOCUMENT_PATH_DIRECT_EXECUTION,
             ],
             'fallthrough' => self::fallthroughVocabulary(),
+            'terminal' => [
+                self::TERMINAL_NO_SOURCES_FOUND,
+                self::TERMINAL_EMPTY_MODEL_ANSWER,
+            ],
         ];
     }
 

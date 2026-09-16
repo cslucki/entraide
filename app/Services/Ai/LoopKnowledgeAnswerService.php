@@ -32,6 +32,7 @@ use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiTurnIdempotency;
 use App\Support\Ai\AiTurnLock;
+use App\Support\Ai\AiTurnReason;
 use App\Support\Ai\AiTurnState;
 use App\Support\Ai\AiTurnTrace;
 use App\Support\Ai\AiUsage;
@@ -253,6 +254,13 @@ class LoopKnowledgeAnswerService
         try {
             $resolved = $this->providers->resolve($capability, $contexte);
         } catch (DomainException $exception) {
+            // TASK-1570 / CDC-01 V0-B — un refus de resolution laisse un TOUR.
+            // Aucun modele resolu, aucun appel, aucune ligne au ledger (I3) :
+            // seulement la ligne non generative qui dit ou et pourquoi le tour
+            // s'est arrete. Le refus rendu au membre est inchange.
+            $this->recordEarlyStop($loop, $requester, $contexte, $definition, null,
+                AiTurnState::TURN_REFUSED, 'provider_resolution', AiTurnReason::REFUSED_NOT_CONFIGURED, null, [], null);
+
             throw AiRefusedException::notConfigured($exception);
         }
 
@@ -291,6 +299,14 @@ class LoopKnowledgeAnswerService
             // processus, exactement comme avant : rien n'est promis ici qui ne
             // soit tenu.
             AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'denied', $verdict->reason);
+
+            // TASK-1570 / V0-B — le refus economique laisse un TOUR (`refused`,
+            // stage `economic_check`, code du verdict tel que le garde l'a
+            // MESURE). Ledger vierge : rien n'est parti. La ligne porte
+            // `cost_usd = 0, cost_unknown = false` et n'entre dans aucune somme
+            // du garde (audit lecteurs §6.3, teste).
+            $this->recordEarlyStop($loop, $requester, $contexte, $definition, $resolved,
+                AiTurnState::TURN_REFUSED, 'economic_check', $verdict->reason, null, [], null);
 
             // Trois etats, trois messages, trois codes : credit utilisateur
             // epuise / budget Organization atteint / autre indisponibilite.
@@ -370,7 +386,17 @@ class LoopKnowledgeAnswerService
             // plus pris et la trace est persistee normalement. La lever
             // exigerait d'ecrire une interaction la ou le produit n'en ecrit
             // pas : un changement de comportement, hors mandat.
-            DossierRetrievalTraceRecorder::claim($contexte->organizationId, $contexte->turnId);
+            // TASK-1570 / CDC-01 V0-B — la limite assumee par T1565 est levee :
+            // l'abstention ECRIT un tour (`abstained`, stage `grounding`,
+            // `NO_SOURCES_FOUND`), et la `retrieval_trace` est RECLAMEE ET
+            // PERSISTEE au lieu d'etre jetee. Le message rendu au membre, la
+            // non-publication dans le fil et `interactionId: null` du DTO —
+            // que `LoopChat` lit pour signaler l'auteur — ne changent pas.
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'grounding', 'abstained', AiTurnReason::TERMINAL_NO_SOURCES_FOUND, [
+                'consulted' => 0,
+            ]);
+            $this->recordEarlyStop($loop, $requester, $contexte, $definition, $resolved,
+                AiTurnState::TURN_ABSTAINED, 'grounding', AiTurnReason::TERMINAL_NO_SOURCES_FOUND, $borne, [], $doctrineVersion);
 
             // Rien de pertinent dans les Dossiers accessibles : on le dit, sans
             // inventer et sans appeler le modele.
@@ -476,12 +502,23 @@ class LoopKnowledgeAnswerService
             (int) config('ai.knowledge.max_answer_chars', 3000),
         );
 
-        if ($answer === '') {
-            throw new RuntimeException(__('loops.ai_empty_response'));
-        }
-
         $usage = AiUsage::fromSdkTextTokens($response->usage->promptTokens, $response->usage->completionTokens);
         $cost = $this->economicGuard->finalize($resolved->provider, $resolved->model, $usage);
+
+        if ($answer === '') {
+            // TASK-1570 / CDC-01 V0-B — la reponse vide post-appel n'est plus
+            // « facturee sans trace » (trou S11) : l'appel EST parti et se paie,
+            // le ledger recoit donc sa ligne reelle, et l'interaction s'ecrit
+            // `failed` / stage `generation` / `EMPTY_MODEL_ANSWER`. Le refus
+            // rendu au membre est inchange.
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'generation', 'failed', AiTurnReason::TERMINAL_EMPTY_MODEL_ANSWER);
+
+            $this->recordInteraction($loop, $requester, $contexte, $definition, $resolved, $prompt, null,
+                $usage, $cost->traceAttributes(), $cost, 'failed', $startedAt, $response->invocationId,
+                AiTurnReason::TERMINAL_EMPTY_MODEL_ANSWER, $consulted, [], $doctrineVersion, $borne, $history);
+
+            throw new RuntimeException(__('loops.ai_empty_response'));
+        }
 
         // Citations : uniquement les references ([Mn] ou [Sn]) presentes
         // dans la provenance REELLEMENT fournie. Une reference inventee est
@@ -834,6 +871,94 @@ class LoopKnowledgeAnswerService
     }
 
     /**
+     * TASK-1570 / CDC-01 V0-B — le writer des ARRETS ANTICIPES : une
+     * `AiInteraction` NON GENERATIVE.
+     *
+     * Le tour s'est arrete avant tout appel provider (refus de resolution,
+     * refus economique, abstention zero-source). Jusqu'ici il ne laissait
+     * AUCUNE ligne : ni interaction, ni ledger, ni log — l'angle mort que
+     * CDC-01 §1.1 nomme en premier. Cette ligne dit ou et pourquoi.
+     *
+     * Ce qu'elle est, et n'est pas (§6.1) :
+     *   - `response = null`, `input/output_tokens = 0` : VRAI zero, rien n'est
+     *     parti ; `cost_usd = 0`, `cost_unknown = false` : un cout CONNU et nul,
+     *     pas un cout inconnu — elle n'entre donc ni dans le budget ni dans le
+     *     quota UNKNOWN du garde (§6.3, teste) ;
+     *   - AUCUNE ligne au ledger (I3) : `ai_provider_invocations` reste
+     *     reserve aux appels emis ;
+     *   - `model` et `prompt` sont des colonnes NOT NULL : `''` quand rien n'a
+     *     ete resolu ni construit — le lecteur rend `null`, jamais une valeur
+     *     inventee ;
+     *   - pas de `latency_ms` : ce chemin ne mesure pas ces arrets, et un
+     *     chrono pose ici pour l'occasion ne mesurerait qu'une partie du tour
+     *     (C7-bis). Absent se lit `UNAVAILABLE`.
+     *   - la `retrieval_trace` et les invocations embedding du tour sont
+     *     RECLAMEES et persistees : sur une abstention, la recherche a eu lieu
+     *     et a coute — sa trace n'est plus jetee (limite T1565 levee).
+     *
+     * Lecteurs (§6.3) : `metadata.status` porte un statut NOUVEAU
+     * (`abstained` | `refused`) que `AiQualityReport` exclut et que
+     * `AiProviderInvocationConsole` affiche comme un tour non generatif
+     * (A7) — jamais comme une generation.
+     *
+     * @param  array<string, mixed>  $history
+     */
+    private function recordEarlyStop(
+        Loop $loop,
+        User $requester,
+        ContexteIa $contexte,
+        CapabilityDefinition $definition,
+        ?ResolvedModel $resolved,
+        string $turnStatus,
+        string $stage,
+        string $reasonCode,
+        ?ContexteBorne $borne,
+        array $history,
+        ?int $doctrineVersion,
+    ): AiInteraction {
+        return AiInteraction::create([
+            'user_id' => $requester->id,
+            'organization_id' => $contexte->organizationId,
+            'correlation_id' => $contexte->correlationId,
+            'process' => $definition->process,
+            'feature' => $definition->id,
+            'model' => $resolved?->trace() ?? '',
+            'prompt' => '',
+            'response' => null,
+            'input_tokens' => 0,
+            'output_tokens' => 0,
+            'cost_usd' => 0,
+            'cost_unknown' => false,
+            'metadata' => array_filter([
+                'loop_id' => $loop->id,
+                'requested_by' => $requester->id,
+                'provider' => $resolved?->provider,
+                'capability' => $definition->id,
+                'status' => $turnStatus,
+                'turn_id' => $contexte->turnId,
+                RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
+                'sources_used' => $borne?->sourcesUsed,
+                DossierRetrievalTraceRecorder::TURN_METADATA_KEY => $borne === null ? null : [
+                    'sources_denied' => $borne->sourcesDenied,
+                    'dossier_retrieval' => DossierRetrievalTraceRecorder::claim($contexte->organizationId, $contexte->turnId),
+                ],
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
+                    $contexte->turnId,
+                    AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
+                    [
+                        'status' => $turnStatus,
+                        'stage' => $stage,
+                        'reason_code' => $reasonCode,
+                        'decided_by' => class_basename(self::class),
+                        'history' => $history,
+                    ],
+                ),
+            ], static fn ($value): bool => $value !== null)
+                + ['doctrine_version' => $doctrineVersion],
+        ]);
+    }
+
+    /**
      * @param  array{cost_usd: ?float, cost_unknown: ?bool}  $costAttributes
      * @param  list<array<string, mixed>>  $consulted
      * @param  list<array<string, mixed>>  $cited
@@ -985,6 +1110,11 @@ class LoopKnowledgeAnswerService
                             ? AiTurnState::TURN_FAILED
                             : AiTurnState::TURN_ANSWERED,
                         'stage' => $status === 'failed' ? 'generation' : null,
+                        // TASK-1570 / V0-B — le code n'est ecrit que s'il vient
+                        // du registre : une classe d'exception (`failure` d'un
+                        // provider qui leve) n'est pas un `reason_code`, et la
+                        // nommer comme tel appartient a V0-C.
+                        'reason_code' => AiTurnReason::isKnown($failure) ? $failure : null,
                         'decided_by' => class_basename(self::class),
                         // La MEME mesure que `latency_ms` ci-dessus — jamais un
                         // second chronometre, qui donnerait deux valeurs pour

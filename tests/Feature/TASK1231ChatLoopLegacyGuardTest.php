@@ -15,9 +15,9 @@ use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\LoopService;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiRefusedException;
+use App\Support\Ai\AiTurnState;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 use Tests\Support\Ai\RecordsAiConsumption;
 use Tests\TestCase;
 
@@ -47,7 +47,6 @@ use Tests\TestCase;
 class TASK1231ChatLoopLegacyGuardTest extends TestCase
 {
     use RecordsAiConsumption;
-
     use RefreshDatabase;
 
     private Organization $organization;
@@ -124,7 +123,7 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
         }
 
         LoopDirectAnswerAgent::assertNeverPrompted();
-        $this->assertSame($before, $this->counters(), 'Un refus n\'ecrit rien : ni trace, ni ledger, ni message.');
+        $this->assertRefusalLeftOneTurn($before);
         $this->assertSame(1, $this->guard()->userCreditStatus($this->organization, $this->member)->used);
     }
 
@@ -142,7 +141,7 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
         }
 
         LoopDirectAnswerAgent::assertNeverPrompted();
-        $this->assertSame($before, $this->counters());
+        $this->assertRefusalLeftOneTurn($before);
     }
 
     // =====================================================================
@@ -165,7 +164,7 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
         }
 
         LoopDirectAnswerAgent::assertNeverPrompted();
-        $this->assertSame($before, $this->counters());
+        $this->assertRefusalLeftOneTurn($before);
         // Le credit du membre est intact : ce n'est pas lui qui bloque.
         $this->assertSame(0, $this->guard()->userCreditStatus($this->organization, $this->member)->used);
     }
@@ -190,7 +189,7 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
         // Exactement UNE trace ai_interactions de plus, UNE ligne de ledger de
         // plus (TASK-1233 : chemin canonique, comme summarize — une invocation
         // = une ligne, jamais deux), deux messages de Boucle (question + reponse).
-        $this->assertSame($before['interactions'] + 1, $after['interactions']);
+        $this->assertSame($before['generations'] + 1, $after['generations']);
         $this->assertSame($before['ledger'] + 1, $after['ledger']);
         $this->assertSame($before['messages'] + 2, $after['messages']);
 
@@ -214,7 +213,7 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
 
         $this->assertSame('answer', $message->metadata['action']);
         $after = $this->counters();
-        $this->assertSame($before['interactions'] + 1, $after['interactions']);
+        $this->assertSame($before['generations'] + 1, $after['generations']);
         $this->assertSame($before['ledger'] + 1, $after['ledger']);
         $this->assertSame($before['messages'] + 1, $after['messages']);
         $this->assertSame(1, $this->guard()->userCreditStatus($this->organization, $this->member)->used);
@@ -267,7 +266,7 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
         $response->assertSessionHas('ai_refusal_code', AiRefusedException::CODE_USER_CREDIT_EXHAUSTED);
         $response->assertSessionHas('ai_offers_url', aiOffersUrl($this->organization));
         LoopDirectAnswerAgent::assertNeverPrompted();
-        $this->assertSame($before, $this->counters());
+        $this->assertRefusalLeftOneTurn($before);
 
         // Et la page rend le lien, dans le bandeau d'erreur existant.
         $page = $this->actingAs($this->member)->get(route('organization.loops.show', ['organization' => $this->organization, 'loop' => $this->loop]));
@@ -296,7 +295,7 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
             ->assertSessionMissing('ai_offers_url');
 
         $after = $this->counters();
-        $this->assertSame($before['interactions'] + 1, $after['interactions']);
+        $this->assertSame($before['generations'] + 1, $after['generations']);
         $this->assertSame($before['ledger'] + 1, $after['ledger']);
         $this->assertSame($before['messages'] + 2, $after['messages']);
         $this->assertDatabaseHas('loop_messages', ['loop_id' => $this->loop->id, 'type' => 'ai', 'body' => 'Reponse de l\'IA.']);
@@ -361,11 +360,36 @@ class TASK1231ChatLoopLegacyGuardTest extends TestCase
      */
     private function counters(): array
     {
+        $nonGeneratif = static fn ($q) => $q->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES);
+
         return [
-            'interactions' => AiInteraction::query()->count(),
+            'generations' => AiInteraction::query()->whereNot($nonGeneratif)->count(),
+            'non_generative' => AiInteraction::query()->where($nonGeneratif)->count(),
             'ledger' => AiProviderInvocation::query()->count(),
             'messages' => LoopMessage::query()->where('loop_id', $this->loop->id)->count(),
         ];
+    }
+
+    /**
+     * TASK-1570 / CDC-01 V0-B — un refus n'est plus « rien » : il laisse UNE
+     * interaction NON GENERATIVE (`refused`, aucun appel, aucun cout), et rien
+     * d'autre ne bouge — ni generation, ni ledger, ni message.
+     *
+     * @param  array<string, int>  $before
+     */
+    private function assertRefusalLeftOneTurn(array $before): void
+    {
+        $after = $this->counters();
+
+        $this->assertSame($before['generations'], $after['generations'], 'aucune generation');
+        $this->assertSame($before['ledger'], $after['ledger'], 'aucune ligne au ledger');
+        $this->assertSame($before['messages'], $after['messages'], 'aucun message');
+        $this->assertSame($before['non_generative'] + 1, $after['non_generative'], 'un tour refuse est trace');
+
+        $refus = AiInteraction::query()->latest('id')->firstOrFail();
+        $this->assertNull($refus->response);
+        $this->assertSame(0, $refus->input_tokens);
+        $this->assertSame(AiTurnState::TURN_REFUSED, $refus->metadata['turn']['status']);
     }
 
     private function uses(User $user, int $count): void

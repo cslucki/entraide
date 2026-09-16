@@ -38,6 +38,8 @@
     };
     $kindLabel = static fn (string $kind): string => match ($kind) {
         'generation' => __('ai.usage_type_generation'),
+        // TASK-1570 / V0-B (A7) : un tour refuse ou abstenu AVANT tout appel — jamais une generation.
+        'turn' => __('ai.usage_type_turn'),
         'embedding_query' => __('ai.usage_type_embedding_query'),
         'embedding_ingestion' => __('ai.usage_type_embedding_ingestion'),
         'rerank' => __('ai.usage_type_rerank'),
@@ -251,7 +253,10 @@
                                         {{-- CORRECTION M1 TASK-1257 : la NOTION (mesure / non mesurable /
                                              non evalue), jamais le montant. --}}
                                         <td class="px-4 py-3 text-right text-xs">
-                                            @if($row['cost_state'] === 'known')
+                                            @if($row['cost_state'] === 'not_applicable')
+                                                {{-- TASK-1570 (A7) : aucun appel provider, donc aucun cout — ni mesure, ni inconnu. --}}
+                                                <span class="text-gray-400">—</span>
+                                            @elseif($row['cost_state'] === 'known')
                                                 <span class="text-gray-700 dark:text-gray-300">{{ $costStateLabel('known') }}</span>
                                             @elseif($row['cost_state'] === 'unknown')
                                                 <span class="text-amber-600 dark:text-amber-400" title="{{ trans_choice('ai.economy_unknown_count', 1, ['count' => 1]) }}">{{ $costStateLabel('unknown') }}</span>
@@ -264,6 +269,10 @@
                                                 <span class="text-xs text-emerald-600 dark:text-emerald-400">{{ __('ai.usage_status_success') }}</span>
                                             @elseif($row['status'] === null)
                                                 <span class="text-xs text-gray-400">—</span>
+                                            @elseif($row['status'] === 'refused')
+                                                <span class="text-xs text-amber-600 dark:text-amber-400">{{ __('ai.usage_status_refused') }}</span>
+                                            @elseif($row['status'] === 'abstained')
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('ai.usage_status_abstained') }}</span>
                                             @else
                                                 <span class="text-xs text-red-500">{{ __('ai.usage_status_failed') }}</span>
                                             @endif
