@@ -75,4 +75,17 @@ return [
         AiLabPack::PACK_ID => database_path('scenario-packs/ai-lab/corpus'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Lab (TASK-1591 / CDC-NIGHT L-C_CORE) — l'outsider cross-tenant
+    |--------------------------------------------------------------------------
+    |
+    | `lab.outsider` n'est PAS une entite du pack (CDC-03 E1) : c'est un
+    | utilisateur REEL d'une AUTRE Organization, DECLARE ici (jamais devine).
+    | Defaut : le contrat du pack (les tests le creent) ; le banc pointe un
+    | membre de SENTINEL-B via AI_LAB_OUTSIDER_EMAIL.
+    |
+    */
+    'lab_outsider_email' => env('AI_LAB_OUTSIDER_EMAIL', AiLabPack::OUTSIDER_EMAIL),
+
 ];

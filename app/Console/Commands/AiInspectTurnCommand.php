@@ -192,6 +192,12 @@ class AiInspectTurnCommand extends Command
             return $this->refuser((string) $execution->refusalMessage, $execution->refusalClass);
         }
 
+        if ($execution->manifestFailure !== null) {
+            // TASK-1591 (nit Opus T1588) — meme avertissement que l'Inspector :
+            // le tour a EU LIEU et a ete facture, le manifeste ne le sait pas.
+            $this->warn('Tour execute et facture, mais NON inscrit au manifeste : '.$execution->manifestFailure);
+        }
+
         if ($mode === 'ia') {
             // TASK-1575 / CDC-01 V0-H (§9.2) — le tour vient d'etre ecrit : il
             // se LIT comme n'importe quel tour persiste — meme lecteur, memes

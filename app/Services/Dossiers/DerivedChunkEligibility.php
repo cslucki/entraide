@@ -4,6 +4,7 @@ namespace App\Services\Dossiers;
 
 use App\Models\DerivedKnowledgeNote;
 use App\Models\Dossier;
+use App\Models\DossierChunk;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\User;
@@ -250,6 +251,29 @@ final class DerivedChunkEligibility
         }
 
         return $this->chunkQuery($organizationId, $chunkId)->exists();
+    }
+
+    /**
+     * TASK-1591 / CDC-NIGHT — combien de chunks de la troisieme famille vivent
+     * dans ces Dossiers. Un COMPTE, rien d'autre : ni contenu, ni note, ni
+     * eligibilite. Il sert la precondition `derived_chunks_absent` du Lab
+     * (un Lab qui contient de la connaissance derivee n'est pas propre et son
+     * pipeline n'est pas juge). Il vit ICI parce que la colonne ne se nomme
+     * qu'ici.
+     *
+     * @param  list<string>  $dossierIds
+     */
+    public function derivedChunkCount(string $organizationId, array $dossierIds): int
+    {
+        if ($organizationId === '' || $dossierIds === []) {
+            return 0;
+        }
+
+        return DossierChunk::query()
+            ->where('organization_id', $organizationId)
+            ->whereIn('dossier_id', $dossierIds)
+            ->whereNotNull('derived_knowledge_note_id')
+            ->count();
     }
 
     /**
