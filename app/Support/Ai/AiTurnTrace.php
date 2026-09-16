@@ -279,6 +279,47 @@ final class AiTurnTrace
     }
 
     /**
+     * TASK-1574 / CDC-01 V0-F — le bloc `turn.state`, les deux axes que le
+     * writer ecrit (P0.9), TRADUITS depuis ce qu'il a deja mesure :
+     *
+     *   axe 2 `verification_status`  derive de `grounded` — et `grounded` est
+     *       SYNTAXIQUE (des references `[Sn]/[Mn]` valides dans la reponse,
+     *       jamais un jugement semantique) : `supported` si cite,
+     *       `insufficient` sinon, `not_applicable` quand le chemin n'a pas de
+     *       notion de grounding (`null`). Le champ dit ce qu'il mesure ;
+     *   axe 3 `degraded_reason`  un refus de source (`DEGRADED_SOURCE_DENIED`)
+     *       prime — il change le PERIMETRE lu — sur un rerank tente et casse
+     *       (`DEGRADED_PARTIAL_FAILURE`), qui ne change que l'ordre ; `null`
+     *       quand rien de degrade n'est connu du writer.
+     *
+     * Ce sont des colonnes de trace SEPAREES (CDC 02 §3) : l'axe 3 n'est
+     * jamais derive de l'axe 2 ni du statut du tour.
+     *
+     * @param  array<string, string>  $denied  source => raison
+     * @param  array<string, mixed>|null  $dossierRetrieval
+     * @return array{verification_status: string, degraded_reason: ?string}
+     */
+    public static function stateBlock(?bool $grounded, array $denied, ?array $dossierRetrieval = null): array
+    {
+        $degraded = null;
+
+        if ($denied !== []) {
+            $degraded = AiTurnState::DEGRADED_SOURCE_DENIED;
+        } elseif (is_array($dossierRetrieval) && ($dossierRetrieval['rerank_attempted'] ?? false) && ! ($dossierRetrieval['rerank_succeeded'] ?? false)) {
+            $degraded = AiTurnState::DEGRADED_PARTIAL_FAILURE;
+        }
+
+        return [
+            'verification_status' => match ($grounded) {
+                null => AiTurnState::VERIFICATION_NOT_APPLICABLE,
+                true => AiTurnState::VERIFICATION_SUPPORTED,
+                false => AiTurnState::VERIFICATION_INSUFFICIENT,
+            },
+            'degraded_reason' => $degraded,
+        ];
+    }
+
+    /**
      * Reclame la trace de CE tour, UNE seule fois.
      *
      * `null` signifie « ce tour n'a depose aucune observation » — le moteur

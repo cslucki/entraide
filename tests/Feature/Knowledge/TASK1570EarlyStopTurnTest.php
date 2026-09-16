@@ -175,7 +175,8 @@ class TASK1570EarlyStopTurnTest extends TestCase
 
         // Les etapes traversees, dans l'ordre, jusqu'a l'etage qui a decide.
         $etapes = $tour->metadata['turn']['steps'];
-        $this->assertSame(['economic_check', 'context_builder', 'grounding'], array_column($etapes, 'name'));
+        // V0-F : `retrieval`/`rerank` sont deposes par la source pendant le builder.
+        $this->assertSame(['economic_check', 'retrieval', 'rerank', 'context_builder', 'grounding'], array_column($etapes, 'name'));
         $this->assertSame('abstained', end($etapes)['status']);
     }
 

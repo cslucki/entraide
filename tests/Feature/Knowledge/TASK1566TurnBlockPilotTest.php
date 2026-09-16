@@ -264,13 +264,22 @@ class TASK1566TurnBlockPilotTest extends TestCase
         $steps = $this->blocDuTour()['steps'];
 
         // TASK-1567 / V0-L a insere `conversation_history` entre la
-        // construction du contexte et l'appel provider — c'est l'ordre reel
-        // d'execution du moteur, pas un rangement d'affichage.
+        // construction du contexte et l'appel provider ; TASK-1574 / V0-F fait
+        // deposer `retrieval` et `rerank` par `DossierRetrievalSource` PENDANT
+        // le ContextBuilder (donc avant l'etape `context_builder`, que le
+        // moteur ecrit quand le builder a rendu), et `grounding` apres l'appel.
+        // C'est l'ordre reel d'execution, pas un rangement d'affichage.
         $this->assertSame(
-            ['economic_check', 'context_builder', 'conversation_history', 'provider_call'],
+            ['economic_check', 'retrieval', 'rerank', 'context_builder', 'conversation_history', 'provider_call', 'grounding'],
             array_column($steps, 'name'),
         );
-        $this->assertSame(['executed', 'executed', 'executed', 'executed'], array_column($steps, 'status'));
+        $statuts = array_column($steps, 'status', 'name');
+        foreach (['economic_check', 'retrieval', 'context_builder', 'conversation_history', 'provider_call', 'grounding'] as $nom) {
+            $this->assertSame('executed', $statuts[$nom], "`{$nom}`");
+        }
+        // Le rerank n'est pas configure sur ce banc : `skipped`, avec sa raison
+        // (famille 4) — un gate interne non franchi, pas un echec.
+        $this->assertSame('skipped', $statuts['rerank']);
     }
 
     public function test_la_latence_est_mesuree_une_seule_fois_pour_les_deux_cles(): void
@@ -289,27 +298,35 @@ class TASK1566TurnBlockPilotTest extends TestCase
     {
         $turn = $this->blocDuTour();
 
-        // `state` -> V0-F : toujours absent.
-        // Une cle presente mais vide se lirait comme « mesure a zero ».
-        $this->assertArrayNotHasKey('state', $turn, '`state` n\'appartient pas encore a ce stade : absent, pas vide.');
-
-        // `history` (V0-L, T1567) puis `sources` (V0-E, T1573) appartenaient a
-        // cette liste jusqu'a leur TASK. La garde ne disparait pas pour autant :
-        // elle CHANGE DE SENS et exige desormais la presence. C'est la
-        // difference entre mettre un test a jour et l'affaiblir.
+        // `history` (V0-L), `sources` (V0-E) puis `state` (V0-F) appartenaient a
+        // la liste des sous-blocs « a venir » jusqu'a leur TASK. La garde ne
+        // disparait pas pour autant : elle CHANGE DE SENS et exige desormais la
+        // presence. C'est la difference entre mettre un test a jour et
+        // l'affaiblir. Le schema v1 est ainsi COMPLET sur le pilote.
         $this->assertArrayHasKey('history', $turn, '`history` est livre par V0-L : il doit etre present.');
         $this->assertArrayHasKey('sources', $turn, '`sources` est livre par V0-E : il doit etre present.');
         $this->assertSame(['retrieved', 'reranked', 'used', 'denied'], array_keys($turn['sources']));
+        $this->assertArrayHasKey('state', $turn, '`state` est livre par V0-F : il doit etre present.');
+        $this->assertSame(['verification_status', 'degraded_reason'], array_keys($turn['state']));
+        $this->assertSame('supported', $turn['state']['verification_status'], 'grounded (syntaxique) → supported');
     }
 
-    public function test_aucune_etape_de_grounding_ni_de_generation_n_est_fabriquee(): void
+    public function test_l_etape_grounding_est_observee_et_generation_jamais_fabriquee(): void
     {
-        $noms = array_column($this->blocDuTour()['steps'], 'name');
+        $steps = $this->blocDuTour()['steps'];
+        $noms = array_column($steps, 'name');
 
-        // Ces etages existent dans le schema, mais rien ne les OBSERVE en V0-A.
-        // Les deposer « pour faire complet » ferait mentir la chronologie.
-        $this->assertNotContains('grounding', $noms);
+        // `generation` n'est pas un etage de ce moteur : `provider_call` est
+        // l'appel, `grounding` la verification. Rien n'est depose « pour faire
+        // complet » — la chronologie ne ment pas.
         $this->assertNotContains('generation', $noms);
+
+        // TASK-1574 / V0-F : `grounding` est OBSERVE — avec sa methode, dite
+        // telle qu'elle est : syntaxique.
+        $grounding = array_values(array_filter($steps, static fn (array $e): bool => $e['name'] === 'grounding'))[0];
+        $this->assertSame('executed', $grounding['status']);
+        $this->assertSame('syntactic_citations', $grounding['metrics']['method']);
+        $this->assertSame(1, $grounding['metrics']['cited']);
     }
 
     // ────────────────────────────── 4. non-dependance et secret

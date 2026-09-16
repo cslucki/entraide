@@ -10,6 +10,7 @@ use App\Services\Dossiers\DerivedChunkEligibility;
 use App\Services\Dossiers\DossierChunkEmbeddingService;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
+use App\Support\Ai\AiTurnTrace;
 use DomainException;
 use Illuminate\Support\Facades\Log;
 
@@ -461,6 +462,37 @@ final class DossierRetrievalSource implements ContextSource
                 'rerank_rank' => $id === null ? null : ($rerankRanks[$id] ?? null),
                 'selected_final' => $id !== null && isset($final[$id]),
             ];
+        }
+
+        // TASK-1574 / CDC-01 V0-F — les etapes `retrieval` et `rerank` du TOUR,
+        // deposees ICI, par la source qui les a executees, au moment ou elle
+        // les a executees : c'est le seul endroit ou l'ordre est vrai. Memes
+        // valeurs que la trace fine ci-dessous — aucune mesure nouvelle.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'retrieval', 'executed', null, [
+            'candidates' => count($denseCandidates),
+            'after_filter' => $afterDistanceFilterCount,
+            'final' => $finalContextCount,
+        ]);
+
+        if ($rerank->attempted && $rerank->succeeded) {
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'rerank', 'executed', null, [
+                'sent' => $rerank->candidateCount,
+                'result_count' => count($rerank->rows),
+                'duration_ms' => $rerank->durationMs,
+            ]);
+        } elseif ($rerank->attempted) {
+            // Tente et casse : le tour continue en degrade (ordre dense), et
+            // `turn.state.degraded_reason` le dira. Le code est celui du
+            // registre (famille 4) ; la CLASSE de l'exception, elle, reste dans
+            // `retrieval_trace.rerank_failure_reason` — un code n'est jamais une
+            // classe (V0-C).
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'rerank', 'failed', DossierRerankOutcome::REASON_PROVIDER_UNAVAILABLE, [
+                'sent' => $rerank->candidateCount,
+            ]);
+        } else {
+            // Pas tente : un gate interne non franchi — `skipped`, avec la
+            // raison bornee que cette source est la seule a connaitre.
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'rerank', 'skipped', $this->reasonNotAttempted($rerank, $afterDistanceFilterCount));
         }
 
         DossierRetrievalTraceRecorder::record($contexte->organizationId, $contexte->turnId, [

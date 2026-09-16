@@ -1121,6 +1121,9 @@ class ChatLoopAiService
                         'sources' => isset($extraMetadata['sources_used']) || isset($extraMetadata['sources_denied'])
                             ? AiTurnTrace::sourcesBlock($extraMetadata['sources_used'] ?? null, $extraMetadata['sources_denied'] ?? null)
                             : [],
+                        // TASK-1574 / V0-F — pas de grounding sur ces chemins
+                        // (axe 2 `not_applicable`) ; axe 3 depuis les refus connus.
+                        'state' => AiTurnTrace::stateBlock(null, is_array($extraMetadata['sources_denied'] ?? null) ? $extraMetadata['sources_denied'] : []),
                     ],
                 ),
                 'failure' => $failure,

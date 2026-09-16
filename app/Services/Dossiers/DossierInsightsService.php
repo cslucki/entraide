@@ -337,6 +337,14 @@ final class DossierInsightsService
 
         $cited = $this->citedSources($answer, $consulted);
 
+        // TASK-1574 / CDC-01 V0-F — le grounding se lit : presence de references
+        // valides dans la reponse (syntaxique), rien de semantique.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'grounding', 'executed', null, [
+            'consulted' => count($consulted),
+            'cited' => count($cited),
+            'method' => 'syntactic_citations',
+        ]);
+
         $interaction = $this->recordInteraction($dossier, $requester, $contexte, $definition, $resolved, $prompt,
             $answer, $usage, $cost->traceAttributes(), $cost, 'success', $startedAt, $response->invocationId, null,
             $consulted, $cited, $doctrineVersion);
@@ -677,6 +685,14 @@ final class DossierInsightsService
         $cost = $this->economicGuard->finalize($resolved->provider, $resolved->model, $usage);
 
         $cited = $this->citedSources($answer, $consulted);
+
+        // TASK-1574 / CDC-01 V0-F — le grounding se lit : presence de references
+        // valides dans la reponse (syntaxique), rien de semantique.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'grounding', 'executed', null, [
+            'consulted' => count($consulted),
+            'cited' => count($cited),
+            'method' => 'syntactic_citations',
+        ]);
 
         $interaction = $this->recordInteraction($dossier, $requester, $contexte, $definition, $resolved, $prompt,
             $answer, $usage, $cost->traceAttributes(), $cost, 'success', $startedAt, $response->invocationId, null,
@@ -1424,6 +1440,10 @@ final class DossierInsightsService
                         // `DossierSemanticSearchService`, hors de la source qui
                         // ecrit `retrieval_trace` — rien a formater, rien a inventer.
                         'sources' => AiTurnTrace::sourcesBlock($consulted === [] ? [] : [self::SOURCE_NAME], []),
+                        // TASK-1574 / V0-F — axe 2 depuis `grounded` (syntaxique) ;
+                        // axe 3 : aucune source refusee ici (pre-choisies), pas de
+                        // rerank par cette voie → `null` mesure.
+                        'state' => AiTurnTrace::stateBlock($response === null ? null : $cited !== [], []),
                     ],
                 ),
                 'failure' => $failure,

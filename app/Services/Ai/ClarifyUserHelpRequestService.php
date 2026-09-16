@@ -646,6 +646,7 @@ class ClarifyUserHelpRequestService implements AiProvider
                         // TASK-1573 / V0-E — absent sur la sortie « feature
                         // coupee » (builder jamais appele), mesure ensuite.
                         'sources' => $borne === null ? [] : AiTurnTrace::sourcesBlock($borne->sourcesUsed, $borne->sourcesDenied),
+                        'state' => AiTurnTrace::stateBlock(null, $borne?->sourcesDenied ?? []),
                     ],
                 ),
             ], static fn ($value): bool => $value !== null)
@@ -765,6 +766,8 @@ class ClarifyUserHelpRequestService implements AiProvider
                         'history' => $history,
                         // TASK-1573 / V0-E — `used`/`denied` de la borne (W3A).
                         'sources' => $borne === null ? [] : AiTurnTrace::sourcesBlock($borne->sourcesUsed, $borne->sourcesDenied),
+                        // TASK-1574 / V0-F — pas de grounding ici ; axe 3 depuis les refus.
+                        'state' => AiTurnTrace::stateBlock(null, $borne?->sourcesDenied ?? []),
                     ],
                 ),
                 'failure' => $failure,

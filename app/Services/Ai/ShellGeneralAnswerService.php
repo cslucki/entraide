@@ -341,6 +341,9 @@ final class ShellGeneralAnswerService
                         'history' => $history,
                         // TASK-1573 / V0-E — `used`/`denied` de la borne (W3A).
                         'sources' => AiTurnTrace::sourcesBlock($sourcesUsed, $sourcesDenied),
+                        // TASK-1574 / V0-F — pas de notion de grounding sur ce
+                        // chemin (axe 2 `not_applicable`) ; axe 3 depuis les refus.
+                        'state' => AiTurnTrace::stateBlock(null, $sourcesDenied),
                     ],
                 ),
                 'failure' => $failure,

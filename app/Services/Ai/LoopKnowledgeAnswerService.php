@@ -527,6 +527,17 @@ class LoopKnowledgeAnswerService
         // ignoree.
         $cited = $this->citedSources($answer, $consulted);
 
+        // TASK-1574 / CDC-01 V0-F — le grounding se lit. `method` dit ce qui a
+        // ete verifie : la PRESENCE de references valides dans la reponse, rien
+        // de semantique. Aucun chemin n'abstient sur preuve insuffisante : la
+        // reponse est rendue, et `state.verification_status` dira
+        // `insufficient` (correction C24).
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'grounding', 'executed', null, [
+            'consulted' => count($consulted),
+            'cited' => count($cited),
+            'method' => 'syntactic_citations',
+        ]);
+
         // TASK-1391 : une reference inventee ne doit pas rester sous les yeux
         // du membre. Qu'elle ne devienne pas une source etait deja acquis ;
         // qu'elle disparaisse du texte ne l'etait pas, et un `[S9]` sans S9
@@ -959,6 +970,10 @@ class LoopKnowledgeAnswerService
                         // TASK-1573 / V0-E — sur une abstention, les familles
                         // disent ce qui a ete cherche, retenu (rien) et refuse.
                         'sources' => $borne === null ? [] : AiTurnTrace::sourcesBlock($borne->sourcesUsed, $borne->sourcesDenied, $dossierRetrieval),
+                        // TASK-1574 / V0-F — un arret n'a rien cite : axe 2
+                        // `insufficient` si le grounding etait l'etage (abstention),
+                        // `not_applicable` avant ; axe 3 depuis les mesures en main.
+                        'state' => AiTurnTrace::stateBlock($stage === 'grounding' ? false : null, $borne?->sourcesDenied ?? [], $dossierRetrieval),
                     ],
                 ),
             ], static fn ($value): bool => $value !== null)
@@ -1142,6 +1157,9 @@ class LoopKnowledgeAnswerService
                         // TASK-1573 / V0-E — les quatre familles, formatees
                         // depuis la borne et la trace deja en main.
                         'sources' => AiTurnTrace::sourcesBlock($borne->sourcesUsed, $borne->sourcesDenied, $dossierRetrieval),
+                        // TASK-1574 / V0-F — les deux axes, traduits de mesures
+                        // en main : `grounded` (syntaxique), refus, rerank.
+                        'state' => AiTurnTrace::stateBlock($response === null ? null : $cited !== [], $borne->sourcesDenied, $dossierRetrieval),
                     ],
                 ),
             ], static fn ($value): bool => $value !== null)
