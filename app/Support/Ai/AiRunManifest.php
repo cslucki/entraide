@@ -54,6 +54,13 @@ final class AiRunManifest
                 throw new \RuntimeException('Ce run n\'appartient pas a cette Organization.');
             }
 
+            // TASK-1588 — un run qu'on ne pourra pas COMPLETER (`addTurn` apres
+            // le tour) est refuse A L'OUVERTURE : jamais un provider appele
+            // pour un tour qui ne rejoindra pas son manifeste.
+            if (! is_writable(self::path($runId))) {
+                throw new \RuntimeException('Manifeste de run inaccessible en ecriture : fichier '.self::path($runId).' (proprietaire/mode ?).');
+            }
+
             return $existant;
         }
 
@@ -125,11 +132,74 @@ final class AiRunManifest
         return $decode;
     }
 
-    /** @param  array<string, mixed>  $manifeste */
+    /**
+     * Mode des repertoires et fichiers du manifeste : le meme contrat que le
+     * disque `dossier_files` (`config/filesystems.php`, `private => 0770`) —
+     * les repertoires de `storage/` portent le setgid du groupe du serveur web,
+     * et la CLI (l'operateur) comme HTTP (`www-data`) doivent pouvoir ecrire
+     * le MEME manifeste. Sans cela, un repertoire cree par la CLI (umask 022 ->
+     * 0755) est illisible en ecriture pour le serveur web : `Permission denied`
+     * en HTTP, page 500 (TASK-1588, constate sur test.laravel).
+     */
+    public const DIRECTORY_MODE = 0770;
+
+    public const FILE_MODE = 0660;
+
+    /**
+     * Ecrit le manifeste — ou LEVE une `RuntimeException` explicite. Une
+     * impossibilite d'ecrire (repertoire non creable, non inscriptible, disque
+     * plein) n'est jamais une `ErrorException` brute : l'appelant doit pouvoir
+     * refuser proprement AVANT tout appel provider (`start()` precede toute
+     * execution dans `AiTurnExecutor`).
+     *
+     * @param  array<string, mixed>  $manifeste
+     */
     private static function save(array $manifeste): void
     {
-        File::ensureDirectoryExists(dirname(self::path($manifeste['run_id'])));
-        File::put(self::path($manifeste['run_id']), (string) json_encode($manifeste, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        $path = self::path($manifeste['run_id']);
+        $directory = dirname($path);
+        $json = (string) json_encode($manifeste, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        try {
+            if (! is_dir($directory)) {
+                // `mkdir` applique l'umask (022 -> 0750) : le mode voulu est
+                // pose EXPLICITEMENT sur chaque repertoire cree ici.
+                $crees = [];
+                for ($d = $directory; ! is_dir($d) && $d !== dirname($d); $d = dirname($d)) {
+                    $crees[] = $d;
+                }
+                File::ensureDirectoryExists($directory, self::DIRECTORY_MODE);
+                foreach ($crees as $d) {
+                    @chmod($d, self::DIRECTORY_MODE);
+                }
+            }
+
+            if (! is_dir($directory) || ! is_writable($directory)) {
+                throw new \RuntimeException("Manifeste de run inaccessible en ecriture : repertoire {$directory} (proprietaire/mode ?).");
+            }
+
+            if (file_exists($path) && ! is_writable($path)) {
+                throw new \RuntimeException("Manifeste de run inaccessible en ecriture : fichier {$path} (proprietaire/mode ?).");
+            }
+
+            $etaitAbsent = ! file_exists($path);
+
+            if (File::put($path, $json) === false) {
+                throw new \RuntimeException("Manifeste de run non ecrit : {$path}.");
+            }
+
+            if ($etaitAbsent) {
+                // Le fichier appartient a celui qui l'a cree ; le groupe (serveur
+                // web ou operateur) doit pouvoir le completer (`addTurn`).
+                @chmod($path, self::FILE_MODE);
+            }
+        } catch (\RuntimeException $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            // `mkdir`/`file_put_contents` remontent des avertissements que le
+            // handler transforme en ErrorException : on les dit en clair.
+            throw new \RuntimeException("Manifeste de run inaccessible en ecriture : {$path} — ".$exception->getMessage(), 0, $exception);
+        }
     }
 
     /** @return array{app_version: ?string, sha: ?string} */
