@@ -200,6 +200,62 @@
             </section>
         </div>
 
+        {{-- TASK-1582 — Doctrine Strip V0 : les regles qui ont gouverne ce tour --}}
+        @if (isset($doctrine) && $doctrine !== null)
+            @php $md = $doctrine['max_distance']; $rk = $doctrine['rerank']; @endphp
+            <section class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4" data-inspector-doctrine>
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Règles qui ont gouverné ce tour</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Deux règles observables en V0. <strong>Observé sur ce tour</strong> (mesure) et <strong>configuration actuelle</strong> (lue aujourd'hui) sont rendus séparément : l'une ne prouve jamais l'autre.</p>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 text-sm">
+                    <div data-inspector-doctrine-max-distance>
+                        <h4 class="text-xs uppercase text-gray-500 dark:text-gray-400 mb-2">Filtre vectoriel &middot; <code>max_distance</code></h4>
+                        <dl class="space-y-1">
+                            <div class="flex items-baseline gap-2"><dt class="w-40 shrink-0 text-gray-500 dark:text-gray-400">Ce tour</dt><dd class="font-mono">{{ $aff($md['measured']) }}</dd><span class="ml-auto text-[10px] px-1.5 py-0.5 rounded {{ $label($md['measured_label']) }}">{{ $md['measured_label'] }}</span></div>
+                            @if ($md['measured'] === null)<div class="text-xs text-gray-400 pl-40">({{ $md['measured_reason'] }})</div>@endif
+                            <div class="flex items-baseline gap-2"><dt class="w-40 shrink-0 text-gray-500 dark:text-gray-400">Aujourd'hui</dt><dd class="font-mono">{{ $aff($md['current']) }}</dd><span class="ml-auto text-[10px] px-1.5 py-0.5 rounded {{ $label($md['current_label']) }}">{{ $md['current_label'] }} · CURRENT</span></div>
+                            <div class="flex items-baseline gap-2"><dt class="w-40 shrink-0 text-gray-500 dark:text-gray-400">Historique</dt><dd class="text-gray-500 dark:text-gray-400">UNAVAILABLE <span class="text-xs">({{ $md['history_reason'] }})</span></dd></div>
+                        </dl>
+                        @if ($md['differs'] === true)
+                            <p class="mt-2 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 rounded px-2 py-1" data-inspector-doctrine-warning>La configuration actuelle diffère de celle mesurée pour ce tour.</p>
+                        @endif
+                    </div>
+                    <div data-inspector-doctrine-rerank>
+                        <h4 class="text-xs uppercase text-gray-500 dark:text-gray-400 mb-2">Rerank — autorité plateforme ∧ Organization</h4>
+                        <p class="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Observé sur ce tour</p>
+                        <dl class="space-y-1 mb-3">
+                            @foreach (['attempted' => 'Tenté', 'reason_not_attempted' => 'Raison si non tenté', 'provider' => 'Provider', 'model' => 'Modèle', 'duration_ms' => 'Durée (ms)'] as $cle => $titre)
+                                <div class="flex items-baseline gap-2"><dt class="w-40 shrink-0 text-gray-500 dark:text-gray-400">{{ $titre }}</dt>{{-- Un `null` ECRIT par la source (rerank non tente : pas de provider) est une mesure « aucun », pas une absence de trace. --}}
+                                <dd class="font-mono">{{ $rk['observed'][$cle] === null && $rk['observed'][$cle.'_label'] === 'MEASURED' ? '(aucun)' : $aff($rk['observed'][$cle]) }}</dd><span class="ml-auto text-[10px] px-1.5 py-0.5 rounded {{ $label($rk['observed'][$cle.'_label']) }}">{{ $rk['observed'][$cle.'_label'] }}</span></div>
+                            @endforeach
+                        </dl>
+                        <p class="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Configuration actuelle</p>
+                        <dl class="space-y-1 mb-2">
+                            <div class="flex items-baseline gap-2"><dt class="w-40 shrink-0 text-gray-500 dark:text-gray-400">Plateforme aujourd'hui</dt><dd class="font-mono">{{ $rk['current']['platform_enabled'] ? 'ON' : 'OFF' }}</dd><span class="ml-auto text-[10px] px-1.5 py-0.5 rounded {{ $label('MEASURED') }}">MEASURED · CURRENT</span></div>
+                            <div class="flex items-baseline gap-2"><dt class="w-40 shrink-0 text-gray-500 dark:text-gray-400">Organization aujourd'hui</dt><dd class="font-mono">{{ $rk['current']['organization_enabled'] ? 'ON' : 'OFF' }}{{ $rk['current']['can_be_enabled_for_organization'] ? '' : ' (aucune configuration IA : ne peut pas être activé)' }}</dd><span class="ml-auto text-[10px] px-1.5 py-0.5 rounded {{ $label('MEASURED') }}">MEASURED · CURRENT</span></div>
+                            <div class="flex items-baseline gap-2"><dt class="w-40 shrink-0 text-gray-500 dark:text-gray-400">Règle</dt><dd class="font-mono">{{ $rk['rule']['expression'] }} → {{ $rk['current']['effective'] ? 'ON' : 'OFF' }}</dd><span class="ml-auto text-[10px] px-1.5 py-0.5 rounded {{ $label('DECLARED') }}">DECLARED</span></div>
+                        </dl>
+                        <p class="text-[11px] text-gray-400 mb-2">{{ $rk['current']['caveat'] }}</p>
+                        <p class="text-[11px] uppercase tracking-wide text-gray-400 mb-1">{{ $rk['last_change']['wording'] }}</p>
+                        <dl class="space-y-1" data-inspector-doctrine-audit>
+                            @foreach (['platform' => 'Plateforme', 'organization' => 'Organization'] as $portee => $titre)
+                                @php $c = $rk['last_change'][$portee]; @endphp
+                                <div class="flex items-baseline gap-2"><dt class="w-40 shrink-0 text-gray-500 dark:text-gray-400">{{ $titre }}</dt>
+                                    <dd class="font-mono text-xs">
+                                        @if ($c['available'])
+                                            {{ $aff($c['from']) }} → {{ $aff($c['to']) }} · {{ $c['changed_by'] ?? 'auteur inconnu' }} · {{ $c['created_at'] !== null ? \Illuminate\Support\Carbon::parse($c['created_at'])->format('d/m/Y H:i') : 'UNAVAILABLE' }}
+                                        @else
+                                            <span class="text-gray-500 dark:text-gray-400">UNAVAILABLE ({{ $c['reason'] }})</span>
+                                        @endif
+                                    </dd>
+                                    <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded {{ $label($c['label']) }}">{{ $c['label'] }}</span>
+                                </div>
+                            @endforeach
+                        </dl>
+                    </div>
+                </div>
+            </section>
+        @endif
+
         {{-- Réponse (jamais le prompt) --}}
         <section class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4" data-inspector-output>
             <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Réponse finale</h3>
