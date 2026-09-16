@@ -214,7 +214,21 @@ class TASK1584TurnComparisonTest extends TestCase
         $this->assertSame([], array_diff($classes, ['TIMING']), 'divergences ⊆ TIMING : '.json_encode($c['divergences']));
         $this->assertSame(AiTruthLabel::MEASURED, $c['timing']['latency_ms']['label']);
         // Un compteur present des deux cotes et egal n'est PAS une divergence.
-        $this->assertNotNull($this->inspecter($a)['sources']['retrieved']['candidates']);
+        $ia = $this->inspecter($a);
+        $this->assertNotNull($ia['sources']['retrieved']['candidates']);
+        // Une latence differente est une divergence TIMING — et SEULEMENT
+        // cela : elle n'entre jamais dans first_divergent_step.
+        $lent = $ia;
+        $lent['decision']['latency_ms'] = ($ia['decision']['latency_ms'] ?? 0) + 500;
+        $pur = AiTurnComparison::compare($ia, $lent);
+        $this->assertNull($pur['first_divergent_step']);
+        $this->assertSame([['field' => 'timing.latency_ms', 'a' => $ia['decision']['latency_ms'], 'b' => $lent['decision']['latency_ms'], 'class' => 'TIMING']], $pur['divergences']);
+        // Une latence absente d'un cote : UNAVAILABLE, pas une divergence.
+        $sans = $ia;
+        $sans['decision']['latency_ms'] = null;
+        $pur = AiTurnComparison::compare($ia, $sans);
+        $this->assertSame(AiTruthLabel::UNAVAILABLE, $pur['timing']['latency_ms']['label']);
+        $this->assertSame([], $pur['divergences']);
     }
 
     // ────────────────────────────── C4 pre-V0

@@ -263,7 +263,7 @@ final class AiTurnComparison
 
     /**
      * @param  array<string, mixed>  $trace
-     * @return array<string, bool>|null  chunk_id => selected_final
+     * @return array<string, bool>|null chunk_id => selected_final
      */
     private static function candidats(array $trace): ?array
     {
