@@ -273,6 +273,9 @@
                                                 <span class="text-xs text-amber-600 dark:text-amber-400">{{ __('ai.usage_status_refused') }}</span>
                                             @elseif($row['status'] === 'abstained')
                                                 <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('ai.usage_status_abstained') }}</span>
+                                            @elseif($row['status'] === 'fallback')
+                                                {{-- TASK-1572 (A7 / I6) : une reponse de repli, jamais confondue avec le nominal. --}}
+                                                <span class="text-xs text-sky-600 dark:text-sky-400">{{ __('ai.usage_status_fallback') }}</span>
                                             @else
                                                 <span class="text-xs text-red-500">{{ __('ai.usage_status_failed') }}</span>
                                             @endif

@@ -175,6 +175,16 @@ class ChatLoopAiService
                 throw AiRefusedException::notConfigured($exception);
             }
 
+            // TASK-1572 / CDC-01 V0-D — le provider EFFECTIF tel que resolu, et
+            // l'absence de fallback comme MESURE : `ProviderResolver` ne selectionne
+            // jamais `FakeAIProvider` (doctrine P4). `provider_requested` n'a aucune
+            // source honnete : absent.
+            AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+                'provider_effective' => $resolved->provider,
+                'model' => $resolved->trace(),
+                'fallback_used' => false,
+            ]);
+
             $verdict = $this->economicGuard->authorize(
                 $organization,
                 $definition->process,
@@ -1361,6 +1371,16 @@ class ChatLoopAiService
 
             throw AiRefusedException::notConfigured($exception);
         }
+
+        // TASK-1572 / CDC-01 V0-D — le provider EFFECTIF tel que resolu, et
+        // l'absence de fallback comme MESURE : `ProviderResolver` ne selectionne
+        // jamais `FakeAIProvider` (doctrine P4). `provider_requested` n'a aucune
+        // source honnete : absent.
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'provider_effective' => $resolved->provider,
+            'model' => $resolved->trace(),
+            'fallback_used' => false,
+        ]);
 
         // La garde economique : budget Organization, budget du process, quota
         // d'inconnus, et le credit du demandeur — la meme autorite que partout.

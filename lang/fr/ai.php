@@ -328,6 +328,7 @@ return [
     'usage_status_failed' => 'Échec',
     'usage_status_refused' => 'Refusé avant appel',
     'usage_status_abstained' => 'Abstention (aucune source)',
+    'usage_status_fallback' => 'Réponse de repli (sans IA)',
     'cockpit_title' => 'IA & connaissances',
     'cockpit_intro' => 'L\'état du système IA de votre organisation : configuration, comportement, connaissances, consommation.',
     'cockpit_config_title' => 'Configuration IA',

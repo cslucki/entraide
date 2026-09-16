@@ -23,6 +23,7 @@ use App\Support\Ai\AiCapabilityCatalogue;
 use App\Support\Ai\AiSelfKnowledge;
 use App\Support\Ai\AiShellThread;
 use App\Support\Ai\AiShellTurnCards;
+use App\Support\Ai\AiTurnState;
 use App\Support\Loops\HelpRequestHandoff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
@@ -801,7 +802,8 @@ class TASK1350AiShellHonestConversationTest extends TestCase
         $this->assertStringNotContainsString(__('ai.shell_answer_unavailable'), $third->content);
 
         // Aucun appel provider n'a eu lieu sur aucun des trois tours.
-        $this->assertSame(0, AiInteraction::query()->count());
+        // TASK-1572 / V0-D : les replis, eux, laissent leur tour (non generatif).
+        $this->assertSame(0, AiInteraction::query()->whereNot(static fn ($q) => $q->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES))->count());
         $this->assertSame(0, AiProviderInvocation::query()->count());
     }
 
@@ -823,7 +825,7 @@ class TASK1350AiShellHonestConversationTest extends TestCase
 
         $this->assertSame(AiShellResponder::STATUS_UNAVAILABLE, $answer->metadata['status']);
         $this->assertSame(__('ai.shell_answer_request_preparation_unavailable'), $answer->content);
-        $this->assertSame(0, AiInteraction::query()->count());
+        $this->assertSame(0, AiInteraction::query()->whereNot(static fn ($q) => $q->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES))->count());
     }
 
     /** 28. Avec un credential, le pipeline normal reprend — rien n'a ete masque. */
@@ -884,7 +886,14 @@ class TASK1350AiShellHonestConversationTest extends TestCase
             ->call('send');
 
         $this->assertSame(__('ai.shell_answer_request_preparation_unavailable'), $this->lastAnswer()->content);
-        $this->assertSame(0, AiInteraction::query()->count(), 'A ne doit emprunter aucun credential.');
+        $this->assertSame(0, AiInteraction::query()->whereNot(static fn ($q) => $q->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES))->count(), 'A ne doit emprunter aucun credential.');
+        // TASK-1572 / V0-D : le tour de repli de A est dans SON tenant, sans
+        // provider ni modele — aucun credential emprunte, et la trace le prouve.
+        foreach (AiInteraction::query()->get() as $repli) {
+            $this->assertSame((string) $this->organization->id, (string) $repli->organization_id);
+            $this->assertSame('', $repli->model);
+            $this->assertArrayNotHasKey('provider', $repli->metadata);
+        }
 
         app()->instance('current_organization', $organizationB);
 
@@ -894,9 +903,12 @@ class TASK1350AiShellHonestConversationTest extends TestCase
             ->call('send');
 
         // B a bien appele, et sa trace est inscrite sous B — jamais sous A.
-        $interactions = AiInteraction::query()->get();
-        $this->assertCount(1, $interactions);
-        $this->assertSame((string) $organizationB->id, (string) $interactions->first()->organization_id);
+        // TASK-1572 / V0-D : la seule GENERATION est celle de B ; le repli de A
+        // (tour non generatif) reste sous A.
+        $generations = AiInteraction::query()->whereNot(static fn ($q) => $q->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES))->get();
+        $this->assertCount(1, $generations);
+        $this->assertSame((string) $organizationB->id, (string) $generations->first()->organization_id);
+        $this->assertSame(0, AiInteraction::query()->where('organization_id', $organizationB->id)->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES)->count(), 'aucun repli sous B');
     }
 
     /**

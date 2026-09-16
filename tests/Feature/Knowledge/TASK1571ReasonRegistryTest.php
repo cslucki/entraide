@@ -112,7 +112,7 @@ class TASK1571ReasonRegistryTest extends TestCase
         $familles = AiTurnReason::byFamily();
 
         $this->assertSame(
-            ['economic', 'refused', 'source', 'rerank', 'degraded', 'context_builder', 'fallthrough', 'terminal', 'reserved'],
+            ['economic', 'refused', 'source', 'rerank', 'degraded', 'context_builder', 'fallthrough', 'terminal', 'fallback', 'reserved'],
             array_keys($familles),
         );
 
@@ -125,7 +125,10 @@ class TASK1571ReasonRegistryTest extends TestCase
         }
 
         $this->assertContains(AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED, $familles['terminal']);
-        $this->assertSame(['NO_GROUNDED_EVIDENCE', 'FAKE_PROVIDER_FALLBACK', 'FEATURE_DISABLED'], $familles['reserved']);
+        // V0-D (T1572) a sorti de `reserved` les deux codes qu'il emet — memes
+        // valeurs, famille `fallback` : le vocabulaire gele n'a pas bouge.
+        $this->assertSame(['NO_GROUNDED_EVIDENCE'], $familles['reserved']);
+        $this->assertSame(['FAKE_PROVIDER_FALLBACK', 'FEATURE_DISABLED'], $familles['fallback']);
         // Decision V0-C : pas de doublon de la famille rerank.
         $this->assertFalse(AiTurnReason::isKnown('RERANK_NOT_CONFIGURED'));
         $this->assertFalse(AiTurnReason::isKnown('un_code_inconnu'));

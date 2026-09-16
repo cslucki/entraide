@@ -230,8 +230,9 @@ class TASK1566WritersIdentityTest extends TestCase
         $interaction = $this->executerClarify('Je cherche de l aide pour cadrer nos usages');
 
         $this->assertIdentiteVientDuContexteIa($vu, $interaction);
-        // TASK-1568 (V0-G) : `identity` et `steps` sont reclames par le writer.
-        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps']);
+        // TASK-1568 (V0-G) : `identity` et `steps` ; TASK-1572 (V0-D) : le verdict
+        // (`status`, `decided_by`) — `stage`/`reason_code` absents sur un tour repondu.
+        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'status', 'decided_by']);
         $this->assertLegacyPreservee($interaction, ['requested_by', 'latency_ms', 'provider', 'capability', 'status']);
     }
 
