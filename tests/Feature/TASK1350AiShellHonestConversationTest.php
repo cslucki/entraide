@@ -411,7 +411,8 @@ class TASK1350AiShellHonestConversationTest extends TestCase
         $metadata = $this->lastAnswer()->metadata;
 
         $this->assertSame(
-            ['page_context', 'producer', 'status'],
+            // TASK-1576 / V0-I : `fallthroughs` (les declins du tour, `[]` inclus) s'ajoute a la ligne assistant.
+            ['fallthroughs', 'page_context', 'producer', 'status'],
             collect(array_keys($metadata))->sort()->values()->all(),
         );
 
@@ -434,7 +435,7 @@ class TASK1350AiShellHonestConversationTest extends TestCase
         $metadata = $this->lastAnswer()->metadata;
 
         $this->assertSame(
-            ['page_context', 'pinned_context', 'producer', 'status'],
+            ['fallthroughs', 'page_context', 'pinned_context', 'producer', 'status'],
             collect(array_keys($metadata))->sort()->values()->all(),
         );
     }
@@ -1423,7 +1424,8 @@ class TASK1350AiShellHonestConversationTest extends TestCase
 
         // Metadata minimale : exactement les memes quatre cles qu'avant.
         $this->assertSame(
-            ['page_context', 'producer', 'status'],
+            // TASK-1576 / V0-I : `fallthroughs` (les declins du tour, `[]` inclus) s'ajoute a la ligne assistant.
+            ['fallthroughs', 'page_context', 'producer', 'status'],
             collect(array_keys($answer->metadata))->sort()->values()->all(),
         );
 

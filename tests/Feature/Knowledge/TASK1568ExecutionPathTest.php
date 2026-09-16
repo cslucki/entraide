@@ -199,11 +199,13 @@ class TASK1568ExecutionPathTest extends TestCase
         // Garde de scope V0-I : aucun writer d'`ai_interactions` ne nomme une
         // branche zero-provider. Un grep statique suffit — ces constantes ne
         // doivent apparaitre QUE dans le registre.
+        // TASK-1576 / V0-I : les 4 chemins reserves sont desormais ecrits — par
+        // `AiShellResponder` SEUL (la branche zero-provider est son propre writer).
         foreach (['AI_SHELL_SELF_KNOWLEDGE', 'AI_SHELL_REFERENCE', 'AI_SHELL_PEOPLE_MATCHING', 'AI_SHELL_PEOPLE_SELF'] as $constante) {
             $this->assertSame(
-                [],
+                ['Services/Ai/AiShellResponder.php'],
                 $this->fichiersApplicatifsContenant('AiExecutionPath::'.$constante),
-                "`{$constante}` est ecrite par un chemin applicatif : c'est le perimetre de V0-I",
+                "`{$constante}` n'est ecrite que par la branche Shell zero-provider (V0-I)",
             );
         }
     }
@@ -605,13 +607,19 @@ class TASK1568ExecutionPathTest extends TestCase
      * Garde de scope G-β / C20. Sabotage : ajouter dans `AiShellResponder` un
      * `AiTurnTrace::step(…, AiTurnReason::FALLTHROUGH_…)` → ce test rougit.
      */
-    public function test_d2_aucun_fallthrough_n_est_branche_avant_v0i(): void
+    public function test_d2_les_fallthroughs_n_ont_qu_un_emetteur_et_jamais_une_etape(): void
     {
+        // TASK-1576 / V0-I (C20, option 1) : l'UNIQUE emetteur est
+        // `AiShellResponder::decline()` — jamais un `AiTurnTrace::step()`, les
+        // declins vivent dans `ai_shell_messages.metadata.fallthroughs`, hors
+        // du bloc `turn` gele.
         $this->assertSame(
-            [],
+            ['Services/Ai/AiShellResponder.php'],
             $this->fichiersApplicatifsContenant('FALLTHROUGH_', except: 'AiTurnReason.php'),
-            'un code de fallthrough est emis hors du registre : c\'est le perimetre de V0-I (C20)',
+            'un code de fallthrough est emis ailleurs que dans AiShellResponder (C20)',
         );
+        // Le dispatcher ne depose AUCUNE etape : il n'a pas de turnId (G-β).
+        $this->assertNotContains('Services/Ai/AiShellResponder.php', $this->fichiersApplicatifsContenant('AiTurnTrace::step('));
     }
 
     public function test_d3_le_bloc_ne_porte_ni_question_ni_contenu_de_document(): void
