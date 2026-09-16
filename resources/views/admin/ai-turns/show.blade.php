@@ -46,7 +46,7 @@
             @foreach (['status' => 'Verdict', 'stage' => 'Étape terminale', 'reason_code' => 'Code', 'decided_by' => 'Décidé par', 'latency_ms' => 'Latence (ms)'] as $cle => $titre)
                 <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                     <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">{{ $titre }}</p>
-                    <p class="text-sm font-medium mt-1 font-mono {{ $cle === 'status' ? $statutClasse : 'text-gray-900 dark:text-gray-100' }}">{{ $aff($decision[$cle] ?? null) }}</p>
+                    <p class="text-sm font-medium mt-1 font-mono break-all {{ $cle === 'status' ? $statutClasse : 'text-gray-900 dark:text-gray-100' }}">{{ $aff($decision[$cle] ?? null) }}</p>
                     <span class="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded {{ $label($truth['decision.'.$cle] ?? null) }}">{{ $truth['decision.'.$cle] ?? 'UNAVAILABLE' }}</span>
                 </div>
             @endforeach
