@@ -715,6 +715,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // TASK-1581 — Inspector UI V0 : la vue lecteur d'un tour IA (CDC-02 T1-E).
     // Read-only : aucune route POST, aucun bouton RUN.
     Route::get('/ai-turns', [AdminAiTurnController::class, 'index'])->name('ai-turns');
+    // TASK-1585 — Tester une requete : le GET ne fait que rendre le formulaire
+    // (selections dependantes, tenant) ; le POST execute UN vrai tour par
+    // AiTurnExecutor (publish:false) puis redirige vers sa fiche.
+    Route::get('/ai-turns/test', [AdminAiTurnController::class, 'testForm'])->name('ai-turns.test');
+    Route::post('/ai-turns/test', [AdminAiTurnController::class, 'runTest'])->name('ai-turns.test.run');
     Route::get('/ai-turns/{interaction}', [AdminAiTurnController::class, 'show'])->name('ai-turns.show');
     Route::get('/ai-shell-turns/{shellMessage}', [AdminAiTurnController::class, 'showShell'])->name('ai-turns.shell');
 

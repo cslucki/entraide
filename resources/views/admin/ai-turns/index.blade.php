@@ -5,10 +5,12 @@
             <div>
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Inspector IA — la trace du tour</h2>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Lecture seule : ce que le tour a écrit de lui-même (bloc <code>turn</code>, schéma 1). Rien n'est rejoué, rien n'est deviné.
+                    Lecture seule : ce que le tour a écrit de lui-même (bloc <code>turn</code>). Rien n'est rejoué, rien n'est deviné — « Tester une requête » est la seule entrée qui exécute.
                 </p>
             </div>
         </div>
+
+        @include('admin.ai-turns._onglets', ['actif' => 'observer'])
 
         {{-- Lookup par identifiant : GET, sans effet. --}}
         <form method="get" action="{{ route('admin.ai-turns') }}" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex flex-col sm:flex-row gap-3 sm:items-end">

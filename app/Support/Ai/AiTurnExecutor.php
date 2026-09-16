@@ -10,6 +10,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
 use App\Services\ChatLoop\ChatLoopAiService;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
@@ -52,8 +53,8 @@ final class AiTurnExecutor
     /**
      * @param  string|null  $runId  run existant (serie CLI) ; `null` = run d'un tour, cree ici
      *
-     * @throws \InvalidArgumentException  entree invalide (mode, tenant, declencheur) — AVANT toute execution
-     * @throws \RuntimeException  manifeste corrompu ou run d'une autre Organization
+     * @throws \InvalidArgumentException entree invalide (mode, tenant, declencheur) — AVANT toute execution
+     * @throws \RuntimeException manifeste corrompu ou run d'une autre Organization
      */
     public function execute(
         Organization $organization,
@@ -151,9 +152,9 @@ final class AiTurnExecutor
      * imposent au requerant. Sert aux appelants a proposer un choix honnete,
      * jamais a autoriser : les services revalident.
      *
-     * @return \Illuminate\Support\Collection<int, Loop>
+     * @return Collection<int, Loop>
      */
-    public static function accessibleLoops(Organization $organization, User $user): \Illuminate\Support\Collection
+    public static function accessibleLoops(Organization $organization, User $user): Collection
     {
         if ((string) $user->organization_id !== (string) $organization->id) {
             return collect();
