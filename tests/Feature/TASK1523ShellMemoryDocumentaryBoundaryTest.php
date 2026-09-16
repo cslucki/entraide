@@ -141,7 +141,12 @@ class TASK1523ShellMemoryDocumentaryBoundaryTest extends TestCase
     {
         $method = new ReflectionMethod(AiShellResponder::class, 'conversationMemory');
 
-        return (string) $method->invoke(app(AiShellResponder::class), $this->organization, $this->member);
+        // TASK-1567 : `conversationMemory()` rend desormais un
+        // `ShellConversationMemory` (texte + ids reellement injectes + mesures)
+        // au lieu d'une `string`. Le TRANSCRIPT, lui, est inchange — c'est
+        // `->text` qui le porte, et tout ce que ce test garde sur son contenu
+        // reste valable a l'octet pres.
+        return $method->invoke(app(AiShellResponder::class), $this->organization, $this->member)->text;
     }
 
     // ── La garde ────────────────────────────────────────────────────────────
