@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\AiInteraction;
 use App\Models\AiShellMessage;
 use App\Models\LoopMessage;
+use App\Models\Organization;
+use App\Services\Ai\AiRerankSettings;
 use App\Support\Ai\AiConversationTrace;
+use App\Support\Ai\AiTurnDoctrineProjection;
 use App\Support\Ai\AiTurnInspection;
 use App\Support\Ai\AiTurnProjection;
 use App\Support\Ai\AiTurnTrace;
@@ -72,7 +75,7 @@ class AdminAiTurnController extends Controller
         return view('admin.ai-turns.index', ['recents' => $recents]);
     }
 
-    public function show(string $interaction): View
+    public function show(string $interaction, AiRerankSettings $rerank): View
     {
         abort_unless(Str::isUuid($interaction), 404);
 
@@ -95,12 +98,15 @@ class AdminAiTurnController extends Controller
             'ligne' => $ligne,
             'organization' => $ligne->organization,
             'trace' => $trace,
+            // TASK-1582 — les deux regles observables : mesure du tour vs
+            // configuration d'aujourd'hui, Organization = celle du TOUR.
+            'doctrine' => $ligne->organization instanceof Organization ? AiTurnDoctrineProjection::project($trace, $ligne->organization, $rerank) : null,
             'conversation' => $conversation,
             'support' => 'ai_interactions',
         ]);
     }
 
-    public function showShell(string $shellMessage): View
+    public function showShell(string $shellMessage, AiRerankSettings $rerank): View
     {
         abort_unless(Str::isUuid($shellMessage), 404);
 
@@ -125,6 +131,7 @@ class AdminAiTurnController extends Controller
             'ligne' => $interaction ?? $message,
             'organization' => $message->organization,
             'trace' => $trace,
+            'doctrine' => $message->organization instanceof Organization ? AiTurnDoctrineProjection::project($trace, $message->organization, $rerank) : null,
             'conversation' => $message->conversation_id !== null
                 ? AiConversationTrace::fromShellConversation((string) $message->conversation_id, $organizationId)
                 : null,
