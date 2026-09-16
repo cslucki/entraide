@@ -117,9 +117,9 @@ final class AiTurnExecutor
                             throw new \LogicException('Le seam publish:false devait rendre l\'AiInteraction du tour.');
                         }
 
-                        $this->inscrireAuManifeste($runId, $interaction);
+                        $manifeste = $this->inscrireAuManifeste($runId, $interaction);
 
-                        return new AiTurnExecution($mode, $runId, $runKind, $interaction->refresh(), null);
+                        return new AiTurnExecution($mode, $runId, $runKind, $interaction->refresh(), null, manifestFailure: $manifeste);
                     }
 
                     // TASK-1568 / V0-G — un tour observe EST un tour
@@ -132,17 +132,17 @@ final class AiTurnExecutor
                         ? null
                         : AiInteraction::query()->where('organization_id', (string) $organization->id)->whereKey($reponse->interactionId)->first();
 
-                    $this->inscrireAuManifeste($runId, $interaction);
+                    $manifeste = $this->inscrireAuManifeste($runId, $interaction);
 
-                    return new AiTurnExecution($mode, $runId, $runKind, $interaction, $reponse);
+                    return new AiTurnExecution($mode, $runId, $runKind, $interaction, $reponse, manifestFailure: $manifeste);
                 } catch (\RuntimeException $exception) {
                     // Un refus du service — ACL, economie, idempotence, panne —
                     // est un RESULTAT d'observation. Le tour ecrit par l'arret
                     // anticipe, s'il existe, est retrouve par son run.
                     $interaction = $this->tourDuRun($organization, $runId, $dejaConnus);
-                    $this->inscrireAuManifeste($runId, $interaction);
+                    $manifeste = $this->inscrireAuManifeste($runId, $interaction);
 
-                    return new AiTurnExecution($mode, $runId, $runKind, $interaction, null, $exception->getMessage(), $exception::class);
+                    return new AiTurnExecution($mode, $runId, $runKind, $interaction, null, $exception->getMessage(), $exception::class, $manifeste);
                 }
             });
         } finally {
@@ -204,19 +204,30 @@ final class AiTurnExecutor
             ->all();
     }
 
-    /** TRACE-1B — des ids, rien d'autre. */
-    private function inscrireAuManifeste(string $runId, ?AiInteraction $interaction): void
+    /**
+     * TRACE-1B — des ids, rien d'autre. Rend le message d'echec si le
+     * manifeste n'a pas pu etre complete APRES le tour (review Opus F2) : le
+     * tour existe et se lit, l'echec d'inscription est porte par le resultat,
+     * jamais transforme en « rien n'est parti ».
+     */
+    private function inscrireAuManifeste(string $runId, ?AiInteraction $interaction): ?string
     {
         if ($interaction === null) {
-            return;
+            return null;
         }
 
         $turn = is_array($interaction->metadata) ? ($interaction->metadata[AiTurnTrace::TURN_METADATA_KEY] ?? null) : null;
 
-        AiRunManifest::addTurn($runId, [
-            'turn_id' => is_array($turn) ? ($turn['id'] ?? null) : null,
-            'interaction_id' => (string) $interaction->id,
-        ]);
+        try {
+            AiRunManifest::addTurn($runId, [
+                'turn_id' => is_array($turn) ? ($turn['id'] ?? null) : null,
+                'interaction_id' => (string) $interaction->id,
+            ]);
+        } catch (\RuntimeException $exception) {
+            return $exception->getMessage();
+        }
+
+        return null;
     }
 
     /**

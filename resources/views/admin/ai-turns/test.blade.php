@@ -22,12 +22,16 @@
             <p class="text-sm text-red-600 dark:text-red-400" data-inspector-test-error>{{ session('inspector_test_error') }}</p>
         @endif
 
-        {{-- Étape 1-3 : sélections dépendantes, rendues côté serveur (GET, sans effet). --}}
+        {{-- Étape 1-3 : sélections dépendantes, rendues côté serveur (GET, sans effet).
+             TASK-1588 : amélioration progressive — un changement de sélection
+             soumet le GET (idiome maison, cf. admin/categories) ; toute règle
+             d'appartenance reste côté serveur (contexteDuTest + AiTurnExecutor).
+             Sans JS, le bouton « Actualiser les choix » fait la même chose. --}}
         <form method="get" action="{{ route('admin.ai-turns.test') }}" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-4" data-inspector-test-context>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <label class="text-sm">
                     <span class="block text-xs uppercase text-gray-500 dark:text-gray-400 mb-1">Organization</span>
-                    <select name="organization" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 text-sm" data-inspector-test-organization>
+                    <select name="organization" onchange="this.form.submit()" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 text-sm" data-inspector-test-organization>
                         <option value="">— choisir —</option>
                         @foreach ($organizations as $o)
                             <option value="{{ $o->id }}" @selected($organization?->id === $o->id)>{{ $o->slug }}</option>
@@ -36,7 +40,7 @@
                 </label>
                 <label class="text-sm">
                     <span class="block text-xs uppercase text-gray-500 dark:text-gray-400 mb-1">Utilisateur <span class="normal-case text-gray-400">(de cette Organization)</span></span>
-                    <select name="user" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 text-sm" data-inspector-test-user @disabled($organization === null)>
+                    <select name="user" onchange="this.form.submit()" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 text-sm" data-inspector-test-user @disabled($organization === null)>
                         <option value="">{{ $organization === null ? 'choisir une Organization d\'abord' : '— choisir —' }}</option>
                         @foreach ($users as $u)
                             <option value="{{ $u->id }}" @selected($user?->id === $u->id)>{{ $u->email }}</option>
@@ -45,7 +49,7 @@
                 </label>
                 <label class="text-sm">
                     <span class="block text-xs uppercase text-gray-500 dark:text-gray-400 mb-1">Boucle <span class="normal-case text-gray-400">(membre actif)</span></span>
-                    <select name="loop" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 text-sm" data-inspector-test-loop @disabled($user === null)>
+                    <select name="loop" onchange="this.form.submit()" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 text-sm" data-inspector-test-loop @disabled($user === null)>
                         <option value="">{{ $user === null ? 'choisir un utilisateur d\'abord' : ($loops->isEmpty() ? 'aucune Boucle accessible à cet utilisateur' : '— choisir —') }}</option>
                         @foreach ($loops as $l)
                             <option value="{{ $l->id }}" @selected($loopChoisie?->id === $l->id)>{{ $l->name }}</option>
@@ -55,7 +59,7 @@
             </div>
             <input type="hidden" name="mode" value="{{ $mode }}">
             <div class="flex justify-end">
-                <button type="submit" class="px-4 py-2 bg-gray-700 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition">Actualiser les choix</button>
+                <button type="submit" class="px-4 py-2 bg-gray-700 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition" data-inspector-test-refresh>Actualiser les choix <span class="text-gray-300 text-xs">(sans JavaScript)</span></button>
             </div>
         </form>
 
