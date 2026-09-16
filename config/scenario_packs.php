@@ -1,7 +1,8 @@
 <?php
 
-use App\Support\ScenarioPacks\Packs\ArtSciLabEnglishPack;
+use App\Support\ScenarioPacks\Packs\AiLabPack;
 use App\Support\ScenarioPacks\Packs\ArtSciLabDemoPack;
+use App\Support\ScenarioPacks\Packs\ArtSciLabEnglishPack;
 use App\Support\ScenarioPacks\Packs\Test20260822DogfoodingPack;
 
 return [
@@ -33,6 +34,9 @@ return [
         // provisionne lui-meme quand il est absent — voir
         // App\Support\ScenarioPacks\Contracts\ProvisionsItsOrganization.
         ArtSciLabEnglishPack::ORGANIZATION_SLUG,
+        // TASK-1587 / CDC-03 L-A : l'Organization AI Lab de la campagne
+        // Nervous System (golds controles). Provisionnee par son pack.
+        AiLabPack::ORGANIZATION_SLUG,
     ],
 
     /*
@@ -47,6 +51,7 @@ return [
         'artscilab-demo-test' => ArtSciLabDemoPack::class,
         Test20260822DogfoodingPack::PACK_ID => Test20260822DogfoodingPack::class,
         ArtSciLabEnglishPack::PACK_ID => ArtSciLabEnglishPack::class,
+        AiLabPack::PACK_ID => AiLabPack::class,
     ],
 
     /*
@@ -65,6 +70,9 @@ return [
             'SCENARIO_PACK_TEST20260822_SOURCE_DIR',
             base_path('_temp/Test_Rag-2026-08-22'),
         ),
+        // TASK-1587 : corpus VERSIONNE (synthetique, < 200 Ko) — le Lab doit
+        // etre reproductible en CI, contrairement au dogfooding de Cyril.
+        AiLabPack::PACK_ID => database_path('scenario-packs/ai-lab/corpus'),
     ],
 
 ];
