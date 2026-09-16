@@ -105,7 +105,16 @@ final class AiTurnState
      *
      * @var list<string>
      */
-    public const NON_GENERATIVE_STATUSES = [self::TURN_ABSTAINED, self::TURN_REFUSED];
+    public const NON_GENERATIVE_STATUSES = [self::TURN_ABSTAINED, self::TURN_REFUSED, self::LINE_FALLBACK];
+
+    /**
+     * TASK-1572 / V0-D — le statut de LIGNE (`metadata.status`) d'un tour rendu
+     * par le repli deterministe (`FakeAIProvider`) sans appel provider. Le
+     * TOUR, lui, est `answered` : le membre a eu une reponse — avec
+     * `identity.fallback_used = true` pour qu'elle ne passe jamais pour le
+     * nominal (I6). Rien n'a coute : statut non generatif pour les lecteurs.
+     */
+    public const LINE_FALLBACK = 'fallback';
 
     // ──────────────────── axe 2 : l'affirmation est-elle etayee ?
 

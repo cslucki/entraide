@@ -326,6 +326,7 @@ return [
     'usage_status_failed' => 'Failed',
     'usage_status_refused' => 'Refused before any call',
     'usage_status_abstained' => 'Abstained (no source)',
+    'usage_status_fallback' => 'Fallback answer (no AI call)',
     'cockpit_title' => 'AI & knowledge',
     'cockpit_intro' => 'The state of your organization\'s AI system: configuration, behaviour, knowledge, consumption.',
     'cockpit_config_title' => 'AI configuration',

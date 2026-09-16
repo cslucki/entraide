@@ -39,11 +39,11 @@ use App\Ai\Context\SourceDenied;
  * ## Ce qui est RESERVE — pose, pas encore emis
  *
  * La famille `reserved` porte les codes que CDC-01 P0.4 annonce et qu'un lot
- * ulterieur emettra : `NO_GROUNDED_EVIDENCE` (V0-F, grounding),
- * `FAKE_PROVIDER_FALLBACK` et `FEATURE_DISABLED` (V0-D, les trois sorties
- * silencieuses du clarifier). Ils sont dans le registre pour que le gel porte
- * le vocabulaire complet ; un test garde qu'aucun `step()` ne les emet avant
- * leur lot. `RERANK_NOT_CONFIGURED` n'est PAS cree : la famille 4
+ * ulterieur emettra : `NO_GROUNDED_EVIDENCE` (V0-F, grounding). V0-D
+ * (TASK-1572) en a sorti `FAKE_PROVIDER_FALLBACK` et `FEATURE_DISABLED`, qu'il
+ * emet (famille `fallback`, memes valeurs). Ils sont dans le registre pour que
+ * le gel porte le vocabulaire complet ; un test garde qu'aucun `step()`
+ * n'emet un code reserve avant son lot. `RERANK_NOT_CONFIGURED` n'est PAS cree : la famille 4
  * (`DossierRerankOutcome`) dit deja pourquoi le rerank n'a pas ete tente —
  * `NO_CREDENTIAL`, `ORGANIZATION_SETTING_MISSING_OR_UNUSABLE`, `GATE_CLOSED` —
  * et un doublon serait un quatrieme vocabulaire.
@@ -291,17 +291,24 @@ final class AiTurnReason
     public const TERMINAL_PROVIDER_CALL_FAILED = 'PROVIDER_CALL_FAILED';
 
     // -----------------------------------------------------------------
-    // Famille 9 — RESERVE (V0-C) : annonces par P0.4, emis par V0-D / V0-F
+    // Famille 9 — le FALLBACK avoue (V0-D, EMISE) : `FakeAIProvider` a repondu
+    // a la place du provider. `identity.fallback_reason` dit POURQUOI (code de
+    // la sortie : FEATURE_DISABLED, ai_not_configured, code du garde,
+    // PROVIDER_CALL_FAILED) ; l'etape `generation: fallback` dit QUI a repondu.
+    // -----------------------------------------------------------------
+
+    /** `fallback` — `FakeAIProvider` a rendu la reponse a la place du provider. */
+    public const FALLBACK_FAKE_PROVIDER = 'FAKE_PROVIDER_FALLBACK';
+
+    /** `fallback_reason` — la capability est coupee par configuration (`ai.clarify.enabled`). */
+    public const FALLBACK_FEATURE_DISABLED = 'FEATURE_DISABLED';
+
+    // -----------------------------------------------------------------
+    // Famille 10 — RESERVE : annonce par P0.4, emis par V0-F
     // -----------------------------------------------------------------
 
     /** `abstained` — des sources trouvees, mais aucune preuve suffisante au grounding (V0-F). */
     public const RESERVED_NO_GROUNDED_EVIDENCE = 'NO_GROUNDED_EVIDENCE';
-
-    /** `fallback` — `FakeAIProvider` a rendu la reponse a la place du provider (V0-D). */
-    public const RESERVED_FAKE_PROVIDER_FALLBACK = 'FAKE_PROVIDER_FALLBACK';
-
-    /** `fallback` — la capability est coupee par configuration, le repli deterministe repond (V0-D). */
-    public const RESERVED_FEATURE_DISABLED = 'FEATURE_DISABLED';
 
     /**
      * Tous les codes du registre, par famille d'origine.
@@ -361,13 +368,19 @@ final class AiTurnReason
                 self::TERMINAL_EMPTY_MODEL_ANSWER,
                 self::TERMINAL_PROVIDER_CALL_FAILED,
             ],
+            'fallback' => [
+                self::FALLBACK_FAKE_PROVIDER,
+                self::FALLBACK_FEATURE_DISABLED,
+            ],
             'reserved' => self::reservedVocabulary(),
         ];
     }
 
     /**
-     * Les codes poses par V0-C pour le gel, dont l'emetteur arrive avec V0-D /
-     * V0-F. Une garde statique verifie qu'aucun `step()` ne les emet avant.
+     * Les codes poses par V0-C pour le gel, dont l'emetteur n'est pas encore
+     * arrive (V0-F). Une garde statique verifie qu'aucun `step()` ne les emet
+     * avant. V0-D a sorti d'ici `FAKE_PROVIDER_FALLBACK` et `FEATURE_DISABLED`
+     * — memes valeurs, famille `fallback`, emises.
      *
      * @return list<string>
      */
@@ -375,8 +388,6 @@ final class AiTurnReason
     {
         return [
             self::RESERVED_NO_GROUNDED_EVIDENCE,
-            self::RESERVED_FAKE_PROVIDER_FALLBACK,
-            self::RESERVED_FEATURE_DISABLED,
         ];
     }
 

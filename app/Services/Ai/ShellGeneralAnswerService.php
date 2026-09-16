@@ -119,6 +119,17 @@ final class ShellGeneralAnswerService
             throw new DomainException('AI is not configured for this Organization.', 0, $exception);
         }
 
+        // TASK-1572 / CDC-01 V0-D — le provider EFFECTIF tel que resolu, et
+        // l'absence de fallback comme MESURE : `ProviderResolver` ne selectionne
+        // jamais `FakeAIProvider` (doctrine P4). `provider_requested` n'a aucune
+        // source honnete : absent.
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'producer' => self::PRODUCER,
+            'provider_effective' => $resolved->provider,
+            'model' => $resolved->trace(),
+            'fallback_used' => false,
+        ]);
+
         // Meme seau economique que l'ancien chemin universel : le routage ne
         // cree ni nouveau budget, ni double comptage, ni cutover historique.
         $verdict = $this->economicGuard->authorize(
