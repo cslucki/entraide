@@ -869,6 +869,10 @@ class ChatLoopAiService
             // `cost_unknown` NULL, l'etat « statut de cout non evalue » du
             // tri-etat P1-2. Un echec n'entre donc ni dans le budget mensuel,
             // ni dans le quota UNKNOWN.
+            //
+            // TASK-1571 / V0-C — l'etape et le verdict portent le CODE.
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'provider_call', 'failed', AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED);
+
             $this->recordInteraction(
                 loop: $loop,
                 requester: $requester,
@@ -889,6 +893,7 @@ class ChatLoopAiService
                 failure: $exception::class,
                 doctrineVersion: $doctrineVersion,
                 history: $history,
+                reasonCode: AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED,
             );
 
             throw new \RuntimeException(__('loops.ai_error'), 0, $exception);
@@ -1022,6 +1027,7 @@ class ChatLoopAiService
         ?string $failure,
         ?int $doctrineVersion,
         array $history = [],
+        ?string $reasonCode = null,
     ): AiInteraction {
         // TASK-1220 : ligne canonique du ledger `ai_provider_invocations`,
         // memes points que la trace P1 (succes ET echec). Les refus
@@ -1093,7 +1099,7 @@ class ChatLoopAiService
                         'stage' => $status === 'failed' ? 'generation' : null,
                         // Un code du registre seulement ; une classe d'exception
                         // n'en est pas un (V0-C).
-                        'reason_code' => AiTurnReason::isKnown($failure) ? $failure : null,
+                        'reason_code' => $reasonCode ?? (AiTurnReason::isKnown($failure) ? $failure : null),
                         'decided_by' => class_basename(self::class),
                         'latency_ms' => $latencyMs,
                         // TASK-1567 / V0-L — `history` n'apparait que sur les

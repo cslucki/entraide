@@ -275,27 +275,20 @@ class TASK1566TurnTraceFoundationTest extends TestCase
         $this->assertSame(AiTurnState::DEGRADED_PARTIAL_FAILURE, AiTurnReason::DEGRADED_PARTIAL_FAILURE);
     }
 
-    public function test_le_registre_n_invente_aucun_code_futur(): void
+    public function test_le_registre_est_ferme_depuis_v0c(): void
     {
-        // Ces codes sont annonces par CDC-01 P0.4 comme « nouveaux codes
-        // necessaires », a figer en V0-C. Les inventer sans les etages qui les
-        // emettent figerait un vocabulaire que personne n'a confronte au code.
-        //
-        // TASK-1568 (V0-G) a legitimement retire deux codes de cette liste :
-        // `DOCUMENT_PATH_DIRECT_EXECUTION` est EMIS (bypass du ContextBuilder,
-        // CDC-01 P0.7) et `NO_SOURCES_FOUND` est GELE comme vocabulaire de
-        // fallthrough Shell (C20, arbitrage S1). Ceux qui restent n'ont
-        // toujours aucun emetteur.
-        //
-        // La garde porte sur la VALEUR connue du registre, pas sur le nom d'une
-        // constante : une constante prefixee par sa famille porterait la meme
-        // valeur et passerait une verification par `defined()`.
-        foreach (['NO_GROUNDED_EVIDENCE', 'FAKE_PROVIDER_FALLBACK', 'FEATURE_DISABLED', 'RERANK_NOT_CONFIGURED'] as $futur) {
-            $this->assertFalse(
-                AiTurnReason::isKnown($futur),
-                "Le registre ne doit pas figer {$futur} avant l'etage qui l'emet : c'est le perimetre de V0-C.",
-            );
+        // V0-A gardait ici qu'aucun code P0.4 n'etait invente avant son etage.
+        // V0-C (TASK-1571) a FERME le registre : les codes annonces ont chacun
+        // leur famille — emise, ou `reserved` jusqu'a leur lot — et `isKnown()`
+        // est devenu l'autorite. La garde change donc de sens : un code ABSENT
+        // du registre est un defaut, plus un « pas encore ».
+        foreach (['NO_GROUNDED_EVIDENCE', 'FAKE_PROVIDER_FALLBACK', 'FEATURE_DISABLED', 'DOCUMENT_PATH_DIRECT_EXECUTION', 'NO_SOURCES_FOUND', 'EMPTY_MODEL_ANSWER', 'PROVIDER_CALL_FAILED'] as $code) {
+            $this->assertTrue(AiTurnReason::isKnown($code), "`{$code}` doit etre dans le registre V1");
         }
+
+        // Et un seul code de P0.4 n'y est PAS, par decision : la famille rerank
+        // dit deja pourquoi le rerank n'a pas ete tente.
+        $this->assertFalse(AiTurnReason::isKnown('RERANK_NOT_CONFIGURED'));
     }
 
     public function test_la_collision_economique_reelle_est_exposee_et_non_masquee(): void
