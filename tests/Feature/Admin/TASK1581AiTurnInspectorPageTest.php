@@ -238,6 +238,27 @@ class TASK1581AiTurnInspectorPageTest extends TestCase
             ->assertSee('YES');
     }
 
+    public function test_b6_une_ligne_shell_dont_le_lien_pointe_ailleurs_ne_montre_jamais_l_interaction_etrangere(): void
+    {
+        $ailleurs = Organization::factory()->create(['is_active' => true, 'slug' => 'ailleurs-1581-b']);
+        $etranger = User::factory()->create(['organization_id' => $ailleurs->id]);
+        $etrangere = AiInteraction::create([
+            'user_id' => $etranger->id, 'organization_id' => $ailleurs->id, 'correlation_id' => (string) Str::uuid(),
+            'process' => 'shell.general_answer', 'feature' => 'ai_shell', 'model' => 'x', 'prompt' => 'p', 'response' => 'REPONSE ETRANGERE SECRETE',
+            'input_tokens' => 1, 'output_tokens' => 1,
+            'metadata' => ['turn' => ['schema' => 1, 'id' => 'turn-etranger-1581', 'identity' => ['execution_path' => AiExecutionPath::AI_SHELL_GENERAL]]],
+        ]);
+        $ligne = AiShellMessage::create([
+            'organization_id' => $this->organization->id, 'user_id' => $this->membre->id, 'conversation_id' => (string) Str::uuid(),
+            'role' => AiShellMessage::ROLE_ASSISTANT, 'content' => 'Reponse locale.',
+            'metadata' => ['status' => AiShellResponder::STATUS_NON_INTERACTION, 'producer' => 'shell.general_answer', 'ai_interaction_id' => (string) $etrangere->id, 'fallthroughs' => []],
+        ]);
+
+        $reponse = $this->actingAs($this->admin)->get(route('admin.ai-turns.shell', $ligne));
+
+        $reponse->assertOk()->assertSee('org-1581')->assertDontSee('REPONSE ETRANGERE SECRETE')->assertDontSee('turn-etranger-1581');
+    }
+
     // ────────────────────────────── fixtures
 
     private function tourRag(): AiInteraction
