@@ -300,6 +300,25 @@ class TASK1582DoctrineStripTest extends TestCase
         $this->actingAs($this->admin)->get(route('admin.ai-turns.show', $interaction))->assertOk()->assertDontSee('AUTEUR ETRANGER');
     }
 
+    public function test_b6_l_organization_est_celle_du_tour_jamais_celle_de_l_admin_qui_regarde(): void
+    {
+        $interaction = $this->tourRag();
+        // L'Organization du tour : rerank OFF. L'admin qui regarde vient d'une
+        // Organization ou le rerank est ON et audite : rien de cela ne doit
+        // apparaitre sur la page du tour.
+        $ailleurs = Organization::factory()->create(['is_active' => true, 'slug' => 'ailleurs-1582-b']);
+        OrganizationAiSetting::factory()->create(['organization_id' => $ailleurs->id, 'provider' => 'openrouter', 'model' => 'm', 'api_key' => 'k']);
+        $adminAilleurs = User::factory()->create(['organization_id' => $ailleurs->id, 'is_admin' => true, 'name' => 'ADMIN D AILLEURS']);
+        app(AiRerankSettings::class)->updateOrganization($ailleurs, true, $adminAilleurs);
+
+        $page = $this->actingAs($adminAilleurs)->get(route('admin.ai-turns.show', $interaction));
+
+        // Le nom de l'admin apparait dans la barre laterale (session) : c'est la
+        // LIGNE D'AUDIT qui ne doit pas apparaitre.
+        $page->assertOk()->assertSee('org-1582')->assertDontSee('→ true · ADMIN D AILLEURS', false)->assertSee('no_audit_row');
+        $this->assertStringContainsString('Organization aujourd\'hui</dt><dd class="font-mono">OFF', preg_replace('/\s+/', ' ', $page->getContent()) ?? '');
+    }
+
     // ────────────────────────────── C. robustesse
 
     public function test_c1_la_page_shell_sans_retrieval_ne_casse_pas_et_dit_unavailable(): void
