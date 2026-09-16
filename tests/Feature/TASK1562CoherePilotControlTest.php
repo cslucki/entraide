@@ -227,17 +227,24 @@ class TASK1562CoherePilotControlTest extends TestCase
         // Les DEUX chemins de totaux du depot : `summary()` en porte trois,
         // `byUser()` passe par `withOrganizationTotals()` et en porte quatre,
         // dont `total_count`. Les deux doivent rester immobiles.
-        foreach (['total_known_cost_usd', 'total_unknown_count', 'total_unevaluated_count'] as $total) {
+        foreach (['total_known_cost_usd', 'total_unevaluated_count'] as $total) {
             $this->assertSame($avant[$total], $apres[$total], "Le total « {$total} » de summary() a bouge a cause d'un rerank.");
         }
 
-        foreach (['total_known_cost_usd', 'total_unknown_count', 'total_unevaluated_count', 'total_count'] as $total) {
+        foreach (['total_known_cost_usd', 'total_unevaluated_count', 'total_count'] as $total) {
             $this->assertSame(
                 $avantParUtilisateur[$total],
                 $apresParUtilisateur[$total],
                 "Le total « {$total} » de byUser() a bouge a cause d'un rerank.",
             );
         }
+
+        // TASK-1586 (arbitrage MASTER 16/09) : les DEUX reranks reussis au cout
+        // inconnu comptent dans `total_unknown_count` — exactement deux, pas
+        // l'echec (qui a son compteur `failed_count`) ; le cout connu, lui,
+        // n'a pas bouge : un inconnu ne devient jamais $0.
+        $this->assertSame($avant['total_unknown_count'] + 2, $apres['total_unknown_count']);
+        $this->assertSame($avantParUtilisateur['total_unknown_count'] + 2, $apresParUtilisateur['total_unknown_count']);
 
         foreach (['generation', 'embedding_query', 'embedding_ingestion', 'embedding_undeclared'] as $tranche) {
             $this->assertSame($avant[$tranche], $apres[$tranche], "La tranche « {$tranche} » a bouge a cause d'un rerank.");

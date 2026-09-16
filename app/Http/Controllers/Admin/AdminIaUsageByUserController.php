@@ -3,131 +3,159 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\AdminAiInteraction;
-use App\Models\AiInteraction;
 use App\Models\Organization;
 use App\Models\User;
-use Carbon\Carbon;
+use App\Services\Ai\DTO\AiConsumptionFilters;
+use App\Services\Ai\OrganizationAiEconomicUsage;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
+/**
+ * TASK-1586 — « Utilisation IA par utilisateur » (SuperAdmin) sur l'AUTORITE
+ * economique canonique, la MEME que le releve Organization Admin
+ * (`ai-consumption`), « Mes usages IA » et le cockpit plateforme :
+ * `OrganizationAiEconomicUsage::byUser()`, Organization par Organization.
+ *
+ * Avant : somme brute de deux registres de traces historiques
+ * (`ai_interactions` + `admin_ai_interactions`) qui se chevauchaient, et qui
+ * ne voyaient ni embedding ni rerank. Ce total legacy est ABANDONNE pour le
+ * reporting economique ; l'ecran est conserve.
+ *
+ * Ce que cet ecran rend, par utilisateur et par Organization :
+ *   generation + embedding ingestion + embedding query (+ non declaree) + rerank,
+ *   cout CONNU / appels au cout INCONNU / echecs, separes ; un inconnu ne
+ *   devient jamais $0 ; aucun double comptage (une invocation = une ligne du
+ *   ledger, une generation = une trace). Attribution : `user_id` de la trace,
+ *   defense tenant `users.organization_id` — une trace non attribuable remonte
+ *   sous « non attribuable », comptee, jamais repartie.
+ *
+ * Invariant : la ligne d'un utilisateur ici EST sa ligne dans le releve de
+ * son Organization Admin sur la meme fenetre (meme methode, memes chiffres).
+ *
+ * Aucune ecriture, aucune modification du ledger, aucune migration.
+ */
 class AdminIaUsageByUserController extends Controller
 {
-    public function index(Request $request): View
+    private const PER_PAGE = 50;
+
+    private const SORTS = ['known_cost', 'unknown_count', 'total_count', 'user'];
+
+    public function index(Request $request, OrganizationAiEconomicUsage $usage): View
     {
-        // TASK-1223 : correction LOCALE des trois defauts economiques signales
-        // (TASK-306). (1) La periode filtre desormais les LIGNES sommees
-        // (WHERE created_at), plus seulement la date du dernier appel. (2) Le
-        // cout inconnu n'est plus COALESCE en 0 : cout CONNU somme d'un cote,
-        // appels non mesurables COMPTES de l'autre — et plus de `::numeric`
-        // non portable. (3) Le cumul reste une addition BRUTE de deux
-        // registres de traces (un meme appel historique peut y figurer deux
-        // fois) : la vue l'annonce ; le decompte canonique par invocation vit
-        // dans le cockpit IA/RAG.
-        $dateFrom = $request->input('date_from');
-        $dateTo = $request->input('date_to');
+        [$from, $to] = $this->fenetre($request);
 
-        $windowed = static function ($query) use ($dateFrom, $dateTo) {
-            if ($dateFrom) {
-                $query->where('created_at', '>=', $dateFrom.' 00:00:00');
+        $organizationId = $this->uuidOuNull($request->query('organization_id'));
+        $organizations = Organization::query()->orderBy('name')->get(['id', 'name', 'slug']);
+        $cibles = $organizationId !== null ? $organizations->where('id', $organizationId) : $organizations;
+
+        $rows = [];
+
+        foreach ($cibles as $organization) {
+            foreach ($usage->byUser((string) $organization->id, $from, $to) as $row) {
+                if (($row['total_count'] ?? 0) === 0 && ($row['rerank']['invocation_count'] ?? 0) === 0) {
+                    continue;
+                }
+                $row['organization'] = $organization;
+                $rows[] = $row;
             }
-            if ($dateTo) {
-                $query->where('created_at', '<=', $dateTo.' 23:59:59');
-            }
-
-            return $query;
-        };
-
-        $blogSub = $windowed(AiInteraction::query())
-            ->select('user_id')
-            ->selectRaw('COUNT(*) as total_interactions')
-            ->selectRaw('COALESCE(SUM(input_tokens), 0) as total_input_tokens')
-            ->selectRaw('COALESCE(SUM(output_tokens), 0) as total_output_tokens')
-            ->selectRaw('SUM(CASE WHEN cost_unknown = false THEN cost_usd END) as known_cost')
-            ->selectRaw('COUNT(CASE WHEN cost_unknown = true THEN 1 END) as unknown_count')
-            ->selectRaw('MAX(created_at) as last_interaction')
-            ->groupBy('user_id');
-
-        $adminSub = $windowed(AdminAiInteraction::query())
-            ->select('user_id')
-            ->selectRaw('COUNT(*) as total_interactions')
-            ->selectRaw('COALESCE(SUM(input_tokens), 0) as total_input_tokens')
-            ->selectRaw('COALESCE(SUM(output_tokens), 0) as total_output_tokens')
-            ->selectRaw('SUM(CASE WHEN cost_unknown = false THEN cost_usd END) as known_cost')
-            ->selectRaw('COUNT(CASE WHEN cost_unknown = true THEN 1 END) as unknown_count')
-            ->selectRaw('MAX(created_at) as last_interaction')
-            ->whereNotNull('user_id')
-            ->groupBy('user_id');
-
-        $union = $blogSub->unionAll($adminSub);
-
-        $query = DB::table(DB::raw("({$union->toSql()}) as combined"))
-            ->mergeBindings($union->getQuery())
-            ->select('user_id')
-            ->selectRaw('SUM(total_interactions) as total_interactions')
-            ->selectRaw('SUM(total_input_tokens) as total_input_tokens')
-            ->selectRaw('SUM(total_output_tokens) as total_output_tokens')
-            ->selectRaw('SUM(known_cost) as known_cost')
-            ->selectRaw('SUM(unknown_count) as unknown_count')
-            ->selectRaw('MAX(last_interaction) as last_interaction')
-            ->groupBy('user_id');
-
-        if ($orgId = $request->input('organization_id')) {
-            $userIds = User::where('organization_id', $orgId)->pluck('id');
-            $query->whereIn('combined.user_id', $userIds);
         }
 
-        if ($search = $request->input('search')) {
-            $userIds = User::where('name', 'ilike', "%{$search}%")
-                ->orWhere('email', 'ilike', "%{$search}%")
-                ->pluck('id');
-            $query->whereIn('combined.user_id', $userIds);
+        // Nom + email des utilisateurs attribues (une requete), pour la
+        // recherche et l'affichage. Les non attribuables n'ont pas de nom.
+        $userIds = array_values(array_unique(array_filter(array_column($rows, 'user_id'))));
+        $users = $userIds === [] ? collect() : User::query()->whereIn('id', $userIds)->get(['id', 'name', 'email', 'organization_id'])->keyBy('id');
+
+        foreach ($rows as &$row) {
+            $row['user'] = $row['user_id'] !== null ? $users->get($row['user_id']) : null;
+        }
+        unset($row);
+
+        $search = trim((string) $request->query('search', ''));
+
+        if ($search !== '') {
+            $aiguille = Str::lower($search);
+            $rows = array_values(array_filter($rows, static function (array $row) use ($aiguille): bool {
+                $user = $row['user'];
+
+                return $user !== null && (str_contains(Str::lower((string) $user->name), $aiguille) || str_contains(Str::lower((string) $user->email), $aiguille));
+            }));
         }
 
-        $sort = in_array($request->input('sort'), ['user_id', 'total_interactions', 'total_input_tokens', 'total_output_tokens', 'known_cost', 'last_interaction'])
-            ? $request->input('sort')
-            : 'known_cost';
+        $sort = in_array($request->query('sort'), self::SORTS, true) ? (string) $request->query('sort') : 'known_cost';
+        $direction = $request->query('direction') === 'asc' ? 1 : -1;
 
-        $direction = $request->input('direction') === 'asc' ? 'asc' : 'desc';
+        usort($rows, static function (array $a, array $b) use ($sort, $direction): int {
+            // Non attribuable toujours en dernier.
+            if (($a['user_id'] === null) !== ($b['user_id'] === null)) {
+                return $a['user_id'] === null ? 1 : -1;
+            }
 
-        $perPage = 50;
-        $page = $request->input('page', 1);
-        $total = $query->count();
+            $cle = static fn (array $r): mixed => match ($sort) {
+                'known_cost' => (float) ($r['total_known_cost_usd'] ?? -1),
+                'unknown_count' => $r['total_unknown_count'],
+                'total_count' => $r['total_count'] + $r['rerank']['invocation_count'],
+                'user' => Str::lower((string) ($r['user']?->name ?? '')),
+                default => 0,
+            };
 
-        $rawResults = $query
-            ->orderBy($sort, $direction)
-            ->offset(($page - 1) * $perPage)
-            ->limit($perPage)
-            ->get();
-
-        $userIds = $rawResults->pluck('user_id')->filter()->unique();
-        $users = User::whereIn('id', $userIds)->with('organization')->get()->keyBy('id');
-
-        $interactions = $rawResults->map(function ($row) use ($users) {
-            $row->user = $users->get($row->user_id);
-            $row->last_interaction = $row->last_interaction
-                ? Carbon::parse($row->last_interaction)
-                : null;
-
-            return $row;
+            return $direction * ($cle($a) <=> $cle($b));
         });
 
+        $page = max(1, (int) $request->query('page', 1));
         $paginator = new LengthAwarePaginator(
-            $interactions,
-            $total,
-            $perPage,
+            array_slice($rows, ($page - 1) * self::PER_PAGE, self::PER_PAGE),
+            count($rows),
+            self::PER_PAGE,
             $page,
-            ['path' => $request->url(), 'query' => $request->query()]
+            ['path' => $request->url(), 'query' => $request->query()],
         );
 
-        $organizations = Organization::orderBy('name')->get(['id', 'name']);
-
         return view('admin.ia-usage-by-user.index', [
-            'interactions' => $paginator,
+            'rows' => $paginator,
             'organizations' => $organizations,
+            'from' => $from,
+            'to' => $to,
             'filters' => $request->only(['organization_id', 'date_from', 'date_to', 'search', 'sort', 'direction']),
         ]);
+    }
+
+    /**
+     * La fenetre `[from, to + 1 jour[` — la meme convention semi-ouverte que
+     * `AiConsumptionFilters` ; defaut = mois courant (la fenetre de la garde).
+     *
+     * @return array{0: CarbonImmutable, 1: CarbonImmutable}
+     */
+    private function fenetre(Request $request): array
+    {
+        $mois = AiConsumptionFilters::currentMonth();
+        $from = $this->date($request->query('date_from')) ?? $mois->from;
+        $to = $this->date($request->query('date_to'))?->addDay() ?? $mois->to;
+
+        if ($to <= $from) {
+            return [$mois->from, $mois->to];
+        }
+
+        return [$from, $to];
+    }
+
+    private function date(mixed $valeur): ?CarbonImmutable
+    {
+        if (! is_string($valeur) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $valeur)) {
+            return null;
+        }
+
+        try {
+            return CarbonImmutable::createFromFormat('Y-m-d', $valeur)->startOfDay();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function uuidOuNull(mixed $valeur): ?string
+    {
+        return is_string($valeur) && Str::isUuid($valeur) ? $valeur : null;
     }
 }
