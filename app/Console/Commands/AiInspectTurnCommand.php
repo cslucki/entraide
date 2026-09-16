@@ -11,10 +11,13 @@ use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
+use App\Services\ChatLoop\ChatLoopAiService;
 use App\Support\Ai\AiExecutionPath;
+use App\Support\Ai\AiTruthLabel;
 use App\Support\Ai\AiTurnInspection;
 use App\Support\Ai\AiTurnTrace;
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 
 /**
  * TASK-1558 — AI Inspector CLI, Full Shell v0.
@@ -62,8 +65,9 @@ class AiInspectTurnCommand extends Command
         {--user= : Email ou UUID d\'un utilisateur autorise de cette Organization}
         {--surface=loop : Surface observee (loop)}
         {--loop= : UUID de la Boucle}
-        {--mode=dossiers : dossiers | ia_dossiers}
+        {--mode=dossiers : dossiers | ia_dossiers | ia}
         {--question= : La question posee}
+        {--trigger-message= : EXECUTE --mode=ia — uuid du loop_message auquel l\'IA repond (obligatoire : le chemin produit repond toujours a un message)}
         {--interaction= : EXPLAIN — uuid d\'une ligne ai_interactions deja persistee (aucune execution)}
         {--turn= : EXPLAIN — turn_id canonique (turn.id, repli metadata.turn_id pour les anciens tours)}
         {--message= : EXPLAIN — uuid d\'un loop_message, remonte a son ai_interaction_id}
@@ -74,10 +78,11 @@ class AiInspectTurnCommand extends Command
     /** Les surfaces et modes REELLEMENT reproductibles en v0. */
     private const SURFACES = ['loop'];
 
-    private const MODES = ['dossiers', 'ia_dossiers'];
+    private const MODES = ['dossiers', 'ia_dossiers', 'ia'];
 
     public function handle(
         LoopKnowledgeAnswerService $knowledge,
+        ChatLoopAiService $chatLoop,
         DossierAccessScope $scope,
     ): int {
         // TASK-1569 / CDC-01 V0-H0 — mode EXPLAIN : une cle de lookup suffit,
@@ -125,6 +130,10 @@ class AiInspectTurnCommand extends Command
         // `PageContext` n'en est pas une.
         if (! $loop instanceof Loop || (string) $loop->organization_id !== (string) $organization->id) {
             return $this->refuser('Boucle introuvable dans cette Organization.');
+        }
+
+        if ($mode === 'ia') {
+            return $this->executerIa($chatLoop, $organization, $user, $loop, $question);
         }
 
         // TASK-1558 — SANS cette liaison, l'observation ment.
@@ -182,6 +191,61 @@ class AiInspectTurnCommand extends Command
     }
 
     /**
+     * TASK-1575 / CDC-01 V0-H (§9.2) — EXECUTE `--mode=ia` : le VRAI
+     * `ChatLoopAiService::respondInThread()`, avec le seam `publish: false`
+     * equivalent a celui du RAG (T1558) : verrou, idempotence, garde
+     * economique, provider, ledger, `AiInteraction` — tout s'execute ; seule la
+     * bulle `loop_messages` n'est pas ecrite.
+     *
+     * Le declencheur est OBLIGATOIRE parce que le chemin produit repond
+     * toujours a un message : l'historique `reply_chain` (P0.12) et
+     * l'idempotence du tour en dependent. Un pseudo-declencheur fabrique par la
+     * CLI observerait un tour qui n'existe pas dans le produit. Un declencheur
+     * deja repondu est REFUSE par le service (`AiTurnIdempotency`) — c'est un
+     * resultat d'observation ; EXPLAIN `--message` lit alors la reponse
+     * existante.
+     */
+    private function executerIa(ChatLoopAiService $chatLoop, Organization $organization, User $user, Loop $loop, string $question): int
+    {
+        $triggerId = trim((string) $this->option('trigger-message'));
+
+        if ($triggerId === '') {
+            return $this->refuser('--mode=ia exige --trigger-message : le chemin IA repond toujours a un message du fil.');
+        }
+
+        if (! Str::isUuid($triggerId)) {
+            return $this->refuser('--trigger-message doit etre un uuid.');
+        }
+
+        $trigger = LoopMessage::query()
+            ->whereKey($triggerId)
+            ->where('organization_id', (string) $organization->id)
+            ->where('loop_id', (string) $loop->id)
+            ->first();
+
+        if (! $trigger instanceof LoopMessage) {
+            return $this->refuser('Message declencheur introuvable dans cette Boucle.');
+        }
+
+        return $this->dansLeTenant($organization, function () use ($chatLoop, $organization, $user, $loop, $question, $trigger): int {
+            try {
+                $interaction = $chatLoop->respondInThread($loop, $user, $question, $trigger, publish: false);
+            } catch (\RuntimeException $exception) {
+                return $this->refuser($exception->getMessage(), $exception::class);
+            }
+
+            if (! $interaction instanceof AiInteraction) {
+                return $this->refuser('Le seam publish:false devait rendre l\'AiInteraction du tour.');
+            }
+
+            // Le tour vient d'etre ecrit : il se LIT comme n'importe quel tour
+            // persiste — meme lecteur, memes labels. Aucune section « vivante »
+            // n'est fabriquee pour ce chemin (il n'a pas de KnowledgeAnswer).
+            return $this->rendreExplain(AiTurnInspection::fromPersistedTurn($interaction->refresh()));
+        });
+    }
+
+    /**
      * TASK-1569 / CDC-01 V0-H0 — EXPLAIN : lire un tour persiste, sans le
      * rejouer.
      *
@@ -222,7 +286,17 @@ class AiInspectTurnCommand extends Command
             return $this->refuser('Organization introuvable.');
         }
 
-        $interaction = $this->interactionPersistee($organization, array_key_first($cles), trim((string) reset($cles)));
+        $cle = (string) array_key_first($cles);
+        $valeur = trim((string) reset($cles));
+
+        // Minor H0 : un id qui n'est pas un uuid ne peut correspondre a rien —
+        // le dire proprement plutot que laisser PostgreSQL lever une
+        // `QueryException` sur un cast de colonne uuid.
+        if (in_array($cle, ['interaction', 'message'], true) && ! Str::isUuid($valeur)) {
+            return $this->refuser("--{$cle} doit etre un uuid.");
+        }
+
+        $interaction = $this->interactionPersistee($organization, $cle, $valeur);
 
         if ($interaction === null) {
             return $this->refuser('Aucun tour persiste ne correspond a cette cle dans cette Organization.');
@@ -344,6 +418,16 @@ class AiInspectTurnCommand extends Command
         foreach (['provider', 'model', 'generation_sdk_invocation_id', 'latency_ms', 'cost_usd', 'input_tokens', 'output_tokens'] as $cle) {
             $this->line(sprintf('  %-30s %s', $cle, $this->afficher($trace['provider'][$cle])));
         }
+
+        // TASK-1575 / V0-H — d'ou vient chaque valeur. Le detail complet est
+        // dans `--json` ; ici, le compte par label et la liste de ce qui MANQUE.
+        $this->info('── TRUTH');
+        $comptes = array_count_values($trace['truth']);
+        foreach (AiTruthLabel::all() as $label) {
+            $this->line(sprintf('  %-20s %d', $label, $comptes[$label] ?? 0));
+        }
+        $indisponibles = array_keys(array_filter($trace['truth'], static fn (string $l): bool => $l === AiTruthLabel::UNAVAILABLE));
+        $this->line(sprintf('  %-20s %s', 'unavailable', $indisponibles === [] ? '(aucun)' : implode(', ', $indisponibles)));
         $this->line('');
 
         return self::SUCCESS;

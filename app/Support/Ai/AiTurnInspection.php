@@ -127,7 +127,7 @@ final class AiTurnInspection
         $turn = $metadata[AiTurnTrace::TURN_METADATA_KEY] ?? null;
         $turn = is_array($turn) ? $turn : null;
 
-        return [
+        $inspection = [
             'mode' => 'explain',
             'run' => self::persistedRun($metadata, $turn, $interaction),
             // `identity` du bloc `turn` : surface, mode, execution_path,
@@ -142,6 +142,147 @@ final class AiTurnInspection
             'output' => self::persistedOutput($metadata, $interaction),
             'provider' => self::provider($metadata, $interaction),
         ];
+
+        // TASK-1575 / V0-H — la verite de chaque champ, section du LECTEUR.
+        $inspection['truth'] = self::truthLabels($inspection, $turn);
+
+        return $inspection;
+    }
+
+    /**
+     * Champs DECLARES : leur valeur vient d'une declaration (registre de
+     * capability, nom de chemin fourni par l'appelant — C15/G-β —, config),
+     * pas d'une observation du tour. `section.champ`.
+     *
+     * @var list<string>
+     */
+    private const DECLARED_FIELDS = [
+        'run.capability', 'run.process', 'run.feature',
+        'identity.surface', 'identity.mode', 'identity.execution_path', 'identity.capability', 'identity.producer',
+        'provider.provider',
+    ];
+
+    /**
+     * Champs DERIVES par ce lecteur, avec les champs MESURES dont ils
+     * dependent. Un derive dont une dependance est UNAVAILABLE est UNAVAILABLE :
+     * on ne calcule rien sur du vide (CDC-01 §8.2).
+     *
+     * @var array<string, list<string>>
+     */
+    private const DERIVED_FIELDS = [
+        'run.turn_id_source' => ['run.turn_id'],
+        'state.source' => [],
+        'state.rule' => ['state.turn_status', 'state.verification_status', 'state.degraded_reason'],
+    ];
+
+    /**
+     * TASK-1575 / CDC-01 V0-H — un label de verite par champ de l'inspection
+     * (correction C1 : le vocabulaire existait au CDC-02, jamais dans le code).
+     *
+     * Le label ne juge pas la valeur, il dit d'ou elle vient. `null` est
+     * UNAVAILABLE — c'est la regle « NULL reste NULL » qui prend un nom — SAUF
+     * quand le bloc `turn` persiste porte la cle explicitement : un writer qui
+     * ecrit `degraded_reason: null` a MESURE « pas de degradation », il n'a pas
+     * oublie le champ. Le lecteur ne peut le savoir qu'en regardant le bloc,
+     * jamais la valeur seule.
+     *
+     * Le repli `legacy_metadata` de `state` (tours anterieurs a V0-A) est une
+     * derivation du lecteur (`fromTurnMetadata`) : etiquete DERIVED, et
+     * UNAVAILABLE des que la mesure d'origine manque.
+     *
+     * @param  array<string, mixed>  $inspection
+     * @param  array<string, mixed>|null  $turn  le bloc `turn` persiste, tel qu'ecrit
+     * @return array<string, string>  `section.champ` => label
+     */
+    public static function truthLabels(array $inspection, ?array $turn = null): array
+    {
+        $labels = [];
+
+        foreach (['run', 'identity', 'decision', 'history', 'sources', 'retrieval_trace', 'state', 'output', 'provider'] as $section) {
+            $valeurs = $inspection[$section] ?? null;
+
+            if (! is_array($valeurs)) {
+                $labels[$section] = AiTruthLabel::UNAVAILABLE;
+
+                continue;
+            }
+
+            foreach ($valeurs as $champ => $valeur) {
+                $cle = $section.'.'.$champ;
+                $labels[$cle] = match (true) {
+                    in_array($cle, self::DECLARED_FIELDS, true) => $valeur === null ? AiTruthLabel::UNAVAILABLE : AiTruthLabel::DECLARED,
+                    array_key_exists($cle, self::DERIVED_FIELDS) => $valeur === null ? AiTruthLabel::UNAVAILABLE : AiTruthLabel::DERIVED,
+                    $valeur === null && ! self::turnPorteLaCle($turn, $section, (string) $champ) => AiTruthLabel::UNAVAILABLE,
+                    default => AiTruthLabel::MEASURED,
+                };
+            }
+        }
+
+        // `steps` : une chronologie deposee par les executants — mesuree en
+        // bloc, UNAVAILABLE si le tour n'en porte aucune.
+        $labels['steps'] = is_array($inspection['steps'] ?? null) ? AiTruthLabel::MEASURED : AiTruthLabel::UNAVAILABLE;
+
+        foreach (self::derivations($inspection) as $cle => $dependances) {
+            if (($labels[$cle] ?? AiTruthLabel::UNAVAILABLE) === AiTruthLabel::UNAVAILABLE) {
+                continue;
+            }
+
+            $labels[$cle] = AiTruthLabel::DERIVED;
+
+            foreach ($dependances as $dependance) {
+                if (($labels[$dependance] ?? AiTruthLabel::UNAVAILABLE) === AiTruthLabel::UNAVAILABLE) {
+                    $labels[$cle] = AiTruthLabel::UNAVAILABLE;
+
+                    break;
+                }
+            }
+        }
+
+        return $labels;
+    }
+
+    /**
+     * Les champs que CE lecteur calcule, et les champs mesures dont chacun
+     * depend — l'autorite unique pour `truthLabels()` et pour la garde de test
+     * « aucun DERIVED sur un UNAVAILABLE » (CDC-01 §8.2).
+     *
+     * @param  array<string, mixed>  $inspection
+     * @return array<string, list<string>>
+     */
+    public static function derivations(array $inspection): array
+    {
+        $derives = self::DERIVED_FIELDS;
+
+        if (($inspection['state']['source'] ?? null) === 'legacy_metadata') {
+            // Aucun bloc `turn` : les trois axes sont CALCULES par le lecteur
+            // depuis l'ancien format (`fromTurnMetadata`), ils ne sont pas lus.
+            $derives['state.turn_status'] = ['run.status'];
+            $derives['state.verification_status'] = ['output.grounded'];
+            $derives['state.degraded_reason'] = ['provider.sources_denied'];
+        }
+
+        return $derives;
+    }
+
+    /**
+     * Le bloc `turn` persiste porte-t-il explicitement ce champ (meme a
+     * `null`) ? `decision` est lu a la racine du bloc (`status`, `stage`,
+     * `reason_code`, `decided_by`, `latency_ms`) ; `identity`, `sources`,
+     * `state` sont des sous-blocs.
+     *
+     * @param  array<string, mixed>|null  $turn
+     */
+    private static function turnPorteLaCle(?array $turn, string $section, string $champ): bool
+    {
+        if ($turn === null) {
+            return false;
+        }
+
+        return match ($section) {
+            'decision' => array_key_exists($champ, $turn),
+            'identity', 'sources', 'state' => is_array($turn[$section] ?? null) && array_key_exists($champ, $turn[$section]),
+            default => false,
+        };
     }
 
     /**
