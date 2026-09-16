@@ -227,7 +227,7 @@ class AiInspectTurnCommand extends Command
             return $this->refuser('Message declencheur introuvable dans cette Boucle.');
         }
 
-        return $this->dansLeTenant($organization, function () use ($chatLoop, $organization, $user, $loop, $question, $trigger): int {
+        return $this->dansLeTenant($organization, function () use ($chatLoop, $user, $loop, $question, $trigger): int {
             try {
                 $interaction = $chatLoop->respondInThread($loop, $user, $question, $trigger, publish: false);
             } catch (\RuntimeException $exception) {

@@ -192,7 +192,7 @@ final class AiTurnInspection
      *
      * @param  array<string, mixed>  $inspection
      * @param  array<string, mixed>|null  $turn  le bloc `turn` persiste, tel qu'ecrit
-     * @return array<string, string>  `section.champ` => label
+     * @return array<string, string> `section.champ` => label
      */
     public static function truthLabels(array $inspection, ?array $turn = null): array
     {
