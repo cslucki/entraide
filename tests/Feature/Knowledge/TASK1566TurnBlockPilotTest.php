@@ -220,7 +220,7 @@ class TASK1566TurnBlockPilotTest extends TestCase
     {
         $turn = $this->blocDuTour();
 
-        $this->assertSame(1, $turn['schema']);
+        $this->assertSame(AiTurnTrace::SCHEMA_VERSION, $turn['schema']); // TASK-1583 : v2 = v1 + lien optionnel `run`
         $this->assertTrue(Str::isUuid($turn['id']));
     }
 
@@ -351,7 +351,7 @@ class TASK1566TurnBlockPilotTest extends TestCase
         // ne porte plus AUCUNE observation de composant.
         $this->assertArrayNotHasKey('identity', $sans[AiTurnTrace::TURN_METADATA_KEY]);
         $this->assertArrayNotHasKey('steps', $sans[AiTurnTrace::TURN_METADATA_KEY]);
-        $this->assertSame(1, $sans[AiTurnTrace::TURN_METADATA_KEY]['schema']);
+        $this->assertSame(AiTurnTrace::SCHEMA_VERSION, $sans[AiTurnTrace::TURN_METADATA_KEY]['schema']);
     }
 
     public function test_le_bloc_ne_porte_aucun_texte_de_document_ni_de_prompt(): void

@@ -183,6 +183,9 @@ final class AiTurnInspection
                 'turn_id' => self::stringOrNull($turn['id'] ?? null),
                 'turn_id_source' => isset($turn['id']) ? 'turn.id' : null,
                 'turn_schema' => self::intOrNull($turn['schema'] ?? null),
+                'run_id' => self::stringOrNull($turn['run']['id'] ?? null),
+                'run_kind' => self::stringOrNull($turn['run']['kind'] ?? null),
+                'lab_scenario_key' => self::stringOrNull($turn['run']['lab_scenario_key'] ?? null),
                 'correlation_id' => null,
                 'ai_interaction_id' => self::stringOrNull($metadata['ai_interaction_id'] ?? null),
                 'organization_id' => self::stringOrNull($message->organization_id),
@@ -256,7 +259,7 @@ final class AiTurnInspection
      * @var list<string>
      */
     private const DECLARED_FIELDS = [
-        'run.capability', 'run.process', 'run.feature',
+        'run.capability', 'run.process', 'run.feature', 'run.run_kind', 'run.lab_scenario_key',
         'identity.surface', 'identity.mode', 'identity.execution_path', 'identity.capability', 'identity.producer',
         'provider.provider', 'shell.producer',
     ];
@@ -398,6 +401,11 @@ final class AiTurnInspection
             'turn_id' => $canonique ?? $historique,
             'turn_id_source' => $canonique !== null ? 'turn.id' : ($historique !== null ? 'metadata.turn_id' : null),
             'turn_schema' => self::intOrNull($turn['schema'] ?? null),
+            // TASK-1583 / TRACE-1B — le lien vers le run (schema 2, optionnel) :
+            // `null` sur une v1 ou sur un tour produit hors de tout run.
+            'run_id' => self::stringOrNull($turn['run']['id'] ?? null),
+            'run_kind' => self::stringOrNull($turn['run']['kind'] ?? null),
+            'lab_scenario_key' => self::stringOrNull($turn['run']['lab_scenario_key'] ?? null),
             'correlation_id' => self::stringOrNull($interaction->correlation_id),
             'ai_interaction_id' => self::stringOrNull($interaction->id),
             'organization_id' => self::stringOrNull($interaction->organization_id),

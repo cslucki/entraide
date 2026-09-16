@@ -75,10 +75,34 @@ final class AiTurnTrace
 
     /**
      * Version du schema `turn`. Toute evolution INCREMENTE, et le lecteur
-     * connait les deux (CDC-01 §11). Le gate `TRACE0_SCHEMA_FROZEN` gele cette
-     * version 1 une fois V0-A + V0-C + V0-G + V0-L mergees.
+     * connait les deux (CDC-01 §11). Le gate `TRACE0_SCHEMA_FROZEN` a gele la
+     * version 1 (V0-A + V0-C + V0-G + V0-L).
+     *
+     * TASK-1583 / CDC-02 TRACE-1B (arbitrage MASTER 16/09) : **version 2 = la
+     * version 1 inchangee + un LIEN optionnel `turn.run`** ({ id, kind,
+     * lab_scenario_key }) vers le groupement d'execution (serie CLI, session
+     * navigateur, scenario de Lab). Rien de la v1 ne bouge ; un lecteur v1
+     * ignore `run`, un lecteur v2 lit `run` comme UNAVAILABLE sur une v1.
      */
-    public const SCHEMA_VERSION = 1;
+    public const SCHEMA_VERSION = 2;
+
+    /** La version gelee par TRACE0_SCHEMA_FROZEN — le lecteur la connait toujours. */
+    public const SCHEMA_VERSION_FROZEN_V1 = 1;
+
+    public const RUN_KIND_CLI = 'cli';
+
+    public const RUN_KIND_BROWSER = 'browser';
+
+    public const RUN_KIND_LAB = 'lab';
+
+    /**
+     * Contexte de RUN process-local (TRACE-1B) : pose par l'executeur (la CLI)
+     * avant chaque tour, recopie par le writer dans `turn.run`. Un lien, pas
+     * une instrumentation : le pipeline ne le lit jamais.
+     *
+     * @var array{id: string, kind: string, lab_scenario_key: ?string}|null
+     */
+    private static ?array $run = null;
 
     /** Borne du journal : au-dela, les entrees les plus anciennes tombent. */
     private const JOURNAL_LIMIT = 64;
@@ -343,6 +367,7 @@ final class AiTurnTrace
     {
         self::$journal = [];
         self::$collecting = true;
+        self::$run = null;
     }
 
     /**
@@ -424,7 +449,38 @@ final class AiTurnTrace
             }
         }
 
+        // TRACE-1B : le lien vers le run, SEULEMENT quand un executeur en a pose
+        // un dans ce processus. Absent = tour produit hors de tout run.
+        if (self::$run !== null) {
+            $bloc['run'] = self::$run;
+        }
+
         return $bloc;
+    }
+
+    /**
+     * TASK-1583 / TRACE-1B — l'executeur declare le run courant. `kind` est
+     * l'un de RUN_KIND_* ; `labScenarioKey` est la CLE du scenario de Lab
+     * (CDC-03), jamais un `scenario_id`.
+     */
+    public static function beginRun(string $runId, string $kind, ?string $labScenarioKey = null): void
+    {
+        if (! in_array($kind, [self::RUN_KIND_CLI, self::RUN_KIND_BROWSER, self::RUN_KIND_LAB], true)) {
+            throw new \InvalidArgumentException("run kind inconnu : {$kind}");
+        }
+
+        self::$run = ['id' => $runId, 'kind' => $kind, 'lab_scenario_key' => $labScenarioKey];
+    }
+
+    public static function endRun(): void
+    {
+        self::$run = null;
+    }
+
+    /** @return array{id: string, kind: string, lab_scenario_key: ?string}|null */
+    public static function currentRun(): ?array
+    {
+        return self::$run;
     }
 
     /**
@@ -440,10 +496,16 @@ final class AiTurnTrace
      */
     public static function identityOnly(string $turnId): array
     {
-        return [
+        $bloc = [
             'schema' => self::SCHEMA_VERSION,
             'id' => $turnId,
         ];
+
+        if (self::$run !== null) {
+            $bloc['run'] = self::$run;
+        }
+
+        return $bloc;
     }
 
     /**
