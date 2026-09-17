@@ -23,6 +23,7 @@ use App\Services\Ai\AiUserCreditSettings;
 use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\Ai\LoopKnowledgeAnswerService;
 use App\Services\ChatLoop\ChatLoopAiService;
+use App\Services\Dossiers\DossierInsightsService;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Services\LoopService;
 use App\Support\Ai\AiEconomicGuard;
@@ -200,9 +201,15 @@ class TASK1577TraceZeroDoneTest extends TestCase
 
         $this->assertSame('answered', $t['decision']['status']);
         $this->assertSame(AiExecutionPath::LOOP_CHAT_DOSSIERS, $t['identity']['execution_path']);
-        $this->assertSame(['economic_check', 'retrieval', 'rerank', 'context_builder', 'conversation_history', 'provider_call', 'grounding'], array_column($t['steps'], 'name'));
+        // TASK-1595 — les etapes REELLEMENT presentes de ce chemin. Il repond
+        // desormais par `DossierInsightsService`, qui compose son bloc de
+        // sources lui-meme (`context_builder` bypasse) et dont le pipeline n'a
+        // ni filtre de distance ni rerank : il n'y a donc ni etape `retrieval`
+        // ni etape `rerank` a attendre. Les exiger reviendrait a demander a la
+        // trace de decrire un pipeline qui n'a pas tourne.
+        $this->assertSame(['context_builder', 'conversation_history', 'economic_check', 'provider_call', 'grounding'], array_column($t['steps'], 'name'));
         $this->assertNotEmpty($t['sources']['used']);
-        $this->assertContains(DossierRetrievalSource::NAME, $t['sources']['used']);
+        $this->assertContains(DossierInsightsService::SOURCE_NAME, $t['sources']['used']);
         $this->assertSame('openrouter', $t['identity']['provider_effective']);
         $this->assertFalse($t['identity']['fallback_used']);
         $this->assertSame('supported', $t['state']['verification_status']);
@@ -233,7 +240,12 @@ class TASK1577TraceZeroDoneTest extends TestCase
     {
         config(['ai.dossiers.semantic_search.enabled' => false]);
 
-        $t = $this->expliquer($this->tour(fn () => $this->composeur('dossiers', 'Que dit le document ?')));
+        // TASK-1595 — ce scenario suppose qu'une SECONDE provenance survive au
+        // refus de la premiere : c'est le manifest [Mn] qui permet au tour de
+        // repondre DEGRADE au lieu d'abstenir. Seul `ia_dossiers` a encore ce
+        // Context Builder ; `loop_chat.dossiers`, qui n'a plus qu'une source,
+        // abstient — ce que mesure s02.
+        $t = $this->expliquer($this->tour(fn () => $this->composeur('ia_dossiers', 'Que dit le document ?')));
 
         $this->assertSame([['source' => DossierRetrievalSource::NAME, 'reason' => DossierRetrievalSource::REASON_SEMANTIC_SEARCH_DISABLED]], $t['sources']['denied']);
         $this->assertSame(AiTurnState::DEGRADED_SOURCE_DENIED, $t['state']['degraded_reason']);

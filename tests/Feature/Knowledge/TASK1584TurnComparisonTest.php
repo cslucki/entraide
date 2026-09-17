@@ -179,22 +179,43 @@ class TASK1584TurnComparisonTest extends TestCase
         $this->assertSame('shell_message', $c['b']['key_kind']);
         $this->assertSame(['a' => AiExecutionPath::LOOP_CHAT_DOSSIERS, 'b' => AiExecutionPath::AI_SHELL_DOSSIER], $this->div($c, 'identity.execution_path'));
         $this->assertSame('IDENTITY', $this->divergence($c, 'identity.execution_path')['class']);
-        // FACT (T1584, corrige le DONE (b) du CDC-02) : le writer documentaire
-        // du Shell (`DossierInsightsService`) ne depose PAS `economic_check`
-        // (ni `retrieval`, ni `provider_call`) — la premiere divergence est
-        // donc l'ABSENCE de cette etape cote Shell, dite telle quelle, avant
-        // le context_builder. La comparaison ne complete pas le writer.
-        $this->assertSame('economic_check', $c['first_divergent_step']);
-        $eco = $this->divergence($c, 'steps.economic_check');
-        $this->assertSame('executed', $eco['a']['status']);
-        $this->assertNull($eco['b']['status']);
-        $this->assertSame('b', $eco['absent_in']);
+        // FACT, corrige par TASK-1595 : le writer documentaire du Shell
+        // (`DossierInsightsService`) depose DESORMAIS `economic_check` et
+        // `provider_call` — deux etages qu'il executait deja et qu'il ne disait
+        // pas. Ces deux etapes sont donc ALIGNEES, et la premiere divergence
+        // recule jusqu'au `context_builder`.
+        //
+        // Ce qui reste divergent n'est plus un trou de trace, c'est le
+        // PIPELINE lui-meme : la voie documentaire directe n'a ni etape
+        // `retrieval` ni etape `rerank`, parce qu'elle n'a ni bassin filtre par
+        // distance ni reranker. La comparaison le dit, elle ne le complete pas.
+        $this->assertFalse($this->etapeComparee($c, 'economic_check')['divergent'], 'economic_check alignee depuis T1595');
+        $this->assertFalse($this->etapeComparee($c, 'provider_call')['divergent'], 'provider_call alignee depuis T1595');
+        $this->assertSame('context_builder', $c['first_divergent_step']);
+        $this->assertNull($this->etapeComparee($c, 'retrieval')['b']['status'], 'aucun etage de retrieval cote voie directe');
+        $this->assertNull($this->etapeComparee($c, 'rerank')['b']['status'], 'aucun rerank cote voie directe');
         $etape = $this->divergence($c, 'steps.context_builder');
         $this->assertNull($etape['absent_in']);
         $this->assertSame('executed', $etape['a']['status']);
         $this->assertSame('bypassed', $etape['b']['status']);
         $this->assertSame(AiTurnReason::CONTEXT_BUILDER_DOCUMENT_PATH_DIRECT_EXECUTION, $etape['b']['reason_code']);
         $this->assertSame('CONTEXT', $etape['class'], 'la voie documentaire directe construit le contexte AUTREMENT : CONTEXT, pas PIPELINE');
+    }
+
+    /**
+     * L'etape comparee, par son nom — la comparaison rend un tableau ORDONNE,
+     * pas une map : le chercher par index se casserait au premier etage ajoute.
+     *
+     * @param  array<string, mixed>  $c
+     * @return array<string, mixed>
+     */
+    private function etapeComparee(array $c, string $nom): array
+    {
+        $etapes = array_values(array_filter($c['steps'], static fn (array $e): bool => $e['name'] === $nom));
+
+        $this->assertCount(1, $etapes, "l'etape comparee `{$nom}` doit apparaitre exactement une fois");
+
+        return $etapes[0];
     }
 
     // ────────────────────────────── C3 determinisme
@@ -277,19 +298,32 @@ class TASK1584TurnComparisonTest extends TestCase
         $this->assertSame(3, $r['summary']['pairs']);
         $this->assertSame(0, $r['summary']['unpaired']);
         $this->assertSame([1, 2, 3], array_column($r['pairs'], 'order'));
-        // #1 : meme chemin, le retrieval de B n'a rien rendu. L'etape
-        // `retrieval` est `executed` des deux cotes (zero resultat est une
-        // execution) : la premiere ETAPE divergente est `rerank` ; l'ecart de
-        // retrieval se lit dans les compteurs (classe RETRIEVAL).
-        $this->assertSame([], $r['pairs'][0]['identity_differences']);
-        $this->assertSame('rerank', $r['pairs'][0]['first_divergent_step']);
-        $this->assertSame(['a' => 1, 'b' => 0], $this->div($r['pairs'][0], 'sources.retrieved.candidates'));
-        $this->assertSame('RETRIEVAL', $this->divergence($r['pairs'][0], 'sources.retrieved.candidates')['class']);
+        // #1 : meme chemin (`loop_chat.dossiers`), mais la recherche de B n'a
+        // rien rendu. TASK-1595 — sur ce chemin il n'y a plus de seconde
+        // provenance pour rattraper un retrieval vide : B S'ABSTIENT, et son
+        // abstention laisse desormais un tour comparable au lieu de
+        // disparaitre.
+        //
+        // Ce que la comparaison dit alors, et qui est la verite : B n'a JAMAIS
+        // resolu de provider (`provider_effective` et `fallback_used` absents,
+        // pas « differents ») et n'a franchi ni la garde economique ni l'appel
+        // provider. La premiere etape divergente est donc `economic_check`,
+        // le premier etage que A traverse et que B n'atteint pas.
+        $this->assertSame(
+            ['identity.provider_effective', 'identity.fallback_used'],
+            array_column($r['pairs'][0]['identity_differences'], 'field'),
+            'un tour qui s\'abstient n\'a resolu aucun provider : absent, jamais « different »',
+        );
+        $this->assertSame('economic_check', $r['pairs'][0]['first_divergent_step']);
+        $this->assertSame('not_applicable', $this->etapeComparee($r['pairs'][0], 'grounding')['b']['status'],
+            'rien a fonder : le grounding de B ne s\'applique pas');
+        $this->assertNull($this->etapeComparee($r['pairs'][0], 'provider_call')['b']['status'],
+            'aucun appel provider du cote qui s\'abstient');
         // #2 : dossiers vs ia -> identite + context_builder.
         $this->assertContains('identity.mode', array_column($r['pairs'][1]['identity_differences'], 'field'));
         $this->assertSame('context_builder', $r['pairs'][1]['first_divergent_step']);
-        $this->assertSame(['rerank' => 2, 'context_builder' => 1], $r['summary']['by_first_divergent_step']);
-        $this->assertArrayHasKey('RETRIEVAL', $r['summary']['by_class']);
+        $this->assertSame(['economic_check' => 2, 'context_builder' => 1], $r['summary']['by_first_divergent_step']);
+        $this->assertArrayHasKey('IDENTITY', $r['summary']['by_class']);
 
         // Un run plus court : la paire manquante est RAPPORTEE, pas completee.
         $runC = $this->jouerRun(['dossiers']);

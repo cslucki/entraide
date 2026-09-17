@@ -43,6 +43,20 @@ use Tests\TestCase;
  * tenant-bound) ; `AiTurnInspection` reste query-free. Tout ce qui manque
  * est UNAVAILABLE avec sa raison ; `ai_interactions.prompt` n'est jamais lu.
  */
+/**
+ * TASK-1595 — le mode exerce ici est `ia_dossiers`.
+ *
+ * Le sujet de cette suite est `AiTurnProjection` : ce qu'elle projette des
+ * chunks que le writer a MESURES dans `retrieval.consulted`. Elle a donc besoin
+ * d'un pipeline qui ecrit dans cette cle exactement ce que la recherche a
+ * rendu. `loop_chat.dossiers` repond desormais par `DossierInsightsService`,
+ * qui replie les quasi-doublons et ajoute une ancre d'ouverture : le jeu final
+ * n'est plus celui que le test a injecte, et ce que la suite mesurerait alors
+ * serait le repli, pas la projection.
+ *
+ * `ia_dossiers` conserve le pipeline sans repli. La projection, elle, est
+ * identique pour les deux : elle lit une liste d'ids, d'ou qu'elle vienne.
+ */
 #[Group('ai')]
 class TASK1580ProjectionTest extends TestCase
 {
@@ -120,7 +134,7 @@ class TASK1580ProjectionTest extends TestCase
 
     public function test_a1_un_tour_avec_bulle_projette_la_question_et_les_sources_vues(): void
     {
-        $interaction = $this->tour(fn () => $this->composeur('dossiers', 'Que dit le document ?'));
+        $interaction = $this->tour(fn () => $this->composeur('ia_dossiers', 'Que dit le document ?'));
         $bulle = LoopMessage::query()->where('type', 'ai')->where('metadata->ai_interaction_id', (string) $interaction->id)->firstOrFail();
 
         $p = $this->expliquer($interaction)['projection'];
@@ -156,7 +170,7 @@ class TASK1580ProjectionTest extends TestCase
         $note = $this->chunkNoteDerivee();
         $this->lignes[] = $this->ligne($note, 'derived_knowledge', 0.4);
 
-        $interaction = $this->tour(fn () => $this->composeur('dossiers', 'Que dit le document ?'));
+        $interaction = $this->tour(fn () => $this->composeur('ia_dossiers', 'Que dit le document ?'));
         $p = $this->expliquer($interaction)['projection'];
 
         $types = array_column($p['chunks'], 'source_type', 'chunk_id');
@@ -171,7 +185,7 @@ class TASK1580ProjectionTest extends TestCase
 
     public function test_a4_un_chunk_supprime_est_unavailable_sans_casser_les_autres(): void
     {
-        $interaction = $this->tour(fn () => $this->composeur('dossiers', 'Que dit le document ?'));
+        $interaction = $this->tour(fn () => $this->composeur('ia_dossiers', 'Que dit le document ?'));
         DossierChunk::query()->whereKey($this->lignes[1]['chunk_id'])->delete();
 
         $p = $this->expliquer($interaction)['projection'];
@@ -191,7 +205,7 @@ class TASK1580ProjectionTest extends TestCase
 
     public function test_a5_consulted_not_cited_est_derive_des_ids_du_writer(): void
     {
-        $interaction = $this->tour(fn () => $this->composeur('dossiers', 'Que dit le document ?'));
+        $interaction = $this->tour(fn () => $this->composeur('ia_dossiers', 'Que dit le document ?'));
         $p = $this->expliquer($interaction)['projection'];
 
         // La reponse cite [S1] = le premier chunk ; le second est consulte, non cite.
@@ -243,7 +257,7 @@ class TASK1580ProjectionTest extends TestCase
         for ($i = 0; $i < 6; $i++) {
             $this->lignes[] = $this->ligne($this->chunkFichier(), 'file', 0.5);
         }
-        $interaction = $this->tour(fn () => $this->composeur('dossiers', 'Que dit le document ?'));
+        $interaction = $this->tour(fn () => $this->composeur('ia_dossiers', 'Que dit le document ?'));
         // `retrieval.consulted` porte aussi les entrees du manifest (sans chunk_id) : seuls les chunks comptent.
         // Le moteur borne le contexte final (top-k) : on compte ce qu'il a ECRIT.
         $n = count(array_filter(array_column($interaction->metadata['retrieval']['consulted'], 'chunk_id')));
@@ -287,7 +301,7 @@ class TASK1580ProjectionTest extends TestCase
 
     public function test_b1_la_section_projection_est_dans_le_contrat_explain_et_nulle_sans_interaction(): void
     {
-        $interaction = $this->tour(fn () => $this->composeur('dossiers', 'Que dit le document ?'));
+        $interaction = $this->tour(fn () => $this->composeur('ia_dossiers', 'Que dit le document ?'));
         $trace = $this->expliquer($interaction);
 
         $this->assertSame('projection', array_key_last($trace));

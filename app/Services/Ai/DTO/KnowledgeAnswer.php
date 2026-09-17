@@ -87,6 +87,22 @@ final class KnowledgeAnswer
         public readonly array $sourcesUsed = [],
         /** @var array<string, string> */
         public readonly array $sourcesDenied = [],
+        /**
+         * TASK-1595 — le provider et le modele EFFECTIFS du tour, tels que
+         * resolus, pour l'appelant qui publie une bulle et doit y inscrire
+         * `metadata.provider` / `metadata.model`.
+         *
+         * Ils ne sont pas dans `toArray()` : la reponse JSON du Dossier n'a
+         * jamais expose ces deux valeurs et cette TASK ne les y ajoute pas.
+         * Ils existent pour qu'un appelant n'ait pas a relire l'`AiInteraction`
+         * et a redecouper `provider/model` d'une chaine — deux operations qui
+         * auraient fabrique une seconde verite a cote de `ResolvedModel`.
+         *
+         * `null` quand aucun provider n'a ete appele (zero source) : dans ce
+         * cas il n'y a pas de bulle a publier non plus.
+         */
+        public readonly ?string $provider = null,
+        public readonly ?string $model = null,
     ) {}
 
     /**

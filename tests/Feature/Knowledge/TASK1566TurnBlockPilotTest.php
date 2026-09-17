@@ -30,9 +30,17 @@ use Tests\TestCase;
 /**
  * TASK-1566 / CDC-01 V0-A — le PRODUCTEUR PILOTE ecrit son bloc `turn`.
  *
- * Meme harnais que `TASK1565RetrievalTraceTest` : un vrai tour `loop_chat.dossiers`
+ * Meme harnais que `TASK1565RetrievalTraceTest` : un vrai tour du composeur
  * execute par `ai:inspect-turn`, avec recherche mockee et agent fake. On observe
  * le PRODUIT, on ne reconstruit rien a cote.
+ *
+ * TASK-1595 — le tour pilote est desormais `loop_chat.ia_dossiers`. Le SUJET de
+ * cette suite est le PRODUCTEUR PILOTE (`LoopKnowledgeAnswerService`) et le bloc
+ * qu'il ecrit ; depuis la bascule, `loop_chat.dossiers` ne passe plus par lui
+ * mais par `DossierInsightsService`. `ia_dossiers` est l'autre mode du MEME
+ * producteur : meme corps (`generateUnderLock`), meme Context Builder, meme
+ * `DossierRetrievalSource`, meme recorder. Rien de ce que la suite garde n'a
+ * change — seule la porte qui y mene.
  *
  * Ce que ces tests gardent, par ordre de degats :
  *
@@ -229,9 +237,9 @@ class TASK1566TurnBlockPilotTest extends TestCase
         $identity = $this->blocDuTour()['identity'];
 
         $this->assertSame('loop_chat', $identity['surface']);
-        $this->assertSame('dossiers', $identity['mode']);
-        $this->assertSame('loop_chat.dossiers', $identity['execution_path']);
-        $this->assertSame('loop_knowledge_answer', $identity['capability']);
+        $this->assertSame('ia_dossiers', $identity['mode']);
+        $this->assertSame('loop_chat.ia_dossiers', $identity['execution_path']);
+        $this->assertSame('loop_hybrid_answer', $identity['capability']);
     }
 
     public function test_le_bloc_distingue_le_provider_effectif_et_n_invente_pas_le_demande(): void
@@ -394,7 +402,7 @@ class TASK1566TurnBlockPilotTest extends TestCase
             '--user' => $this->membre->email,
             '--surface' => 'loop',
             '--loop' => (string) $this->loop->id,
-            '--mode' => 'dossiers',
+            '--mode' => 'ia_dossiers',
             '--question' => 'Qui est Enrica ?',
         ])->assertSuccessful();
 

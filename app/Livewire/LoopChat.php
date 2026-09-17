@@ -18,6 +18,7 @@ use App\Services\Knowledge\HumanClaimCorrection;
 use App\Services\Knowledge\LoopMemoryDigest;
 use App\Services\LoopMessageService;
 use App\Services\Loops\LoopAnswerCapitalizationService;
+use App\Services\Loops\LoopDossierAnswerService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Services\UrlPreviewService;
 use App\Support\Ai\AiExecutionPath;
@@ -751,11 +752,13 @@ class LoopChat extends Component
     private function respondWithDossiers(LoopMessage $message, string $question, User $user): void
     {
         try {
-            // TASK-1568 / V0-G — le composeur NOMME son chemin (C15) : le
-            // moteur est partage avec l'endpoint JSON et la CLI, il ne peut pas
-            // le deviner.
-            $answer = app(LoopKnowledgeAnswerService::class)
-                ->answer($this->loop, $user, $question, inThreadTrigger: $message, executionPath: AiExecutionPath::LOOP_CHAT_DOSSIERS);
+            // TASK-1595 : le mode Dossiers passe par le moteur documentaire
+            // CANONIQUE — celui de « Posez une question a ce Dossier » —, sur
+            // le Dossier RACINE de la Boucle. L'adaptateur porte le chemin
+            // `loop_chat.dossiers` (C15 : le point d'entree nomme le sien) et
+            // le contrat de publication ; il ne decide de rien d'autre.
+            $answer = app(LoopDossierAnswerService::class)
+                ->answer($this->loop, $user, $question, inThreadTrigger: $message);
 
             if ($answer->interactionId === null) {
                 // Zero source pertinente : rien n'a coute, rien n'est publie
@@ -787,6 +790,54 @@ class LoopChat extends Component
         } catch (\RuntimeException $exception) {
             $this->addError('body', $exception->getMessage());
         }
+    }
+
+    /**
+     * TASK-1595 : une question d'approfondissement devient un tour Dossiers.
+     *
+     * Le clic RESTE dans la Boucle. Il ne prepare rien ailleurs, n'ouvre aucun
+     * Shell et n'invente aucun moteur : il repose exactement la question dans
+     * le composeur, en mode `dossiers`, et emprunte donc le chemin
+     * `loop_chat.dossiers` comme n'importe quel envoi. C'est la difference avec
+     * la page Dossier, dont les memes boutons ouvrent le Shell (CDC §6) : la,
+     * il n'y a pas de fil ou poursuivre ; ici, il y en a un.
+     *
+     * L'INDEX voyage, jamais le texte. La question est relue dans la bulle —
+     * elle-meme relue DANS cette Boucle — pour que ce qui part dans le fil soit
+     * ce que le serveur a propose, et pas une chaine reecrite par le client.
+     */
+    public function askFollowUp(string $messageId, int $index, LoopMessageService $service): void
+    {
+        $user = auth()->user();
+
+        if (! $this->canContribute($user)) {
+            return;
+        }
+
+        $bulle = LoopMessage::where('id', $messageId)
+            ->where('loop_id', $this->loop->id)
+            ->where('type', 'ai')
+            ->first();
+
+        if (! $bulle) {
+            return;
+        }
+
+        $questions = $bulle->metadata['follow_up_questions'] ?? null;
+        $question = is_array($questions) ? ($questions[$index] ?? null) : null;
+
+        if (! is_string($question) || trim($question) === '') {
+            return;
+        }
+
+        // Un reply en cours ne doit pas capturer cet envoi : la question est un
+        // nouveau message du fil. `cancelReply()` remet le mode a `normal` —
+        // d'ou l'ordre, qui n'est pas cosmetique.
+        $this->cancelReply();
+        $this->composerMode = 'dossiers';
+        $this->body = $question;
+
+        $this->sendMessage($service);
     }
 
     /**

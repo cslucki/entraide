@@ -260,7 +260,11 @@ class TASK1566WritersIdentityTest extends TestCase
 
         $this->assertSame($turnId, $this->identite($interaction));
         // TASK-1568 (V0-G) : `identity` et `steps` ; TASK-1573 (V0-E) : `sources`.
-        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'sources', 'state']);
+        // TASK-1595 — ce writer compose desormais son VERDICT (`status`,
+        // `decided_by`, `latency_ms`) : il ne se contentait plus longtemps de
+        // son identite. Les cles ajoutees sont celles que le moteur SAIT au
+        // moment d'ecrire ; aucune n'est deduite.
+        $this->assertIdentiteSeule($interaction, ['schema', 'id', 'identity', 'steps', 'sources', 'state', 'status', 'decided_by', 'latency_ms']);
         $this->assertLegacyPreservee($interaction, ['dossier_id', 'requested_by', 'latency_ms', 'provider', 'capability', 'status', 'retrieval']);
     }
 

@@ -240,12 +240,19 @@ class TASK1568ExecutionPathTest extends TestCase
 
     /**
      * Le contrat `context_builder` des 18 chemins — GELE par
-     * `TRACE0_SCHEMA_FROZEN`. 7 `executed` · 7 `bypassed` · 4 `not_applicable`.
+     * `TRACE0_SCHEMA_FROZEN`. 6 `executed` · 8 `bypassed` · 4 `not_applicable`
+     * depuis TASK-1595 (`loop_chat.dossiers` a rejoint les bypassed).
      * Les 4 `not_applicable` sont zero-provider : declares ici, ecrits par V0-I.
      */
     private const CONTEXT_BUILDER_CONTRACT = [
         AiExecutionPath::LOOP_CHAT_IA => 'bypassed',
-        AiExecutionPath::LOOP_CHAT_DOSSIERS => 'executed',
+        // TASK-1595 — « Consulter les Dossiers » passe par le moteur
+        // documentaire CANONIQUE (`DossierInsightsService`), qui compose son
+        // bloc de sources lui-meme : le Context Builder est BYPASSE, avec la
+        // meme raison que les deux pages Dossier. `ia_dossiers` n'a pas
+        // bascule et reste `executed` — c'est precisement ce que
+        // `execution_path` existe pour rendre visible.
+        AiExecutionPath::LOOP_CHAT_DOSSIERS => 'bypassed',
         AiExecutionPath::LOOP_CHAT_IA_DOSSIERS => 'executed',
         AiExecutionPath::LOOP_CHAT_LEGACY_ASK => 'executed',
         AiExecutionPath::LOOP_CHAT_LEGACY_ANSWER => 'executed',
@@ -286,13 +293,13 @@ class TASK1568ExecutionPathTest extends TestCase
         AiExecutionPath::DOSSIER_PAGE_INSIGHTS => 'not_applicable',
     ];
 
-    public function test_a4_le_contrat_context_builder_couvre_les_18_chemins_en_7_7_4(): void
+    public function test_a4_le_contrat_context_builder_couvre_les_18_chemins_en_6_8_4(): void
     {
         $this->assertEqualsCanonicalizing(AiExecutionPath::all(), array_keys(self::CONTEXT_BUILDER_CONTRACT));
 
         $cardinalites = array_count_values(self::CONTEXT_BUILDER_CONTRACT);
 
-        $this->assertSame(['bypassed' => 7, 'executed' => 7, 'not_applicable' => 4], [
+        $this->assertSame(['bypassed' => 8, 'executed' => 6, 'not_applicable' => 4], [
             'bypassed' => $cardinalites['bypassed'],
             'executed' => $cardinalites['executed'],
             'not_applicable' => $cardinalites['not_applicable'],
@@ -451,10 +458,15 @@ class TASK1568ExecutionPathTest extends TestCase
         $this->assertSame('bypassed', $etape['status']);
         $this->assertSame(AiTurnReason::CONTEXT_BUILDER_DOCUMENT_PATH_DIRECT_EXECUTION, $etape['reason_code']);
 
-        // La MEME capability, l'autre moteur : `executed`. C'est exactement ce
-        // que `execution_path` existe pour rendre visible.
+        // TASK-1595 — la MEME capability ET le MEME moteur : « Consulter les
+        // Dossiers » bypasse desormais le Context Builder pour la meme raison
+        // que la page. Avant cette TASK, ce chemin repondait `executed` — deux
+        // moteurs derriere une capability unique. C'est cet ecart-la que la
+        // bascule supprime, et ce test en est la mesure.
         $composeur = $this->blocDuTour(fn () => $this->envoyerDepuisLeComposeur('dossiers', 'Que dit le document ?'));
-        $this->assertSame('executed', $this->etapeUnique($composeur, 'context_builder')['status']);
+        $etapeComposeur = $this->etapeUnique($composeur, 'context_builder');
+        $this->assertSame('bypassed', $etapeComposeur['status']);
+        $this->assertSame(AiTurnReason::CONTEXT_BUILDER_DOCUMENT_PATH_DIRECT_EXECUTION, $etapeComposeur['reason_code']);
         $this->assertSame($page['identity']['capability'], $composeur['identity']['capability']);
     }
 
@@ -481,7 +493,11 @@ class TASK1568ExecutionPathTest extends TestCase
 
     public function test_c4_une_etape_executed_ne_porte_aucun_reason_code(): void
     {
-        $bloc = $this->blocDuTour(fn () => $this->envoyerDepuisLeComposeur('dossiers', 'Que dit le document ?'));
+        // TASK-1595 : le mode `dossiers` bypasse desormais (donc PORTE une
+        // raison). Le mode `ia_dossiers`, qui n'a pas bascule, reste le chemin
+        // du composeur qui execute reellement le Context Builder — c'est lui
+        // qui mesure la propriete visee ici.
+        $bloc = $this->blocDuTour(fn () => $this->envoyerDepuisLeComposeur('ia_dossiers', 'Que dit le document ?'));
 
         $etape = $this->etapeUnique($bloc, 'context_builder');
         $this->assertSame('executed', $etape['status']);

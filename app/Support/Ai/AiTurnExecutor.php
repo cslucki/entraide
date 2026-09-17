@@ -11,6 +11,7 @@ use App\Models\ScenarioPackLoad;
 use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
 use App\Services\ChatLoop\ChatLoopAiService;
+use App\Services\Loops\LoopDossierAnswerService;
 use App\Support\AiLab\LabScenario;
 use App\Support\ScenarioPacks\Packs\AiLabPack;
 use Illuminate\Support\Collection;
@@ -24,7 +25,8 @@ use Illuminate\Support\Str;
  * desormais par lui. Aucun pipeline parallele — les VRAIS services produit,
  * avec leurs vraies gardes :
  *
- *   dossiers | ia_dossiers  -> `LoopKnowledgeAnswerService::answer/answerHybrid`
+ *   dossiers                -> `LoopDossierAnswerService::answer` (TASK-1595)
+ *   ia_dossiers             -> `LoopKnowledgeAnswerService::answerHybrid`
  *   ia                      -> `ChatLoopAiService::respondInThread` (declencheur OBLIGATOIRE)
  *
  * toujours en `publish: false` : verrou, idempotence, `AiEconomicGuard`, cle
@@ -51,6 +53,7 @@ final class AiTurnExecutor
     public function __construct(
         private readonly LoopKnowledgeAnswerService $knowledge,
         private readonly ChatLoopAiService $chatLoop,
+        private readonly LoopDossierAnswerService $dossierAnswers,
     ) {}
 
     /**
@@ -219,12 +222,27 @@ final class AiTurnExecutor
                     // publication, aucun declencheur n'est transmis (T1558) ; en
                     // Lab, le message humain publie EST le declencheur.
                     $inThread = $publish ? $trigger : null;
+                    // TASK-1595 — le mode `dossiers` passe desormais par
+                    // `LoopDossierAnswerService` (moteur documentaire canonique
+                    // sur le Dossier racine), comme le composeur. L'Inspector et
+                    // le Lab doivent observer L'IMPLEMENTATION DU PRODUIT :
+                    // laisser ce seam sur l'ancien service aurait produit une
+                    // mesure plausible et fausse, exactement ce que CDC-01
+                    // interdit. Le mode `ia_dossiers` reste inchange.
                     $reponse = $mode === 'ia_dossiers'
                         ? $this->knowledge->answerHybrid($loop, $user, $question, $inThread, publish: $publish, executionPath: AiExecutionPath::LOOP_CHAT_IA_DOSSIERS)
-                        : $this->knowledge->answer($loop, $user, $question, $inThread, publish: $publish, executionPath: AiExecutionPath::LOOP_CHAT_DOSSIERS);
+                        : $this->dossierAnswers->answer($loop, $user, $question, $inThread, publish: $publish);
 
+                    // TASK-1595 — un tour qui S'ABSTIENT ne porte pas d'id
+                    // d'interaction dans son DTO : `interactionId: null` est le
+                    // signal PRODUIT que rien n'a ete genere, et `LoopChat` le
+                    // lit pour prevenir l'auteur. Il a pourtant laisse un tour.
+                    //
+                    // On le retrouve alors par son RUN, exactement comme le
+                    // `catch` ci-dessous retrouve celui d'un refus : meme
+                    // mecanisme, meme borne tenant, aucune seconde regle.
                     $interaction = $reponse->interactionId === null
-                        ? null
+                        ? $this->tourDuRun($organization, $runId, $dejaConnus)
                         : AiInteraction::query()->where('organization_id', (string) $organization->id)->whereKey($reponse->interactionId)->first();
 
                     // La bulle publiee est retrouvee par le MEME lien existant.

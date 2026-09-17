@@ -347,6 +347,40 @@
                                     @endif
                                 </div>
                             @endif
+
+                            {{-- TASK-1595 : « Pour approfondir ». Meme intitule et
+                                 meme forme que la page Dossier (`dossiers.answer_follow_ups_heading`),
+                                 mais un clic ne quitte JAMAIS la Boucle : il
+                                 repose la question dans le composeur en mode
+                                 Dossiers, et le tour repart par
+                                 `loop_chat.dossiers`. Sur la page Dossier, les
+                                 memes boutons ouvrent le Shell — la, il n'y a
+                                 pas de fil ou poursuivre.
+
+                                 L'INDEX voyage, jamais le texte : le serveur
+                                 relit la question dans CETTE bulle. --}}
+                            @php
+                                $followUps = $isMember && is_array($msg->metadata['follow_up_questions'] ?? null)
+                                    ? $msg->metadata['follow_up_questions']
+                                    : [];
+                            @endphp
+                            @if($followUps !== [])
+                                <div class="mt-2 border-t border-violet-200/70 pt-2 dark:border-violet-800/70" data-loop-follow-ups>
+                                    <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">{{ __('dossiers.answer_follow_ups_heading') }}</p>
+                                    <ul class="mt-1.5 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap">
+                                        @foreach($followUps as $i => $followUp)
+                                        <li>
+                                            <button type="button"
+                                                    wire:click="askFollowUp('{{ $msg->id }}', {{ $i }})"
+                                                    wire:loading.attr="disabled"
+                                                    wire:target="askFollowUp"
+                                                    data-loop-follow-up="{{ $i }}"
+                                                    class="inline-flex min-h-[36px] items-center rounded-full border border-violet-200 bg-white px-3 py-1.5 text-left text-[11px] font-medium text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-violet-800 dark:bg-gray-900 dark:text-violet-300 dark:hover:bg-gray-800">{{ $followUp }}</button>
+                                        </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
                             </x-slot:footer>
                         </x-conversation.message-bubble>
                     @else
