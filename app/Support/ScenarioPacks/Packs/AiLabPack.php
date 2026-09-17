@@ -25,6 +25,7 @@ use App\Support\ScenarioPacks\ScenarioPackEntityRegistrar;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\File;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use LogicException;
@@ -220,12 +221,23 @@ final class AiLabPack implements ProvisionsItsOrganization, ScenarioPackDefiniti
             throw new LogicException('Purge de connaissance derivee reservee au Lab.');
         }
 
-        DerivedKnowledgeNote::query()
+        // Les ids d'abord, puis la suppression : jamais `each()` (pagine par
+        // OFFSET) sur un ensemble que l'on supprime — revue Opus T1594 #1.
+        $ids = DerivedKnowledgeNote::query()
             ->where('organization_id', (string) $organization->id)
-            ->each(function (DerivedKnowledgeNote $note): void {
+            ->pluck('id');
+
+        foreach ($ids as $id) {
+            $note = DerivedKnowledgeNote::query()->where('organization_id', (string) $organization->id)->whereKey($id)->first();
+            if ($note !== null) {
                 $this->derivedIndex->forget($note);
                 $note->delete();
-            });
+            }
+        }
+
+        if ($ids->isNotEmpty()) {
+            Log::info('AiLabPack : connaissance derivee purgee au (re)chargement du Lab.', ['organization_id' => (string) $organization->id, 'derived_notes' => $ids->count()]);
+        }
     }
 
     /**

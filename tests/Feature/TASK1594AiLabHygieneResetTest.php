@@ -8,11 +8,14 @@ use App\Models\DossierChunk;
 use App\Models\Loop;
 use App\Models\LoopMessage;
 use App\Models\Organization;
+use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Support\ScenarioPacks\Packs\AiLabPack;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Laravel\Ai\Embeddings;
+use Laravel\Ai\Prompts\EmbeddingsPrompt;
 use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
@@ -35,6 +38,24 @@ class TASK1594AiLabHygieneResetTest extends TestCase
         parent::setUp();
 
         Storage::fake(AiLabPack::DISK);
+
+        // Le corpus du Lab doit s'INDEXER (chunks non derives > 0) pour que
+        // « le reset ne touche que les derives » soit une mesure et pas un
+        // 0 === 0 (revue Opus #2) : cle tenant + porte semantique + SDK fake,
+        // comme T1587 D1.
+        $lab = Organization::factory()->create(['slug' => AiLabPack::ORGANIZATION_SLUG, 'name' => 'AI Lab', 'locale' => 'fr', 'loops_enabled' => true, 'is_active' => true]);
+        OrganizationAiSetting::factory()->create(['organization_id' => $lab->id, 'provider' => 'openrouter', 'model' => 'openai/gpt-4o-mini', 'api_key' => 'sk-lab-1594']);
+        config([
+            'ai.dossiers.semantic_search.enabled' => true,
+            'ai.dossiers.semantic_search.organization_ids' => [(string) $lab->id],
+            'ai.default_for_embeddings' => 'openrouter',
+            'ai.caching.embeddings.cache' => false,
+            'ai.providers.openrouter.driver' => 'openrouter',
+            'ai.providers.openrouter.key' => 'platform-key',
+            'ai.providers.openrouter.models.embeddings.default' => 'openai/text-embedding-3-small',
+            'ai.providers.openrouter.models.embeddings.dimensions' => config('database.default') === 'pgsql' ? 1536 : 8,
+        ]);
+        Embeddings::fake(fn (EmbeddingsPrompt $prompt): array => array_map(fn (int $i): array => array_fill(0, $prompt->dimensions, ($i + 1) / 10), array_keys($prompt->inputs)))->preventStrayEmbeddings();
     }
 
     public function test_a1_le_reset_purge_notes_et_chunks_derives_du_lab_et_seulement_du_lab(): void
@@ -62,6 +83,7 @@ class TASK1594AiLabHygieneResetTest extends TestCase
         $avantAutre = $this->empreinte($autre);
         $avantLab = $this->empreinteHorsDerives($lab);
         $this->assertSame(2, $avantAutre['notes']);
+        $this->assertGreaterThan(0, $avantLab['chunks_corpus'], 'le corpus du Lab est indexe : la mesure « corpus intact » a un objet');
 
         $this->assertSame(0, $this->artisan('scenario-pack:reset', ['pack' => AiLabPack::PACK_ID, 'organization' => AiLabPack::ORGANIZATION_SLUG, '--yes' => true])->run());
 
