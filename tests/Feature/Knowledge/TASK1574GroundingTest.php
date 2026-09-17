@@ -51,6 +51,21 @@ use Tests\TestCase;
  *     preuve insuffisante — la reponse est rendue, l'axe 2 le dit ;
  *  E. l'Inspector lit `state` depuis le bloc (`source = turn`).
  */
+/**
+ * TASK-1595 — le mode du composeur exerce ici est `ia_dossiers`, et non plus
+ * `dossiers`.
+ *
+ * Ce que cette suite mesure, ce sont les etages de `DossierRetrievalSource`
+ * (retrieval, rerank, familles de sources, refus de source) et le
+ * `retrieval_trace` qu'elle depose. Depuis la bascule, `loop_chat.dossiers`
+ * repond par `DossierInsightsService`, qui n'a ni filtre de distance ni
+ * rerank : ces etages n'y existent pas, et les exiger reviendrait a demander a
+ * la trace de decrire un pipeline qui n'a pas tourne.
+ *
+ * `ia_dossiers` est l'autre mode du MEME producteur, avec le MEME corps, le
+ * MEME Context Builder et la MEME source. Le sujet de la suite est intact —
+ * seule la porte qui y mene a change.
+ */
 #[Group('ai')]
 #[Group('sensitive')]
 class TASK1574GroundingTest extends TestCase
@@ -120,7 +135,7 @@ class TASK1574GroundingTest extends TestCase
 
     public function test_a1_une_reponse_citee_est_supported_et_l_etape_dit_sa_methode(): void
     {
-        $turn = $this->tour(fn () => $this->composeur('dossiers', 'Que dit le document ?'))->metadata['turn'];
+        $turn = $this->tour(fn () => $this->composeur('ia_dossiers', 'Que dit le document ?'))->metadata['turn'];
 
         $grounding = $this->etape($turn, 'grounding');
         $this->assertSame('executed', $grounding['status']);
@@ -140,7 +155,7 @@ class TASK1574GroundingTest extends TestCase
     {
         LoopKnowledgeAgent::fake(fn (): TextResponse => $this->reponse('Une reponse sans la moindre reference.'));
 
-        $tour = $this->tour(fn () => $this->composeur('dossiers', 'Que dit le document ?'));
+        $tour = $this->tour(fn () => $this->composeur('ia_dossiers', 'Que dit le document ?'));
         $turn = $tour->metadata['turn'];
 
         // Le produit : repondu, non grounded — comme avant.
@@ -163,7 +178,7 @@ class TASK1574GroundingTest extends TestCase
 
     public function test_b1_retrieval_et_rerank_sont_deposes_par_la_source_avec_les_valeurs_de_la_trace(): void
     {
-        $tour = $this->tour(fn () => $this->composeur('dossiers', 'Que dit le document ?'));
+        $tour = $this->tour(fn () => $this->composeur('ia_dossiers', 'Que dit le document ?'));
         $turn = $tour->metadata['turn'];
         $trace = $tour->metadata[DossierRetrievalTraceRecorder::TURN_METADATA_KEY]['dossier_retrieval'];
 
@@ -196,7 +211,7 @@ class TASK1574GroundingTest extends TestCase
     {
         config(['ai.dossiers.semantic_search.enabled' => false]);
 
-        $turn = $this->tour(fn () => $this->composeur('dossiers', 'Que dit le document ?'))->metadata['turn'];
+        $turn = $this->tour(fn () => $this->composeur('ia_dossiers', 'Que dit le document ?'))->metadata['turn'];
 
         $this->assertSame(AiTurnState::DEGRADED_SOURCE_DENIED, $turn['state']['degraded_reason']);
         $this->assertSame(DossierRetrievalSource::NAME, $turn['sources']['denied'][0]['source']);
@@ -244,7 +259,7 @@ class TASK1574GroundingTest extends TestCase
 
     public function test_e1_l_inspector_lit_state_depuis_le_bloc(): void
     {
-        $tour = $this->tour(fn () => $this->composeur('dossiers', 'Que dit le document ?'));
+        $tour = $this->tour(fn () => $this->composeur('ia_dossiers', 'Que dit le document ?'));
 
         Artisan::call('ai:inspect-turn', ['--organization' => $this->organization->slug, '--interaction' => (string) $tour->id, '--json' => true]);
         $trace = json_decode(Artisan::output(), true, 512, JSON_THROW_ON_ERROR);

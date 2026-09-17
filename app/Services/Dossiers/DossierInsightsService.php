@@ -27,6 +27,7 @@ use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiTurnReason;
+use App\Support\Ai\AiTurnState;
 use App\Support\Ai\AiTurnTrace;
 use App\Support\Ai\AiUsage;
 use DomainException;
@@ -410,6 +411,25 @@ final class DossierInsightsService
         ?string $conversationMemory = null,
         array $history = [],
         ?string $executionPath = null,
+        ?string $loopId = null,
+        ?string $surface = null,
+        // Le MODE du composeur, quand l'appelant en a un. Le Lab en derive
+        // `MODE_CHANGED` d'un tour a l'autre : absent, le signal se lit
+        // `UNAVAILABLE`, ce qui est la verite pour une page Dossier ou le
+        // Shell — ils n'ont pas de mode.
+        ?string $mode = null,
+        // TASK-1595 — l'appelant declare si son chemin est TERMINAL.
+        //
+        // Un chemin terminal (le mode Dossiers du composeur) doit laisser un
+        // tour quand il s'abstient : sans lui, une abstention est
+        // indiscernable d'un tour jamais demande.
+        //
+        // Les branches du Shell, elles, DECLINENT : elles appellent ce moteur,
+        // n'obtiennent rien, et laissent la branche suivante repondre. Y ecrire
+        // un tour ferait DEUX interactions pour un seul tour produit, et
+        // brancherait un fallthrough — ce que G-beta / C20 interdit. Leur
+        // defaut `false` les laisse exactement comme avant.
+        bool $traceAbstention = false,
     ): KnowledgeAnswer {
         $question = trim($question);
 
@@ -462,7 +482,14 @@ final class DossierInsightsService
             $question,
             $embeddingInstance,
             self::ANSWER_SOURCE_LIMIT,
-            ['dossier_answer' => true, 'turn_id' => $turnId],
+            // TASK-1595 — l'acteur est DECLARE, jamais laisse au repli
+            // `Auth::id()` du ledger (T1585). Tant que ce moteur n'etait
+            // atteint que depuis une page ou l'authentifie EST le demandeur,
+            // le repli disait vrai par coincidence. Il ne le dit plus des
+            // qu'un appelant execute un tour AU NOM d'un membre — l'Inspector
+            // « Tester une requete » ecrivait alors le SuperAdmin au ledger
+            // d'embedding. Le demandeur est ici, il n'y a rien a deviner.
+            ['dossier_answer' => true, 'turn_id' => $turnId, 'user_id' => (string) $requester->id],
             self::ANSWER_CANDIDATE_LIMIT,
             $scopedFiles,
             // TASK-1535 — les Boucles que CE lecteur peut lire.
@@ -506,6 +533,10 @@ final class DossierInsightsService
                 ? []
                 : [self::SOURCE_NAME => DossierRetrievalSource::REASON_SEMANTIC_SEARCH_DISABLED];
 
+            if ($traceAbstention) {
+                $this->traceAbstention($dossier, $requester, $question, $locale, $turnId, $executionPath, $history, $surface, $mode, $loopId, (string) $organization->id);
+            }
+
             return new KnowledgeAnswer(
                 answer: __($scopedFiles !== null ? 'dossiers.answer_no_source_in_file' : 'dossiers.answer_no_source', [], $locale),
                 sources: [],
@@ -518,7 +549,7 @@ final class DossierInsightsService
             );
         }
 
-        return $this->answerOverSources($organization, $dossier, $requester, $question, $rows, $conversationMemory, $turnId, $history, $executionPath);
+        return $this->answerOverSources($organization, $dossier, $requester, $question, $rows, $conversationMemory, $turnId, $history, $executionPath, $loopId, $surface, $mode);
     }
 
     /**
@@ -553,6 +584,15 @@ final class DossierInsightsService
         ?string $turnId = null,
         array $history = [],
         ?string $executionPath = null,
+        // TASK-1595 — la Boucle d'ou vient la question, QUAND l'appelant en a
+        // une. Ce moteur n'en deduit jamais : les pages Dossier n'en ont pas,
+        // le Shell non plus, et leur `null` reste `null`. Elle ne sert qu'a
+        // ecrire `metadata.loop_id` — aucun perimetre, aucune garde, aucune
+        // resolution n'en depend : les sources restent celles que l'appelant a
+        // deja choisies et deja autorisees.
+        ?string $loopId = null,
+        ?string $surface = null,
+        ?string $mode = null,
     ): KnowledgeAnswer {
         $locale = $this->readerLocale();
         $capability = CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER;
@@ -573,7 +613,7 @@ final class DossierInsightsService
             turnId: $turnId,
         );
 
-        $this->traceDirectExecution($contexte, $capability, $executionPath, $history);
+        $this->traceDirectExecution($contexte, $capability, $executionPath, $history, $surface, $mode);
 
         try {
             $resolved = $this->providers->resolve($capability, $contexte);
@@ -602,8 +642,22 @@ final class DossierInsightsService
         );
 
         if (! $verdict->allowed) {
+            // TASK-1595 — l'etage qui a ARRETE le tour est celui que la trace
+            // nomme : le depot precede le `throw`.
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'denied', $verdict->reason);
+
+            // TASK-1570 / V0-B, porte ici — un refus economique laisse un TOUR
+            // (`refused`, stage `economic_check`, code MESURE par le garde).
+            // Ledger vierge : rien n'est parti chez aucun provider. La ligne
+            // porte `cost_usd = 0, cost_unknown = false` et n'entre donc dans
+            // aucune somme du garde.
+            $this->recordEarlyStop($dossier, $requester, $contexte, $definition, $resolved,
+                AiTurnState::TURN_REFUSED, 'economic_check', $verdict->reason, $history, $loopId);
+
             throw AiRefusedException::fromVerdict($verdict);
         }
+
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'executed');
 
         $instructions = $this->prompts->compose($capability, $this->capabilityInstructions($definition->promptKey), (string) $organization->id);
         $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
@@ -662,10 +716,15 @@ final class DossierInsightsService
         } catch (\Throwable $exception) {
             $this->recordInteraction($dossier, $requester, $contexte, $definition, $resolved, $prompt, null,
                 AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null, 'failed', $startedAt, null,
-                $exception::class, $consulted, [], $doctrineVersion, $history);
+                $exception::class, $consulted, [], $doctrineVersion, $history, $loopId);
 
             throw new RuntimeException(__('dossiers.insights_ai_error'), 0, $exception);
         }
+
+        // TASK-1595 — l'appel provider a eu lieu ET a rendu. Depose APRES le
+        // `try` : avant, l'etape dirait `executed` d'un appel qui n'a
+        // peut-etre jamais abouti.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'provider_call', 'executed');
 
         $rawAnswer = AiMarkdownSanitizer::sanitize(
             (string) $response->text,
@@ -699,7 +758,7 @@ final class DossierInsightsService
 
         $interaction = $this->recordInteraction($dossier, $requester, $contexte, $definition, $resolved, $prompt,
             $answer, $usage, $cost->traceAttributes(), $cost, 'success', $startedAt, $response->invocationId, null,
-            $consulted, $cited, $doctrineVersion, $history);
+            $consulted, $cited, $doctrineVersion, $history, $loopId);
 
         return new KnowledgeAnswer(
             answer: $answer,
@@ -716,6 +775,12 @@ final class DossierInsightsService
             // diverge au premier correctif applique d'un seul cote.
             sourcesUsed: $consulted === [] ? [] : [self::SOURCE_NAME],
             sourcesDenied: [],
+            // TASK-1595 — la MEME resolution que celle qui a paye l'appel, pas
+            // une relecture. Un appelant qui publie une bulle (ChatLoop) doit
+            // pouvoir inscrire provider et modele sans rouvrir l'interaction ni
+            // redecouper une chaine `provider/model`.
+            provider: $resolved->provider,
+            model: $resolved->model,
         );
     }
 
@@ -1333,10 +1398,17 @@ final class DossierInsightsService
      * deux moteurs, deux comportements : c'est exactement ce que la trace
      * existe pour rendre visible (CDC-01 P0.7, scenario 8).
      */
-    private function traceDirectExecution(ContexteIa $contexte, string $capability, ?string $executionPath, array $history): void
+    private function traceDirectExecution(ContexteIa $contexte, string $capability, ?string $executionPath, array $history, ?string $surface = null, ?string $mode = null): void
     {
         AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
-            'surface' => 'dossier',
+            // TASK-1595 — la surface suit la MEME doctrine que le chemin (C15) :
+            // l'appelant l'annonce, le moteur ne la devine pas. Ce moteur sert
+            // cinq points d'entree, dont un qui n'est pas une page Dossier.
+            // Defaut `dossier` : les quatre autres appelants sont inchanges.
+            'surface' => $surface ?? 'dossier',
+            // `array_filter` en aval retire un `mode` nul : les appelants qui
+            // n'en ont pas gardent exactement l'identite qu'ils avaient.
+            'mode' => $mode,
             'execution_path' => $executionPath,
             'capability' => $capability,
             // TASK-1577 / V0-J / P0.2 — le moteur documentaire se nomme.
@@ -1356,6 +1428,130 @@ final class DossierInsightsService
         // n'en recoit jamais ; `answer()`/`answerOverSources()` en recoivent
         // du Shell, jamais des pages Dossier.
         AiTurnTrace::conversationHistoryStep($contexte->organizationId, $contexte->turnId, $history);
+    }
+
+    /**
+     * TASK-1595 — le tour d'une ABSTENTION, quand l'appelant a declare son
+     * chemin terminal.
+     *
+     * Aucune source exploitable : le moteur n'a appele aucun provider et n'a
+     * donc rien depense de plus. Mais la recherche, elle, a eu lieu et a deja
+     * coute un embedding — et jusqu'ici son seul recit partait avec le
+     * processus. Une abstention invisible est indiscernable d'un tour jamais
+     * demande, or c'est exactement le cas qu'il faut voir.
+     *
+     * L'identite et les etapes sont deposees ICI parce que le tour s'arrete
+     * avant `answerOverSources()` : sans ce depot, le bloc n'aurait ni chemin,
+     * ni surface, ni etage.
+     */
+    private function traceAbstention(
+        Dossier $dossier,
+        User $requester,
+        string $question,
+        string $locale,
+        string $turnId,
+        ?string $executionPath,
+        array $history,
+        ?string $surface,
+        ?string $mode,
+        ?string $loopId,
+        string $organizationId,
+    ): void {
+        $definition = $this->capabilities->get(CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER);
+
+        $contexte = new ContexteIa(
+            organizationId: $organizationId,
+            userId: (string) $requester->id,
+            loopId: null,
+            locale: $locale,
+            capability: CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER,
+            correlationId: AiCorrelation::id(),
+            source: CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL,
+            query: $question,
+            turnId: $turnId,
+        );
+
+        $this->traceDirectExecution($contexte, CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER, $executionPath, $history, $surface, $mode);
+        AiTurnTrace::step($organizationId, $turnId, 'grounding', 'not_applicable', AiTurnReason::TERMINAL_NO_SOURCES_FOUND);
+
+        $this->recordEarlyStop($dossier, $requester, $contexte, $definition, null,
+            AiTurnState::TURN_ABSTAINED, 'grounding', AiTurnReason::TERMINAL_NO_SOURCES_FOUND, $history, $loopId);
+    }
+
+    /**
+     * TASK-1595 / V0-B porte a ce moteur — l'ARRET ANTICIPE laisse un tour.
+     *
+     * Jusqu'ici, un refus economique de ce moteur ne laissait RIEN : ni ligne,
+     * ni trace. Le tour avait pourtant eu lieu — la recherche documentaire
+     * s'etait executee et avait deja coute un embedding —, et son seul recit
+     * partait avec le processus. Un refus invisible est indiscernable d'un tour
+     * qui n'a jamais ete demande.
+     *
+     * Ce que cette ligne N'EST PAS : une generation. Le ledger reste vierge
+     * (aucun appel n'est parti), `cost_usd = 0` et `cost_unknown = false` la
+     * tiennent hors de toute somme du garde, et `metadata.status` porte un
+     * statut NON GENERATIF (`refused`) que les lecteurs excluent deja.
+     *
+     * Ce qui reste ABSENT, et ce n'est pas un oubli : `latency_ms` — ce chemin
+     * ne chronometre pas ses arrets, et un chrono pose ici pour l'occasion ne
+     * mesurerait qu'une partie du tour (C7-bis). Absent se lit `UNAVAILABLE`.
+     *
+     * @param  array<string, mixed>  $history
+     */
+    private function recordEarlyStop(
+        Dossier $dossier,
+        User $requester,
+        ContexteIa $contexte,
+        CapabilityDefinition $definition,
+        ?ResolvedModel $resolved,
+        string $turnStatus,
+        string $stage,
+        string $reasonCode,
+        array $history,
+        ?string $loopId = null,
+    ): AiInteraction {
+        return AiInteraction::create([
+            'user_id' => $requester->id,
+            'organization_id' => $contexte->organizationId,
+            'correlation_id' => $contexte->correlationId,
+            'process' => $definition->process,
+            'feature' => $definition->id,
+            'model' => $resolved?->trace() ?? '',
+            'prompt' => '',
+            'response' => null,
+            'input_tokens' => 0,
+            'output_tokens' => 0,
+            'cost_usd' => 0,
+            'cost_unknown' => false,
+            'metadata' => array_filter([
+                'dossier_id' => $dossier->id,
+                'loop_id' => $loopId,
+                'requested_by' => $requester->id,
+                'provider' => $resolved?->provider,
+                'capability' => $definition->id,
+                'status' => $turnStatus,
+                'turn_id' => $contexte->turnId,
+                // Les invocations embedding que CE tour a deja declenchees :
+                // sur un refus, la recherche a eu lieu et a coute — sa trace
+                // n'est pas jetee.
+                RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
+                    $contexte->turnId,
+                    AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
+                    [
+                        'status' => $turnStatus,
+                        'stage' => $stage,
+                        'reason_code' => $reasonCode,
+                        'decided_by' => class_basename(self::class),
+                        'history' => $history,
+                        // Un arret avant la generation n'a rien cite et n'a
+                        // refuse aucune source : axe 2 `not_applicable`, axe 3
+                        // sans mesure.
+                        'state' => AiTurnTrace::stateBlock(null, []),
+                    ],
+                ),
+            ], static fn ($value): bool => $value !== null),
+        ]);
     }
 
     /**
@@ -1382,6 +1578,7 @@ final class DossierInsightsService
         array $cited,
         ?int $doctrineVersion,
         array $history = [],
+        ?string $loopId = null,
     ): AiInteraction {
         $this->ledger->recordGeneration(
             organizationId: $contexte->organizationId,
@@ -1417,6 +1614,10 @@ final class DossierInsightsService
             ...$costAttributes,
             'metadata' => array_filter([
                 'dossier_id' => $dossier->id,
+                // TASK-1595 — present SEULEMENT si l'appelant l'a fourni ;
+                // `array_filter` retire le `null`, donc la metadata des pages
+                // Dossier et du Shell est inchangee, cle pour cle.
+                'loop_id' => $loopId,
                 'requested_by' => $requester->id,
                 'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
                 'provider' => $resolved->provider,
@@ -1439,6 +1640,25 @@ final class DossierInsightsService
                     $contexte->turnId,
                     AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
                     [
+                        // TASK-1595 / V0-B — le verdict, enfin ecrit par ce
+                        // moteur. Le vocabulaire du TOUR n'est pas celui de la
+                        // ligne : `metadata.status` conserve ses valeurs
+                        // historiques (`success`/`failed`, lues par des tiers),
+                        // `turn.status` parle celui des trois axes. Traduire
+                        // ici evite de renommer une valeur deja consommee
+                        // (invariant I8).
+                        'status' => $status === 'failed'
+                            ? AiTurnState::TURN_FAILED
+                            : AiTurnState::TURN_ANSWERED,
+                        'stage' => $status === 'failed' ? 'generation' : null,
+                        // V0-C — un code n'est ecrit que s'il vient du
+                        // registre : une classe d'exception n'est pas un
+                        // `reason_code`.
+                        'reason_code' => AiTurnReason::isKnown($failure) ? $failure : null,
+                        'decided_by' => class_basename(self::class),
+                        // La MEME mesure que `metadata.latency_ms` ci-dessus,
+                        // jamais un second chronometre (C7).
+                        'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
                         'history' => $history,
                         // TASK-1573 / V0-E — `used` et `denied` tels que ce
                         // moteur les ecrit deja au premier niveau ; ni

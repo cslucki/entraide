@@ -496,7 +496,15 @@ class TASK1565RetrievalTraceTest extends TestCase
             '--user' => $this->membre->email,
             '--surface' => 'loop',
             '--loop' => (string) $this->loop->id,
-            '--mode' => 'dossiers',
+            // TASK-1595 — cette suite mesure les etages de
+            // `DossierRetrievalSource` : bassin dense, filtre `max_distance`,
+            // rerank. Depuis la bascule, `loop_chat.dossiers` ne passe plus par
+            // cette source (il repond par `DossierInsightsService`, qui n'a ni
+            // filtre de distance ni rerank). Le mode `ia_dossiers` est le
+            // chemin du composeur qui l'emprunte ENCORE : meme source, meme
+            // recorder, memes etages. Le SUJET de la suite est inchange — seule
+            // la porte qui y mene a change.
+            '--mode' => 'ia_dossiers',
             '--question' => 'Qui est Enrica ?',
         ], $remplace);
     }

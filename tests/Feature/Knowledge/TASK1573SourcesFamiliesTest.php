@@ -46,6 +46,21 @@ use Tests\TestCase;
  *  D. le formateur ne fabrique rien : familles absentes quand rien n'est donne,
  *     `[]` conserve comme mesure.
  */
+/**
+ * TASK-1595 — le mode du composeur exerce ici est `ia_dossiers`, et non plus
+ * `dossiers`.
+ *
+ * Ce que cette suite mesure, ce sont les etages de `DossierRetrievalSource`
+ * (retrieval, rerank, familles de sources, refus de source) et le
+ * `retrieval_trace` qu'elle depose. Depuis la bascule, `loop_chat.dossiers`
+ * repond par `DossierInsightsService`, qui n'a ni filtre de distance ni
+ * rerank : ces etages n'y existent pas, et les exiger reviendrait a demander a
+ * la trace de decrire un pipeline qui n'a pas tourne.
+ *
+ * `ia_dossiers` est l'autre mode du MEME producteur, avec le MEME corps, le
+ * MEME Context Builder et la MEME source. Le sujet de la suite est intact —
+ * seule la porte qui y mene a change.
+ */
 #[Group('ai')]
 #[Group('sensitive')]
 class TASK1573SourcesFamiliesTest extends TestCase
@@ -117,7 +132,7 @@ class TASK1573SourcesFamiliesTest extends TestCase
 
     public function test_a1_le_pilote_ecrit_les_quatre_familles_coherentes_avec_la_trace_de_retrieval(): void
     {
-        $tour = $this->tour(fn () => $this->composeur('dossiers', 'Que dit le document ?'));
+        $tour = $this->tour(fn () => $this->composeur('ia_dossiers', 'Que dit le document ?'));
         $sources = $tour->metadata['turn']['sources'];
         $trace = $tour->metadata[DossierRetrievalTraceRecorder::TURN_METADATA_KEY]['dossier_retrieval'];
 
@@ -143,7 +158,7 @@ class TASK1573SourcesFamiliesTest extends TestCase
         // source la REFUSE avec une raison — et le manifest, lui, fournit.
         config(['ai.dossiers.semantic_search.enabled' => false]);
 
-        $tour = $this->tour(fn () => $this->composeur('dossiers', 'Que dit le document ?'));
+        $tour = $this->tour(fn () => $this->composeur('ia_dossiers', 'Que dit le document ?'));
         $sources = $tour->metadata['turn']['sources'];
 
         $this->assertNotContains(DossierRetrievalSource::NAME, $sources['used']);

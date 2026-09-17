@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\Ai\DTO\KnowledgeAnswer;
 use App\Services\Ai\LoopKnowledgeAnswerService;
 use App\Services\Dossiers\DossierSemanticSearchService;
+use App\Services\Loops\LoopDossierAnswerService;
 use App\Services\Loops\LoopRootDocumentService;
 use App\Support\Ai\AiTurnInspection;
 use Illuminate\Contracts\Console\Kernel;
@@ -130,7 +131,12 @@ class TASK1558InspectorCliTest extends TestCase
      */
     public function test_le_cli_appelle_le_service_produit_et_pas_une_imitation(): void
     {
-        $this->mock(LoopKnowledgeAnswerService::class, function (MockInterface $mock): void {
+        // TASK-1595 — le mode `dossiers` passe par `LoopDossierAnswerService`,
+        // qui repond par le moteur documentaire canonique. La garde est
+        // inchangee dans son intention : elle nomme le service PRODUIT que le
+        // CLI doit appeler, et rougit s'il derive vers une imitation. Seul le
+        // nom du service a change.
+        $this->mock(LoopDossierAnswerService::class, function (MockInterface $mock): void {
             $mock->shouldReceive('answer')
                 ->once()
                 ->withArgs(fn ($loop, $user, $question, $trigger, $publish): bool => $loop->id === $this->loop->id
@@ -194,7 +200,11 @@ class TASK1558InspectorCliTest extends TestCase
         $this->rechercheRendant([$this->ligne('Prof. Enrica De Cian — Team Lead UNIVE.')]);
         $this->agentRepond('UNIVE coordonne [S1].');
 
-        $this->artisan('ai:inspect-turn', $this->invocation())->assertSuccessful();
+        // TASK-1595 — `turn_id` au PREMIER niveau est une cle du writer pilote
+        // (`LoopKnowledgeAnswerService`) ; le moteur canonique ne porte
+        // l'identite du tour que dans `turn.id`. Le mode `ia_dossiers` est le
+        // chemin du composeur qui emprunte encore ce writer.
+        $this->artisan('ai:inspect-turn', $this->invocation(['--mode' => 'ia_dossiers']))->assertSuccessful();
 
         $metadata = AiInteraction::query()->firstOrFail()->metadata;
 
@@ -297,7 +307,9 @@ class TASK1558InspectorCliTest extends TestCase
 
         config(['ai.knowledge.retrieval_trace.enabled' => false]);
 
-        $sortie = $this->sortieJson();
+        // `retrieval_trace` est depose par `DossierRetrievalSource` : seul le
+        // writer pilote en a un (TASK-1595).
+        $sortie = $this->sortieJson(['--mode' => 'ia_dossiers']);
 
         $this->assertNull($sortie['retrieval']['candidates_found']);
         $this->assertNotSame(0, $sortie['retrieval']['candidates_found']);
@@ -396,11 +408,11 @@ class TASK1558InspectorCliTest extends TestCase
     }
 
     /** @return array<string, mixed> */
-    private function sortieJson(): array
+    private function sortieJson(array $remplace = []): array
     {
         // `$this->artisan()` rend un PendingCommand dont la sortie n'est pas
         // capturee : pour LIRE le JSON, il faut l'appel direct du Kernel.
-        $code = Artisan::call('ai:inspect-turn', $this->invocation(['--json' => true]));
+        $code = Artisan::call('ai:inspect-turn', $this->invocation(['--json' => true] + $remplace));
 
         $this->assertSame(0, $code, 'la commande doit reussir pour que sa trace soit lisible');
 

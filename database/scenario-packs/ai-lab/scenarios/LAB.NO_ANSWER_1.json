@@ -42,9 +42,7 @@
     "steps": {
       "conversation_history": "executed",
       "economic_check": "executed",
-      "context_builder": "executed",
-      "retrieval": "executed",
-      "rerank": "conditional",
+      "context_builder": "bypassed",
       "grounding": "conditional",
       "provider_call": "conditional"
     },
