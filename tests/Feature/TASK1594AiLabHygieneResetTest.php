@@ -45,7 +45,7 @@ class TASK1594AiLabHygieneResetTest extends TestCase
         // Une AUTRE Organization (le produit) avec sa propre connaissance derivee.
         $autre = Organization::factory()->create(['slug' => 'main', 'is_active' => true, 'loops_enabled' => true]);
         $autreUser = User::factory()->complete()->create(['organization_id' => $autre->id]);
-        $autreLoop = Loop::factory()->create(['organization_id' => $autre->id, 'owner_id' => $autreUser->id]);
+        $autreLoop = Loop::factory()->create(['organization_id' => $autre->id, 'created_by' => $autreUser->id]);
         $autreDossier = Dossier::factory()->create(['organization_id' => $autre->id, 'owner_id' => $autreUser->id]);
         $this->derive($autre, $autreLoop, $autreDossier);
         $this->derive($autre, $autreLoop, $autreDossier);
