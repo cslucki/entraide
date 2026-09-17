@@ -929,6 +929,12 @@ class ChatLoopAiService
             throw new \RuntimeException(__('loops.ai_error'), 0, $exception);
         }
 
+        // TASK-1593 — l'appel est PARTI et revenu : l'etape le dit, au meme
+        // point logique que le writer Dossiers (LoopKnowledgeAnswerService).
+        // Sans elle, un tour `loop_chat.ia` reussi etait muet sur le fournisseur
+        // alors que le ledger le facturait (LAB.MODE_CHANGE_1, matrice 17/09).
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'provider_call', 'executed');
+
         $usage = AiUsage::fromSdkTextTokens(
             $response->usage->promptTokens,
             $response->usage->completionTokens,
