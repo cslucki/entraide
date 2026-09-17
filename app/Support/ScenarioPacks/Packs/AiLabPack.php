@@ -3,6 +3,7 @@
 namespace App\Support\ScenarioPacks\Packs;
 
 use App\Models\BlogPost;
+use App\Models\DerivedKnowledgeNote;
 use App\Models\Dossier;
 use App\Models\DossierFile;
 use App\Models\Loop;
@@ -13,6 +14,7 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\Dossiers\FileContentExtractor;
+use App\Services\Knowledge\DerivedKnowledgeNoteIndexer;
 use App\Services\LoopMessageService;
 use App\Services\Loops\LoopRootDocumentService;
 use App\Services\LoopService;
@@ -23,6 +25,7 @@ use App\Support\ScenarioPacks\ScenarioPackEntityRegistrar;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\File;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use LogicException;
@@ -110,6 +113,7 @@ final class AiLabPack implements ProvisionsItsOrganization, ScenarioPackDefiniti
     ];
 
     public function __construct(
+        private readonly DerivedKnowledgeNoteIndexer $derivedIndex,
         private readonly LoopService $loops,
         private readonly LoopRootDocumentService $rootDocuments,
         private readonly LoopMessageService $messages,
@@ -187,6 +191,13 @@ final class AiLabPack implements ProvisionsItsOrganization, ScenarioPackDefiniti
         // incomplet n'est pas un Lab (bruyant, jamais partiel).
         $source = $this->sourceDirectory();
 
+        // TASK-1594 / CDC-NIGHT §6 (invariant MASTER) — un Lab propre : la
+        // connaissance DERIVEE produite apres le chargement (knowledge:derive-due)
+        // n'est pas une entite du pack, le registre ne la voit pas ; un reset
+        // qui la laisserait servirait un pipeline different de celui declare
+        // (precondition `derived_chunks_absent`). Purge AVANT re-application.
+        $this->purgeDerivedKnowledge($organization);
+
         $base = CarbonImmutable::parse('2026-05-04 09:00:00', 'UTC');
 
         $personas = $this->personas($organization, $registrar, $base);
@@ -194,6 +205,39 @@ final class AiLabPack implements ProvisionsItsOrganization, ScenarioPackDefiniti
         $this->corpus($organization, $dossiers, $personas, $registrar, $source);
         $this->conversation($loops, $personas, $registrar, $base);
         $this->aiSettings($organization, $registrar);
+    }
+
+    /**
+     * Retire TOUTE la connaissance derivee de l'Organization Lab — et rien
+     * d'autre : la borne est `organization_id` (la note porte son tenant) et
+     * `apply()` a deja refuse toute Organization qui n'est pas `ai-lab`.
+     * Les vecteurs partent par l'autorite WRITE existante
+     * (`DerivedKnowledgeNoteIndexer::forget()`, T1539), puis la note.
+     * Aucun hook generique ScenarioPack, aucune purge globale.
+     */
+    private function purgeDerivedKnowledge(Organization $organization): void
+    {
+        if ($organization->slug !== self::ORGANIZATION_SLUG) {
+            throw new LogicException('Purge de connaissance derivee reservee au Lab.');
+        }
+
+        // Les ids d'abord, puis la suppression : jamais `each()` (pagine par
+        // OFFSET) sur un ensemble que l'on supprime — revue Opus T1594 #1.
+        $ids = DerivedKnowledgeNote::query()
+            ->where('organization_id', (string) $organization->id)
+            ->pluck('id');
+
+        foreach ($ids as $id) {
+            $note = DerivedKnowledgeNote::query()->where('organization_id', (string) $organization->id)->whereKey($id)->first();
+            if ($note !== null) {
+                $this->derivedIndex->forget($note);
+                $note->delete();
+            }
+        }
+
+        if ($ids->isNotEmpty()) {
+            Log::info('AiLabPack : connaissance derivee purgee au (re)chargement du Lab.', ['organization_id' => (string) $organization->id, 'derived_notes' => $ids->count()]);
+        }
     }
 
     /**
