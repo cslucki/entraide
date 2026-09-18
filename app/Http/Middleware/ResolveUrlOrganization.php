@@ -4,9 +4,11 @@ namespace App\Http\Middleware;
 
 use App\Models\Organization;
 use Closure;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpFoundation\Response;
 
 class ResolveUrlOrganization
@@ -105,6 +107,13 @@ class ResolveUrlOrganization
             return $next($request);
         }
 
+        // TASK-1601 — une URL courte de fonctionnalite (`/loops`) est l'URL de
+        // l'Organization PAR DEFAUT. Un utilisateur connecte qui n'en est pas
+        // membre n'a rien a y faire : on l'envoie sur SA forme canonique.
+        if ($redirect = $this->canonicalOrganizationRedirect($request)) {
+            return $redirect;
+        }
+
         $organization = $this->resolveOrganization($request);
 
         if ($organization) {
@@ -192,11 +201,105 @@ class ResolveUrlOrganization
                 return $this->resolveFromAuthenticatedUser();
             }
 
+            // TASK-1601 — MESURE, et decision de NE PAS elargir ici.
+            //
+            // Resoudre depuis l'utilisateur authentifie a cet endroit corrige
+            // aussi les chemins profonds (`/messages/{user}`) et les
+            // fonctionnalites sans route bornee (`/search`). Mais cela change
+            // le tenant que voient TOUTES les gardes cross-organization des
+            // routes courtes : mesure faite, **8 tests** de TASK-1288 / 1289 /
+            // 1291 rougissent, parce qu'ils defendent la semantique actuelle —
+            // l'URL courte EST celle de l'Organization par defaut, et un
+            // etranger y est refuse.
+            //
+            // Ce n'est donc pas un correctif, c'est une redefinition. Elle
+            // demande son propre arbitrage. TASK-1601 se borne a la redirection
+            // canonique en amont (`canonicalOrganizationRedirect()`), qui evite
+            // le liage etranger sans toucher a cette semantique.
             return $this->resolveDefaultOrganization();
         }
 
         if (Auth::check()) {
             return $this->resolveFromAuthenticatedUser();
+        }
+
+        return null;
+    }
+
+    /**
+     * TASK-1601 — la forme canonique de l'URL courte, pour qui n'est pas membre
+     * de l'Organization par defaut.
+     *
+     * Quatre bornes, et elles comptent toutes :
+     *
+     * 1. **GET seulement.** Rediriger un POST perdrait son corps.
+     * 2. **Racine de la fonctionnalite seulement** (`/loops`, pas
+     *    `/loops/{uuid}`). `route('organization.loops.index')` ne sait pas
+     *    reconstruire un segment profond ; le faire fabriquerait une URL
+     *    fausse. Les chemins profonds sont deja corriges en amont : ils lient
+     *    desormais l'Organization de l'utilisateur au lieu du defaut.
+     * 3. **Organization par defaut exclue.** Pour son propre membre, l'URL
+     *    courte EST deja la sienne : le rediriger ne corrigerait rien et
+     *    changerait le comportement de tout le monde.
+     * 4. **La route canonique doit EXISTER.** `search` et `reports` sont des
+     *    fonctionnalites sans equivalent `/org/{organization}/…` : les
+     *    rediriger fabriquerait un 404 la ou il n'y en avait pas.
+     */
+    protected function canonicalOrganizationRedirect(Request $request): ?RedirectResponse
+    {
+        if (! $request->isMethod('GET') || ! Auth::check()) {
+            return null;
+        }
+
+        $first = $request->segment(1);
+
+        if ($first === null || $request->segment(2) !== null) {
+            return null;
+        }
+
+        if (! in_array($first, static::$defaultOrganizationRoutes, true)) {
+            return null;
+        }
+
+        if ($this->isAuthenticatedPersonalRoute($request)) {
+            return null;
+        }
+
+        $organization = $this->resolveFromAuthenticatedUser();
+
+        if (! $organization) {
+            return null;
+        }
+
+        $default = $this->resolveDefaultOrganization();
+
+        if ($default && $default->getKey() === $organization->getKey()) {
+            return null;
+        }
+
+        $name = $this->canonicalRouteName($first);
+
+        if ($name === null) {
+            return null;
+        }
+
+        return redirect()->route($name, [
+            'organization' => $organization->slug,
+            ...$request->query(),
+        ]);
+    }
+
+    /**
+     * Le nom de route bornee qui correspond a une fonctionnalite, ou `null`
+     * quand il n'en existe aucune. On n'essaie que les deux formes reellement
+     * utilisees par `routes/web.php` — jamais une chaine devinee.
+     */
+    protected function canonicalRouteName(string $feature): ?string
+    {
+        foreach (['organization.'.$feature.'.index', 'organization.'.$feature] as $candidate) {
+            if (Route::has($candidate)) {
+                return $candidate;
+            }
         }
 
         return null;
