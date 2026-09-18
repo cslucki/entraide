@@ -271,7 +271,21 @@ class TASK1213KnowledgeAnswerTest extends TestCase
         $this->assertFalse($answer->grounded);
         $this->assertSame([], $answer->sources);
         LoopKnowledgeAgent::assertNotPrompted(fn (AgentPrompt $prompt): bool => true);
-        $this->assertDatabaseCount('ai_interactions', 0);
+
+        // TASK-1570 / CDC-01 V0-B : l'abstention n'est plus « aucune ligne ».
+        // Elle laisse UNE interaction NON GENERATIVE — rien n'est parti, rien
+        // ne se paie — et le ledger reste vierge (I3). Le message rendu et le
+        // DTO (`interactionId: null`, lu par LoopChat) sont inchanges.
+        $this->assertNull($answer->interactionId);
+        $this->assertDatabaseCount('ai_interactions', 1);
+        $this->assertDatabaseCount('ai_provider_invocations', 0);
+
+        $trace = AiInteraction::query()->sole();
+        $this->assertNull($trace->response);
+        $this->assertSame(0, $trace->input_tokens);
+        $this->assertSame('abstained', $trace->metadata['status']);
+        $this->assertSame('abstained', $trace->metadata['turn']['status']);
+        $this->assertSame('NO_SOURCES_FOUND', $trace->metadata['turn']['reason_code']);
     }
 
     public function test_an_organization_without_ai_configuration_gets_an_explicit_refusal(): void
@@ -621,7 +635,7 @@ class FakeSearch extends DossierSemanticSearchService
 
     public function __construct() {}
 
-    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null): array
+    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null, ?array $onlyDossierFileIds = null, ?array $authorizedLoopIds = null): array
     {
         $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'embeddingInstance', 'limit', 'traceMetadata', 'candidateLimit');
 

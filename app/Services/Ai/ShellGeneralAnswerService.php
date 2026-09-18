@@ -1,0 +1,357 @@
+<?php
+
+namespace App\Services\Ai;
+
+use App\Ai\Agents\ShellGeneralAnswerAgent;
+use App\Ai\CapabilityDefinition;
+use App\Ai\CapabilityRegistry;
+use App\Ai\Context\ContextBuilder;
+use App\Ai\ContexteIa;
+use App\Ai\PromptRepository;
+use App\Ai\ProviderResolver;
+use App\Ai\ResolvedModel;
+use App\Listeners\RecordSdkEmbeddingsInvocation;
+use App\Models\AiInteraction;
+use App\Models\Organization;
+use App\Models\User;
+use App\Services\Ai\DTO\ShellGeneralAnswer;
+use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiCost;
+use App\Support\Ai\AiEconomicGuard;
+use App\Support\Ai\AiMarkdownSanitizer;
+use App\Support\Ai\AiTurnTrace;
+use App\Support\Ai\AiUsage;
+use DomainException;
+
+/**
+ * TASK-1526 — capability texte generale du Shell membre.
+ *
+ * Ce service ne gere aucune conversation : le fil et sa memoire restent chez
+ * `AiShellResponder` / `AiShellThread`. Il execute seulement UNE generation
+ * gouvernee : capability canonique, contexte borne, Constitution + doctrine,
+ * credential du tenant, garde economique, ledger et trace P1.
+ *
+ * Aucune source documentaire n'est autorisee ici. Les Dossiers et Articles
+ * restent servis par leurs branches pre-provider dediees ; la seule source
+ * metier est l'inventaire sans identifiant des surfaces BouclePro accessibles
+ * au membre.
+ */
+final class ShellGeneralAnswerService
+{
+    public const PRODUCER = 'shell.general_answer';
+
+    public function __construct(
+        private readonly CapabilityRegistry $capabilities,
+        private readonly PromptRepository $prompts,
+        private readonly ProviderResolver $providers,
+        private readonly ContextBuilder $contextBuilder,
+        private readonly AiEconomicGuard $economicGuard,
+        private readonly AiProviderInvocationLedger $ledger,
+    ) {}
+
+    /** The conversational contract that produced a reusable general answer. */
+    public static function contractHash(): string
+    {
+        $locale = str_starts_with((string) app()->getLocale(), 'en') ? 'en' : 'fr';
+
+        return hash('sha256', trans('ai.shell_general_instructions', [], $locale));
+    }
+
+    /**
+     * @param  array<string, mixed>  $history  TASK-1567 / V0-L — ce que le Shell
+     *                                         a REELLEMENT donne de la
+     *                                         conversation. N'influence QUE la
+     *                                         trace : ni le prompt, ni la
+     *                                         selection, ni le provider.
+     * @param  ?string  $executionPath  TASK-1568 / V0-G — nom du chemin, FOURNI
+     *                                  par le point d'entree (C15). `null` :
+     *                                  la cle reste absente, jamais devinee.
+     */
+    public function answer(Organization $organization, User $requester, string $question, array $history = [], ?string $executionPath = null): ShellGeneralAnswer
+    {
+        if ($requester->organization_id !== $organization->id) {
+            throw new DomainException('The requester does not belong to this Organization.');
+        }
+
+        // Le Shell membre conservait historiquement ce coupe-circuit avant
+        // tout provider. T1526 change le routage, pas l'activation du produit.
+        if (! config('ai.clarify.enabled', false)) {
+            throw new DomainException('AI generation is disabled for this Organization.');
+        }
+
+        $capability = CapabilityRegistry::SHELL_GENERAL_ANSWER;
+        $definition = $this->capabilities->get($capability);
+        $this->capabilities->assertScopeAllowed($capability, CapabilityRegistry::SCOPE_ORGANIZATION);
+
+        $locale = str_starts_with((string) app()->getLocale(), 'en') ? 'en' : 'fr';
+        $contexte = new ContexteIa(
+            organizationId: (string) $organization->id,
+            userId: (string) $requester->id,
+            loopId: null,
+            locale: $locale,
+            capability: $capability,
+            correlationId: AiCorrelation::id(),
+            source: CapabilityRegistry::SOURCE_PRODUCT_SURFACES,
+        );
+
+        // TASK-1568 / CDC-01 V0-G — le chemin tel que l'appelant l'a nomme, et
+        // la capability, que ce moteur connait. Rien d'autre n'est deduit.
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'execution_path' => $executionPath,
+            'capability' => $capability,
+        ]);
+
+        $borne = $this->contextBuilder->build($contexte, $definition);
+
+        // TASK-1568 / V0-G — le `ContextBuilder` a tourne : `executed`, avec
+        // le nombre de provenances rendues — des identifiants, jamais du texte.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'context_builder', 'executed', null, [
+            'consulted' => count($borne->provenance),
+        ]);
+
+        // TASK-1568 / V0-G (C18) — l'historique que l'appelant a REELLEMENT
+        // donne a ce tour, traduit en etape (voir `AiTurnTrace`).
+        AiTurnTrace::conversationHistoryStep($contexte->organizationId, $contexte->turnId, $history);
+
+        try {
+            $resolved = $this->providers->resolve($capability, $contexte);
+        } catch (DomainException $exception) {
+            throw new DomainException('AI is not configured for this Organization.', 0, $exception);
+        }
+
+        // TASK-1572 / CDC-01 V0-D — le provider EFFECTIF tel que resolu, et
+        // l'absence de fallback comme MESURE : `ProviderResolver` ne selectionne
+        // jamais `FakeAIProvider` (doctrine P4). `provider_requested` n'a aucune
+        // source honnete : absent.
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'producer' => self::PRODUCER,
+            'provider_effective' => $resolved->provider,
+            'model' => $resolved->trace(),
+            'fallback_used' => false,
+        ]);
+
+        // Meme seau economique que l'ancien chemin universel : le routage ne
+        // cree ni nouveau budget, ni double comptage, ni cutover historique.
+        $verdict = $this->economicGuard->authorize(
+            $organization,
+            $definition->process,
+            $resolved->provider,
+            $resolved->model,
+            (float) config('ai.clarify.economic_guard.monthly_budget_usd', 2.00),
+            (int) config('ai.clarify.economic_guard.monthly_unknown_limit', 10),
+            $requester,
+        );
+
+        if (! $verdict->allowed) {
+            throw new DomainException('AI generation is not available for this member.');
+        }
+
+        $instructions = $this->prompts->compose(
+            $capability,
+            trans('ai.shell_general_instructions', [], $locale),
+            (string) $organization->id,
+        );
+        $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
+        $constitutionVersions = [
+            'platform_constitution_version' => $this->prompts->activePlatformConstitutionVersion(),
+            'org_constitution_version' => $this->prompts->activeOrganizationConstitutionVersion((string) $organization->id),
+        ];
+
+        $agent = new ShellGeneralAnswerAgent(
+            $instructions,
+            (int) config('ai.clarify.max_tokens', 900),
+            (float) config('ai.clarify.temperature', 0.3),
+        );
+        $prompt = $borne->text === '' ? $question : $borne->text."\n\n".$question;
+        $startedAt = microtime(true);
+
+        try {
+            $response = $agent->prompt(
+                $prompt,
+                provider: $resolved->instance,
+                model: $resolved->model,
+            );
+        } catch (\Throwable $exception) {
+            $this->recordInteraction(
+                $requester,
+                $contexte,
+                $definition,
+                $resolved,
+                $prompt,
+                null,
+                AiUsage::notObserved(),
+                ['cost_usd' => null, 'cost_unknown' => null],
+                null,
+                'failed',
+                $startedAt,
+                null,
+                $exception::class,
+                $doctrineVersion,
+                $constitutionVersions,
+                $borne->sourcesUsed,
+                $borne->sourcesDenied,
+                $history,
+            );
+
+            throw new DomainException('AI generation failed.', 0, $exception);
+        }
+
+        $usage = AiUsage::fromSdkTextTokens(
+            $response->usage->promptTokens,
+            $response->usage->completionTokens,
+        );
+        $cost = $this->economicGuard->finalize($resolved->provider, $resolved->model, $usage);
+        $answer = AiMarkdownSanitizer::sanitize(
+            $this->stripUnsupportedDocumentCitations((string) $response->text),
+            (int) config('ai.knowledge.max_answer_chars', 3000),
+        );
+
+        if ($answer === '') {
+            $this->recordInteraction(
+                $requester,
+                $contexte,
+                $definition,
+                $resolved,
+                $prompt,
+                null,
+                $usage,
+                $cost->traceAttributes(),
+                $cost,
+                'failed',
+                $startedAt,
+                $response->invocationId,
+                DomainException::class,
+                $doctrineVersion,
+                $constitutionVersions,
+                $borne->sourcesUsed,
+                $borne->sourcesDenied,
+                $history,
+            );
+
+            throw new DomainException('AI returned an empty answer.');
+        }
+
+        $interaction = $this->recordInteraction(
+            $requester,
+            $contexte,
+            $definition,
+            $resolved,
+            $prompt,
+            $answer,
+            $usage,
+            $cost->traceAttributes(),
+            $cost,
+            'success',
+            $startedAt,
+            $response->invocationId,
+            null,
+            $doctrineVersion,
+            $constitutionVersions,
+            $borne->sourcesUsed,
+            $borne->sourcesDenied,
+            $history,
+        );
+
+        return new ShellGeneralAnswer($answer, (string) $interaction->id);
+    }
+
+    /**
+     * Cette capability n'a aucune provenance documentaire. Un modele qui
+     * emet malgre tout un marqueur du moteur RAG ne doit jamais fabriquer
+     * l'apparence d'une citation resolue par le serveur.
+     */
+    private function stripUnsupportedDocumentCitations(string $answer): string
+    {
+        $answer = preg_replace('/\[(?:S|M)\d+\](?:\([^\r\n)]*\))?/i', '', $answer) ?? $answer;
+
+        return preg_replace('/\s+([.,;:!?])/', '$1', $answer) ?? $answer;
+    }
+
+    /**
+     * @param  array{cost_usd: ?float, cost_unknown: ?bool}  $costAttributes
+     * @param  list<string>  $sourcesUsed
+     * @param  array<string, string>  $sourcesDenied
+     */
+    private function recordInteraction(
+        User $requester,
+        ContexteIa $contexte,
+        CapabilityDefinition $definition,
+        ResolvedModel $resolved,
+        string $prompt,
+        ?string $response,
+        AiUsage $usage,
+        array $costAttributes,
+        ?AiCost $cost,
+        string $status,
+        float $startedAt,
+        ?string $sdkInvocationId,
+        ?string $failure,
+        ?int $doctrineVersion,
+        array $constitutionVersions,
+        array $sourcesUsed,
+        array $sourcesDenied,
+        array $history = [],
+    ): AiInteraction {
+        $this->ledger->recordGeneration(
+            organizationId: $contexte->organizationId,
+            userId: (string) $requester->id,
+            capability: $definition->id,
+            process: $definition->process,
+            resolved: $resolved,
+            usage: $usage,
+            cost: $cost,
+            status: $status,
+            correlationId: $contexte->correlationId,
+            sdkInvocationId: $sdkInvocationId,
+            failureReason: $failure,
+            startedAtMicrotime: $startedAt,
+        );
+
+        return AiInteraction::create([
+            'user_id' => $requester->id,
+            'organization_id' => $contexte->organizationId,
+            'correlation_id' => $contexte->correlationId,
+            'process' => $definition->process,
+            'feature' => CapabilityRegistry::SHELL_GENERAL_ANSWER,
+            'model' => $resolved->trace(),
+            'prompt' => $prompt,
+            'response' => $response,
+            'input_tokens' => $usage->inputTokensOrZero(),
+            'output_tokens' => $usage->outputTokensOrZero(),
+            ...$costAttributes,
+            'metadata' => array_filter([
+                'requested_by' => $requester->id,
+                'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'provider' => $resolved->provider,
+                'capability' => $definition->id,
+                'general_contract_hash' => self::contractHash(),
+                'status' => $status,
+                'sdk_invocation_id' => $sdkInvocationId,
+                // TASK-1556 : les invocations embedding (query) que CE tour a
+                // declenchees, reclamees une seule fois — `[]` mesure, jamais null.
+                RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
+                // TASK-1566 / CDC-01 V0-A — l'IDENTITE canonique du tour.
+                // TASK-1568 / V0-G — le writer RECLAME ce que le tour a depose
+                // (chemin nomme par l'appelant, etape `context_builder`). Le
+                // verdict reste absent : V0-B / V0-C.
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
+                    $contexte->turnId,
+                    AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
+                    [
+                        'history' => $history,
+                        // TASK-1573 / V0-E — `used`/`denied` de la borne (W3A).
+                        'sources' => AiTurnTrace::sourcesBlock($sourcesUsed, $sourcesDenied),
+                        // TASK-1574 / V0-F — pas de notion de grounding sur ce
+                        // chemin (axe 2 `not_applicable`) ; axe 3 depuis les refus.
+                        'state' => AiTurnTrace::stateBlock(null, $sourcesDenied),
+                    ],
+                ),
+                'failure' => $failure,
+                'sources_used' => $sourcesUsed,
+                'sources_denied' => $sourcesDenied,
+            ], static fn ($value): bool => $value !== null)
+                + ['doctrine_version' => $doctrineVersion]
+                + $constitutionVersions,
+        ]);
+    }
+}

@@ -113,10 +113,19 @@ return [
     // TASK-1217 : console RAG read-only de l'Organization
     'org_admin_ai_knowledge' => 'Mes connaissances IA',
     'org_admin_ai_constitution' => 'Constitution',
+    'org_admin_ai_quality' => 'Qualité IA',
+    'org_admin_ai_context_inspector' => 'Inspecteur de contexte',
     'org_admin_ai_consumption' => 'Consommation IA',
     'org_admin_section_exchanges' => 'Échanges',
     'org_admin_section_content' => 'Contenu',
     'org_admin_section_community' => 'Communauté',
+    'org_admin_section_relations' => 'Relations',
+    'org_admin_crm_today' => 'Aujourd\'hui',
+    'org_admin_relations' => 'Contacts',
+    'org_admin_crm_statuses' => 'Statuts',
+    'org_admin_acquisition' => 'Parcours d\'acquisition',
+    'org_admin_workshops' => 'Ateliers',
+    'org_admin_crm_templates' => 'Modèles d\'email',
     'org_admin_section_administration' => 'Administration',
 
     // LOT B — Services, Demandes, Transactions

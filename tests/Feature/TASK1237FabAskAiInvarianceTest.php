@@ -13,9 +13,9 @@ use App\Services\LoopService;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiFabContext;
 use App\Support\Ai\AiRefusedException;
+use App\Support\Ai\AiTurnState;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 use Tests\Support\Ai\RecordsAiConsumption;
 use Tests\TestCase;
 
@@ -31,7 +31,6 @@ use Tests\TestCase;
 class TASK1237FabAskAiInvarianceTest extends TestCase
 {
     use RecordsAiConsumption;
-
     use RefreshDatabase;
 
     private Organization $organization;
@@ -91,7 +90,14 @@ class TASK1237FabAskAiInvarianceTest extends TestCase
         $this->assertSame(1, substr_count($html, 'action="'.$aiRoute.'"'), 'un seul formulaire vers la route canonique');
         $this->assertSame(1, substr_count($html, 'name="question"'), 'un seul champ question');
         $this->assertSame(1, substr_count($html, '@bp-open-ask-ai.window'), 'le FAB ouvre le formulaire existant, pas un nouveau');
-        $this->assertStringContainsString('data-ai-fab-action="'.AiFabContext::ACTION_LOOP_ASK.'"', $html);
+        // TASK-1466 : le FAB ne se rend plus SUR la Boucle — l'ecoute de son
+        // evenement reste, parce que le contrat « une seule ecoute, un seul
+        // formulaire » protege la page, pas le FAB. L'action reste calculee
+        // par la meme autorite, mesuree ci-dessous.
+        $this->assertStringNotContainsString('data-ai-fab-action="'.AiFabContext::ACTION_LOOP_ASK.'"', $html);
+        $askFromAuthority = collect(app(AiFabContext::class)->loopActions($this->loop, $this->member))->firstWhere('key', AiFabContext::ACTION_LOOP_ASK);
+        $this->assertNotNull($askFromAuthority, 'la Boucle propose toujours « Demander a l\'IA » — via son autorite');
+        $this->assertSame('bp-open-ask-ai', $askFromAuthority['event']);
     }
 
     // =====================================================================
@@ -135,16 +141,23 @@ class TASK1237FabAskAiInvarianceTest extends TestCase
             ->assertSessionHas('ai_refusal_code', AiRefusedException::CODE_USER_CREDIT_EXHAUSTED)
             ->assertSessionHas('ai_offers_url');
 
-        $this->assertSame($before, $this->counters($this->member), 'zero ledger, zero interaction : le refus precede tout appel');
+        $this->assertSame($before, $this->counters($this->member), 'zero ledger, zero generation : le refus precede tout appel');
+        // TASK-1570 / V0-B : le refus laisse un tour NON GENERATIF, et lui seul.
+        $refus = AiInteraction::query()->where('user_id', $this->member->id)->latest('id')->firstOrFail();
+        $this->assertSame(AiTurnState::TURN_REFUSED, $refus->metadata['turn']['status']);
+        $this->assertNull($refus->response);
 
         // Le FAB, lui, remplace toutes les actions (dont loop_ask) par le
         // refus au plafond — meme regle deja en vigueur depuis TASK-1231 pour
         // loop_knowledge/loop_summary/help_request, desormais verifiee pour
         // loop_ask aussi. Le refus est affiche avant toute soumission possible.
-        $page = $this->actingAs($this->member)->get($this->loopUrl());
+        // TASK-1466 : mesure sur une page qui rend encore le FAB — la Boucle
+        // n'en porte plus. Le verdict economique, lui, n'a pas bouge.
+        $page = $this->actingAs($this->member)->get(route('organization.dashboard', ['organization' => $this->organization->slug]));
         $page->assertOk()
             ->assertDontSee('data-ai-fab-action="'.AiFabContext::ACTION_LOOP_ASK.'"', false)
-            ->assertSee('data-ai-fab-refusal', false);
+            // TASK-1478 : le refus est rendu par le Shell, meme autorite, nouveau domicile.
+            ->assertSee('data-ai-shell-refusal', false);
     }
 
     // =====================================================================
@@ -200,7 +213,10 @@ class TASK1237FabAskAiInvarianceTest extends TestCase
     private function counters(User $user): array
     {
         return [
-            'interactions' => AiInteraction::query()->where('user_id', $user->id)->count(),
+            // TASK-1570 / V0-B : les tours NON GENERATIFS (refus avant tout
+            // appel) sont comptes a part — ils n'ont rien coute.
+            'generations' => AiInteraction::query()->where('user_id', $user->id)
+                ->whereNot(static fn ($q) => $q->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES))->count(),
             'ledger' => AiProviderInvocation::query()->where('user_id', $user->id)->count(),
             'credit_used' => app(AiEconomicGuard::class)->userCreditStatus($this->organization, $user)->used,
         ];

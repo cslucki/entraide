@@ -6,6 +6,7 @@ use App\Http\Requests\StoreDossierFileRequest;
 use App\Models\Dossier;
 use App\Models\DossierFile;
 use App\Models\User;
+use App\Services\Dossiers\DossierFileRemover;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -309,7 +310,7 @@ class DossierFileController extends Controller
         return $mimeType ?? 'application/octet-stream';
     }
 
-    public function destroy(Request $request): JsonResponse
+    public function destroy(Request $request, DossierFileRemover $remover): JsonResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $file = $this->resolveFile($request->route('file'));
@@ -323,13 +324,10 @@ class DossierFileController extends Controller
 
         $this->authorize('deleteFile', $dossier);
 
-        try {
-            Storage::disk($file->disk)->delete($file->path);
-        } catch (\Exception) {
-            // Storage deletion failure doesn't prevent DB cleanup
-        }
-
-        $file->delete();
+        // TASK-1515 : le geste lui-meme vit dans `DossierFileRemover`. La
+        // console de plateforme (`/admin/drives`) appelle EXACTEMENT le meme
+        // service : deux implementations divergeraient au premier changement.
+        $remover->remove($file);
 
         return response()->json([
             'message' => __('dossiers.file_deleted'),

@@ -53,28 +53,23 @@ use Illuminate\Support\Facades\Gate;
  * meme, a partir de l'etat reel confirme par cette requete (appartenance
  * active, profil publie). C'est le seul materiau que People-2/People-3
  * auront le droit de presenter comme des faits.
+ *
+ * ## TASK-1546 — deux questions, un seul jeu de regles
+ *
+ * `eligibleFor()` repond a « qui pourrait les aider ? » et exclut toujours
+ * le demandeur. `requesterInLoop()` repond a « et moi ? » et ne rend QUE le
+ * demandeur. Les deux partagent les memes gardes de contexte et la meme
+ * construction de personne : ce qui rend quelqu'un lisible dans une Boucle
+ * s'ecrit ici, une fois. Aucune des deux n'elargit l'autre.
  */
 class EligiblePeopleService
 {
     public function eligibleFor(Organization $organization, Loop $loop, User $requester): EligiblePeopleResult
     {
-        // Gardes de CONTEXTE, dans l'ordre : tenant d'abord, puis le droit
-        // du demandeur, puis l'etat de la Boucle, puis le gate produit.
-        // Chaque refus est explicite — jamais un vide silencieux.
-        if ($loop->organization_id !== $organization->id) {
-            return EligiblePeopleResult::refused(EligiblePeopleResult::REFUSAL_CROSS_ORGANIZATION);
-        }
+        $refusal = $this->contextRefusal($organization, $loop, $requester);
 
-        if (! Gate::forUser($requester)->allows('viewWorkspace', $loop)) {
-            return EligiblePeopleResult::refused(EligiblePeopleResult::REFUSAL_REQUESTER_NOT_AUTHORIZED);
-        }
-
-        if (! $loop->isActive()) {
-            return EligiblePeopleResult::refused(EligiblePeopleResult::REFUSAL_LOOP_NOT_ACTIVE);
-        }
-
-        if (! $organization->ai_profiles_enabled) {
-            return EligiblePeopleResult::refused(EligiblePeopleResult::REFUSAL_AI_PROFILES_DISABLED);
+        if ($refusal instanceof EligiblePeopleResult) {
+            return $refusal;
         }
 
         // CANDIDATS — nombre de requetes constant quel que soit N :
@@ -111,24 +106,7 @@ class EligiblePeopleService
                 continue;
             }
 
-            $people[] = new EligiblePerson(
-                userId: (string) $membership->user_id,
-                displayName: $membership->user->publicDisplayName(),
-                avatarUrl: $membership->user->publicAvatarUrl(),
-                memberAiProfileId: (string) $profile->id,
-                verifiedFacts: [
-                    [
-                        'type' => 'active_loop_membership',
-                        'loop_id' => (string) $loop->id,
-                        'joined_at' => $membership->joined_at?->toIso8601String(),
-                    ],
-                    [
-                        'type' => 'member_ai_profile_published',
-                        'member_ai_profile_id' => (string) $profile->id,
-                        'published_at' => $profile->published_at?->toIso8601String(),
-                    ],
-                ],
-            );
+            $people[] = $this->person($loop, $membership, $profile);
         }
 
         // Ordre deterministe (contrat stable/testable), aucun classement de
@@ -140,5 +118,117 @@ class EligiblePeopleService
         );
 
         return EligiblePeopleResult::authorized($people);
+    }
+
+    /**
+     * TASK-1546 — le DEMANDEUR lui-meme, sous les MEMES regles.
+     *
+     * « Et moi ? » n'est pas la meme question que « Qui pourrait les aider ? ».
+     * L'ensemble recommandable exclut le demandeur, et {@see eligibleFor()}
+     * n'est pas touche : rien de ce que cette methode rend ne peut apparaitre
+     * dans une liste proposee a quelqu'un d'autre.
+     *
+     * Mais les REGLES de lecture doivent etre les memes des deux cotes, sans
+     * quoi le produit porterait deux visibilites : les quatre gardes de
+     * contexte sont donc celles de {@see contextRefusal()}, et la personne est
+     * construite par {@see person()} — appartenance ACTIVE, `isDisplayableIn`,
+     * profil PUBLIE dans CETTE Organization. C'est pourquoi cette methode vit
+     * ici et pas dans People-2 : une seule classe repond a « qu'est-ce qui
+     * rend une personne lisible dans cette Boucle ».
+     *
+     * Un demandeur sans profil publie rend un ensemble VIDE et autorise.
+     * L'appelant a le devoir de ne pas le lire comme « ne correspond pas » —
+     * voir {@see \App\Services\People\DTO\SelfFitResult}.
+     */
+    public function requesterInLoop(Organization $organization, Loop $loop, User $requester): EligiblePeopleResult
+    {
+        $refusal = $this->contextRefusal($organization, $loop, $requester);
+
+        if ($refusal instanceof EligiblePeopleResult) {
+            return $refusal;
+        }
+
+        if (! $requester->isDisplayableIn($organization)) {
+            return EligiblePeopleResult::authorized([]);
+        }
+
+        $membership = LoopMember::query()
+            ->where('loop_id', $loop->id)
+            ->where('user_id', $requester->id)
+            ->where('status', 'active')
+            ->first();
+
+        if (! $membership instanceof LoopMember) {
+            return EligiblePeopleResult::authorized([]);
+        }
+
+        $profile = MemberAiProfile::query()
+            ->forOrganization($organization)
+            ->published()
+            ->where('user_id', $requester->id)
+            ->first();
+
+        if (! $profile instanceof MemberAiProfile) {
+            return EligiblePeopleResult::authorized([]);
+        }
+
+        $membership->setRelation('user', $requester);
+
+        return EligiblePeopleResult::authorized([$this->person($loop, $membership, $profile)]);
+    }
+
+    /**
+     * Les quatre gardes de CONTEXTE, dans l'ordre : tenant d'abord, puis le
+     * droit du demandeur, puis l'etat de la Boucle, puis le gate produit.
+     * Chaque refus est explicite — jamais un vide silencieux.
+     *
+     * `null` = le contexte autorise a CALCULER (ce qui ne dit rien de ce que
+     * le calcul trouvera).
+     */
+    private function contextRefusal(Organization $organization, Loop $loop, User $requester): ?EligiblePeopleResult
+    {
+        if ($loop->organization_id !== $organization->id) {
+            return EligiblePeopleResult::refused(EligiblePeopleResult::REFUSAL_CROSS_ORGANIZATION);
+        }
+
+        if (! Gate::forUser($requester)->allows('viewWorkspace', $loop)) {
+            return EligiblePeopleResult::refused(EligiblePeopleResult::REFUSAL_REQUESTER_NOT_AUTHORIZED);
+        }
+
+        if (! $loop->isActive()) {
+            return EligiblePeopleResult::refused(EligiblePeopleResult::REFUSAL_LOOP_NOT_ACTIVE);
+        }
+
+        if (! $organization->ai_profiles_enabled) {
+            return EligiblePeopleResult::refused(EligiblePeopleResult::REFUSAL_AI_PROFILES_DISABLED);
+        }
+
+        return null;
+    }
+
+    /**
+     * Une personne lisible, avec les faits VERIFIES reconstruits depuis l'etat
+     * reel que les requetes viennent de confirmer (discipline TASK-1321).
+     */
+    private function person(Loop $loop, LoopMember $membership, MemberAiProfile $profile): EligiblePerson
+    {
+        return new EligiblePerson(
+            userId: (string) $membership->user_id,
+            displayName: $membership->user->publicDisplayName(),
+            avatarUrl: $membership->user->publicAvatarUrl(),
+            memberAiProfileId: (string) $profile->id,
+            verifiedFacts: [
+                [
+                    'type' => 'active_loop_membership',
+                    'loop_id' => (string) $loop->id,
+                    'joined_at' => $membership->joined_at?->toIso8601String(),
+                ],
+                [
+                    'type' => 'member_ai_profile_published',
+                    'member_ai_profile_id' => (string) $profile->id,
+                    'published_at' => $profile->published_at?->toIso8601String(),
+                ],
+            ],
+        );
     }
 }

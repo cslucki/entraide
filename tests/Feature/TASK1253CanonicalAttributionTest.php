@@ -214,7 +214,20 @@ class TASK1253CanonicalAttributionTest extends TestCase
         $this->assertSame(
             [
                 CapabilityRegistry::LOOP_SUMMARY,
+                // TASK-1534 : la premiere capability du cote WRITE — elle ne
+                // repond a personne, elle compile ce que des humains se sont
+                // dit en connaissance durable.
+                CapabilityRegistry::LOOP_CONVERSATION_KNOWLEDGE,
+                // TASK-1540 : le protocole de patch de la memoire de Boucle.
+                // Distincte du digest, et deliberement : elle ne produit pas un
+                // texte a ranger mais des OPERATIONS a valider, et sa depense
+                // doit se lire separement pour que le cout de la bascule
+                // claim-level reste visible.
+                CapabilityRegistry::LOOP_CLAIM_PATCH,
                 CapabilityRegistry::CLARIFY_HELP_REQUEST,
+                // TASK-1526 : le Shell membre repond aux questions generales
+                // via sa capability read-only, distincte de la clarification.
+                CapabilityRegistry::SHELL_GENERAL_ANSWER,
                 CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER,
                 // TASK-1309 : le mode « IA + Dossiers » est une capability
                 // CANONIQUE de plus — declaree juste apres sa soeur
@@ -230,9 +243,16 @@ class TASK1253CanonicalAttributionTest extends TestCase
                 // plus, sur le process du resume dont elle partage l'acte
                 // economique (meme geste que TASK-1309).
                 CapabilityRegistry::LOOP_DECISION_SUGGESTION,
+                // TASK-1435 (SW-5) : l'accueil du visiteur NON connecte. Elle est
+                // canonique comme les autres — meme registre, meme process
+                // (`guest_shell`), meme ledger — et c'est precisement ce qui
+                // garantit qu'un tour invite ne peut pas etre facture hors
+                // comptabilite. Sa seule singularite est sa whitelist de
+                // sources, toutes publiques.
+                CapabilityRegistry::GUEST_SHELL_WELCOME,
             ],
             array_map(static fn ($definition): string => $definition->id, $registry->all()),
-            'Les onze capabilities canoniques (TASK-1285 : + les deux reponses de l\'agent de profil ; TASK-1309 : + IA + Dossiers ; TASK-1327 : + la suggestion de Decision) — aucune pour la suggestion sur selection, la configuration conversationnelle du profil, l\'Explorer, l\'offre, les bancs.',
+            'Les quinze capabilities canoniques (TASK-1540 : + le protocole de patch de la memoire de Boucle) — aucune pour la suggestion sur selection, la configuration conversationnelle du profil, l\'Explorer, l\'offre, les bancs.',
         );
     }
 
@@ -244,7 +264,7 @@ class TASK1253CanonicalAttributionTest extends TestCase
         $this->assertSame(BlogExplorerController::class, NervousSystemCoverage::INHERITED['blog_explorer']);
         $this->assertNotSame('ai.inherited_label.blog_explorer', __('ai.inherited_label.blog_explorer', [], 'fr'));
         $this->assertNotSame('ai.inherited_label.blog_explorer', __('ai.inherited_label.blog_explorer', [], 'en'));
-        $this->assertSame(11 + 4, $coverage->totalCount(), 'Onze canoniques (TASK-1285 : + les deux reponses de l\'agent de profil ; TASK-1309 : + IA + Dossiers ; TASK-1327 : + la suggestion de Decision) + quatre heritees (configuration conversationnelle du profil, suggestion sur selection Blog, Explorer, offre de service).');
+        $this->assertSame(15 + 4, $coverage->totalCount(), 'Quinze canoniques (TASK-1540 : + le protocole de patch de la memoire de Boucle) + quatre heritees (configuration conversationnelle du profil, suggestion sur selection Blog, Explorer, offre de service).');
     }
 
     // =====================================================================

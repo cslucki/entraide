@@ -9,6 +9,7 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\Homepage\RootDestination;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
@@ -18,6 +19,24 @@ class HomeController extends Controller
     {
         $defaultOrganization = Organization::where('is_default', true)->first()
             ?? Organization::where('slug', 'main')->where('is_active', true)->first();
+
+        // TASK-1506 — le superadmin choisit ce que sert la racine
+        // (`/admin/homepage`). NULL, ou une valeur inconnue laissee en base,
+        // vaut le comportement historique : cette branche ne s'ouvre que sur
+        // un choix explicite et valide.
+        $destination = RootDestination::normalize($defaultOrganization?->root_destination);
+
+        if ($destination === RootDestination::SHELL_WELCOME && $defaultOrganization !== null) {
+            // La landing de l'Organization ; le mode d'affichage du Guest
+            // Shell (TASK-1500) decide seul de sa forme.
+            return redirect()->route('organization.home', $defaultOrganization);
+        }
+
+        if (($route = RootDestination::routeFor($destination)) !== null) {
+            // `members.index` est derriere `auth` depuis TASK-1479 (P0
+            // privacy) : un anonyme y rencontre la connexion, puis revient.
+            return redirect()->route($route);
+        }
 
         if ($defaultOrganization?->homepage_template === 'bouclepro_hero_v2' || $defaultOrganization?->homepage_template === 'artscilab_hero') {
             return redirect()->route('organization.home', $defaultOrganization);

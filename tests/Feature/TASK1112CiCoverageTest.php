@@ -87,6 +87,43 @@ class TASK1112CiCoverageTest extends TestCase
         return null;
     }
 
+    /**
+     * Le nombre de shards que le job `feature` GENERE, lu sur `--total=N`.
+     *
+     * TASK-1545 : ce nombre etait ecrit en dur dans ce fichier. Le lire dans
+     * le workflow est ce qui fait que ces gardes mesurent la CI reelle plutot
+     * qu'une CI de 2026-08-30 : passer a 8 voies demain ne les rendra pas
+     * vertes par inadvertance sur une decoupe qu'elles ne verifient plus.
+     */
+    private function totalDeShardsGeneres(): int
+    {
+        $generation = $this->etapeQuiLance('shard-tests.php');
+
+        $this->assertNotNull($generation, 'le generateur de shards ne tourne plus');
+
+        $this->assertSame(
+            1,
+            preg_match('/--total=(\d+)/', $generation['run'], $m),
+            'le generateur tourne sans --total explicite : le nombre de shards n’est plus lisible',
+        );
+
+        return (int) $m[1];
+    }
+
+    /** Les numeros de shard que la matrice du job `feature` fait REELLEMENT tourner. */
+    private function shardsDeLaMatrice(): array
+    {
+        $jobs = $this->workflow()['jobs'] ?? [];
+
+        $this->assertArrayHasKey('feature', $jobs, 'le job feature a disparu du workflow');
+
+        $matrice = $jobs['feature']['strategy']['matrix']['shard'] ?? [];
+
+        $this->assertNotSame([], $matrice, 'la matrice des shards Feature a disparu');
+
+        return array_map('intval', $matrice);
+    }
+
     /** Combien de tests une configuration selectionne reellement. */
     private function nombreDeTestsSelectionnes(string $config): int
     {
@@ -108,8 +145,8 @@ class TASK1112CiCoverageTest extends TestCase
         // premiere version de ce test passait sur un commentaire.
         //
         // TASK-1334 : la suite Feature n'est plus lancee par une etape unique
-        // mais par quatre shards, via des configurations
-        // `phpunit.ci-feature.shard-K.xml` **derivees** de
+        // mais par une matrice de shards (six depuis TASK-1545), via des
+        // configurations `phpunit.ci-feature.shard-K.xml` **derivees** de
         // `phpunit.ci-feature.xml`. Le test ne cherche donc plus le nom de la
         // configuration de reference, mais la commande qui lance un shard.
         $this->assertNotNull(
@@ -573,9 +610,10 @@ class TASK1112CiCoverageTest extends TestCase
     {
         // TASK-1334 : la verification portait sur le seul job `quality-gate`.
         // Elle porte desormais sur **tous** les jobs qui declarent une base ou
-        // un conteneur — il y en a cinq (`unit` plus quatre shards), et il
-        // suffirait qu'un seul vise la mauvaise base pour que la CI ecrase des
-        // donnees de developpement.
+        // un conteneur — `unit` plus les shards Feature, soit sept runners
+        // depuis TASK-1545 — et il suffirait qu'un seul vise la mauvaise base
+        // pour que la CI ecrase des donnees de developpement. La garde boucle
+        // sur les jobs declares : ajouter des voies ne l'affaiblit pas.
         $jobs = $this->workflow()['jobs'] ?? [];
         $verifies = 0;
 
@@ -656,8 +694,14 @@ class TASK1112CiCoverageTest extends TestCase
 
         $this->assertGreaterThan(0, $reference, 'la configuration de reference ne selectionne plus rien');
 
+        // TASK-1545 : le nombre de shards se LIT dans le workflow. Ecrit en
+        // dur, il aurait continue a mesurer une decoupe en 4 parts pendant que
+        // la CI en lançait 6 — le test serait reste vert sans plus rien dire
+        // de ce qui tourne reellement.
+        $total = $this->totalDeShardsGeneres();
+
         exec(
-            'cd '.escapeshellarg(base_path()).' && php .github/scripts/shard-tests.php --total=4 --verify',
+            'cd '.escapeshellarg(base_path()).' && php .github/scripts/shard-tests.php --total='.$total.' --verify',
             $sortieGeneration,
             $codeGeneration,
         );
@@ -670,7 +714,7 @@ class TASK1112CiCoverageTest extends TestCase
 
         $somme = 0;
 
-        for ($shard = 1; $shard <= 4; $shard++) {
+        for ($shard = 1; $shard <= $total; $shard++) {
             $config = "phpunit.ci-feature.shard-{$shard}.xml";
 
             $this->assertFileExists(base_path($config), "{$config} n’a pas ete genere");
@@ -685,8 +729,54 @@ class TASK1112CiCoverageTest extends TestCase
         $this->assertSame(
             $reference,
             $somme,
-            "les quatre shards selectionnent {$somme} tests la ou la suite de reference en selectionne "
+            "les {$total} shards selectionnent {$somme} tests la ou la suite de reference en selectionne "
                 ."{$reference} : le decoupage a perdu ou duplique des tests",
+        );
+    }
+
+    public function test_every_generated_shard_is_actually_run(): void
+    {
+        // **Le trou que TASK-1545 elargit, et que ce test ferme.**
+        //
+        // `--verify` prouve que la decoupe est COMPLETE : chaque fichier de
+        // `tests/Feature` tombe dans exactement une part. Il ne prouve pas que
+        // chaque part est EXECUTEE — le generateur ecrit des fichiers, il ne
+        // lance rien.
+        //
+        // Les deux nombres vivent donc a deux endroits : `--total=N` dans
+        // l'etape de generation, et la matrice du job. Les desaccorder ne
+        // rougit nulle part de soi-meme :
+        //
+        //   - matrice 6 / `--total=4` : les shards 5 et 6 echouent sur une
+        //     configuration absente. Bruyant, donc sans danger.
+        //   - matrice 4 / `--total=6` : les parts 5 et 6 sont generees,
+        //     verifiees... et jamais lancees. `--verify` reste vert, les
+        //     quatre shards restent verts, le Quality Gate passe — et un tiers
+        //     de la suite Feature n'a pas tourne. **Une CI plus rapide parce
+        //     qu'elle a oublie des tests**, exactement ce que tout ce fichier
+        //     existe pour rendre impossible.
+        //
+        // Le second cas est silencieux, et il devient d'autant plus facile a
+        // produire qu'on change le nombre de voies. D'ou cette garde.
+        $total = $this->totalDeShardsGeneres();
+        $matrice = $this->shardsDeLaMatrice();
+
+        sort($matrice);
+
+        $this->assertSame(
+            range(1, $total),
+            $matrice,
+            "le generateur produit {$total} parts mais la matrice lance [".implode(', ', $matrice).'] : '
+                .'une part generee et non lancee est une portion de la suite Feature silencieusement sautee',
+        );
+
+        // Et le nom affiche du job doit dire le meme nombre : c'est lui qu'on
+        // lit sur la PR. Un « shard 1/4 » sur une decoupe en 6 ferait croire a
+        // une couverture complete a qui compte les checks.
+        $this->assertSame(
+            'Feature shard ${{ matrix.shard }}/'.$total,
+            $this->workflow()['jobs']['feature']['name'] ?? null,
+            "le libelle du job Feature n’annonce pas la decoupe reelle en {$total} parts",
         );
     }
 }

@@ -24,7 +24,9 @@ class T218AdminBlogEditAuthorMarkdownTest extends TestCase
     {
         parent::setUp();
 
-        $this->organization = Organization::factory()->create(['is_active' => true]);
+        // TASK-1492 : ce fichier lit la page publique de l'article — l'Organization
+        // est declaree publique.
+        $this->organization = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
         app()->instance('current_organization', $this->organization);
 
         $this->admin = User::factory()->create([

@@ -27,11 +27,26 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
     // Membres — scoped to default Organization
     // ─────────────────────────────────────────────────────────────
 
+    /*
+     * TASK-1479 (P0 privacy) — ces pages ne sont plus servies a un visiteur
+     * ANONYME.
+     *
+     * Mesure faite avant correctif : `/membres` et `/explorer` etaient rendus en
+     * HTTP 200 sans aucun cookie, sur des Organizations `is_public = false`
+     * comprises, avec noms reels, villes, biographies et affiliations. La forme
+     * non prefixee exposait 42 personnes de l'Organization par defaut.
+     *
+     * Ce que ces tests protegent — la resolution de l'Organization par defaut et
+     * le cloisonnement de l'annuaire par tenant — n'a pas change d'un mot. Seul
+     * le VISITEUR change : ils agissent desormais comme un membre. La couverture
+     * est identique ; la porte, elle, est fermee.
+     */
+
     public function test_membres_returns_200_and_binds_org(): void
     {
         $org = Organization::factory()->create(['is_active' => true, 'is_default' => true]);
 
-        $response = $this->get('/membres');
+        $response = $this->actingAs(User::factory()->create(['organization_id' => $org->id]))->get('/membres');
 
         $response->assertOk();
         $this->assertEquals($org->id, app('current_organization')->id);
@@ -45,7 +60,7 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
         $userInA = User::factory()->create(['name' => 'User In Org A', 'organization_id' => $orgA->id]);
         $userInB = User::factory()->create(['name' => 'User In Org B', 'organization_id' => $orgB->id]);
 
-        $this->get('/membres')
+        $this->actingAs($userInA)->get('/membres')
             ->assertOk()
             ->assertSeeText('User In Org A')
             ->assertDontSeeText('User In Org B');
@@ -59,7 +74,7 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
     {
         $org = Organization::factory()->create(['is_active' => true, 'is_default' => true]);
 
-        $response = $this->get('/explorer');
+        $response = $this->actingAs(User::factory()->create(['organization_id' => $org->id]))->get('/explorer');
 
         $response->assertOk();
         $this->assertEquals($org->id, app('current_organization')->id);
@@ -71,7 +86,11 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_blog_index_returns_200_with_default_org(): void
     {
-        $org = Organization::factory()->create(['is_active' => true, 'is_default' => true]);
+        // TASK-1492 : le blog d'une Organization `is_public = false` n'est plus servi
+        // a un invite. Ce test mesure la RESOLUTION du tenant sur le blog public, et
+        // le lecteur anonyme fait partie de ce qu'il exerce — l'Organization est donc
+        // declaree publique, ce qu'elle etait implicitement (defaut de factory).
+        $org = Organization::factory()->create(['is_active' => true, 'is_default' => true, 'is_public' => true]);
 
         $this->get(route('blog.index'))
             ->assertOk();
@@ -79,8 +98,9 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
     public function test_blog_index_filters_by_resolved_org(): void
     {
-        $orgA = Organization::factory()->create(['is_active' => true, 'is_default' => true]);
-        $orgB = Organization::factory()->create(['is_active' => true]);
+        // TASK-1492 : idem — le scope mesure ici est celui du blog PUBLIC.
+        $orgA = Organization::factory()->create(['is_active' => true, 'is_default' => true, 'is_public' => true]);
+        $orgB = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
 
         $userA = User::factory()->create(['organization_id' => $orgA->id]);
         $userB = User::factory()->create(['organization_id' => $orgB->id]);
@@ -136,7 +156,9 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
         $userInA = User::factory()->create(['name' => 'Only In A', 'organization_id' => $orgA->id]);
         $userInB = User::factory()->create(['name' => 'Only In B', 'organization_id' => $orgB->id]);
 
-        $this->get('/membres')
+        // Le lecteur change avec l'Organization par defaut : c'est le rebind que
+        // ce test mesure, et il ne dit rien de moins qu'avant.
+        $this->actingAs($userInA)->get('/membres')
             ->assertOk()
             ->assertSeeText('Only In A')
             ->assertDontSeeText('Only In B');
@@ -145,7 +167,7 @@ class T0752DefaultOrganizationResolutionTest extends TestCase
 
         $orgA->update(['is_default' => false]);
         $orgB->update(['is_default' => true]);
-        $this->get('/membres')
+        $this->actingAs($userInB)->get('/membres')
             ->assertOk()
             ->assertSeeText('Only In B')
             ->assertDontSeeText('Only In A');

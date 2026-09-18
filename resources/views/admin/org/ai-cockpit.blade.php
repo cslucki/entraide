@@ -150,5 +150,18 @@
                 {{ __('ai.cockpit_consumption_open_console') }} →
             </a>
         </div>
+
+        {{-- 5. INSPECTOR (TASK-1533) — les quatre Cards au-dessus disent l'ETAT
+             du systeme ; celle-ci ouvre le seul endroit ou l'on voit UN tour
+             passer : question, sources retenues et refusees, fournisseur,
+             jetons, cout. Le cockpit reste le hub. --}}
+        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6" data-cockpit-inspector>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ __('ai.inspector_title') }}</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('ai.cockpit_inspector_help') }}</p>
+            <a href="{{ route('organization.admin.ai-context-inspector', ['organization' => $organization->slug]) }}"
+               class="inline-block mt-4 text-sm text-sky-600 dark:text-sky-400 hover:underline" data-cockpit-inspector-open>
+                {{ __('ai.cockpit_inspector_open') }} →
+            </a>
+        </div>
     </div>
 </x-org-admin-layout>

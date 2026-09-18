@@ -276,11 +276,21 @@ async function assertThreadChain(page, orderedIds) {
     }
 }
 
-// Forme PUBLIQUE des sources (T1297/T1301) : 5 champs exacts, rien d'interne.
+// Forme PUBLIQUE des sources (T1297/T1301) : les champs exacts, rien d'interne.
+//
+// TASK-1391 a ajoute un SIXIEME champ, `type`, pour distinguer un document
+// reellement LU d'un document seulement REPERTORIE par le manifest — sans lui,
+// les deux s'affichaient identiquement sous « Sources utilisées ». Cette
+// assertion n'avait pas suivi et attendait encore les 5 champs de TASK-1309 :
+// c'est la SPEC qui etait perimee, pas le produit (TASK-1561).
+//
+// La liste reste EXACTE et triee, volontairement. Toute sa valeur est la :
+// elle rougit si un champ INTERNE fuit un jour vers le public. La relacher en
+// « contient au moins » detruirait la seule garde de cette frontiere.
 function assertPublicSources(sources) {
     expect(Array.isArray(sources) && sources.length > 0, 'liste de sources non vide').toBe(true);
     for (const source of sources) {
-        expect(Object.keys(source).sort()).toEqual(['dossier_name', 'excerpt', 'ref', 'title', 'url']);
+        expect(Object.keys(source).sort()).toEqual(['dossier_name', 'excerpt', 'ref', 'title', 'type', 'url']);
     }
     expect(JSON.stringify(sources)).not.toMatch(/chunk/i);
 }
@@ -431,6 +441,21 @@ test('chemin critique hybride A — IA, continuation, switch Dossiers dans le me
         const resp = await page.request.get(doc.url);
         expect(resp.status()).toBe(200);
         expect(await resp.text()).toContain(DOC_SENTENCE);
+
+        // TASK-1561 — deplier la provenance AVANT de cliquer.
+        //
+        // TASK-1312 a replie les sources dans un `<details>` ferme par defaut,
+        // pour qu'une reponse citant dix sources ne soit plus ensevelie sous sa
+        // propre provenance. Le lien « Ouvrir » existe donc dans le DOM, mais
+        // invisible : Playwright attendait qu'il devienne actionnable jusqu'au
+        // timeout du test, et aucun popup ne s'ouvrait — le clic n'ayant jamais
+        // eu lieu. Le produit n'a rien perdu ; c'est la spec qui n'avait pas
+        // suivi.
+        const panneau = bubble(page, answer3.id).locator('details').filter({ has: page.locator('[data-message-source]') }).first();
+        if (!(await panneau.evaluate((el) => el.open))) {
+            await panneau.locator('summary').click();
+            await expect(panneau).toHaveJSProperty('open', true);
+        }
 
         const [popup] = await Promise.all([
             page.waitForEvent('popup'),

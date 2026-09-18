@@ -15,6 +15,21 @@ use Tests\TestCase;
  */
 class T0757ProfileOrganizationScopingTest extends TestCase
 {
+    /*
+     * TASK-1479 (P0 privacy) — ces pages ne sont plus servies a un visiteur
+     * ANONYME. Mesure faite avant correctif : sur une Organization
+     * `is_public = false`, la fiche d'un membre rendait HTTP 200 sans aucun
+     * cookie, avec nom, ville, biographie, disponibilite et points.
+     *
+     * « Profil public » veut dire visible des AUTRES MEMBRES de l'Organization,
+     * pas ouvert au Web anonyme.
+     *
+     * Ce que ces tests protegent — le cloisonnement par tenant — n'a pas change
+     * d'un mot ; il est meme RENFORCE : le lecteur est desormais un membre
+     * identifie, donc le refus cross-Organization se mesure sur quelqu'un qui a
+     * reellement une session.
+     */
+
     public function test_profile_show_returns_user_in_resolved_organization(): void
     {
         $org = Organization::factory()->create();
@@ -22,7 +37,7 @@ class T0757ProfileOrganizationScopingTest extends TestCase
 
         $user = User::factory()->create(['organization_id' => $org->id]);
 
-        $this->get(route('profile.show', $user))
+        $this->actingAs($user)->get(route('profile.show', $user))
             ->assertOk();
     }
 
@@ -33,8 +48,9 @@ class T0757ProfileOrganizationScopingTest extends TestCase
         app()->instance('current_organization', $orgA);
 
         $userInB = User::factory()->create(['organization_id' => $orgB->id]);
+        $readerInA = User::factory()->create(['organization_id' => $orgA->id]);
 
-        $this->get(route('profile.show', $userInB))
+        $this->actingAs($readerInA)->get(route('profile.show', $userInB))
             ->assertNotFound();
     }
 
@@ -45,7 +61,7 @@ class T0757ProfileOrganizationScopingTest extends TestCase
 
         $user = User::factory()->create(['organization_id' => null]);
 
-        $this->get(route('profile.show', $user))
+        $this->actingAs($user)->get(route('profile.show', $user))
             ->assertNotFound();
     }
 }

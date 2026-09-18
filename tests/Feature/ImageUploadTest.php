@@ -72,7 +72,12 @@ class ImageUploadTest extends TestCase
 
         Storage::disk('public')->put('services/test-image.jpg', 'fake-content');
 
-        $response = $this->get(route('services.show', $service));
+        // TASK-1488 (P0 privacy) : la fiche est desormais reservee aux membres de
+        // l'Organization. Ce que ce test mesure — l'image televersee apparait sur
+        // la fiche — est inchange ; seul le lecteur devient celui qui a le droit
+        // de la voir. Le proprietaire fait l'affaire et evite un utilisateur de
+        // plus.
+        $response = $this->actingAs($user)->get(route('services.show', $service));
         $response->assertOk();
         $response->assertSee($service->images[0]->url);
     }
@@ -236,7 +241,8 @@ class ImageUploadTest extends TestCase
 
         Storage::disk('public')->put('services/org-image.jpg', 'fake-content');
 
-        $response = $this->get(route('organization.services.show', [$this->testOrganization, $service]));
+        // TASK-1488 (P0 privacy) : meme raison que la forme non prefixee.
+        $response = $this->actingAs($user)->get(route('organization.services.show', [$this->testOrganization, $service]));
         $response->assertOk();
         $response->assertSee($service->images[0]->url);
     }

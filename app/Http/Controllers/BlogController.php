@@ -8,6 +8,7 @@ use App\Models\BlogSnapshot;
 use App\Models\Category;
 use App\Models\Loop;
 use App\Models\LoopMember;
+use App\Models\Organization;
 use App\Models\Tag;
 use App\Services\BlogAiService;
 use App\Support\Ai\AiRefusedException;
@@ -62,6 +63,8 @@ class BlogController extends Controller implements HasMiddleware
             abort(404);
         }
 
+        $this->assertOrganizationBlogIsReadable($organization);
+
         $recentPosts = BlogPost::published()
             ->where('organization_id', $organization->id)
             ->with(['user', 'category', 'tags'])
@@ -99,6 +102,8 @@ class BlogController extends Controller implements HasMiddleware
             abort(404);
         }
 
+        $this->assertOrganizationBlogIsReadable($organization);
+
         $category = Category::where('slug', $slug)->where('organization_id', $organization->id)->firstOrFail();
 
         $posts = BlogPost::published()
@@ -123,6 +128,8 @@ class BlogController extends Controller implements HasMiddleware
         if (! $organization) {
             abort(404);
         }
+
+        $this->assertOrganizationBlogIsReadable($organization);
 
         $tag = Tag::where('slug', $slug)->firstOrFail();
 
@@ -153,6 +160,7 @@ class BlogController extends Controller implements HasMiddleware
             abort(404);
         }
 
+        $this->assertOrganizationBlogIsReadable($organization);
         $this->assertPrivateLoopManifestoIsReadable($post);
 
         $post->increment('views_count');
@@ -206,6 +214,65 @@ class BlogController extends Controller implements HasMiddleware
             ->exists();
 
         abort_unless($isMember, 404);
+    }
+
+    /**
+     * TASK-1492 — la confidentialite d'une Organization s'etend a son blog.
+     *
+     * ## L'autorite n'est pas inventee ici, elle est CONTINUEE
+     *
+     * `assertPrivateLoopManifestoIsReadable()`, juste au-dessus, ecrit deja le
+     * contrat en toutes lettres (TASK-1079) :
+     *
+     * > « A published article is normally readable by the whole **Organization**.
+     * >   [...] the Loop's confidentiality must extend to the article itself —
+     * >   otherwise the direct /blog/{slug} URL walks straight around it. »
+     *
+     * Publier rend donc un article lisible par l'ORGANIZATION, pas par le Web.
+     * Et la confidentialite d'un contenant s'etend a l'article qu'il porte.
+     * TASK-1079 l'a applique a une Boucle privee ; il manquait le contenant le
+     * plus englobant de tous — l'Organization elle-meme.
+     *
+     * ## Ce qui a ete mesure au HEAD 8f540d69
+     *
+     * `test20260822` (`is_public = false`), article publie
+     * `02-design-cadre-du-dialogue` :
+     *
+     * | Lecteur | Statut | Titre rendu |
+     * |---|---|---|
+     * | membre de test20260822 | 200 | oui |
+     * | membre d'une AUTRE Organization | **200** | **oui** |
+     * | anonyme complet | **200** | **oui** |
+     *
+     * `BlogController` ne filtrait que sur `organization_id` : ni appartenance,
+     * ni publicite. La meme forme de defaut que TASK-1479 et TASK-1488.
+     *
+     * ## Ce que cette garde ne change PAS
+     *
+     * Une Organization PUBLIQUE garde exactement son contrat de blog actuel :
+     * un article publie y reste lisible par un invite. C'est la raison d'etre du
+     * blog comme surface d'acquisition, et rien ici ne la touche. Le SuperAdmin
+     * conserve son acces transverse, avec le meme predicat `is_admin` que
+     * `EnsureOrganizationMember` et `OrgAdminMiddleware` — ouvrir un
+     * contournement neuf a l'occasion d'un correctif de fuite serait le
+     * contraire du but.
+     *
+     * Le refus est un 404, comme les deux gardes voisines et pour la meme
+     * raison : un 403 confirmerait a un tiers que cette Organization existe.
+     */
+    private function assertOrganizationBlogIsReadable(Organization $organization): void
+    {
+        if ($organization->is_public) {
+            return;
+        }
+
+        $user = auth()->user();
+
+        if ($user?->is_admin) {
+            return;
+        }
+
+        abort_unless($user && $user->organization_id === $organization->id, 404);
     }
 
     public function orgShow(string $org, BlogPost $post): View

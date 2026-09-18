@@ -5,20 +5,26 @@ namespace App\Http\Controllers\Admin;
 use App\Ai\CapabilityRegistry;
 use App\Ai\Constitution;
 use App\Ai\NervousSystemCoverage;
+use App\Ai\Context\ContextBuilder;
+use App\Ai\Context\DossierAccessScope;
 use App\Ai\ProviderResolver;
 use App\Http\Controllers\Controller;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
+use App\Models\AiProviderInvocation;
 use App\Models\BlogPost;
 use App\Models\BugReport;
 use App\Models\Category;
 use App\Models\Dossier;
+use App\Models\DossierFile;
 use App\Models\LoginLog;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopMember;
 use App\Models\Message;
 use App\Models\Organization;
+use App\Services\Dossiers\DossierFileIndexingDispatcher;
+use App\Services\Dossiers\OrganizationFileInventory;
 use App\Models\OrganizationAiConstitution;
 use App\Models\OrganizationAiDoctrine;
 use App\Models\OrganizationAiSetting;
@@ -37,9 +43,14 @@ use App\Services\Ai\DTO\AiConsumptionFilters;
 use App\Services\Ai\OrganizationAiConsumption;
 use App\Services\Ai\OrganizationAiEconomicUsage;
 use App\Services\Ai\OrganizationDoctrineSandbox;
+use App\Services\Dossiers\DerivedChunkEligibility;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Services\Dossiers\OrganizationRagOverview;
+use App\Services\GuestShell\GuestPageContextResolver;
+use App\Services\GuestShell\GuestShellDisplayModeResolver;
+use App\Services\GuestShell\GuestShellPolicyService;
+use App\Services\GuestShell\GuestShellUsageService;
 use App\Services\LoopGovernanceService;
 use App\Services\Loops\LoopCardCompositionService;
 use App\Services\Loops\LoopLifecycleService;
@@ -49,6 +60,8 @@ use App\Services\LoopService;
 use App\Services\TranslationOverrideService;
 use App\Services\TranslationService;
 use App\Services\UserDataLifecycleRegistry;
+use App\Support\Ai\AiQualityReport;
+use App\Support\Ai\NervousSystemMap;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
@@ -64,21 +77,13 @@ use Illuminate\View\View;
 
 class OrgAdminController extends Controller
 {
-    public function dashboard(Organization $organization): View
+    public function dashboard(Organization $organization, \App\Services\Admin\OrganizationDashboardMetrics $metrics): View
     {
-        $orgId = $organization->id;
-        $stats = [
-            'users' => User::where('organization_id', $orgId)->count(),
-            'loops' => Loop::where('organization_id', $orgId)->count(),
-            'services' => Service::where('organization_id', $orgId)->where('status', 'active')->count(),
-            'requests' => ServiceRequest::where('organization_id', $orgId)->count(),
-        ];
-        $recentUsers = User::where('organization_id', $orgId)->latest()->limit(5)->get();
-
+        // TASK-1504 : tout ce que la page affiche vient d'UNE autorite ; la vue
+        // ne calcule rien. Les quatre compteurs d'origine y sont, inchanges.
         return view('admin.org.dashboard', [
             'organization' => $organization,
-            'stats' => $stats,
-            'recentUsers' => $recentUsers,
+            'metrics' => $metrics->for($organization),
         ]);
     }
 
@@ -159,6 +164,60 @@ class OrgAdminController extends Controller
         $serviceRequest->update(['status' => 'closed']);
 
         return back()->with('success', 'Demande clôturée.');
+    }
+
+    /**
+     * TASK-1513 — « Fichiers » : l'inventaire des documents de l'Organization
+     * et l'etat de leur indexation.
+     *
+     * Cette page existe parce que la liste vivait jusqu'ici DANS la console
+     * « IA & connaissances », ou elle n'est qu'un sous-produit : cette console
+     * repond a « qu'est-ce que l'IA connait », donc elle ne montre que les
+     * formats ingerables. Un `.zip` ou un `.png` y est invisible — alors que
+     * savoir qu'un document ne sera JAMAIS indexe est une reponse, pas un
+     * silence.
+     */
+    public function drives(Request $request, Organization $organization, OrganizationFileInventory $inventory): View
+    {
+        $filters = [
+            'search' => (string) $request->query('search', ''),
+            'dossier' => (string) $request->query('dossier', ''),
+            'state' => (string) $request->query('state', ''),
+            'sort' => (string) $request->query('sort', 'created_at'),
+            'direction' => (string) $request->query('direction', 'desc'),
+        ];
+
+        return view('admin.org.drives', [
+            'organization' => $organization,
+            'files' => $inventory->forOrganization($organization, $filters),
+            'options' => $inventory->filterOptions($organization),
+            'filters' => $filters,
+        ]);
+    }
+
+    /**
+     * Remettre un fichier dans la file d'indexation. La SEULE ecriture de cet
+     * ecran.
+     *
+     * Trois verifications, toutes cote serveur, et la premiere n'est pas
+     * decorative : `DossierFile` ne porte AUCUN scope global de tenant, donc
+     * le route-model-binding accepterait volontiers l'UUID d'un fichier d'une
+     * autre Organization.
+     */
+    public function reindexDriveFile(Organization $organization, DossierFile $file, DossierFileIndexingDispatcher $dispatcher, OrganizationFileInventory $inventory): RedirectResponse
+    {
+        abort_unless((string) $file->organization_id === (string) $organization->getKey(), 404);
+        abort_if($file->dossier_id === null, 404);
+        abort_if(
+            $inventory->stateOf((string) $file->mime_type, (string) $file->original_name, 0) === OrganizationFileInventory::STATE_NOT_INGESTIBLE,
+            422,
+        );
+
+        $dispatcher->dispatchForFile($file);
+
+        // « Mis en file », jamais « reindexe » : la queue est asynchrone, et on
+        // n'affiche pas un etat qu'on n'a pas prouve.
+        return back()->with('success', __('drives.reindex_queued', ['name' => $file->display_name ?: $file->original_name]));
     }
 
     public function loops(Request $request, Organization $organization): View
@@ -965,6 +1024,21 @@ class OrgAdminController extends Controller
             'remaining' => $remainingCount,
         ];
 
+        // TASK-1502 (P0 audit 1501) : la page rendait les 6 123 entrees d'un coup,
+        // chacune avec sa modale et son formulaire — 128 Mo epuises, HTTP 500 pour
+        // tout admin d'organisation. Les statistiques restent calculees sur
+        // l'ensemble FILTRE (au-dessus) ; seul le RENDU est decoupe. Les filtres
+        // (groupe, statut, recherche) survivent au changement de page.
+        $perPage = 100;
+        $currentPage = max(1, (int) $request->input('page', 1));
+        $entries = new \Illuminate\Pagination\LengthAwarePaginator(
+            $entries->slice(($currentPage - 1) * $perPage, $perPage)->values(),
+            $entries->count(),
+            $perPage,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()],
+        );
+
         return view('admin.org.translations', [
             'organization' => $organization,
             'groups' => $groups,
@@ -1407,6 +1481,22 @@ class OrgAdminController extends Controller
      * le bac a sable « tester sans publier ». Tout est borne a CETTE
      * Organization ; aucune cle n'apparait.
      */
+    /**
+     * TASK-1481 — le plan de la gouvernance IA de cette Organization.
+     *
+     * READ ONLY, et volontairement mince : l'assemblage vit dans
+     * `NervousSystemMap`, qui ne fait que LIRE les autorites existantes.
+     * Aucune donnee n'est calculee ici, aucun secret n'y transite.
+     */
+    public function aiMap(Organization $organization, NervousSystemMap $map): View
+    {
+        return view('admin.org.ai-map', [
+            'organization' => $organization,
+            'nodes' => $map->forOrganization($organization),
+            'isPlatformAdmin' => (bool) auth()->user()?->is_admin,
+        ]);
+    }
+
     public function aiBehavior(Organization $organization, NervousSystemCoverage $coverage): View
     {
         return view('admin.org.ai-behavior', $this->aiBehaviorViewData($organization, $coverage));
@@ -1676,6 +1766,245 @@ class OrgAdminController extends Controller
     }
 
     /**
+     * TASK-1533 — AI Context Inspector.
+     *
+     * Repondre a « pourquoi BouclePro a-t-il produit CETTE reponse ? » en
+     * observant le pipeline REEL pendant qu'il fonctionne, et sans construire
+     * un second moteur : la question emprunte `OrganizationDoctrineSandbox`,
+     * donc le chemin canonique (registre -> ContexteIa -> ContextBuilder ->
+     * ProviderResolver -> garde economique -> PromptRepository -> agent SDK
+     * -> ledger), avec le credential de l'Organization.
+     *
+     * Ce que l'Inspector ajoute au bac a sable, ce n'est pas un calcul : c'est
+     * la LECTURE de ce que le pipeline et le ledger ont deja ecrit.
+     *
+     * Le GET ne rend JAMAIS de resultat : il rend l'instrument a vide, mais
+     * deja renseigne. La carte de contexte est construite ici, avant toute
+     * question — c'est elle qui repond a « quelles autorites et quelles sources
+     * cette fonction PEUT-ELLE mobiliser ? », question qui n'a pas besoin d'un
+     * appel IA pour avoir une reponse vraie.
+     *
+     * Une seule surface canonique, Organization-scoped : l'Admin Organization
+     * y entre depuis son cockpit, le SuperAdmin par le meme chemin
+     * (`OrgAdminMiddleware` autorise deja `is_admin`). Aucun ecran plateforme
+     * parallele, donc aucune seconde autorite.
+     */
+    public function aiContextInspector(
+        Organization $organization,
+        CapabilityRegistry $registry,
+        ContextBuilder $contextBuilder,
+        NervousSystemMap $map,
+    ): View {
+        return view('admin.org.ai-context-inspector', [
+            'organization' => $organization,
+            'capabilities' => OrganizationDoctrineSandbox::SUPPORTED,
+            'contextMap' => $this->inspectorContextMap($organization, $registry, $contextBuilder, $map),
+        ]);
+    }
+
+    /**
+     * La carte de contexte, AVANT toute question. Zero appel IA, zero embedding.
+     *
+     * Trois familles, et elles ne se confondent pas (CDC 01 section 5) :
+     *
+     *  - `governance` : les autorites qui DICTENT. Elles viennent de
+     *    `NervousSystemMap`, qui mesure deja `locked`/`configurable` a partir de
+     *    l'existence d'une route d'ecriture — une verite qui se maintient seule.
+     *    Filtrees aux quatre noeuds qui gouvernent reellement une reponse ;
+     *    `provider`, `knowledge` et `consumption` decrivent l'execution et la
+     *    depense, ils appartiennent au bandeau, pas a la gouvernance. Les y
+     *    laisser aurait fait de cette colonne une copie de `ai-map`.
+     *
+     *  - `sources` : ce que la fonction a le droit de LIRE. L'union des
+     *    `allowedSources` des capabilities executables ici, chacune sachant a
+     *    quelles capabilities elle appartient — c'est ce qui permet a la carte
+     *    de se re-eclairer au changement de fonction sans une seule requete.
+     *    `implemented` est mesure sur `ContextBuilder::availableSources()` : une
+     *    source declaree que ce builder ne sait pas produire est UNAVAILABLE,
+     *    pas disponible-mais-vide.
+     *
+     *  - `deferred` : les briques du MASTER qui n'existent pas. Elles sont
+     *    nommees parce qu'une absence declaree vaut mieux qu'un trou, jamais
+     *    presentees comme actives (CDC 01 section 36.2).
+     *
+     * @return array<string, mixed>
+     */
+    private function inspectorContextMap(
+        Organization $organization,
+        CapabilityRegistry $registry,
+        ContextBuilder $contextBuilder,
+        NervousSystemMap $map,
+    ): array {
+        $governanceKeys = ['platform_constitution', 'organization_constitution', 'doctrine', 'capabilities'];
+
+        $governance = array_values(array_filter(
+            $map->forOrganization($organization),
+            static fn (array $node): bool => in_array($node['key'], $governanceKeys, true),
+        ));
+
+        $available = $contextBuilder->availableSources();
+
+        $capabilities = [];
+        $sources = [];
+
+        foreach (OrganizationDoctrineSandbox::SUPPORTED as $capability) {
+            $allowed = $registry->get($capability)->allowedSources;
+            $capabilities[$capability] = [
+                'label' => __('ai.capability_label.'.$capability),
+                'sources' => $allowed,
+            ];
+
+            foreach ($allowed as $source) {
+                $sources[$source] ??= [
+                    'key' => $source,
+                    'implemented' => in_array($source, $available, true),
+                    'capabilities' => [],
+                ];
+                $sources[$source]['capabilities'][] = $capability;
+            }
+        }
+
+        return [
+            'governance' => $governance,
+            'capabilities' => $capabilities,
+            'sources' => array_values($sources),
+            // Etat RUNTIME : ce que le mode ISOLATED construit reellement. Le
+            // membre existe (`ContexteIa` porte son identifiant et ses droits) ;
+            // la Boucle n'est pas demandee (`loopId: null`) ; la page et la
+            // conversation n'ont aucune source dans CE builder — c'est mesure
+            // ci-dessous, pas decrete.
+            'runtime' => [
+                ['key' => 'member', 'state' => 'active'],
+                ['key' => 'loop', 'state' => 'not_requested'],
+                ['key' => 'page_context', 'state' => in_array(CapabilityRegistry::SOURCE_PAGE_CONTEXT, $available, true) ? 'not_requested' : 'unavailable'],
+            ],
+            // Uniquement des briques REELLEMENT absentes du repo : compilateur
+            // de memoire (MASTER section 11), resolution d'entites (section 10),
+            // verificateur d'affirmations (CDC section 18). La mise en relation
+            // humaine, elle, EXISTE (`EligiblePeopleService`) : la nommer ici
+            // serait un faux manque, aussi trompeur qu'une fausse branche
+            // active.
+            'deferred' => [
+                ['key' => 'memory_compiler'],
+                ['key' => 'entity_resolution'],
+                ['key' => 'claim_verifier'],
+            ],
+        ];
+    }
+
+    /**
+     * Execute la question sur le pipeline reel et rend le resultat INLINE.
+     *
+     * Pas de redirection, pas de flash. Le tour observe ne vit que dans la
+     * reponse HTTP de la requete qui l'a demande : meme administrateur, meme
+     * Organization, meme instant. Le cycle redirect/flash precedent obligeait a
+     * garder un resultat en session — donc a le proteger d'un rendu sous une
+     * autre Organization — et surtout il interdisait d'y faire transiter la
+     * provenance, qui porte des extraits de documents du tenant. Rendre inline
+     * supprime la classe de probleme au lieu de la garder.
+     *
+     * `no-store` pour la meme raison que `aiKnowledgeSourceChunks()` : ce
+     * fragment contient du contenu documentaire, il n'a rien a faire dans un
+     * cache ni dans un historique.
+     *
+     * La doctrine ACTIVE est composee (`asInspector`), pas un brouillon : c'est
+     * la doctrine que le chemin de production injecte. Le bac a sable T1227,
+     * lui, repond a l'autre question et garde son comportement.
+     */
+    public function runAiContextInspector(
+        Request $request,
+        Organization $organization,
+        OrganizationDoctrineSandbox $sandbox,
+        CapabilityRegistry $registry,
+    ): Response {
+        $data = $request->validate([
+            'capability' => ['required', 'string', Rule::in(OrganizationDoctrineSandbox::SUPPORTED)],
+            'question' => ['required', 'string', 'min:3', 'max:1000'],
+        ]);
+
+        $result = $sandbox->run(
+            $organization,
+            $request->user(),
+            $data['capability'],
+            '',
+            $data['question'],
+            null,
+            asInspector: true,
+        )->toArray();
+
+        $html = view('admin.org.partials.ai-context-inspector-run', [
+            'organization' => $organization,
+            'result' => $result,
+            'allowedSources' => $registry->get($data['capability'])->allowedSources,
+            'telemetry' => $this->inspectorTelemetryFor($organization, $result['correlation_id'] ?? null),
+            'generatedAt' => now()->toIso8601String(),
+        ])->render();
+
+        return response($html)
+            ->header('Content-Type', 'text/html; charset=UTF-8')
+            ->header('Cache-Control', 'no-store, no-cache, private, max-age=0');
+    }
+
+    /**
+     * La telemetrie REELLE du tour, relue sur le ledger canonique.
+     *
+     * Autorite : `ai_provider_invocations`, et pas `ai_interactions`. Les deux
+     * existent, et ils ne disent pas la meme chose — le premier laisse ses
+     * compteurs a NULL quand le fournisseur n'a rien rapporte, la ou le second
+     * ecrit 0. Afficher ce 0 comme un nombre de jetons serait affirmer une
+     * mesure qui n'a pas eu lieu, dans l'ecran meme dont le role est de ne
+     * jamais faire cela.
+     *
+     * Un tour de connaissance ecrit jusqu'a DEUX lignes (la generation et la
+     * requete d'embedding de la recherche documentaire) : elles sont rendues
+     * separement, comme le fait deja la console de consommation.
+     *
+     * La latence est DERIVEE (`completed_at - started_at`) : aucune colonne de
+     * duree n'existe sur cette table. Elle mesure le segment du fournisseur,
+     * pas le temps de construction du contexte — la vue le dit.
+     *
+     * Elle est rendue en SECONDES, parce que c'est la precision que ces deux
+     * colonnes portent reellement (mesure en base : des ecarts de 9.000000 et
+     * 1.000000 seconde exactement). La calculer en millisecondes affichait
+     * « 9000 ms » — une precision au millier pres qui n'a jamais ete mesuree,
+     * dans l'ecran meme dont le role est de ne jamais affirmer cela.
+     *
+     * L'`organization_id` est reexige dans la requete alors que la correlation
+     * est deja unique : une cle etrangere n'est pas une garde de tenant.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function inspectorTelemetryFor(Organization $organization, ?string $correlationId): array
+    {
+        if (! is_string($correlationId) || $correlationId === '') {
+            return [];
+        }
+
+        return AiProviderInvocation::query()
+            ->where('organization_id', $organization->id)
+            ->where('correlation_id', $correlationId)
+            ->orderBy('started_at')
+            ->get()
+            ->map(fn (AiProviderInvocation $invocation): array => [
+                'operation' => $invocation->operation,
+                'provider' => $invocation->provider,
+                'model' => $invocation->model,
+                'status' => $invocation->status,
+                'input_tokens' => $invocation->input_tokens,
+                'output_tokens' => $invocation->output_tokens,
+                'total_tokens' => $invocation->total_tokens,
+                'cost' => $invocation->cost_status === AiProviderInvocation::COST_KNOWN ? $invocation->provider_cost : null,
+                'cost_status' => $invocation->cost_status,
+                'cost_source' => $invocation->cost_source,
+                'currency' => $invocation->currency,
+                'latency_seconds' => $invocation->started_at !== null && $invocation->completed_at !== null
+                    ? (int) round($invocation->started_at->diffInSeconds($invocation->completed_at))
+                    : null,
+            ])
+            ->all();
+    }
+
+    /**
      * Observatoire des connaissances (TASK-1217 console, TASK-1226 vivant),
      * read-only : la page complete.
      */
@@ -1723,7 +2052,12 @@ class OrgAdminController extends Controller
             'source' => $data,
         ])->render();
 
-        return response($html)->header('Content-Type', 'text/html; charset=UTF-8');
+        // TASK-1515 : contenu de document d'un tenant — il n'a rien a faire
+        // dans un cache, ni chez un intermediaire, ni dans l'historique. Le
+        // meme entete est pose sur la porte plateforme (`admin.drives.chunks`).
+        return response($html)
+            ->header('Content-Type', 'text/html; charset=UTF-8')
+            ->header('Cache-Control', 'no-store, no-cache, private, max-age=0');
     }
 
     /**
@@ -1741,6 +2075,8 @@ class OrgAdminController extends Controller
         DossierSemanticSearchService $search,
         DossierSemanticSearchGate $gate,
         ProviderResolver $providers,
+        DossierAccessScope $accessScope,
+        DerivedChunkEligibility $derivedEligibility,
     ): View {
         $query = trim((string) $request->query('q', ''));
         $loopId = $request->query('loop_id');
@@ -1754,7 +2090,20 @@ class OrgAdminController extends Controller
         $result = ['ran' => false, 'reason' => null, 'rows' => []];
 
         if ($query !== '') {
-            $result = $this->runRawKnowledgeSearch($organization, $query, $loopId, $search, $gate, $providers);
+            $result = $this->runRawKnowledgeSearch(
+                $organization,
+                $query,
+                $loopId,
+                $search,
+                $gate,
+                $providers,
+                $accessScope,
+                // TASK-1534 — l'outil de diagnostic montre ce que CET admin
+                // obtiendrait, pas ce que le moteur contient. Un admin qui
+                // n'est pas membre d'une Boucle privee ne doit pas y lire ce
+                // qui s'y est dit, fut-ce par une page d'administration.
+                $derivedEligibility->authorizedLoopIds((string) $organization->id, $request->user()),
+            );
         }
 
         return view('admin.org.partials.ai-knowledge-search-result', [
@@ -1776,6 +2125,8 @@ class OrgAdminController extends Controller
         DossierSemanticSearchService $search,
         DossierSemanticSearchGate $gate,
         ProviderResolver $providers,
+        DossierAccessScope $accessScope,
+        array $authorizedLoopIds,
     ): array {
         if (! $gate->isEnabledFor((string) $organization->id)) {
             return ['ran' => false, 'reason' => 'semantic_search_disabled', 'rows' => []];
@@ -1787,7 +2138,7 @@ class OrgAdminController extends Controller
             return ['ran' => false, 'reason' => 'provider_not_configured', 'rows' => []];
         }
 
-        $dossierIds = $this->searchableDossierIds($organization, $loopId);
+        $dossierIds = $this->searchableDossierIds($organization, $loopId, $accessScope);
 
         if ($dossierIds === []) {
             return ['ran' => false, 'reason' => 'no_dossier_in_scope', 'rows' => []];
@@ -1809,6 +2160,8 @@ class OrgAdminController extends Controller
             // l'identite du diagnostic.
             ['capability' => null, 'loop_id' => $loopId, 'feature' => 'admin_ai_knowledge_search'],
             20,
+            null,
+            $authorizedLoopIds,
         );
 
         $mapped = [];
@@ -1818,7 +2171,7 @@ class OrgAdminController extends Controller
                 'rank' => $index + 1,
                 'distance' => round($row['distance'], 4),
                 'source_type' => $row['source_type'],
-                'title' => $row['source_type'] === 'file' ? $row['filename'] : $row['title'],
+                'title' => DossierSemanticSearchService::displayTitle($row),
                 'dossier_name' => $row['dossier_name'],
                 'chunk_index' => $row['chunk_index'],
                 'extrait' => Str::limit(trim(preg_replace('/\s+/u', ' ', $row['content']) ?? ''), 240),
@@ -1829,30 +2182,47 @@ class OrgAdminController extends Controller
     }
 
     /**
-     * Dossiers de l'Organization sur lesquels le diagnostic admin peut
-     * porter — meme perimetre que la table de l'Observatoire (TOUS les
-     * Dossiers ; l'admin voit l'ETAT de l'index sans que ce soit un droit
-     * de lecture sur le contenu original, doctrine TASK-1217), resserre a
-     * une Boucle si demande (racine + Dossiers qui lui sont partages —
-     * v1 : sans descente dans les enfants, absents du cas reel valide ici).
+     * Dossiers sur lesquels la recherche documentaire admin peut porter.
+     *
+     * ## Ce que cette methode faisait, et pourquoi c'etait une fuite
+     *
+     * Elle rendait TOUS les Dossiers de l'Organization, sans policy — le
+     * perimetre de la TABLE de l'Observatoire. Ce perimetre-la est correct
+     * pour ce qu'il sert : l'admin voit l'ETAT de l'index (combien de
+     * sources, quand indexees) sans que ce soit un droit de lecture sur le
+     * contenu (doctrine TASK-1217). Mais la recherche BRUTE, elle, rend
+     * `dossier_name`, le titre du document, la distance et 240 caracteres
+     * d'EXTRAIT : c'est du contenu. Un admin pouvait donc lire, par la
+     * recherche, l'interieur d'un Dossier prive qu'il ne peut pas ouvrir —
+     * et `knowledgeObservatory()`, juste en dessous, applique justement la
+     * policy a son lien « Ouvrir » pour cette raison exacte.
+     *
+     * Etre admin ne donne pas acces au contenu d'un Dossier prive. Le
+     * perimetre d'un ETAT d'index et celui d'une LECTURE de contenu ne sont
+     * pas le meme perimetre.
+     *
+     * ## La correction
+     *
+     * La politique du produit, et elle seule : `DossierAccessScope` applique
+     * `DossierPolicy::view` pour l'utilisateur REELLEMENT authentifie, AVANT
+     * tout embedding et toute requete pgvector. Aucune regle ACL n'est
+     * recopiee ici — le resserrement par Boucle y est deja, sur le meme SQL
+     * qu'avant (racine + partages `visibility = loop`), et va plus loin en
+     * descendant dans les enfants.
+     *
+     * Sans utilisateur authentifie : aucun Dossier. Fail-closed.
      *
      * @return list<string>
      */
-    private function searchableDossierIds(Organization $organization, ?string $loopId): array
+    private function searchableDossierIds(Organization $organization, ?string $loopId, DossierAccessScope $accessScope): array
     {
-        $query = Dossier::query()
-            ->where('organization_id', $organization->id)
-            ->whereNull('deleted_at');
+        $user = auth()->user();
 
-        if ($loopId !== null) {
-            $query->where(fn ($scope) => $scope
-                ->where('loop_id', $loopId)
-                ->orWhere(fn ($shared) => $shared
-                    ->where('shared_with_loop_id', $loopId)
-                    ->where('visibility', Dossier::VISIBILITY_LOOP)));
+        if (! $user instanceof User) {
+            return [];
         }
 
-        return $query->pluck('id')->map(fn ($id): string => (string) $id)->all();
+        return $accessScope->accessibleDossierIds((string) $organization->id, $user, $loopId);
     }
 
     /**
@@ -1969,6 +2339,32 @@ class OrgAdminController extends Controller
      * Le budget mensuel eventuel est lu depuis `organization_ai_settings` pour
      * situer le cout connu — jamais pour completer un cout manquant.
      */
+    /**
+     * TASK-1487 (AI Quality Q2) — « Qualite IA » : la console SŒUR de la
+     * consommation.
+     *
+     * L'une dit COMBIEN l'IA a consomme. Celle-ci dit si l'on SAIT qu'elle
+     * aide — et, aujourd'hui, la reponse honnete est surtout « non, et voici
+     * pourquoi ».
+     *
+     * Elle applique a la qualite la regle que TASK-1219 avait posee pour le
+     * cout : « 0 » dit « ca n'a rien coute », « — » dit « on ne sait pas ». Un
+     * « 0 % utile » affiche sur zero retour dirait « l'IA n'aide personne »
+     * alors que la verite est « personne n'a jamais ete interroge ».
+     *
+     * Bornee a CETTE Organization par `OrgAdminMiddleware` et par le rapport
+     * lui-meme. Aucune conversation n'est lue.
+     */
+    public function aiQuality(Organization $organization, AiQualityReport $report): View
+    {
+        $to = CarbonImmutable::now();
+
+        return view('admin.org.ai-quality', [
+            'organization' => $organization,
+            'quality' => $report->forOrganization($organization, $to->subDays(30), $to),
+        ]);
+    }
+
     public function aiConsumption(
         Request $request,
         Organization $organization,
@@ -1995,8 +2391,17 @@ class OrgAdminController extends Controller
             ? $usage->creditUsesByUser((string) $organization->id, $filters->from, $filters->to)
             : null;
 
+        // TASK-1438 — SW-10 : le Shell Welcome de CETTE Organization, meme periode, meme doctrine que la garde.
+        $guestShell = [
+            'state' => app(GuestShellPolicyService::class)->state($organization),
+            'usage' => app(GuestShellUsageService::class)->organizationUsage($organization, $filters->from, $filters->to),
+            // TASK-1441 (MASTER Q69) : le mode choisi par le SuperAdmin et la decision EFFECTIVE sur l'accueil public — lecture seule.
+            'display' => app(GuestShellDisplayModeResolver::class)->resolve($organization, app(GuestPageContextResolver::class)->organizationHome($organization)),
+        ];
+
         return view('admin.org.ai-consumption', [
             'organization' => $organization,
+            'guestShell' => $guestShell,
             'filters' => $filters,
             'isCurrentMonth' => $isCurrentMonth,
             'economics' => $economics,

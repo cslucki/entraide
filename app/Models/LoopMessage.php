@@ -125,6 +125,26 @@ class LoopMessage extends Model
             && Str::isUuid($this->metadata['service_request_id']);
     }
 
+    /**
+     * TASK-1548 — le message qui porte une correction de memoire.
+     *
+     * Il reste un message HUMAIN, visible et attribue : c'est la preuve de la
+     * correction, et la cacher la rendrait invisible a ceux qu'elle concerne.
+     * Mais il s'adresse a la MEMOIRE, pas a l'agent : dans une Boucle
+     * `ai_agent`, le laisser declencher une reponse ferait repondre l'agent a
+     * une correction qui ne lui etait pas adressee.
+     *
+     * Meme forme que {@see self::isServiceRequestProjection()} : un marqueur
+     * de metadonnees explicite, jamais une heuristique sur le texte.
+     */
+    public function isClaimCorrection(): bool
+    {
+        return $this->type === 'user'
+            && ($this->metadata['origin'] ?? null) === self::ORIGIN_CLAIM_CORRECTION;
+    }
+
+    public const ORIGIN_CLAIM_CORRECTION = 'human_claim_correction';
+
     public function isEditableBy(User $user): bool
     {
         // TASK-1298 : quand la reponse d'un agent portait `type=user`, son

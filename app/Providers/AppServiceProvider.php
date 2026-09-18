@@ -240,6 +240,15 @@ class AppServiceProvider extends ServiceProvider
                     return;
                 }
 
+                // TASK-1548 : une correction de memoire est adressee a la
+                // MEMOIRE, pas a l'agent. Elle reste visible dans la Boucle —
+                // c'est la preuve de la correction — mais y repondre ferait
+                // parler l'agent sur un message qui ne lui demandait rien, et
+                // facturerait le tenant pour une correction.
+                if ($message->isClaimCorrection()) {
+                    return;
+                }
+
                 // TASK-1251 : aucune garde economique ICI, volontairement — le
                 // dispatch peut etre retarde et le budget changer entre-temps.
                 // La garde s'applique DANS le job, juste avant l'appel provider.

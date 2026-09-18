@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\QueryException;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
@@ -19,8 +20,29 @@ use Laravel\Sanctum\HasApiTokens;
 /**
  * @property string|null $organization_id
  */
-class User extends Authenticatable
+/**
+ * TASK-1412 — `MustVerifyEmail` est l'INTERFACE, pas le trait. Le trait est
+ * herite de la classe de base depuis toujours (les methodes existaient), mais
+ * sans l'interface, `Registered` n'envoyait aucun email et le middleware
+ * `verified` deja pose sur les routes etait un no-op silencieux. L'interface
+ * est ce que le framework teste (`$user instanceof MustVerifyEmail`).
+ */
+class User extends Authenticatable implements MustVerifyEmail
 {
+    /**
+     * TASK-1412 — l'email de verification ne doit JAMAIS faire echouer une
+     * inscription. Le listener framework l'envoie sur `Registered`, AVANT le
+     * `rescue()` qui protege deja la notification de bienvenue (T1043) : sans
+     * cette surcharge, une panne de transport mail transformerait un compte
+     * cree en erreur 500. L'echec est rapporte au handler (comportement de
+     * `rescue()`), le compte reste non verifie, et la page d'attente propose
+     * le renvoi.
+     */
+    public function sendEmailVerificationNotification(): void
+    {
+        rescue(fn () => $this->notify(new \Illuminate\Auth\Notifications\VerifyEmail));
+    }
+
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, HasOrganizationId, HasUuids, Notifiable;
 

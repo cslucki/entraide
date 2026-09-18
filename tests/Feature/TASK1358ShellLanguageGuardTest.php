@@ -112,12 +112,12 @@ class TASK1358ShellLanguageGuardTest extends TestCase
         $this->fakeClarifier();
         $this->asEnglishInterface();
 
-        $this->send('I am new here. What can I do?');
+        $this->send('Who can help me review this file?');
 
         $prompt = $this->lastPrompt();
 
         $this->assertStringContainsString('you must reply to the member in English', $prompt);
-        $this->assertStringContainsString('I am new here. What can I do?', $prompt);
+        $this->assertStringContainsString('Who can help me review this file?', $prompt);
     }
 
     /**
@@ -131,7 +131,7 @@ class TASK1358ShellLanguageGuardTest extends TestCase
         $this->fakeClarifier();
         $this->asEnglishInterface();
 
-        $this->send('I am new here. What can I do?');
+        $this->send('Who can help me review this file?');
 
         $this->assertStringStartsWith(
             __('ai.shell_prompt_language_guard', [], 'en'),
@@ -155,7 +155,7 @@ class TASK1358ShellLanguageGuardTest extends TestCase
     {
         $this->fakeClarifier();
 
-        $question = 'Je suis nouveau ici. Que puis-je faire ?';
+        $question = "Qui peut m'aider à relire mon dossier ?";
 
         $this->send($question);
 
@@ -254,7 +254,7 @@ class TASK1358ShellLanguageGuardTest extends TestCase
         $this->fakeClarifier();
         $this->asEnglishInterface();
 
-        $this->send('I am new here. What can I do?');
+        $this->send('Who can help me review this file?');
 
         $this->assertSame(1, AiInteraction::query()->count());
         $this->assertSame(1, AiProviderInvocation::query()->count());

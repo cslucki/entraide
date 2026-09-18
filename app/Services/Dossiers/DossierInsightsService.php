@@ -5,14 +5,18 @@ namespace App\Services\Dossiers;
 use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Ai\CapabilityDefinition;
 use App\Ai\CapabilityRegistry;
+use App\Ai\Context\DossierRetrievalSource;
 use App\Ai\Context\DossierSourceUrl;
+use App\Ai\Context\SourceDenied;
 use App\Ai\ContexteIa;
 use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
 use App\Ai\ResolvedModel;
+use App\Listeners\RecordSdkEmbeddingsInvocation;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
 use App\Models\Dossier;
+use App\Models\DossierFile;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\AiProviderInvocationLedger;
@@ -22,9 +26,13 @@ use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiRefusedException;
+use App\Support\Ai\AiTurnReason;
+use App\Support\Ai\AiTurnState;
+use App\Support\Ai\AiTurnTrace;
 use App\Support\Ai\AiUsage;
 use DomainException;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
@@ -48,6 +56,34 @@ use RuntimeException;
  * Rien n'est persiste au-dela de la trace habituelle (ledger +
  * `AiInteraction`) : le resultat est ephemere, relu a chaque generation,
  * exactement comme la recherche semantique existante.
+ *
+ * ## La connaissance derivee (T1534/T1535) : deux regimes dans cette classe
+ *
+ * L'invariant du systeme nerveux est une intersection :
+ *
+ *     visibilite(derive) ⊆ visibilite(Boucle source) ∩ visibilite(Dossier)
+ *
+ * Une intersection se porte par une reponse adressee a QUELQU'UN. Elle ne se
+ * porte pas par un artefact partage. D'ou la ligne de partage, qui n'est pas
+ * une commodite mais la regle elle-meme :
+ *
+ * - **`answer()` et `answerOverSources()` LISENT la connaissance derivee.**
+ *   Elles rendent une reponse a UNE personne, bornee par ce que CETTE personne
+ *   peut lire, et ne publient rien. `answer()` transmet donc
+ *   `authorizedLoopIds` (T1535) ; `answerOverSources()` recoit du Shell des
+ *   lignes deja bornees a la lecture (T1534).
+ *
+ * - **`generate()` et `hasIndexedContent()` ne la lisent PAS**, et ne
+ *   transmettent rien : `DerivedChunkEligibility` etant ferme par defaut, les
+ *   notes en sont exclues. Un Insight est un artefact dont l'audience est
+ *   celle du DOSSIER : une synthese nourrie d'une Boucle privee, puis relue
+ *   par tout le cercle, blanchirait exactement ce que la garde interdit.
+ *
+ * T1534 avait ferme les QUATRE, en donnant la raison de `generate()` pour
+ * tout le monde. La consequence etait produit, pas seulement theorique : sur
+ * la page du Dossier de sa propre Boucle — la surface la plus LIEE au sujet —
+ * le Shell passe par `answer()`, et ne retrouvait donc pas ce que la meme
+ * personne retrouvait depuis n'importe quelle autre page.
  */
 final class DossierInsightsService
 {
@@ -82,6 +118,61 @@ final class DossierInsightsService
      */
     private const DOCUMENT_LIMIT = 6;
 
+    /**
+     * TASK-1516 : combien d'extraits une REPONSE cite au plus. Meme borne que
+     * la recherche semantique de la page (`search()` la valide entre 1 et 5) :
+     * la reponse et les passages affiches dessous doivent reposer sur le meme
+     * nombre de sources, sinon l'ecran montrerait autre chose que ce qui a
+     * servi.
+     */
+    private const ANSWER_SOURCE_LIMIT = 5;
+
+    /** Au plus trois approfondissements — le CDC en demande trois. */
+    private const FOLLOW_UP_LIMIT = 3;
+
+    /**
+     * TASK-1517 : le bassin de candidats dans lequel la selection puise, avant
+     * repli des quasi-doublons. Un seul embedding de requete, quelle que soit
+     * sa taille — seule la clause SQL `LIMIT` change.
+     */
+    private const ANSWER_CANDIDATE_LIMIT = 12;
+
+    /**
+     * TASK-1517 : la borne TOTALE, ancrage compris. Cinq extraits choisis par
+     * proximite, plus au plus un extrait d'OUVERTURE de document.
+     */
+    private const ANSWER_TOTAL_LIMIT = 6;
+
+    /**
+     * TASK-1554 / W3A — le NOM de cette source dans la semantique commune du
+     * contexte.
+     *
+     * Ce n'est pas une declaration nouvelle : `buildSourcesBlock()` ecrivait
+     * deja cette chaine, en dur, dans chaque ligne de provenance. Lui donner un
+     * nom est ce qui permet a `sources_used` / `sources_denied` de designer
+     * quelque chose — et a un diagnostic de distinguer une interaction
+     * `loop_knowledge_answer` produite par CE moteur de la meme capability
+     * produite par `LoopKnowledgeAnswerService`, ce que rien ne permettait.
+     */
+    /** TASK-1577 / V0-J / P0.2 — le producteur de ce moteur (`turn.identity.producer`) ; meme nom que sa source. */
+    public const PRODUCER = 'dossier.insights';
+
+    public const SOURCE_NAME = 'dossier.insights';
+
+    /**
+     * TASK-1554 — les raisons de refus DETERMINISTES que ce service connait
+     * reellement. Meme patron que `DossierRetrievalSource::REASON_*`, meme
+     * vocabulaire, aucune raison inventee.
+     *
+     * Ce qui n'est PAS ici, et ne doit jamais y entrer : un zero hit, un nom de
+     * fichier non resoluble, une preuve insuffisante, un credential provider
+     * absent. Ce sont des degradations, pas des portes fermees — W3F-min les
+     * harmonisera pour elles-memes.
+     */
+    public const REASON_DOSSIER_OUTSIDE_ORGANIZATION = 'dossier_outside_organization';
+
+    public const REASON_DOSSIER_NOT_AUTHORIZED = 'dossier_not_authorized';
+
     public function __construct(
         private readonly DossierSemanticSearchService $search,
         private readonly CapabilityRegistry $capabilities,
@@ -89,6 +180,14 @@ final class DossierInsightsService
         private readonly ProviderResolver $providers,
         private readonly AiEconomicGuard $economicGuard,
         private readonly AiProviderInvocationLedger $ledger,
+        // TASK-1535 : l'autorite qui dit quelles Boucles un lecteur peut lire.
+        // Utilisee par `answer()` SEULEMENT — voir le bloc de tete.
+        private readonly DerivedChunkEligibility $derivedEligibility,
+        // TASK-1554 : la MEME autorite que celle deja consultee au fond de
+        // `DossierSemanticSearchService`. Elle est relue ici non pour changer
+        // le perimetre — la recherche rendrait la meme liste vide — mais pour
+        // que la frontiere sache DIRE pourquoi elle est vide.
+        private readonly DossierSemanticSearchGate $searchGate,
     ) {}
 
     /**
@@ -106,16 +205,23 @@ final class DossierInsightsService
         ) !== [];
     }
 
-    public function generate(Organization $organization, Dossier $dossier, User $requester): KnowledgeAnswer
+    /**
+     * TASK-1568 / V0-G : `$executionPath` est le nom du chemin, FOURNI par le
+     * point d'entree (C15). `null` = l'appelant ne l'a pas dit ; la cle reste
+     * absente de la trace, jamais devinee.
+     */
+    public function generate(Organization $organization, Dossier $dossier, User $requester, ?string $executionPath = null): KnowledgeAnswer
     {
         if ((string) $dossier->organization_id !== (string) $organization->id) {
-            throw new RuntimeException(__('dossiers.insights_cross_organization'));
+            throw new SourceDenied(self::SOURCE_NAME, self::REASON_DOSSIER_OUTSIDE_ORGANIZATION,
+                __('dossiers.insights_cross_organization'));
         }
 
         // Revalidation serveur — jamais une confiance sur « la page est deja
         // ouverte » (PREP-LIGHT §4.2).
         if (Gate::forUser($requester)->denies('view', $dossier)) {
-            throw new RuntimeException(__('dossiers.insights_not_authorized'));
+            throw new SourceDenied(self::SOURCE_NAME, self::REASON_DOSSIER_NOT_AUTHORIZED,
+                __('dossiers.insights_not_authorized'));
         }
 
         // La langue du contenu SYSTEME produit pour une Organization est celle
@@ -153,12 +259,24 @@ final class DossierInsightsService
             query: self::presetQuestionSummary(),
         );
 
+        $this->traceDirectExecution($contexte, $capability, $executionPath, []);
+
         // P4 : sans configuration IA d'Organization, aucun appel, aucun repli.
         try {
             $resolved = $this->providers->resolve($capability, $contexte);
         } catch (DomainException $exception) {
             throw AiRefusedException::notConfigured($exception);
         }
+
+        // TASK-1572 / CDC-01 V0-D — le provider EFFECTIF tel que resolu, et
+        // l'absence de fallback comme MESURE : `ProviderResolver` ne selectionne
+        // jamais `FakeAIProvider` (doctrine P4). `provider_requested` n'a aucune
+        // source honnete : absent.
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'provider_effective' => $resolved->provider,
+            'model' => $resolved->trace(),
+            'fallback_used' => false,
+        ]);
 
         $verdict = $this->economicGuard->authorize(
             $organization,
@@ -177,7 +295,13 @@ final class DossierInsightsService
         $instructions = $this->prompts->compose($capability, $this->capabilityInstructions($definition->promptKey), (string) $organization->id);
         $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
 
-        [$sourcesBlock, $consulted] = $this->buildSourcesBlock($organization, $rows);
+        // La vue d'ensemble montre un ECHANTILLON de chaque document : son
+        // ouverture. C'est le sens de cette borne, et elle ne bouge pas.
+        [$sourcesBlock, $consulted] = $this->buildSourcesBlock(
+            $organization,
+            $rows,
+            (int) config('ai.knowledge.overview.chars_per_document', 700),
+        );
 
         $agent = new LoopKnowledgeAgent(
             $instructions,
@@ -217,6 +341,14 @@ final class DossierInsightsService
 
         $cited = $this->citedSources($answer, $consulted);
 
+        // TASK-1574 / CDC-01 V0-F — le grounding se lit : presence de references
+        // valides dans la reponse (syntaxique), rien de semantique.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'grounding', 'executed', null, [
+            'consulted' => count($consulted),
+            'cited' => count($cited),
+            'method' => 'syntactic_citations',
+        ]);
+
         $interaction = $this->recordInteraction($dossier, $requester, $contexte, $definition, $resolved, $prompt,
             $answer, $usage, $cost->traceAttributes(), $cost, 'success', $startedAt, $response->invocationId, null,
             $consulted, $cited, $doctrineVersion);
@@ -228,7 +360,765 @@ final class DossierInsightsService
             grounded: $cited !== [],
             interactionId: $interaction->id,
             credit: $this->economicGuard->userCreditStatus($organization, $requester),
+            // TASK-1554 / W3A — Smart Dossier traverse la meme frontiere et la
+            // dit de la meme facon. Son corpus est `representativeChunks…()`,
+            // qui ne passe pas par la recherche semantique : la desactiver ne
+            // le refuse donc pas, et aucun refus ne se declare ici.
+            sourcesUsed: $consulted === [] ? [] : [self::SOURCE_NAME],
+            sourcesDenied: [],
         );
+    }
+
+    /**
+     * TASK-1516 — LE DOSSIER REPOND : une question libre, une reponse sourcee,
+     * trois approfondissements. Methode SOEUR de `generate()`, jamais un second
+     * moteur RAG.
+     *
+     * Ce qu'elle partage avec `generate()`, ligne pour ligne : la revalidation
+     * de tenant et de policy, la capability `loop_knowledge_answer`, le meme
+     * `AdminAiPrompt`, le meme `LoopKnowledgeAgent`, le meme garde economique,
+     * le meme `buildSourcesBlock()`, la meme revalidation des references, le
+     * meme ledger, le meme DTO. `generate()` n'est pas touchee.
+     *
+     * Ce qui differe, et pourquoi :
+     *
+     * - **le retrieval**. `generate()` prend un extrait representatif par
+     *   document, sans recherche : elle repond a « qu'est-ce qui ressort de ce
+     *   Dossier ». Ici, la question de l'utilisateur pilote la recherche
+     *   vectorielle, bornee au SEUL Dossier courant.
+     * - **la langue**. `generate()` suit la langue de l'ORGANIZATION : un
+     *   Insight est relu par tout le cercle. Une reponse est lue par la
+     *   personne qui vient de poser la question, et par elle seule ; elle suit
+     *   donc la langue du LECTEUR. Repondre en anglais a une question posee en
+     *   francais parce que l'Organization est anglophone serait absurde — et
+     *   le CDC demande explicitement « FR sur documents EN ».
+     * - **la structure**. Pas de cinq rubriques : une reponse directe, puis au
+     *   plus trois questions d'approfondissement. Le contrat est dicte DANS le
+     *   tour, comme `presetQuestion()`, sans jamais toucher au prompt partage.
+     *
+     * `$fileHint` est le texte brut d'un nom de fichier tel que l'utilisateur
+     * l'a ecrit. Il est resolu SERVEUR sur le Dossier deja autorise ; aucun
+     * identifiant produit par un modele n'entre ici.
+     *
+     * @throws RuntimeException aucune source exploitable, ou reponse vide
+     */
+    public function answer(
+        Organization $organization,
+        Dossier $dossier,
+        User $requester,
+        string $question,
+        ?string $fileHint = null,
+        ?string $conversationMemory = null,
+        array $history = [],
+        ?string $executionPath = null,
+        ?string $loopId = null,
+        ?string $surface = null,
+        // Le MODE du composeur, quand l'appelant en a un. Le Lab en derive
+        // `MODE_CHANGED` d'un tour a l'autre : absent, le signal se lit
+        // `UNAVAILABLE`, ce qui est la verite pour une page Dossier ou le
+        // Shell — ils n'ont pas de mode.
+        ?string $mode = null,
+        // TASK-1595 — l'appelant declare si son chemin est TERMINAL.
+        //
+        // Un chemin terminal (le mode Dossiers du composeur) doit laisser un
+        // tour quand il s'abstient : sans lui, une abstention est
+        // indiscernable d'un tour jamais demande.
+        //
+        // Les branches du Shell, elles, DECLINENT : elles appellent ce moteur,
+        // n'obtiennent rien, et laissent la branche suivante repondre. Y ecrire
+        // un tour ferait DEUX interactions pour un seul tour produit, et
+        // brancherait un fallthrough — ce que G-beta / C20 interdit. Leur
+        // defaut `false` les laisse exactement comme avant.
+        bool $traceAbstention = false,
+    ): KnowledgeAnswer {
+        $question = trim($question);
+
+        if ($question === '') {
+            throw new RuntimeException(__('dossiers.answer_question_required'));
+        }
+
+        if ((string) $dossier->organization_id !== (string) $organization->id) {
+            throw new SourceDenied(self::SOURCE_NAME, self::REASON_DOSSIER_OUTSIDE_ORGANIZATION,
+                __('dossiers.insights_cross_organization'));
+        }
+
+        // Revalidation serveur, a chaque tour — jamais une confiance sur « la
+        // page est deja ouverte ».
+        if (Gate::forUser($requester)->denies('view', $dossier)) {
+            throw new SourceDenied(self::SOURCE_NAME, self::REASON_DOSSIER_NOT_AUTHORIZED,
+                __('dossiers.insights_not_authorized'));
+        }
+
+        // La langue sert ici au seul message de non-reponse ; le coeur la
+        // recalcule pour le tour lui-meme.
+        $locale = $this->readerLocale();
+
+        // Le credential d'embedding est celui de l'ORGANIZATION, comme
+        // l'ingestion et le retrieval. NULL = pas d'embedding tenant : refus
+        // explicite, JAMAIS un repli sur la cle plateforme.
+        $embeddingInstance = $this->providers->resolveEmbeddingInstance((string) $organization->id);
+
+        if ($embeddingInstance === null) {
+            throw new RuntimeException(__('dossiers.answer_embedding_unavailable'));
+        }
+
+        // Le CDC §7 decrit une phrase naturelle — « Cherche dans
+        // 260908-20h12-ARIA template Part B_EU.docx » — et non un champ a part.
+        // A defaut d'indication explicite, on cherche donc un nom de fichier
+        // DANS la question. Dans les deux cas la resolution est serveur, bornee
+        // au Dossier courant, et deterministe.
+        $scopedFiles = $fileHint !== null
+            ? $this->resolveFileScope($organization, $dossier, $fileHint)
+            : $this->detectFileScope($organization, $dossier, $question);
+
+        // TASK-1556 : le tour nait ICI, avant la recherche — c'est sous cette
+        // identite que son embedding est journalise, et sous elle que
+        // `answerOverSources()` le reclamera.
+        $turnId = (string) Str::uuid();
+
+        $rows = $this->search->searchAcrossDossiers(
+            (string) $organization->id,
+            [(string) $dossier->id],
+            $question,
+            $embeddingInstance,
+            self::ANSWER_SOURCE_LIMIT,
+            // TASK-1595 — l'acteur est DECLARE, jamais laisse au repli
+            // `Auth::id()` du ledger (T1585). Tant que ce moteur n'etait
+            // atteint que depuis une page ou l'authentifie EST le demandeur,
+            // le repli disait vrai par coincidence. Il ne le dit plus des
+            // qu'un appelant execute un tour AU NOM d'un membre — l'Inspector
+            // « Tester une requete » ecrivait alors le SuperAdmin au ledger
+            // d'embedding. Le demandeur est ici, il n'y a rien a deviner.
+            ['dossier_answer' => true, 'turn_id' => $turnId, 'user_id' => (string) $requester->id],
+            self::ANSWER_CANDIDATE_LIMIT,
+            $scopedFiles,
+            // TASK-1535 — les Boucles que CE lecteur peut lire.
+            //
+            // C'est la SEULE methode de cette classe qui les transmet, et la
+            // difference tient en une phrase : `answer()` rend une reponse a
+            // UNE personne, `generate()` fabrique un artefact relu par tout le
+            // cercle du Dossier. Voir le bloc de tete.
+            $this->derivedEligibility->authorizedLoopIds((string) $organization->id, $requester),
+        );
+
+        // TASK-1517 : replier les quasi-doublons, puis ancrer l'ouverture du
+        // document le mieux classe. Dans cet ordre, et jamais l'inverse — voir
+        // `foldNearDuplicates()` et `withOpeningAnchor()`.
+        $rows = $this->foldNearDuplicates($rows, self::ANSWER_SOURCE_LIMIT);
+        $rows = $this->withOpeningAnchor($organization, $dossier, $rows);
+
+        if ($rows === []) {
+            // « Je n'ai pas trouve » est une REPONSE, pas une panne (CDC §10).
+            // La rendre par une exception l'afficherait en rouge, comme un
+            // incident technique, alors que c'est le comportement honnete et
+            // attendu. Aucun appel provider : il n'y a rien a fonder.
+            //
+            // TASK-1554 / W3A — la reponse est la meme, ce qu'elle SAIT ne
+            // l'est plus.
+            //
+            // Deux situations rendaient jusqu'ici une liste vide rigoureusement
+            // indiscernable : « rien ne correspond dans ce corpus » et « la
+            // recherche documentaire est desactivee pour cette Organization ».
+            // La seconde est un refus DETERMINISTE, connu du serveur avant
+            // toute requete — `searchAcrossDossiers()` le lit deja et rend `[]`
+            // sans rien chercher. La porter comme un zero hit revenait a dire
+            // « je n'ai rien trouve » a propos d'un corpus qu'on n'a jamais
+            // ouvert.
+            //
+            // C'est la SEULE raison portee ici, et elle n'est pas inferee : le
+            // meme booleen, lu a la meme autorite, que celui qui a produit le
+            // vide. Un zero hit sur une recherche REELLE reste un zero hit —
+            // `sourcesDenied` y vaut `[]`.
+            $denied = $this->searchGate->isEnabledFor((string) $organization->id)
+                ? []
+                : [self::SOURCE_NAME => DossierRetrievalSource::REASON_SEMANTIC_SEARCH_DISABLED];
+
+            if ($traceAbstention) {
+                $this->traceAbstention($dossier, $requester, $question, $locale, $turnId, $executionPath, $history, $surface, $mode, $loopId, (string) $organization->id);
+            }
+
+            return new KnowledgeAnswer(
+                answer: __($scopedFiles !== null ? 'dossiers.answer_no_source_in_file' : 'dossiers.answer_no_source', [], $locale),
+                sources: [],
+                consulted: [],
+                grounded: false,
+                interactionId: null,
+                credit: $this->economicGuard->userCreditStatus($organization, $requester),
+                sourcesUsed: [],
+                sourcesDenied: $denied,
+            );
+        }
+
+        return $this->answerOverSources($organization, $dossier, $requester, $question, $rows, $conversationMemory, $turnId, $history, $executionPath, $loopId, $surface, $mode);
+    }
+
+    /**
+     * TASK-1520 — repondre a partir de sources DEJA choisies.
+     *
+     * Ce service est le moteur documentaire du produit ; le Dossier en est la
+     * premiere surface, pas la seule. Cette methode en expose le coeur —
+     * capability, garde economique, bloc de sources, revalidation des
+     * references, ledger, DTO — pour qu'une seconde surface s'y branche SANS
+     * qu'un second moteur apparaisse.
+     *
+     * Ce qu'elle ne fait PAS : choisir les sources. L'appelant les a deja
+     * choisies et deja autorisees. C'est lui, et lui seul, qui repond de leur
+     * perimetre.
+     *
+     * `$dossier` sert de rattachement de TRACE (`AiInteraction.metadata`), pas
+     * de perimetre : les sources sont donnees.
+     *
+     * @param  list<array<string, mixed>>  $rows  sources deja retrouvees et autorisees
+     * @param  ?string  $turnId  identite du tour si l'appelant l'a deja ouvert (recherche faite)
+     * @param  ?string  $executionPath  nom du chemin, FOURNI par le point d'entree (TASK-1568, C15) — ce moteur en a cinq et ne peut pas deviner lequel l'appelle
+     *
+     * @throws RuntimeException reponse vide
+     */
+    public function answerOverSources(
+        Organization $organization,
+        Dossier $dossier,
+        User $requester,
+        string $question,
+        array $rows,
+        ?string $conversationMemory = null,
+        ?string $turnId = null,
+        array $history = [],
+        ?string $executionPath = null,
+        // TASK-1595 — la Boucle d'ou vient la question, QUAND l'appelant en a
+        // une. Ce moteur n'en deduit jamais : les pages Dossier n'en ont pas,
+        // le Shell non plus, et leur `null` reste `null`. Elle ne sert qu'a
+        // ecrire `metadata.loop_id` — aucun perimetre, aucune garde, aucune
+        // resolution n'en depend : les sources restent celles que l'appelant a
+        // deja choisies et deja autorisees.
+        ?string $loopId = null,
+        ?string $surface = null,
+        ?string $mode = null,
+    ): KnowledgeAnswer {
+        $locale = $this->readerLocale();
+        $capability = CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER;
+        $definition = $this->capabilities->get($capability);
+        $this->capabilities->assertScopeAllowed($capability, CapabilityRegistry::SCOPE_ORGANIZATION);
+
+        $contexte = new ContexteIa(
+            organizationId: (string) $organization->id,
+            userId: (string) $requester->id,
+            loopId: null,
+            locale: $locale,
+            capability: $capability,
+            correlationId: AiCorrelation::id(),
+            source: CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL,
+            query: $question,
+            // TASK-1556 : l'appelant a deja cherche (donc deja embedde) sous
+            // cette identite de tour ; sans elle, un tour neuf commence ici.
+            turnId: $turnId,
+        );
+
+        $this->traceDirectExecution($contexte, $capability, $executionPath, $history, $surface, $mode);
+
+        try {
+            $resolved = $this->providers->resolve($capability, $contexte);
+        } catch (DomainException $exception) {
+            throw AiRefusedException::notConfigured($exception);
+        }
+
+        // TASK-1572 / CDC-01 V0-D — le provider EFFECTIF tel que resolu, et
+        // l'absence de fallback comme MESURE : `ProviderResolver` ne selectionne
+        // jamais `FakeAIProvider` (doctrine P4). `provider_requested` n'a aucune
+        // source honnete : absent.
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'provider_effective' => $resolved->provider,
+            'model' => $resolved->trace(),
+            'fallback_used' => false,
+        ]);
+
+        $verdict = $this->economicGuard->authorize(
+            $organization,
+            $definition->process,
+            $resolved->provider,
+            $resolved->model,
+            (float) config('ai.knowledge.economic_guard.monthly_budget_usd', 2.00),
+            (int) config('ai.knowledge.economic_guard.monthly_unknown_limit', 10),
+            $requester,
+        );
+
+        if (! $verdict->allowed) {
+            // TASK-1595 — l'etage qui a ARRETE le tour est celui que la trace
+            // nomme : le depot precede le `throw`.
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'denied', $verdict->reason);
+
+            // TASK-1570 / V0-B, porte ici — un refus economique laisse un TOUR
+            // (`refused`, stage `economic_check`, code MESURE par le garde).
+            // Ledger vierge : rien n'est parti chez aucun provider. La ligne
+            // porte `cost_usd = 0, cost_unknown = false` et n'entre donc dans
+            // aucune somme du garde.
+            $this->recordEarlyStop($dossier, $requester, $contexte, $definition, $resolved,
+                AiTurnState::TURN_REFUSED, 'economic_check', $verdict->reason, $history, $loopId);
+
+            throw AiRefusedException::fromVerdict($verdict);
+        }
+
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'executed');
+
+        $instructions = $this->prompts->compose($capability, $this->capabilityInstructions($definition->promptKey), (string) $organization->id);
+        $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
+
+        // TASK-1518 — une REPONSE voit l'extrait ENTIER. `null` = aucune
+        // seconde coupe.
+        //
+        // Ce bloc heritait du budget de la vue d'ensemble : 700 caracteres.
+        // Mesure sur corpus reel : les extraits font 3 090 caracteres en
+        // moyenne, jusqu'a 5 486 — donc 80 % de chacun etait jete avant que le
+        // modele ne le voie. Un fait ecrit plus loin dans l'extrait devenait un
+        // « je n'ai pas trouve cette information » : un faux refus,
+        // indiscernable d'un vrai. Le retrieval n'y etait pour rien, l'extrait
+        // porteur arrivait au RANG 1.
+        //
+        // Pourquoi AUCUN plafond, et pas un plafond plus haut : l'extrait est
+        // DEJA borne par le chunker (500 tokens). Le couper une seconde fois,
+        // en CARACTERES cette fois, c'est arbitrer une longueur que personne
+        // ne connait — 4 400 aurait tronque 5 extraits sur 583 en base, et le
+        // prochain document depassera le prochain chiffre choisi. Mesure A/B
+        // sur corpus reel : un plafond a 5 600 et l'absence de plafond
+        // produisent des prompts RIGOUREUSEMENT identiques, pour +0,5 % de
+        // cout par rapport a 4 400. Aucune necessite structurelle n'impose
+        // cette seconde coupe : le nombre de sources est borne (6), et
+        // `ai.knowledge.max_context_chars` n'est applique nulle part sur ce
+        // chemin (verifie).
+        [$sourcesBlock, $consulted] = $this->buildSourcesBlock($organization, $rows, null);
+
+        $agent = new LoopKnowledgeAgent(
+            $instructions,
+            (int) config('ai.knowledge.max_tokens', 700),
+            (float) config('ai.knowledge.temperature', 0.2),
+        );
+
+        // TASK-1519 — ordre canonique du CDC : SOURCES -> THREAD -> QUESTION.
+        //
+        // Le fil aide le modele a COMPRENDRE une question elliptique (« Et les
+        // participants ? »). Il n'est JAMAIS une source documentaire : il n'est
+        // pas cite, il ne porte aucune reference [Sn], et il n'entre pas dans
+        // la requete de recherche.
+        //
+        // Pourquoi il n'entre pas dans la requete, alors que le CDC l'autorisait :
+        // mesure sur corpus reel. Prefixer la question precedente DEGRADE le
+        // classement dans 3 cas sur 5 — « Et les participants ? » passe du rang
+        // 1 a hors du top 20, et une question autonome de rang 1 tombe aussi
+        // hors du top 20. Les questions elliptiques se classent deja tres bien
+        // seules, parce que leur embedding porte le mot qui compte.
+        $prompt = $sourcesBlock
+            .$this->conversationBlock($conversationMemory)
+            ."\n\n".$this->answerInstruction($locale, $question);
+
+        $startedAt = microtime(true);
+
+        try {
+            $response = $agent->prompt($prompt, provider: $resolved->instance, model: $resolved->model);
+        } catch (\Throwable $exception) {
+            $this->recordInteraction($dossier, $requester, $contexte, $definition, $resolved, $prompt, null,
+                AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null, 'failed', $startedAt, null,
+                $exception::class, $consulted, [], $doctrineVersion, $history, $loopId);
+
+            throw new RuntimeException(__('dossiers.insights_ai_error'), 0, $exception);
+        }
+
+        // TASK-1595 — l'appel provider a eu lieu ET a rendu. Depose APRES le
+        // `try` : avant, l'etape dirait `executed` d'un appel qui n'a
+        // peut-etre jamais abouti.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'provider_call', 'executed');
+
+        $rawAnswer = AiMarkdownSanitizer::sanitize(
+            (string) $response->text,
+            (int) config('ai.knowledge.max_answer_chars', 3000),
+        );
+
+        [$body, $followUps] = $this->splitAnswer($rawAnswer, $locale);
+
+        // Revalidation serveur : toute reference [Sn] que le retrieval n'a pas
+        // offerte disparait du texte. Un lecteur ne doit jamais voir une
+        // citation qu'il ne peut pas ouvrir.
+        $validRefs = array_column($consulted, 'ref');
+        $answer = trim($this->stripInventedRefs($body, $validRefs));
+
+        if ($answer === '') {
+            throw new RuntimeException(__('dossiers.insights_empty_response'));
+        }
+
+        $usage = AiUsage::fromSdkTextTokens($response->usage->promptTokens, $response->usage->completionTokens);
+        $cost = $this->economicGuard->finalize($resolved->provider, $resolved->model, $usage);
+
+        $cited = $this->citedSources($answer, $consulted);
+
+        // TASK-1574 / CDC-01 V0-F — le grounding se lit : presence de references
+        // valides dans la reponse (syntaxique), rien de semantique.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'grounding', 'executed', null, [
+            'consulted' => count($consulted),
+            'cited' => count($cited),
+            'method' => 'syntactic_citations',
+        ]);
+
+        $interaction = $this->recordInteraction($dossier, $requester, $contexte, $definition, $resolved, $prompt,
+            $answer, $usage, $cost->traceAttributes(), $cost, 'success', $startedAt, $response->invocationId, null,
+            $consulted, $cited, $doctrineVersion, $history, $loopId);
+
+        return new KnowledgeAnswer(
+            answer: $answer,
+            // Ce qui est CITE, jamais ce qui a ete consulte : la nuance a deja
+            // ete payee une fois par ce depot (TASK-1391).
+            sources: $cited,
+            consulted: $consulted,
+            grounded: $cited !== [],
+            interactionId: $interaction->id,
+            credit: $this->economicGuard->userCreditStatus($organization, $requester),
+            followUps: $followUps,
+            // TASK-1554 / W3A — la meme verite que la trace, au meme moment et
+            // depuis la meme expression. Deux calculs distincts auraient
+            // diverge au premier correctif applique d'un seul cote.
+            sourcesUsed: $consulted === [] ? [] : [self::SOURCE_NAME],
+            sourcesDenied: [],
+            // TASK-1595 — la MEME resolution que celle qui a paye l'appel, pas
+            // une relecture. Un appelant qui publie une bulle (ChatLoop) doit
+            // pouvoir inscrire provider et modele sans rouvrir l'interaction ni
+            // redecouper une chaine `provider/model`.
+            provider: $resolved->provider,
+            model: $resolved->model,
+        );
+    }
+
+    /**
+     * TASK-1516 — « Cherche dans 260908-20h12-ARIA template Part B_EU.docx ».
+     *
+     * Resolution SERVEUR, bornee au Dossier deja autorise, sur `display_name`
+     * puis `original_name`. Une restriction explicite est toujours reconnue :
+     * elle rend la liste des 0..N identifiants correspondants. Une liste vide
+     * signifie « rien de resoluble » et doit produire une non-reponse sure ;
+     * elle ne signifie jamais « rechercher dans tout le Dossier ».
+     *
+     * TASK-1525 : toutes les correspondances legitimes d'une famille restent
+     * dans le scope. Le filtre SQL recoit ces identifiants serveur ; aucun ID
+     * client et aucun arbitrage du modele n'entrent dans cette autorite.
+     *
+     * @return list<string>
+     */
+    private function resolveFileScope(Organization $organization, Dossier $dossier, string $hint): array
+    {
+        $needle = mb_strtolower(trim($hint));
+
+        if ($needle === '') {
+            return [];
+        }
+
+        $matches = DossierFile::query()
+            ->where('organization_id', $organization->getKey())
+            ->where('dossier_id', $dossier->getKey())
+            ->whereNull('deleted_at')
+            ->get(['id', 'display_name', 'original_name'])
+            ->filter(function (DossierFile $file) use ($needle): bool {
+                foreach ([$file->display_name, $file->original_name] as $name) {
+                    $name = mb_strtolower(trim((string) $name));
+
+                    if ($name !== '' && ($name === $needle || str_contains($name, $needle) || str_contains($needle, $name))) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })
+            ->values();
+
+        return $matches
+            ->pluck('id')
+            ->map(static fn ($id): string => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * TASK-1517 — replier les quasi-doublons, en gardant le mieux classe.
+     *
+     * ## Pourquoi pas `content_hash`, que le CDC recommandait
+     *
+     * Mesure sur le Dossier ARIA reel, avant d'ecrire une ligne : **265
+     * chunks, 265 `content_hash` DISTINCTS, zero doublon exact**. Les quatre
+     * versions du document sont quasi identiques mais jamais a l'octet — les
+     * frontieres de chunk se decalent (67/68/65/65 chunks). Le hash exact ne
+     * replie rien du tout.
+     *
+     * ## Ce que replie une cle NORMALISEE
+     *
+     * Minuscules, ponctuation retiree, espaces normalises, prefixe de 120
+     * caracteres : 5 chunks sur 265. Un gain modeste — mais la famille la plus
+     * peuplee est decisive : les QUATRE extraits d'ouverture, qui portent tous
+     * « ARIA ARtistic Intelligence Alliance ». Sans ce repli, l'ancrage
+     * ci-dessous injecterait quatre fois la meme phrase et gaspillerait le
+     * budget de sources.
+     *
+     * La deduplication n'est donc pas ici pour elle-meme : elle existe PARCE
+     * QUE l'ancrage la rend necessaire.
+     *
+     * @param  list<array<string, mixed>>  $rows  deja tries par distance croissante
+     * @return list<array<string, mixed>>
+     */
+    private function foldNearDuplicates(array $rows, int $limit): array
+    {
+        $kept = [];
+        $seen = [];
+
+        foreach ($rows as $row) {
+            if (count($kept) >= $limit) {
+                break;
+            }
+
+            $key = self::nearDuplicateKey((string) $row['content']);
+
+            if ($key !== '' && isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $kept[] = $row;
+        }
+
+        return $kept;
+    }
+
+    /**
+     * L'identite APPROCHEE d'un extrait : ce qu'il dit, debarrasse de ce qui
+     * change d'une version a l'autre d'un meme document (casse, ponctuation,
+     * espaces, numerotation collee au texte).
+     *
+     * Le prefixe est borne : deux extraits qui commencent par la meme page
+     * entiere disent la meme chose, et comparer leur totalite ferait echouer le
+     * repli sur la moindre virgule ajoutee en fin de chunk.
+     */
+    private static function nearDuplicateKey(string $content): string
+    {
+        $normalized = mb_strtolower($content);
+        $normalized = preg_replace('/[^\p{L}\p{N} ]+/u', ' ', $normalized) ?? $normalized;
+        $normalized = trim(preg_replace('/\s+/u', ' ', $normalized) ?? $normalized);
+
+        return mb_substr($normalized, 0, 120);
+    }
+
+    /**
+     * TASK-1517 — ancrer l'OUVERTURE du document le mieux classe.
+     *
+     * ## Le cas rouge que cette methode corrige, mesure sur le corpus reel
+     *
+     * « Que signifie ARIA ? » repondait « ARIA signifie "Artist-Professional
+     * Interplay and Responsible Research and Innovation" » — une invention :
+     * cette chaine n'apparait dans AUCUN des 265 chunks du Dossier, quand
+     * « ARtistic Intelligence Alliance » en occupe douze. Et la reponse se
+     * declarait GROUNDED, parce que le modele citait `[Sn]` ailleurs : une
+     * citation vraie couvrait une phrase fausse.
+     *
+     * La definition vit au `chunk_index` 0 de chaque version — la premiere
+     * ligne du document. La recherche vectorielle ne l'y trouve pas : une
+     * question de trois mots ressemble mal a une page d'ouverture entiere.
+     * Aucun reglage de `top_k` n'y change quoi que ce soit.
+     *
+     * ## La primitive n'est pas neuve
+     *
+     * `representativeChunksAcrossDossiers()` (TASK-1309) rend deja exactement
+     * cela : l'extrait d'index minimal de chaque document, meme forme de ligne,
+     * memes jointures tenant-safe, aucun embedding, aucun appel provider,
+     * aucune ligne de ledger. Une lecture SQL bornee, rien de plus.
+     *
+     * ## Deux precautions
+     *
+     * L'ancrage est AJOUTE EN FIN, jamais en tete : `[S1]` doit rester
+     * l'extrait le plus proche de la question, sinon le rang cesserait de dire
+     * la pertinence.
+     *
+     * Une question restreinte a des fichiers ne demande AUCUNE garde
+     * supplementaire, et c'est mesure : quand `$scopedFiles` est pose, la
+     * recherche est deja bornee a ces fichiers EN SQL, donc le document le mieux
+     * classe appartient a ce scope, donc l'ouverture ancree en vient forcement. Un
+     * `if` de plus aurait ete du code mort pretendant proteger — un sabotage
+     * l'a laisse vert, ce qui l'a revele.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array<string, mixed>>
+     */
+    private function withOpeningAnchor(Organization $organization, Dossier $dossier, array $rows): array
+    {
+        if ($rows === []) {
+            return $rows;
+        }
+
+        $documentKey = static fn (array $row): string => DossierSemanticSearchService::documentKey($row);
+        $bestDocument = $documentKey($rows[0]);
+
+        $alreadyPresent = [];
+
+        foreach ($rows as $row) {
+            $alreadyPresent[self::nearDuplicateKey((string) $row['content'])] = true;
+        }
+
+        $openings = $this->search->representativeChunksAcrossDossiers(
+            (string) $organization->id,
+            [(string) $dossier->id],
+            self::ANSWER_CANDIDATE_LIMIT,
+        );
+
+        foreach ($openings as $opening) {
+            if ($documentKey($opening) !== $bestDocument) {
+                continue;
+            }
+
+            // Deja dit : l'ouverture figure parmi les extraits retrouves, ou
+            // un quasi-doublon d'une autre version l'a deja apportee.
+            if (isset($alreadyPresent[self::nearDuplicateKey((string) $opening['content'])])) {
+                return $rows;
+            }
+
+            $rows[] = $opening;
+
+            return array_slice($rows, 0, self::ANSWER_TOTAL_LIMIT);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * TASK-1519 — le fil de conversation, entre les sources et la question.
+     *
+     * Bloc VIDE quand il n'y a pas de fil : la page Dossier appelle sans
+     * memoire, et son prompt doit rester exactement celui d'avant.
+     */
+    private function conversationBlock(?string $conversationMemory): string
+    {
+        $memory = trim((string) $conversationMemory);
+
+        if ($memory === '') {
+            return '';
+        }
+
+        return "\n\n--- CONVERSATION EN COURS (contexte, jamais une source : ne la cite pas) ---\n".$memory;
+    }
+
+    /**
+     * TASK-1516 — un nom de fichier repere DANS une question libre.
+     *
+     * Deliberement plus severe que `resolveFileScope()`, et pour une raison
+     * precise : ici, personne n'a demande de restreindre quoi que ce soit. Une
+     * correspondance trop genereuse retrecirait le corpus EN SILENCE — un
+     * Dossier contenant un fichier nomme « ARIA » ferait de « C'est quoi
+     * ARIA ? » une question portant sur ce seul fichier, sans que rien ne le
+     * dise. Le retrecissement muet est pire que l'absence de fonction.
+     *
+     * Deux conditions, donc : le nom doit RESSEMBLER a un nom de fichier (une
+     * extension), et il doit apparaitre EN ENTIER dans la question.
+     */
+    private function detectFileScope(Organization $organization, Dossier $dossier, string $question): ?array
+    {
+        $haystack = mb_strtolower($question);
+
+        $matches = DossierFile::query()
+            ->where('organization_id', $organization->getKey())
+            ->where('dossier_id', $dossier->getKey())
+            ->whereNull('deleted_at')
+            ->get(['id', 'display_name', 'original_name'])
+            ->filter(function (DossierFile $file) use ($haystack): bool {
+                foreach ([$file->display_name, $file->original_name] as $name) {
+                    $name = mb_strtolower(trim((string) $name));
+
+                    if ($name !== '' && str_contains($name, '.') && mb_strlen($name) >= 5 && str_contains($haystack, $name)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })
+            ->values();
+
+        if ($matches->isEmpty()) {
+            return null;
+        }
+
+        return $matches
+            ->pluck('id')
+            ->map(static fn ($id): string => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * TASK-1516 — le corps de la reponse d'un cote, les approfondissements de
+     * l'autre.
+     *
+     * Le titre de rubrique n'est pas ecrit ici : il vient de `heading()`,
+     * exactement comme pour Smart Dossier. Le prompt le dicte, le parseur le
+     * relit, l'ecran ne le rend jamais — une seule autorite, traduisible, et
+     * aucune branche de code ne connait une langue.
+     *
+     * @return array{0: string, 1: list<string>}
+     */
+    private function splitAnswer(string $markdown, string $locale): array
+    {
+        $heading = preg_quote($this->heading('questions', $locale), '/');
+
+        if (! preg_match('/^##\s*'.$heading.'\s*$/mu', $markdown, $match, PREG_OFFSET_CAPTURE)) {
+            return [trim($markdown), []];
+        }
+
+        $offset = $match[0][1];
+        $body = trim(substr($markdown, 0, $offset));
+        $tail = substr($markdown, $offset + strlen($match[0][0]));
+
+        $followUps = [];
+
+        foreach (preg_split('/\r?\n/', $tail) ?: [] as $line) {
+            $line = trim($line);
+
+            if ($line === '' || ! str_starts_with($line, '-')) {
+                continue;
+            }
+
+            // Texte inerte : les references y sont retirees sans exception,
+            // une question suggeree ne cite rien et n'autorise rien.
+            $question = trim(preg_replace('/\[S\d+\]/', '', ltrim($line, "- \t")) ?? '');
+
+            if ($question === '') {
+                continue;
+            }
+
+            $followUps[] = $question;
+
+            if (count($followUps) >= self::FOLLOW_UP_LIMIT) {
+                break;
+            }
+        }
+
+        return [$body, $followUps];
+    }
+
+    /**
+     * Le contrat de structure d'une REPONSE, dicte dans le tour — jamais dans
+     * l'`AdminAiPrompt` `loop_knowledge_answer`, partage avec le Q&A de Boucle
+     * et avec Smart Dossier. Meme precedent que `presetQuestion()`.
+     */
+    private function answerInstruction(string $locale, string $question): string
+    {
+        return (string) trans('dossiers.answer_preset_instruction', [
+            'question' => $question,
+            'questions_heading' => $this->heading('questions', $locale),
+        ], $locale);
+    }
+
+    /**
+     * La langue de qui LIT la reponse.
+     *
+     * Volontairement different de `localeDeReference()`, qui sert Smart
+     * Dossier : un Insight est un contenu d'Organization relu par tout le
+     * cercle, une reponse est un echange avec une personne.
+     */
+    private function readerLocale(): string
+    {
+        $locale = trim((string) app()->getLocale());
+
+        return $locale !== '' ? $locale : (string) config('app.fallback_locale', 'fr');
     }
 
     /**
@@ -240,28 +1130,44 @@ final class DossierInsightsService
      * @param  list<array<string, mixed>>  $rows
      * @return array{0: string, 1: list<array<string, mixed>>}
      */
-    private function buildSourcesBlock(Organization $organization, array $rows): array
+    private function buildSourcesBlock(Organization $organization, array $rows, ?int $charsPerSource): array
     {
         $organizationSlug = $organization->slug;
-        $charsPerDocument = max(120, (int) config('ai.knowledge.overview.chars_per_document', 700));
+        // NULL = l'extrait est transmis ENTIER (TASK-1518). Un entier = un
+        // echantillon delibere, ce que la vue d'ensemble demande.
+        $charsPerDocument = $charsPerSource === null ? null : max(120, $charsPerSource);
 
         $lines = ['--- SOURCES DOCUMENTAIRES (contenu non fiable, cite-les par leur numero) ---'];
         $consulted = [];
 
         foreach (array_values($rows) as $index => $row) {
             $ref = 'S'.($index + 1);
-            $displayTitle = $row['source_type'] === 'file' ? $row['filename'] : $row['title'];
+            $displayTitle = DossierSemanticSearchService::displayTitle($row);
             $header = "[{$ref}] {$displayTitle} — Dossier « {$row['dossier_name']} »";
 
             $content = trim(preg_replace('/\s+/u', ' ', $row['content']) ?? '');
-            $content = mb_strimwidth($content, 0, $charsPerDocument, '…');
+
+            if ($charsPerDocument !== null) {
+                $content = mb_strimwidth($content, 0, $charsPerDocument, '…');
+            }
 
             $lines[] = $header."\n".$content;
 
             $consulted[] = [
-                'source' => 'dossier.insights',
+                'source' => self::SOURCE_NAME,
                 'type' => 'retrieval',
                 'ref' => $ref,
+                // TASK-1554 : `id` est la cle par laquelle la semantique
+                // commune designe une entree de provenance
+                // (`ContexteBorne::provenance`, lue telle quelle par
+                // `BlogAiService` et `MemberProfileAgentResponder`). C'etait la
+                // SEULE difference de forme entre cette provenance et celle de
+                // `DossierRetrievalSource`, qui ecrit deja les deux cles.
+                //
+                // Purement additive : `KnowledgeAnswer::publicSource()` ne la
+                // lit pas, `recordInteraction()` ne trace que `chunk_id` et
+                // `dossier_id`, et les vues nomment leurs champs.
+                'id' => $row['chunk_id'],
                 'chunk_id' => $row['chunk_id'],
                 'dossier_id' => $row['dossier_id'],
                 'dossier_name' => $row['dossier_name'],
@@ -274,11 +1180,16 @@ final class DossierInsightsService
                 // meme document_key ne comptent jamais comme une convergence
                 // (mandat §7). Jamais expose au public — absent de
                 // `KnowledgeAnswer::publicSource()`.
-                'document_key' => $row['source_type'].':'.($row['dossier_file_id'] ?? $row['blog_post_id']),
+                'document_key' => DossierSemanticSearchService::documentKey($row),
                 'extrait' => mb_strimwidth($content, 0, 240, '…'),
-                'url' => $row['source_type'] === 'file'
-                    ? DossierSourceUrl::forFile($organizationSlug, $row['dossier_id'], $row['dossier_file_id'], $row['mime_type'] ?? null)
-                    : DossierSourceUrl::forArticle($organizationSlug, $row['slug']),
+                'url' => match ($row['source_type']) {
+                    'file' => DossierSourceUrl::forFile($organizationSlug, $row['dossier_id'], $row['dossier_file_id'], $row['mime_type'] ?? null),
+                    // TASK-1534 — verifier un resume suppose de pouvoir lire la
+                    // conversation resumee. Le lien va donc a la Boucle, pas a
+                    // la note : la note n'a pas d'ecran, et n'en aura pas.
+                    'derived_knowledge' => DossierSourceUrl::forDerivedNote($row['derived_source_loop_id'] ?? null),
+                    default => DossierSourceUrl::forArticle($organizationSlug, $row['slug']),
+                },
             ];
         }
 
@@ -471,6 +1382,179 @@ final class DossierInsightsService
     }
 
     /**
+     * TASK-1568 / CDC-01 V0-G — ce que ce moteur peut dire de lui-meme, et
+     * rien de plus.
+     *
+     * `execution_path` vient de l'appelant : ce moteur est atteint par CINQ
+     * points d'entree (deux pages Dossier, trois branches du Shell) et V0-A
+     * avait deja montre, sur `LoopKnowledgeAnswerService`, ce que vaut un
+     * chemin devine par un moteur partage (C15). A `null`, `identity()`
+     * n'ecrit rien.
+     *
+     * Le `ContextBuilder` est `bypassed`, pas `not_applicable` : la capability
+     * `LOOP_KNOWLEDGE_ANSWER` declare trois sources de contexte, et
+     * `LoopKnowledgeAnswerService` — sous la MEME capability — les construit.
+     * Ce moteur cherche et repond directement sur ses sources. Une capability,
+     * deux moteurs, deux comportements : c'est exactement ce que la trace
+     * existe pour rendre visible (CDC-01 P0.7, scenario 8).
+     */
+    private function traceDirectExecution(ContexteIa $contexte, string $capability, ?string $executionPath, array $history, ?string $surface = null, ?string $mode = null): void
+    {
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            // TASK-1595 — la surface suit la MEME doctrine que le chemin (C15) :
+            // l'appelant l'annonce, le moteur ne la devine pas. Ce moteur sert
+            // cinq points d'entree, dont un qui n'est pas une page Dossier.
+            // Defaut `dossier` : les quatre autres appelants sont inchanges.
+            'surface' => $surface ?? 'dossier',
+            // `array_filter` en aval retire un `mode` nul : les appelants qui
+            // n'en ont pas gardent exactement l'identite qu'ils avaient.
+            'mode' => $mode,
+            'execution_path' => $executionPath,
+            'capability' => $capability,
+            // TASK-1577 / V0-J / P0.2 — le moteur documentaire se nomme.
+            'producer' => self::PRODUCER,
+        ]);
+
+        AiTurnTrace::step(
+            $contexte->organizationId,
+            $contexte->turnId,
+            'context_builder',
+            'bypassed',
+            AiTurnReason::CONTEXT_BUILDER_DOCUMENT_PATH_DIRECT_EXECUTION,
+        );
+
+        // TASK-1568 / V0-G (C18) — l'historique que l'appelant a REELLEMENT
+        // donne a ce tour, traduit en etape (voir `AiTurnTrace`). `generate()`
+        // n'en recoit jamais ; `answer()`/`answerOverSources()` en recoivent
+        // du Shell, jamais des pages Dossier.
+        AiTurnTrace::conversationHistoryStep($contexte->organizationId, $contexte->turnId, $history);
+    }
+
+    /**
+     * TASK-1595 — le tour d'une ABSTENTION, quand l'appelant a declare son
+     * chemin terminal.
+     *
+     * Aucune source exploitable : le moteur n'a appele aucun provider et n'a
+     * donc rien depense de plus. Mais la recherche, elle, a eu lieu et a deja
+     * coute un embedding — et jusqu'ici son seul recit partait avec le
+     * processus. Une abstention invisible est indiscernable d'un tour jamais
+     * demande, or c'est exactement le cas qu'il faut voir.
+     *
+     * L'identite et les etapes sont deposees ICI parce que le tour s'arrete
+     * avant `answerOverSources()` : sans ce depot, le bloc n'aurait ni chemin,
+     * ni surface, ni etage.
+     */
+    private function traceAbstention(
+        Dossier $dossier,
+        User $requester,
+        string $question,
+        string $locale,
+        string $turnId,
+        ?string $executionPath,
+        array $history,
+        ?string $surface,
+        ?string $mode,
+        ?string $loopId,
+        string $organizationId,
+    ): void {
+        $definition = $this->capabilities->get(CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER);
+
+        $contexte = new ContexteIa(
+            organizationId: $organizationId,
+            userId: (string) $requester->id,
+            loopId: null,
+            locale: $locale,
+            capability: CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER,
+            correlationId: AiCorrelation::id(),
+            source: CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL,
+            query: $question,
+            turnId: $turnId,
+        );
+
+        $this->traceDirectExecution($contexte, CapabilityRegistry::LOOP_KNOWLEDGE_ANSWER, $executionPath, $history, $surface, $mode);
+        AiTurnTrace::step($organizationId, $turnId, 'grounding', 'not_applicable', AiTurnReason::TERMINAL_NO_SOURCES_FOUND);
+
+        $this->recordEarlyStop($dossier, $requester, $contexte, $definition, null,
+            AiTurnState::TURN_ABSTAINED, 'grounding', AiTurnReason::TERMINAL_NO_SOURCES_FOUND, $history, $loopId);
+    }
+
+    /**
+     * TASK-1595 / V0-B porte a ce moteur — l'ARRET ANTICIPE laisse un tour.
+     *
+     * Jusqu'ici, un refus economique de ce moteur ne laissait RIEN : ni ligne,
+     * ni trace. Le tour avait pourtant eu lieu — la recherche documentaire
+     * s'etait executee et avait deja coute un embedding —, et son seul recit
+     * partait avec le processus. Un refus invisible est indiscernable d'un tour
+     * qui n'a jamais ete demande.
+     *
+     * Ce que cette ligne N'EST PAS : une generation. Le ledger reste vierge
+     * (aucun appel n'est parti), `cost_usd = 0` et `cost_unknown = false` la
+     * tiennent hors de toute somme du garde, et `metadata.status` porte un
+     * statut NON GENERATIF (`refused`) que les lecteurs excluent deja.
+     *
+     * Ce qui reste ABSENT, et ce n'est pas un oubli : `latency_ms` — ce chemin
+     * ne chronometre pas ses arrets, et un chrono pose ici pour l'occasion ne
+     * mesurerait qu'une partie du tour (C7-bis). Absent se lit `UNAVAILABLE`.
+     *
+     * @param  array<string, mixed>  $history
+     */
+    private function recordEarlyStop(
+        Dossier $dossier,
+        User $requester,
+        ContexteIa $contexte,
+        CapabilityDefinition $definition,
+        ?ResolvedModel $resolved,
+        string $turnStatus,
+        string $stage,
+        string $reasonCode,
+        array $history,
+        ?string $loopId = null,
+    ): AiInteraction {
+        return AiInteraction::create([
+            'user_id' => $requester->id,
+            'organization_id' => $contexte->organizationId,
+            'correlation_id' => $contexte->correlationId,
+            'process' => $definition->process,
+            'feature' => $definition->id,
+            'model' => $resolved?->trace() ?? '',
+            'prompt' => '',
+            'response' => null,
+            'input_tokens' => 0,
+            'output_tokens' => 0,
+            'cost_usd' => 0,
+            'cost_unknown' => false,
+            'metadata' => array_filter([
+                'dossier_id' => $dossier->id,
+                'loop_id' => $loopId,
+                'requested_by' => $requester->id,
+                'provider' => $resolved?->provider,
+                'capability' => $definition->id,
+                'status' => $turnStatus,
+                'turn_id' => $contexte->turnId,
+                // Les invocations embedding que CE tour a deja declenchees :
+                // sur un refus, la recherche a eu lieu et a coute — sa trace
+                // n'est pas jetee.
+                RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
+                    $contexte->turnId,
+                    AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
+                    [
+                        'status' => $turnStatus,
+                        'stage' => $stage,
+                        'reason_code' => $reasonCode,
+                        'decided_by' => class_basename(self::class),
+                        'history' => $history,
+                        // Un arret avant la generation n'a rien cite et n'a
+                        // refuse aucune source : axe 2 `not_applicable`, axe 3
+                        // sans mesure.
+                        'state' => AiTurnTrace::stateBlock(null, []),
+                    ],
+                ),
+            ], static fn ($value): bool => $value !== null),
+        ]);
+    }
+
+    /**
      * @param  array{cost_usd: ?float, cost_unknown: ?bool}  $costAttributes
      * @param  list<array<string, mixed>>  $consulted
      * @param  list<array<string, mixed>>  $cited
@@ -493,6 +1577,8 @@ final class DossierInsightsService
         array $consulted,
         array $cited,
         ?int $doctrineVersion,
+        array $history = [],
+        ?string $loopId = null,
     ): AiInteraction {
         $this->ledger->recordGeneration(
             organizationId: $contexte->organizationId,
@@ -528,14 +1614,87 @@ final class DossierInsightsService
             ...$costAttributes,
             'metadata' => array_filter([
                 'dossier_id' => $dossier->id,
+                // TASK-1595 — present SEULEMENT si l'appelant l'a fourni ;
+                // `array_filter` retire le `null`, donc la metadata des pages
+                // Dossier et du Shell est inchangee, cle pour cle.
+                'loop_id' => $loopId,
                 'requested_by' => $requester->id,
                 'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
                 'provider' => $resolved->provider,
                 'capability' => $definition->id,
                 'status' => $status,
                 'sdk_invocation_id' => $sdkInvocationId,
+                // TASK-1556 : les invocations embedding (query) que CE tour a
+                // declenchees, reclamees une seule fois — `[]` mesure, jamais null.
+                RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
+                // TASK-1566 / CDC-01 V0-A — l'IDENTITE canonique du tour. Ce
+                // moteur avait deja un `turnId` COHERENT de bout en bout
+                // (`answer()` le genere, `answerOverSources()` le transmet au
+                // `ContexteIa`) : il ne manquait que de l'ECRIRE.
+                //
+                // TASK-1568 / V0-G — le writer RECLAME ce que le tour a depose :
+                // le chemin nomme par l'appelant et le bypass du
+                // `ContextBuilder`. Le verdict (`status`, `stage`,
+                // `decided_by`) reste absent : V0-B / V0-C.
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
+                    $contexte->turnId,
+                    AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
+                    [
+                        // TASK-1595 / V0-B — le verdict, enfin ecrit par ce
+                        // moteur. Le vocabulaire du TOUR n'est pas celui de la
+                        // ligne : `metadata.status` conserve ses valeurs
+                        // historiques (`success`/`failed`, lues par des tiers),
+                        // `turn.status` parle celui des trois axes. Traduire
+                        // ici evite de renommer une valeur deja consommee
+                        // (invariant I8).
+                        'status' => $status === 'failed'
+                            ? AiTurnState::TURN_FAILED
+                            : AiTurnState::TURN_ANSWERED,
+                        'stage' => $status === 'failed' ? 'generation' : null,
+                        // V0-C — un code n'est ecrit que s'il vient du
+                        // registre : une classe d'exception n'est pas un
+                        // `reason_code`.
+                        'reason_code' => AiTurnReason::isKnown($failure) ? $failure : null,
+                        'decided_by' => class_basename(self::class),
+                        // La MEME mesure que `metadata.latency_ms` ci-dessus,
+                        // jamais un second chronometre (C7).
+                        'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                        'history' => $history,
+                        // TASK-1573 / V0-E — `used` et `denied` tels que ce
+                        // moteur les ecrit deja au premier niveau ; ni
+                        // `retrieved` ni `reranked` : la recherche passe par
+                        // `DossierSemanticSearchService`, hors de la source qui
+                        // ecrit `retrieval_trace` — rien a formater, rien a inventer.
+                        'sources' => AiTurnTrace::sourcesBlock($consulted === [] ? [] : [self::SOURCE_NAME], []),
+                        // TASK-1574 / V0-F — axe 2 depuis `grounded` (syntaxique) ;
+                        // axe 3 : aucune source refusee ici (pre-choisies), pas de
+                        // rerank par cette voie → `null` mesure.
+                        'state' => AiTurnTrace::stateBlock($response === null ? null : $cited !== [], []),
+                    ],
+                ),
                 'failure' => $failure,
                 'retrieval' => ['consulted' => $ids($consulted), 'cited' => $ids($cited)],
+                // TASK-1554 / W3A — la graphie canonique du contrat commun,
+                // celle que `AiResponseExplanationService` lit deja
+                // (`llmPanel()` et `ragPanel()` -> `denied_count`) et que
+                // `ChatLoopAiService` / `ShellGeneralAnswerService` ecrivent
+                // deja. Ce moteur enregistre ses interactions sous la MEME
+                // capability `loop_knowledge_answer` que
+                // `LoopKnowledgeAnswerService` : sans ces deux cles, rien dans
+                // la trace ne disait quel moteur avait fonde la reponse, et le
+                // « Pourquoi ? » comptait 0 refus par ABSENCE de cle, jamais
+                // par mesure.
+                //
+                // `sources_denied` vaut `[]` ici, et ce n'est pas un
+                // remplissage : sur ce chemin les sources sont DEJA choisies et
+                // deja autorisees par l'appelant — aucune ne peut y etre
+                // refusee. Les deux refus deterministes que ce service connait
+                // (tenant, ACL) levent `SourceDenied` bien avant qu'une
+                // interaction existe, et le refus de configuration se dit sur
+                // le `KnowledgeAnswer` de `answer()`, qui n'en enregistre
+                // aucune non plus.
+                'sources_used' => $consulted === [] ? [] : [self::SOURCE_NAME],
+                'sources_denied' => [],
             ], static fn ($value): bool => $value !== null)
                 + ['doctrine_version' => $doctrineVersion],
         ]);

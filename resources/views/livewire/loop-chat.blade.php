@@ -347,6 +347,40 @@
                                     @endif
                                 </div>
                             @endif
+
+                            {{-- TASK-1595 : « Pour approfondir ». Meme intitule et
+                                 meme forme que la page Dossier (`dossiers.answer_follow_ups_heading`),
+                                 mais un clic ne quitte JAMAIS la Boucle : il
+                                 repose la question dans le composeur en mode
+                                 Dossiers, et le tour repart par
+                                 `loop_chat.dossiers`. Sur la page Dossier, les
+                                 memes boutons ouvrent le Shell — la, il n'y a
+                                 pas de fil ou poursuivre.
+
+                                 L'INDEX voyage, jamais le texte : le serveur
+                                 relit la question dans CETTE bulle. --}}
+                            @php
+                                $followUps = $isMember && is_array($msg->metadata['follow_up_questions'] ?? null)
+                                    ? $msg->metadata['follow_up_questions']
+                                    : [];
+                            @endphp
+                            @if($followUps !== [])
+                                <div class="mt-2 border-t border-violet-200/70 pt-2 dark:border-violet-800/70" data-loop-follow-ups>
+                                    <p class="text-[11px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">{{ __('dossiers.answer_follow_ups_heading') }}</p>
+                                    <ul class="mt-1.5 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap">
+                                        @foreach($followUps as $i => $followUp)
+                                        <li>
+                                            <button type="button"
+                                                    wire:click="askFollowUp('{{ $msg->id }}', {{ $i }})"
+                                                    wire:loading.attr="disabled"
+                                                    wire:target="askFollowUp"
+                                                    data-loop-follow-up="{{ $i }}"
+                                                    class="inline-flex min-h-[36px] items-center rounded-full border border-violet-200 bg-white px-3 py-1.5 text-left text-[11px] font-medium text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-violet-800 dark:bg-gray-900 dark:text-violet-300 dark:hover:bg-gray-800">{{ $followUp }}</button>
+                                        </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
                             </x-slot:footer>
                         </x-conversation.message-bubble>
                     @else
@@ -419,6 +453,70 @@
             @endforeach
         </x-slot:after>
     </x-conversation.message-list>
+
+    {{-- TASK-1550 : « Depuis cet échange, BouclePro a retenu… »
+         Entre le fil et le composeur : c'est là que le regard revient, et c'est
+         non bloquant — la carte ne recouvre rien, ne demande rien, et n'attend
+         aucune validation. Elle n'existe QUE si la mémoire a réellement été
+         écrite depuis la dernière fois que cette personne a parlé ici. Aucun
+         état « en cours d'apprentissage », aucun délai promis : avant la
+         consolidation il n'y a simplement pas de carte (CDC CORE V3 §3.3). --}}
+    @if($digestPanel !== null)
+    <div class="mx-3 mb-2 rounded-xl border border-violet-200 bg-violet-50/50 p-3 text-xs dark:border-violet-900/40 dark:bg-violet-950/20" data-memory-digest>
+        <div class="flex items-start justify-between gap-2">
+            <p class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>
+                {{ __('loops.digest_title') }}
+            </p>
+            <button type="button" wire:click="dismissDigest" data-memory-digest-dismiss
+                    aria-label="{{ __('loops.digest_dismiss') }}"
+                    class="shrink-0 rounded-full p-1 text-gray-400 transition hover:bg-violet-100 hover:text-gray-600 dark:hover:bg-violet-900/40 dark:hover:text-gray-200">
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        {{-- Hauteur BORNÉE, et c'est une garantie, pas une esthétique : la carte
+             ne peut jamais repousser la conversation hors de l'écran, même sur
+             une fenêtre courte ou avec trois énoncés longs. Elle commente le
+             fil, elle ne le remplace pas. --}}
+        <ul class="mt-2 max-h-[38vh] space-y-1.5 overflow-y-auto">
+            @foreach($digestPanel['entries'] as $entry)
+            @include('livewire.partials.memory-entry', [
+                'entry' => $entry,
+                'ancre' => \App\Livewire\LoopChat::ANCRE_DIGEST,
+                'canCorrect' => $digestCanCorrect,
+                'entryMarker' => 'data-digest-memory-entry',
+                'correctPrefix' => 'data-digest-correct',
+                'compact' => true,
+            ])
+            @endforeach
+        </ul>
+        {{-- La carte ne prétend JAMAIS montrer tout ce que BouclePro sait : elle
+             montre la tête de ce qui vient d'être appris (CDC : aucun wording
+             d'exhaustivité mémoire). --}}
+        <p class="mt-2 text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ __('loops.digest_note') }}</p>
+    </div>
+    @endif
+
+    {{-- TASK-1550 : l'ACK ou le conflit d'une correction faite DEPUIS LA CARTE
+         vit HORS de la carte, et c'est un correctif, pas un détail de mise en
+         page.
+
+         Placé à l'intérieur, il disparaissait exactement quand il comptait le
+         plus : retirer le dernier énoncé de la carte la vide, la carte cesse
+         d'être rendue — et l'accusé de réception part avec elle. La personne
+         voyait son geste faire disparaître quelque chose, sans un mot. Or le
+         résultat d'une correction qu'elle vient de DEMANDER lui est dû
+         (exception explicite du CDC Lab §10). --}}
+    @if($correctionFeedbackAnchor === \App\Livewire\LoopChat::ANCRE_DIGEST)
+    <div class="mx-3 mb-2">
+        @if($correctionFlash !== '')
+        <p class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs leading-5 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-200" data-digest-correction-flash>{{ $correctionFlash }}</p>
+        @endif
+        @if($correctionConflict !== null)
+        <p class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200" data-digest-correction-conflict>{{ $correctionConflict }}</p>
+        @endif
+    </div>
+    @endif
 
     @php
         // TASK-1322 (Core-2) : « Qui peut m'aider ? » n'est plus conditionne a
@@ -573,6 +671,45 @@
                  mobile) + « Qui peut m'aider » + l'upload d'image existant,
                  sans dupliquer sa saisie de fichier (voir composer.blade.php). --}}
             <x-slot:leading>
+                {{-- TASK-1475 : l'IA de la Boucle, VISIBLE sur mobile.
+
+                     TASK-1466 a retire le Shell global des Boucles — a raison : la
+                     Boucle porte deja son IA. Mais la mesure a 390 px montrait
+                     ensuite ZERO affordance IA visible : la seule porte etait le
+                     bouton « Plus d'actions », qui ne nomme pas l'IA, et il fallait
+                     l'ouvrir pour la trouver. Sur desktop l'action est dans la barre ;
+                     sur mobile elle avait disparu de la vue.
+
+                     Ce bouton n'ajoute AUCUNE capacite : il actionne exactement le
+                     meme interrupteur de moteur que la feuille (`toggleComposerEngine`),
+                     avec les memes gardes et le meme `aria-pressed`. Il ne monte pas
+                     le Shell global, ne cree aucune source de contexte, et laisse le
+                     desktop inchange (`md:hidden`).
+
+                     Attribut distinct de `data-engine-toggle` : la recette e2e cible
+                     ce dernier par `:visible` et un second element portant la meme
+                     valeur rendrait sa premiere correspondance ambigue. --}}
+                @if($aiEnginesAvailable)
+                {{-- La couleur active vit dans une feuille locale, pas dans une
+                     classe Tailwind arbitraire : `bg-[var(--bp-primary,#4f46e5)]`
+                     n'est pas dans le build et rendait le bouton TRANSPARENT.
+                     Mesure faite avant livraison — `getComputedStyle` rendait
+                     `rgba(0,0,0,0)` alors que la classe etait bien presente. --}}
+                <style>
+                  .bp-loop-ai-quick[aria-pressed="true"]{background:var(--bp-primary,#4f46e5);color:#fff}
+                </style>
+                <button
+                    type="button"
+                    wire:click="toggleComposerEngine('ia')"
+                    data-engine-quick="ia"
+                    aria-pressed="{{ $engineActive['ia'] ? 'true' : 'false' }}"
+                    class="bp-loop-ai-quick md:hidden flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition {{ $engineActive['ia'] ? '' : 'text-gray-400 hover:bg-gray-100 hover:text-indigo-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-indigo-300' }}"
+                    aria-label="{{ __('loops.ask_ai_button') }}"
+                    title="{{ __('loops.ask_ai_button') }}"
+                >
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/></svg>
+                </button>
+                @endif
                 <div class="md:hidden" x-data="{ sheetOpen: false }">
                     {{-- TASK-1329 : bouton INTEGRE au champ (composer.blade.php
                          le positionne en absolu dans le cadre du textarea) —
@@ -857,6 +994,49 @@
                                 @endif
                             </div>
 
+                            {{-- TASK-1549 : la mémoire durable citée par cette réponse.
+                                 Seuls les chunks portant une FK de note dérivée entrent
+                                 ici (discriminateur côté lecture, jamais la forme
+                                 publique) ; un refus d'ACL est générique, une trace
+                                 injoignable a son propre wording — et rien ici ne
+                                 prétend montrer tout ce que BouclePro sait. --}}
+                            @php($whyMemory = $whyPanel['ledger']['memory'] ?? null)
+                            @if($whyMemory !== null)
+                            <div class="rounded-xl border border-violet-200 bg-violet-50/40 p-3 text-xs dark:border-violet-900/40 dark:bg-violet-950/20" data-why-memory>
+                                <p class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                                    <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>
+                                    {{ __('loops.why_memory_title') }}
+                                </p>
+                                @if($whyMemory['entries'] !== [])
+                                <ul class="mt-2 space-y-2">
+                                    @foreach($whyMemory['entries'] as $entry)
+                                    @include('livewire.partials.memory-entry', [
+                                        'entry' => $entry,
+                                        'ancre' => \App\Livewire\LoopChat::ANCRE_WHY,
+                                        'canCorrect' => $whyCanCorrect,
+                                        'entryMarker' => 'data-why-memory-entry',
+                                        'correctPrefix' => 'data-correct',
+                                        'compact' => false,
+                                    ])
+                                    @endforeach
+                                </ul>
+                                @endif
+                                @if($whyMemory['denied_count'] > 0)
+                                <p class="mt-2 leading-5 text-amber-700 dark:text-amber-300" data-why-memory-denied="{{ $whyMemory['denied_count'] }}">{{ trans_choice('loops.why_memory_denied', $whyMemory['denied_count']) }}</p>
+                                @endif
+                            </div>
+                            @endif
+
+                            {{-- TASK-1549 (remédiation) : le TROISIÈME état, HORS de la
+                                 section mémoire. Une source citée dont la ligne a disparu
+                                 n'a plus d'origine établissable — la dire ici, en une ligne
+                                 discrète et sans nommer de famille, évite d'affirmer une
+                                 mémoire qu'on ne peut plus prouver. Distinct d'un refus
+                                 de droit, qui lui reste dans la section mémoire. --}}
+                            @if(($whyPanel['ledger']['unreachable_count'] ?? 0) > 0)
+                            <p class="leading-5 text-gray-500 dark:text-gray-400" data-why-source-unreachable="{{ $whyPanel['ledger']['unreachable_count'] }}">{{ trans_choice('loops.why_source_unreachable', $whyPanel['ledger']['unreachable_count']) }}</p>
+                            @endif
+
                             @if($whyPanel['ledger']['denied_count'] > 0)
                             <p class="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200" data-why-denied="{{ $whyPanel['ledger']['denied_count'] }}">
                                 <svg class="mt-0.5 h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
@@ -864,6 +1044,22 @@
                             </p>
                             @endif
                         </div>
+                    @endif
+
+                    {{-- TASK-1549 : l'ACK ou le conflit d'une correction que la
+                         personne vient de DEMANDER lui est dû (exception
+                         explicite du CDC Lab §10). Propriétés publiques, jamais
+                         un flash : le `wire:poll.3s` le consommerait. --}}
+                    {{-- TASK-1550 : le résultat d'un geste s'affiche LÀ OÙ le geste a
+                         été fait. Sans ce filtre, une correction faite depuis la carte
+                         aurait aussi posé son accusé de réception ici. --}}
+                    @if($correctionFeedbackAnchor !== \App\Livewire\LoopChat::ANCRE_DIGEST)
+                    @if($correctionFlash !== '')
+                    <p class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs leading-5 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-200" data-correction-flash>{{ $correctionFlash }}</p>
+                    @endif
+                    @if($correctionConflict !== null)
+                    <p class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200" data-correction-conflict>{{ $correctionConflict }}</p>
+                    @endif
                     @endif
 
                     @if($whyPanel['can_feedback'])

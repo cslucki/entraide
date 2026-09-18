@@ -2,6 +2,8 @@
 
 namespace App\Livewire;
 
+use App\Models\AiInteraction;
+use App\Models\AiInteractionFeedback;
 use App\Models\AiShellMessage;
 use App\Models\Category;
 use App\Models\Dossier;
@@ -9,7 +11,9 @@ use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Ai\AiShellResponder;
+use App\Services\ChatLoop\AiResponseExplanationService;
 use App\Support\Ai\AiFabContext;
+use App\Support\Ai\AiShellNominativeTurn;
 use App\Support\Ai\AiShellPageContext;
 use App\Support\Ai\AiShellPinnedContext;
 use App\Support\Ai\AiShellThread;
@@ -77,6 +81,23 @@ class AiShell extends Component
     public ?string $notice = null;
 
     public bool $confirmingClear = false;
+
+    /**
+     * TASK-1551 — le tour dont le panneau « Pourquoi ? » est ouvert. `null` =
+     * fermé. `#[Locked]` : le client ne choisit pas quelle réponse s'explique,
+     * et un identifiant forgé ne peut pas remplacer celui que le serveur a
+     * validé — même discipline que `judge()`, qui résout toujours le message
+     * dans le fil de CETTE personne.
+     */
+    #[Locked]
+    public ?string $whyMessageId = null;
+
+    /**
+     * Ce que le serveur a jugé montrable à CE spectateur, et rien d'autre.
+     * Voyage dans le snapshot, qui est lisible côté client : aucune donnée
+     * refusée n'y entre — les refus y sont des NOMBRES.
+     */
+    public ?array $whyPanel = null;
 
     public function mount(): void
     {
@@ -222,8 +243,28 @@ class AiShell extends Component
         }
 
         $metadata = is_array($answer->metadata) ? $answer->metadata : [];
+        $status = $metadata['status'] ?? null;
 
-        if (($metadata['status'] ?? null) !== AiShellResponder::STATUS_ANSWERED) {
+        // TASK-1552 — un tour NERVOUS SYSTEM debouche, lui aussi.
+        //
+        // Le verrou historique etait `status === ANSWERED`, et il coupait tout
+        // le Nervous System : People, reference, documentaire — tous sortent en
+        // `NON_INTERACTION` par construction, tous AVANT `generate()`. « Qui
+        // peut m'aider ? » n'avait donc aucune suite possible.
+        //
+        // L'ouverture est DECLARATIVE et BORNEE PAR PRODUCTEUR, jamais
+        // permissive : un tour non-interaction n'est recevable que s'il vient
+        // d'une branche Nervous System autorisee a declarer
+        // (`AiShellResponder::CARD_PRODUCERS`) ET qu'il a lui-meme ECRIT une
+        // Boucle de relais. `BLOCKED` et `UNAVAILABLE` restent refuses — aucune
+        // reponse n'a eu lieu, il n'y a rien a preparer. Une reponse
+        // conversationnelle non plus : son producteur n'est pas dans la liste.
+        $declares = $status === AiShellResponder::STATUS_NON_INTERACTION
+            && in_array($metadata['producer'] ?? null, AiShellResponder::CARD_PRODUCERS, true)
+            && is_string($metadata['suggested_loop_id'] ?? null)
+            && $metadata['suggested_loop_id'] !== '';
+
+        if ($status !== AiShellResponder::STATUS_ANSWERED && ! $declares) {
             return null;
         }
 
@@ -244,11 +285,59 @@ class AiShell extends Component
 
         $relayLoop = $this->suggestedLoop($answer);
 
+        // TASK-1552 — la DECLARATION est de la metadata ; l'AUTORITE est
+        // `suggestedLoop()`, qui rejoue la garde de la page. Pour un tour
+        // Nervous System, toute l'affordance repose sur cette Boucle : si elle
+        // ne resout plus — adhesion retiree, Boucle archivee, tenant different
+        // — le tour n'a plus rien a proposer, et preparer une demande sans
+        // relais serait offrir un geste que le tour n'a jamais porte.
+        //
+        // La verification vit ICI, apres la resolution, et pas dans la garde
+        // de statut plus haut : une garde qui ferait confiance a la metadata
+        // seule rendrait l'ACL dependante de l'ORDRE DES APPELS — la classe de
+        // defaut que la remediation de T1549 a fermee.
+        if ($status !== AiShellResponder::STATUS_ANSWERED && $relayLoop === null) {
+            return null;
+        }
+
+        // TASK-1552 — LE point ou le brouillon peut mentir, et ou il ne ment pas.
+        //
+        // Sur un tour REPONDU, `message_draft` est le texte que la
+        // clarification a redige A LA PREMIERE PERSONNE pour cette personne :
+        // c'est sa demande, formulee avec elle. Le comportement est inchange.
+        //
+        // Un tour Nervous System n'en a pas. Retomber sur `$answer->content`
+        // sement le brouillon avec la REPONSE DE L'IA — « voici trois
+        // personnes qui pourraient aider… ». La personne arriverait sur le
+        // formulaire avec une demande qu'elle n'a jamais ecrite, redigee par la
+        // machine, a sa place.
+        //
+        // La source honnete est a un `reply_to_id` de distance : le message
+        // humain qui a declenche le tour. C'est SA phrase. Et le TITRE reste
+        // vide — un tour NS n'en produit aucun, en fabriquer un serait la meme
+        // faute en plus petit. La categorie aussi : rien n'est devine.
+        $description = trim((string) ($metadata['message_draft'] ?? ''));
+
+        if ($description === '') {
+            $description = $status === AiShellResponder::STATUS_ANSWERED
+                ? (string) $answer->content
+                : trim((string) $answer->replyTo?->content);
+        }
+
         $handoff->storeDraft($user, $organization, [
             'title' => (string) ($metadata['title'] ?? ''),
-            'description' => (string) ($metadata['message_draft'] ?: $answer->content),
+            'description' => $description,
             'relay_loop_id' => $relayLoop?->id,
             'category_id' => $category?->id,
+            // TASK-1553 — sur quoi cette proposition se fonde, porte JUSQU'AU
+            // formulaire. Sans elle, la personne devait decider d'envoyer
+            // quelque chose sans savoir d'ou cela venait.
+            //
+            // Rien n'est reconstruit : le fait vient d'une resolution SERVEUR
+            // qui vient d'avoir lieu (`suggestedLoop()` a rejoue la garde de
+            // page), et la formulation vient de la carte du tour, ecrite avant
+            // tout aplatissement en prose. Aucune lecture de texte genere.
+            'provenance' => $this->draftProvenance($answer, $relayLoop),
         ]);
 
         return redirect()->to($this->requestsCreateUrl($organization));
@@ -262,6 +351,242 @@ class AiShell extends Component
      * deja voir dans SA Organization. Epingler n'accorde rien : chaque usage
      * du pin rejoue la meme garde.
      */
+    /**
+     * TASK-1486 — « Cette reponse vous a-t-elle aide ? »
+     *
+     * ## Ce qui existait, et ce qui manquait
+     *
+     * `ai_interaction_feedbacks` est en place depuis TASK-1256 : deux verdicts
+     * — `helpful` / `improve` —, un commentaire libre, un ancrage tenant en FK
+     * CASCADE, et une politique de retention deja declaree dans
+     * `UserDataLifecycleRegistry`. Rien de tout cela n'est cree ici.
+     *
+     * Ce qui manquait etait le BRANCHEMENT. Mesure du 2026-09-09 : 281
+     * interactions IA, dix fonctions, **une seule** instrumentee — le blog
+     * explorer, 26 interactions, et zero verdict jamais recueilli. Le Shell,
+     * qui pese 87 interactions a lui seul, n'avait aucun moyen de dire si sa
+     * reponse avait servi a quelque chose.
+     *
+     * ## Les quatre gardes, et pourquoi chacune
+     *
+     * `$messageId` vient du CLIENT. Chaque garde est donc rejouee ici, comme
+     * dans `prepareRequest()` :
+     *
+     *  1. le message appartient a CE fil — `forThread()` scope d'abord par
+     *     (organization_id, user_id) ;
+     *  2. c'est une REPONSE, et une reponse effectivement REPONDUE : les
+     *     statuts degrades n'ont produit aucun appel provider, donc aucune
+     *     trace a juger ;
+     *  3. la trace pointee appartient a CETTE Organization **et a CET
+     *     utilisateur**. Cette seconde condition est la plus importante du
+     *     lot : sans elle, un membre pourrait poster l'identifiant d'une trace
+     *     d'un collegue et decouvrir, par la reponse, qu'elle existe. Un
+     *     verdict ne se donne que sur SA propre reponse ;
+     *  4. le verdict est l'une des deux valeurs admises par le modele.
+     *
+     * ## Ce que ce geste n'est pas
+     *
+     * Ni une notation d'utilisateur, ni une lecture de conversation, ni un
+     * consentement d'entrainement — le modele de TASK-1256 le dit deja : aucun
+     * champ export / training / consent n'existe sur cette table, par
+     * construction. C'est un humain qui juge UNE reponse qu'il a lui-meme
+     * provoquee.
+     *
+     * `updateOrCreate` sur (interaction, utilisateur) : un avis se change,
+     * il ne s'empile pas.
+     */
+    public function judge(string $messageId, string $verdict): void
+    {
+        [$user, $organization] = $this->actor();
+
+        if ($user === null || $organization === null) {
+            return;
+        }
+
+        if (! in_array($verdict, AiInteractionFeedback::VERDICTS, true)) {
+            return;
+        }
+
+        $answer = AiShellMessage::query()
+            ->forThread((string) $organization->id, (string) $user->id)
+            ->whereKey($messageId)
+            ->where('role', AiShellMessage::ROLE_ASSISTANT)
+            ->first();
+
+        if (! $answer instanceof AiShellMessage) {
+            return;
+        }
+
+        $metadata = is_array($answer->metadata) ? $answer->metadata : [];
+
+        if (($metadata['status'] ?? null) !== AiShellResponder::STATUS_ANSWERED) {
+            return;
+        }
+
+        $interactionId = $metadata['ai_interaction_id'] ?? null;
+
+        if (! is_string($interactionId) || $interactionId === '') {
+            return;
+        }
+
+        // La trace doit etre celle de CE tenant ET de CET utilisateur.
+        $interaction = AiInteraction::query()
+            ->whereKey($interactionId)
+            ->where('organization_id', $organization->id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (! $interaction instanceof AiInteraction) {
+            return;
+        }
+
+        AiInteractionFeedback::query()->updateOrCreate(
+            ['ai_interaction_id' => $interaction->id, 'user_id' => $user->id],
+            ['organization_id' => $interaction->organization_id, 'verdict' => $verdict],
+        );
+    }
+
+    /**
+     * TASK-1551 — « Pourquoi cette réponse ? » sur un tour du Shell.
+     *
+     * Ce composant ne décide RIEN : il résout le tour dans le fil de cette
+     * personne (exactement comme {@see self::judge()}), puis demande au lecteur
+     * standard ce qui est montrable. Ouvrir n'écrit rien, nulle part — ni
+     * mémoire, ni verdict, ni trace.
+     *
+     * ## La garde porte sur la TRACE, jamais sur le statut
+     *
+     * Piège mesuré au Gate SPEC : `judge()` exige `STATUS_ANSWERED`, or les
+     * QUATRE branches du Shell qui écrivent `metadata['sources']` sortent en
+     * `STATUS_NON_INTERACTION`. Reprendre cette garde ici aurait livré une
+     * fonctionnalité morte — verte en test sur un tour fabriqué, sans effet sur
+     * un seul tour réel. Ce qui rend une réponse explicable, c'est qu'elle
+     * porte une trace exploitable, pas son statut.
+     *
+     * ## Le Shell explique, il n'écrit pas
+     *
+     * Aucun formulaire de correction n'existe ici, et ce n'est pas une règle de
+     * vue : `ClaimProvenanceReader::provenance()` reçoit `null` comme Boucle
+     * courante et rend donc `can_correct = false` par construction. Corriger se
+     * fait dans la Boucle source, par le chemin standard de T1549 — le panneau
+     * y conduit, il ne le double pas.
+     */
+    public function showWhy(string $messageId, AiResponseExplanationService $explanations): void
+    {
+        $this->closeWhy();
+
+        [$user, $organization] = $this->actor();
+
+        if ($user === null || $organization === null) {
+            return;
+        }
+
+        $answer = AiShellMessage::query()
+            ->forThread((string) $organization->id, (string) $user->id)
+            ->whereKey($messageId)
+            ->where('role', AiShellMessage::ROLE_ASSISTANT)
+            ->first();
+
+        if (! $answer instanceof AiShellMessage) {
+            return;
+        }
+
+        $metadata = is_array($answer->metadata) ? $answer->metadata : [];
+        $interactionId = $metadata['ai_interaction_id'] ?? null;
+
+        if (! is_string($interactionId) || $interactionId === '') {
+            return;
+        }
+
+        // La trace doit être celle de CE tenant ET de CETTE personne — la même
+        // exigence que `judge()`, et pour la même raison.
+        $interaction = AiInteraction::query()
+            ->whereKey($interactionId)
+            ->where('organization_id', $organization->id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (! $interaction instanceof AiInteraction) {
+            return;
+        }
+
+        $imeta = is_array($interaction->metadata) ? $interaction->metadata : [];
+        $publicSources = is_array($metadata['sources'] ?? null) ? array_values($metadata['sources']) : [];
+
+        // `$currentLoop = null` : le Shell n'est dans aucune conversation.
+        $cite = $explanations->citedProvenance(
+            $organization,
+            null,
+            $user,
+            $publicSources,
+            is_array($imeta['retrieval'] ?? null) ? $imeta['retrieval'] : null,
+        );
+
+        $memory = $cite['memory'];
+        $documents = $cite['documents'];
+
+        $rien = ($memory === null || ($memory['entries'] === [] && $memory['denied_count'] === 0))
+            && ($documents === null || ($documents['entries'] === [] && $documents['masked_count'] === 0))
+            && $cite['unreachable_count'] === 0;
+
+        if ($rien) {
+            // Rien de prouvable sur ce tour. On n'ouvre pas un panneau vide :
+            // il laisserait croire que BouclePro a répondu sans rien, alors
+            // qu'on ne sait simplement rien en dire.
+            return;
+        }
+
+        $this->whyMessageId = (string) $answer->id;
+        $this->whyPanel = [
+            'memory' => $memory === null ? null : [
+                'entries' => array_map($this->withLoopUrl(...), $memory['entries']),
+                'denied_count' => $memory['denied_count'],
+            ],
+            'documents' => $documents,
+            'unreachable_count' => $cite['unreachable_count'],
+        ];
+    }
+
+    public function closeWhy(): void
+    {
+        $this->whyMessageId = null;
+        $this->whyPanel = null;
+    }
+
+    /**
+     * L'ADRESSE de la Boucle de portée, ajoutée à une entrée mémoire.
+     *
+     * Le lecteur standard ne rend `source_loop_id` que pour une Boucle qu'il a
+     * lui-même jugée lisible par ce spectateur ; la charger ici ne rouvre donc
+     * aucun droit. La contrainte de tenant est reposée quand même : une
+     * autorité ne se croit pas sur parole quand la vérifier coûte une clause.
+     *
+     * `workspaceUrl()` est le constructeur canonique du dépôt — il résout
+     * l'Organization de la Boucle ELLE-MÊME, jamais celle de la requête
+     * courante.
+     *
+     * @param  array<string, mixed>  $entry
+     * @return array<string, mixed>
+     */
+    private function withLoopUrl(array $entry): array
+    {
+        $loopId = $entry['source_loop_id'] ?? null;
+        $entry['loop_url'] = null;
+
+        if (! is_string($loopId) || $loopId === '') {
+            return $entry;
+        }
+
+        $loop = Loop::query()
+            ->whereKey($loopId)
+            ->where('organization_id', $this->organizationId)
+            ->first();
+
+        $entry['loop_url'] = $loop?->workspaceUrl();
+
+        return $entry;
+    }
+
     public function pin(AiShellPinnedContext $pins, string $kind, string $objectId): void
     {
         $this->notice = null;
@@ -338,7 +663,44 @@ class AiShell extends Component
         // plus. Une instance unique par rendu : son memo d'eligibilite tient
         // le cout constant.
         $turnCards = app(AiShellTurnCards::class);
+        // TASK-1486 — le verdict DEJA donne par cette personne sur chacune de
+        // ces reponses, en UNE requete.
+        //
+        // Il est relu en base a chaque rendu, jamais garde cote client : un
+        // avis qui survivrait a son retrait, ou qui s'afficherait pour
+        // quelqu'un d'autre, serait pire que pas d'avis du tout. Le scope part
+        // de l'utilisateur — on ne lit jamais le verdict d'un tiers.
+        $judgeableIds = $messages
+            ->map(fn (AiShellMessage $m): ?string => is_array($m->metadata) ? ($m->metadata['ai_interaction_id'] ?? null) : null)
+            ->filter(fn ($id): bool => is_string($id) && $id !== '')
+            ->values()
+            ->all();
+
+        // Aucun tour jugeable dans ce fil : aucune requete. Ce n'est pas une
+        // micro-optimisation gratuite — c'est le cas de TOUS les fils ecrits
+        // avant cette tranche, et ils ne doivent rien couter de plus qu'avant.
+        $verdicts = $judgeableIds === []
+            ? []
+            : AiInteractionFeedback::query()
+                ->where('user_id', $user->id)
+                ->where('organization_id', $organization->id)
+                ->whereIn('ai_interaction_id', $judgeableIds)
+                ->pluck('verdict', 'ai_interaction_id')
+                ->all();
+
         $cards = [];
+        // TASK-1546 (audit) — le texte NOMINATIF, revalide MAINTENANT.
+        //
+        // Les cartes ne suffisaient pas, et pas par oubli : `forDisplay()` ne
+        // rend des cartes que sur un tour `STATUS_ANSWERED`, or les tours
+        // People/Self sont `STATUS_NON_INTERACTION`. Leurs cartes n'atteignent
+        // jamais l'ecran — seul le texte l'atteint, et c'est lui qui portait
+        // les noms d'un ensemble eligible calcule a un autre moment.
+        //
+        // Une seule instance par rendu, comme pour les cartes : les tours qui
+        // ne nomment personne rendent leur contenu sans aucune requete.
+        $nominative = app(AiShellNominativeTurn::class);
+        $bodies = [];
 
         foreach ($messages as $message) {
             $displayable = $turnCards->forDisplay($organization, $user, $message);
@@ -346,23 +708,69 @@ class AiShell extends Component
             if ($displayable !== []) {
                 $cards[(string) $message->id] = $displayable;
             }
+
+            $body = $nominative->displayContent($organization, $user, $message);
+
+            if ($body !== (string) $message->content) {
+                $bodies[(string) $message->id] = $body;
+            }
         }
+
+        // TASK-1469 : « ou suis-je ? », resolu par la MEME autorite que le FAB.
+        // Un contexte reconstitue depuis une requete Livewire n'a pas de route
+        // de page : le repli `unknown` ne dit rien de faux.
+        $surface = (string) ($context['surface'] ?? AiShellPageContext::SURFACE_UNKNOWN);
+
+        // Une seule lecture du contexte FAB par rendu : `fab()` appelle
+        // `AiFabContext::forRequest()`, et l'appeler quatre fois recalculerait
+        // quatre fois le credit.
+        $fab = $this->fab();
 
         return view('livewire.ai-shell', [
             'shell' => [
                 'context' => $context,
+                'surface' => $surface,
+                // TASK-1484 : `usage_reference` ne fait PLUS partie du rendu.
+                //
+                // TASK-1477 le calculait ici pour l'afficher en bloc. Mesure
+                // faite, c'etait son seul consommateur cote membre — le texte
+                // etait recite a l'ecran et n'atteignait jamais le modele. Il
+                // est desormais lu dans `AiShellResponder::situated()`, au
+                // moment du tour, et il ANCRE la reponse.
+                //
+                // Le laisser ici couterait une resolution de reference a
+                // CHAQUE rendu du composant — donc a chaque navigation — pour
+                // une valeur que plus personne ne lit.
                 'here' => $this->hereLabel($context),
                 'conversation_id' => $conversationId,
                 'messages' => $messages,
                 'cards' => $cards,
+                // TASK-1546 (audit) : contenu revalide, par identifiant de
+                // message. Absent = le contenu stocke est encore exact.
+                'bodies' => $bodies,
+                // TASK-1486 : `ai_interaction_id` => verdict, pour CETTE
+                // personne uniquement.
+                'verdicts' => $verdicts,
                 'pins' => $pins,
                 'pinnable' => $pinnable
                     ? ['kind' => (string) $object['type'], 'id' => (string) $object['id'], 'label' => (string) $object['label']]
                     : null,
                 'pin_limit' => $pinnedContext->limit(),
                 'actions' => $this->actions($context),
-                'refusal' => $this->creditRefusal(),
-                'offers_url' => $this->fab()['offers_url'] ?? null,
+                'refusal' => $fab['refusal_message'] ?? null,
+                'offers_url' => $fab['offers_url'] ?? null,
+                // TASK-1478 — le credit descend ici. Il vivait dans le panneau
+                // du FAB, qui etait l'etape intermediaire que ce lot supprime :
+                // le laisser la-bas l'aurait rendu invisible.
+                //
+                // Aucune seconde lecture : ces trois entrees viennent du MEME
+                // tableau `$fab` que le refus et le lien d'offres, calcule une
+                // fois par rendu. `AiFabContext` reste la seule autorite du
+                // credit, et ce panneau n'en montre que ce qu'elle a produit.
+                'credit' => $fab['credit'] ?? null,
+                'credit_label' => $fab['credit_label'] ?? null,
+                'credit_tone' => $fab['credit_tone'] ?? 'ok',
+                'usage_url' => $fab['usage_url'] ?? null,
                 // TASK-1350 (P0) : le nom de l'Organization DEJA resolue par
                 // `actor()` pour ce rendu — aucun resolver de plus, aucune
                 // requete de plus. Il n'est qu'affiche, sous le choix humain :
@@ -451,6 +859,48 @@ class AiShell extends Component
      * La Boucle suggeree par un tour, RE-RESOLUE sous la garde de la page.
      * L'identifiant seul est stocke ; s'il ne passe plus, il n'existe plus.
      */
+    /**
+     * TASK-1553 — les fondements de la proposition, tels que le SERVEUR peut
+     * les prouver, et rien de plus.
+     *
+     * Deux niveaux, et la distinction est le sujet (motif T1321) :
+     *
+     *  - `verified` : un FAIT etabli par une requete serveur. Ici l'adhesion
+     *    active a la Boucle de relais — et elle vient d'etre reverifiee par
+     *    `suggestedLoop()`, qui rejoue la garde de page. Sans Boucle resolue,
+     *    aucun fait : le tableau reste vide plutot que d'affirmer.
+     *  - `ai_wording` : la FORMULATION du modele, `verified: false`, jamais une
+     *    preuve. Elle est lue sur la carte de Boucle du tour — une structure
+     *    ecrite AVANT `situated()`, donc avant tout aplatissement en prose. Un
+     *    tour Nervous System n'en a aucune, et on n'en invente pas.
+     *
+     * @return array<string, mixed>
+     */
+    private function draftProvenance(AiShellMessage $answer, ?Loop $relayLoop): array
+    {
+        $metadata = is_array($answer->metadata) ? $answer->metadata : [];
+        $wording = null;
+
+        foreach ((array) ($metadata['cards'] ?? []) as $card) {
+            if (! is_array($card) || ($card['type'] ?? null) !== AiShellTurnCards::TYPE_LOOP) {
+                continue;
+            }
+
+            $texte = trim((string) ($card['ai_wording'] ?? ''));
+            $wording = $texte === '' ? null : ['text' => $texte, 'verified' => false];
+
+            break;
+        }
+
+        return [
+            'origin' => 'shell',
+            'verified' => $relayLoop === null
+                ? []
+                : [['type' => 'active_membership', 'loop_id' => (string) $relayLoop->id]],
+            'ai_wording' => $wording,
+        ];
+    }
+
     private function suggestedLoop(AiShellMessage $answer): ?Loop
     {
         $loopId = is_array($answer->metadata) ? ($answer->metadata['suggested_loop_id'] ?? null) : null;

@@ -47,9 +47,37 @@ class ProfileController extends Controller
         return $this->me($request);
     }
 
+    /**
+     * TASK-1491 (P0 privacy) — le JUMEAU API du defaut que TASK-1479 a ferme
+     * sur le web.
+     *
+     * Mesure au HEAD 8f540d69, sans aucun jeton : `/api/users/{uuid}` rendait
+     * **200** pour un membre d'une Organization `is_public = false`, avec son
+     * nom, sa biographie et sa ville. `Slucki` de `test20260822` renvoyait
+     * « Marseille » et sa biographie a n'importe qui.
+     *
+     * Pourquoi ce point echappait au reste : `Service` et `ServiceRequest`
+     * portent `BelongsToOrganizationScope` en scope globale — c'est ce qui leur
+     * fait rendre 404 hors du tenant resolu. `User` ne la porte volontairement
+     * PAS (voir `User::booted()`). Le route-model binding livrait donc
+     * n'importe quelle personne de n'importe quelle Organization.
+     *
+     * La frontiere est posee ici, explicitement, et jamais en ajoutant une
+     * scope globale a `User` : cette absence est deliberee et beaucoup d'autres
+     * chemins en dependent.
+     */
     public function show(User $user): JsonResponse
     {
         if ($user->banned_at !== null) {
+            return response()->json(['message' => 'Profil non disponible.'], 404);
+        }
+
+        // Fail closed. Le 404 est le meme refus que `EnsureOrganizationMember`
+        // rend sur l'annuaire, et pour la meme raison : un 403 confirmerait a un
+        // tiers que cette personne existe.
+        $organization = currentOrganization();
+
+        if (! $organization || $user->organization_id !== $organization->id) {
             return response()->json(['message' => 'Profil non disponible.'], 404);
         }
 

@@ -171,17 +171,49 @@ class TASK1305AdminAiNavigationTest extends TestCase
 
     // ── Org Admin menu : placeholders masqués, invariant main/scoped ───────
 
+    /**
+     * TASK-1504 — ce que cette suite mesure est écrit dans son propre
+     * en-tête : les 3 items `comingSoon()` sont retirés du MENU. L'assertion
+     * portait pourtant sur la PAGE ENTIÈRE, et ne tenait que tant qu'aucun
+     * contenu légitime n'employait ces mots : la tuile « Interactions IA du
+     * mois » du tableau de bord contient « Interactions IA », et faisait
+     * rougir un gate qui n'avait rien à dire sur elle.
+     *
+     * L'assertion est donc recentrée sur la barre latérale — et RENFORCÉE :
+     * on exige aussi l'absence des trois ROUTES. Un libellé renommé ne peut
+     * plus faire passer un lien resté au menu, ce que la forme précédente
+     * autorisait.
+     */
+    private function assertComingSoonItemsAreOutOfTheMenu(string $html, Organization $organization): void
+    {
+        $this->assertSame(1, preg_match('/<aside\b.*?<\/aside>/s', $html, $m), 'barre latérale introuvable');
+        $menu = $m[0];
+
+        foreach ([
+            'navigation.org_admin_ai_supervision' => 'organization.admin.ai-supervision',
+            'navigation.org_admin_member_ai_profiles' => 'organization.admin.member-ai-profiles',
+            'navigation.org_admin_ai_interactions' => 'organization.admin.ai-interactions',
+        ] as $label => $route) {
+            $this->assertStringNotContainsString(__($label), $menu, "« {$label} » encore dans le menu");
+            $this->assertStringNotContainsString(
+                'href="'.route($route, ['organization' => $organization->slug]).'"',
+                $menu,
+                "lien vers {$route} encore dans le menu"
+            );
+        }
+    }
+
     public function test_org_admin_menu_hides_coming_soon_items_when_ai_profiles_disabled(): void
     {
         $admin = $this->superAdmin();
         $organization = Organization::factory()->create(['slug' => 'org-1305-off', 'ai_profiles_enabled' => false]);
 
-        $this->actingAs($admin)
+        $html = $this->actingAs($admin)
             ->get(route('organization.admin.dashboard', $organization->slug))
             ->assertOk()
-            ->assertDontSee(__('navigation.org_admin_ai_supervision'))
-            ->assertDontSee(__('navigation.org_admin_member_ai_profiles'))
-            ->assertDontSee(__('navigation.org_admin_ai_interactions'));
+            ->getContent();
+
+        $this->assertComingSoonItemsAreOutOfTheMenu($html, $organization);
     }
 
     /**
@@ -194,12 +226,12 @@ class TASK1305AdminAiNavigationTest extends TestCase
         $admin = $this->superAdmin();
         $organization = Organization::factory()->create(['slug' => 'org-1305-on', 'ai_profiles_enabled' => true]);
 
-        $this->actingAs($admin)
+        $html = $this->actingAs($admin)
             ->get(route('organization.admin.dashboard', $organization->slug))
             ->assertOk()
-            ->assertDontSee(__('navigation.org_admin_ai_supervision'))
-            ->assertDontSee(__('navigation.org_admin_member_ai_profiles'))
-            ->assertDontSee(__('navigation.org_admin_ai_interactions'));
+            ->getContent();
+
+        $this->assertComingSoonItemsAreOutOfTheMenu($html, $organization);
     }
 
     /**
@@ -214,7 +246,7 @@ class TASK1305AdminAiNavigationTest extends TestCase
         $scoped = Organization::factory()->create(['slug' => 'scoped-1305', 'ai_profiles_enabled' => true]);
 
         foreach ([$main, $scoped] as $organization) {
-            $this->actingAs($admin)
+            $html = $this->actingAs($admin)
                 ->get(route('organization.admin.dashboard', $organization->slug))
                 ->assertOk()
                 ->assertSee('href="'.route('organization.admin.ai-cockpit', ['organization' => $organization->slug]).'"', false)
@@ -222,9 +254,9 @@ class TASK1305AdminAiNavigationTest extends TestCase
                 ->assertSee('href="'.route('organization.admin.ai-behavior', ['organization' => $organization->slug]).'"', false)
                 ->assertSee('href="'.route('organization.admin.ai-knowledge', ['organization' => $organization->slug]).'"', false)
                 ->assertSee('href="'.route('organization.admin.ai-consumption', ['organization' => $organization->slug]).'"', false)
-                ->assertDontSee(__('navigation.org_admin_ai_supervision'))
-                ->assertDontSee(__('navigation.org_admin_member_ai_profiles'))
-                ->assertDontSee(__('navigation.org_admin_ai_interactions'));
+                ->getContent();
+
+            $this->assertComingSoonItemsAreOutOfTheMenu($html, $organization);
         }
     }
 

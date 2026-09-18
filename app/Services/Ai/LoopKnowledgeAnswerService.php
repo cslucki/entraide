@@ -6,13 +6,17 @@ use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Ai\CapabilityDefinition;
 use App\Ai\CapabilityRegistry;
 use App\Ai\Context\ContextBuilder;
+use App\Ai\Context\ContexteBorne;
 use App\Ai\Context\DossierManifestSource;
 use App\Ai\Context\DossierRetrievalSource;
+use App\Ai\Context\DossierRetrievalTraceRecorder;
+use App\Ai\Context\KnowledgeDeltaSource;
 use App\Ai\ContexteIa;
 use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
 use App\Ai\ResolvedModel;
 use App\Events\LoopMessageCreated;
+use App\Listeners\RecordSdkEmbeddingsInvocation;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
 use App\Models\Loop;
@@ -28,6 +32,9 @@ use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiTurnIdempotency;
 use App\Support\Ai\AiTurnLock;
+use App\Support\Ai\AiTurnReason;
+use App\Support\Ai\AiTurnState;
+use App\Support\Ai\AiTurnTrace;
 use App\Support\Ai\AiUsage;
 use DomainException;
 use Illuminate\Support\Facades\DB;
@@ -80,6 +87,9 @@ class LoopKnowledgeAnswerService
      * jamais lu depuis une requete : il est choisi par l'appelant, en dur, a
      * l'entree publique correspondante.
      */
+    /** V0-J / P0.2 — le producteur de ce moteur, tel que `turn.identity.producer` le nomme. */
+    public const PRODUCER = 'loop.knowledge_answer';
+
     private const MODE_DOSSIERS = 'dossiers';
 
     private const MODE_HYBRID = 'ia_dossiers';
@@ -117,9 +127,9 @@ class LoopKnowledgeAnswerService
      * null, le chemin T-1 est inchange octet pour octet (modal knowledge,
      * flag `ai.knowledge.publish_question` gouvernant).
      */
-    public function answer(Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger = null): KnowledgeAnswer
+    public function answer(Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger = null, bool $publish = true, ?string $executionPath = null): KnowledgeAnswer
     {
-        return $this->respond(self::MODE_DOSSIERS, $loop, $requester, $question, $inThreadTrigger);
+        return $this->respond(self::MODE_DOSSIERS, $loop, $requester, $question, $inThreadTrigger, $publish, $executionPath);
     }
 
     /**
@@ -132,9 +142,9 @@ class LoopKnowledgeAnswerService
      * Dossiers accessibles n'ont rien apporte — jamais en habillant cette
      * connaissance generale d'une reference [Mn]/[Sn].
      */
-    public function answerHybrid(Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger = null): KnowledgeAnswer
+    public function answerHybrid(Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger = null, bool $publish = true, ?string $executionPath = null): KnowledgeAnswer
     {
-        return $this->respond(self::MODE_HYBRID, $loop, $requester, $question, $inThreadTrigger);
+        return $this->respond(self::MODE_HYBRID, $loop, $requester, $question, $inThreadTrigger, $publish, $executionPath);
     }
 
     /**
@@ -143,7 +153,7 @@ class LoopKnowledgeAnswerService
      * Builder, la validation de citations, le ledger, la trace et la
      * publication ne peuvent pas diverger entre Dossiers et IA + Dossiers.
      */
-    private function respond(string $mode, Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger): KnowledgeAnswer
+    private function respond(string $mode, Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger, bool $publish = true, ?string $executionPath = null): KnowledgeAnswer
     {
         $question = trim($question);
 
@@ -175,7 +185,7 @@ class LoopKnowledgeAnswerService
         return AiTurnLock::run(
             $loop,
             $requester,
-            fn (): KnowledgeAnswer => $this->generateUnderLock($mode, $loop, $requester, $question, $inThreadTrigger),
+            fn (): KnowledgeAnswer => $this->generateUnderLock($mode, $loop, $requester, $question, $inThreadTrigger, $publish, $executionPath),
         );
     }
 
@@ -186,7 +196,7 @@ class LoopKnowledgeAnswerService
      * seul but de la separation est que le verrou puisse englober exactement
      * cet acte-la, sans re-indenter deux cents lignes pour le prouver.
      */
-    private function generateUnderLock(string $mode, Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger): KnowledgeAnswer
+    private function generateUnderLock(string $mode, Loop $loop, User $requester, string $question, ?LoopMessage $inThreadTrigger, bool $publish = true, ?string $executionPath = null): KnowledgeAnswer
     {
         $capability = $mode === self::MODE_HYBRID
             ? CapabilityRegistry::LOOP_HYBRID_ANSWER
@@ -216,14 +226,63 @@ class LoopKnowledgeAnswerService
             query: $question,
         );
 
+        // TASK-1566 / CDC-01 V0-A — ce chemin est le PRODUCTEUR PILOTE du bloc
+        // `turn`. Il depose ce qu'il traverse au fur et a mesure ; le writer
+        // unique (`recordInteraction`) reclame le tout et persiste. Aucun de ces
+        // depots ne change quoi que ce soit au comportement : coupes, ils sont
+        // inertes et la reponse est identique (garde de non-dependance).
+        //
+        // TASK-1568 / V0-G — `execution_path` est FOURNI PAR L'APPELANT (C15).
+        // Ce moteur a trois points d'entree (`LoopChat`, `LoopController`,
+        // `ai:inspect-turn`) et ne peut pas savoir lequel l'a appele : V0-A le
+        // derivait du seul `$mode`, et l'endpoint JSON etait trace
+        // `loop_chat.dossiers` — plausible, faux. A `null`, `identity()`
+        // n'ecrit rien : la cle est absente et se lit `UNAVAILABLE`, jamais un
+        // defaut qui se lirait comme une mesure.
+        //
+        // `surface` et `mode` restent ecrits par le moteur : ce chemin est
+        // toujours une surface LoopChat (l'endpoint JSON sert la modale de la
+        // Boucle) et le mode est le sien. Aucune des deux valeurs n'est
+        // deduite du chemin.
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'surface' => 'loop_chat',
+            'mode' => $mode,
+            'execution_path' => $executionPath,
+            'capability' => $capability,
+            // TASK-1577 / V0-J — le composant qui PRODUIT la reponse (P0.2),
+            // trou trouve par le critere de DONE : le pilote ne se nommait pas.
+            'producer' => self::PRODUCER,
+        ]);
+
         // P4 : sans configuration IA d'Organization, aucun appel, aucun repli.
         // TASK-1229 : etat « credential absent », code stable, distinct des
         // deux refus economiques ci-dessous.
         try {
             $resolved = $this->providers->resolve($capability, $contexte);
         } catch (DomainException $exception) {
+            // TASK-1570 / CDC-01 V0-B — un refus de resolution laisse un TOUR.
+            // Aucun modele resolu, aucun appel, aucune ligne au ledger (I3) :
+            // seulement la ligne non generative qui dit ou et pourquoi le tour
+            // s'est arrete. Le refus rendu au membre est inchange.
+            $this->recordEarlyStop($loop, $requester, $contexte, $definition, null,
+                AiTurnState::TURN_REFUSED, 'provider_resolution', AiTurnReason::REFUSED_NOT_CONFIGURED, null, [], null);
+
             throw AiRefusedException::notConfigured($exception);
         }
+
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            // `provider_requested` n'est PAS ecrit : `ResolvedModel` ne porte
+            // que ce qui a ete resolu, et le depot n'a aucune autre source
+            // honnete pour la valeur demandee. Absent se lit `UNAVAILABLE` ;
+            // une valeur recopiee depuis l'effectif se lirait comme une mesure.
+            'provider_effective' => $resolved->provider,
+            'model' => $resolved->trace(),
+            // FACT : `FakeAIProvider` n'est jamais selectionne par
+            // `ProviderResolver` (doctrine P4, aucun fallback silencieux) — il
+            // n'est injecte que dans `ClarifyUserHelpRequestService`. Sur CE
+            // chemin, l'absence de fallback est donc une mesure, pas un defaut.
+            'fallback_used' => false,
+        ]);
 
         // TASK-1229 : le demandeur est passe a la garde — son credit IA du
         // mois (utilisations) s'applique ICI, dans l'autorite existante, avant
@@ -239,10 +298,28 @@ class LoopKnowledgeAnswerService
         );
 
         if (! $verdict->allowed) {
+            // TASK-1566 : le depot a lieu AVANT le `throw`, pour que l'etage
+            // qui a arrete le tour soit celui que la trace nomme. Ce tour
+            // n'ecrira pourtant AUCUNE interaction en V0-A — c'est V0-B qui
+            // persistera les arrets anticipes. La trace part donc avec le
+            // processus, exactement comme avant : rien n'est promis ici qui ne
+            // soit tenu.
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'denied', $verdict->reason);
+
+            // TASK-1570 / V0-B — le refus economique laisse un TOUR (`refused`,
+            // stage `economic_check`, code du verdict tel que le garde l'a
+            // MESURE). Ledger vierge : rien n'est parti. La ligne porte
+            // `cost_usd = 0, cost_unknown = false` et n'entre dans aucune somme
+            // du garde (audit lecteurs §6.3, teste).
+            $this->recordEarlyStop($loop, $requester, $contexte, $definition, $resolved,
+                AiTurnState::TURN_REFUSED, 'economic_check', $verdict->reason, null, [], null);
+
             // Trois etats, trois messages, trois codes : credit utilisateur
             // epuise / budget Organization atteint / autre indisponibilite.
             throw AiRefusedException::fromVerdict($verdict);
         }
+
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'executed');
 
         // Le prompt administrable est requis AVANT toute depense (embedding
         // compris) : sans lui, indisponibilite explicite.
@@ -268,7 +345,24 @@ class LoopKnowledgeAnswerService
         // sur l'interaction enregistree plutot que reconstituee a posteriori.
         $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
 
-        $borne = $this->contextBuilder->build($contexte, $definition);
+        // TASK-1577 / CDC-01 V0-J (scenario 9) — une exception PENDANT le
+        // retrieval (provider d'embeddings injoignable, base vectorielle en
+        // panne) sortait d'ici sans laisser aucune trace : ni interaction, ni
+        // tour. Le produit affichait son erreur, l'inspecteur ne voyait rien.
+        // Le tour est ecrit `failed` a l'etape `retrieval`, puis l'exception
+        // repart TELLE QUELLE : rien ne change pour l'appelant. Un refus de
+        // source (`SourceDenied`) n'est pas une exception ici : le
+        // ContextBuilder le convertit en `sourcesDenied`, chemin nominal.
+        try {
+            $borne = $this->contextBuilder->build($contexte, $definition);
+        } catch (\Throwable $exception) {
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'retrieval', 'failed', AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED);
+            $this->recordEarlyStop($loop, $requester, $contexte, $definition, $resolved,
+                AiTurnState::TURN_FAILED, 'retrieval', AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED, null, [], $doctrineVersion,
+                failure: $exception::class);
+
+            throw $exception;
+        }
         // TASK-1307 (revue) : la connaissance disponible est la provenance des
         // DEUX sources autorisees de cette capability — le manifest
         // (existence des elements du Dossier, [Mn]) ET le retrieval (contenu
@@ -277,16 +371,56 @@ class LoopKnowledgeAnswerService
         // seul a une question de contenu, les deux ensemble a une question
         // mixte. Le refus ci-dessous ne se declenche que si AUCUNE des deux
         // n'a fourni quoi que ce soit.
+        //
+        // TASK-1543 : l'histoire ([Hn]) en fait partie, au meme titre. Une
+        // question de changement peut n'avoir AUCUNE reponse documentaire et
+        // une reponse historique complete — refuser parce que les Dossiers
+        // n'ont rien dit reviendrait a repondre « je n'ai pas trouve » en
+        // tenant la reponse. C'est exactement le defaut que T1307 avait corrige
+        // pour le manifest, et cette liste est l'endroit ou il se reproduit.
         $consulted = [
+            ...$borne->provenanceFor(KnowledgeDeltaSource::NAME),
             ...$borne->provenanceFor(DossierManifestSource::NAME),
             ...$borne->provenanceFor(DossierRetrievalSource::NAME),
         ];
+
+        // TASK-1566 : `ContextBuilder` a bien tourne sur ce chemin — c'est
+        // precisement ce qui le distingue des branches documentaires du Shell,
+        // qui l'ignorent. Le compteur `consulted` mesure ce que les TROIS
+        // sources autorisees ont rendu ensemble ; le detail par etage du
+        // retrieval reste sous `retrieval_trace`, qui ne bouge pas (T1565).
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'context_builder', 'executed', null, [
+            'consulted' => count($consulted),
+        ]);
 
         // TASK-1309 : le refus « aucune source » n'appartient QU'au mode
         // Dossiers. En mode IA + Dossiers, l'absence de provenance
         // documentaire est une information a transmettre au modele, pas une
         // raison de se taire : c'est tout l'interet du mode.
         if ($consulted === [] && $mode !== self::MODE_HYBRID) {
+            // TASK-1565 — ce tour n'ecrira AUCUNE `AiInteraction` : il refuse
+            // avant tout appel, donc sans rien a facturer ni a tracer. Sa trace
+            // de retrieval n'a par consequent nulle part ou aller, et on la
+            // reclame ici uniquement pour ne pas la laisser derriere soi dans
+            // le journal du processus.
+            //
+            // C'est une limite ASSUMEE de ce v0, et elle est etroite : des que
+            // le manifest rend quelque chose — le cas ENRICA — ce chemin n'est
+            // plus pris et la trace est persistee normalement. La lever
+            // exigerait d'ecrire une interaction la ou le produit n'en ecrit
+            // pas : un changement de comportement, hors mandat.
+            // TASK-1570 / CDC-01 V0-B — la limite assumee par T1565 est levee :
+            // l'abstention ECRIT un tour (`abstained`, stage `grounding`,
+            // `NO_SOURCES_FOUND`), et la `retrieval_trace` est RECLAMEE ET
+            // PERSISTEE au lieu d'etre jetee. Le message rendu au membre, la
+            // non-publication dans le fil et `interactionId: null` du DTO —
+            // que `LoopChat` lit pour signaler l'auteur — ne changent pas.
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'grounding', 'abstained', AiTurnReason::TERMINAL_NO_SOURCES_FOUND, [
+                'consulted' => 0,
+            ]);
+            $this->recordEarlyStop($loop, $requester, $contexte, $definition, $resolved,
+                AiTurnState::TURN_ABSTAINED, 'grounding', AiTurnReason::TERMINAL_NO_SOURCES_FOUND, $borne, [], $doctrineVersion);
+
             // Rien de pertinent dans les Dossiers accessibles : on le dit, sans
             // inventer et sans appeler le modele.
             return new KnowledgeAnswer(
@@ -298,6 +432,12 @@ class LoopKnowledgeAnswerService
                 // TASK-1229 : la recherche documentaire a pu etre emise (une
                 // utilisation reelle) : le credit se lit ici aussi.
                 credit: $this->economicGuard->userCreditStatus($organization, $requester),
+                // TASK-1565 / W3A — ce que la frontiere savait, enfin porte par
+                // le vrai chemin ChatLoop. Aucun lecteur produit ne consomme
+                // ces champs du DTO (`toArray()` ne les expose pas) : le relai
+                // est invisible pour le membre, et lisible par l'inspection.
+                sourcesUsed: $borne->sourcesUsed,
+                sourcesDenied: $borne->sourcesDenied,
             );
         }
 
@@ -313,6 +453,35 @@ class LoopKnowledgeAnswerService
         // moteur — s'insere entre les sources et la question ; partout
         // ailleurs le prompt T-3 est inchange octet pour octet.
         $conversation = $this->conversationContext->build($inThreadTrigger);
+
+        // TASK-1567 / CDC-01 V0-L — ce que CE tour a REELLEMENT recu de la
+        // conversation. Les valeurs sont celles que le moteur vient de
+        // calculer pour son prompt : rien n'est relu, rien n'est recalcule.
+        //
+        // `count = 0` s'ecrit TEL QUEL, sans statut d'erreur : un follow-up
+        // sans reply explicite ne recoit aucun historique, et c'est le
+        // comportement produit actuel (CDC-01 P0.12). La strategie reste
+        // `reply_chain` — c'est bien elle qui a ete tentee ; ecrire `none`
+        // laisserait croire qu'aucune n'a ete essayee.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'conversation_history', 'executed', null, [
+            'count' => count($conversation->messageIds),
+            'chars' => $conversation->chars,
+        ]);
+
+        $history = [
+            'strategy' => 'reply_chain',
+            'message_ids' => $conversation->messageIds,
+            'count' => count($conversation->messageIds),
+            'chars' => $conversation->chars,
+            // Le message AUQUEL l'utilisateur repondait, jamais le message
+            // courant (CDC-01 P0.12).
+            'trigger_id' => $inThreadTrigger?->reply_to_id,
+            'budget_exhausted' => $conversation->budgetExhausted,
+            // TASK-1576 / V0-I (C21) — le declencheur reel quand il existe
+            // (composeur en fil) ; `null` = UNAVAILABLE pour l'endpoint JSON,
+            // qui n'a pas de message declencheur. Jamais reconstruit.
+            'input_message_id' => $inThreadTrigger?->id !== null ? (string) $inThreadTrigger->id : null,
+        ];
         $thread = $conversation->text;
         // TASK-1309 : en mode IA + Dossiers sans AUCUNE provenance, le bloc
         // de sources est vide. Le laisser vide, c'est laisser le modele
@@ -336,12 +505,18 @@ class LoopKnowledgeAnswerService
                 model: $resolved->model,
             );
         } catch (\Throwable $exception) {
+            // TASK-1571 / V0-C — l'etape ET le verdict portent le CODE ; la
+            // classe d'exception reste dans `metadata.failure` (diagnostic).
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'provider_call', 'failed', AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED);
+
             $this->recordInteraction($loop, $requester, $contexte, $definition, $resolved, $prompt, null,
                 AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null, 'failed', $startedAt, null,
-                $exception::class, $consulted, [], $doctrineVersion);
+                $exception::class, $consulted, [], $doctrineVersion, $borne, $history, AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED);
 
             throw new RuntimeException(__('loops.ai_error'), 0, $exception);
         }
+
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'provider_call', 'executed');
 
         // TASK-1391 : normaliser les citations AVANT d'assainir.
         //
@@ -356,17 +531,39 @@ class LoopKnowledgeAnswerService
             (int) config('ai.knowledge.max_answer_chars', 3000),
         );
 
-        if ($answer === '') {
-            throw new RuntimeException(__('loops.ai_empty_response'));
-        }
-
         $usage = AiUsage::fromSdkTextTokens($response->usage->promptTokens, $response->usage->completionTokens);
         $cost = $this->economicGuard->finalize($resolved->provider, $resolved->model, $usage);
+
+        if ($answer === '') {
+            // TASK-1570 / CDC-01 V0-B — la reponse vide post-appel n'est plus
+            // « facturee sans trace » (trou S11) : l'appel EST parti et se paie,
+            // le ledger recoit donc sa ligne reelle, et l'interaction s'ecrit
+            // `failed` / stage `generation` / `EMPTY_MODEL_ANSWER`. Le refus
+            // rendu au membre est inchange.
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'generation', 'failed', AiTurnReason::TERMINAL_EMPTY_MODEL_ANSWER);
+
+            $this->recordInteraction($loop, $requester, $contexte, $definition, $resolved, $prompt, null,
+                $usage, $cost->traceAttributes(), $cost, 'failed', $startedAt, $response->invocationId,
+                AiTurnReason::TERMINAL_EMPTY_MODEL_ANSWER, $consulted, [], $doctrineVersion, $borne, $history);
+
+            throw new RuntimeException(__('loops.ai_empty_response'));
+        }
 
         // Citations : uniquement les references ([Mn] ou [Sn]) presentes
         // dans la provenance REELLEMENT fournie. Une reference inventee est
         // ignoree.
         $cited = $this->citedSources($answer, $consulted);
+
+        // TASK-1574 / CDC-01 V0-F — le grounding se lit. `method` dit ce qui a
+        // ete verifie : la PRESENCE de references valides dans la reponse, rien
+        // de semantique. Aucun chemin n'abstient sur preuve insuffisante : la
+        // reponse est rendue, et `state.verification_status` dira
+        // `insufficient` (correction C24).
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'grounding', 'executed', null, [
+            'consulted' => count($consulted),
+            'cited' => count($cited),
+            'method' => 'syntactic_citations',
+        ]);
 
         // TASK-1391 : une reference inventee ne doit pas rester sous les yeux
         // du membre. Qu'elle ne devienne pas une source etait deja acquis ;
@@ -377,7 +574,7 @@ class LoopKnowledgeAnswerService
 
         $interaction = $this->recordInteraction($loop, $requester, $contexte, $definition, $resolved, $prompt,
             $answer, $usage, $cost->traceAttributes(), $cost, 'success', $startedAt, $response->invocationId, null,
-            $consulted, $cited, $doctrineVersion);
+            $consulted, $cited, $doctrineVersion, $borne, $history);
 
         // TASK-1309 : « Sources utilisées » = sources REELLEMENT CITEES.
         // Jusqu'ici, faute de citation valide, on retombait sur TOUT ce qui
@@ -388,8 +585,22 @@ class LoopKnowledgeAnswerService
         // sources documentaires.
         $sources = $cited;
 
-        $this->publishExchange($mode, $loop, $requester, $question, $answer, $resolved, $interaction, $cited,
-            $sources, $this->consultedForDisplay($cited, $consulted), $inThreadTrigger, $conversation->messageIds);
+        // TASK-1558 — le SEAM d'observation, et le seul.
+        //
+        // `$publish = false` n'est pas un mode degrade ni un second chemin :
+        // tout ce qui precede — garde d'appartenance, idempotence, verrou,
+        // Context Builder, garde economique, retrieval, validation des
+        // citations, ledger, `AiInteraction` — s'execute a l'identique. Seules
+        // les DEUX lignes de `loop_messages` ne sont pas ecrites.
+        //
+        // C'est la difference entre observer un chemin et en fabriquer une
+        // imitation : ici le service reel repond, il facture, il trace ; il ne
+        // parle simplement pas dans le fil de quelqu'un d'autre. La telemetrie
+        // canonique reste, parce qu'elle appartient au chemin.
+        if ($publish) {
+            $this->publishExchange($mode, $loop, $requester, $question, $answer, $resolved, $interaction, $cited,
+                $sources, $this->consultedForDisplay($cited, $consulted), $inThreadTrigger, $conversation->messageIds);
+        }
 
         return new KnowledgeAnswer(
             answer: $answer,
@@ -401,6 +612,13 @@ class LoopKnowledgeAnswerService
             // decomptees) — l'alerte de seuil se lit ici, l'action n'a pas
             // ete bloquee.
             credit: $this->economicGuard->userCreditStatus($organization, $requester),
+            // TASK-1565 / W3A — la dette nommee dans le docblock de
+            // `KnowledgeAnswer` est payee : ce service CALCULAIT les deux dans
+            // son `ContexteBorne` et les jetait. Deux services les portaient
+            // deja (`OrganizationDoctrineSandbox`, `DossierInsightsService`) ;
+            // le vrai chemin ChatLoop etait le dernier a ne pas le faire.
+            sourcesUsed: $borne->sourcesUsed,
+            sourcesDenied: $borne->sourcesDenied,
         );
     }
 
@@ -573,13 +791,13 @@ class LoopKnowledgeAnswerService
     {
         // `[S1](cible)` -> `[S1]`. La cible est jetee : la provenance
         // affichee vient du registre, jamais d'une URL ecrite par le modele.
-        $texte = (string) preg_replace('/\[([SM]\d+)\]\([^)]*\)/', '[$1]', $texte);
+        $texte = (string) preg_replace('/\[([SMH]\d+)\]\([^)]*\)/', '[$1]', $texte);
 
         // `[S1, S2]`, `[S1,S2]`, `[S1 et S2]`, `[S1; S2]` -> `[S1][S2]`.
         return (string) preg_replace_callback(
-            '/\[([SM]\d+(?:\s*(?:,|;|et|and)\s*[SM]\d+)+)\]/i',
+            '/\[([SMH]\d+(?:\s*(?:,|;|et|and)\s*[SMH]\d+)+)\]/i',
             static function (array $groupe): string {
-                preg_match_all('/[SM]\d+/i', $groupe[1], $refs);
+                preg_match_all('/[SMH]\d+/i', $groupe[1], $refs);
 
                 return implode('', array_map(static fn (string $ref): string => '['.$ref.']', $refs[0]));
             },
@@ -607,7 +825,7 @@ class LoopKnowledgeAnswerService
         $connues = array_filter(array_column($consulted, 'ref'));
 
         return trim((string) preg_replace_callback(
-            '/\s*\[([SM]\d+)\]/',
+            '/\s*\[([SMH]\d+)\]/',
             static fn (array $marqueur): string => in_array($marqueur[1], $connues, true) ? $marqueur[0] : '',
             $texte,
         ));
@@ -693,6 +911,108 @@ class LoopKnowledgeAnswerService
     }
 
     /**
+     * TASK-1570 / CDC-01 V0-B — le writer des ARRETS ANTICIPES : une
+     * `AiInteraction` NON GENERATIVE.
+     *
+     * Le tour s'est arrete avant tout appel provider (refus de resolution,
+     * refus economique, abstention zero-source). Jusqu'ici il ne laissait
+     * AUCUNE ligne : ni interaction, ni ledger, ni log — l'angle mort que
+     * CDC-01 §1.1 nomme en premier. Cette ligne dit ou et pourquoi.
+     *
+     * Ce qu'elle est, et n'est pas (§6.1) :
+     *   - `response = null`, `input/output_tokens = 0` : VRAI zero, rien n'est
+     *     parti ; `cost_usd = 0`, `cost_unknown = false` : un cout CONNU et nul,
+     *     pas un cout inconnu — elle n'entre donc ni dans le budget ni dans le
+     *     quota UNKNOWN du garde (§6.3, teste) ;
+     *   - AUCUNE ligne au ledger (I3) : `ai_provider_invocations` reste
+     *     reserve aux appels emis ;
+     *   - `model` et `prompt` sont des colonnes NOT NULL : `''` quand rien n'a
+     *     ete resolu ni construit — le lecteur rend `null`, jamais une valeur
+     *     inventee ;
+     *   - pas de `latency_ms` : ce chemin ne mesure pas ces arrets, et un
+     *     chrono pose ici pour l'occasion ne mesurerait qu'une partie du tour
+     *     (C7-bis). Absent se lit `UNAVAILABLE`.
+     *   - la `retrieval_trace` et les invocations embedding du tour sont
+     *     RECLAMEES et persistees : sur une abstention, la recherche a eu lieu
+     *     et a coute — sa trace n'est plus jetee (limite T1565 levee).
+     *
+     * Lecteurs (§6.3) : `metadata.status` porte un statut NOUVEAU
+     * (`abstained` | `refused`) que `AiQualityReport` exclut et que
+     * `AiProviderInvocationConsole` affiche comme un tour non generatif
+     * (A7) — jamais comme une generation.
+     *
+     * @param  array<string, mixed>  $history
+     */
+    private function recordEarlyStop(
+        Loop $loop,
+        User $requester,
+        ContexteIa $contexte,
+        CapabilityDefinition $definition,
+        ?ResolvedModel $resolved,
+        string $turnStatus,
+        string $stage,
+        string $reasonCode,
+        ?ContexteBorne $borne,
+        array $history,
+        ?int $doctrineVersion,
+        ?string $failure = null,
+    ): AiInteraction {
+        // TASK-1573 / V0-E — un seul claim, partage (voir `recordInteraction`).
+        $dossierRetrieval = $borne === null ? null : DossierRetrievalTraceRecorder::claim($contexte->organizationId, $contexte->turnId);
+
+        return AiInteraction::create([
+            'user_id' => $requester->id,
+            'organization_id' => $contexte->organizationId,
+            'correlation_id' => $contexte->correlationId,
+            'process' => $definition->process,
+            'feature' => $definition->id,
+            'model' => $resolved?->trace() ?? '',
+            'prompt' => '',
+            'response' => null,
+            'input_tokens' => 0,
+            'output_tokens' => 0,
+            'cost_usd' => 0,
+            'cost_unknown' => false,
+            'metadata' => array_filter([
+                'loop_id' => $loop->id,
+                'requested_by' => $requester->id,
+                'provider' => $resolved?->provider,
+                'capability' => $definition->id,
+                'status' => $turnStatus,
+                // V0-J — la CLASSE de l'exception, comme `recordInteraction`
+                // l'ecrit pour une generation qui leve ; jamais son message.
+                'failure' => $failure,
+                'turn_id' => $contexte->turnId,
+                RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
+                'sources_used' => $borne?->sourcesUsed,
+                DossierRetrievalTraceRecorder::TURN_METADATA_KEY => $borne === null ? null : [
+                    'sources_denied' => $borne->sourcesDenied,
+                    'dossier_retrieval' => $dossierRetrieval,
+                ],
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
+                    $contexte->turnId,
+                    AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
+                    [
+                        'status' => $turnStatus,
+                        'stage' => $stage,
+                        'reason_code' => $reasonCode,
+                        'decided_by' => class_basename(self::class),
+                        'history' => $history,
+                        // TASK-1573 / V0-E — sur une abstention, les familles
+                        // disent ce qui a ete cherche, retenu (rien) et refuse.
+                        'sources' => $borne === null ? [] : AiTurnTrace::sourcesBlock($borne->sourcesUsed, $borne->sourcesDenied, $dossierRetrieval),
+                        // TASK-1574 / V0-F — un arret n'a rien cite : axe 2
+                        // `insufficient` si le grounding etait l'etage (abstention),
+                        // `not_applicable` avant ; axe 3 depuis les mesures en main.
+                        'state' => AiTurnTrace::stateBlock($stage === 'grounding' ? false : null, $borne?->sourcesDenied ?? [], $dossierRetrieval),
+                    ],
+                ),
+            ], static fn ($value): bool => $value !== null)
+                + ['doctrine_version' => $doctrineVersion],
+        ]);
+    }
+
+    /**
      * @param  array{cost_usd: ?float, cost_unknown: ?bool}  $costAttributes
      * @param  list<array<string, mixed>>  $consulted
      * @param  list<array<string, mixed>>  $cited
@@ -715,6 +1035,11 @@ class LoopKnowledgeAnswerService
         array $consulted,
         array $cited,
         ?int $doctrineVersion,
+        ContexteBorne $borne,
+        /** @param array<string, mixed> $history ce que le tour a VU (V0-L) */
+        array $history,
+        /** TASK-1571 / V0-C — le code du verdict quand il ne coincide pas avec `$failure` */
+        ?string $reasonCode = null,
     ): AiInteraction {
         // TASK-1220 : ligne canonique du ledger, memes points que la trace P1
         // (succes ET echec) ; les refus pre-provider n'arrivent jamais ici.
@@ -738,6 +1063,18 @@ class LoopKnowledgeAnswerService
             $sources,
         ));
 
+        // TASK-1566 : la latence est mesuree UNE fois et partagee par
+        // `metadata.latency_ms` (cle historique, inchangee) et `turn.latency_ms`.
+        // Deux appels a `microtime()` rendraient deux valeurs differentes pour
+        // la meme duree — un ecart minuscule, mais qui suffirait a faire douter
+        // d'une trace le jour ou quelqu'un les comparerait.
+        $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
+
+        // TASK-1573 / V0-E — la trace de retrieval est reclamee UNE fois et
+        // sert deux cles : `retrieval_trace` (detail fin, T1565) et
+        // `turn.sources` (compteurs). Deux claims rendraient `null` au second.
+        $dossierRetrieval = DossierRetrievalTraceRecorder::claim($contexte->organizationId, $contexte->turnId);
+
         return AiInteraction::create([
             'user_id' => $requester->id,
             'organization_id' => $contexte->organizationId,
@@ -757,13 +1094,105 @@ class LoopKnowledgeAnswerService
             'metadata' => array_filter([
                 'loop_id' => $loop->id,
                 'requested_by' => $requester->id,
-                'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'latency_ms' => $latencyMs,
                 'provider' => $resolved->provider,
                 'capability' => $definition->id,
                 'status' => $status,
                 'sdk_invocation_id' => $sdkInvocationId,
+                // TASK-1558 : l'identite du TOUR, tracee. Sans elle, les
+                // invocations embedding ci-dessous ne se rattachent a rien
+                // d'observable depuis la base : T1556 les reclame PAR turn_id,
+                // mais ne l'ecrivait nulle part.
+                'turn_id' => $contexte->turnId,
+                // TASK-1556 : les invocations embedding (query) que CE tour a
+                // declenchees, reclamees une seule fois — `[]` mesure, jamais null.
+                RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
                 'failure' => $failure,
                 'retrieval' => ['consulted' => $ids($consulted), 'cited' => $ids($cited)],
+                // TASK-1565 / W3A — les sources qui ont REELLEMENT fourni de la
+                // matiere. Lue par `AiTurnInspection::provider()` et par
+                // personne d'autre : aucun lecteur produit ne la consomme.
+                'sources_used' => $borne->sourcesUsed,
+                // TASK-1565 — la trace des etages du retrieval, reclamee UNE
+                // fois au journal process-local ou `DossierRetrievalSource` l'a
+                // deposee (meme pattern que les invocations embedding
+                // ci-dessus, T1556).
+                //
+                // `sources_denied` voyage ICI, et non au premier niveau, et
+                // c'est une decision mesuree : au premier niveau, la cle est
+                // lue par `AiResponseExplanationService::ragPanel()` et allume
+                // un bandeau VISIBLE PAR LE MEMBRE (`loops.why_denied`). Le
+                // docblock de `KnowledgeAnswer` l'avait annonce — « une
+                // difference PRODUIT, qui demande sa propre mesure et pas un
+                // branchement de commodite ». T1565 est une TASK
+                // d'observabilite a comportement produit inchange : elle ne
+                // l'allume pas.
+                //
+                // `dossier_retrieval` a `null` signifie « la source n'a produit
+                // aucune trace pour ce tour » — refusee, absente de la
+                // capability, ou collecte coupee. Jamais un tableau vide, qui
+                // se lirait comme une mesure a zero.
+                DossierRetrievalTraceRecorder::TURN_METADATA_KEY => [
+                    'sources_denied' => $borne->sourcesDenied,
+                    'dossier_retrieval' => $dossierRetrieval,
+                ],
+                // TASK-1566 / CDC-01 V0-A — le bloc canonique du TOUR.
+                //
+                // Ce chemin est le PRODUCTEUR PILOTE : il est le premier a
+                // ecrire le bloc complet que le schema v1 prevoit A CE STADE.
+                // « A ce stade » est litteral — trois sous-blocs prevus par le
+                // schema sont DELIBEREMENT absents, parce que les TASKs qui les
+                // produisent n'ont pas encore eu lieu :
+                //
+                //   `sources`  -> V0-E (les quatre familles)
+                //   `history`  -> V0-L (ce que le tour a vu de la conversation)
+                //   `state`    -> V0-F (le grounding se lit, axe 2 ecrit)
+                //
+                // Les ecrire ici « puisque la valeur est a portee de main »
+                // serait exactement la derive que le decoupage evite : une cle
+                // a moitie alimentee est plus dangereuse qu'une cle absente,
+                // parce qu'elle se lit comme une mesure. Absentes, elles se
+                // lisent `UNAVAILABLE` (CDC-01 §11) — ce qui est la verite.
+                //
+                // Ce bloc n'est lu par AUCUN lecteur produit : il voyage sous
+                // `turn`, imbrique, pour la meme raison exactement que
+                // `retrieval_trace` ci-dessus.
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
+                    $contexte->turnId,
+                    AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
+                    [
+                        // Le vocabulaire du TOUR n'est pas celui de la ligne :
+                        // `metadata.status` conserve ses valeurs historiques
+                        // (`completed`/`failed`, lues par des tiers), tandis que
+                        // `turn.status` parle le vocabulaire des trois axes.
+                        // Traduire ici, c'est eviter de renommer une valeur que
+                        // des lecteurs consomment deja (invariant I8).
+                        'status' => $status === 'failed'
+                            ? AiTurnState::TURN_FAILED
+                            : AiTurnState::TURN_ANSWERED,
+                        'stage' => $status === 'failed' ? 'generation' : null,
+                        // TASK-1570 / V0-B — le code n'est ecrit que s'il vient
+                        // du registre : une classe d'exception (`failure` d'un
+                        // provider qui leve) n'est pas un `reason_code`, et la
+                        // nommer comme tel appartient a V0-C.
+                        'reason_code' => $reasonCode ?? (AiTurnReason::isKnown($failure) ? $failure : null),
+                        'decided_by' => class_basename(self::class),
+                        // La MEME mesure que `latency_ms` ci-dessus — jamais un
+                        // second chronometre, qui donnerait deux valeurs pour
+                        // une seule duree (correction C7 du CDC).
+                        'latency_ms' => $latencyMs,
+                        // TASK-1567 / V0-L — ce que le tour a VU de la
+                        // conversation. Valeurs deja calculees par le moteur
+                        // pour son prompt ; aucune relecture, aucun recalcul.
+                        'history' => $history,
+                        // TASK-1573 / V0-E — les quatre familles, formatees
+                        // depuis la borne et la trace deja en main.
+                        'sources' => AiTurnTrace::sourcesBlock($borne->sourcesUsed, $borne->sourcesDenied, $dossierRetrieval),
+                        // TASK-1574 / V0-F — les deux axes, traduits de mesures
+                        // en main : `grounded` (syntaxique), refus, rerank.
+                        'state' => AiTurnTrace::stateBlock($response === null ? null : $cited !== [], $borne->sourcesDenied, $dossierRetrieval),
+                    ],
+                ),
             ], static fn ($value): bool => $value !== null)
                 // TASK-1236 : cle toujours presente, meme a null (aucune doctrine
                 // active) — sa PRESENCE distingue une interaction tracee d'une

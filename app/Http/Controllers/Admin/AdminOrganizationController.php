@@ -7,6 +7,7 @@ use App\Models\Country;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
+use App\Services\Ai\AiRerankSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -91,9 +92,19 @@ class AdminOrganizationController extends Controller
             ->where('organization_id', $organization->id)
             ->first(['provider', 'model', 'monthly_budget_usd', 'is_enabled']);
 
+        // TASK-1563 : l'autorisation de reranker de CETTE Organization, l'etat
+        // du verrou plateforme, et si elle peut seulement etre autorisee — pour
+        // que l'ecran puisse expliquer un « non » plutot que de le laisser muet.
+        $rerankSettings = app(AiRerankSettings::class);
+
         return view('admin.organizations.edit', compact(
             'organization', 'admins', 'loops', 'countries', 'priorityCountryCodes', 'aiSetting'
-        ));
+        ) + [
+            'rerankEnabled' => $rerankSettings->organizationEnabled((string) $organization->id),
+            'rerankPlatformEnabled' => $rerankSettings->platformEnabled(),
+            'rerankCanBeEnabled' => $rerankSettings->canBeEnabledFor($organization),
+            'rerankLastChange' => $rerankSettings->lastChange($organization),
+        ]);
     }
 
     public function update(Request $request, Organization $organization): RedirectResponse
@@ -110,6 +121,8 @@ class AdminOrganizationController extends Controller
             'welcome_points' => 'required|integer|min:0|max:10000',
             'service_points_min' => 'nullable|integer|min:0|max:100000',
             'service_points_max' => 'nullable|integer|min:0|max:100000',
+            // TASK-1563 : l'autorisation de reranker de cette Organization.
+            'rerank_enabled' => 'nullable|boolean',
             'is_public' => 'nullable|boolean',
             'is_default' => 'nullable|boolean',
             'loops_enabled' => 'nullable|boolean',
@@ -182,7 +195,26 @@ class AdminOrganizationController extends Controller
 
         $this->handleLogoUpload($request, $organization);
 
+        // TASK-1563 — l'autorisation de reranker ne vit PAS sur `organizations`
+        // mais sur `organization_ai_settings`. Elle est donc retiree de `$data`
+        // AVANT la mise a jour du modele : la laisser passer ferait ecrire une
+        // colonne qui n'existe pas.
+        //
+        // Elle passe par le service, jamais par une ecriture en ligne : c'est
+        // lui qui TRACE qui a bascule l'interrupteur. Un reglage qui decide si
+        // un tenant paie un provider ne doit pas pouvoir changer sans
+        // signature.
+        //
+        // Et si l'Organization n'a AUCUNE configuration IA, le service refuse
+        // sans rien ecrire — il ne fabrique pas une configuration IA pour y
+        // loger un drapeau. La case est deja desactivee a l'ecran ; ce refus
+        // cote service est ce qui tient face a une requete forgee.
+        $rerankEnabled = (bool) ($data['rerank_enabled'] ?? false);
+        unset($data['rerank_enabled']);
+
         $organization->update($data);
+
+        app(AiRerankSettings::class)->updateOrganization($organization, $rerankEnabled, $request->user());
 
         $this->syncPriorityCountries($data['priority_country_codes'] ?? [], $organization);
 

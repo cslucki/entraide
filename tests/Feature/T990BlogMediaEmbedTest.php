@@ -25,7 +25,9 @@ class T990BlogMediaEmbedTest extends TestCase
     {
         parent::setUp();
 
-        $this->org = Organization::factory()->create(['is_default' => true]);
+        // TASK-1492 : ce fichier mesure le RENDU de l'article sur sa page publique —
+        // l'Organization est declaree publique.
+        $this->org = Organization::factory()->create(['is_default' => true, 'is_public' => true]);
         $this->owner = User::factory()->create(['organization_id' => $this->org->id]);
         $this->category = Category::factory()->create(['organization_id' => $this->org->id]);
     }

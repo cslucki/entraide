@@ -242,10 +242,10 @@ return [
     | Shell « BouclePro IA » (TASK-1315)
     |--------------------------------------------------------------------------
     |
-    | Le Shell est une SURFACE, pas un moteur : son tour de conversation
-    | delegue a `ClarifyUserHelpRequestService::clarifyForOrganization()`, dont
-    | la garde economique, le budget et le ledger restent ceux de la
-    | clarification. Aucune cle de budget ici — il n'y en a pas a inventer.
+    | Le Shell est une SURFACE, pas un moteur : son tour de conversation route
+    | vers les capabilities specialisees puis leur delegue la generation. La
+    | reponse generale membre et la clarification partagent la garde et le seau
+    | economique historiques du Shell. Aucune cle de budget ici a inventer.
     |
     | `max_thread_messages` borne la FENETRE affichee et relue ; le fil est
     | elague au-dela du double. Il n'y a ni resume ni rappel d'un fil a
@@ -322,6 +322,115 @@ return [
     'knowledge' => [
         'top_k' => (int) env('AI_KNOWLEDGE_TOP_K', 5),
         'max_distance' => (float) env('AI_KNOWLEDGE_MAX_DISTANCE', 0.60),
+
+        /*
+         * TASK-1560 — RERANK entre le bassin de candidats et la selection
+         * finale. Le Bench a mesure que le reranker recupere le bon passage
+         * 9 fois sur 10 quand il est dans le bassin ; c'est la SEULE etape
+         * ajoutee au chemin documentaire, et elle ne change JAMAIS l'univers
+         * des candidats : elle ne fait que les reordonner.
+         *
+         * `url` pointe OpenRouter : `laravel/ai` fournit deja une gateway
+         * Cohere dont l'URL est configurable, et la cle du tenant est une cle
+         * OpenRouter. Aucun nouveau provider, aucune nouvelle dependance.
+         *
+         * Desactive (`enabled = false`) ou sans credential tenant, le chemin
+         * retombe sur l'ordre dense existant — deterministe, et teste.
+         *
+         * DEFAULT_OFF_BY_DESIGN — le defaut est `false`, et ce n'est pas une
+         * precaution timide : TASK-1560 livre une CAPACITE, pas une mise en
+         * service. Un defaut `true` aurait allume le rerank en production au
+         * merge, sans que personne ne l'ait decide — un appel provider de plus
+         * a CHAQUE question documentaire, facture au tenant.
+         *
+         * L'activation reste donc explicite et reversible. TASK-1560 la posait
+         * environnement par environnement (`AI_KNOWLEDGE_RERANK_ENABLED=true`) ;
+         * depuis TASK-1563 elle se fait A L'ECRAN, dans /admin/ai-config, et se
+         * coupe de la meme facon — voir le bloc `rerank` ci-dessous.
+         *
+         * Arbitrage Cockpit du 15/09/2026 — 01:30 CEST : "Capability merged
+         * dormant; production activation requires explicit
+         * AI_KNOWLEDGE_RERANK_ENABLED=true." — TASK-1563 ne leve pas cette
+         * exigence, elle en DEPLACE le geste : le defaut reste ferme, et
+         * l'activation reste un acte volontaire, simplement tracable et
+         * reversible sans acces serveur.
+         */
+        'rerank' => [
+            /*
+             * TASK-1563 — ce drapeau n'est plus l'autorite, c'est un DEFAUT
+             * D'AMORCAGE.
+             *
+             * Le pilotage se fait depuis /admin/ai-config, et la valeur
+             * d'ecran est stockee en base (`ai_configs.rerank_enabled`). Elle
+             * l'emporte des qu'un administrateur a touche l'interrupteur.
+             * Cette variable ne repond donc que TANT QUE PERSONNE n'a
+             * tranche — premier deploiement, ou base jamais ecrite.
+             *
+             * L'allowlist par Organization qui vivait ici a ete RETIREE :
+             * `organization_ai_settings.rerank_enabled` est desormais la seule
+             * autorite par tenant. Deux sources pour une meme decision
+             * rendaient la table de verite indefendable.
+             *
+             * Lire `AiRerankSettings`, jamais cette cle directement.
+             */
+            'enabled' => (bool) env('AI_KNOWLEDGE_RERANK_ENABLED', false),
+            'model' => env('AI_KNOWLEDGE_RERANK_MODEL', 'cohere/rerank-v3.5'),
+            'url' => env('AI_KNOWLEDGE_RERANK_URL', 'https://openrouter.ai/api/v1'),
+        ],
+
+        /*
+         * TASK-1565 — la TRACE des etages du retrieval documentaire (bassin
+         * dense, filtre `max_distance`, rerank, selection finale), deposee dans
+         * `AiInteraction.metadata['retrieval_trace']` et lue par
+         * `AiTurnInspection` / `ai:inspect-turn`.
+         *
+         * Le defaut est OUVERT, et c'est l'inverse exact du rerank ci-dessus
+         * (DEFAULT_OFF_BY_DESIGN) pour une raison qui lui est opposee : cette
+         * collecte n'appelle AUCUN provider, ne coute rien, et ne change ni ce
+         * qui part au modele, ni ce qui est cite, ni ce que le membre voit.
+         * Un defaut ferme rendrait la production inobservable — ce qui est
+         * precisement le probleme que cette TASK ouvre.
+         *
+         * Le drapeau existe pour la garde de NON-DEPENDANCE : coupe, le
+         * comportement produit et la reponse doivent rester identiques. C'est
+         * ce qui prouve que l'observabilite n'est pas devenue une dependance
+         * fonctionnelle.
+         */
+        'retrieval_trace' => [
+            'enabled' => (bool) env('AI_KNOWLEDGE_RETRIEVAL_TRACE_ENABLED', true),
+        ],
+
+        // TASK-1539 — la fenetre d'INACTIVITE apres laquelle une conversation
+        // est consideree posee, et donc compilable. Ce n'est pas un reglage de
+        // frequence d'appel : c'est la duree au bout de laquelle on admet que
+        // les gens ont fini de se parler. Trop court, on compile un echange en
+        // cours ; trop long, la memoire est en retard sur le travail.
+        'conversation' => [
+            'quiet_minutes' => (int) env('AI_KNOWLEDGE_CONVERSATION_QUIET_MINUTES', 10),
+            /*
+             * TASK-1542 — le PLAFOND DE RETARD.
+             *
+             * La fenetre d'inactivite suppose que les conversations finissent
+             * par se taire. Certaines ne se taisent pas : une Boucle ou
+             * quelqu'un parle toutes les cinq minutes ne franchit jamais le
+             * seuil de calme, et n'est donc JAMAIS apprise — sans limite de
+             * temps, sans alerte, et sans que rien ne le signale.
+             *
+             * Ce plafond repond a « depuis combien de temps y a-t-il de la
+             * matiere non apprise », question que la fenetre de calme ne pose
+             * pas. Au-dela, on compile pendant que les gens parlent encore.
+             *
+             * Il ne remplace pas le debounce, il le borne : en deca du
+             * plafond, N messages rapproches convergent toujours vers UNE
+             * compilation. Le cout ajoute vaut donc, au pire, un appel par
+             * Boucle et par plafond.
+             *
+             * Jamais inferieur a `quiet_minutes` : un plafond plus court
+             * prendrait la main sur la fenetre de calme et compilerait des
+             * echanges en cours a chaque balayage.
+             */
+            'max_learning_delay_minutes' => (int) env('AI_KNOWLEDGE_CONVERSATION_MAX_LEARNING_DELAY_MINUTES', 120),
+        ],
         'max_context_chars' => (int) env('AI_KNOWLEDGE_MAX_CONTEXT_CHARS', 6000),
         'max_tokens' => (int) env('AI_KNOWLEDGE_MAX_TOKENS', 700),
         'temperature' => (float) env('AI_KNOWLEDGE_TEMPERATURE', 0.2),
@@ -476,4 +585,50 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | TASK-1429 — SW-1 : Shell Welcome (visiteurs non connectes)
+    |--------------------------------------------------------------------------
+    | La politique par Organization vit en base (organization_guest_shell_policies).
+    | Ici : le plafond du process quand une Organization n'a pas de budget Guest
+    | propre (jamais « illimite »), le quota d'appels au cout inconnu, et le
+    | plafond PLATEFORME mensuel — NULL = non configure = fail-closed (aucun
+    | appel payant tant que Cyril n'a pas fixe l'exposition globale).
+    */
+    'guest_shell' => [
+        'economic_guard' => [
+            'monthly_budget_usd' => (float) env('AI_GUEST_SHELL_MONTHLY_BUDGET_USD', 2.00),
+            'monthly_unknown_limit' => (int) env('AI_GUEST_SHELL_MONTHLY_UNKNOWN_LIMIT', 10),
+        ],
+        // TASK-1435 — SW-5 : budget de contexte PUBLIC ajoute au prompt d'accueil.
+        'max_context_chars' => (int) env('AI_GUEST_SHELL_MAX_CONTEXT_CHARS', 6000),
+        // TASK-1435 (MASTER Q61) — borne de SORTIE unique : lue par la capability, imposee par SW-6 ; le visiteur ne la controle jamais.
+        'max_output_tokens' => (int) env('AI_GUEST_SHELL_MAX_OUTPUT_TOKENS', 650),
+        // TASK-1436 — SW-6 (MASTER Q60) : quota TRANSVERSE d'un visiteur (messages role=user acceptes,
+        // toutes conversations, par Organization, par mois) et rafale par minute. Absents = fail-closed.
+        'visitor_monthly_max_messages' => (int) env('AI_GUEST_SHELL_VISITOR_MONTHLY_MAX_MESSAGES', 30),
+        'rate_limit_per_minute' => (int) env('AI_GUEST_SHELL_RATE_LIMIT_PER_MINUTE', 6),
+        // TASK-1460 — V3 §3 / audit F1 : nouvelles IDENTITES Guest par Organization et par minute, AVANT ensure() (jamais l'IP). Absent = fail-closed.
+        'identity_rate_limit_per_minute' => (int) env('AI_GUEST_SHELL_IDENTITY_RATE_LIMIT_PER_MINUTE', 30),
+        // TASK-1437 — SW-7 : temperature de l'accueil et fenetre d'historique (messages de CETTE conversation) montree au modele.
+        'temperature' => (float) env('AI_GUEST_SHELL_TEMPERATURE', 0.4),
+        'history_messages' => (int) env('AI_GUEST_SHELL_HISTORY_MESSAGES', 10),
+        // TASK-1499 (WP-D §2) : le budget CARACTERES de la fenetre, en plus du
+        // nombre de messages. Dix tours a `ai.shell.max_input_chars` plus les
+        // reponses, rien ne plafonnait la charge utile : un compteur de messages
+        // n'est pas un budget. Absent, nul ou negatif -> repli, jamais desactive.
+        'history_max_chars' => (int) env('AI_GUEST_SHELL_HISTORY_MAX_CHARS', 8000),
+        'platform_monthly_ceiling_usd' => env('AI_GUEST_SHELL_PLATFORM_CEILING_USD') === null || env('AI_GUEST_SHELL_PLATFORM_CEILING_USD') === '' ? null : (float) env('AI_GUEST_SHELL_PLATFORM_CEILING_USD'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | UsageReference V1 (TASK-1439, Shell Welcome V3 §9)
+    |--------------------------------------------------------------------------
+    | « A quoi sert cette surface ? » — texte cure plateforme, versionne, publie
+    | par un humain. Borne dure du contenu d'une version.
+    */
+    'usage_reference' => [
+        'max_chars' => (int) env('AI_USAGE_REFERENCE_MAX_CHARS', 4000),
+    ],
 ];

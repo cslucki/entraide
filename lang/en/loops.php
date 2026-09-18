@@ -1289,8 +1289,102 @@ return [
     'why_documents_unavailable' => 'The trace does not detail the document sources.',
     'why_denied' => '{1} 1 context source was denied at generation time: the AI answered without it.|[2,*] :count context sources were denied at generation time: the AI answered without them.',
     'why_trace_unavailable' => 'The generation trace for this answer is not usable: nothing is reconstructed after the fact, so nothing more is shown.',
+    // TASK-1549 — durable memory in the "Why?" panel, and the standard
+    // "Correct" path. No technical identifier, no score, no claim of
+    // exhaustiveness: only what the trace proves.
+    'why_memory_title' => 'BouclePro memory',
+    'why_memory_observed' => 'Observed on :date',
+    'why_memory_scope_here' => 'retained in this Loop',
+    'why_memory_scope_other' => 'retained in the Loop ":loop" — it is corrected from that Loop',
+    // REMEDIATION R2 (Codex audit F3): `why_memory_evolved` and
+    // `why_memory_retracted` were REMOVED — the panel cannot reach them.
+    // See the French file for the full rationale.
+    'why_memory_evidence' => 'Evidence :n',
+    'why_memory_corrected_by' => 'Corrected by :name on :date.',
+    'why_memory_corrected' => 'Corrected on :date.',
+    'why_memory_see_correction' => 'See the correction',
+    'why_memory_denied' => '{1} One cited memory item is no longer accessible and is not detailed.|[2,*] :count cited memory items are no longer accessible and are not detailed.',
+    // The THIRD state: the cited row is gone, so its origin can no longer be
+    // established. This wording names NO family — neither document nor
+    // memory — because nothing can settle it any more (W5/TRACE-0 debt).
+    'why_source_unreachable' => '{1} One cited source is no longer accessible: its content may have evolved since this answer.|[2,*] :count cited sources are no longer accessible: their content may have evolved since this answer.',
+    'correct_action_update' => 'Correct',
+    'correct_action_retract' => 'No longer accurate',
+    'correct_form_title' => 'Correct the memory',
+    'correct_scope' => 'This correction applies to this Loop.',
+    'correct_form_note' => 'Memory is corrected immediately; automatic learning remains deferred and will honour this correction.',
+    'correct_mode_update' => 'Replace with the right statement',
+    'correct_mode_retract' => 'Remove this statement',
+    'correct_new_text_label' => 'The right statement',
+    'correct_text_label' => 'Why? This message will be visible in the Loop.',
+    'correct_text_placeholder' => 'Explain in one sentence — it is the evidence for the correction.',
+    'correct_text_required' => 'Explain the correction: this sentence is the evidence, it is required.',
+    'correct_new_text_required' => 'Write the right statement to replace the old one.',
+    // An input constraint is NAMED. It is not an incident, not a conflict, and
+    // certainly not "reload the current version".
+    'correct_new_text_min' => 'Your correction must be at least :min characters long to be saved.',
+    'correct_refused_right' => 'You can no longer correct this Loop\'s memory. Nothing has been saved.',
+    'correct_submit' => 'Save the correction',
+    'correct_cancel' => 'Cancel',
+    'correct_ack' => 'Correction saved: this Loop\'s memory is up to date, and your message is visible in the conversation.',
+    'correct_conflict_before' => 'This point changed in the meantime. Nothing has been recorded.',
+    'correct_conflict_after' => 'Your message is visible in the Loop, but the memory could not be corrected. Reload the current version.',
+    // TASK-1550 — W1.5-B: "Since this exchange, BouclePro has retained...".
+    // PAST tense, and no promise of a delay — see the French file for the full
+    // rationale. Before compilation there is no card at all.
+    'digest_title' => 'Since this exchange, BouclePro has retained...',
+    // The operation actually persisted, never a guessed nature. The compiler
+    // produces no fact / interpretation / decision discriminator: inventing one
+    // at read time would be a content heuristic.
+    'digest_kind_added' => 'New',
+    'digest_kind_updated' => 'Updated',
+    'digest_kind_retracted' => 'Removed',
+    // No claim of memory exhaustiveness, and no checkbox: nothing is awaiting
+    // validation, all of this is ALREADY saved.
+    // The SCOPE, stated ONCE for the whole card rather than on every line — see
+    // the French file for the full rationale.
+    'digest_note' => 'These items are already saved in this Loop\'s memory. This is not everything BouclePro knows about it.',
+    'digest_dismiss' => 'Hide',
     'why_feedback_title' => 'Was this answer helpful?',
     'why_feedback_helpful' => 'Helpful',
     'why_feedback_improve' => 'Needs improvement',
     'why_close' => 'Close',
+
+    // TASK-1476 — Catch Me Up V1 : « Rattrape-moi depuis… ».
+    'catch_up_title' => 'Catch me up since…',
+    'catch_up_subtitle' => 'What happened in “:loop” over the period you choose.',
+    'catch_up_open' => 'Catch me up',
+    'catch_up_period_legend' => 'Since when?',
+    'catch_up_days_7' => 'Last 7 days',
+    'catch_up_days_14' => 'Last 14 days',
+    'catch_up_days_30' => 'Last 30 days',
+    'catch_up_days_90' => 'Last 3 months',
+    'catch_up_since_label' => 'or since a specific date',
+    'catch_up_apply' => 'Show',
+    'catch_up_window' => 'From :since to :until',
+    'catch_up_window_default' => 'No period requested: here are the last 7 days, from :since to :until.',
+    'catch_up_no_reading_position' => 'BouclePro does not track what you have read inside a Loop. The period is therefore always the one you ask for, never a guessed “last visit”.',
+    'catch_up_empty' => 'Nothing new in this Loop over this period.',
+    'catch_up_empty_hint' => 'Widen the period if you are looking for something older.',
+    'catch_up_section_to_know' => 'Worth knowing',
+    'catch_up_section_decisions' => 'Decisions',
+    'catch_up_section_documents' => 'Documents',
+    'catch_up_section_open' => 'Open requests and questions',
+    'catch_up_section_to_know_empty' => 'No message or event over this period.',
+    'catch_up_section_decisions_empty' => 'No decision recorded over this period.',
+    'catch_up_section_documents_empty' => 'No document added over this period.',
+    'catch_up_section_open_empty' => 'No open request or action over this period.',
+    'catch_up_more' => '{1} 1 more item is not shown.|[2,*] :count more items are not shown.',
+    'catch_up_source_loop' => 'In the Loop',
+    'catch_up_source_dossier' => 'Folder: :name',
+    'catch_up_source_dossier_locked' => 'Folder: :name — you do not have access',
+    'catch_up_pinned' => 'Pinned',
+    'catch_up_by' => 'by :name',
+    'catch_up_kind_loop_event' => 'Event',
+    'catch_up_kind_poll_event' => 'Poll',
+    'catch_up_kind_help_request' => 'Help request',
+    'catch_up_kind_roadmap_todo' => 'Action to do',
+    'catch_up_kind_roadmap_in_progress' => 'Action in progress',
+    'catch_up_decision_from_message' => 'Came from a Loop message',
+    'catch_up_no_ai' => 'This catch-up reads the Loop\'s objects directly. No AI model is called, nothing is summarised or interpreted.',
 ];

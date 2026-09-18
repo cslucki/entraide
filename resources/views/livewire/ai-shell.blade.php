@@ -32,10 +32,72 @@
         toEnd() {
             this.$nextTick(() => { if (this.$refs.log) { this.$refs.log.scrollTop = this.$refs.log.scrollHeight; } });
         },
-        show() { this.open = true; this.$nextTick(() => this.$refs.composer?.focus()); },
+        /*
+         * TASK-1478 — le focus est DIFFERE, et ce n'est pas une precaution.
+         *
+         * `show()` faisait `$nextTick(() => $refs.composer?.focus())` depuis
+         * TASK-1315. Mesure au navigateur : la ref existe, le panneau est deja
+         * `display: flex` a cet instant, et le focus echoue quand meme — le
+         * navigateur refuse encore de le donner dans la meme tache. Un focus
+         * pose une tache plus tard reussit.
+         *
+         * Ce focus n'a donc JAMAIS fonctionne. Il ne se voyait pas tant qu'un
+         * second clic separait l'ouverture de la saisie ; il devient le coeur
+         * du sujet des lors qu'un seul clic doit suffire pour ecrire.
+         *
+         * `setTimeout` et non `requestAnimationFrame` : ce depot a deja paye le
+         * fait qu'une sequence rAF reste gelee tant que `document.hidden` est
+         * vrai (TASK-1244.BUG, quelques lignes plus bas).
+         */
+        /*
+         * Le focus attend que le composeur ait REELLEMENT une boite, et cette
+         * condition n'est pas une precaution de style.
+         *
+         * Mesure au navigateur, instrumentee : le callback de `$nextTick`
+         * s'execute bien, `$refs.composer` est bien le TEXTAREA, `focus()` est
+         * bien appele — et `document.activeElement` reste `BODY`. Le navigateur
+         * REFUSE le focus tant que l'element n'a pas de boite de layout, et
+         * `x-show` vient a peine de poser `display`. Deux cents millisecondes
+         * plus tard, le meme appel reussit.
+         *
+         * On attend donc le fait mesurable (une hauteur), pas un delai devine.
+         * Borne : 12 essais de 25 ms, soit 300 ms au pire, puis on abandonne
+         * silencieusement — un focus manque vaut mieux qu'une boucle.
+         *
+         * `setTimeout` et non `requestAnimationFrame` : une sequence rAF reste
+         * gelee tant que `document.hidden` est vrai, ce que ce depot a deja
+         * paye (TASK-1244.BUG, quelques lignes plus bas).
+         */
+        focusComposer(tries) {
+            const el = this.$refs.composer;
+            if (! el) { return; }
+            if (el.getBoundingClientRect().height > 0) { el.focus(); return; }
+            if (tries > 0) { setTimeout(() => this.focusComposer(tries - 1), 25); }
+        },
+        /*
+         * TASK-1516 — `detail.question` preremplit le composeur.
+         *
+         * `$wire.set()` et non une ecriture dans le DOM : le composeur est lie
+         * par `wire:model`, et une valeur posee cote client serait ecrasee au
+         * premier rafraichissement Livewire — le champ se viderait tout seul.
+         *
+         * Rien n'est ENVOYE : la question est preparee, l'humain decide. Et
+         * elle rejoint le fil existant, jamais une seconde conversation.
+         */
+        show(detail) {
+            this.open = true;
+
+            const question = (detail && typeof detail.question === 'string') ? detail.question.trim() : '';
+
+            if (question !== '') {
+                this.$wire.set('draft', question);
+            }
+
+            this.$nextTick(() => this.focusComposer(12));
+        },
         close() { this.open = false; },
     }"
-    @bp-open-ai-shell.window="show()"
+    @bp-open-ai-shell.window="show($event.detail)"
     @ai-shell-updated.window="toEnd()"
     @keydown.escape.window="close()"
     data-ai-shell
@@ -63,6 +125,11 @@
         <div class="flex items-start justify-between gap-3 border-b border-gray-100 px-4 pt-4 pb-3 dark:border-gray-700">
             <div class="min-w-0">
                 <p id="ai-shell-title" class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.shell_title') }}</p>
+                {{-- TASK-1469 (CDC §2.4) : « ou suis-je ? ». Une phrase courte, sous le nom,
+                     avant meme que la personne ait a formuler quoi que ce soit. Elle NOMME
+                     la surface — elle ne l'explique pas (UsageReference) et ne promet aucune
+                     fonction (runtime). --}}
+                <p class="truncate text-xs text-gray-500 dark:text-gray-400" data-ai-shell-surface="{{ $shell['surface'] }}">{{ __('ai.shell_surface_'.$shell['surface']) }}</p>
             </div>
             <button type="button" @click="close()" data-ai-shell-close
                     class="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
@@ -70,6 +137,70 @@
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
+
+        {{-- TASK-1478 — le credit IA, descendu ici.
+
+             Il vivait dans le panneau du FAB, c'est-a-dire dans l'etape
+             intermediaire que ce lot supprime. Le laisser la-bas l'aurait rendu
+             invisible : le crédit est la seule chose CHIFFREE que le produit
+             montre a la personne, et elle doit la voir au moment ou elle
+             s'apprete a consommer.
+
+             Aucune seconde autorite : `AiFabContext` calcule ces valeurs, ce
+             panneau ne fait que les afficher. Jamais le budget de
+             l'Organization, jamais un cout. --}}
+        @if($shell['credit'] !== null)
+            <div class="border-b border-gray-100 px-4 py-2.5 dark:border-gray-700" data-ai-shell-credit data-ai-shell-tone="{{ $shell['credit_tone'] }}">
+                <div class="flex items-center justify-between gap-3">
+                    <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('ai.fab_credit_title') }}</span>
+                    <span class="text-xs font-semibold {{ $shell['credit_tone'] === 'exhausted' ? 'text-rose-700 dark:text-rose-300' : ($shell['credit_tone'] === 'alert' ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300') }}" data-ai-shell-credit-label>{{ $shell['credit_label'] }}</span>
+                </div>
+
+                @if(! ($shell['credit']['unlimited'] ?? false) && (int) ($shell['credit']['quota'] ?? 0) > 0)
+                    <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700" role="progressbar" aria-valuemin="0" aria-valuemax="{{ (int) $shell['credit']['quota'] }}" aria-valuenow="{{ (int) $shell['credit']['used'] }}">
+                        <div class="h-full rounded-full {{ $shell['credit_tone'] === 'exhausted' ? 'bg-rose-500' : ($shell['credit_tone'] === 'alert' ? 'bg-amber-400' : 'bg-emerald-500') }}" style="width: {{ min(100, (float) ($shell['credit']['percent'] ?? 0)) }}%"></div>
+                    </div>
+                @endif
+
+                @if($shell['credit_tone'] === 'alert')
+                    <p class="mt-1 text-[11px] text-amber-700 dark:text-amber-300" data-ai-shell-alert>{{ __('ai.fab_credit_alert') }}</p>
+                @endif
+
+                @if($shell['usage_url'])
+                    <a href="{{ $shell['usage_url'] }}" data-ai-shell-usage-link class="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 hover:underline dark:text-indigo-300">
+                        {{ __('ai.fab_usage_link') }}
+                    </a>
+                @endif
+            </div>
+        @endif
+
+        {{-- TASK-1484 — l'UsageReference N'EST PLUS RECITEE ICI.
+
+             TASK-1477 l'avait posee en bloc a l'ouverture du Shell : titre et
+             texte integral, en permanence, a quelqu'un qui n'avait rien
+             demande. Mesure faite, le produit avait exactement l'inverse de ce
+             qu'il fallait — ce texte etait AFFICHE et n'atteignait JAMAIS le
+             modele. `usage_reference` n'avait qu'un seul consommateur cote
+             membre : ce bloc. Zero occurrence dans le chemin du prompt.
+
+             Il est desormais donne au modele par `situated()`, borne, et il
+             ancre la reponse au lieu de meubler le panneau. Voir
+             `AiShellUsageReference::groundingFor()`.
+
+             La question « ou suis-je ? » n'est pas perdue pour autant : elle a
+             deja sa reponse, une ligne plus haut dans l'en-tete
+             (`data-ai-shell-surface`). Les quatre couches restent distinctes —
+             l'en-tete dit OU, la phrase ci-dessous dit ce que le Shell PEUT
+             faire, les actions disent quoi FAIRE, la reference ancre le modele.
+
+             TASK-1478 : cette phrase de repli vivait dans le panneau du FAB,
+             qui n'existe plus des lors qu'un Shell existe. Elle etait le
+             `@else` du bloc supprime ; elle devient inconditionnelle, parce
+             qu'elle ne parle pas de la page — elle dit ce que le Shell peut
+             faire, ce qui est vrai partout. --}}
+        <p class="border-b border-gray-100 px-4 py-3 text-xs leading-5 text-gray-500 dark:border-gray-700 dark:text-gray-400" data-ai-shell-page-help>
+            {{ __('ai.fab_page_help') }}
+        </p>
 
         {{-- TASK-1326 — le contexte epingle : visible, retirable, borne. La
              liste rendue ici est EXACTEMENT celle que le prochain tour recevra
@@ -175,6 +306,38 @@
                             $requestDraftBody = $isUserDraft && ! $awaitingClarification
                                 ? trim((string) ($meta['message_draft'] ?: $message->content))
                                 : '';
+
+                            // TASK-1486 — « cette reponse vous a-t-elle aide ? »
+                            //
+                            // Propose UNIQUEMENT si ce tour a produit une trace :
+                            // les statuts degrades n'ont appele aucun provider, et
+                            // un verdict y designerait le vide. Les tours ecrits
+                            // AVANT cette tranche n'ont pas la cle et gardent donc
+                            // exactement leur rendu — meme discipline que `intent`
+                            // (T1350) et `clarification_questions` (T1392).
+                            $judgeableId = $isAnswered ? ($meta['ai_interaction_id'] ?? null) : null;
+                            $judgeableId = is_string($judgeableId) && $judgeableId !== '' ? $judgeableId : null;
+                            $givenVerdict = $judgeableId !== null ? ($shell['verdicts'][$judgeableId] ?? null) : null;
+
+                            // TASK-1551 — « Pourquoi ? » se propose des qu'un tour porte
+                            // une TRACE et des SOURCES, quel que soit son statut.
+                            //
+                            // Mesure du Gate SPEC : les QUATRE branches du Shell qui
+                            // ecrivent `metadata['sources']` sortent en
+                            // `STATUS_NON_INTERACTION`. Reprendre la garde de statut de
+                            // `judge()` ci-dessus aurait rendu l'affordance invisible sur
+                            // 100 % des tours reels — verte en test, morte a l'ecran.
+                            //
+                            // L'affichage ne fait autorite sur rien : `showWhy()` refait
+                            // toutes les gardes, et n'ouvre rien s'il n'y a rien a prouver.
+                            $explainableId = $message->role === \App\Models\AiShellMessage::ROLE_ASSISTANT
+                                && ! $isUserDraft
+                                && is_array($meta['sources'] ?? null)
+                                && ($meta['sources'] !== [])
+                                && is_string($meta['ai_interaction_id'] ?? null)
+                                && $meta['ai_interaction_id'] !== ''
+                                    ? (string) $message->id
+                                    : null;
                         @endphp
                         <li wire:key="ai-shell-msg-{{ $message->id }}"
                             data-ai-shell-message="{{ $message->role }}"
@@ -203,7 +366,21 @@
                                      que l'assistant dit vraiment : il a compris, et il
                                      propose. Le texte a la premiere personne, lui, quitte
                                      cette bulle. --}}
-                                <span class="block whitespace-pre-line">{{ $isUserDraft ? ($isOfferDraft ? __('ai.shell_offer_framing') : __('ai.shell_request_framing')) : $message->content }}</span>
+                                @if($message->role === \App\Models\AiShellMessage::ROLE_ASSISTANT && ! $isUserDraft)
+                                    {{-- TASK-1546 (audit) — le corps NOMINATIF est
+                                         revalide a chaque rendu : une personne qui a
+                                         quitte la Boucle ou depublie son profil
+                                         disparait du texte deja ecrit. Une entree
+                                         absente signifie que le contenu stocke est
+                                         encore exact — c'est le cas de tous les tours
+                                         qui ne nomment personne. --}}
+                                    <div data-ai-shell-markdown
+                                         class="prose prose-sm max-w-none break-words text-current dark:prose-invert prose-p:my-0 prose-ol:my-2 prose-ul:my-2 prose-li:my-1 prose-strong:text-inherit">
+                                        {!! markdown($shell['bodies'][(string) $message->id] ?? $message->content) !!}
+                                    </div>
+                                @else
+                                    <span class="block whitespace-pre-line">{{ $isUserDraft ? ($isOfferDraft ? __('ai.shell_offer_framing') : __('ai.shell_request_framing')) : $message->content }}</span>
+                                @endif
                             </div>
 
                             {{-- TASK-1350 (P0) — la carte du brouillon, visuellement
@@ -286,6 +463,76 @@
                                         <p class="mt-1.5 text-[11px] leading-4 text-gray-500 dark:text-gray-400" data-ai-shell-request-tenant>{{ __('ai.shell_request_tenant', ['organization' => $shell['organization_name']]) }}</p>
                                     @endif
                                 </div>
+                            @endif
+
+                            {{-- TASK-1486 — « Cette reponse vous a-t-elle aidee ? »
+
+                                 Deux pastilles minuscules sous la bulle. Ce n'est pas un
+                                 appel a l'action — c'est une porte ouverte pour qui a
+                                 quelque chose a dire.
+
+                                 La FORME n'est pas inventee : le blog explorer porte deja
+                                 ce geste exact depuis TASK-1256, en pastilles bordees de
+                                 12 px avec 5 px de padding vertical (`.bp-fb-btn`). Une
+                                 premiere version en liens soulignes mesurait 20 px de
+                                 haut — moins affordante, et un vocabulaire visuel de plus
+                                 pour la meme action. On reprend celui qui existe.
+
+                                 Pourquoi ici et pas ailleurs : `ai_interaction_feedbacks`
+                                 existe depuis TASK-1256 et n'etait branchee qu'au blog
+                                 explorer — 26 interactions sur 281, zero verdict jamais
+                                 recueilli. Le Shell en pese 87 et n'avait aucun moyen de
+                                 savoir si sa reponse avait servi.
+
+                                 Une fois le verdict donne, les boutons cedent la place a
+                                 un remerciement : redemander a quelqu'un qui vient de
+                                 repondre serait ne pas l'avoir ecoute. Le verdict reste
+                                 modifiable — `updateOrCreate` cote composant — mais
+                                 l'ecran n'insiste pas. --}}
+                            @if($judgeableId !== null)
+                                <div class="mt-1 flex flex-wrap items-center gap-2 text-[11px] leading-4 text-gray-500 dark:text-gray-400"
+                                     data-ai-shell-feedback="{{ $judgeableId }}"
+                                     @if($givenVerdict) data-ai-shell-feedback-given="{{ $givenVerdict }}" @endif>
+                                    @if($givenVerdict)
+                                        <span data-ai-shell-feedback-thanks>{{ __('ai.shell_feedback_thanks') }}</span>
+                                    @else
+                                        <span>{{ __('ai.shell_feedback_question') }}</span>
+                                        <button type="button"
+                                                wire:click="judge('{{ $message->id }}', 'helpful')"
+                                                data-ai-shell-feedback-helpful
+                                                class="rounded-full border border-gray-300 px-2.5 py-1 font-medium text-gray-600 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300 dark:hover:border-indigo-500 dark:hover:text-indigo-300">
+                                            {{ __('ai.shell_feedback_helpful') }}
+                                        </button>
+                                        <button type="button"
+                                                wire:click="judge('{{ $message->id }}', 'improve')"
+                                                data-ai-shell-feedback-improve
+                                                class="rounded-full border border-gray-300 px-2.5 py-1 font-medium text-gray-600 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300 dark:hover:border-indigo-500 dark:hover:text-indigo-300">
+                                            {{ __('ai.shell_feedback_improve') }}
+                                        </button>
+                                    @endif
+                                </div>
+                            @endif
+
+                            {{-- TASK-1551 — W1.5 : le Shell rend enfin lisible la
+                                 provenance qu'il ECRIT depuis TASK-1391 et que rien ne
+                                 lisait. Un bouton, un panneau replie, aucune ecriture. --}}
+                            @if($explainableId !== null)
+                                <div class="mt-1 flex flex-wrap items-center gap-2 text-[11px] leading-4">
+                                    @if($whyMessageId === $explainableId)
+                                        <button type="button" wire:click="closeWhy" data-ai-shell-why-close
+                                                class="rounded-full border border-indigo-300 px-2.5 py-1 font-medium text-indigo-600 transition hover:bg-indigo-50 dark:border-indigo-600 dark:text-indigo-300 dark:hover:bg-indigo-950/40">
+                                            {{ __('ai.shell_why_close') }}
+                                        </button>
+                                    @else
+                                        <button type="button" wire:click="showWhy('{{ $explainableId }}')" data-ai-shell-why-open
+                                                class="rounded-full border border-gray-300 px-2.5 py-1 font-medium text-gray-600 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-300 dark:hover:border-indigo-500 dark:hover:text-indigo-300">
+                                            {{ __('ai.shell_why_open') }}
+                                        </button>
+                                    @endif
+                                </div>
+                            @endif
+                            @if($whyMessageId === $explainableId && $explainableId !== null && $whyPanel !== null)
+                                @include('livewire.partials.shell-why-panel', ['panel' => $whyPanel])
                             @endif
 
                             {{-- TASK-1325 — les cartes structurees de CE tour. Chaque

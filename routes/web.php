@@ -7,17 +7,23 @@ use App\Http\Controllers\Admin\AdminAiInteractionController;
 use App\Http\Controllers\Admin\AdminAiMonetizationController;
 use App\Http\Controllers\Admin\AdminAiOrganizationsController;
 use App\Http\Controllers\Admin\AdminAiPromptController;
+use App\Http\Controllers\Admin\AdminAiQualityController;
 use App\Http\Controllers\Admin\AdminAiReviewQueueController;
 use App\Http\Controllers\Admin\AdminAiSupervisionController;
+use App\Http\Controllers\Admin\AdminAiTurnController;
 use App\Http\Controllers\Admin\AdminAiUsageController;
 use App\Http\Controllers\Admin\AdminBlogController;
 use App\Http\Controllers\Admin\AdminBlogTodoController;
 use App\Http\Controllers\Admin\AdminBugReportController;
 use App\Http\Controllers\Admin\AdminCategoryController;
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AdminCrmController;
+use App\Http\Controllers\Admin\AdminCrmOverviewController;
+use App\Http\Controllers\Admin\AdminDrivesController;
 use App\Http\Controllers\Admin\AdminEmailController;
 use App\Http\Controllers\Admin\AdminEmailLogsController;
 use App\Http\Controllers\Admin\AdminEmailTemplatesController;
+use App\Http\Controllers\Admin\AdminGuestShellController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
@@ -30,12 +36,22 @@ use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
+use App\Http\Controllers\Admin\AdminRootDestinationController;
 use App\Http\Controllers\Admin\AdminScenarioPackController;
+use App\Http\Controllers\Admin\AdminShortcutController;
 use App\Http\Controllers\Admin\AdminSystemEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminTagController;
 use App\Http\Controllers\Admin\AdminThemeController;
 use App\Http\Controllers\Admin\AdminTranslationController;
+use App\Http\Controllers\Admin\AdminUsageReferenceController;
+use App\Http\Controllers\Admin\AdminWorkshopController;
+use App\Http\Controllers\Admin\OrgAcquisitionController;
 use App\Http\Controllers\Admin\OrgAdminController;
+use App\Http\Controllers\Admin\OrgCrmController;
+use App\Http\Controllers\Admin\OrgCrmTemplateController;
+use App\Http\Controllers\Admin\OrgWorkshopController;
+use App\Http\Controllers\Admin\OrgWorkshopRegistrantsController;
+use App\Http\Controllers\Admin\OrgWorkshopSessionController;
 use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\AiAgentLoopController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -55,6 +71,7 @@ use App\Http\Controllers\BlogSnapshotController;
 use App\Http\Controllers\BlogTodoController;
 use App\Http\Controllers\BugReportController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DossierAnswerController;
 use App\Http\Controllers\DossierArticleController;
 use App\Http\Controllers\DossierController;
 use App\Http\Controllers\DossierFileController;
@@ -64,10 +81,12 @@ use App\Http\Controllers\DossierSemanticSearchController;
 use App\Http\Controllers\DossierSeriesController;
 use App\Http\Controllers\ExplorerController;
 use App\Http\Controllers\FavoriteController;
+use App\Http\Controllers\GuestShellController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LikeController;
 use App\Http\Controllers\LocaleController;
+use App\Http\Controllers\LoopCatchUpController;
 use App\Http\Controllers\LoopController;
 use App\Http\Controllers\LoopDossierArticleController;
 use App\Http\Controllers\LoopEventAgendaController;
@@ -88,10 +107,14 @@ use App\Http\Controllers\RequestController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\ShortcutController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserAiUsageController;
+use App\Http\Controllers\WorkshopInterestController;
+use App\Http\Controllers\WorkshopPageController;
+use App\Http\Controllers\WorkshopRegistrationController;
 use App\Http\Middleware\OrgAdminMiddleware;
 use App\Livewire\BoundedMemberAgent;
 use App\Livewire\CreateFeedPost;
@@ -111,6 +134,8 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 // TASK-1349 — la gouvernance IA, publique par conception. Aucune
 // authentification : ce sont des principes, pas des donnees d'exploitation.
 Route::get('/mycelium', [MyceliumController::class, 'index'])->name('mycelium');
+// TASK-1447 — OrganizationShortcut : /s/{code} → 302 vers une destination canonique de l'Organization (Growth V2 §5).
+Route::get('/s/{code}', ShortcutController::class)->middleware('throttle:60,1')->where('code', '[a-z0-9\\-]{3,32}')->name('shortcut');
 Route::get('/launchpals', fn () => redirect()->to(route('organization.home', ['organization' => 'launchpals'], false), 301))
     ->name('public.launchpals');
 Route::get('/demo', function () {
@@ -124,10 +149,16 @@ Route::get('/demo', function () {
     return redirect()->away($url, 302);
 })->name('public.demo');
 Route::post('/locale/{locale}', [LocaleController::class, 'switch'])->name('locale.switch');
-Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
+// TASK-1479 (P0 privacy) — l'annuaire et les echanges sont des surfaces
+// INTERNES d'Organization. Mesure faite : elles etaient servies en HTTP 200 a
+// un visiteur ANONYME, sur des Organizations privees comprises, avec noms,
+// villes, biographies et affiliations. `auth` ferme l'acces anonyme,
+// `organization.member` ferme le cross-tenant authentifie — les deux sont
+// necessaires, et un sabotage le prouve.
+Route::get('/explorer', [ExplorerController::class, 'index'])->middleware(['auth', 'organization.member'])->name('explorer');
 Route::view('/about', 'about')->name('about');
-Route::get('/membres', [HomeController::class, 'members'])->name('members.index');
-Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');
+Route::get('/membres', [HomeController::class, 'members'])->middleware(['auth', 'organization.member'])->name('members.index');
+Route::get('/echanges', [HomeController::class, 'exchanges'])->middleware(['auth', 'organization.member'])->name('exchanges.index');
 Route::redirect('/partners', '/partenaires');
 Route::get('/partenaires', [HomeController::class, 'partners'])->name('partenaires.index');
 Route::get('/partenaires/demande', [OrganizationRequestController::class, 'create'])->name('partenaires.request.create');
@@ -243,7 +274,14 @@ Route::get('/loop-invitations/{token}', [LoopInvitationController::class, 'show'
 Route::post('/loop-invitations/{token}/prepare', [LoopInvitationController::class, 'prepare'])->middleware('throttle:20,1')->name('loop-invitations.prepare');
 
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
-Route::get('/search', [SearchController::class, 'index'])->name('search');
+// TASK-1488 (P0 privacy) — /search etait un CONTOURNEMENT vivant du correctif
+// deja merge par TASK-1479. Mesure : un anonyme obtenait 200 avec le nom
+// complet, la ville et la note de membres d'une Organization privee — les
+// memes champs pour lesquels /membres a ete ferme —, plus les titres des
+// Services et des Demandes, et des liens vers des fiches de profil desormais
+// fermees. Plus grave que les fiches : aucun UUID n'est necessaire, la donnee
+// est DECOUVRABLE par simple mot-cle.
+Route::get('/search', [SearchController::class, 'index'])->middleware(['auth', 'organization.member'])->name('search');
 Route::view('/aide', 'help')->name('help');
 Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');
 Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
@@ -415,9 +453,21 @@ Route::middleware('auth')->group(function () {
     });
 });
 
-Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show')->whereUuid('service');
-Route::get('/requests/{request}', [RequestController::class, 'show'])->name('requests.show');
-Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show');
+// TASK-1488 (P0 privacy) — la fiche d'un Service et celle d'une Demande
+// rejoignent la frontiere posee par TASK-1479. Mesure faite au HEAD 497d934b,
+// sans aucun cookie, sur une Organization `is_public = false` : ces deux routes
+// rendaient 200 avec le NOM REEL de la personne, le titre et le contenu metier.
+// Le commentaire « Public ... used by Explorer » qui les couvrait ne suffisait
+// pas : l'Explorer lui-meme est member-only depuis TASK-1479, et « Public »
+// designe le tenant resolu, pas le lecteur autorise (docs/05, « Public != global »).
+Route::get('/services/{service}', [ServiceController::class, 'show'])->middleware(['auth', 'organization.member'])->name('services.show')->whereUuid('service');
+Route::get('/requests/{request}', [RequestController::class, 'show'])->middleware(['auth', 'organization.member'])->name('requests.show');
+// TASK-1479 (P0 privacy, extension arbitree par MASTER) — « profil public »
+// veut dire visible des AUTRES MEMBRES de l'Organization, pas ouvert au Web
+// anonyme. Mesure : sur une Organization is_public = false, cette page rendait
+// 200 a un anonyme avec nom, ville, biographie, disponibilite et points.
+// Fermer l'annuaire en laissant chaque fiche accessible serait un demi-correctif.
+Route::get('/profile/{user}', [ProfileController::class, 'show'])->middleware(['auth', 'organization.member'])->name('profile.show');
 Route::middleware('ai-profiles.enabled')->group(function () {
     Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->name('agent-ia.profile.chat');
     Route::post('/profile/{user}/agent-ia/discuter', [AiAgentLoopController::class, 'startConversation'])->name('agent-ia.conversation.start');
@@ -498,6 +548,27 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Organizations
     Route::get('/organizations', [AdminOrganizationController::class, 'index'])->name('organizations');
+    // TASK-1425 (CRM-15) : « Relations » cote plateforme, agregats par Organization, lecture seule.
+    Route::get('/relations', [AdminCrmOverviewController::class, 'index'])->name('crm.overview');
+    // TASK-1427 : decision Cyril — le SuperAdmin voit TOUT (contacts, echeances, faits de toutes les Organizations).
+    Route::get('/relations/aujourdhui', [AdminCrmOverviewController::class, 'today'])->name('crm.overview.today');
+    Route::get('/relations/faits', [AdminCrmOverviewController::class, 'facts'])->name('crm.overview.facts');
+    // TASK-1431 (CRM CORE FIX B) : le SuperAdmin ADMINISTRE les Relations de chaque Organization —
+    // Organization explicite dans l'URL, memes services metier, SoftDelete/restore plateforme.
+    Route::post('/relations/{organization}/contacts', [AdminCrmController::class, 'storeContact'])->name('crm.contacts.store');
+    Route::get('/relations/{organization}/contacts/{contact}', [AdminCrmController::class, 'show'])->name('crm.contacts.show');
+    Route::put('/relations/{organization}/contacts/{contact}', [AdminCrmController::class, 'updateContact'])->name('crm.contacts.update');
+    Route::delete('/relations/{organization}/contacts/{contact}', [AdminCrmController::class, 'destroy'])->name('crm.contacts.destroy');
+    Route::post('/relations/{organization}/contacts/{contact}/restore', [AdminCrmController::class, 'restore'])->name('crm.contacts.restore');
+    Route::post('/relations/{organization}/contacts/{contact}/status', [AdminCrmController::class, 'changeStatus'])->name('crm.contacts.status');
+    Route::post('/relations/{organization}/contacts/{contact}/notes', [AdminCrmController::class, 'storeNote'])->name('crm.contacts.notes.store');
+    Route::post('/relations/{organization}/contacts/{contact}/next-action', [AdminCrmController::class, 'planNextAction'])->name('crm.contacts.next-action.plan');
+    Route::post('/relations/{organization}/contacts/{contact}/next-action/complete', [AdminCrmController::class, 'completeNextAction'])->name('crm.contacts.next-action.complete');
+    Route::post('/relations/{organization}/contacts/{contact}/policy', [AdminCrmController::class, 'changePolicy'])->name('crm.contacts.policy');
+    Route::get('/relations/{organization}/contacts/{contact}/email', [AdminCrmController::class, 'pickEmailTemplate'])->name('crm.contacts.email.pick');
+    Route::get('/relations/{organization}/contacts/{contact}/email/{template}', [AdminCrmController::class, 'previewEmail'])->name('crm.contacts.email.preview');
+    Route::post('/relations/{organization}/contacts/{contact}/email/{template}', [AdminCrmController::class, 'sendEmail'])->name('crm.contacts.email.send');
+    Route::get('/relations/{organization}/contacts/{contact}/emails/{log}', [AdminCrmController::class, 'showEmail'])->name('crm.contacts.emails.show');
     Route::get('/organizations/create', [AdminOrganizationController::class, 'create'])->name('organizations.create');
     Route::post('/organizations', [AdminOrganizationController::class, 'store'])->name('organizations.store');
     Route::get('/organizations/{organization}/edit', [AdminOrganizationController::class, 'edit'])->name('organizations.edit');
@@ -507,6 +578,29 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/organizations/{organization}/homepage', [AdminOrganizationController::class, 'homepage'])->name('organizations.homepage');
     Route::put('/organizations/{organization}/homepage', [AdminOrganizationController::class, 'updateHomepage'])->name('organizations.homepage.update');
     Route::get('/homepages', [AdminOrganizationController::class, 'homepages'])->name('homepages');
+    // TASK-1506 — ce que sert la RACINE (`/`) : accueil, Shell Welcome, blog,
+    // annuaire ou boucles. Aucun nom de domaine n'entre dans ce choix.
+    Route::get('/homepage', [AdminRootDestinationController::class, 'edit'])->name('homepage');
+
+    // TASK-1514 — les fichiers de TOUTES les Organizations, avec filtre.
+    // L'ecriture porte l'Organization DANS l'URL : `DossierFile` n'a aucun
+    // scope global, le binding accepterait sinon un fichier d'un autre tenant.
+    Route::get('/drives', [AdminDrivesController::class, 'index'])->name('drives');
+    Route::post('/drives/{organization}/{file}/reindex', [AdminDrivesController::class, 'reindex'])
+        ->middleware('throttle:20,1')
+        ->name('drives.reindex');
+    // TASK-1515 — lire les extraits indexes d'un fichier, et supprimer un
+    // fichier. Meme regle de perimetre que la reindexation : l'Organization
+    // est DANS l'URL et le controleur la compare, faute de scope global sur
+    // `DossierFile`. La suppression est en DELETE, jamais en GET : aucune
+    // destruction ne doit etre atteignable par une simple navigation.
+    Route::get('/drives/{organization}/{file}/chunks', [AdminDrivesController::class, 'chunks'])
+        ->middleware('throttle:60,1')
+        ->name('drives.chunks');
+    Route::delete('/drives/{organization}/{file}', [AdminDrivesController::class, 'destroy'])
+        ->middleware('throttle:20,1')
+        ->name('drives.destroy');
+    Route::put('/homepage', [AdminRootDestinationController::class, 'update'])->name('homepage.update');
     Route::get('/organization-requests', [AdminOrganizationRequestController::class, 'index'])->name('organization-requests');
 
     // Messages moderation
@@ -591,11 +685,43 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Centre de supervision IA (T078.1) — appel réel OpenAI gpt-4o-mini
     Route::get('/ai-supervision', [AdminAiSupervisionController::class, 'index'])->name('ai-supervision');
+    // TASK-1438 (SW-10) : observabilite plateforme du Shell Welcome — lecture seule, jamais un contenu de conversation.
+    Route::get('/shell-welcome', [AdminGuestShellController::class, 'index'])->name('guest-shell');
+    // TASK-1439 : UsageReference V1 — plateforme-only, brouillon -> publication humaine -> retrait (V3 §9).
+    Route::get('/usage-references', [AdminUsageReferenceController::class, 'index'])->name('usage-references');
+    Route::get('/usage-references/create', [AdminUsageReferenceController::class, 'create'])->name('usage-references.create');
+    Route::post('/usage-references', [AdminUsageReferenceController::class, 'store'])->name('usage-references.store');
+    // TASK-1480 : LIRE une reference — le geste qui manquait. `edit` etait la
+    // seule vue du texte et rend 404 sur une version publiee : on ne pouvait
+    // donc pas relire ce qui etait en ligne. Declaree APRES `/create` pour que
+    // le segment litteral ne soit pas capture comme un identifiant.
+    Route::get('/usage-references/{usageReference}', [AdminUsageReferenceController::class, 'show'])->name('usage-references.show');
+    Route::get('/usage-references/{usageReference}/edit', [AdminUsageReferenceController::class, 'edit'])->name('usage-references.edit');
+    Route::put('/usage-references/{usageReference}', [AdminUsageReferenceController::class, 'update'])->name('usage-references.update');
+    Route::post('/usage-references/{usageReference}/publish', [AdminUsageReferenceController::class, 'publish'])->name('usage-references.publish');
+    Route::delete('/usage-references/{usageReference}', [AdminUsageReferenceController::class, 'retire'])->name('usage-references.retire');
+    // TASK-1447 : OrganizationShortcut, SuperAdmin-managed V1.
+    Route::get('/shortcuts', [AdminShortcutController::class, 'index'])->name('shortcuts');
+    Route::post('/shortcuts', [AdminShortcutController::class, 'store'])->name('shortcuts.store');
+    Route::patch('/shortcuts/{shortcut}/toggle', [AdminShortcutController::class, 'toggle'])->name('shortcuts.toggle');
+    // TASK-1456 : SuperAdmin Workshops — cockpit transversal LECTURE SEULE (V3 §14, MASTER Q81).
+    Route::get('/workshops', [AdminWorkshopController::class, 'index'])->name('workshops');
     Route::post('/ai-supervision', [AdminAiSupervisionController::class, 'analyze'])->name('ai-supervision.analyze');
 
     // Historique des interactions IA (TASK-249)
     Route::get('/ai-interactions', [AdminAiInteractionController::class, 'index'])->name('ai-interactions');
     Route::get('/ai-interactions/{interaction}', [AdminAiInteractionController::class, 'show'])->name('ai-interactions.show');
+
+    // TASK-1581 — Inspector UI V0 : la vue lecteur d'un tour IA (CDC-02 T1-E).
+    // Read-only : aucune route POST, aucun bouton RUN.
+    Route::get('/ai-turns', [AdminAiTurnController::class, 'index'])->name('ai-turns');
+    // TASK-1585 — Tester une requete : le GET ne fait que rendre le formulaire
+    // (selections dependantes, tenant) ; le POST execute UN vrai tour par
+    // AiTurnExecutor (publish:false) puis redirige vers sa fiche.
+    Route::get('/ai-turns/test', [AdminAiTurnController::class, 'testForm'])->name('ai-turns.test');
+    Route::post('/ai-turns/test', [AdminAiTurnController::class, 'runTest'])->middleware('throttle:10,1')->name('ai-turns.test.run');
+    Route::get('/ai-turns/{interaction}', [AdminAiTurnController::class, 'show'])->name('ai-turns.show');
+    Route::get('/ai-shell-turns/{shellMessage}', [AdminAiTurnController::class, 'showShell'])->name('ai-turns.shell');
 
     // Admin AI prompts registry (TASK-252)
     Route::get('/ai-prompts', [AdminAiPromptController::class, 'index'])->name('ai-prompts');
@@ -626,6 +752,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/ai-config', [AdminAiConfigController::class, 'update'])->name('ai-config.update');
     Route::post('/ai-config/blog', [AdminAiConfigController::class, 'updateBlogConfig'])->name('ai-config.blog');
     Route::post('/ai-config/profile', [AdminAiConfigController::class, 'updateProfileConfig'])->name('ai-config.profile');
+    // TASK-1429 (SW-1) : politique Shell Welcome par Organization (SuperAdmin).
+    Route::post('/ai-config/guest-shell', [AdminAiConfigController::class, 'updateGuestShellConfig'])->name('ai-config.guest-shell');
+    // TASK-1500 : la configuration Shell Welcome par Organization a SA page (decision Cyril 10/09) ; le POST ci-dessus reste l'unique ecriture.
+    Route::get('/shell-welcome-config', [AdminAiConfigController::class, 'guestShellConfig'])->name('shell-welcome-config');
 
     // Scenario packs (TASK-1240/TASK-1241) : un seul couple (pack, Organization)
     // a la fois, jamais d'action globale non bornee.
@@ -644,6 +774,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // TASK-1223 : cockpit IA/RAG plateforme — metadonnees par Organization,
     // jamais un contenu tenant ni une cle.
     Route::get('/ai-organizations', [AdminAiOrganizationsController::class, 'index'])->name('ai-organizations');
+    // TASK-1487 (AI Quality Q2) : la MEME lecture, agregee plateforme, avec un
+    // filtre Organization. Aucune conversation, aucune cle, aucun secret.
+    Route::get('/ai-quality', [AdminAiQualityController::class, 'index'])->name('ai-quality');
     // TASK-1229 : « Monetisation IA » — credit IA par utilisateur (plateforme) :
     // IA gratuite, quota mensuel en utilisations, seuil d'alerte, offre.
     Route::get('/ai-monetization', [AdminAiMonetizationController::class, 'index'])->name('ai-monetization');
@@ -717,7 +850,18 @@ Route::prefix('/org/{organization}')
     ->name('organization.')
     ->group(function () {
         Route::get('/', [OrganizationLandingController::class, '__invoke'])->name('home');
+        // TASK-1442 — SW-8a : la surface publique du Shell Welcome (lecture pure + premier geste). Distincte du Shell membre.
+        Route::get('/shell', [GuestShellController::class, 'show'])->middleware('throttle:60,1')->name('shell.show');
+        Route::post('/shell/message', [GuestShellController::class, 'message'])->middleware('throttle:30,1')->name('shell.message');
         Route::get('/about', [OrganizationLandingController::class, 'about'])->name('about');
+        // TASK-1450 — Workshop domain foundation : la page PUBLIQUE d'un atelier publie de CETTE Organization (404 sinon). Pas de Shell ici.
+        Route::get('/ateliers/{workshop}', [WorkshopPageController::class, 'show'])->name('workshop.show')->where('workshop', '[a-z0-9][a-z0-9\-]{2,79}');
+        // TASK-1452 (B4-B) : « je choisis cette session » — geste Guest (interet != inscription), throttle anti-rafale.
+        Route::post('/ateliers/{workshop}/sessions/{session}/interest', [WorkshopInterestController::class, 'select'])->middleware('throttle:30,1')->name('workshop.session.interest')->where('workshop', '[a-z0-9][a-z0-9\-]{2,79}')->whereUuid('session');
+        Route::delete('/ateliers/{workshop}/sessions/{session}/interest', [WorkshopInterestController::class, 'withdraw'])->middleware('throttle:30,1')->name('workshop.session.interest.withdraw')->where('workshop', '[a-z0-9][a-z0-9\-]{2,79}')->whereUuid('session');
+        // TASK-1453 : « je confirme ma participation » — geste MEMBRE (auth) ; l'email verifie et la meme Organization sont exiges par le controller.
+        Route::post('/ateliers/{workshop}/sessions/{session}/register', [WorkshopRegistrationController::class, 'register'])->middleware(['auth', 'throttle:30,1'])->name('workshop.session.register')->where('workshop', '[a-z0-9][a-z0-9\-]{2,79}')->whereUuid('session');
+        Route::delete('/ateliers/{workshop}/sessions/{session}/register', [WorkshopRegistrationController::class, 'cancel'])->middleware(['auth', 'throttle:30,1'])->name('workshop.session.register.cancel')->where('workshop', '[a-z0-9][a-z0-9\-]{2,79}')->whereUuid('session');
         // TASK-1349 — publique UNIQUEMENT sur opt-in explicite. Sans opt-in,
         // ou sans version active, la route rend 404 : publiquement, la
         // ressource n'existe pas.
@@ -741,11 +885,23 @@ Route::prefix('/org/{organization}')
         Route::get('/boucles', [HomeController::class, 'boucles'])->name('boucles.index');
 
         Route::middleware('auth')->group(function () {
-            Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-            Route::get('/dashboard/requests', [DashboardController::class, 'requests'])->name('dashboard.requests');
-            Route::get('/dashboard/requests/{serviceRequest}', [DashboardController::class, 'requestDetail'])->name('dashboard.requests.detail')->middleware('consume.org')->whereUuid('serviceRequest');
-            Route::get('/dashboard/services', [DashboardController::class, 'services'])->name('dashboard.services');
-            Route::get('/dashboard/services/{service}', [DashboardController::class, 'serviceDetail'])->name('dashboard.services.detail')->middleware('consume.org')->whereUuid('service');
+            // TASK-1483 (P1 tenant) — le tableau de bord d'une Organization
+            // repondait 200 a un membre d'une AUTRE Organization. Rien du
+            // tenant vise n'y fuyait : la page ne montre que les donnees du
+            // visiteur. Le defaut est ailleurs — elle les montrait sous
+            // l'identite, le theme et le `header_javascript` d'un tenant dont
+            // il n'est pas membre, en laissant croire qu'il y avait sa place.
+            //
+            // `explain` plutot que le 404 par defaut : la personne est
+            // connectee et a tape ce slug elle-meme. Voir
+            // `EnsureOrganizationMember`.
+            Route::middleware('organization.member:explain')->group(function () {
+                Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+                Route::get('/dashboard/requests', [DashboardController::class, 'requests'])->name('dashboard.requests');
+                Route::get('/dashboard/requests/{serviceRequest}', [DashboardController::class, 'requestDetail'])->name('dashboard.requests.detail')->middleware('consume.org')->whereUuid('serviceRequest');
+                Route::get('/dashboard/services', [DashboardController::class, 'services'])->name('dashboard.services');
+                Route::get('/dashboard/services/{service}', [DashboardController::class, 'serviceDetail'])->name('dashboard.services.detail')->middleware('consume.org')->whereUuid('service');
+            });
             Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
             Route::middleware('profile.complete')->group(function () {
@@ -859,6 +1015,10 @@ Route::prefix('/org/{organization}')
                 // memes gardes ; seul le langage change. Contexte Organization
                 // seulement : la Boucle appartient a un tenant.
                 Route::get('/loops/{loop}/outils', [LoopToolsController::class, 'index'])->name('loops.tools');
+                // TASK-1476 — « Rattrape-moi depuis… » : lecture pure, periode explicite.
+                // L'acces est celui de l'espace de travail (LoopPolicy::viewWorkspace),
+                // demande dans le controleur : aucune seconde autorite ici.
+                Route::get('/loops/{loop}/rattrapage', LoopCatchUpController::class)->name('loops.catch-up');
                 Route::post('/loops/{loop}/outils', [LoopToolsController::class, 'update'])->middleware('throttle:30,1')->name('loops.tools.update');
             });
 
@@ -872,6 +1032,11 @@ Route::prefix('/org/{organization}')
                 Route::get('/dossiers/{dossier}', [DossierController::class, 'show'])->name('dossiers.show');
                 Route::get('/dossiers/{dossier}/semantic-search', DossierSemanticSearchController::class)->name('dossiers.semantic-search');
                 Route::post('/dossiers/{dossier}/insights', DossierInsightsController::class)->middleware('throttle:5,1')->name('dossiers.insights');
+                // TASK-1516 — « Interroger ce Dossier » : question libre,
+                // reponse sourcee. POST parce qu'une question est une donnee
+                // d'entree et un appel provider facture, jamais une URL a
+                // partager ou a rejouer par un cache.
+                Route::post('/dossiers/{dossier}/answer', DossierAnswerController::class)->middleware('throttle:10,1')->name('dossiers.answer');
                 Route::post('/dossiers/{dossier}/articles', [DossierArticleController::class, 'store'])->name('dossiers.articles.store');
                 Route::post('/dossiers/{dossier}/articles/create-and-attach', [DossierArticleController::class, 'createAndAttach'])->name('dossiers.articles.create-and-attach');
                 Route::patch('/dossiers/{dossier}/articles/{post}/move', [DossierArticleController::class, 'move'])->name('dossiers.articles.move');
@@ -993,17 +1158,33 @@ Route::prefix('/org/{organization}')
 
         });
 
-        // Public organization-scoped detail routes used by Explorer.
-        Route::get('/services/{service}', [ServiceController::class, 'orgShow'])->name('services.show')->whereUuid('service');
-        Route::get('/requests/{request}', [RequestController::class, 'orgShow'])->name('requests.show')->whereUuid('request');
-        Route::get('/profile/{user}', [ProfileController::class, 'show'])->name('profile.show')->whereUuid('user');
+        // TASK-1488 (P0 privacy) — ce bloc s'annoncait « Public organization-scoped
+        // detail routes used by Explorer ». Les trois membres de la phrase sont
+        // faux depuis TASK-1479 : l'Explorer est member-only, la fiche de profil
+        // juste en dessous porte deja la garde, et « Public » n'a jamais voulu
+        // dire « ouvert au Web anonyme ».
+        //
+        // Mesure : `orgShow()` delegue a `show()`, qui ne verifiait que la
+        // coherence de tenant — donc l'Organization que l'URL designe. Resultat,
+        // un membre de l'Organization B obtenait 200 sur la fiche d'un Service de
+        // l'Organization A. Les deux gardes sont necessaires et un sabotage le
+        // prouve : `auth` seul laisserait ce cross-tenant AUTHENTIFIE ouvert.
+        Route::get('/services/{service}', [ServiceController::class, 'orgShow'])->middleware(['auth', 'organization.member'])->name('services.show')->whereUuid('service');
+        Route::get('/requests/{request}', [RequestController::class, 'orgShow'])->middleware(['auth', 'organization.member'])->name('requests.show')->whereUuid('request');
+        Route::get('/profile/{user}', [ProfileController::class, 'show'])->middleware(['auth', 'organization.member'])->name('profile.show')->whereUuid('user');
         Route::middleware('ai-profiles.enabled')->group(function () {
             Route::get('/profile/{user}/agent-ia', [ProfileController::class, 'aiAgentChat'])->middleware('consume.org')->name('agent-ia.profile.chat')->whereUuid('user');
         });
 
-        Route::get('/explorer', [ExplorerController::class, 'index'])->name('explorer');
-        Route::get('/membres', [HomeController::class, 'members'])->name('members.index');
-        Route::get('/echanges', [HomeController::class, 'exchanges'])->name('exchanges.index');
+        // TASK-1479 (P0 privacy) — l'annuaire et les echanges sont des surfaces
+        // INTERNES d'Organization. Mesure faite : elles etaient servies en HTTP 200 a
+        // un visiteur ANONYME, sur des Organizations privees comprises, avec noms,
+        // villes, biographies et affiliations. `auth` ferme l'acces anonyme,
+        // `organization.member` ferme le cross-tenant authentifie — les deux sont
+        // necessaires, et un sabotage le prouve.
+        Route::get('/explorer', [ExplorerController::class, 'index'])->middleware(['auth', 'organization.member'])->name('explorer');
+        Route::get('/membres', [HomeController::class, 'members'])->middleware(['auth', 'organization.member'])->name('members.index');
+        Route::get('/echanges', [HomeController::class, 'exchanges'])->middleware(['auth', 'organization.member'])->name('exchanges.index');
 
         // Organization admin dashboard (org-scoped)
         Route::middleware(['auth', OrgAdminMiddleware::class])
@@ -1011,6 +1192,16 @@ Route::prefix('/org/{organization}')
             ->name('admin.')
             ->group(function () {
                 Route::get('/', [OrgAdminController::class, 'dashboard'])->name('dashboard');
+                // TASK-1513 — la supervision des fichiers d'une Organization.
+                // Elle vit dans la CONSOLE et non sous `/org/{org}/drives` : la
+                // page liste le NOM de tous les fichiers de tous les Dossiers,
+                // prives compris. Hors console, elle tomberait sous
+                // `organization.member` et tout membre y verrait les titres des
+                // documents prives des autres — une fuite.
+                Route::get('/drives', [OrgAdminController::class, 'drives'])->name('drives');
+                Route::post('/drives/{file}/reindex', [OrgAdminController::class, 'reindexDriveFile'])
+                    ->middleware('throttle:20,1')
+                    ->name('drives.reindex');
 
                 // Exchanges
                 Route::get('/services', [OrgAdminController::class, 'services'])->name('services');
@@ -1050,6 +1241,75 @@ Route::prefix('/org/{organization}')
                 Route::patch('/users/{user}/toggle-ban', [OrgAdminController::class, 'toggleUserBan'])->name('users.toggle-ban');
                 Route::get('/users/{user}/delete-preview', [OrgAdminController::class, 'deletePreview'])->name('users.delete-preview');
                 Route::post('/users/{user}/delete', [OrgAdminController::class, 'deleteUser'])->name('users.delete');
+
+                // TASK-1416 (CRM-4) : « Relations », le Mini-CRM de l'Organization.
+                // {contact} est resolu DANS l'Organization par le controller (404
+                // pour un Contact d'ailleurs), jamais par un binding global.
+                // TASK-1424 (CRM-14) : « Aujourd'hui » est la page d'entree de Relations ; la
+                // liste des Contacts vit sous /relations/contacts, son nom de route est inchange.
+                Route::get('/relations', [OrgCrmController::class, 'today'])->name('crm.today');
+                Route::get('/relations/contacts', [OrgCrmController::class, 'contacts'])->name('crm.contacts');
+                Route::post('/relations/contacts', [OrgCrmController::class, 'storeContact'])->name('crm.contacts.store');
+                // TASK-1446 : AcquisitionJourney foundation — {journey} est resolu DANS l'Organization par le controller (404 ailleurs).
+                Route::get('/acquisition', [OrgAcquisitionController::class, 'index'])->name('acquisition');
+                Route::get('/acquisition/create', [OrgAcquisitionController::class, 'create'])->name('acquisition.create');
+                Route::post('/acquisition', [OrgAcquisitionController::class, 'store'])->name('acquisition.store');
+                Route::get('/acquisition/{journey}/edit', [OrgAcquisitionController::class, 'edit'])->name('acquisition.edit')->whereUuid('journey');
+                Route::put('/acquisition/{journey}', [OrgAcquisitionController::class, 'update'])->name('acquisition.update')->whereUuid('journey');
+                Route::post('/acquisition/{journey}/publish', [OrgAcquisitionController::class, 'publish'])->name('acquisition.publish')->whereUuid('journey');
+                Route::delete('/acquisition/{journey}', [OrgAcquisitionController::class, 'retire'])->name('acquisition.retire')->whereUuid('journey');
+                // TASK-1450 : Workshop domain foundation — {workshop} est resolu DANS l'Organization par le controller (404 ailleurs).
+                Route::get('/ateliers', [OrgWorkshopController::class, 'index'])->name('workshops');
+                Route::get('/ateliers/create', [OrgWorkshopController::class, 'create'])->name('workshops.create');
+                Route::post('/ateliers', [OrgWorkshopController::class, 'store'])->name('workshops.store');
+                Route::get('/ateliers/{workshop}/edit', [OrgWorkshopController::class, 'edit'])->name('workshops.edit')->whereUuid('workshop');
+                Route::put('/ateliers/{workshop}', [OrgWorkshopController::class, 'update'])->name('workshops.update')->whereUuid('workshop');
+                Route::post('/ateliers/{workshop}/publish', [OrgWorkshopController::class, 'publish'])->name('workshops.publish')->whereUuid('workshop');
+                Route::delete('/ateliers/{workshop}', [OrgWorkshopController::class, 'retire'])->name('workshops.retire')->whereUuid('workshop');
+                // TASK-1451 (B4-A) : les sessions d'un atelier — {workshop} dans l'Organization, {session} dans le Workshop.
+                Route::get('/ateliers/{workshop}/sessions', [OrgWorkshopSessionController::class, 'index'])->name('workshops.sessions')->whereUuid('workshop');
+                Route::get('/ateliers/{workshop}/sessions/create', [OrgWorkshopSessionController::class, 'create'])->name('workshops.sessions.create')->whereUuid('workshop');
+                Route::post('/ateliers/{workshop}/sessions', [OrgWorkshopSessionController::class, 'store'])->name('workshops.sessions.store')->whereUuid('workshop');
+                Route::get('/ateliers/{workshop}/sessions/{session}/edit', [OrgWorkshopSessionController::class, 'edit'])->name('workshops.sessions.edit')->whereUuid('workshop')->whereUuid('session');
+                Route::put('/ateliers/{workshop}/sessions/{session}', [OrgWorkshopSessionController::class, 'update'])->name('workshops.sessions.update')->whereUuid('workshop')->whereUuid('session');
+                Route::post('/ateliers/{workshop}/sessions/{session}/publish', [OrgWorkshopSessionController::class, 'publish'])->name('workshops.sessions.publish')->whereUuid('workshop')->whereUuid('session');
+                Route::delete('/ateliers/{workshop}/sessions/{session}', [OrgWorkshopSessionController::class, 'cancel'])->name('workshops.sessions.cancel')->whereUuid('workshop')->whereUuid('session');
+                // TASK-1455 : inscrits & interets d'un atelier — LECTURE SEULE (V3 §13, MASTER Q81).
+                Route::get('/ateliers/{workshop}/inscrits', [OrgWorkshopRegistrantsController::class, 'show'])->name('workshops.registrants')->whereUuid('workshop');
+                // TASK-1419 (CRM-4b) : gestion du pipeline. Declare AVANT /relations/{contact}
+                // pour que « statuts » ne soit jamais pris pour un id de Contact.
+                Route::get('/relations/statuts', [OrgCrmController::class, 'statuses'])->name('crm.statuses');
+                Route::post('/relations/statuts', [OrgCrmController::class, 'storeStatus'])->name('crm.statuses.store');
+                Route::put('/relations/statuts/{status}', [OrgCrmController::class, 'updateStatus'])->name('crm.statuses.update');
+                Route::post('/relations/statuts/{status}/move', [OrgCrmController::class, 'moveStatus'])->name('crm.statuses.move');
+                Route::post('/relations/statuts/{status}/toggle', [OrgCrmController::class, 'toggleStatus'])->name('crm.statuses.toggle');
+                Route::post('/relations/statuts/{status}/default', [OrgCrmController::class, 'defaultStatus'])->name('crm.statuses.default');
+                // TASK-1420 (CRM-7a) : modeles d'email de l'Organization. Declare AVANT
+                // /relations/{contact} : « modeles » n'est jamais un id de Contact.
+                Route::get('/relations/modeles', [OrgCrmTemplateController::class, 'index'])->name('crm.templates');
+                Route::get('/relations/modeles/nouveau', [OrgCrmTemplateController::class, 'create'])->name('crm.templates.create');
+                Route::post('/relations/modeles', [OrgCrmTemplateController::class, 'store'])->name('crm.templates.store');
+                Route::get('/relations/modeles/{template}/modifier', [OrgCrmTemplateController::class, 'edit'])->name('crm.templates.edit');
+                Route::put('/relations/modeles/{template}', [OrgCrmTemplateController::class, 'update'])->name('crm.templates.update');
+                Route::get('/relations/modeles/{template}/apercu', [OrgCrmTemplateController::class, 'preview'])->name('crm.templates.preview');
+                // TASK-1417 (CRM-5) : la fiche Contact et l'edition tracee de ses coordonnees.
+                Route::get('/relations/{contact}', [OrgCrmController::class, 'show'])->name('crm.contacts.show');
+                Route::put('/relations/{contact}', [OrgCrmController::class, 'updateContact'])->name('crm.contacts.update');
+                Route::post('/relations/{contact}/status', [OrgCrmController::class, 'changeStatus'])->name('crm.contacts.status');
+                Route::post('/relations/{contact}/notes', [OrgCrmController::class, 'storeNote'])->name('crm.contacts.notes.store');
+                // TASK-1418 (CRM-6) : la prochaine action — planifier, marquer faite.
+                Route::post('/relations/{contact}/next-action', [OrgCrmController::class, 'planNextAction'])->name('crm.contacts.next-action.plan');
+                Route::post('/relations/{contact}/next-action/complete', [OrgCrmController::class, 'completeNextAction'])->name('crm.contacts.next-action.complete');
+                // TASK-1421 (CRM-7b) : envoyer un modele d'email a un Contact — choisir,
+                // confirmer (jeton one-shot), envoyer. L'humain declenche tout.
+                Route::get('/relations/{contact}/email', [OrgCrmController::class, 'pickEmailTemplate'])->name('crm.contacts.email.pick');
+                Route::get('/relations/{contact}/email/{template}', [OrgCrmController::class, 'previewEmail'])->name('crm.contacts.email.preview');
+                Route::post('/relations/{contact}/email/{template}', [OrgCrmController::class, 'sendEmail'])->name('crm.contacts.email.send');
+                // TASK-1426 (CRM-8) : relire l'email reellement envoye/tente (lecture seule, 404 hors tenant/Contact).
+                Route::get('/relations/{contact}/emails/{log}', [OrgCrmController::class, 'showEmail'])->name('crm.contacts.emails.show');
+                // TASK-1422 (CRM-13) : contactabilite, decidee explicitement avec une raison.
+                Route::post('/relations/{contact}/policy', [OrgCrmController::class, 'changePolicy'])->name('crm.contacts.policy');
+                Route::post('/users/{user}/follow', [OrgCrmController::class, 'followMember'])->name('crm.members.follow');
 
                 // Administration
                 Route::get('/reports', [OrgAdminController::class, 'reports'])->name('reports');
@@ -1095,6 +1355,11 @@ Route::prefix('/org/{organization}')
                 // TASK-1227 : « Comportement IA » — Constitution (lecture
                 // seule), doctrine de l'Organization (versionnee), couverture
                 // du systeme nerveux, bac a sable reel « tester sans publier ».
+                // TASK-1481 — le PLAN de la gouvernance IA : une page READ ONLY
+                // qui nomme chaque autorite, son niveau, si cet Admin peut la
+                // changer, et l'ecran qui la gouverne. Aucune ecriture, aucune
+                // autorite nouvelle — un plan de situation.
+                Route::get('/ai-map', [OrgAdminController::class, 'aiMap'])->name('ai-map');
                 Route::get('/ai-behavior', [OrgAdminController::class, 'aiBehavior'])->name('ai-behavior');
                 Route::put('/ai-behavior/doctrine', [OrgAdminController::class, 'updateAiDoctrine'])->name('ai-behavior.doctrine.update');
                 Route::delete('/ai-behavior/doctrine', [OrgAdminController::class, 'withdrawAiDoctrine'])->name('ai-behavior.doctrine.withdraw');
@@ -1110,6 +1375,13 @@ Route::prefix('/org/{organization}')
                 Route::get('/constitution', [OrgAdminController::class, 'aiConstitution'])->name('constitution');
                 Route::put('/constitution/publication', [OrgAdminController::class, 'updateAiConstitutionPublication'])->name('constitution.publication');
                 Route::post('/ai-behavior/sandbox', [OrgAdminController::class, 'sandboxAiDoctrine'])->middleware('throttle:ai-doctrine-sandbox')->name('ai-behavior.sandbox');
+                // TASK-1533 — AI Context Inspector V0 : voir la plomberie
+                // reelle pendant qu'elle fonctionne. Meme surface pour l'Admin
+                // Organization et le SuperAdmin (OrgAdminMiddleware), jamais un
+                // second ecran plateforme. Meme limiteur que le bac a sable :
+                // une question posee ici est un VRAI appel IA.
+                Route::get('/ai-context-inspector', [OrgAdminController::class, 'aiContextInspector'])->name('ai-context-inspector');
+                Route::post('/ai-context-inspector', [OrgAdminController::class, 'runAiContextInspector'])->middleware('throttle:ai-doctrine-sandbox')->name('ai-context-inspector.run');
                 Route::get('/ai-supervision', [OrgAdminController::class, 'aiSupervision'])->name('ai-supervision');
                 Route::get('/member-ai-profiles', [OrgAdminController::class, 'memberAiProfiles'])->name('member-ai-profiles');
                 Route::get('/ai-interactions', [OrgAdminController::class, 'aiInteractions'])->name('ai-interactions');
@@ -1134,6 +1406,11 @@ Route::prefix('/org/{organization}')
                 // TASK-1219 : console de consommation IA read-only — ce que la
                 // garde economique compte deja pour cette Organization.
                 Route::get('/ai-consumption', [OrgAdminController::class, 'aiConsumption'])->name('ai-consumption');
+                // TASK-1487 (AI Quality Q2) : « Qualite IA » — la console
+                // SŒUR de la consommation. L'une dit COMBIEN, l'autre dit si
+                // l'on SAIT que ca aide. Read-only, borne a cette
+                // Organization, jamais une conversation.
+                Route::get('/ai-quality', [OrgAdminController::class, 'aiQuality'])->name('ai-quality');
 
                 // Stats
                 Route::get('/stats/login-history', [OrgAdminController::class, 'loginHistory'])->name('stats.login-history');

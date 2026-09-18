@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Services\Ai\ClarifyUserHelpRequestService;
 use App\Services\Ai\DTO\AssistedInteractionLabResult;
 use App\Services\LoopService;
+use App\Support\Ai\AiTurnState;
 use App\Support\Loops\HelpRequestHandoff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -456,7 +457,13 @@ class TASK1210ClarifyHelpRequestTest extends TestCase
         $result = $this->clarify('Je cherche des conseils pour trouver mes premiers clients');
 
         HelpRequestClarifierAgent::assertNeverPrompted();
-        $this->assertSame(0, AiInteraction::count());
+        // TASK-1572 / V0-D : aucune GENERATION — mais le repli n'est plus
+        // silencieux : il laisse un tour qui l'avoue (`fallback`, aucun cout).
+        $this->assertSame(0, AiInteraction::query()->whereNot(static fn ($q) => $q->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES))->count());
+        $repli = AiInteraction::query()->sole();
+        $this->assertSame(AiTurnState::LINE_FALLBACK, $repli->metadata['status']);
+        $this->assertTrue($repli->metadata['turn']['identity']['fallback_used']);
+        $this->assertSame('FEATURE_DISABLED', $repli->metadata['turn']['identity']['fallback_reason']);
         $this->assertNotSame('', $result->title);
     }
 

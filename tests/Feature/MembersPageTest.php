@@ -19,14 +19,29 @@ class MembersPageTest extends TestCase
         $response->assertSee(__('directory.setup_title'));
     }
 
+    /*
+     * TASK-1479 (P0 privacy) — ces pages ne sont plus servies a un visiteur
+     * ANONYME.
+     *
+     * Mesure faite avant correctif : `/membres` et `/explorer` etaient rendus en
+     * HTTP 200 sans aucun cookie, sur des Organizations `is_public = false`
+     * comprises, avec noms reels, villes, biographies et affiliations. La forme
+     * non prefixee exposait 42 personnes de l'Organization par defaut.
+     *
+     * Ce que ces tests protegent — le rendu de l'annuaire et sa page
+     * de configuration — n'a pas change d'un mot. Seul
+     * le VISITEUR change : ils agissent desormais comme un membre. La couverture
+     * est identique ; la porte, elle, est fermee.
+     */
+
     public function test_members_displays_directory_when_organization_exists(): void
     {
         $org = Organization::factory()->create(['is_active' => true]);
-        User::factory()->count(3)->create(['organization_id' => $org->id]);
+        $members = User::factory()->count(3)->create(['organization_id' => $org->id]);
 
         app()->instance('current_organization', $org);
 
-        $response = $this->get('/membres');
+        $response = $this->actingAs($members->first())->get('/membres');
 
         $response->assertOk();
         $response->assertViewIs('members.index');
@@ -60,11 +75,11 @@ class MembersPageTest extends TestCase
     public function test_public_pages_show_content_when_organization_exists(): void
     {
         $org = Organization::factory()->create(['is_active' => true]);
-        User::factory()->count(2)->create(['organization_id' => $org->id]);
+        $members = User::factory()->count(2)->create(['organization_id' => $org->id]);
 
         app()->instance('current_organization', $org);
 
-        $response = $this->get('/membres');
+        $response = $this->actingAs($members->first())->get('/membres');
         $response->assertOk();
         $response->assertSee(__('directory.title'));
     }

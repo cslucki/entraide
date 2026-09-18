@@ -281,6 +281,17 @@ return [
     'insights_no_content' => 'No indexed document was found in this Folder.',
     'insights_ai_error' => 'Generating the summary failed.',
     'insights_empty_response' => 'No grounded summary could be produced from this Folder.',
+    // TASK-1534 — the name of a source derived from a conversation. It must
+    // tell the reader TWO things: that the excerpt comes from what humans said
+    // to each other, and from which Loop. Without both, the citation cannot
+    // be checked.
+    'derived_source_named' => 'Conversation in the “:loop” Loop',
+    'derived_source_generic' => 'Conversation in a Loop',
+    // TASK-1536 — the date QUALIFIES what was said, it does not decorate it.
+    // It is `observed_at` (when humans said it), never `derived_at` (when the
+    // machine compiled it), which would teach the reader nothing.
+    'derived_source_named_at' => 'Conversation in the “:loop” Loop, said on :date',
+    'derived_source_generic_at' => 'Conversation in a Loop, said on :date',
     // Smart Dossier Insights headings. These are NOT screen chrome: they are
     // dictated to the model in the preset question, read back by the response
     // parser, then re-emitted into the rendered markdown. All three uses must
@@ -577,4 +588,66 @@ Your Markdown content here...',
     'drive_article_badge' => 'Article',
     'drive_empty_title' => 'Nothing here yet',
     'drive_empty_desc' => 'Create a folder, upload a file or write an Article: everything lands here.',
+
+    // ── TASK-1516 — The Dossier answers ─────────────────────────────────────
+    'answer_label' => "Ask this Dossier",
+    'answer_title' => "Ask a question about this Dossier",
+    'answer_help' => "The answer draws only on the documents in this Dossier that you may access.",
+    'answer_placeholder' => "Your question…",
+    'answer_button' => "Ask",
+    'answer_loading' => "Searching the documents…",
+    'answer_sources_heading' => "Sources used",
+    'answer_passages_show' => "Show the passages used",
+    'answer_passages_hide' => "Hide the passages",
+    'answer_follow_ups_heading' => "Go further",
+    'answer_open_document' => "Open",
+    'answer_not_grounded' => "This answer cites no source: treat it with caution.",
+    'answer_question_required' => "Ask a question before running the search.",
+    'answer_embedding_unavailable' => "Document search is not available for this organization.",
+    'answer_no_source' => "I did not find enough in this Dossier to answer reliably. You can rephrase your question, browse the documents, or name a specific document.",
+    'answer_no_source_in_file' => "I found nothing on this topic in the requested document. You can rephrase, or ask about the whole Dossier.",
+    'answer_preset_instruction' => <<<'TEXT'
+Member question:
+:question
+
+Answer this question using ONLY the document sources above.
+
+Rules:
+
+1. Start with the fact being asked for, never with a restatement of the
+   question. If asked what an acronym means, the first sentence gives
+   what THE SOURCES say about it.
+2. Add at most four sentences of context. Be brief.
+3. Cite your sources by their number, for example "... [S2]". NEVER
+   invent a reference that is not in the list above.
+4. Only expand an acronym when the sources themselves carry that
+   expansion, word for word. If you cannot find it there, the words of
+   that expansion must not appear in your answer IN ANY FORM: not in
+   parentheses, not in quotes, not introduced by "stands for", "means",
+   "i.e." or any other turn of phrase. Use the acronym as it stands and
+   report only what the sources say about it. A well-known acronym is
+   no exception: this Dossier is the authority, not your general
+   knowledge.
+5. A quantity answers the question only in the unit the question asks
+   for. If a sum of money is asked and no source gives a value carrying
+   a currency, say that the sources do not establish that amount: never
+   present a total of another nature (hours, person-months, headcount,
+   percentages) as a budget, and never add a currency or a unit that
+   the source does not carry for that value. A table total is a budget
+   only if its header or caption says so: a total whose column is
+   named "PMs", "hours", "headcount" or "%" is NOT the budget, even if
+   it is the only total available. A question may presuppose that a
+   value exists ("what is the total budget?"): never confirm that
+   presupposition with a value of another nature — answer that the
+   sources do not establish it.
+6. If the sources are not enough to answer reliably, say so plainly in
+   one sentence and invent nothing. Use no knowledge outside these
+   sources.
+7. End with this section, and this section only:
+
+## :questions_heading
+A bullet list of at most THREE short questions a reader could ask next
+to go deeper, answerable from this Dossier. Plain text, no citations.
+
+TEXT,
 ];

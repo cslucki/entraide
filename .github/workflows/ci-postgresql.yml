@@ -48,11 +48,21 @@ concurrency:
 #
 #   classify        (aucun conteneur, ~5 s)  -> resout light/full
 #     |- unit       (1 conteneur)            -> tests/Unit, les deux modes
-#     |- feature    (4 conteneurs, full)     -> tests/Feature en 4 shards
+#     |- feature    (6 conteneurs, full)     -> tests/Feature en 6 shards
 #          `- quality-gate                   -> LE check requis, agrege le tout
 #
 # La classification precede donc desormais toute creation de conteneur lourde :
-# une PR `light` ne fait plus naitre les quatre conteneurs des shards.
+# une PR `light` ne fait plus naitre les conteneurs des shards.
+#
+# TASK-1545 — CI Turbo 2 : 4 -> 6 shards.
+#
+# Le run de reference 34663954440 (4 shards) montrait un desequilibre que la
+# repartition par taille de fichier ne voit pas : shard 2 mettait 269 s la ou
+# le shard 1 en mettait 193 s, et c'est le plus lent qui dicte la duree de la
+# CI. Ajouter deux voies ne corrige pas ce desequilibre — il le divise. Le
+# generateur reste la seule autorite de population : passer de 4 a 6 ne
+# consiste qu'a lui donner un autre N, et `--verify` continue d'interdire
+# qu'une voie supplementaire se paie en tests oublies.
 #
 # ## Le contrat de branche protegee est inchange
 #
@@ -190,24 +200,25 @@ jobs:
         run: php vendor/bin/phpunit --configuration phpunit.ci-minimal.xml
 
   # =====================================================================
-  # 3. Suite Feature, decoupee en 4 shards — mode full uniquement.
+  # 3. Suite Feature, decoupee en 6 shards — mode full uniquement.
   # =====================================================================
   feature:
-    name: Feature shard ${{ matrix.shard }}/4
+    name: Feature shard ${{ matrix.shard }}/6
     needs: classify
     if: needs.classify.outputs.mode == 'full'
     runs-on: ubuntu-latest
 
-    # Un shard vise ~5 minutes. 20 minutes laisse de la marge a un shard
-    # malchanceux tout en tuant vite un conteneur qui ne repond pas.
+    # Un shard vise ~3 minutes depuis TASK-1545 (~5 avec 4 voies). 20 minutes
+    # laisse de la marge a un shard malchanceux tout en tuant vite un
+    # conteneur qui ne repond pas.
     timeout-minutes: 20
 
     strategy:
-      # Un shard rouge ne doit PAS annuler les trois autres : on veut la liste
+      # Un shard rouge ne doit PAS annuler les cinq autres : on veut la liste
       # complete des regressions en une seule lecture, pas la premiere.
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
 
     env:
       DB_CONNECTION: pgsql
@@ -293,13 +304,19 @@ jobs:
       - name: Run migrations
         run: php artisan migrate --force
 
-      # Genere les quatre `phpunit.ci-feature.shard-K.xml` a partir de
+      # Genere les six `phpunit.ci-feature.shard-K.xml` a partir de
       # `phpunit.ci-feature.xml`, et **echoue** si l'union des shards n'est pas
       # exactement l'ensemble des fichiers de `tests/Feature`. Chaque shard
-      # regenere le plan complet : la decoupe etant deterministe, les quatre
+      # regenere le plan complet : la decoupe etant deterministe, les six
       # runners aboutissent au meme partitionnement sans rien se transmettre.
+      #
+      # Ce `--total` et la matrice ci-dessus doivent rester le meme nombre.
+      # `--verify` prouve que la decoupe est complete, pas qu'elle est
+      # *executee* : laisser la matrice a 4 en generant 6 parts produirait une
+      # CI verte ayant silencieusement saute un tiers de la suite. C'est
+      # `test_every_generated_shard_is_actually_run` qui ferme ce trou.
       - name: Generate Feature shards
-        run: php .github/scripts/shard-tests.php --total=4 --verify
+        run: php .github/scripts/shard-tests.php --total=6 --verify
 
       - name: Run Feature tests — shard ${{ matrix.shard }} (blocking)
         run: php vendor/bin/phpunit --configuration phpunit.ci-feature.shard-${{ matrix.shard }}.xml
@@ -344,8 +361,11 @@ jobs:
           fi
 
           if [ "$MODE" = "full" ]; then
-            # `needs.<job>.result` d'un job matriciel est deja l'agregat des
-            # quatre shards : « success » seulement si les quatre sont verts.
+            # `needs.<job>.result` d'un job matriciel est deja l'agregat de
+            # TOUS les shards, quel qu'en soit le nombre : « success »
+            # seulement s'ils sont tous verts. Passer de 4 a 6 voies
+            # (TASK-1545) n'a donc demande aucune logique d'agregation
+            # dependante du nombre de shards ici.
             if [ "$FEATURE_RESULT" != "success" ]; then
               echo "FAIL: at least one Feature shard did not succeed ($FEATURE_RESULT)."
               FAILED=1

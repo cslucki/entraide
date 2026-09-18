@@ -102,21 +102,32 @@ class BlogPostLoopController extends Controller
                 'slug' => $loop->slug,
                 'discussionUrl' => $loopUrl,
                 'is_member' => $isMember,
-                'messages' => $loop->messages()
-                    ->latest()
-                    ->take(3)
-                    ->get()
-                    ->load('sender')
-                    ->reverse()
-                    ->values()
-                    ->map(function ($msg) {
-                        return [
-                            'id' => $msg->id,
-                            'body' => $msg->body,
-                            'created_at_human' => $msg->created_at->diffForHumans(),
-                            'sender_name' => $msg->sender?->name ?? __('blog.loop_system'),
-                        ];
-                    }),
+                // TASK-1529 : le droit d'ecrire l'article (auteur, co-auteur,
+                // is_admin, racine de Boucle) n'est JAMAIS un substitut a
+                // l'appartenance a la Boucle. `$isMember` etait calcule puis
+                // rendu comme simple drapeau d'affichage : les 3 derniers
+                // messages partaient quand meme, corps et expediteur compris,
+                // vers un co-auteur qui n'a jamais mis les pieds dans la
+                // Boucle (et vers un ex-membre qui l'a quittee). La Boucle
+                // reste nommee — ce contrat-la ne change pas — mais son
+                // contenu prive ne sort que pour un membre actif.
+                'messages' => $isMember
+                    ? $loop->messages()
+                        ->latest()
+                        ->take(3)
+                        ->get()
+                        ->load('sender')
+                        ->reverse()
+                        ->values()
+                        ->map(function ($msg) {
+                            return [
+                                'id' => $msg->id,
+                                'body' => $msg->body,
+                                'created_at_human' => $msg->created_at->diffForHumans(),
+                                'sender_name' => $msg->sender?->name ?? __('blog.loop_system'),
+                            ];
+                        })
+                    : [],
             ];
         });
 

@@ -376,8 +376,13 @@ class TASK1284BlogDoctrineCanonicalTest extends TestCase
         // verite de l'inventaire herite, pas un total fige a jamais).
         // TASK-1309 : + `loop_hybrid_answer` (mode IA + Dossiers) = 10.
         // TASK-1327 : + `loop_decision_suggestion` (Decision Memory) = 11.
-        $this->assertSame(11, $coverage->coveredCount());
-        $this->assertSame(15, $coverage->totalCount());
+        // TASK-1435 : + `guest_shell_welcome` (accueil du visiteur, SW-5) = 12.
+        // TASK-1526 : + `shell_general_answer` (Shell membre) = 13.
+        // TASK-1534 : + `loop_conversation_knowledge` (cote WRITE : compiler ce
+        // que des humains se sont dit en connaissance durable) = 14.
+        // TASK-1540 : + `loop_claim_patch` (le protocole de patch de la memoire) = 15.
+        $this->assertSame(15, $coverage->coveredCount());
+        $this->assertSame(19, $coverage->totalCount());
     }
 
     public function test_the_constitution_is_actually_the_head_of_the_composed_prompt(): void

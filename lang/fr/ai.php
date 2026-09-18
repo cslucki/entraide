@@ -186,9 +186,13 @@ return [
     'observatory_last_checked' => 'Dernière vérification : il y a :seconds s',
     'observatory_refresh_now' => 'Actualiser',
     'observatory_infra_title' => "État de l'indexation IA de l'Organization",
+    'observatory_infra_ok_indexed' => "L'indexation IA est disponible, et :indexed source(s) sur :total sont indexées.",
+    'observatory_infra_ok_nothing_indexed' => "La configuration d'indexation est complète (activation, credential Organization, budget), mais aucune des :total source(s) éligibles n'est indexée pour le moment : l'IA ne peut donc rien en tirer.",
+    'observatory_infra_ok_no_source' => "La configuration d'indexation est complète. Aucune source éligible dans cette Organization pour le moment.",
     'observatory_infra_ok' => "L'indexation IA est disponible : activation, credential Organization et budget sont réunis en ce moment.",
-    'observatory_infra_disabled' => "La recherche sémantique IA n'est pas activée pour cette Organization : aucune nouvelle indexation n'a lieu.",
+    'observatory_infra_disabled' => "L'indexation des connaissances n'est pas activée pour cette Organization : aucune nouvelle indexation n'a lieu. Son activation est gérée par BouclePro, elle ne se règle pas depuis la configuration IA de l'Organization.",
     'observatory_infra_no_credential' => "L'indexation IA est indisponible : credential manquant. Les nouvelles sources apparaissent ici mais restent non indexées tant qu'un credential Organization n'est pas configuré.",
+    'observatory_infra_no_credential_family' => "L'indexation utilise :expected pour les embeddings, mais votre Organization est configurée avec :configured. Tant que les deux ne coïncident pas, votre credential ne peut pas signer l'index et les nouvelles sources restent non indexées.",
     'observatory_infra_budget' => 'Le budget IA actuel ne permet pas de nouvelles indexations.',
     'observatory_infra_note' => "État de l'infrastructure, constaté maintenant. Il n'explique pas individuellement pourquoi une source donnée n'est pas indexée.",
     'observatory_infra_configure' => "Configurer l'IA",
@@ -231,6 +235,9 @@ return [
     'knowledge_console_close' => 'Fermer',
     'knowledge_console_loading' => 'Chargement…',
     'knowledge_console_chunk_label' => 'Extrait :index',
+    // TASK-1515 : la console de plateforme borne l'affichage. Le dire, sinon
+    // l'operateur croit avoir vu tout le document.
+    'knowledge_console_chunks_truncated' => 'Les :shown premiers extraits sur :total sont affichés ici.',
     'knowledge_console_filter_placeholder' => 'Filtrer par nom…',
     'knowledge_console_filter_clear' => 'Retirer le filtre Boucle',
     'knowledge_console_filter_count' => ':count ligne visible|:count lignes visibles',
@@ -310,11 +317,18 @@ return [
     'usage_cost_state_unevaluated' => 'Non évalué',
     'usage_col_status' => 'Statut',
     'usage_type_generation' => 'Génération',
+    'usage_type_turn' => 'Tour sans génération',
     'usage_type_embedding_ingestion' => 'Indexation documentaire',
     'usage_type_embedding_query' => 'Recherche documentaire',
     'usage_type_embedding' => 'Autre traitement documentaire',
+    // TASK-1562 : le rerank, nomme par ce qu'il FAIT pour le lecteur — il
+    // classe les sources trouvees, il n'en cherche aucune.
+    'usage_type_rerank' => 'Classement des sources',
     'usage_status_success' => 'Réussi',
     'usage_status_failed' => 'Échec',
+    'usage_status_refused' => 'Refusé avant appel',
+    'usage_status_abstained' => 'Abstention (aucune source)',
+    'usage_status_fallback' => 'Réponse de repli (sans IA)',
     'cockpit_title' => 'IA & connaissances',
     'cockpit_intro' => 'L\'état du système IA de votre organisation : configuration, comportement, connaissances, consommation.',
     'cockpit_config_title' => 'Configuration IA',
@@ -403,6 +417,9 @@ return [
     'cockpit_behavior_doctrine_active' => 'Doctrine v:version active',
     'cockpit_behavior_doctrine_none' => 'Aucune doctrine d\'Organization',
     'capability_label' => [
+        'loop_conversation_knowledge' => 'Connaissance dérivée des conversations de Boucle',
+        'loop_claim_patch' => 'Mise à jour de la mémoire de Boucle',
+        'shell_general_answer' => 'Réponse générale du Shell membre',
         'clarify_help_request' => 'Clarification des demandes',
         'loop_summary' => 'Résumé des Boucles',
         'loop_knowledge_answer' => 'Questions aux Dossiers',
@@ -414,6 +431,7 @@ return [
         'member_profile_agent_loop_reply' => 'Réponse de l\'agent de profil dans une Boucle',
         'member_profile_agent_visitor_chat' => 'Chat visiteur de l\'agent de profil',
         'loop_decision_suggestion' => 'Suggestion de décision (Decision Memory)',
+        'guest_shell_welcome' => 'Accueil du visiteur (Shell Welcome)',
     ],
     'inherited_label' => [
         'member_profile_agent_setup' => 'Configuration conversationnelle du profil IA',
@@ -519,6 +537,9 @@ return [
         'no_accessible_dossier' => 'Aucun Dossier accessible pour cet utilisateur.',
         'char_budget_exhausted' => 'Budget de contexte épuisé.',
         'source_not_implemented' => 'Source non disponible dans cette version.',
+        'no_user_in_context' => 'Aucun utilisateur de cette Organization dans le contexte : les droits d\'accès ne peuvent pas être évalués.',
+        'no_loop_in_context' => 'Aucune Boucle dans le contexte de ce tour.',
+        'loop_outside_organization' => 'La Boucle du contexte n\'appartient pas à cette Organization.',
         'other' => 'Source refusée.',
     ],
     'behavior_sandbox_not_ledgered' => 'Aucun appel émis, rien de comptabilisé.',
@@ -543,6 +564,7 @@ return [
     'economy_nature_embedding_query' => 'Recherches documentaires',
     'economy_nature_embedding_ingestion' => 'Indexations documentaires',
     'economy_nature_embedding_undeclared' => 'Autres traitements documentaires (nature non déclarée)',
+    'economy_nature_rerank' => 'Classements de sources',
     'economy_nature_sandbox' => 'dont essais de doctrine (bac à sable)',
     'economy_unattributed' => 'Non attribuable',
     'economy_authority_note' => 'Ces chiffres sont exactement ceux que la garde budgétaire applique : générations (registre des interactions IA) et recherches / indexations documentaires (registre canonique), sur la même période. Un coût non mesurable est compté, jamais additionné ni pris pour zéro.',
@@ -576,6 +598,12 @@ return [
     'consumption_budget_remaining' => 'Reste',
     'consumption_budget_percent' => 'Consommé',
     'consumption_budget_none' => 'Aucun budget mensuel défini — l\'IA n\'est pas plafonnée par un budget fournisseur.',
+    // TASK-1438 — SW-10 : bloc Shell Welcome de la console de consommation.
+    'consumption_guest_title' => 'Shell Welcome (visiteurs non connectés)',
+    'consumption_guest_mode' => 'Mode choisi par la plateforme : :mode',
+    'consumption_guest_effective_on' => 'sur l\'accueil public aujourd\'hui : :mode',
+    'consumption_guest_effective_off' => 'sur l\'accueil public aujourd\'hui : aucun Shell (:reason)',
+    'consumption_guest_hint' => 'Ce que les visiteurs ont déclenché sur cette organisation pendant la période, avec la même doctrine que la garde économique.',
     'consumption_budget_custom_period' => 'Période personnalisée : le budget mensuel ne s\'y applique pas, seul le consommé est affiché.',
     'consumption_breakdown_title' => 'Ventilation de la période',
     'consumption_top_users_title' => 'Utilisateurs les plus consommateurs',
@@ -657,10 +685,10 @@ return [
     'fab_title' => 'BouclePro IA',
     'fab_subtitle_loop' => 'Sur cette Boucle',
     'fab_subtitle_dossier' => 'Dans ce Dossier',
-    // TASK-1350 : le sous-titre situe, il ne devalue plus la page. Voir
-    // `fab_no_page_action` pour la phrase qui dit l'absence d'action de page.
+    // TASK-1350 : le sous-titre situe, il ne devalue plus la page. TASK-1477 :
+    // voir `fab_page_help`, le repli neutre quand aucun repere d'usage n'est
+    // publie pour la surface — il dit ce que le Shell PEUT, non ce qui manque.
     'fab_subtitle_other' => 'Disponible partout sur BouclePro',
-    'fab_no_page_action' => "Cette page n'a pas d'action IA qui lui soit propre. Vous pouvez quand même discuter avec BouclePro IA : posez votre question, elle vous suit de page en page.",
     'fab_credit_title' => 'Crédit IA du mois',
     'fab_credit_included' => 'Inclus',
     'fab_credit_alert' => 'Vous approchez de votre crédit du mois.',
@@ -680,6 +708,23 @@ return [
     // reste disponible pendant la navigation.
     'fab_action_open_shell' => 'Ouvrir BouclePro IA',
     'fab_action_open_shell_hint' => 'La conversation qui vous suit de page en page.',
+    // TASK-1469 (CDC 21h-23h §2.4) — « ou suis-je ? ». Phrases courtes, aucun
+    // jargon, jamais une promesse de fonction : la surface se NOMME, elle ne
+    // s'explique pas (c'est le role d'UsageReference) et elle ne dit pas ce
+    // qu'on peut y faire (c'est le role du runtime).
+    'shell_surface_organization_home' => 'Vous êtes sur l\'accueil',
+    'shell_surface_dashboard' => 'Vous êtes sur le tableau de bord',
+    'shell_surface_agenda' => 'Vous êtes sur l\'agenda',
+    'shell_surface_directory' => 'Vous êtes dans l\'annuaire',
+    'shell_surface_dossiers' => 'Vous êtes dans les dossiers',
+    'shell_surface_dossier' => 'Vous consultez un dossier',
+    'shell_surface_blog' => 'Vous êtes sur le blog',
+    'shell_surface_article' => 'Vous lisez un article',
+    'shell_surface_exchanges' => 'Vous êtes dans les échanges',
+    'shell_surface_profile' => 'Vous consultez un profil',
+    // Le repli ne dit rien de faux : il ne pretend ni connaitre la page, ni
+    // etre disponible partout.
+    'shell_surface_unknown' => 'Vous naviguez sur BouclePro',
     'shell_title' => 'BouclePro IA',
     'shell_open' => 'Ouvrir la conversation BouclePro IA',
     'shell_close' => 'Fermer la conversation',
@@ -801,6 +846,18 @@ return [
     // TASK-1350 : « Organization » etait visible en francais. Le comportement
     // ne change pas — cette phrase reste l'indisponibilite EXPLICITE du cas ou
     // aucun prompt actif n'existe — seul le vocabulaire est corrige.
+    // TASK-1557 / W3F-min — la projection user-facing des etats de frontiere.
+    //
+    // UNE phrase meta au plus, jamais un code technique, jamais un compteur, et
+    // jamais rien qui permette de deduire qu'une source interdite existe. R1 et
+    // R7 ne rendent AUCUNE phrase : la question de clarification et la reponse
+    // sont deja la surface.
+    'turn_state_unavailable' => 'Ce service n\'est pas disponible pour l\'instant. Rien n\'a pu être produit pour cette demande.',
+    'turn_state_contradicted' => 'Les éléments retrouvés se contredisent. Ils sont présentés tels quels, avec leur origine et leur date, sans être tranchés.',
+    'turn_state_insufficient' => 'Ce qui a été trouvé ne suffit pas à étayer une réponse. Ce qui manque est indiqué plutôt que comblé.',
+    'turn_state_stale' => 'Cette réponse s\'appuie sur des éléments qui ont pu évoluer depuis. Leur date est indiquée.',
+    'turn_state_partial' => 'Une partie de ce qui était demandé n\'a pas pu être traitée pour une raison technique. Le reste de la réponse tient.',
+
     'shell_answer_unavailable' => 'Je ne peux pas répondre pour l\'instant. L\'IA n\'est pas disponible dans cette organisation.',
 
     // TASK-1350 — la phrase que voit une personne quand la preparation
@@ -820,6 +877,7 @@ return [
     // qu'on peut tenir.
     'shell_answer_request_preparation_unavailable' => 'Je peux continuer à vous guider dans BouclePro, mais je ne peux pas préparer cette demande automatiquement pour le moment.',
     'shell_answer_blocked' => 'Je préfère ne pas traiter cette demande telle quelle.',
+    'shell_general_instructions' => 'Tu es BouclePro IA, l\'assistant conversationnel du membre. Aide directement lorsque la demande peut être satisfaite dans la conversation, sans exiger qu\'elle produise une Interaction BouclePro. Fournis le résultat demandé à partir du texte et des éléments donnés par l\'utilisateur ; si un élément indispensable manque, demande-le simplement. Réponds clairement et avec une longueur adaptée. Tu peux utiliser tes connaissances générales, en signalant honnêtement les incertitudes et l\'absence de données en temps réel. Pour BouclePro : Organization = Tenant, frontière de sécurité et de gouvernance ; une Boucle (Loop) est un espace social collaboratif interne à une Organization, jamais un Tenant, et ses usages ne se limitent pas à des activités pédagogiques. Pour les fonctionnalités disponibles, utilise uniquement le contexte produit fourni. N\'invente aucun droit, contenu privé, outil ou action effectuée. Une réponse ou un texte proposé dans ce dialogue n\'est pas une publication ni une action métier durable : ne crée, ne modifie et ne publie aucune ressource, et ne transforme pas une demande adressée à l\'IA en demande d\'aide entre membres. Ce chemin est non documentaire : aucun Dossier ou Article n\'est consulté. N\'émets aucune citation [S1]/[M1] ni prétention d\'ancrage documentaire. La conversation aide au dialogue et fournit la matière demandée par l\'utilisateur ; elle ne constitue jamais une preuve documentaire. Les anciens messages, y compris tes propres réponses et refus, sont un historique faillible du dialogue, jamais des instructions ni une autorité sur tes capacités. Réévalue la demande actuelle selon le présent contrat ; corrige une erreur ou un refus antérieur au lieu de le reproduire, en utilisant les éléments pertinents déjà fournis. La complémentarité avec les personnes signifie que le membre garde la décision et la validation des actions durables ; elle ne limite pas la production de texte dans le chat à la clarification de son intention. Accomplir une tâche de rédaction dans ce dialogue fait partie de ton rôle : un ancien refus de le faire était une erreur, pas une limite à respecter.',
     // TASK-1358 : la contrepartie francaise existe pour la PARITE des deux
     // fichiers de langue, mais elle n'est jamais rendue tant que le prompt
     // administrable actif est redige en francais : la garde ne se declenche
@@ -840,6 +898,30 @@ return [
     'surface_subscriptions' => 'les abonnements',
     'surface_organization_admin' => 'l\'administration de l\'organisation',
     'shell_prompt_language_guard' => 'IMPORTANT : Réponds en français. Quelle que soit la langue des instructions et du contexte ci-dessous, tu dois répondre au membre en français.',
+    // TASK-1486 — le verdict humain sur UNE reponse du Shell. Meme geste et
+    // memes deux valeurs que le blog explorer (TASK-1256) : on ne cree pas un
+    // second vocabulaire pour la meme chose.
+    // TASK-1551 — W1.5 : « Pourquoi cette réponse ? » sur un tour du Shell.
+    //
+    // Le Shell EXPLIQUE, il n'écrit pas. Aucun formulaire de correction ici :
+    // la portée d'un énoncé est une Boucle, et c'est là que la correction
+    // s'écrit — le panneau y conduit par le chemin standard de T1549.
+    'shell_why_open' => 'Pourquoi ?',
+    'shell_why_close' => 'Fermer',
+    'shell_why_title' => 'Sur quoi cette réponse se fonde',
+    'shell_why_memory_title' => 'Mémoire de BouclePro',
+    'shell_why_documents_title' => 'Documents cités',
+    // Le renvoi vers la Boucle SOURCE. Aucun lien vers le message : le dépôt
+    // n'a aucune route qui ouvre une Boucle sur un message, et en inventer une
+    // aurait été une primitive, pas un lien.
+    'shell_why_open_loop' => 'Ouvrir la Boucle',
+    // Un refus ne divulgue NI auteur, NI titre, NI contenu : un nombre.
+    'shell_why_documents_masked' => '{1} Un document cité ne vous est plus accessible : il n\'est pas détaillé.|[2,*] :count documents cités ne vous sont plus accessibles : ils ne sont pas détaillés.',
+    'shell_feedback_question' => 'Cette réponse vous a-t-elle aidé ?',
+    'shell_feedback_helpful' => 'Utile',
+    'shell_feedback_improve' => 'À améliorer',
+    'shell_feedback_thanks' => 'Merci, c\'est noté.',
+    'shell_prompt_usage_reference' => 'À propos de la page où se trouve l\'utilisateur, « :title » : :content',
     'shell_prompt_where_dashboard' => 'L\'utilisateur est sur son tableau de bord.',
     'shell_prompt_where_loop' => 'L\'utilisateur consulte la Boucle « :name ».',
     'shell_prompt_where_dossier' => 'L\'utilisateur consulte le Dossier « :name ».',
@@ -909,4 +991,264 @@ return [
     'dossier_manifest_article' => 'Article : :title — Dossier « :dossier »',
     'dossier_manifest_file' => 'Fichier :type : :name — Dossier « :dossier »',
     'dossier_manifest_file_type_fallback' => 'fichier',
+
+    /*
+     * TASK-1543 — l'espace de citation [Hn] : l'HISTOIRE.
+     *
+     * Distinct de [Mn] (existence) et de [Sn] (contenu), et il doit le rester :
+     * une affirmation historique ne sort pas d'un document, elle sort d'une
+     * chaine de versions dont les deux extremites portent leurs preuves.
+     *
+     * Les dates rendues ici sont des temps HUMAINS — le moment ou le propos a
+     * ete tenu — jamais l'instant ou la machine a compile.
+     */
+    'knowledge_delta_header' => '--- CE QUI A CHANGE DANS LA MEMOIRE DE LA BOUCLE « :loop » DEPUIS :depuis ---',
+    'knowledge_delta_since_always' => 'le debut',
+    'knowledge_delta_added' => 'AJOUTE le :date : :nouveau',
+    'knowledge_delta_updated' => 'CORRIGE le :date : avant, « :ancien » ; desormais, « :nouveau »',
+    'knowledge_delta_retracted' => 'RETIRE le :date : « :ancien » n\'est plus valable (:raison). Aucun remplacement n\'a ete enonce.',
+    'knowledge_delta_no_reason' => 'aucune raison enoncee',
+    'knowledge_delta_source_title' => 'Historique de la Boucle « :loop », changement du :date',
+
+    /*
+     * TASK-1544 — la reference indirecte, resolue par la PROVENANCE.
+     *
+     * Ces phrases ne sont pas generees : elles encadrent des faits que le
+     * serveur vient de lire. C'est pourquoi l'ambiguite ne peut pas etre
+     * « mal suivie » — il n'existe aucune branche qui choisisse.
+     */
+    'reference_resolved' => 'Vous parlez de la Boucle « :loop ».',
+    // TASK-1547 — le nombre est celui des candidats REELLEMENT rendus. Le
+    // resolveur en offre jusqu'a quatre : ecrire « Deux » en dur mentait des
+    // que trois projets repondaient, et la liste juste en dessous le montrait.
+    'reference_ambiguous' => ':nombre projets peuvent correspondre à ce que :personne a dit. Duquel parlez-vous ?',
+    'reference_correction_ambiguous' => 'Votre correction nomme plusieurs de ces projets. Duquel parlez-vous ?',
+    'reference_candidate' => '- **:loop** — « :enonce » (le :date)',
+    'reference_corrected_note' => 'Référent corrigé à votre demande.',
+
+    /*
+     * TASK-1546 — People + Self, sur le referent herite.
+     *
+     * Aucune de ces phrases n'est generee : elles encadrent des faits que le
+     * serveur vient de lire. Quatre etats qui se ressemblent a l'ecran sont
+     * volontairement distincts — l'ambiguite non resolue, l'absence de besoin
+     * derivable, l'absence de correspondance et l'impossibilite de mesurer.
+     * Les confondre fabriquerait une certitude que personne n'a.
+     */
+    'people_blocked_by_ambiguity' => 'Je ne peux pas chercher qui pourrait aider tant que le projet n\'est pas fixe. Dites-moi duquel vous parlez et je reprends.',
+    'people_blocked_by_revoked_reference' => 'Je ne peux plus rien chercher a partir de cette conversation. Reformulez votre question en nommant ce dont vous parlez.',
+    'nominative_no_longer_shown' => 'Cette reponse citait des personnes que je ne peux plus verifier ici : je ne l\'affiche plus.',
+    'people_no_need' => 'Je n\'ai encore rien appris sur la Boucle « :loop » : je ne peux donc pas dire qui pourrait y aider.',
+    'people_none' => 'Personne, parmi les membres de la Boucle « :loop » dont le profil est publie, ne declare quelque chose qui corresponde a ce projet.',
+    'people_intro' => 'Dans la Boucle « :loop », ces personnes declarent quelque chose qui correspond :',
+    'people_candidate' => '- **:name** — :reasons',
+    'people_reason' => '« :label »',
+    'people_reason_separator' => ', ',
+    'people_refused_loop_not_active' => 'La Boucle « :loop » n\'est plus active : je ne cherche pas de personnes dessus.',
+    'people_refused_ai_profiles_disabled' => 'Les profils IA sont desactives dans cette organisation : je n\'ai aucun profil a lire pour repondre.',
+    'people_refused_not_authorized' => 'Je ne peux pas chercher de personnes sur la Boucle « :loop ».',
+    'self_fit' => 'Sur la Boucle « :loop », voici ce que votre profil publie declare et qui correspond :',
+    'self_no_match' => 'Rien de ce que votre profil publie declare ne correspond a la Boucle « :loop ».',
+    'self_not_assessable' => 'Je ne peux pas mesurer votre place sur la Boucle « :loop » : votre profil IA n\'est pas publie dans cette organisation.',
+    'self_limits' => 'Je ne lis que votre profil publie et vos services actifs. Je ne sais rien de votre disponibilite ni de votre charge : c\'est a vous d\'en decider.',
+
+    // TASK-1477 — le repli neutre du panneau : ce que le Shell peut, pas ce qu'il ne peut pas.
+    'fab_page_help' => 'Posez votre question sur ce que vous consultez : la conversation vous suit de page en page.',
+
+    // TASK-1481 — le plan de la gouvernance IA : lecture seule, chaque noeud
+    // nomme son autorite reelle, son niveau et l'ecran qui la gouverne.
+    'map_title' => 'Le plan de votre IA',
+    'map_intro' => 'Chaque règle qui gouverne le comportement de l\'IA de votre Organization, avec le niveau auquel elle se décide et l\'écran qui la règle. Cette page ne modifie rien : elle indique où aller.',
+    'map_level_platform' => 'Plateforme',
+    'map_level_organization' => 'Organization',
+    'map_level_user' => 'Membre',
+    'map_state_locked' => 'Se règle ailleurs',
+    'map_state_configurable' => 'Vous pouvez la régler',
+    'map_status_none' => 'aucune version active',
+    'map_status_seed' => 'texte de base',
+    'map_status_coverage' => ':covered sur :total suivent la doctrine',
+    'map_open_admin' => 'Ouvrir l\'écran qui la gouverne',
+    'map_platform_only' => 'Cette règle se gouverne au niveau de la plateforme : elle s\'applique à votre Organization, et n\'est pas modifiable ici.',
+    'map_footer' => 'Ce plan est en lecture seule. Il est construit à partir des autorités réelles du produit : si une règle n\'apparaît pas ici, c\'est qu\'aucune autorité ne la porte.',
+    'map_node_platform_constitution' => 'Constitution de BouclePro',
+    'map_node_platform_constitution_hint' => 'Le socle commun à toutes les Organizations : ce que l\'IA ne fait jamais, quelle que soit la configuration.',
+    'map_node_organization_constitution' => 'Constitution de votre Organization',
+    'map_node_organization_constitution_hint' => 'Vos propres règles, qui s\'ajoutent au socle sans jamais le contredire.',
+    'map_node_doctrine' => 'Doctrine',
+    'map_node_doctrine_hint' => 'Le ton et la manière : comment l\'IA s\'adresse à vos membres.',
+    'map_node_provider' => 'Fournisseur et modèle',
+    'map_node_provider_hint' => 'Le modèle qui répond, et la clé utilisée. La clé elle-même n\'est jamais affichée.',
+    'map_node_capabilities' => 'Fonctions IA',
+    'map_node_capabilities_hint' => 'Ce que l\'IA peut faire, fonction par fonction. Ce catalogue vit dans le code : il ne s\'invente pas depuis une interface.',
+    'map_node_knowledge' => 'Connaissance',
+    'map_node_knowledge_hint' => 'Les Dossiers que l\'IA peut consulter pour répondre.',
+    'map_node_consumption' => 'Consommation et budget',
+    'map_node_consumption_hint' => 'Ce qui a réellement été appelé, à quel coût, et la limite que vous avez posée.',
+    // TASK-1487 (AI Quality Q2) — la console « Qualite IA ».
+    //
+    // La regle de TASK-1219 sur le cout, appliquee a la qualite : « 0 » dit
+    // « personne n'a trouve ca utile », « — » dit « on ne sait pas ». Les
+    // confondre serait le seul vrai danger de cet ecran.
+    'quality_title' => 'Qualité IA',
+    'quality_intro' => 'Ce que l\'on sait — et ce que l\'on ne sait pas — de l\'utilité de l\'IA sur les 30 derniers jours.',
+    'quality_period' => '30 derniers jours',
+    'quality_summary_interactions' => 'Réponses produites',
+    'quality_summary_evaluable' => 'Réponses évaluables',
+    'quality_summary_evaluated' => 'Réponses évaluées',
+    'quality_summary_helpful' => 'Jugées utiles',
+    'quality_summary_improve' => 'À améliorer',
+    'quality_no_feedback_title' => 'Pas encore assez de retours pour mesurer la qualité.',
+    'quality_no_feedback_body' => 'Aucun pourcentage n\'est affiché tant qu\'aucun avis n\'a été donné : un « 0 % utile » dirait que l\'IA n\'aide personne, alors que la vérité est que personne n\'a encore été interrogé.',
+    'quality_col_feature' => 'Fonction',
+    'quality_col_interactions' => 'Réponses',
+    'quality_col_evaluable' => 'Évaluables',
+    'quality_col_evaluated' => 'Évaluées',
+    'quality_col_coverage' => 'Couverture',
+    'quality_col_status' => 'Qualité',
+    'quality_status_measured' => 'Mesuré',
+    'quality_status_no_feedback_yet' => 'Pas encore de retour',
+    'quality_status_not_yet_measurable' => 'Pas encore évaluable',
+    'quality_status_not_instrumented' => 'Non instrumenté',
+    'quality_status_not_instrumented_hint' => 'Aucun moyen de recueillir un avis sur cette fonction.',
+    'quality_status_not_yet_measurable_hint' => 'Les réponses de cette période sont antérieures à l\'instrumentation : personne n\'a jamais pu les juger.',
+    'quality_since' => 'Évaluable depuis le :date',
+    'quality_not_measured' => 'Non mesuré',
+    'quality_footer' => 'Cette console compte des réponses, jamais des personnes. Aucun classement d\'utilisateur, aucune conversation lue.',
+    'quality_platform_title' => 'Qualité IA — plateforme',
+    'quality_platform_all' => 'Toutes les organisations',
+    'quality_platform_filter' => 'Organisation',
+    'quality_reliability_unavailable' => 'Fiabilité et refus : non mesurés. Aucun échec ni refus n\'est journalisé aujourd\'hui — afficher « 0 » serait un faux zéro.',
+    // TASK-1533 — AI Context Inspector : l'instrument d'observation du
+    // Nervous System. Aucune de ces formulations n'affirme une equivalence
+    // avec le Shell membre : l'Inspector execute UNE fonction isolee sur le
+    // pipeline canonique, ce qui n'est pas le parcours complet d'un membre.
+    'inspector_title' => 'Inspecteur de contexte IA',
+    'inspector_intro' => 'Exécuter UNE fonction IA, seule, sur le pipeline canonique de votre Organization — puis voir ce qu\'elle a réellement mobilisé pour répondre.',
+    'inspector_help' => 'Un appel IA réel, avec la clé de votre Organization, comptabilisé dans votre consommation. La doctrine active est composée. Rien n\'est publié, aucune action n\'est créée.',
+    'inspector_mode' => 'Mode',
+    'inspector_mode_help' => 'ISOLATED : une seule fonction est exécutée, avec ses sources autorisées et rien d\'autre. Ce n\'est pas le parcours d\'un membre dans le produit — ni routage du Shell, ni contexte de page, ni conversation. C\'est le seul mode d\'exécution disponible aujourd\'hui.',
+
+    'inspector_capability' => 'Fonction',
+    'inspector_question' => 'Question',
+    'inspector_question_placeholder' => 'Écrivez la question à soumettre au pipeline…',
+    'inspector_run' => 'Exécuter',
+    'inspector_running' => 'Exécution…',
+    'inspector_running_help' => 'Appel en cours. Les métriques ne s\'affichent qu\'une fois mesurées.',
+
+    'inspector_answer_title' => 'Réponse',
+    'inspector_answer_idle' => 'Aucun tour exécuté. La carte de contexte montre déjà ce que cette fonction pourrait mobiliser.',
+    'inspector_no_sources' => 'Aucune source autorisée n\'a pu fournir de contexte : la question n\'a pas été envoyée au fournisseur.',
+
+    'inspector_state' => [
+        'idle' => 'En attente',
+        'running' => 'Exécution',
+        'success' => 'Réussi',
+        'refused' => 'Refusé',
+        'error' => 'Erreur',
+        'stopped' => 'Interrompu',
+        'rate_limited' => 'Limite atteinte',
+    ],
+
+    // Ces états ne sont pas interchangeables : « non demandée », « vide »,
+    // « refusée » et « indisponible » décrivent quatre situations distinctes.
+    'inspector_component_state' => [
+        'active' => 'Active',
+        'available' => 'Disponible',
+        'not_requested' => 'Non demandée',
+        'not_reached' => 'Étape non atteinte',
+        'used' => 'Utilisée',
+        'denied' => 'Refusée',
+        'empty' => 'Vide',
+        'locked' => 'Verrouillée',
+        'unavailable' => 'Indisponible',
+    ],
+
+    'inspector_map_title' => 'Carte de contexte',
+    'inspector_map_help' => 'Ce que la fonction sélectionnée peut mobiliser, avant même la question. Après un tour, les états mesurés remplacent les états possibles.',
+    'inspector_map_governance' => 'Gouvernance',
+    'inspector_map_sources' => 'Contexte et sources',
+    'inspector_map_runtime' => 'Exécution',
+    'inspector_map_deferred' => 'Non implémenté',
+    'inspector_map_deferred_help' => 'Briques du système nerveux qui n\'existent pas encore dans le produit. Nommées pour que leur absence soit lisible, jamais simulées.',
+    'inspector_map_authority_link' => 'Ouvrir l\'autorité',
+    'inspector_map_node' => [
+        'platform_constitution' => 'Mycélium — Constitution IA plateforme',
+        'organization_constitution' => 'Constitution de l\'Organization',
+        'doctrine' => 'Doctrine de l\'Organization',
+        'capabilities' => 'Registre des fonctions',
+    ],
+    'inspector_map_runtime_label' => [
+        'member' => 'Utilisateur et droits d\'accès',
+        'loop' => 'Boucle',
+        'page_context' => 'Contexte de page',
+    ],
+    'inspector_map_deferred_label' => [
+        'memory_compiler' => 'Mémoire collective',
+        'entity_resolution' => 'Résolution d\'entités',
+        'claim_verifier' => 'Vérificateur d\'affirmations',
+    ],
+
+    'inspector_trace_title' => 'Trace d\'exécution',
+    'inspector_trace_help' => 'Des faits techniques observés. Jamais le raisonnement du modèle.',
+    'inspector_trace_step' => [
+        'composition' => 'Composition',
+        'context' => 'Contexte',
+        'provider' => 'Fournisseur',
+        'issue' => 'Issue',
+    ],
+    'inspector_trace_pending' => 'En attente d\'un tour',
+    'inspector_trace_running' => 'Tour en cours',
+    'inspector_trace_not_reached' => 'Étape non atteinte : le tour s\'est arrêté avant.',
+    'inspector_trace_provider_not_reached' => 'Aucune ligne au registre : rien n\'est parti chez le fournisseur.',
+    'inspector_trace_context_counts' => ':used utilisée(s) · :denied refusée(s) · :empty vide(s)',
+
+    'inspector_sources_title' => 'Sources',
+    'inspector_sources_help' => 'Les sources que la fonction avait le droit de mobiliser, et ce que chacune a donné. Une source refusée est nommée par sa raison, jamais par son contenu.',
+    'inspector_sources_idle' => 'Les sources du prochain tour apparaîtront ici.',
+    'inspector_sources_not_reached' => 'Le contexte n\'a pas été construit : aucune de ces sources n\'a été interrogée. Ce sont celles que la fonction déclare, pas un résultat de ce tour.',
+    'inspector_sources_none' => 'Cette fonction ne déclare aucune source de contexte.',
+    'inspector_source_used' => 'Utilisée',
+    'inspector_source_empty' => 'Vide',
+    'inspector_source_denied' => 'Refusée',
+    'inspector_source_label' => [
+        'dossier_manifest' => 'Structure des Dossiers',
+        'dossier_retrieval' => 'Recherche documentaire dans les Dossiers',
+        'loop_messages' => 'Messages de la Boucle',
+        'user_loops' => 'Boucles de l\'utilisateur',
+        'organization_categories' => 'Catégories de l\'Organization',
+        'product_surfaces' => 'Surfaces du produit',
+        'blog_post' => 'Article de blog',
+        'member_profile' => 'Profil du membre',
+    ],
+
+    'inspector_provenance_open' => 'Voir l\'extrait|Voir les :count extraits',
+    'inspector_provenance_title' => 'Extraits transmis',
+    'inspector_provenance_help' => 'Ce que cette source a réellement transmis au modèle, tel que le pipeline l\'a collecté. Aucun vecteur, aucun score, aucun prompt.',
+    'inspector_provenance_open_observatory' => 'Ouvrir l\'Observatoire des connaissances',
+
+    'inspector_telemetry_idle' => 'Fournisseur, jetons, coût et latence s\'afficheront ici, relus au registre.',
+    'inspector_execution_empty' => 'Aucun appel fournisseur enregistré pour ce tour.',
+    'inspector_execution_help' => 'Relevé du registre des appels fournisseur pour ce tour. Un tour documentaire peut en compter deux : la génération, et la requête d\'embedding de la recherche. Une valeur non rapportée par le fournisseur s\'affiche « — », jamais 0.',
+    'inspector_execution_tokens_in' => 'Jetons entrée',
+    'inspector_execution_tokens_out' => 'Jetons sortie',
+    'inspector_execution_cost' => 'Coût',
+    'inspector_execution_latency' => 'Latence',
+    'inspector_execution_latency_note' => 'La latence mesure le segment du fournisseur, pas le temps de construction du contexte. Le registre l\'horodate à la seconde : elle est affichée à cette précision, et pas à une plus fine.',
+
+    'inspector_field_capability' => 'Fonction',
+    'inspector_field_constitution' => 'Constitution',
+    'inspector_field_doctrine' => 'Doctrine',
+    'inspector_doctrine_active' => 'Doctrine active',
+    'inspector_doctrine_none' => 'Aucune doctrine active',
+    'inspector_field_correlation' => 'Corrélation',
+    'inspector_field_ledger' => 'Comptabilisation',
+
+    'inspector_authorities_help' => 'Cet écran observe, il ne règle rien. Chaque donnée a une seule autorité.',
+
+    'inspector_error_session' => 'Session expirée ou droit retiré. Rechargez la page.',
+    'inspector_error_rate_limited' => 'Limite de questions atteinte. Réessayez dans un instant.',
+    'inspector_error_generic' => 'Le tour n\'a pas pu s\'exécuter. Aucune relance automatique : une relance serait un appel IA réel.',
+
+    'cockpit_inspector_help' => 'Poser une question au pipeline réel et voir, pour ce tour, les sources retenues et refusées, le fournisseur, les jetons et le coût.',
+    'cockpit_inspector_open' => 'Ouvrir l\'inspecteur',
 ];

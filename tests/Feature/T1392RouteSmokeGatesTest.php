@@ -64,21 +64,34 @@ class T1392RouteSmokeGatesTest extends TestCase
         $this->get('/')->assertOk();
     }
 
+    /*
+     * TASK-1479 (P0 privacy) — l'annuaire, les echanges et l'explorateur ne
+     * sont plus servis a un visiteur ANONYME.
+     *
+     * Mesure faite avant correctif : ces pages rendaient HTTP 200 sans aucun
+     * cookie, sur des Organizations `is_public = false` comprises, avec noms
+     * reels, villes, biographies et affiliations.
+     *
+     * Ces smoke gates verifient que les routes REPONDENT et resolvent la bonne
+     * Organization. Cette verite ne change pas ; seul le visiteur devient un
+     * membre — `$this->user` appartient deja a `$this->organization`.
+     */
+
     public function test_explorer_returns_200(): void
     {
-        $response = $this->get('/explorer');
+        $response = $this->actingAs($this->user)->get('/explorer');
         $response->assertOk();
     }
 
     public function test_membres_returns_200(): void
     {
-        $response = $this->get('/membres');
+        $response = $this->actingAs($this->user)->get('/membres');
         $response->assertOk();
     }
 
     public function test_echanges_returns_200(): void
     {
-        $response = $this->get('/echanges');
+        $response = $this->actingAs($this->user)->get('/echanges');
         $response->assertOk();
     }
 
@@ -100,7 +113,7 @@ class T1392RouteSmokeGatesTest extends TestCase
 
     public function test_explorer_resolves_organization(): void
     {
-        $this->get('/explorer')
+        $this->actingAs($this->user)->get('/explorer')
             ->assertOk();
 
         $this->assertTrue(app()->bound('current_organization'));
@@ -109,7 +122,7 @@ class T1392RouteSmokeGatesTest extends TestCase
 
     public function test_membres_resolves_organization(): void
     {
-        $this->get('/membres')
+        $this->actingAs($this->user)->get('/membres')
             ->assertOk();
 
         $this->assertTrue(app()->bound('current_organization'));
@@ -199,13 +212,13 @@ class T1392RouteSmokeGatesTest extends TestCase
 
     public function test_org_explorer_returns_200(): void
     {
-        $this->get("/org/{$this->organization->slug}/explorer")
+        $this->actingAs($this->user)->get("/org/{$this->organization->slug}/explorer")
             ->assertOk();
     }
 
     public function test_org_membres_returns_200(): void
     {
-        $this->get("/org/{$this->organization->slug}/membres")
+        $this->actingAs($this->user)->get("/org/{$this->organization->slug}/membres")
             ->assertOk();
     }
 
@@ -224,7 +237,7 @@ class T1392RouteSmokeGatesTest extends TestCase
 
     public function test_org_echanges_returns_200(): void
     {
-        $this->get("/org/{$this->organization->slug}/echanges")
+        $this->actingAs($this->user)->get("/org/{$this->organization->slug}/echanges")
             ->assertOk();
     }
 
@@ -293,17 +306,17 @@ class T1392RouteSmokeGatesTest extends TestCase
 
     public function test_organization_explorer_returns_200(): void
     {
-        $this->get("/org/{$this->organization->slug}/explorer")->assertOk();
+        $this->actingAs($this->user)->get("/org/{$this->organization->slug}/explorer")->assertOk();
     }
 
     public function test_organization_membres_returns_200(): void
     {
-        $this->get("/org/{$this->organization->slug}/membres")->assertOk();
+        $this->actingAs($this->user)->get("/org/{$this->organization->slug}/membres")->assertOk();
     }
 
     public function test_organization_echanges_returns_200(): void
     {
-        $this->get("/org/{$this->organization->slug}/echanges")->assertOk();
+        $this->actingAs($this->user)->get("/org/{$this->organization->slug}/echanges")->assertOk();
     }
 
     public function test_organization_dashboard_returns_200_for_authenticated_user(): void

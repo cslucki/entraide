@@ -4,6 +4,7 @@ namespace App\Services\Ai;
 
 use App\Models\AiInteraction;
 use App\Models\AiProviderInvocation;
+use App\Support\Ai\AiTurnState;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
@@ -84,9 +85,18 @@ final class AiProviderInvocationConsole
                 $model = (string) $row->model;
                 $slash = strpos($model, '/');
 
+                // TASK-1570 / CDC-01 V0-B — arbitrage A7 (MASTER 16/09) : un
+                // tour NON GENERATIF (refuse ou abstenu AVANT tout appel) est
+                // une activite reelle et se montre — mais JAMAIS comme une
+                // generation. Il porte son vrai statut, aucun cout provider
+                // (il n'y en a pas eu : `not_applicable`, pas un 0 qui se
+                // lirait comme une mesure), aucun token, aucune ligne ledger.
+                $status = is_string($row->metadata['status'] ?? null) ? $row->metadata['status'] : null;
+                $nonGeneratif = in_array($status, AiTurnState::NON_GENERATIVE_STATUSES, true);
+
                 return [
                     'at' => CarbonImmutable::parse((string) $row->created_at),
-                    'kind' => 'generation',
+                    'kind' => $nonGeneratif ? 'turn' : 'generation',
                     'process' => $row->process !== null ? (string) $row->process : null,
                     'feature' => $row->feature !== null ? (string) $row->feature : null,
                     'sandbox' => $row->feature === OrganizationDoctrineSandbox::FEATURE,
@@ -96,9 +106,9 @@ final class AiProviderInvocationConsole
                         : ($slash !== false ? substr($model, 0, $slash) : null),
                     'model' => $slash !== false ? substr($model, $slash + 1) : ($model !== '' ? $model : null),
                     // Tri-etat 1132 : connu (0 legitime inclus) / inconnu / jamais evalue.
-                    'cost_state' => $row->cost_unknown === null ? 'unevaluated' : ($row->cost_unknown ? 'unknown' : 'known'),
-                    'cost_usd' => $row->cost_unknown === false && $row->cost_usd !== null ? (float) $row->cost_usd : null,
-                    'status' => is_string($row->metadata['status'] ?? null) ? $row->metadata['status'] : null,
+                    'cost_state' => $nonGeneratif ? 'not_applicable' : ($row->cost_unknown === null ? 'unevaluated' : ($row->cost_unknown ? 'unknown' : 'known')),
+                    'cost_usd' => ! $nonGeneratif && $row->cost_unknown === false && $row->cost_usd !== null ? (float) $row->cost_usd : null,
+                    'status' => $status,
                     'correlation_id' => $row->correlation_id !== null ? (string) $row->correlation_id : null,
                 ];
             })
@@ -106,20 +116,38 @@ final class AiProviderInvocationConsole
 
         $generation = $this->withLedgerStatuses($organizationId, $userId, $generation);
 
+        // TASK-1562 : le RERANK documentaire entre dans la MEME lecture que les
+        // embeddings, et non dans une requete de plus.
+        //
+        // Sans lui, un rerank n'apparaissait nulle part pour l'utilisateur qui
+        // venait pourtant de le declencher : TASK-1560 l'inscrivait au ledger,
+        // et aucune surface ne le rendait.
+        //
+        // Le joindre ici plutot qu'a cote est deliberé : TASK-1257 garde le
+        // budget de cette methode a DEUX requetes, et cette garde vaut mieux
+        // qu'une lecture separee. Les deux operations partagent exactement les
+        // memes colonnes de sortie — seul le libelle `kind` les distingue.
         $embeddings = AiProviderInvocation::query()
             ->where('organization_id', $organizationId)
             ->where('user_id', $userId)
-            ->where('operation', AiProviderInvocation::OPERATION_EMBEDDING)
+            ->whereIn('operation', [
+                AiProviderInvocation::OPERATION_EMBEDDING,
+                AiProviderInvocation::OPERATION_RERANK,
+            ])
             ->orderByDesc('created_at')
             ->limit($limit)
             ->get()
             ->map(static fn (AiProviderInvocation $row): array => [
                 'at' => CarbonImmutable::parse((string) $row->created_at),
-                'kind' => match ($row->embedding_operation) {
-                    AiProviderInvocation::EMBEDDING_OPERATION_QUERY => 'embedding_query',
-                    AiProviderInvocation::EMBEDDING_OPERATION_INGESTION => 'embedding_ingestion',
-                    default => 'embedding_undeclared',
-                },
+                // Un rerank n'a pas d'`embedding_operation` : il se nomme par
+                // son operation, pas par une sous-nature qu'il ne porte pas.
+                'kind' => $row->operation === AiProviderInvocation::OPERATION_RERANK
+                    ? 'rerank'
+                    : match ($row->embedding_operation) {
+                        AiProviderInvocation::EMBEDDING_OPERATION_QUERY => 'embedding_query',
+                        AiProviderInvocation::EMBEDDING_OPERATION_INGESTION => 'embedding_ingestion',
+                        default => 'embedding_undeclared',
+                    },
                 'process' => $row->process !== null ? (string) $row->process : null,
                 // TASK-1229 : la feature du ledger (recherche d'un essai de
                 // doctrine) — le libelle produit dit « essai de doctrine ».

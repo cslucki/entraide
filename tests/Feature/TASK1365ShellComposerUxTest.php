@@ -103,15 +103,19 @@ class TASK1365ShellComposerUxTest extends TestCase
     // B. Le lieu, et seulement s'il en est un
     // =====================================================================
 
-    /** 2. Sur une Boucle autorisee, le lieu est nomme. */
-    public function test_an_authorised_loop_page_shows_its_place(): void
+    /**
+     * 2. Sur une Boucle, il n'y a plus de lieu — parce qu'il n'y a plus de
+     * Shell (TASK-1466). La Boucle porte son IA native ; le Shell global n'y
+     * ouvre pas une seconde porte, donc il n'y nomme rien.
+     */
+    public function test_a_loop_page_shows_no_place_because_the_shell_is_not_there(): void
     {
         $loop = (new LoopService)->createLoop($this->member, 'Boucle Composer');
 
         $html = $this->pageHtml(route('loops.show', $loop));
 
-        $this->assertStringContainsString('data-ai-shell-here', $html);
-        $this->assertStringContainsString(e(__('ai.shell_context_loop', ['name' => 'Boucle Composer'])), $html);
+        $this->assertStringNotContainsString('data-ai-shell-here', $html);
+        $this->assertStringNotContainsString(e(__('ai.shell_context_loop', ['name' => 'Boucle Composer'])), $html);
     }
 
     /** 3. Sur un Dossier autorise aussi. */
@@ -180,35 +184,47 @@ class TASK1365ShellComposerUxTest extends TestCase
     /** 7. Le lieu ne transporte ni URL, ni chemin, ni identifiant, ni slug. */
     public function test_the_place_carries_no_raw_route_data(): void
     {
-        $loop = (new LoopService)->createLoop($this->member, 'Boucle Sans Identifiant');
+        // TASK-1466 : mesure sur un Dossier — un objet gouverne, avec un
+        // identifiant et un slug a ne pas laisser fuir, sur une surface qui
+        // porte encore le Shell.
+        $dossier = Dossier::factory()->create([
+            'organization_id' => $this->organization->id,
+            'owner_id' => $this->member->id,
+            'name' => 'Dossier Sans Identifiant',
+        ]);
 
-        $fragment = $this->hereFragment(route('loops.show', $loop));
+        $fragment = $this->hereFragment(route('organization.dossiers.show', ['organization' => $this->organization->slug, 'dossier' => $dossier]));
 
         $this->assertNotSame('', $fragment);
-        $this->assertStringNotContainsString((string) $loop->id, $fragment);
+        $this->assertStringNotContainsString((string) $dossier->id, $fragment);
         $this->assertStringNotContainsString($this->organization->slug, $fragment);
         $this->assertStringNotContainsString('http', $fragment);
-        $this->assertStringNotContainsString('/loops', $fragment);
+        $this->assertStringNotContainsString('/dossiers', $fragment);
     }
 
     /** 8. FR et EN rendent le lieu dans la langue de l'interface. */
     public function test_the_place_follows_the_interface_language(): void
     {
-        $loop = (new LoopService)->createLoop($this->member, 'Boucle Bilingue');
+        $dossier = Dossier::factory()->create([
+            'organization_id' => $this->organization->id,
+            'owner_id' => $this->member->id,
+            'name' => 'Dossier Bilingue',
+        ]);
+        $url = route('organization.dossiers.show', ['organization' => $this->organization->slug, 'dossier' => $dossier]);
 
         $this->member->forceFill(['preferred_locale' => 'fr'])->saveQuietly();
-        $french = $this->hereFragment(route('loops.show', $loop));
+        $french = $this->hereFragment($url);
 
         $this->member->forceFill(['preferred_locale' => 'en'])->saveQuietly();
-        $english = $this->hereFragment(route('loops.show', $loop));
+        $english = $this->hereFragment($url);
 
         // Les attendus viennent des fichiers de langue, jamais d'une chaine
         // recopiee a la main : une TASK qui reformule le libelle ne doit pas
         // faire passer ce test pour une mauvaise raison.
         app()->setLocale('fr');
-        $expectedFrench = e(__('ai.shell_context_loop', ['name' => 'Boucle Bilingue']));
+        $expectedFrench = e(__('ai.shell_context_dossier', ['name' => 'Dossier Bilingue']));
         app()->setLocale('en');
-        $expectedEnglish = e(__('ai.shell_context_loop', ['name' => 'Boucle Bilingue']));
+        $expectedEnglish = e(__('ai.shell_context_dossier', ['name' => 'Dossier Bilingue']));
 
         $this->assertNotSame($expectedFrench, $expectedEnglish, 'Le pre-requis du test : les deux libelles different.');
 
@@ -227,13 +243,17 @@ class TASK1365ShellComposerUxTest extends TestCase
      */
     public function test_the_place_is_shown_exactly_once(): void
     {
-        $loop = (new LoopService)->createLoop($this->member, 'Boucle Unique');
+        $dossier = Dossier::factory()->create([
+            'organization_id' => $this->organization->id,
+            'owner_id' => $this->member->id,
+            'name' => 'Dossier Unique',
+        ]);
 
         // La langue de la PAGE vient de la personne, pas du processus de test :
         // on la fixe, puis on construit l'attendu dans la meme langue.
         $this->member->forceFill(['preferred_locale' => 'fr'])->saveQuietly();
 
-        $html = $this->pageHtml(route('loops.show', $loop));
+        $html = $this->pageHtml(route('organization.dossiers.show', ['organization' => $this->organization->slug, 'dossier' => $dossier]));
 
         // On compte les MARQUEURS DE RENDU, pas les occurrences de la chaine :
         // l'instantane Livewire serialise `context.label` et `here` dans le
@@ -244,7 +264,7 @@ class TASK1365ShellComposerUxTest extends TestCase
 
         app()->setLocale('fr');
         $this->assertStringContainsString(
-            e(__('ai.shell_context_loop', ['name' => 'Boucle Unique'])),
+            e(__('ai.shell_context_dossier', ['name' => 'Dossier Unique'])),
             $html,
         );
     }

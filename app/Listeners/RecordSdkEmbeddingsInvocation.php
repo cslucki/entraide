@@ -42,6 +42,28 @@ class RecordSdkEmbeddingsInvocation
     public const TRACE_CONTEXT_KEY = 'ai_sdk_trace_context';
 
     /**
+     * TASK-1556 — cle `AiInteraction.metadata` sous laquelle un tour declare
+     * les invocations embedding qu'il a declenchees (liste d'uuid SDK, jointure
+     * exacte sur `ai_provider_invocations.sdk_invocation_id`). Distincte de
+     * `sdk_invocation_id`, qui reste la GENERATION du tour.
+     */
+    public const TURN_METADATA_KEY = 'embedding_sdk_invocation_ids';
+
+    /** Borne du journal : au-dela, les entrees les plus anciennes tombent. */
+    private const JOURNAL_LIMIT = 256;
+
+    /**
+     * TASK-1556 — journal PROCESS-LOCAL des invocations embedding `query`
+     * observees, en attente d'etre reclamees par le tour qui les a
+     * declenchees. Une propriete statique et non `Context` : `Context` est
+     * dehydrate dans chaque job dispatche, la liste suivrait le job et un tour
+     * execute la-bas reclamerait des invocations qui ne sont pas les siennes.
+     *
+     * @var list<array{invocation_id: string, organization_id: string, turn_id: string}>
+     */
+    private static array $journal = [];
+
+    /**
      * `org:{organizationId}:{famille}` -> `{famille}`. L'organizationId est un
      * UUID (sans deux-points), donc la famille est le segment apres le dernier
      * deux-points. Tout autre nom est rendu tel quel.
@@ -153,6 +175,67 @@ class RecordSdkEmbeddingsInvocation
         );
     }
 
+    /**
+     * TASK-1556 — reclame les invocations embedding `query` observees dans CE
+     * processus pour ce tenant et CE tour (`ContexteIa::$turnId`, uuid ne
+     * avant le retrieval). L'identite du tour est la seule cle de
+     * rattachement : un tour interrompu entre son embedding et son ecriture
+     * laisse une entree que personne ne peut reclamer — jamais le tour
+     * suivant, meme sous le meme tenant, la meme correlation et le meme
+     * processus. Chaque invocation n'est rendue qu'UNE fois. Une ingestion, ou
+     * une recherche sans identite de tour (recherche directe, admin), n'est
+     * jamais journalisee. Un tour sans embedding recoit `[]`, jamais un id
+     * emprunte.
+     *
+     * `correlation_id` n'intervient pas : il est partage par toute une
+     * operation metier. La cle stockee et jointe reste l'uuid SDK de
+     * l'invocation.
+     *
+     * @return list<string> uuid SDK, dans l'ordre d'observation
+     */
+    public static function claimQueryInvocationIds(string $organizationId, string $turnId): array
+    {
+        $claimed = [];
+        $kept = [];
+
+        foreach (self::$journal as $entry) {
+            if ($entry['organization_id'] === $organizationId && $entry['turn_id'] === $turnId) {
+                $claimed[] = $entry['invocation_id'];
+
+                continue;
+            }
+
+            $kept[] = $entry;
+        }
+
+        self::$journal = $kept;
+
+        return $claimed;
+    }
+
+    /** Tests uniquement : repart d'un journal vide. */
+    public static function forgetJournal(): void
+    {
+        self::$journal = [];
+    }
+
+    private function journalQueryInvocation(string $invocationId, string $organizationId, ?string $embeddingOperation, ?string $turnId): void
+    {
+        if ($embeddingOperation !== AiProviderInvocation::EMBEDDING_OPERATION_QUERY || $turnId === null) {
+            return;
+        }
+
+        self::$journal[] = [
+            'invocation_id' => $invocationId,
+            'organization_id' => $organizationId,
+            'turn_id' => $turnId,
+        ];
+
+        if (count(self::$journal) > self::JOURNAL_LIMIT) {
+            self::$journal = array_slice(self::$journal, -self::JOURNAL_LIMIT);
+        }
+    }
+
     private function markPending(string $invocationId): void
     {
         $pending = Context::get(self::PENDING_CONTEXT_KEY, []);
@@ -236,12 +319,29 @@ class RecordSdkEmbeddingsInvocation
         }
 
         $embeddingOperation = $trace['embedding_operation'] ?? null;
+        // TASK-1556 : une recherche (query) est journalisee pour le tour qui
+        // la reclamera ; succes ET echec, la tentative appartient au tour.
+        $turnId = $trace['metadata']['turn_id'] ?? null;
+        $this->journalQueryInvocation(
+            $invocationId,
+            (string) $trace['organization_id'],
+            is_string($embeddingOperation) ? $embeddingOperation : null,
+            is_string($turnId) && $turnId !== '' ? $turnId : null,
+        );
         $capability = $trace['metadata']['capability'] ?? null;
         $feature = $trace['metadata']['feature'] ?? null;
+        // TASK-1585 (review-fix) — l'acteur DECLARE par l'appelant prime ;
+        // `Auth::id()` n'est que le repli historique quand personne n'a
+        // declare (ingestion : aucun acteur, `null` par design). Jamais de
+        // reconstruction, jamais de lookup.
+        $declare = $trace['user_id'] ?? null;
+        $userId = is_string($declare) && $declare !== ''
+            ? $declare
+            : (Auth::id() !== null ? (string) Auth::id() : null);
 
         app(AiProviderInvocationLedger::class)->recordEmbedding(
             organizationId: (string) $trace['organization_id'],
-            userId: Auth::id() !== null ? (string) Auth::id() : null,
+            userId: $userId,
             capability: is_string($capability) ? $capability : null,
             process: AiProcess::fromScenarioId($trace['scenario_id']),
             embeddingOperation: is_string($embeddingOperation) ? $embeddingOperation : null,
@@ -261,7 +361,8 @@ class RecordSdkEmbeddingsInvocation
 
         AdminAiInteraction::create([
             'organization_id' => $trace['organization_id'],
-            'user_id' => Auth::id(),
+            // Meme acteur que la ligne du ledger : un tour n'a qu'un acteur.
+            'user_id' => $userId,
             'correlation_id' => AiCorrelation::id(),
             'process' => AiProcess::fromScenarioId($trace['scenario_id']),
             'scenario_id' => $trace['scenario_id'],

@@ -1,7 +1,8 @@
 <?php
 
-use App\Support\ScenarioPacks\Packs\ArtSciLabEnglishPack;
+use App\Support\ScenarioPacks\Packs\AiLabPack;
 use App\Support\ScenarioPacks\Packs\ArtSciLabDemoPack;
+use App\Support\ScenarioPacks\Packs\ArtSciLabEnglishPack;
 use App\Support\ScenarioPacks\Packs\Test20260822DogfoodingPack;
 
 return [
@@ -33,6 +34,9 @@ return [
         // provisionne lui-meme quand il est absent — voir
         // App\Support\ScenarioPacks\Contracts\ProvisionsItsOrganization.
         ArtSciLabEnglishPack::ORGANIZATION_SLUG,
+        // TASK-1587 / CDC-03 L-A : l'Organization AI Lab de la campagne
+        // Nervous System (golds controles). Provisionnee par son pack.
+        AiLabPack::ORGANIZATION_SLUG,
     ],
 
     /*
@@ -47,6 +51,7 @@ return [
         'artscilab-demo-test' => ArtSciLabDemoPack::class,
         Test20260822DogfoodingPack::PACK_ID => Test20260822DogfoodingPack::class,
         ArtSciLabEnglishPack::PACK_ID => ArtSciLabEnglishPack::class,
+        AiLabPack::PACK_ID => AiLabPack::class,
     ],
 
     /*
@@ -65,6 +70,22 @@ return [
             'SCENARIO_PACK_TEST20260822_SOURCE_DIR',
             base_path('_temp/Test_Rag-2026-08-22'),
         ),
+        // TASK-1587 : corpus VERSIONNE (synthetique, < 200 Ko) — le Lab doit
+        // etre reproductible en CI, contrairement au dogfooding de Cyril.
+        AiLabPack::PACK_ID => database_path('scenario-packs/ai-lab/corpus'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Lab (TASK-1591 / CDC-NIGHT L-C_CORE) — l'outsider cross-tenant
+    |--------------------------------------------------------------------------
+    |
+    | `lab.outsider` n'est PAS une entite du pack (CDC-03 E1) : c'est un
+    | utilisateur REEL d'une AUTRE Organization, DECLARE ici (jamais devine).
+    | Defaut : le contrat du pack (les tests le creent) ; le banc pointe un
+    | membre de SENTINEL-B via AI_LAB_OUTSIDER_EMAIL.
+    |
+    */
+    'lab_outsider_email' => env('AI_LAB_OUTSIDER_EMAIL', AiLabPack::OUTSIDER_EMAIL),
 
 ];

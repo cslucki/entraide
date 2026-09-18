@@ -48,6 +48,17 @@ class T126ProfileReviewsTenantScopingTest extends TestCase
     // Comportement normal — accès profil dans la même org
     // -------------------------------------------------------------------------
 
+    /*
+     * TASK-1479 (P0 privacy) — le profil n'est plus servi a un visiteur
+     * ANONYME : sur une Organization `is_public = false`, il rendait 200 sans
+     * aucun cookie, avec nom, ville, biographie et points.
+     *
+     * Ce que ces trois tests protegent — le cloisonnement des avis par tenant —
+     * n'a pas change d'un mot. Le lecteur est simplement un membre de l'Org A,
+     * c'est-a-dire exactement la personne depuis laquelle le cloisonnement se
+     * juge.
+     */
+
     public function test_profile_shows_reviews_from_same_organization(): void
     {
         app()->instance('current_organization', $this->orgA);
@@ -69,7 +80,7 @@ class T126ProfileReviewsTenantScopingTest extends TestCase
             'rating' => 5,
         ]);
 
-        $this->get(route('profile.show', $user))
+        $this->actingAs($reviewer)->get(route('profile.show', $user))
             ->assertOk()
             ->assertSee('T126_REVIEW_SAME_ORG_VISIBLE');
     }
@@ -116,7 +127,9 @@ class T126ProfileReviewsTenantScopingTest extends TestCase
         ]);
 
         // La review cross-org NE DOIT PAS apparaître sur le profil consulté depuis org A
-        $this->get(route('profile.show', $profiledUser))
+        $readerInA = User::factory()->create(['organization_id' => $this->orgA->id]);
+
+        $this->actingAs($readerInA)->get(route('profile.show', $profiledUser))
             ->assertOk()
             ->assertDontSee('T126_REVIEW_CROSS_ORG_HIDDEN');
     }
@@ -157,7 +170,9 @@ class T126ProfileReviewsTenantScopingTest extends TestCase
             'rating' => 1,
         ]);
 
-        $response = $this->get(route('profile.show', $profiledUser))->assertOk();
+        $readerInA = User::factory()->create(['organization_id' => $this->orgA->id]);
+
+        $response = $this->actingAs($readerInA)->get(route('profile.show', $profiledUser))->assertOk();
 
         $response->assertSee('T126_REVIEW_ORG_A_VISIBLE')
             ->assertDontSee('T126_REVIEW_ORG_B_HIDDEN');

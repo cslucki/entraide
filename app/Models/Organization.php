@@ -63,6 +63,7 @@ class Organization extends Model
         'membership_label_fr',
         'membership_label_en',
         'homepage_template',
+        'root_destination',
         'homepage_settings',
         'dossier_storage_quota_bytes',
         'loop_composition_policy',
@@ -141,6 +142,12 @@ class Organization extends Model
      * Configuration IA du tenant (TASK-1212 / P4-lite). Absente = pas d'IA
      * transverse pour cette Organization.
      */
+    /** TASK-1429 — SW-1 : la politique Shell Welcome (absente = DISABLED). */
+    public function guestShellPolicy(): HasOne
+    {
+        return $this->hasOne(OrganizationGuestShellPolicy::class);
+    }
+
     public function aiSetting(): HasOne
     {
         return $this->hasOne(OrganizationAiSetting::class);

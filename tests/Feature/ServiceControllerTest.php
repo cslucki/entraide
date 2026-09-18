@@ -19,13 +19,30 @@ class ServiceControllerTest extends TestCase
         $this->setUpOrganization();
     }
 
-    public function test_anyone_can_view_active_service(): void
+    /**
+     * TASK-1488 (P0 privacy) — ce test s'appelait
+     * `test_anyone_can_view_active_service`, et son NOM etait le seul artefact
+     * du depot qui affirmait un acces invite a la fiche d'un Service. Aucune
+     * autorite canonique ne le soutenait : `docs/05-DOMAIN_ARCHITECTURE.md` dit
+     * « Public != global » et ne classe `/services` que par le tenant RESOLU.
+     *
+     * Mesure faite : la fiche rendait 200 sans aucun cookie sur une
+     * Organization `is_public = false`, avec le nom reel du proprietaire et le
+     * contenu metier. « N'importe qui » voulait dire « n'importe quel membre de
+     * l'Organization », comme « profil public » chez TASK-1479.
+     *
+     * Ce que le test mesure — un Service actif est lisible par quelqu'un
+     * d'autre que son proprietaire — n'a pas change, et c'est bien un autre
+     * membre qui le lit ici.
+     */
+    public function test_an_active_service_is_visible_to_another_member_of_the_organization(): void
     {
         $user = $this->orgUser();
+        $reader = $this->orgUser();
         $category = Category::factory()->create();
         $service = Service::factory()->forUser($user)->forCategory($category)->create(['organization_id' => $this->testOrganization->id]);
 
-        $response = $this->get(route('services.show', $service));
+        $response = $this->actingAs($reader)->get(route('services.show', $service));
         $response->assertOk();
     }
 

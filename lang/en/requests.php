@@ -54,4 +54,14 @@ return [
         'save' => 'Save',
         'cancel' => 'Cancel',
     ],
+
+    // TASK-1553 — W2-2: the pre-send card. It promises NOTHING — see the French
+    // file for the full rationale.
+    'presend_title' => 'Before publishing',
+    'presend_destination' => 'Will be published in:',
+    'presend_members' => '{0} no members|{1} 1 member|[2,*] :count members',
+    'presend_origin_shell' => 'Prepared from your conversation with BouclePro AI.',
+    'presend_origin_loop_clarification' => 'Prepared from "Who can help me?" in this Loop.',
+    'presend_origin_loop_clarification_unavailable' => 'Prepared from your own words, without AI involvement.',
+    'presend_note' => 'Nothing is published until you confirm it. You can change everything below.',
 ];

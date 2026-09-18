@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Ai\Agents\HelpRequestClarifierAgent;
+use App\Ai\Agents\ShellGeneralAnswerAgent;
 use App\Livewire\AiShell;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
@@ -22,6 +23,7 @@ use App\Support\Ai\AiCapabilityCatalogue;
 use App\Support\Ai\AiSelfKnowledge;
 use App\Support\Ai\AiShellThread;
 use App\Support\Ai\AiShellTurnCards;
+use App\Support\Ai\AiTurnState;
 use App\Support\Loops\HelpRequestHandoff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
@@ -30,6 +32,7 @@ use Illuminate\Support\Facades\Http;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\StructuredTextResponse;
+use Laravel\Ai\Responses\TextResponse;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -274,10 +277,10 @@ class TASK1350AiShellHonestConversationTest extends TestCase
     }
 
     /** 5. Une erreur de self-knowledge ne devient jamais une erreur utilisateur. */
-    public function test_a_self_knowledge_failure_falls_back_to_the_legacy_provider(): void
+    public function test_a_self_knowledge_failure_falls_back_to_the_general_provider(): void
     {
         // Le catalogue leve : le cas exact que l'arbitrage fail-open nomme.
-        // Le tour doit repartir chez le provider legacy — jamais un 500, jamais
+        // Le tour doit repartir chez le provider general — jamais un 500, jamais
         // une reponse degradee.
         $this->app->bind(AiCapabilityCatalogue::class, fn () => new class extends AiCapabilityCatalogue
         {
@@ -287,7 +290,7 @@ class TASK1350AiShellHonestConversationTest extends TestCase
             }
         });
 
-        $this->fakeClarifier();
+        $this->fakeGeneral('Voici les possibilites disponibles ici.');
 
         Livewire::actingAs($this->member)
             ->test(AiShell::class)
@@ -296,9 +299,8 @@ class TASK1350AiShellHonestConversationTest extends TestCase
 
         $answer = $this->lastAnswer();
 
-        // Le provider legacy a bien repondu — statut ANSWERED, producteur SDK.
-        $this->assertSame(AiShellResponder::STATUS_ANSWERED, $answer->metadata['status']);
-        $this->assertSame('laravel_ai_sdk', $answer->metadata['producer']);
+        $this->assertSame(AiShellResponder::STATUS_NON_INTERACTION, $answer->metadata['status']);
+        $this->assertSame('shell.general_answer', $answer->metadata['producer']);
         $this->assertSame(1, AiInteraction::query()->count());
     }
 
@@ -409,7 +411,8 @@ class TASK1350AiShellHonestConversationTest extends TestCase
         $metadata = $this->lastAnswer()->metadata;
 
         $this->assertSame(
-            ['page_context', 'producer', 'status'],
+            // TASK-1576 / V0-I : `fallthroughs` (les declins du tour, `[]` inclus) s'ajoute a la ligne assistant.
+            ['fallthroughs', 'page_context', 'producer', 'status'],
             collect(array_keys($metadata))->sort()->values()->all(),
         );
 
@@ -432,7 +435,7 @@ class TASK1350AiShellHonestConversationTest extends TestCase
         $metadata = $this->lastAnswer()->metadata;
 
         $this->assertSame(
-            ['page_context', 'pinned_context', 'producer', 'status'],
+            ['fallthroughs', 'page_context', 'pinned_context', 'producer', 'status'],
             collect(array_keys($metadata))->sort()->values()->all(),
         );
     }
@@ -442,13 +445,18 @@ class TASK1350AiShellHonestConversationTest extends TestCase
     {
         $this->fakeClarifier(interactionFit: false);
 
-        Livewire::actingAs($this->member)
+        $html = Livewire::actingAs($this->member)
             ->test(AiShell::class)
             ->set('draft', 'Bonjour !')
             ->call('send')
             ->assertDontSee('data-ai-shell-answer-title', false)
             ->assertDontSee('data-ai-shell-cards', false)
-            ->assertSee(__('ai.shell_answer_non_interaction'));
+            ->html();
+
+        $this->assertStringContainsString(
+            __('ai.shell_answer_non_interaction'),
+            html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+        );
     }
 
     /** 13. `forDisplay()` rend un tableau vide sur un tour NON_INTERACTION. */
@@ -733,14 +741,32 @@ class TASK1350AiShellHonestConversationTest extends TestCase
     // I. Shell global
     // =====================================================================
 
-    /** 25. Une page sans action IA ne dit plus que l'IA n'y sert a rien. */
+    /**
+     * 25. Une page sans action IA ne dit plus que l'IA n'y sert a rien.
+     *
+     * TASK-1477 a change la PHRASE sans changer ce contrat. L'ancienne
+     * (`fab_no_page_action`) tenait la bonne distinction — « pas d'action ici »
+     * n'est pas « pas d'IA ici » — mais l'ouvrait par une negation, et c'etait
+     * la seule chose que le panneau savait dire sur l'agenda ou l'annuaire.
+     * Le repli neutre (`fab_page_help`) dit ce que le Shell PEUT faire.
+     *
+     * L'assertion est renforcee au passage : elle mesure desormais que la
+     * phrase n'ouvre sur aucune absence, plutot que de se contenter de
+     * reconnaitre une chaine donnee.
+     */
     public function test_a_page_without_ai_action_still_offers_the_conversation(): void
     {
         $response = $this->actingAs($this->member)->get(route('dashboard'));
 
         $response->assertOk();
-        $response->assertSee(__('ai.fab_no_page_action'));
+        $response->assertSee(__('ai.fab_page_help'));
         $response->assertDontSee('Ici, aucune action IA');
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/^(cette page n\'a pas|this page has no|il n\'y a (pas|aucune)|there is no)/iu',
+            __('ai.fab_page_help'),
+            'la conversation reste offerte, et on ne l\'annonce pas par ce qui manque',
+        );
     }
 
     // =====================================================================
@@ -777,7 +803,8 @@ class TASK1350AiShellHonestConversationTest extends TestCase
         $this->assertStringNotContainsString(__('ai.shell_answer_unavailable'), $third->content);
 
         // Aucun appel provider n'a eu lieu sur aucun des trois tours.
-        $this->assertSame(0, AiInteraction::query()->count());
+        // TASK-1572 / V0-D : les replis, eux, laissent leur tour (non generatif).
+        $this->assertSame(0, AiInteraction::query()->whereNot(static fn ($q) => $q->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES))->count());
         $this->assertSame(0, AiProviderInvocation::query()->count());
     }
 
@@ -799,7 +826,7 @@ class TASK1350AiShellHonestConversationTest extends TestCase
 
         $this->assertSame(AiShellResponder::STATUS_UNAVAILABLE, $answer->metadata['status']);
         $this->assertSame(__('ai.shell_answer_request_preparation_unavailable'), $answer->content);
-        $this->assertSame(0, AiInteraction::query()->count());
+        $this->assertSame(0, AiInteraction::query()->whereNot(static fn ($q) => $q->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES))->count());
     }
 
     /** 28. Avec un credential, le pipeline normal reprend — rien n'a ete masque. */
@@ -860,7 +887,14 @@ class TASK1350AiShellHonestConversationTest extends TestCase
             ->call('send');
 
         $this->assertSame(__('ai.shell_answer_request_preparation_unavailable'), $this->lastAnswer()->content);
-        $this->assertSame(0, AiInteraction::query()->count(), 'A ne doit emprunter aucun credential.');
+        $this->assertSame(0, AiInteraction::query()->whereNot(static fn ($q) => $q->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES))->count(), 'A ne doit emprunter aucun credential.');
+        // TASK-1572 / V0-D : le tour de repli de A est dans SON tenant, sans
+        // provider ni modele — aucun credential emprunte, et la trace le prouve.
+        foreach (AiInteraction::query()->get() as $repli) {
+            $this->assertSame((string) $this->organization->id, (string) $repli->organization_id);
+            $this->assertSame('', $repli->model);
+            $this->assertArrayNotHasKey('provider', $repli->metadata);
+        }
 
         app()->instance('current_organization', $organizationB);
 
@@ -870,9 +904,12 @@ class TASK1350AiShellHonestConversationTest extends TestCase
             ->call('send');
 
         // B a bien appele, et sa trace est inscrite sous B — jamais sous A.
-        $interactions = AiInteraction::query()->get();
-        $this->assertCount(1, $interactions);
-        $this->assertSame((string) $organizationB->id, (string) $interactions->first()->organization_id);
+        // TASK-1572 / V0-D : la seule GENERATION est celle de B ; le repli de A
+        // (tour non generatif) reste sous A.
+        $generations = AiInteraction::query()->whereNot(static fn ($q) => $q->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES))->get();
+        $this->assertCount(1, $generations);
+        $this->assertSame((string) $organizationB->id, (string) $generations->first()->organization_id);
+        $this->assertSame(0, AiInteraction::query()->where('organization_id', $organizationB->id)->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES)->count(), 'aucun repli sous B');
     }
 
     /**
@@ -909,7 +946,7 @@ class TASK1350AiShellHonestConversationTest extends TestCase
             'ai.shell_answer_request_preparation_unavailable',
             'ai.shell_answer_non_interaction',
             'ai.shell_answer_blocked',
-            'ai.fab_no_page_action',
+            'ai.fab_page_help',
             'ai.fab_subtitle_other',
             'ai.shell_empty_hint',
             'ai.self_knowledge_capabilities_intro',
@@ -968,7 +1005,7 @@ class TASK1350AiShellHonestConversationTest extends TestCase
             'ai.shell_answer_request_preparation_unavailable',
             'ai.shell_answer_non_interaction',
             'ai.shell_card_offer_help',
-            'ai.fab_no_page_action',
+            'ai.fab_page_help',
             'ai.self_knowledge_capabilities_intro',
             'ai.self_knowledge_capability_assistant',
         ] as $key) {
@@ -1351,13 +1388,13 @@ class TASK1350AiShellHonestConversationTest extends TestCase
      */
     public function test_a_direct_reply_is_rendered_as_the_assistants_own_words(): void
     {
-        $reply = 'Je ne peux pas verifier la meteo en temps reel ici. En revanche, je peux vous aider a formuler un besoin pour vos collegues.';
+        $reply = 'Avec plaisir. Dites-moi ce que vous souhaitez approfondir.';
 
         $this->fakeClarifier(interactionFit: false, directReply: $reply);
 
         $component = Livewire::actingAs($this->member)
             ->test(AiShell::class)
-            ->set('draft', 'Quel temps fait-il a Marseille ?')
+            ->set('draft', 'Merci beaucoup pour votre aide !')
             ->call('send');
 
         $answer = $this->lastAnswer();
@@ -1387,7 +1424,8 @@ class TASK1350AiShellHonestConversationTest extends TestCase
 
         // Metadata minimale : exactement les memes quatre cles qu'avant.
         $this->assertSame(
-            ['page_context', 'producer', 'status'],
+            // TASK-1576 / V0-I : `fallthroughs` (les declins du tour, `[]` inclus) s'ajoute a la ligne assistant.
+            ['fallthroughs', 'page_context', 'producer', 'status'],
             collect(array_keys($answer->metadata))->sort()->values()->all(),
         );
 
@@ -1713,6 +1751,13 @@ class TASK1350AiShellHonestConversationTest extends TestCase
         string $directReply = '',
     ): void {
         $this->fakeStructured($this->structured($interactionFit, $helpType, $suggestedLoopId, $clarified, $directReply));
+    }
+
+    private function fakeGeneral(string $answer): void
+    {
+        ShellGeneralAnswerAgent::fake([
+            new TextResponse($answer, new Usage(80, 30), new Meta('openai', 'gpt-4o-mini')),
+        ]);
     }
 
     /** @param  array<string, mixed>  $structured */

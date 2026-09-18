@@ -70,7 +70,6 @@ use Tests\TestCase;
 class TASK1229UserAiCreditTest extends TestCase
 {
     use RecordsAiConsumption;
-
     use RefreshDatabase;
 
     private Organization $orgA;
@@ -254,11 +253,21 @@ class TASK1229UserAiCreditTest extends TestCase
             ->assertJsonPath('error', trans_choice('ai.credit_refusal_user_exhausted', 2, ['used' => 2, 'quota' => 2, 'date' => CarbonImmutable::now()->startOfMonth()->addMonth()->format('d/m/Y')]));
         $this->assertNotNull($response->json('offers_url'));
 
-        // Zero appel provider, zero trace, zero ligne de ledger, rien de decompte.
+        // Zero appel provider, zero ligne de ledger, rien de decompte.
         LoopKnowledgeAgent::assertNotPrompted(fn (AgentPrompt $prompt): bool => true);
         $this->assertNull($this->search->lastCall);
-        $this->assertSame($interactionsBefore, AiInteraction::query()->count());
         $this->assertSame($ledgerBefore, AiProviderInvocation::query()->count());
+
+        // TASK-1570 / CDC-01 V0-B : le refus laisse desormais UNE interaction
+        // NON GENERATIVE (`refused`, stage `economic_check`, code du verdict) —
+        // et c'est la garde qui compte : cette ligne ne CONSOMME PAS un credit.
+        // `userCreditUses()` compte les `ai_interactions` : sans l'exclusion des
+        // statuts non generatifs, un refus de credit en aurait depense un.
+        $this->assertSame($interactionsBefore + 1, AiInteraction::query()->count());
+        $refus = AiInteraction::query()->latest('id')->firstOrFail();
+        $this->assertSame('refused', $refus->metadata['status']);
+        $this->assertSame('economic_check', $refus->metadata['turn']['stage']);
+        $this->assertSame(AiEconomicGuard::REASON_USER_CREDIT_EXHAUSTED, $refus->metadata['turn']['reason_code']);
         $this->assertSame(2, $this->guard()->userCreditStatus($this->orgA, $this->memberA)->used);
     }
 
@@ -749,12 +758,21 @@ class TASK1229UserAiCreditTest extends TestCase
     // G. MIGRATIONS — additives, reversibles, remplissage deterministe
     // =====================================================================
 
-    public function test_the_three_migrations_roll_back_and_re_apply_and_the_backfill_follows_the_correlation(): void
+    public function test_the_migrations_roll_back_and_re_apply_and_the_backfill_follows_the_correlation(): void
     {
+        // TASK-1563 : elles etaient trois, elles sont quatre.
+        //
+        // `ai_credit_setting_changes` a gagne un discriminant `setting_kind`,
+        // parce qu'elle porte desormais DEUX natures de reglage. Cette
+        // migration appartient donc a la lignee de cette table : l'omettre ici
+        // ferait re-appliquer la table SANS sa colonne, et l'ecriture d'une
+        // trace echouerait aussitot apres — ce que ce test a effectivement
+        // attrape.
         $paths = [
             database_path('migrations/2026_08_18_150000_add_user_credit_to_organization_ai_settings_table.php'),
             database_path('migrations/2026_08_18_150100_create_ai_credit_setting_changes_table.php'),
             database_path('migrations/2026_08_18_150200_add_feature_to_ai_provider_invocations_table.php'),
+            database_path('migrations/2026_09_15_120100_add_setting_kind_to_ai_credit_setting_changes_table.php'),
         ];
         $migrations = array_map(static fn (string $path) => require $path, $paths);
 
@@ -785,6 +803,8 @@ class TASK1229UserAiCreditTest extends TestCase
 
         $this->assertTrue(Schema::hasColumn('organization_ai_settings', 'user_credit_monthly_uses'));
         $this->assertTrue(Schema::hasTable('ai_credit_setting_changes'));
+        // TASK-1563 : et son discriminant revient avec elle.
+        $this->assertTrue(Schema::hasColumn('ai_credit_setting_changes', 'setting_kind'));
         // Le remplissage suit la correlation : la recherche de l'essai est
         // taguee, la recherche productive ne l'est pas.
         $this->assertSame(OrganizationDoctrineSandbox::FEATURE, $sandboxSearch->fresh()->feature);
@@ -859,7 +879,6 @@ class TASK1229UserAiCreditTest extends TestCase
         );
     }
 
-
     private function embedding(Organization $organization, User $user, ?string $operation, ?float $cost, ?string $feature = null): AiProviderInvocation
     {
         return AiProviderInvocation::create([
@@ -925,7 +944,7 @@ class Task1229FakeSearch extends DossierSemanticSearchService
 
     public function __construct() {}
 
-    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null): array
+    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null, ?array $onlyDossierFileIds = null, ?array $authorizedLoopIds = null): array
     {
         $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'embeddingInstance', 'limit', 'traceMetadata', 'candidateLimit');
 

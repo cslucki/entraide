@@ -20,6 +20,7 @@
     </form>
 
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <x-admin-table>
         <table class="w-full text-sm">
             <thead class="bg-gray-50 dark:bg-gray-700">
                 <tr>
@@ -34,29 +35,29 @@
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                 @forelse($requests as $req)
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_request') }}" data-title class="px-4 py-3">
                         <a href="{{ route('requests.show', $req) }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600">{{ $req->title }}</a>
                         @if($req->deadline)
                         <p class="text-xs text-gray-400">{{ __('navigation.org_admin_before') }} {{ $req->deadline->format('d/m/Y') }}</p>
                         @endif
                     </td>
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_author') }}" class="px-4 py-3">
                         @if($req->user)
                         <a href="{{ route('profile.show', $req->user) }}" class="text-indigo-600 hover:underline text-xs">{{ $req->user->fullName }}</a>
                         @else <span class="text-xs text-gray-400">—</span>
                         @endif
                     </td>
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_category') }}" class="px-4 py-3">
                         @if($req->category)
                         <span class="px-2 py-0.5 rounded-full text-xs text-white" style="background-color:{{ $req->category->color }}">
                             {{ $req->category->displayName('transactions') }}
                         </span>
                         @endif
                     </td>
-                    <td class="px-4 py-3 text-gray-700 dark:text-gray-300 text-xs">
+                    <td data-label="{{ __('navigation.org_admin_table_budget') }}" class="px-4 py-3 text-gray-700 dark:text-gray-300 text-xs">
                         {{ $req->budget_min }}{{ $req->budget_max ? '–'.$req->budget_max : '+' }} pts
                     </td>
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_status') }}" class="px-4 py-3">
                         @php
                             $sc = ['open' => 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
                                    'in_progress' => 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
@@ -64,7 +65,7 @@
                         @endphp
                         <span class="px-2 py-0.5 rounded text-xs {{ $sc[$req->status] ?? '' }}">{{ __("navigation.org_admin_request_status_{$req->status}") }}</span>
                     </td>
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_actions') }}" data-actions class="px-4 py-3">
                         <div class="flex gap-2 items-center">
                             @if($req->status !== 'closed')
                             <form method="POST" action="{{ route('organization.admin.requests.close', ['organization' => $organization, 'serviceRequest' => $req]) }}"
@@ -78,11 +79,12 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-400">{{ __('navigation.org_admin_no_requests') }}</td>
+                    <td data-empty colspan="6" class="px-4 py-8 text-center text-sm text-gray-400">{{ __('navigation.org_admin_no_requests') }}</td>
                 </tr>
                 @endforelse
             </tbody>
         </table>
+        </x-admin-table>
     </div>
 
     @if($requests->hasPages())

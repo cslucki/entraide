@@ -310,8 +310,13 @@ class T0756BlogOrganizationScopingTest extends TestCase
     /** @return array{Organization, Organization} */
     private function createOrganizations(): array
     {
-        $organizationA = Organization::factory()->create(['is_active' => true]);
-        $organizationB = Organization::factory()->create(['is_active' => true]);
+        // TASK-1492 : le blog d'une Organization `is_public = false` n'est plus servi
+        // a un invite. Ce test mesure le SCOPE d'Organization du blog public, et le
+        // lecteur anonyme fait partie de ce qu'il exerce — les deux Organizations sont
+        // donc declarees publiques. Le defaut de la factory (`is_public => false`)
+        // n'avait jamais ete un choix de ce fichier.
+        $organizationA = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
+        $organizationB = Organization::factory()->create(['is_active' => true, 'is_public' => true]);
 
         $organizationA->update(['is_default' => true]);
 

@@ -53,6 +53,17 @@ class AiProviderInvocation extends Model
 
     public const OPERATION_EMBEDDING = 'embedding';
 
+    /**
+     * TASK-1560 : le RERANK documentaire. Troisieme nature d'appel facturable,
+     * a cote de la generation et de l'embedding.
+     *
+     * La colonne `operation` est un `string(20)` sans contrainte : cette valeur
+     * n'exige AUCUNE migration. Les lectures existantes filtrent explicitement
+     * sur `OPERATION_GENERATION` ou `OPERATION_EMBEDDING` et ignorent donc
+     * naturellement les lignes de rerank.
+     */
+    public const OPERATION_RERANK = 'rerank';
+
     public const EMBEDDING_OPERATION_INGESTION = 'ingestion';
 
     public const EMBEDDING_OPERATION_QUERY = 'query';

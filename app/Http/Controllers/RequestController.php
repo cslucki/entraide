@@ -66,6 +66,20 @@ class RequestController extends Controller
         // une erreur de validation.
         $draft = $this->handoff->pullDraft($user, $organization);
 
+        // TASK-1553 — la provenance sort du brouillon AVANT `flashInput()`.
+        //
+        // `flashInput()` verse tout le tableau dans l'ancienne saisie : une cle
+        // `provenance` s'y retrouverait sous `old('provenance')`, a cote de
+        // champs de formulaire, et repartirait au prochain aller-retour de
+        // validation comme si la personne l'avait tapee. Ce n'est pas une
+        // saisie : c'est ce sur quoi la proposition se fonde.
+        $draftProvenance = null;
+
+        if ($draft !== null) {
+            $draftProvenance = is_array($draft['provenance'] ?? null) ? $draft['provenance'] : null;
+            unset($draft['provenance']);
+        }
+
         if ($draft !== null && ! request()->session()->hasOldInput()) {
             request()->session()->flashInput($draft);
         }
@@ -73,7 +87,7 @@ class RequestController extends Controller
         $categories = Category::where('organization_id', $organization?->id)->with('pointGuidelines')->get();
         $relayLoops = $this->relayLoopsFor($organization, $user);
 
-        return view('requests.create', compact('categories', 'organization', 'relayLoops'));
+        return view('requests.create', compact('categories', 'organization', 'relayLoops', 'draftProvenance'));
     }
 
     /** L'aide IA ne remplit que le titre et la description, sans rien publier. */
@@ -326,6 +340,14 @@ class RequestController extends Controller
             ->whereHas('members', fn ($query) => $query
                 ->where('user_id', $user->id)
                 ->where('status', 'active'))
+            // TASK-1553 — « qui va voir cela ? » est la question qu'on se pose
+            // avant de publier. Le compte s'obtient par UNE clause sur la
+            // requete deja executee : aucune seconde requete, aucun N+1.
+            //
+            // ACL-safe par construction : ce `whereHas` ne laisse passer que
+            // des Boucles dont cette personne est membre ACTIVE. On ne compte
+            // jamais les membres d'une Boucle qu'elle ne peut pas voir.
+            ->withCount(['members' => fn ($query) => $query->where('status', 'active')])
             ->orderBy('name')
             ->get(['id', 'name', 'organization_id']);
     }

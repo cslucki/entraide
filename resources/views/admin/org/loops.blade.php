@@ -19,6 +19,7 @@
     </form>
 
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <x-admin-table>
         <table class="w-full text-sm">
             <thead class="bg-gray-50 dark:bg-gray-700">
                 <tr>
@@ -34,7 +35,7 @@
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                 @forelse($loops as $boucle)
                 <tr class="{{ $boucle->isArchived() ? 'opacity-50' : '' }}">
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_name') }}" data-title class="px-4 py-3">
                         <p class="font-medium text-gray-900 dark:text-gray-100">{{ $boucle->name }}</p>
                         <p class="text-xs text-gray-500">{{ $boucle->slug }}</p>
                         <p class="mt-1 flex flex-wrap items-center gap-x-2 text-[10px] text-gray-400">
@@ -45,26 +46,26 @@
                             </span>
                         </p>
                     </td>
-                    <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
+                    <td data-label="{{ __('navigation.org_admin_table_type') }}" class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
                         {{ app(\App\Support\Loops\LoopTypeRegistry::class)->label($boucle->type, $organization) }}
                     </td>
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_status') }}" class="px-4 py-3">
                         @php
                             $sc = $boucle->isActive() ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
                                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
                         @endphp
                         <span class="px-2 py-0.5 rounded text-xs {{ $sc }}">{{ __("navigation.org_admin_loops_label_{$boucle->status}") }}</span>
                     </td>
-                    <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 capitalize">{{ $boucle->visibility }}</td>
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_visibility') }}" class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 capitalize">{{ $boucle->visibility }}</td>
+                    <td data-label="{{ __('navigation.org_admin_table_creator') }}" class="px-4 py-3">
                         @if($boucle->creator)
                         <a href="{{ route('profile.show', $boucle->creator) }}" class="text-indigo-600 hover:underline text-xs">{{ $boucle->creator->full_name }}</a>
                         @else
                         <span class="text-xs text-gray-400">—</span>
                         @endif
                     </td>
-                    <td class="px-4 py-3 text-xs text-gray-500">{{ $boucle->created_at->format('d/m/Y') }}</td>
-                    <td class="px-4 py-3">
+                    <td data-label="{{ __('navigation.org_admin_table_date') }}" class="px-4 py-3 text-xs text-gray-500">{{ $boucle->created_at->format('d/m/Y') }}</td>
+                    <td data-label="{{ __('navigation.org_admin_table_actions') }}" data-actions class="px-4 py-3">
                         <div class="flex flex-wrap items-center gap-2">
                             <a href="{{ route('organization.admin.loops.edit', ['organization' => $organization->slug, 'loop' => $boucle->id]) }}"
                                class="text-xs font-semibold text-indigo-600 hover:underline">Modifier</a>
@@ -87,11 +88,12 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-400">{{ __('navigation.org_admin_no_loops') }}</td>
+                    <td data-empty colspan="7" class="px-4 py-8 text-center text-sm text-gray-400">{{ __('navigation.org_admin_no_loops') }}</td>
                 </tr>
                 @endforelse
             </tbody>
         </table>
+        </x-admin-table>
     </div>
 
     @if($loops->hasPages())

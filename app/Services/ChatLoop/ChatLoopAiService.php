@@ -14,6 +14,7 @@ use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
 use App\Ai\ResolvedModel;
 use App\Events\LoopMessageCreated;
+use App\Listeners\RecordSdkEmbeddingsInvocation;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
 use App\Models\Loop;
@@ -27,17 +28,24 @@ use App\Services\Loops\LoopDecisionService;
 use App\Support\Ai\AiCorrelation;
 use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
+use App\Support\Ai\AiExecutionPath;
 use App\Support\Ai\AiMarkdownSanitizer;
 use App\Support\Ai\AiProcess;
 use App\Support\Ai\AiRefusedException;
 use App\Support\Ai\AiTurnIdempotency;
 use App\Support\Ai\AiTurnLock;
+use App\Support\Ai\AiTurnReason;
+use App\Support\Ai\AiTurnState;
+use App\Support\Ai\AiTurnTrace;
 use App\Support\Ai\AiUsage;
 use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Facades\DB;
 
 class ChatLoopAiService
 {
+    /** TASK-1577 / V0-J / P0.2 — le producteur des reponses LLM directes de la Boucle (`turn.identity.producer`). */
+    public const PRODUCER = 'chatloop.direct_answer';
+
     public function __construct(
         private readonly AiEconomicGuard $economicGuard,
         private readonly AiProviderInvocationLedger $ledger,
@@ -65,7 +73,16 @@ class ChatLoopAiService
      * Absence de reply (question libre, mode IA sans cible) : contexte vide,
      * le prompt est la question seule.
      */
-    public function respondInThread(Loop $loop, User $requester, string $question, LoopMessage $triggerMessage): LoopMessage
+    /**
+     * TASK-1575 / CDC-01 V0-H — `$publish = false` est le SEAM d'observation
+     * (`ai:inspect-turn --mode=ia`), calque sur celui du RAG (T1558,
+     * `LoopKnowledgeAnswerService::respond()`) : tout ce qui precede la
+     * publication — garde d'acces, idempotence, verrou, garde economique,
+     * provider, ledger, `AiInteraction` — s'execute a l'identique ; seule la
+     * bulle `loop_messages` n'est pas ecrite, et l'`AiInteraction` du tour est
+     * rendue a sa place. Ce n'est ni un mode degrade ni un second chemin.
+     */
+    public function respondInThread(Loop $loop, User $requester, string $question, LoopMessage $triggerMessage, bool $publish = true): LoopMessage|AiInteraction
     {
         $this->assertCanRequest($loop, $requester);
 
@@ -78,7 +95,7 @@ class ChatLoopAiService
         // TTL, meme message de refus, meme liberation en `finally`. La cle
         // devient `{organization}:{loop}:{user}` : deux membres d'une meme
         // Boucle sont deux tours differents et ne se bloquent plus.
-        return AiTurnLock::run($loop, $requester, function () use ($loop, $requester, $question, $triggerMessage) {
+        return AiTurnLock::run($loop, $requester, function () use ($loop, $requester, $question, $triggerMessage, $publish) {
             $locale = $this->resolveLocale($requester, $loop);
             $capability = CapabilityRegistry::LOOP_ASK;
             $definition = $this->capabilities->get($capability);
@@ -100,6 +117,17 @@ class ChatLoopAiService
 
             $scenarioId = (string) config('ai.chatloop.ask_scenario', 'chatloop_ai_ask');
 
+            // TASK-1568 / CDC-01 V0-G — ce chemin est son PROPRE point d'entree :
+            // il n'est partage avec personne, il peut donc nommer son chemin
+            // lui-meme sans rien deduire (C15).
+            AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+                'surface' => 'loop_chat',
+                'mode' => 'ia',
+                'execution_path' => AiExecutionPath::LOOP_CHAT_IA,
+                'capability' => $capability,
+                'producer' => self::PRODUCER,
+            ]);
+
             $instructions = $this->prompts->compose(
                 $capability,
                 $this->resolvePromptOrFail($scenarioId, $locale, 'loops.ai_answer_prompt_missing'),
@@ -107,17 +135,71 @@ class ChatLoopAiService
             );
             $doctrineVersion = $this->prompts->activeDoctrineVersion((string) $organization->id);
 
+            // TASK-1568 / V0-G — `LOOP_ASK` declare `loop.messages`
+            // (`CapabilityRegistry`), mais ce chemin ne construit JAMAIS ce
+            // contexte : il lit la chaine de reply par un autre composant,
+            // juste en dessous. Le `ContextBuilder` injecte n'est pas appele
+            // ici — c'est `bypassed`, pas `not_applicable` (CDC-01 C3, P0.3).
+            // Un FACT architectural rendu lisible ; le qualifier est TRACE-1
+            // puis Fix Campaign, jamais cette trace.
+            AiTurnTrace::step(
+                $contexte->organizationId,
+                $contexte->turnId,
+                'context_builder',
+                'bypassed',
+                AiTurnReason::CONTEXT_BUILDER_LLM_PATH_NO_CONTEXT_BUILDER,
+            );
+
             $conversation = $this->conversationContext->build($triggerMessage);
+
+            // TASK-1568 / V0-G (C18) — le mecanisme d'historique de ce chemin
+            // a TOURNE : `executed`, meme a `count = 0` (un follow-up sans
+            // reply ne recoit rien, et c'est le comportement produit, CDC-01
+            // P0.12). Les valeurs sont celles que `turn.history` porte deja
+            // depuis V0-L : rien de nouveau n'est collecte ni recalcule.
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'conversation_history', 'executed', null, [
+                'count' => count($conversation->messageIds),
+                'chars' => $conversation->chars,
+            ]);
 
             $prompt = $conversation->isEmpty()
                 ? $question
                 : $conversation->text."\n\nQuestion : ".$question;
 
+            // TASK-1570 / V0-L — le meme bloc `history` que le tour nominal
+            // ecrit : un arret anticipe a VU la meme conversation.
+            $history = [
+                'strategy' => 'reply_chain',
+                'message_ids' => $conversation->messageIds,
+                'count' => count($conversation->messageIds),
+                'chars' => $conversation->chars,
+                'trigger_id' => $triggerMessage->reply_to_id,
+                'budget_exhausted' => $conversation->budgetExhausted,
+                // TASK-1576 / V0-I (C21) — le message utilisateur qui a
+                // DECLENCHE ce tour : il est en main, rien n'est cherche.
+                'input_message_id' => (string) $triggerMessage->id,
+            ];
+
             try {
                 $resolved = $this->providers->resolve($capability, $contexte);
             } catch (\DomainException $exception) {
+                // TASK-1570 / CDC-01 V0-B — un refus de resolution laisse un
+                // TOUR non generatif ; le refus rendu au membre est inchange.
+                $this->recordEarlyStop($loop, $requester, $contexte, $definition, null, $scenarioId,
+                    AiTurnState::TURN_REFUSED, 'provider_resolution', AiTurnReason::REFUSED_NOT_CONFIGURED, $history, $doctrineVersion);
+
                 throw AiRefusedException::notConfigured($exception);
             }
+
+            // TASK-1572 / CDC-01 V0-D — le provider EFFECTIF tel que resolu, et
+            // l'absence de fallback comme MESURE : `ProviderResolver` ne selectionne
+            // jamais `FakeAIProvider` (doctrine P4). `provider_requested` n'a aucune
+            // source honnete : absent.
+            AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+                'provider_effective' => $resolved->provider,
+                'model' => $resolved->trace(),
+                'fallback_used' => false,
+            ]);
 
             $verdict = $this->economicGuard->authorize(
                 $organization,
@@ -130,8 +212,17 @@ class ChatLoopAiService
             );
 
             if (! $verdict->allowed) {
+                // TASK-1570 / V0-B — l'etage qui arrete le tour est nomme AVANT
+                // le `throw` ; la ligne non generative ne consomme ni budget
+                // ni credit (statut exclu par l'autorite de consommation).
+                AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'denied', $verdict->reason);
+                $this->recordEarlyStop($loop, $requester, $contexte, $definition, $resolved, $scenarioId,
+                    AiTurnState::TURN_REFUSED, 'economic_check', $verdict->reason, $history, $doctrineVersion);
+
                 throw AiRefusedException::fromVerdict($verdict);
             }
+
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'executed');
 
             $agent = new LoopDirectAnswerAgent(
                 $instructions,
@@ -155,6 +246,21 @@ class ChatLoopAiService
                     'question' => $question,
                 ],
                 doctrineVersion: $doctrineVersion,
+                // TASK-1567 / CDC-01 V0-L — ce que CE tour a REELLEMENT recu de
+                // la conversation. Les valeurs sont celles que le moteur vient
+                // d'utiliser pour son prompt : rien n'est relu, rien n'est
+                // recalcule.
+                //
+                // `count = 0` s'ecrit TEL QUEL, sans statut d'erreur : un
+                // follow-up sans reply explicite ne recoit aucun historique, et
+                // c'est le comportement produit actuel (CDC-01 P0.12). La
+                // strategie reste `reply_chain` — c'est bien elle qui a ete
+                // tentee ; ecrire `none` laisserait croire qu'aucune n'a ete
+                // essayee.
+                // Le message AUQUEL l'utilisateur repondait, jamais le
+                // message courant (CDC-01 P0.12) : `trigger_id` = `reply_to_id`,
+                // `null` sans reply — coherent avec `count = 0`.
+                history: $history,
             );
 
             $answer = AiMarkdownSanitizer::sanitize(
@@ -164,6 +270,10 @@ class ChatLoopAiService
 
             if ($answer === '') {
                 throw new \RuntimeException(__('loops.ai_empty_response'));
+            }
+
+            if (! $publish) {
+                return $interaction;
             }
 
             return DB::transaction(function () use ($loop, $requester, $question, $answer, $resolved, $interaction, $triggerMessage, $conversation) {
@@ -238,6 +348,7 @@ class ChatLoopAiService
                 scenarioId: $scenarioId,
                 locale: $locale,
                 question: null,
+                executionPath: AiExecutionPath::LOOP_CHAT_LEGACY_ANSWER,
             );
 
             $answer = AiMarkdownSanitizer::sanitize(
@@ -768,6 +879,7 @@ class ChatLoopAiService
         string $prompt,
         array $extraMetadata,
         ?int $doctrineVersion,
+        array $history = [],
     ): AiInteraction {
         $startedAt = microtime(true);
 
@@ -787,6 +899,10 @@ class ChatLoopAiService
             // `cost_unknown` NULL, l'etat « statut de cout non evalue » du
             // tri-etat P1-2. Un echec n'entre donc ni dans le budget mensuel,
             // ni dans le quota UNKNOWN.
+            //
+            // TASK-1571 / V0-C — l'etape et le verdict portent le CODE.
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'provider_call', 'failed', AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED);
+
             $this->recordInteraction(
                 loop: $loop,
                 requester: $requester,
@@ -806,10 +922,18 @@ class ChatLoopAiService
                 sdkInvocationId: null,
                 failure: $exception::class,
                 doctrineVersion: $doctrineVersion,
+                history: $history,
+                reasonCode: AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED,
             );
 
             throw new \RuntimeException(__('loops.ai_error'), 0, $exception);
         }
+
+        // TASK-1593 — l'appel est PARTI et revenu : l'etape le dit, au meme
+        // point logique que le writer Dossiers (LoopKnowledgeAnswerService).
+        // Sans elle, un tour `loop_chat.ia` reussi etait muet sur le fournisseur
+        // alors que le ledger le facturait (LAB.MODE_CHANGE_1, matrice 17/09).
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'provider_call', 'executed');
 
         $usage = AiUsage::fromSdkTextTokens(
             $response->usage->promptTokens,
@@ -821,6 +945,17 @@ class ChatLoopAiService
         // un : le catalogue tranche, sinon UNKNOWN.
         $cost = $this->economicGuard->finalize($resolved->provider, $resolved->model, $usage);
 
+        // TASK-1570 / CDC-01 V0-B — un texte VIDE rendu par le provider n'est
+        // plus une ligne `success` sans reponse : l'appel est parti et se paie
+        // (ledger reel), l'interaction s'ecrit `failed` / `EMPTY_MODEL_ANSWER`.
+        // L'appelant voit toujours une reponse vide et leve le meme refus.
+        $texte = trim($response->text);
+        $vide = $texte === '';
+
+        if ($vide) {
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'generation', 'failed', AiTurnReason::TERMINAL_EMPTY_MODEL_ANSWER);
+        }
+
         return $this->recordInteraction(
             loop: $loop,
             requester: $requester,
@@ -830,17 +965,78 @@ class ChatLoopAiService
             scenarioId: $scenarioId,
             context: $prompt,
             extraMetadata: $extraMetadata,
-            text: trim($response->text),
+            text: $vide ? null : $texte,
             usage: $usage,
             costAttributes: $cost->traceAttributes(),
             cost: $cost,
-            status: 'success',
+            status: $vide ? 'failed' : 'success',
             latencyMs: $this->elapsedMs($startedAt),
             startedAt: $startedAt,
             sdkInvocationId: $response->invocationId,
-            failure: null,
+            failure: $vide ? AiTurnReason::TERMINAL_EMPTY_MODEL_ANSWER : null,
             doctrineVersion: $doctrineVersion,
+            history: $history,
         );
+    }
+
+    /**
+     * TASK-1570 / CDC-01 V0-B — l'`AiInteraction` NON GENERATIVE d'un arret
+     * anticipe (refus de resolution, refus economique). Meme contrat que le
+     * pilote `LoopKnowledgeAnswerService::recordEarlyStop()` : `response`
+     * null, tokens 0, `cost_usd = 0` CONNU, AUCUNE ligne au ledger (I3),
+     * `model`/`prompt` a `''` quand rien n'a ete resolu ni construit, pas de
+     * chrono invente. Le bloc `turn` porte le verdict et ce que le tour a
+     * depose (identite, etapes, historique).
+     *
+     * @param  array<string, mixed>  $history
+     */
+    private function recordEarlyStop(
+        Loop $loop,
+        User $requester,
+        ContexteIa $contexte,
+        CapabilityDefinition $definition,
+        ?ResolvedModel $resolved,
+        string $scenarioId,
+        string $turnStatus,
+        string $stage,
+        string $reasonCode,
+        array $history,
+        ?int $doctrineVersion,
+    ): AiInteraction {
+        return AiInteraction::create([
+            'user_id' => $requester->id,
+            'organization_id' => $contexte->organizationId,
+            'correlation_id' => $contexte->correlationId,
+            'process' => $definition->process,
+            'feature' => $scenarioId,
+            'model' => $resolved?->trace() ?? '',
+            'prompt' => '',
+            'response' => null,
+            'input_tokens' => 0,
+            'output_tokens' => 0,
+            'cost_usd' => 0,
+            'cost_unknown' => false,
+            'metadata' => array_filter([
+                'loop_id' => $loop->id,
+                'requested_by' => $requester->id,
+                'provider' => $resolved?->provider,
+                'capability' => $definition->id,
+                'status' => $turnStatus,
+                RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
+                    $contexte->turnId,
+                    AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
+                    [
+                        'status' => $turnStatus,
+                        'stage' => $stage,
+                        'reason_code' => $reasonCode,
+                        'decided_by' => class_basename(self::class),
+                        'history' => $history,
+                    ],
+                ),
+            ], static fn ($value): bool => $value !== null)
+                + ['doctrine_version' => $doctrineVersion],
+        ]);
     }
 
     /**
@@ -866,6 +1062,8 @@ class ChatLoopAiService
         ?string $sdkInvocationId,
         ?string $failure,
         ?int $doctrineVersion,
+        array $history = [],
+        ?string $reasonCode = null,
     ): AiInteraction {
         // TASK-1220 : ligne canonique du ledger `ai_provider_invocations`,
         // memes points que la trace P1 (succes ET echec). Les refus
@@ -911,6 +1109,49 @@ class ChatLoopAiService
                 'capability' => $definition->id,
                 'status' => $status,
                 'sdk_invocation_id' => $sdkInvocationId,
+                // TASK-1556 : les invocations embedding (query) que CE tour a
+                // declenchees, reclamees une seule fois — `[]` mesure, jamais null.
+                RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
+                // TASK-1566 / CDC-01 V0-A — l'IDENTITE canonique du tour.
+                // FACT corrige par V0-A : ce chemin ne persistait AUCUN
+                // `turn_id`, alors que son `ContexteIa` en porte un depuis
+                // TASK-1556.
+                //
+                // TASK-1568 / V0-G — le writer RECLAME desormais ce que le tour
+                // a depose (`execution_path`, etape `context_builder`) : les
+                // trois chemins de ce moteur (`ia`, `legacy_ask`,
+                // `legacy_answer`) portent chacun leur nom. Le verdict
+                // (`status`, `stage`, `decided_by`) reste ABSENT : il appartient
+                // a V0-B / V0-C, et une cle a moitie alimentee se lirait comme
+                // une mesure.
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
+                    $contexte->turnId,
+                    AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
+                    [
+                        // TASK-1570 / V0-B — le VERDICT, meme traduction que le
+                        // pilote : `metadata.status` garde `success`/`failed`
+                        // (lecteurs), `turn.status` parle le vocabulaire du tour.
+                        'status' => $status === 'failed' ? AiTurnState::TURN_FAILED : AiTurnState::TURN_ANSWERED,
+                        'stage' => $status === 'failed' ? 'generation' : null,
+                        // Un code du registre seulement ; une classe d'exception
+                        // n'en est pas un (V0-C).
+                        'reason_code' => $reasonCode ?? (AiTurnReason::isKnown($failure) ? $failure : null),
+                        'decided_by' => class_basename(self::class),
+                        'latency_ms' => $latencyMs,
+                        // TASK-1567 / V0-L — `history` n'apparait que sur les
+                        // chemins qui en ONT un ; absente se lit `UNAVAILABLE`.
+                        'history' => $history,
+                        // TASK-1573 / V0-E — `used`/`denied` de la borne, que
+                        // les chemins herites passent deja dans `extraMetadata` ;
+                        // `respondInThread()` n'a pas de ContextBuilder : rien.
+                        'sources' => isset($extraMetadata['sources_used']) || isset($extraMetadata['sources_denied'])
+                            ? AiTurnTrace::sourcesBlock($extraMetadata['sources_used'] ?? null, $extraMetadata['sources_denied'] ?? null)
+                            : [],
+                        // TASK-1574 / V0-F — pas de grounding sur ces chemins
+                        // (axe 2 `not_applicable`) ; axe 3 depuis les refus connus.
+                        'state' => AiTurnTrace::stateBlock(null, is_array($extraMetadata['sources_denied'] ?? null) ? $extraMetadata['sources_denied'] : []),
+                    ],
+                ),
                 'failure' => $failure,
                 ...$extraMetadata,
             ], static fn ($value): bool => $value !== null)
@@ -996,6 +1237,7 @@ class ChatLoopAiService
                 scenarioId: $scenarioId,
                 locale: $locale,
                 question: trim($question),
+                executionPath: AiExecutionPath::LOOP_CHAT_LEGACY_ASK,
             );
 
             $answer = AiMarkdownSanitizer::sanitize(
@@ -1064,6 +1306,10 @@ class ChatLoopAiService
      * Un refus leve AVANT tout appel provider : rien n'est ecrit, rien n'est
      * publie (la question de `ask` n'est un message qu'apres la reponse).
      *
+     * TASK-1568 / V0-G : `$executionPath` est fourni par l'appelant (`ask()` ou
+     * `answer()`), parce que cette chaine est PARTAGEE et ne sait pas qui l'a
+     * ouverte (C15).
+     *
      * @return array{interaction: AiInteraction, context_message_ids: list<string>, trigger_message_id: ?string, provider: string, model: string}
      */
     private function generateDirectAnswer(
@@ -1073,6 +1319,7 @@ class ChatLoopAiService
         string $scenarioId,
         string $locale,
         ?string $question,
+        string $executionPath,
     ): array {
         $definition = $this->capabilities->get($capability);
 
@@ -1090,6 +1337,15 @@ class ChatLoopAiService
             correlationId: AiCorrelation::id(),
             source: CapabilityRegistry::SOURCE_LOOP_MESSAGES,
         );
+
+        // TASK-1568 / CDC-01 V0-G — l'identite du chemin, telle que l'appelant
+        // l'a nommee. Aucun `mode` : les chemins herites n'en ont pas.
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'surface' => 'loop_chat',
+            'execution_path' => $executionPath,
+            'capability' => $capability,
+            'producer' => self::PRODUCER,
+        ]);
 
         // Constitution -> doctrine de l'Organization -> prompt administrable
         // (EXIGE, comme summarize/clarify/knowledge : aucun repli hardcode).
@@ -1118,6 +1374,20 @@ class ChatLoopAiService
             $borne->provenanceFor(CapabilityRegistry::SOURCE_LOOP_MESSAGES),
         );
 
+        // TASK-1568 / V0-G — le `ContextBuilder` a bien tourne sur cette chaine
+        // (contrairement a `respondInThread()`, qui le bypasse). Le compteur
+        // est la provenance qu'il a rendue — des ids, jamais du texte.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'context_builder', 'executed', null, [
+            'consulted' => count($contextMessageIds),
+        ]);
+
+        // TASK-1568 / V0-G (C18) — les chemins herites fenetrent
+        // `loop.messages` par le ContextBuilder ci-dessus ; ils n'ont AUCUN
+        // mecanisme de conversation (ni chaine de reply, ni fil Shell). L'etage
+        // n'existe pas pour eux : `not_applicable`, jamais un `executed` a zero
+        // qui laisserait croire qu'une strategie a ete tentee.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'conversation_history', 'not_applicable');
+
         // Le declencheur (`reply_to`) est le dernier message humain PARMI ceux
         // que le Builder a retenus : meme ensemble, aucune derive possible.
         $triggerMessageId = $this->triggerMessageId($loop, $contextMessageIds);
@@ -1131,8 +1401,22 @@ class ChatLoopAiService
         try {
             $resolved = $this->providers->resolve($capability, $contexte);
         } catch (\DomainException $exception) {
+            // TASK-1570 / CDC-01 V0-B — un refus de resolution laisse un TOUR.
+            $this->recordEarlyStop($loop, $requester, $contexte, $definition, null, $scenarioId,
+                AiTurnState::TURN_REFUSED, 'provider_resolution', AiTurnReason::REFUSED_NOT_CONFIGURED, [], $doctrineVersion);
+
             throw AiRefusedException::notConfigured($exception);
         }
+
+        // TASK-1572 / CDC-01 V0-D — le provider EFFECTIF tel que resolu, et
+        // l'absence de fallback comme MESURE : `ProviderResolver` ne selectionne
+        // jamais `FakeAIProvider` (doctrine P4). `provider_requested` n'a aucune
+        // source honnete : absent.
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'provider_effective' => $resolved->provider,
+            'model' => $resolved->trace(),
+            'fallback_used' => false,
+        ]);
 
         // La garde economique : budget Organization, budget du process, quota
         // d'inconnus, et le credit du demandeur — la meme autorite que partout.
@@ -1147,8 +1431,15 @@ class ChatLoopAiService
         );
 
         if (! $verdict->allowed) {
+            // TASK-1570 / V0-B — le refus economique laisse un TOUR.
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'denied', $verdict->reason);
+            $this->recordEarlyStop($loop, $requester, $contexte, $definition, $resolved, $scenarioId,
+                AiTurnState::TURN_REFUSED, 'economic_check', $verdict->reason, [], $doctrineVersion);
+
             throw AiRefusedException::fromVerdict($verdict);
         }
+
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'executed');
 
         $agent = new LoopDirectAnswerAgent(
             $instructions,

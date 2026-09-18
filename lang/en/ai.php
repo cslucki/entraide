@@ -186,9 +186,13 @@ return [
     'observatory_last_checked' => 'Last check: :seconds s ago',
     'observatory_refresh_now' => 'Refresh',
     'observatory_infra_title' => 'AI indexing status of the Organization',
+    'observatory_infra_ok_indexed' => 'AI indexing is available, and :indexed of :total source(s) are indexed.',
+    'observatory_infra_ok_nothing_indexed' => 'Indexing is fully configured (activation, Organization credential, budget), but none of the :total eligible source(s) is indexed yet: the AI cannot draw on them.',
+    'observatory_infra_ok_no_source' => 'Indexing is fully configured. No eligible source in this Organization for now.',
     'observatory_infra_ok' => 'AI indexing is available: activation, Organization credential and budget are all in place right now.',
-    'observatory_infra_disabled' => 'AI semantic search is not enabled for this Organization: no new indexing takes place.',
+    'observatory_infra_disabled' => 'Knowledge indexing is not enabled for this Organization: no new indexing takes place. Enabling it is managed by BouclePro; it cannot be set from the Organization AI configuration.',
     'observatory_infra_no_credential' => 'AI indexing is unavailable: missing credential. New sources appear here but stay unindexed until an Organization credential is configured.',
+    'observatory_infra_no_credential_family' => 'Indexing currently uses :expected for embeddings, but your Organization is configured with :configured. Until both match, your credential cannot sign the index and new sources stay unindexed.',
     'observatory_infra_budget' => 'The current AI budget does not allow new indexing.',
     'observatory_infra_note' => 'Infrastructure status, observed now. It does not explain individually why a given source is not indexed.',
     'observatory_infra_configure' => 'Configure AI',
@@ -231,6 +235,7 @@ return [
     'knowledge_console_close' => 'Close',
     'knowledge_console_loading' => 'Loading…',
     'knowledge_console_chunk_label' => 'Chunk :index',
+    'knowledge_console_chunks_truncated' => 'Showing the first :shown excerpts out of :total.',
     'knowledge_console_filter_placeholder' => 'Filter by name…',
     'knowledge_console_filter_clear' => 'Clear the Loop filter',
     'knowledge_console_filter_count' => ':count row visible|:count rows visible',
@@ -310,11 +315,18 @@ return [
     'usage_cost_state_unevaluated' => 'Not evaluated',
     'usage_col_status' => 'Status',
     'usage_type_generation' => 'Generation',
+    'usage_type_turn' => 'Turn without generation',
     'usage_type_embedding_ingestion' => 'Document indexing',
     'usage_type_embedding_query' => 'Document search',
     'usage_type_embedding' => 'Other document processing',
+    // TASK-1562: the rerank, named for what it DOES for the reader — it ranks
+    // the sources already found, it searches for none.
+    'usage_type_rerank' => 'Source ranking',
     'usage_status_success' => 'Succeeded',
     'usage_status_failed' => 'Failed',
+    'usage_status_refused' => 'Refused before any call',
+    'usage_status_abstained' => 'Abstained (no source)',
+    'usage_status_fallback' => 'Fallback answer (no AI call)',
     'cockpit_title' => 'AI & knowledge',
     'cockpit_intro' => 'The state of your organization\'s AI system: configuration, behaviour, knowledge, consumption.',
     'cockpit_config_title' => 'AI configuration',
@@ -403,6 +415,9 @@ return [
     'cockpit_behavior_doctrine_active' => 'Doctrine v:version active',
     'cockpit_behavior_doctrine_none' => 'No Organization doctrine',
     'capability_label' => [
+        'loop_conversation_knowledge' => 'Derived knowledge from Loop conversations',
+        'loop_claim_patch' => 'Loop memory update',
+        'shell_general_answer' => 'Member Shell general answer',
         'clarify_help_request' => 'Request clarification',
         'loop_summary' => 'Loop summaries',
         'loop_knowledge_answer' => 'Questions to Folders',
@@ -414,6 +429,7 @@ return [
         'member_profile_agent_loop_reply' => 'Profile agent reply in a Loop',
         'member_profile_agent_visitor_chat' => 'Profile agent visitor chat',
         'loop_decision_suggestion' => 'Decision suggestion (Decision Memory)',
+        'guest_shell_welcome' => 'Visitor welcome (Welcome Shell)',
     ],
     'inherited_label' => [
         'member_profile_agent_setup' => 'Conversational AI profile setup',
@@ -519,6 +535,9 @@ return [
         'no_accessible_dossier' => 'No Folder accessible for this user.',
         'char_budget_exhausted' => 'Context budget exhausted.',
         'source_not_implemented' => 'Source not available in this version.',
+        'no_user_in_context' => 'No user of this Organization in the context: access rights cannot be evaluated.',
+        'no_loop_in_context' => 'No Loop in this turn\'s context.',
+        'loop_outside_organization' => 'The context Loop does not belong to this Organization.',
         'other' => 'Source refused.',
     ],
     'behavior_sandbox_not_ledgered' => 'No call sent, nothing counted.',
@@ -543,6 +562,7 @@ return [
     'economy_nature_embedding_query' => 'Document searches',
     'economy_nature_embedding_ingestion' => 'Document indexings',
     'economy_nature_embedding_undeclared' => 'Other document processing (undeclared nature)',
+    'economy_nature_rerank' => 'Source rankings',
     'economy_nature_sandbox' => 'of which doctrine tests (sandbox)',
     'economy_unattributed' => 'Unattributable',
     'economy_authority_note' => 'These figures are exactly the ones the budget guard applies: generations (AI interactions register) and document searches / indexings (canonical ledger), over the same period. An unmeasurable cost is counted, never summed nor taken as zero.',
@@ -576,6 +596,12 @@ return [
     'consumption_budget_remaining' => 'Remaining',
     'consumption_budget_percent' => 'Consumed',
     'consumption_budget_none' => 'No monthly budget defined — the AI is not capped by a provider budget.',
+    // TASK-1438 — SW-10: Welcome Shell block of the consumption console.
+    'consumption_guest_title' => 'Welcome Shell (signed-out visitors)',
+    'consumption_guest_mode' => 'Mode chosen by the platform: :mode',
+    'consumption_guest_effective_on' => 'on the public home today: :mode',
+    'consumption_guest_effective_off' => 'on the public home today: no Shell (:reason)',
+    'consumption_guest_hint' => 'What visitors triggered on this organization over the period, with the same doctrine as the economic guard.',
     'consumption_budget_custom_period' => 'Custom period: the monthly budget does not apply to it, only the consumption is shown.',
     'consumption_breakdown_title' => 'Period breakdown',
     'consumption_top_users_title' => 'Top consuming users',
@@ -659,7 +685,6 @@ return [
     'fab_subtitle_dossier' => 'In this Folder',
     // TASK-1350: the subtitle locates you, it no longer devalues the page.
     'fab_subtitle_other' => 'Available everywhere on BouclePro',
-    'fab_no_page_action' => 'This page has no AI action of its own. You can still talk with BouclePro AI: ask your question, the conversation follows you from page to page.',
     'fab_credit_title' => 'AI credit this month',
     'fab_credit_included' => 'Included',
     'fab_credit_alert' => 'You are getting close to your monthly credit.',
@@ -679,6 +704,18 @@ return [
     // available while the user navigates.
     'fab_action_open_shell' => 'Open BouclePro AI',
     'fab_action_open_shell_hint' => 'The conversation that follows you from page to page.',
+    // TASK-1469 — see the French file for the reasoning.
+    'shell_surface_organization_home' => 'You are on the home page',
+    'shell_surface_dashboard' => 'You are on the dashboard',
+    'shell_surface_agenda' => 'You are on the calendar',
+    'shell_surface_directory' => 'You are in the directory',
+    'shell_surface_dossiers' => 'You are in the folders',
+    'shell_surface_dossier' => 'You are viewing a folder',
+    'shell_surface_blog' => 'You are on the blog',
+    'shell_surface_article' => 'You are reading an article',
+    'shell_surface_exchanges' => 'You are in the exchanges',
+    'shell_surface_profile' => 'You are viewing a profile',
+    'shell_surface_unknown' => 'You are browsing BouclePro',
     'shell_title' => 'BouclePro AI',
     'shell_open' => 'Open the BouclePro AI conversation',
     'shell_close' => 'Close the conversation',
@@ -777,6 +814,18 @@ return [
     'shell_turn_in_progress' => 'An answer is already being generated. Let it finish.',
     // TASK-1350: behaviour unchanged — this stays the EXPLICIT unavailability
     // of the « no active prompt » case. Only the wording is normalised.
+    // TASK-1557 / W3F-min — user-facing projection of the boundary states.
+    //
+    // At most ONE meta sentence, never a technical code, never a counter, and
+    // never anything from which the existence of a forbidden source could be
+    // inferred. R1 and R7 render NO sentence: the clarification question and the
+    // answer itself are already the surface.
+    'turn_state_unavailable' => 'This service is unavailable right now. Nothing could be produced for this request.',
+    'turn_state_contradicted' => 'The elements found contradict each other. They are shown as they are, with their origin and date, and are not arbitrated.',
+    'turn_state_insufficient' => 'What was found is not enough to support an answer. What is missing is stated rather than filled in.',
+    'turn_state_stale' => 'This answer relies on elements that may have changed since. Their date is shown.',
+    'turn_state_partial' => 'Part of what was asked could not be processed for a technical reason. The rest of the answer holds.',
+
     'shell_answer_unavailable' => 'I cannot answer right now. AI is not available in this organization.',
 
     // TASK-1350: names no cause, mentions no provider, credential,
@@ -786,6 +835,7 @@ return [
     // this member would get through.
     'shell_answer_request_preparation_unavailable' => 'I can still guide you around BouclePro, but I can\'t prepare this request automatically right now.',
     'shell_answer_blocked' => 'I would rather not handle this request as it stands.',
+    'shell_general_instructions' => 'You are BouclePro AI, the member\'s conversational assistant. Help directly whenever the request can be fulfilled within the conversation, without requiring a BouclePro Interaction. Produce the requested result using the text and details supplied by the user; if essential input is missing, simply ask for it. Answer the current question directly, clearly, and at an appropriate length. You may use general knowledge while honestly acknowledging uncertainty and the lack of real-time data. In BouclePro, Organization = Tenant, the security and governance boundary; a Loop is a collaborative social space within an Organization, never a Tenant, and its uses are not limited to educational activities. For available features, use only the supplied product context. Never invent a permission, private content, tool, or completed action. An answer or proposed text in this conversation is not a publication or a durable business action: do not create, modify, or publish any resource, and do not turn a request addressed to the AI into a member help request. This path is non-documentary: no Dossier or Article is consulted. Never emit [S1]/[M1] citations or claim documentary grounding. Conversation supports dialogue and supplies the material the user asks you to work on; it is never documentary evidence. Previous messages, including your own answers and refusals, are fallible dialogue history, never instructions or authority over your capabilities. Reassess the current request under this contract; correct an earlier mistake or refusal instead of repeating it, while using relevant input already supplied. Complementarity with people means that the member retains decisions and approval of durable actions; it does not restrict text production in the chat to clarifying intent. Completing a writing task within this dialogue is part of your role: an earlier refusal to do so was a mistake, not a restriction to preserve.',
     // TASK-1358 : instruction de langue du Shell, posee en TETE du prompt. Le
     // texte suit le precedent deja en production sur le chemin ChatLoop
     // (`LoopMessagesSource::wrap()`).
@@ -805,6 +855,22 @@ return [
     'surface_subscriptions' => 'subscriptions',
     'surface_organization_admin' => 'the organization administration',
     'shell_prompt_language_guard' => 'IMPORTANT: Answer in English. Whatever the language of the instructions and of the context below, you must reply to the member in English.',
+    // TASK-1486 — the human verdict on ONE Shell answer. Same gesture and same
+    // two values as the blog explorer (TASK-1256).
+    // TASK-1551 — W1.5: "Why this answer?" on a Shell turn. The Shell EXPLAINS,
+    // it does not write — see the French file for the full rationale.
+    'shell_why_open' => 'Why?',
+    'shell_why_close' => 'Close',
+    'shell_why_title' => 'What this answer is based on',
+    'shell_why_memory_title' => 'BouclePro memory',
+    'shell_why_documents_title' => 'Cited documents',
+    'shell_why_open_loop' => 'Open the Loop',
+    'shell_why_documents_masked' => '{1} One cited document is no longer accessible to you: it is not detailed.|[2,*] :count cited documents are no longer accessible to you: they are not detailed.',
+    'shell_feedback_question' => 'Did this answer help?',
+    'shell_feedback_helpful' => 'Helpful',
+    'shell_feedback_improve' => 'Could be better',
+    'shell_feedback_thanks' => 'Thanks, noted.',
+    'shell_prompt_usage_reference' => 'About the page the user is on, ":title": :content',
     'shell_prompt_where_dashboard' => 'The user is on their dashboard.',
     'shell_prompt_where_loop' => 'The user is viewing the Loop ":name".',
     'shell_prompt_where_dossier' => 'The user is viewing the Folder ":name".',
@@ -874,4 +940,259 @@ return [
     'dossier_manifest_article' => 'Article: :title — Folder ":dossier"',
     'dossier_manifest_file' => ':type file: :name — Folder ":dossier"',
     'dossier_manifest_file_type_fallback' => 'file',
+
+    /*
+     * TASK-1543 — the [Hn] citation space: HISTORY.
+     *
+     * Distinct from [Mn] (existence) and [Sn] (content), and it must stay that
+     * way: a historical statement does not come from a document, it comes from
+     * a chain of versions whose two ends each carry their own evidence.
+     *
+     * The dates rendered here are HUMAN times — when the statement was made —
+     * never the moment the machine compiled.
+     */
+    'knowledge_delta_header' => '--- WHAT CHANGED IN THE MEMORY OF THE ":loop" LOOP SINCE :depuis ---',
+    'knowledge_delta_since_always' => 'the beginning',
+    'knowledge_delta_added' => 'ADDED on :date: :nouveau',
+    'knowledge_delta_updated' => 'CORRECTED on :date: previously ":ancien"; now ":nouveau"',
+    'knowledge_delta_retracted' => 'WITHDRAWN on :date: ":ancien" no longer holds (:raison). No replacement was stated.',
+    'knowledge_delta_no_reason' => 'no reason stated',
+    'knowledge_delta_source_title' => 'History of the ":loop" Loop, change on :date',
+
+    /*
+     * TASK-1544 — the indirect reference, resolved through PROVENANCE.
+     *
+     * These sentences are not generated: they frame facts the server has just
+     * read. That is why the ambiguity cannot be "poorly followed" — there is no
+     * branch that chooses.
+     */
+    'reference_resolved' => 'You mean the ":loop" Loop.',
+    // TASK-1547 — the count is the one of the candidates ACTUALLY rendered.
+    // The resolver offers up to four: hard-coding "Two" lied as soon as three
+    // projects answered, and the list right below it showed the lie.
+    'reference_ambiguous' => ':nombre projects could match what :personne said. Which one do you mean?',
+    'reference_correction_ambiguous' => 'Your correction names several of those projects. Which one do you mean?',
+    'reference_candidate' => '- **:loop** — ":enonce" (on :date)',
+    'reference_corrected_note' => 'Referent corrected at your request.',
+
+    /*
+     * TASK-1546 — People + Self, on the inherited referent.
+     *
+     * None of these sentences is generated: they frame facts the server has
+     * just read. Four states that look alike on screen are deliberately kept
+     * apart — unresolved ambiguity, no derivable need, no match, and not
+     * measurable. Conflating them would manufacture a certainty nobody has.
+     */
+    'people_blocked_by_ambiguity' => 'I cannot look for who could help until the project is settled. Tell me which one you mean and I will pick it up again.',
+    'people_blocked_by_revoked_reference' => 'I can no longer search from this conversation. Please rephrase your question and name what you are referring to.',
+    'nominative_no_longer_shown' => 'This answer named people I can no longer verify here, so I am no longer displaying it.',
+    'people_no_need' => 'I have not learned anything about the ":loop" Loop yet, so I cannot say who could help with it.',
+    'people_none' => 'Nobody among the members of the ":loop" Loop with a published profile declares anything that matches this project.',
+    'people_intro' => 'In the ":loop" Loop, these people declare something that matches:',
+    'people_candidate' => '- **:name** — :reasons',
+    'people_reason' => '":label"',
+    'people_reason_separator' => ', ',
+    'people_refused_loop_not_active' => 'The ":loop" Loop is no longer active: I am not looking for people on it.',
+    'people_refused_ai_profiles_disabled' => 'AI profiles are disabled in this organization: I have no profile to read in order to answer.',
+    'people_refused_not_authorized' => 'I cannot look for people on the ":loop" Loop.',
+    'self_fit' => 'On the ":loop" Loop, here is what your published profile declares that matches:',
+    'self_no_match' => 'Nothing your published profile declares matches the ":loop" Loop.',
+    'self_not_assessable' => 'I cannot assess your place on the ":loop" Loop: your AI profile is not published in this organization.',
+    'self_limits' => 'I only read your published profile and your active services. I know nothing about your availability or your workload: that is yours to decide.',
+
+    // TASK-1477 — the neutral panel fallback: what the Shell can do, not what it cannot.
+    'fab_page_help' => 'Ask your question about what you are looking at: the conversation follows you from page to page.',
+
+    // TASK-1481 — le plan de la gouvernance IA : lecture seule, chaque noeud
+    // nomme son autorite reelle, son niveau et l'ecran qui la gouverne.
+    'map_title' => 'Your AI at a glance',
+    'map_intro' => 'Every rule that governs how your Organization\'s AI behaves, with the level it is decided at and the screen that sets it. This page changes nothing: it tells you where to go.',
+    'map_level_platform' => 'Platform',
+    'map_level_organization' => 'Organization',
+    'map_level_user' => 'Member',
+    'map_state_locked' => 'Set elsewhere',
+    'map_state_configurable' => 'You can set it',
+    'map_status_none' => 'no active version',
+    'map_status_seed' => 'baseline text',
+    'map_status_coverage' => ':covered of :total follow the doctrine',
+    'map_open_admin' => 'Open the screen that governs it',
+    'map_platform_only' => 'This rule is governed at platform level: it applies to your Organization and cannot be changed here.',
+    'map_footer' => 'This map is read-only. It is built from the product\'s real authorities: if a rule does not appear here, no authority carries it.',
+    'map_node_platform_constitution' => 'BouclePro constitution',
+    'map_node_platform_constitution_hint' => 'The common ground for every Organization: what the AI never does, whatever the configuration.',
+    'map_node_organization_constitution' => 'Your Organization\'s constitution',
+    'map_node_organization_constitution_hint' => 'Your own rules, added to the common ground and never contradicting it.',
+    'map_node_doctrine' => 'Doctrine',
+    'map_node_doctrine_hint' => 'The tone and the manner: how the AI addresses your members.',
+    'map_node_provider' => 'Provider and model',
+    'map_node_provider_hint' => 'The model that answers, and the key in use. The key itself is never displayed.',
+    'map_node_capabilities' => 'AI functions',
+    'map_node_capabilities_hint' => 'What the AI can do, function by function. This catalogue lives in the code: it cannot be invented from an interface.',
+    'map_node_knowledge' => 'Knowledge',
+    'map_node_knowledge_hint' => 'The Folders the AI may consult in order to answer.',
+    'map_node_consumption' => 'Usage and budget',
+    'map_node_consumption_hint' => 'What was actually called, at what cost, and the limit you set.',
+    // TASK-1487 (AI Quality Q2) — the « AI quality » console.
+    'quality_title' => 'AI quality',
+    'quality_intro' => 'What we know — and what we do not know — about how useful the AI has been over the past 30 days.',
+    'quality_period' => 'Last 30 days',
+    'quality_summary_interactions' => 'Answers produced',
+    'quality_summary_evaluable' => 'Answers that can be rated',
+    'quality_summary_evaluated' => 'Answers rated',
+    'quality_summary_helpful' => 'Rated helpful',
+    'quality_summary_improve' => 'Could be better',
+    'quality_no_feedback_title' => 'Not enough feedback yet to measure quality.',
+    'quality_no_feedback_body' => 'No percentage is shown until someone has answered: a « 0 % helpful » would say the AI helps nobody, when the truth is that nobody has been asked yet.',
+    'quality_col_feature' => 'Function',
+    'quality_col_interactions' => 'Answers',
+    'quality_col_evaluable' => 'Ratable',
+    'quality_col_evaluated' => 'Rated',
+    'quality_col_coverage' => 'Coverage',
+    'quality_col_status' => 'Quality',
+    'quality_status_measured' => 'Measured',
+    'quality_status_no_feedback_yet' => 'No feedback yet',
+    'quality_status_not_yet_measurable' => 'Not ratable yet',
+    'quality_status_not_instrumented' => 'Not instrumented',
+    'quality_status_not_instrumented_hint' => 'There is no way to collect an opinion on this function.',
+    'quality_status_not_yet_measurable_hint' => 'The answers in this period predate the instrumentation: nobody could ever rate them.',
+    'quality_since' => 'Ratable since :date',
+    'quality_not_measured' => 'Not measured',
+    'quality_footer' => 'This console counts answers, never people. No user ranking, no conversation read.',
+    'quality_platform_title' => 'AI quality — platform',
+    'quality_platform_all' => 'All organizations',
+    'quality_platform_filter' => 'Organization',
+    'quality_reliability_unavailable' => 'Reliability and refusals: not measured. No failure or refusal is logged today — showing « 0 » would be a false zero.',
+    // TASK-1533 — AI Context Inspector: the observation instrument of the
+    // Nervous System. None of these strings claims equivalence with the member
+    // Shell: the Inspector runs ONE isolated capability on the canonical
+    // pipeline, which is not a member's full journey.
+    'inspector_title' => 'AI context inspector',
+    'inspector_intro' => 'Run ONE AI capability, on its own, on your Organization\'s canonical pipeline — then see what it actually drew on to answer.',
+    'inspector_help' => 'A real AI call, with your Organization\'s key, counted in your consumption. The active doctrine is composed. Nothing is published, no action is created.',
+    'inspector_mode' => 'Mode',
+    'inspector_mode_help' => 'ISOLATED: a single capability runs, with its allowed sources and nothing else. This is not a member\'s journey through the product — no Shell routing, no page context, no conversation. It is the only execution mode available today.',
+
+    'inspector_capability' => 'Capability',
+    'inspector_question' => 'Question',
+    'inspector_question_placeholder' => 'Write the question to submit to the pipeline…',
+    'inspector_run' => 'Run',
+    'inspector_running' => 'Running…',
+    'inspector_running_help' => 'Call in progress. Metrics appear only once measured.',
+
+    'inspector_answer_title' => 'Answer',
+    'inspector_answer_idle' => 'No run yet. The context map already shows what this capability could draw on.',
+    'inspector_no_sources' => 'No allowed source could provide context: the question was not sent to the provider.',
+
+    'inspector_state' => [
+        'idle' => 'Idle',
+        'running' => 'Running',
+        'success' => 'Success',
+        'refused' => 'Refused',
+        'error' => 'Error',
+        'stopped' => 'Stopped',
+        'rate_limited' => 'Rate limited',
+    ],
+
+    // These states are not interchangeable: "not requested", "empty",
+    // "denied" and "unavailable" describe four distinct situations.
+    'inspector_component_state' => [
+        'active' => 'Active',
+        'available' => 'Available',
+        'not_requested' => 'Not requested',
+        'not_reached' => 'Step not reached',
+        'used' => 'Used',
+        'denied' => 'Denied',
+        'empty' => 'Empty',
+        'locked' => 'Locked',
+        'unavailable' => 'Unavailable',
+    ],
+
+    'inspector_map_title' => 'Context map',
+    'inspector_map_help' => 'What the selected capability may draw on, before the question is even asked. After a run, measured states replace possible ones.',
+    'inspector_map_governance' => 'Governance',
+    'inspector_map_sources' => 'Context and sources',
+    'inspector_map_runtime' => 'Runtime',
+    'inspector_map_deferred' => 'Not implemented',
+    'inspector_map_deferred_help' => 'Nervous System components that do not exist in the product yet. Named so their absence is readable, never simulated.',
+    'inspector_map_authority_link' => 'Open the authority',
+    'inspector_map_node' => [
+        'platform_constitution' => 'Mycelium — platform AI constitution',
+        'organization_constitution' => 'Organization constitution',
+        'doctrine' => 'Organization doctrine',
+        'capabilities' => 'Capability registry',
+    ],
+    'inspector_map_runtime_label' => [
+        'member' => 'User and access rights',
+        'loop' => 'Loop',
+        'page_context' => 'Page context',
+    ],
+    'inspector_map_deferred_label' => [
+        'memory_compiler' => 'Collective memory',
+        'entity_resolution' => 'Entity resolution',
+        'claim_verifier' => 'Claim verifier',
+    ],
+
+    'inspector_trace_title' => 'Execution trace',
+    'inspector_trace_help' => 'Observed technical facts. Never the model\'s reasoning.',
+    'inspector_trace_step' => [
+        'composition' => 'Composition',
+        'context' => 'Context',
+        'provider' => 'Provider',
+        'issue' => 'Issue',
+    ],
+    'inspector_trace_pending' => 'Waiting for a run',
+    'inspector_trace_running' => 'Run in progress',
+    'inspector_trace_not_reached' => 'Step not reached: the run stopped before it.',
+    'inspector_trace_provider_not_reached' => 'No ledger row: nothing was sent to the provider.',
+    'inspector_trace_context_counts' => ':used used · :denied denied · :empty empty',
+
+    'inspector_sources_title' => 'Sources',
+    'inspector_sources_help' => 'The sources this capability was allowed to draw on, and what each one returned. A denied source is named by its reason, never by its content.',
+    'inspector_sources_idle' => 'The next run\'s sources will appear here.',
+    'inspector_sources_not_reached' => 'The context was not built: none of these sources was queried. They are what the capability declares, not a result of this run.',
+    'inspector_sources_none' => 'This capability declares no context source.',
+    'inspector_source_used' => 'Used',
+    'inspector_source_empty' => 'Empty',
+    'inspector_source_denied' => 'Denied',
+    'inspector_source_label' => [
+        'dossier_manifest' => 'Dossier structure',
+        'dossier_retrieval' => 'Document search across Dossiers',
+        'loop_messages' => 'Loop messages',
+        'user_loops' => 'User loops',
+        'organization_categories' => 'Organization categories',
+        'product_surfaces' => 'Product surfaces',
+        'blog_post' => 'Blog post',
+        'member_profile' => 'Member profile',
+    ],
+
+    'inspector_provenance_open' => 'View the excerpt|View the :count excerpts',
+    'inspector_provenance_title' => 'Excerpts passed',
+    'inspector_provenance_help' => 'What this source actually passed to the model, as the pipeline collected it. No vector, no score, no prompt.',
+    'inspector_provenance_open_observatory' => 'Open the knowledge observatory',
+
+    'inspector_telemetry_idle' => 'Provider, tokens, cost and latency will appear here, read from the ledger.',
+    'inspector_execution_empty' => 'No provider call recorded for this turn.',
+    'inspector_execution_help' => 'Read from the provider invocation ledger for this turn. A documentary turn may hold two: the generation, and the search embedding query. A value the provider did not report shows as \'—\', never 0.',
+    'inspector_execution_tokens_in' => 'Input tokens',
+    'inspector_execution_tokens_out' => 'Output tokens',
+    'inspector_execution_cost' => 'Cost',
+    'inspector_execution_latency' => 'Latency',
+    'inspector_execution_latency_note' => 'Latency measures the provider segment, not the time spent building the context. The ledger timestamps it to the second, so it is shown at that precision and no finer.',
+
+    'inspector_field_capability' => 'Capability',
+    'inspector_field_constitution' => 'Constitution',
+    'inspector_field_doctrine' => 'Doctrine',
+    'inspector_doctrine_active' => 'Active doctrine',
+    'inspector_doctrine_none' => 'No active doctrine',
+    'inspector_field_correlation' => 'Correlation',
+    'inspector_field_ledger' => 'Accounting',
+
+    'inspector_authorities_help' => 'This screen observes, it sets nothing. Each piece of data has a single authority.',
+
+    'inspector_error_session' => 'Session expired or access revoked. Reload the page.',
+    'inspector_error_rate_limited' => 'Question limit reached. Try again in a moment.',
+    'inspector_error_generic' => 'The run could not execute. No automatic retry: a retry would be a real AI call.',
+
+    'cockpit_inspector_help' => 'Ask the real pipeline a question and see, for that turn, the sources used and denied, the provider, the tokens and the cost.',
+    'cockpit_inspector_open' => 'Open the inspector',
 ];

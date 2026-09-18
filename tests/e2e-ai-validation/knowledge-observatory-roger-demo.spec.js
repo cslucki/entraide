@@ -9,6 +9,30 @@
 //       tests/e2e-ai-validation/knowledge-observatory-roger-demo.spec.js
 //   ROGER_DEMO=1 KEEP=1 ...   -> laisse le fichier de demo en place (spot-check)
 //
+//
+// ── PREREQUIS DU BANC (TASK-1561) ───────────────────────────────────────────
+//
+// CAUSE_D, reparee localement mais NON PORTABLE : le worker de queue du banc
+// doit ecouter la file DEDIEE de l'indexation, sinon RIEN ne s'indexe et cette
+// recette echoue sur « indexation non observee » — alors que l'upload, lui,
+// reussit.
+//
+//     php artisan queue:work --queue=dossier-files-indexing,default
+//
+// Pourquoi : TASK-1268 puis TASK-1407 ont deplace TOUTE l'indexation de
+// fichiers vers `DossierFileIndexingDispatcher::DEDICATED_QUEUE`,
+// auto-indexation de l'Observer comprise. Un worker sur `default` seul ne voit
+// jamais ces jobs : ils s'empilent, 0 en echec, et personne ne les prend.
+//
+// Le script du banc (`ai/scripts/ai-validation-worker.sh`) a ete corrige, mais
+// `ai/` est GITIGNORE : ce correctif ne voyage pas avec le depot. Sur une autre
+// machine, ou apres un clone, la panne se reproduira a l'identique. D'ou cette
+// note ici, dans un fichier qui, lui, est versionne.
+//
+// AI_VALIDATION_SERVER = SINGLE_PROCESS : un seul `php -S` sert le port 8010.
+// Lancer les recettes UNE A LA FOIS (`--workers=1`) ; en parallele, elles se
+// bloquent mutuellement et le symptome ressemble a un defaut produit.
+//
 // Prerequis : serveur 8010 + worker de queue locaux lances depuis CE worktree
 // (scripts internes, non publies).
 //
@@ -28,6 +52,7 @@
 // personne.
 
 import { test, expect } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
 
 test.skip(!process.env.ROGER_DEMO, 'Demo Roger : appels IA reels, lancer avec ROGER_DEMO=1');
 
@@ -36,7 +61,28 @@ const ORG_ROOT = `/org/${ORG_SLUG}`;
 const ADMIN_EMAIL = 'maya@artscilab-demo.test';
 const PASSWORD = 'password';
 const OBSERVATORY = `${ORG_ROOT}/admin/ai-knowledge`;
-const DEMO_DOSSIER_ID = '019ffb69-cb3f-720e-b192-659b1fe5c64b'; // Emergence — Session 01 (Dossier de la Boucle Emergence)
+// TASK-1561 — le Dossier se designe par son CONTENU, jamais par son UUID.
+// L'UUID fige `019ffb69-cb3f-720e-b192-659b1fe5c64b` est mort au re-semis du
+// banc ai-validation, qui regenere ses identifiants.
+//
+// La resolution est PARESSEUSE, et pas au chargement du module : cette spec est
+// sautee sauf ROGER_DEMO=1, mais le corps du module s'execute quand meme a la
+// collecte. Resoudre la haut ferait echouer le CHARGEMENT du fichier — donc la
+// collecte des 19 specs — pour un test qui ne tourne meme pas.
+let _demoDossierId = null;
+function demoDossierId() {
+    if (_demoDossierId !== null) {
+        return _demoDossierId;
+    }
+    const out = execFileSync('php', ['artisan', 'tinker', '--execute', `
+        $org = \\App\\Models\\Organization::where('slug', '${ORG_SLUG}')->firstOrFail();
+        echo json_encode(['id' => \\App\\Models\\Dossier::where('organization_id', $org->id)->where('name', 'Emergence — Session 01')->firstOrFail()->id]);`,
+    ], { env: { ...process.env, APP_ENV: 'ai-validation' }, encoding: 'utf8' });
+    const m = out.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error(`Dossier « Emergence — Session 01 » introuvable sur le banc ai-validation: ${out}`);
+
+    return (_demoDossierId = JSON.parse(m[0]).id);
+}
 const DEMO_LOOP_SLUG = 'artscilab-emergence';
 const DEMO_FILE_NAME = 'smart-village-roger-demo.md';
 const SENTINEL = 'ROGER-SMART-VILLAGE-1226';
@@ -94,9 +140,9 @@ test.describe('TASK-1226 Demo Roger — upload -> indexation en direct -> RAG', 
 
         // 2. Onglet B : upload par l'UI reelle (drop sur le Dossier).
         const dossierTab = await context.newPage();
-        await dossierTab.goto(`${ORG_ROOT}/dossiers/${DEMO_DOSSIER_ID}`);
+        await dossierTab.goto(`${ORG_ROOT}/dossiers/${demoDossierId()}`);
         await expect(dossierTab.locator('[x-data*="dossierFilesCard"], [data-dossier-files]').first()).toBeVisible({ timeout: 15000 }).catch(() => {});
-        const uploadResponse = dossierTab.waitForResponse((r) => r.url().includes(`/dossiers/${DEMO_DOSSIER_ID}/files`) && r.request().method() === 'POST', { timeout: 30000 });
+        const uploadResponse = dossierTab.waitForResponse((r) => r.url().includes(`/dossiers/${demoDossierId()}/files`) && r.request().method() === 'POST', { timeout: 30000 });
         const dropped = await dossierTab.evaluate(async ({ name, content }) => {
             const zone = Array.from(document.querySelectorAll('[\\@drop\\.prevent], [x-on\\:drop\\.prevent]')).find((el) => el.getAttribute('@drop.prevent')?.includes('handleMediaFiles') || el.getAttribute('x-on:drop.prevent')?.includes('handleMediaFiles'));
             if (!zone) return 'no-zone';
@@ -184,7 +230,7 @@ test.describe('TASK-1226 Demo Roger — upload -> indexation en direct -> RAG', 
         // 6. Nettoyage par id (sauf KEEP=1).
         if (created?.id && !process.env.KEEP) {
             const token = await dossierTab.evaluate(() => document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '');
-            const del = await dossierTab.request.delete(`${ORG_ROOT}/dossiers/${DEMO_DOSSIER_ID}/files/${created.id}`, {
+            const del = await dossierTab.request.delete(`${ORG_ROOT}/dossiers/${demoDossierId()}/files/${created.id}`, {
                 headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
             });
             note(`NETTOYAGE — DELETE fichier ${created.id} -> HTTP ${del.status()}`);

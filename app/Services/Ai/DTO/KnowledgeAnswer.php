@@ -28,6 +28,81 @@ final class KnowledgeAnswer
          * qu'il lui reste, alerte de seuil) — jamais un chiffre d'Organization.
          */
         public readonly ?AiUserCreditStatus $credit = null,
+        /**
+         * TASK-1516 : 0 a 3 questions d'approfondissement, produites DANS le
+         * meme tour provider que la reponse — jamais un second appel.
+         *
+         * Texte inerte et suggestif : aucune citation n'est exigee d'elles, et
+         * elles n'autorisent rien. Une question proposee ne devient une vraie
+         * question que si un humain la choisit, et elle repasse alors par la
+         * meme porte que n'importe quelle autre.
+         *
+         * Defaut vide : `generate()` (Smart Dossier) et LoopChat construisent
+         * ce DTO sans ce parametre et gardent exactement leur forme.
+         *
+         * @var list<string>
+         */
+        public readonly array $followUps = [],
+        /**
+         * TASK-1554 / W3A — ce que la FRONTIERE savait, dans la semantique
+         * commune du contexte : quelles sources ont reellement fourni de la
+         * matiere, et lesquelles ont ete REFUSEES pour une raison deterministe
+         * connue du serveur.
+         *
+         * Memes formes que `ContexteBorne` — `list<string>` de noms de source,
+         * et `nom => raison technique`. Le vocabulaire des raisons est celui,
+         * deja etabli, de `SourceDenied` / `DossierRetrievalSource::REASON_*` :
+         * W3A n'en cree aucune.
+         *
+         * Ce qui n'entre JAMAIS dans `sourcesDenied` : un zero hit, une preuve
+         * insuffisante, un provider indisponible, un document absent. Une
+         * source qui n'a rien a dire n'est pas une source refusee — c'est
+         * exactement ce que `ContextSource::collect()` dit deja, et l'inverse
+         * ferait passer une recherche infructueuse pour une porte fermee.
+         *
+         * Defaut vide : les constructions existantes gardent leur forme.
+         * `toArray()` NE LES EXPOSE PAS — la forme JSON publique de la reponse
+         * documentaire est inchangee.
+         *
+         * ATTENTION, et c'est la seule chose a savoir avant de lire ces champs :
+         * un tableau vide ne distingue pas « rien n'a ete utilise / refuse » de
+         * « ce producteur ne declare pas encore ».
+         *
+         * TASK-1565 : la dette W3A est payee — `LoopKnowledgeAnswerService`
+         * calculait les deux dans son `ContexteBorne` et les jetait ; il les
+         * porte desormais, comme `OrganizationDoctrineSandbox` et
+         * `DossierInsightsService`.
+         *
+         * L'avertissement qui accompagnait cette dette, lui, reste ENTIEREMENT
+         * valable, et il porte sur la METADATA, pas sur ce DTO : ecrire
+         * `sources_denied` au premier niveau de `AiInteraction.metadata` rend
+         * `why_denied` visible sur des reponses ChatLoop existantes
+         * (`AiResponseExplanationService::ragPanel()` -> `loops.why_denied`).
+         * C'est une difference PRODUIT, qui demande sa propre mesure et pas un
+         * branchement de commodite. Le chemin Loop les depose donc sous
+         * `metadata['retrieval_trace']`, que seule l'inspection lit.
+         *
+         * @var list<string>
+         */
+        public readonly array $sourcesUsed = [],
+        /** @var array<string, string> */
+        public readonly array $sourcesDenied = [],
+        /**
+         * TASK-1595 — le provider et le modele EFFECTIFS du tour, tels que
+         * resolus, pour l'appelant qui publie une bulle et doit y inscrire
+         * `metadata.provider` / `metadata.model`.
+         *
+         * Ils ne sont pas dans `toArray()` : la reponse JSON du Dossier n'a
+         * jamais expose ces deux valeurs et cette TASK ne les y ajoute pas.
+         * Ils existent pour qu'un appelant n'ait pas a relire l'`AiInteraction`
+         * et a redecouper `provider/model` d'une chaine — deux operations qui
+         * auraient fabrique une seconde verite a cote de `ResolvedModel`.
+         *
+         * `null` quand aucun provider n'a ete appele (zero source) : dans ce
+         * cas il n'y a pas de bulle a publier non plus.
+         */
+        public readonly ?string $provider = null,
+        public readonly ?string $model = null,
     ) {}
 
     /**
@@ -75,6 +150,7 @@ final class KnowledgeAnswer
             'sources' => array_map(self::publicSource(...), $this->sources),
             'consulted' => array_map(self::publicSource(...), $this->consulted),
             'credit' => $this->credit?->toArray(),
+            'follow_up_questions' => $this->followUps,
         ];
     }
 }

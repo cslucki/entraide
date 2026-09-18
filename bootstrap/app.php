@@ -5,6 +5,7 @@ use App\Http\Middleware\CheckAiProfilesEnabled;
 use App\Http\Middleware\CheckLoopsEnabled;
 use App\Http\Middleware\ConsumeOrgParams;
 use App\Http\Middleware\EnsureProfileComplete;
+use App\Http\Middleware\EnsureOrganizationMember;
 use App\Http\Middleware\EnsureUserIsNotBanned;
 use App\Http\Middleware\ResolveApiOrganization;
 use App\Http\Middleware\ResolveOrganization;
@@ -38,6 +39,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'consume.org' => ConsumeOrgParams::class,
             'loops.enabled' => CheckLoopsEnabled::class,
             'ai-profiles.enabled' => CheckAiProfilesEnabled::class,
+            // TASK-1479 (P0 privacy) : la frontiere d'acces d'une surface INTERNE
+            // d'Organization. A poser APRES `auth` — elle verifie l'appartenance,
+            // pas l'authentification.
+            'organization.member' => EnsureOrganizationMember::class,
         ]);
         // TASK-145: Reorder web group so ResolveUrlOrganization runs BEFORE
         // SubstituteBindings. With appendToGroup, ResolveUrlOrganization ran AFTER

@@ -6,12 +6,14 @@ use App\Ai\Agents\HelpRequestClarifierAgent;
 use App\Ai\CapabilityDefinition;
 use App\Ai\CapabilityRegistry;
 use App\Ai\Context\ContextBuilder;
+use App\Ai\Context\ContexteBorne;
 use App\Ai\Context\OrganizationCategoriesSource;
 use App\Ai\Context\UserLoopsSource;
 use App\Ai\ContexteIa;
 use App\Ai\PromptRepository;
 use App\Ai\ProviderResolver;
 use App\Ai\ResolvedModel;
+use App\Listeners\RecordSdkEmbeddingsInvocation;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
 use App\Models\Category;
@@ -23,6 +25,9 @@ use App\Services\Ai\DTO\AssistedInteractionLabResult;
 use App\Support\Ai\AiCorrelation;
 use App\Support\Ai\AiCost;
 use App\Support\Ai\AiEconomicGuard;
+use App\Support\Ai\AiTurnReason;
+use App\Support\Ai\AiTurnState;
+use App\Support\Ai\AiTurnTrace;
 use App\Support\Ai\AiUsage;
 use DomainException;
 
@@ -96,12 +101,19 @@ class ClarifyUserHelpRequestService implements AiProvider
         Organization $organization,
         User $requester,
         string $phrase,
+        array $history = [],
+        ?string $executionPath = null,
     ): AssistedInteractionLabResult {
         if ($requester->organization_id !== $organization->id) {
             throw new DomainException('The requester does not belong to this Organization.');
         }
 
-        return $this->clarifyInContext($organization, $requester, $phrase, null);
+        // TASK-1568 / V0-G — `$executionPath` vient de l'appelant (C15). Ce
+        // clarifier a DEUX points d'entree Organization : le Shell
+        // (`ai_shell.clarify`) et le formulaire de Demande
+        // (`RequestController`), qui n'est pas une surface P0 et ne nomme donc
+        // rien — sa trace se lit `UNAVAILABLE`, ce qui est la verite.
+        return $this->clarifyInContext($organization, $requester, $phrase, null, $history, $executionPath);
     }
 
     private function clarifyInContext(
@@ -109,23 +121,17 @@ class ClarifyUserHelpRequestService implements AiProvider
         User $requester,
         string $phrase,
         ?Loop $loop,
+        array $history = [],
+        ?string $executionPath = null,
     ): AssistedInteractionLabResult {
-        // Meme coupe-circuit que `analyze()` : quand la clarification IA est
-        // desactivee, aucun appel provider n'est tente — et la clarification
-        // deterministe prend le relais. Sans ce garde, les tests et les
-        // environnements sans cle partaient en timeout reseau avant de retomber
-        // sur le meme repli.
-        if (! config('ai.clarify.enabled', false)) {
-            return $this->fallback->analyze($phrase);
-        }
-
         $capability = CapabilityRegistry::CLARIFY_HELP_REQUEST;
         $definition = $this->capabilities->get($capability);
-        $scope = $loop === null
-            ? CapabilityRegistry::SCOPE_ORGANIZATION
-            : CapabilityRegistry::SCOPE_LOOP;
-        $this->capabilities->assertScopeAllowed($capability, $scope);
 
+        // TASK-1572 / CDC-01 V0-D — l'identite du tour nait AVANT le
+        // coupe-circuit : `ContexteIa` est un DTO sans effet, et sans elle la
+        // sortie « feature coupee » n'aurait aucun turnId a porter. L'ordre des
+        // GARDES produit ne change pas : le coupe-circuit reste avant le scope,
+        // le builder et le provider.
         $contexte = new ContexteIa(
             organizationId: (string) $organization->id,
             userId: (string) $requester->id,
@@ -136,7 +142,41 @@ class ClarifyUserHelpRequestService implements AiProvider
             source: CapabilityRegistry::SOURCE_USER_LOOPS,
         );
 
+        // TASK-1568 / CDC-01 V0-G — le chemin tel que l'appelant l'a nomme, et
+        // la capability, que ce moteur connait. Rien d'autre n'est deduit.
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'execution_path' => $executionPath,
+            'capability' => $capability,
+        ]);
+
+        // Meme coupe-circuit que `analyze()` : quand la clarification IA est
+        // desactivee, aucun appel provider n'est tente — et la clarification
+        // deterministe prend le relais. Sans ce garde, les tests et les
+        // environnements sans cle partaient en timeout reseau avant de retomber
+        // sur le meme repli.
+        //
+        // TASK-1572 / V0-D — ce repli n'est plus silencieux : il laisse un tour
+        // qui AVOUE le fallback (I6). La reponse rendue est la meme.
+        if (! config('ai.clarify.enabled', false)) {
+            return $this->fallbackAvoue($loop, $requester, $contexte, $definition, null, AiTurnReason::FALLBACK_FEATURE_DISABLED, $phrase, $history, null);
+        }
+
+        $scope = $loop === null
+            ? CapabilityRegistry::SCOPE_ORGANIZATION
+            : CapabilityRegistry::SCOPE_LOOP;
+        $this->capabilities->assertScopeAllowed($capability, $scope);
+
         $borne = $this->contextBuilder->build($contexte, $definition);
+
+        // TASK-1568 / V0-G — le `ContextBuilder` a tourne : `executed`, avec
+        // le nombre de provenances rendues — des identifiants, jamais du texte.
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'context_builder', 'executed', null, [
+            'consulted' => count($borne->provenance),
+        ]);
+
+        // TASK-1568 / V0-G (C18) — l'historique que l'appelant a REELLEMENT
+        // donne a ce tour, traduit en etape (voir `AiTurnTrace`).
+        AiTurnTrace::conversationHistoryStep($contexte->organizationId, $contexte->turnId, $history);
 
         // Les Boucles reellement offertes au modele. Rien d'autre ne pourra
         // etre retenu comme suggestion.
@@ -152,7 +192,8 @@ class ClarifyUserHelpRequestService implements AiProvider
         try {
             $resolved = $this->providers->resolve($capability, $contexte);
         } catch (DomainException) {
-            return $this->fallback->analyze($phrase);
+            // TASK-1572 / V0-D — repli avoue : aucun modele resolu.
+            return $this->fallbackAvoue($loop, $requester, $contexte, $definition, null, AiTurnReason::REFUSED_NOT_CONFIGURED, $phrase, $history, null, $borne);
         }
 
         // Budget mensuel de l'Organization et de la capability : un refus est
@@ -172,8 +213,24 @@ class ClarifyUserHelpRequestService implements AiProvider
         );
 
         if (! $verdict->allowed) {
-            return $this->fallback->analyze($phrase);
+            // TASK-1572 / V0-D — repli avoue, code du GARDE ; ledger vierge.
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'denied', $verdict->reason);
+
+            return $this->fallbackAvoue($loop, $requester, $contexte, $definition, $resolved, $verdict->reason, $phrase, $history, null, $borne);
         }
+
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'economic_check', 'executed');
+
+        // TASK-1572 / V0-D — le provider EFFECTIF, tel que resolu ; le
+        // `producer` est celui que le produit ecrit deja sur ce chemin (C17 :
+        // un nom de SDK, non renomme). `provider_requested` n'a aucune source
+        // honnete : absent (decision du pilote V0-A).
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'producer' => 'laravel_ai_sdk',
+            'provider_effective' => $resolved->provider,
+            'model' => $resolved->trace(),
+            'fallback_used' => false,
+        ]);
 
         // TASK-1227 : la doctrine active de l'Organization se compose ici,
         // sous la Constitution — meme point que les deux autres capabilities.
@@ -207,10 +264,17 @@ class ClarifyUserHelpRequestService implements AiProvider
                 model: $resolved->model,
             );
         } catch (\Throwable $exception) {
+            // TASK-1571 / V0-C — l'etape et le verdict portent le CODE.
+            // TASK-1572 / V0-D — et le tour AVOUE que le membre a recu le repli :
+            // la ligne `failed` de la tentative IA porte `fallback_used = true`.
+            AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'provider_call', 'failed', AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED);
+            $this->identiteDuRepli($contexte, AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED);
+
             $this->recordInteraction(
                 $loop, $requester, $contexte, $definition, $resolved, $phrase,
                 null, AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null], null,
-                'failed', $startedAt, null, $exception::class, $doctrineVersion, $constitutionVersions,
+                'failed', $startedAt, null, $exception::class, $doctrineVersion, $constitutionVersions, $history,
+                AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED, $borne,
             );
 
             // Un echec ne bloque pas le membre : il retombe sur la clarification
@@ -230,7 +294,8 @@ class ClarifyUserHelpRequestService implements AiProvider
         $interaction = $this->recordInteraction(
             $loop, $requester, $contexte, $definition, $resolved, $phrase,
             json_encode($structured, JSON_UNESCAPED_UNICODE), $usage, $cost->traceAttributes(), $cost,
-            'success', $startedAt, $response->invocationId, null, $doctrineVersion, $constitutionVersions,
+            'success', $startedAt, $response->invocationId, null, $doctrineVersion, $constitutionVersions, $history,
+            null, $borne,
         );
 
         return $this->mapStructuredToDto(
@@ -395,6 +460,18 @@ class ClarifyUserHelpRequestService implements AiProvider
             producer: 'laravel_ai_sdk',
             interactionFit: $this->authoritativeInteractionFit($structured, $clarifyPromptVersion),
             directReply: $this->authoritativeDirectReply($structured, $clarifyPromptVersion),
+            // TASK-1486 — l'identifiant de la trace que ce tour vient d'ecrire.
+            //
+            // La trace existait deja et etait deja recue ici ; ce qui manquait
+            // etait de la RENDRE. Sans elle, un verdict humain ne peut designer
+            // aucune reponse : c'est la seule raison pour laquelle le blog
+            // explorer etait la seule surface instrumentee du produit — son
+            // controleur cree l'`AiInteraction` lui-meme.
+            //
+            // `?->` et non `->` : les chemins qui n'ecrivent pas de trace
+            // (repli deterministe, provider indisponible, refus economique)
+            // rendent `null`, et l'appelant ne propose alors rien.
+            interactionId: $interaction?->id,
         );
     }
 
@@ -507,6 +584,95 @@ class ClarifyUserHelpRequestService implements AiProvider
     }
 
     /**
+     * TASK-1572 / CDC-01 V0-D — le repli deterministe AVOUE.
+     *
+     * Trois sorties de ce clarifier rendaient une reponse complete de
+     * `FakeAIProvider` sans qu'aucune ligne ne le dise (CDC-01 §1.1 : « un
+     * fallback est indiscernable du nominal »). Chacune ecrit desormais un
+     * tour : `answered` — le membre a bien une reponse — mais
+     * `fallback_used = true`, `fallback_reason` = la sortie prise, `producer =
+     * deterministic_fallback`, `provider_effective = fake`, et l'etape
+     * `generation: fallback` (I6). La reponse rendue est la MEME.
+     *
+     * Ligne NON GENERATIVE (contrat §6.1) : rien n'est parti, rien ne se paie,
+     * ledger vierge. Son statut de LIGNE est `fallback`
+     * (`AiTurnState::LINE_FALLBACK`), exclu des lecteurs economiques.
+     *
+     * @param  array<string, mixed>  $history
+     * @param  array<string, mixed>|null  $constitutionVersions
+     */
+    private function fallbackAvoue(
+        ?Loop $loop,
+        User $requester,
+        ContexteIa $contexte,
+        CapabilityDefinition $definition,
+        ?ResolvedModel $resolved,
+        string $reason,
+        string $phrase,
+        array $history,
+        ?array $constitutionVersions,
+        ?ContexteBorne $borne = null,
+    ): AssistedInteractionLabResult {
+        $this->identiteDuRepli($contexte, $reason);
+        AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'generation', 'fallback', AiTurnReason::FALLBACK_FAKE_PROVIDER);
+
+        AiInteraction::create([
+            'user_id' => $requester->id,
+            'organization_id' => $contexte->organizationId,
+            'correlation_id' => $contexte->correlationId,
+            'process' => $definition->process,
+            'feature' => 'clarify_help_request',
+            'model' => $resolved?->trace() ?? '',
+            'prompt' => '',
+            'response' => null,
+            'input_tokens' => 0,
+            'output_tokens' => 0,
+            'cost_usd' => 0,
+            'cost_unknown' => false,
+            'metadata' => array_filter([
+                'loop_id' => $loop?->id,
+                'requested_by' => $requester->id,
+                'provider' => $resolved?->provider,
+                'capability' => $definition->id,
+                'status' => AiTurnState::LINE_FALLBACK,
+                RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
+                    $contexte->turnId,
+                    AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
+                    [
+                        'status' => AiTurnState::TURN_ANSWERED,
+                        'decided_by' => class_basename(self::class),
+                        'history' => $history,
+                        // TASK-1573 / V0-E — absent sur la sortie « feature
+                        // coupee » (builder jamais appele), mesure ensuite.
+                        'sources' => $borne === null ? [] : AiTurnTrace::sourcesBlock($borne->sourcesUsed, $borne->sourcesDenied),
+                        'state' => AiTurnTrace::stateBlock(null, $borne?->sourcesDenied ?? []),
+                    ],
+                ),
+            ], static fn ($value): bool => $value !== null)
+                + ['doctrine_version' => null]
+                + ($constitutionVersions ?? []),
+        ]);
+
+        return $this->fallback->analyze($phrase);
+    }
+
+    /**
+     * Ce que le tour dit de son repli : QUI a repondu et POURQUOI le provider
+     * n'a pas ete (ou pas pu etre) sollicite. `provider_effective = fake` est
+     * la valeur EXACTE : c'est bien `FakeAIProvider` qui a produit la reponse.
+     */
+    private function identiteDuRepli(ContexteIa $contexte, string $reason): void
+    {
+        AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, [
+            'producer' => 'deterministic_fallback',
+            'provider_effective' => 'fake',
+            'fallback_used' => true,
+            'fallback_reason' => $reason,
+        ]);
+    }
+
+    /**
      * Trace P1 de la capability. Une seule ecriture par appel, au call site —
      * meme regle que `loop_summary` : aucun listener SDK texte, sans quoi le
      * meme appel serait compte deux fois.
@@ -537,6 +703,9 @@ class ClarifyUserHelpRequestService implements AiProvider
         ?string $failure,
         ?int $doctrineVersion,
         array $constitutionVersions = [],
+        array $history = [],
+        ?string $reasonCode = null,
+        ?ContexteBorne $borne = null,
     ): AiInteraction {
         $this->ledger->recordGeneration(
             organizationId: $contexte->organizationId,
@@ -573,6 +742,34 @@ class ClarifyUserHelpRequestService implements AiProvider
                 'capability' => $definition->id,
                 'status' => $status,
                 'sdk_invocation_id' => $sdkInvocationId,
+                // TASK-1556 : les invocations embedding (query) que CE tour a
+                // declenchees, reclamees une seule fois — `[]` mesure, jamais null.
+                RecordSdkEmbeddingsInvocation::TURN_METADATA_KEY => RecordSdkEmbeddingsInvocation::claimQueryInvocationIds($contexte->organizationId, $contexte->turnId),
+                // TASK-1566 / CDC-01 V0-A — l'IDENTITE canonique du tour, et
+                // rien d'autre. Les TROIS sorties silencieuses de ce clarifier
+                // (feature coupee, provider absent, refus economique) retombent
+                // sur `FakeAIProvider` sans que rien ne le dise : les rendre
+                // avouables est le perimetre de V0-D, pas de celui-ci.
+                //
+                // TASK-1568 / V0-G — le writer RECLAME ce que le tour a depose
+                // (chemin nomme par l'appelant, etape `context_builder`).
+                AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
+                    $contexte->turnId,
+                    AiTurnTrace::claim($contexte->organizationId, $contexte->turnId),
+                    [
+                        // TASK-1572 / V0-D — le verdict, meme traduction que le
+                        // pilote (`metadata.status` garde `completed`/`failed`).
+                        'status' => $status === 'failed' ? AiTurnState::TURN_FAILED : AiTurnState::TURN_ANSWERED,
+                        'stage' => $status === 'failed' ? 'generation' : null,
+                        'reason_code' => $reasonCode,
+                        'decided_by' => class_basename(self::class),
+                        'history' => $history,
+                        // TASK-1573 / V0-E — `used`/`denied` de la borne (W3A).
+                        'sources' => $borne === null ? [] : AiTurnTrace::sourcesBlock($borne->sourcesUsed, $borne->sourcesDenied),
+                        // TASK-1574 / V0-F — pas de grounding ici ; axe 3 depuis les refus.
+                        'state' => AiTurnTrace::stateBlock(null, $borne?->sourcesDenied ?? []),
+                    ],
+                ),
                 'failure' => $failure,
             ], static fn ($value): bool => $value !== null)
                 // TASK-1236 : cle toujours presente, meme a null (aucune doctrine

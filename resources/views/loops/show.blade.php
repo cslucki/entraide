@@ -70,27 +70,13 @@
             padding: 0 !important;
         }
         /* TASK-1231 : le FAB « + » est masque ici (au-dessus).
-           TASK-1329 (variante A retenue) : FAB + composeur + envoi forment UNE
-           zone — le FAB BouclePro IA est ANCRE juste au-dessus du composeur
-           (plus jamais suspendu au milieu du fil), le fil garde une reserve
-           basse pour que le dernier message ne passe jamais sous lui, et il
-           S'EFFACE pendant la saisie : quand on ecrit, rien ne flotte
-           au-dessus du texte (motif des messageries mobiles). */
-        body:has(.loops-show-container) [data-ai-fab-toggle] {
-            bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px)) !important;
-            transition: opacity .2s ease-out, transform .2s ease-out;
-        }
-        body:has(.loops-show-container) [data-ai-fab-panel] {
-            bottom: calc(8.5rem + env(safe-area-inset-bottom, 0px)) !important;
-        }
-        body:has(.loops-show-container textarea:focus) [data-ai-fab-toggle] {
-            opacity: 0;
-            transform: scale(.5);
-            pointer-events: none;
-        }
-        body:has(.loops-show-container) [data-loop-workspace-chat] .overflow-y-auto {
-            padding-bottom: 5.5rem !important;
-        }
+           TASK-1329 avait ancre le FAB BouclePro IA juste au-dessus du
+           composeur, l'effacait pendant la saisie et reservait une bande basse
+           dans le fil pour qu'aucun message ne passe dessous : trois regles
+           pour faire cohabiter deux surfaces IA sur le meme ecran.
+           TASK-1466 : le FAB ne se rend plus du tout sur une Boucle — l'IA y
+           est native. Les trois regles n'ont plus d'objet, et la reserve basse
+           laisserait un vide sous le dernier message. Elles partent avec lui. */
         body:has(.loops-show-container) .loops-show-container {
             height: calc(100dvh - env(safe-area-inset-bottom, 0px));
         }

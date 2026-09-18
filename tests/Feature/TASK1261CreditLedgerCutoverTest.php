@@ -79,8 +79,15 @@ class TASK1261CreditLedgerCutoverTest extends TestCase
         // chacune — mais c'est un ETAT constate, pas une regle : aucune
         // assertion d'egalite d'ensembles ici, chaque liste se fige pour
         // ses raisons propres et peut re-diverger par decision produit.
+        // TASK-1436 (SW-6) : PREMIERE re-divergence, par decision produit —
+        // `guest_shell` nait sous l'autorite du ledger (garde : budgets Guest,
+        // plafond plateforme) mais n'est PAS creditable : un visiteur n'a pas
+        // de User, donc pas de credit personnel (cadre Cyril 07/09 : jamais de
+        // faux User). 15 pour la garde, 14 pour le credit.
         $guardProcesses = AiEconomicGuard::ledgerAuthorityProcesses();
-        $this->assertCount(14, $guardProcesses);
+        $this->assertCount(15, $guardProcesses);
+        $this->assertContains('guest_shell', $guardProcesses);
+        $this->assertNotContains('guest_shell', OrganizationAiEconomicUsage::CREDITABLE_PROCESSES);
         $this->assertContains('member_profile.loop_agent_reply', $guardProcesses);
         $this->assertContains('member_profile.agent_visitor_chat', $guardProcesses);
         // Entres au mapping par T1291 (garde d'appartenance fail-closed,

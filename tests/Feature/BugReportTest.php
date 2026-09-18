@@ -66,9 +66,16 @@ class BugReportTest extends TestCase
      */
     public function test_public_bug_list_shows_fixed_notes_and_hides_dismissed_bugs(): void
     {
+        // TASK-1493 : la liste des bugs d'une Organization `is_public = false`
+        // n'est plus servie a un invite. Ce test mesure la page PUBLIQUE de
+        // transparence — le lecteur anonyme fait partie de ce qu'il exerce.
+        // L'Organization est declaree publique, ce qu'elle etait implicitement :
+        // le defaut `is_public => false` de la factory n'avait jamais ete un
+        // choix de ce fichier.
         $organization = Organization::factory()->create([
             'is_default' => true,
             'is_active' => true,
+            'is_public' => true,
             'name' => 'Bug Report Sentinel Org',
             'description' => 'Organisation de test des signalements.',
         ]);

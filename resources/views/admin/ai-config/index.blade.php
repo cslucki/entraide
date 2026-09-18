@@ -81,6 +81,23 @@
                         {{ __('admin.ai_clarification') }}
                     </label>
                     <p class="text-xs text-gray-400 dark:text-gray-500 mt-1 ml-6">{{ __('admin.ai_clarification_desc') }}</p>
+
+                    {{-- TASK-1563 : l'arret d'urgence du rerank documentaire.
+                         Eteint ici, PERSONNE ne reranke, quelles que soient les
+                         autorisations posees Organization par Organization. --}}
+                    <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 mt-4">
+                        <input type="checkbox" name="rerank_enabled" value="1" @checked($rerankEnabled) class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                        {{ __('admin.ai_rerank') }}
+                    </label>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1 ml-6">{{ __('admin.ai_rerank_desc') }}</p>
+                    @if($rerankLastChange)
+                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1 ml-6">
+                            {{ __('admin.ai_rerank_last_change', [
+                                'author' => $rerankLastChange->author?->name ?? __('admin.ai_rerank_unknown_author'),
+                                'date' => $rerankLastChange->created_at->isoFormat('LLL'),
+                            ]) }}
+                        </p>
+                    @endif
                 </div>
 
                 <div class="flex items-center gap-3 pt-2">
@@ -103,13 +120,19 @@
             <div class="space-y-4">
                 @foreach($organizations as $org)
                     @php $cfg = $blogConfigs[$org->id] ?? null; @endphp
-                    <form method="POST" action="{{ route('admin.ai-config.blog') }}" class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+                    {{-- TASK-1474 : meme repli que la section Shell Welcome. Ces trois
+                         sections empilaient le MEME motif — un bloc deplie par
+                         Organization — et representaient a elles seules 84 % de la
+                         hauteur de l'ecran. --}}
+                    <details class="border border-gray-200 dark:border-gray-700 rounded-lg" data-ai-config-row="blog:{{ $org->slug }}">
+                        <summary class="flex flex-wrap items-center gap-2 px-4 py-2.5 cursor-pointer select-none">
+                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $org->name }}</span>
+                            <span class="text-gray-400 font-mono text-xs">{{ $org->slug }}</span>
+                            <span class="ml-auto text-xs {{ ($cfg?->generate_enabled ?? true) ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-500 dark:text-gray-400' }}">{{ ($cfg?->generate_enabled ?? true) ? __('admin.ai_blog_generation') : __('admin.guest_shell_summary_disabled') }}</span>
+                        </summary>
+                    <form method="POST" action="{{ route('admin.ai-config.blog') }}" class="border-t border-gray-200 dark:border-gray-700 p-4 space-y-3">
                         @csrf
                         <input type="hidden" name="organization_id" value="{{ $org->id }}">
-
-                        <div class="flex items-center justify-between">
-                            <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $org->name }} <span class="text-gray-400 font-mono text-xs">({{ $org->slug }})</span></h4>
-                        </div>
 
                         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                             <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
@@ -142,6 +165,7 @@
                             </button>
                         </div>
                     </form>
+                    </details>
                 @endforeach
             </div>
         </div>
@@ -152,13 +176,15 @@
 
             <div class="space-y-4">
                 @forelse($organizations as $org)
-                    <form method="POST" action="{{ route('admin.ai-config.profile') }}" class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+                    <details class="border border-gray-200 dark:border-gray-700 rounded-lg" data-ai-config-row="profile:{{ $org->slug }}">
+                        <summary class="flex flex-wrap items-center gap-2 px-4 py-2.5 cursor-pointer select-none">
+                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $org->name }}</span>
+                            <span class="text-gray-400 font-mono text-xs">{{ $org->slug }}</span>
+                            <span class="ml-auto text-xs {{ ($org->ai_profiles_enabled ?? true) ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-500 dark:text-gray-400' }}">{{ ($org->ai_profiles_enabled ?? true) ? __('admin.ai_profile_toggle_label') : __('admin.guest_shell_summary_disabled') }}</span>
+                        </summary>
+                    <form method="POST" action="{{ route('admin.ai-config.profile') }}" class="border-t border-gray-200 dark:border-gray-700 p-4 space-y-3">
                         @csrf
                         <input type="hidden" name="organization_id" value="{{ $org->id }}">
-
-                        <div class="flex items-center justify-between">
-                            <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $org->name }} <span class="text-gray-400 font-mono text-xs">({{ $org->slug }})</span></h4>
-                        </div>
 
                         <div>
                             <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
@@ -178,6 +204,7 @@
                             </button>
                         </div>
                     </form>
+                    </details>
                 @empty
                     <div class="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-3">
                         {{ __('admin.ai_no_profiles_config') }}
@@ -185,6 +212,17 @@
                 @endforelse
             </div>
         </div>
+
+        {{-- TASK-1500 : la configuration Shell Welcome par Organization a quitte
+             cette page pour /admin/shell-welcome-config (decision Cyril 10/09).
+             Il reste un renvoi, pour qui arrive ici par habitude. --}}
+        <a href="{{ route('admin.shell-welcome-config') }}" class="flex items-center justify-between gap-4 rounded-2xl border border-dashed border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/40 dark:bg-indigo-500/5 px-5 py-4 transition hover:bg-indigo-50 dark:hover:bg-indigo-500/10" data-guest-shell-config-pointer>
+            <span>
+                <span class="block text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('admin.guest_shell_config') }}</span>
+                <span class="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('admin.guest_shell_config_moved_hint') }}</span>
+            </span>
+            <span class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">{{ __('admin.guest_shell_config_open') }} →</span>
+        </a>
 
         {{-- Providers disponibles --}}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">

@@ -207,6 +207,11 @@ final class AiUserCreditSettings
     public function lastChange(?Organization $organization): ?AiCreditSettingChange
     {
         return AiCreditSettingChange::query()
+            // TASK-1563 : cette table porte desormais DEUX natures de reglage.
+            // Sans ce filtre, le dernier changement de RERANK remonterait ici
+            // et s'afficherait comme un changement de CREDIT — un mensonge
+            // silencieux sur un ecran existant.
+            ->where('setting_kind', AiCreditSettingChange::KIND_CREDIT)
             ->with('author:id,name')
             ->when(
                 $organization === null,
@@ -237,6 +242,9 @@ final class AiUserCreditSettings
 
         return AiCreditSettingChange::create([
             'scope' => $scope,
+            // TASK-1563 : explicite, jamais laisse au defaut de colonne — une
+            // ligne doit dire ce qu'elle est, pas l'heriter.
+            'setting_kind' => AiCreditSettingChange::KIND_CREDIT,
             'organization_id' => $organization?->id,
             'changes' => $changes,
             'changed_by' => $author?->id,

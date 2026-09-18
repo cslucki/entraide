@@ -21,6 +21,7 @@ use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\Dossiers\DossierArticleIndexer;
 use App\Services\LoopService;
 use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiTurnState;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -313,6 +314,7 @@ class TASK1221NervousSystemConvergenceTest extends TestCase
 
         $ledgerABefore = AiProviderInvocation::query()->where('organization_id', $this->organization->id)->count();
         $idsBefore = AiProviderInvocation::query()->pluck('id')->all();
+        $interactionsAvantA = AiInteraction::query()->where('organization_id', $this->organization->id)->pluck('id')->all();
 
         $answer = app(LoopKnowledgeAnswerService::class)
             ->answer($loopB, $memberB, 'Que contient la valise itinerante ?');
@@ -338,7 +340,12 @@ class TASK1221NervousSystemConvergenceTest extends TestCase
             $this->assertSame(AiProviderInvocation::EMBEDDING_OPERATION_QUERY, $row->embedding_operation);
             $this->assertSame(AiProviderInvocation::CREDENTIAL_ORGANIZATION, $row->credential_source);
         }
-        $this->assertSame(0, AiInteraction::query()->where('organization_id', $orgB->id)->count());
+        // TASK-1570 / V0-B : aucune GENERATION pour B ; le tour non generatif
+        // que son abstention laisse est le sien, et reste dans SON tenant.
+        $this->assertSame(0, AiInteraction::query()->where('organization_id', $orgB->id)
+            ->whereNot(static fn ($q) => $q->whereIn('metadata->status', AiTurnState::NON_GENERATIVE_STATUSES))->count());
+        $this->assertSame(0, AiInteraction::query()->where('organization_id', $this->organization->id)
+            ->whereNotIn('id', $interactionsAvantA)->count(), 'rien n\'a fui dans le tenant A');
 
         app()->instance('current_organization', $this->organization);
     }
@@ -383,10 +390,35 @@ class TASK1221NervousSystemConvergenceTest extends TestCase
             // sans recherche ni contenu) rejoint le retrieval semantique —
             // toujours et seulement le corpus documentaire des Dossiers,
             // jamais les messages de Boucle ni un autre perimetre.
-            [CapabilityRegistry::SOURCE_DOSSIER_MANIFEST, CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL],
+            //
+            // TASK-1543 : l'historique de la memoire derivee (`knowledge.delta`)
+            // les rejoint, et il RESTE dans le corpus documentaire — il lit des
+            // `derived_knowledge_notes`, la troisieme famille de chunk rangee
+            // dans un Dossier depuis T1534, sous la MEME autorite d'eligibilite.
+            // Ce qui n'a pas bouge d'un pouce, et c'est ce que cette ligne garde :
+            // il n'y a toujours ni `loop.messages`, ni `member.profile`, ni
+            // `user.loops` — la capability ne lit pas la conversation humaine,
+            // elle lit ce que les Dossiers en savent.
+            [
+                CapabilityRegistry::SOURCE_KNOWLEDGE_DELTA,
+                CapabilityRegistry::SOURCE_DOSSIER_MANIFEST,
+                CapabilityRegistry::SOURCE_DOSSIER_RETRIEVAL,
+            ],
             $knowledge->allowedSources,
             'knowledge reads ONLY the documentary corpus',
         );
+
+        // La garde de fond, et elle survit a tout ajout futur : aucune source
+        // de conversation, de profil ou de catalogue n'entre ici.
+        foreach ([
+            CapabilityRegistry::SOURCE_LOOP_MESSAGES,
+            CapabilityRegistry::SOURCE_MEMBER_PROFILE,
+            CapabilityRegistry::SOURCE_USER_LOOPS,
+            CapabilityRegistry::SOURCE_ORGANIZATION_CATEGORIES,
+        ] as $horsPerimetre) {
+            $this->assertNotContains($horsPerimetre, $knowledge->allowedSources,
+                "knowledge ne lit pas {$horsPerimetre}");
+        }
     }
 
     // =====================================================================

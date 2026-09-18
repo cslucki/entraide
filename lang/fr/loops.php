@@ -1295,8 +1295,108 @@ return [
     'why_documents_unavailable' => 'La trace ne détaille pas les sources documentaires.',
     'why_denied' => '{1} 1 source de contexte a été refusée au moment de la génération : l\'IA a répondu sans elle.|[2,*] :count sources de contexte ont été refusées au moment de la génération : l\'IA a répondu sans elles.',
     'why_trace_unavailable' => 'La trace de génération de cette réponse n\'est pas exploitable : rien n\'est reconstruit après coup, donc rien de plus n\'est affiché.',
+    // TASK-1549 — mémoire durable dans le panneau « Pourquoi ? », et le chemin
+    // standard « Corriger ». Aucun identifiant technique, aucun score, aucune
+    // prétention d'exhaustivité : uniquement ce que la trace prouve.
+    'why_memory_title' => 'Mémoire de BouclePro',
+    'why_memory_observed' => 'Constaté le :date',
+    'why_memory_scope_here' => 'retenu dans cette Boucle',
+    'why_memory_scope_other' => 'retenu dans la Boucle « :loop » — se corrige depuis cette Boucle-là',
+    // REMÉDIATION R2 (audit Codex F3) : `why_memory_evolved` et
+    // `why_memory_retracted` ont été RETIRÉES. Le panneau ne peut pas les
+    // atteindre — une supersession emporte le chunk cité, donc la section
+    // mémoire se tait et le ledger parle à sa place, sans nommer de famille.
+    // Une clé qu'aucune donnée ne peut produire est une promesse d'interface.
+    'why_memory_evidence' => 'Preuve :n',
+    'why_memory_corrected_by' => 'Corrigé par :name le :date.',
+    'why_memory_corrected' => 'Corrigé le :date.',
+    'why_memory_see_correction' => 'Voir la correction',
+    'why_memory_denied' => '{1} Une information de mémoire citée n\'est plus accessible et n\'est pas détaillée.|[2,*] :count informations de mémoire citées ne sont plus accessibles et ne sont pas détaillées.',
+    // Le TROISIÈME état : la ligne citée a disparu, donc son origine n'est plus
+    // établissable. Ce libellé ne nomme AUCUNE famille — ni document, ni
+    // mémoire — parce que rien ne permet plus de trancher (dette W5/TRACE-0).
+    'why_source_unreachable' => '{1} Une source citée n\'est plus accessible : son contenu a pu évoluer depuis cette réponse.|[2,*] :count sources citées ne sont plus accessibles : leur contenu a pu évoluer depuis cette réponse.',
+    'correct_action_update' => 'Corriger',
+    'correct_action_retract' => 'Ce n\'est plus à jour',
+    'correct_form_title' => 'Corriger la mémoire',
+    'correct_scope' => 'Cette correction s\'applique à cette Boucle.',
+    'correct_form_note' => 'La mémoire est corrigée immédiatement ; l\'apprentissage automatique, lui, reste différé et respectera cette correction.',
+    'correct_mode_update' => 'Remplacer par le bon énoncé',
+    'correct_mode_retract' => 'Retirer cet énoncé',
+    'correct_new_text_label' => 'Le bon énoncé',
+    'correct_text_label' => 'Pourquoi ? Ce message sera visible dans la Boucle.',
+    'correct_text_placeholder' => 'Expliquez en une phrase — c\'est la preuve de la correction.',
+    'correct_text_required' => 'Expliquez la correction : cette phrase est la preuve, elle est obligatoire.',
+    'correct_new_text_required' => 'Écrivez le bon énoncé pour remplacer l\'ancien.',
+    // Une contrainte de saisie se NOMME. Ce n'est pas un incident, ce n'est pas
+    // un conflit, et surtout ce n'est pas « rechargez la version actuelle ».
+    'correct_new_text_min' => 'Votre correction doit faire au moins :min caractères pour être enregistrée.',
+    'correct_refused_right' => 'Vous ne pouvez plus corriger la mémoire de cette Boucle. Rien n\'a été enregistré.',
+    'correct_submit' => 'Enregistrer la correction',
+    'correct_cancel' => 'Annuler',
+    'correct_ack' => 'Correction enregistrée : la mémoire de cette Boucle est à jour, et votre message est visible dans la conversation.',
+    'correct_conflict_before' => 'Ce point a changé entre-temps. Rien n\'a été enregistré.',
+    'correct_conflict_after' => 'Votre message est visible dans la Boucle, mais la mémoire n\'a pas pu être corrigée. Rechargez la version actuelle.',
+    // TASK-1550 — W1.5-B : « Depuis cet échange, BouclePro a retenu… ».
+    // Formulation au PASSÉ, et aucune promesse de délai : le CDC interdit de
+    // laisser croire que l'apprentissage est synchrone, et interdit tout autant
+    // d'annoncer un temps de consolidation. Avant la compilation, il n'y a pas
+    // de carte — le silence est la formulation honnête.
+    'digest_title' => 'Depuis cet échange, BouclePro a retenu…',
+    // L'opération réellement persistée, jamais une nature devinée. Le
+    // compilateur ne produit aucun discriminateur fait / interprétation /
+    // décision : en inventer un à la lecture serait une heuristique de contenu.
+    'digest_kind_added' => 'Nouveau',
+    'digest_kind_updated' => 'Mis à jour',
+    'digest_kind_retracted' => 'Retiré',
+    // Aucune prétention d'exhaustivité mémoire, et aucune case à cocher : rien
+    // n'attend de validation, tout ceci est DÉJÀ enregistré.
+    // La PORTEE, dite UNE fois pour la carte entiere plutot que sur chaque
+    // ligne : la carte vit dans la Boucle qu'elle decrit, et repeter « retenu
+    // dans cette Boucle » a chaque enonce ajoutait une rangee par element sans
+    // ajouter une information. Une portee AUTRE reste dite sur la ligne.
+    'digest_note' => 'Ces éléments sont déjà enregistrés dans la mémoire de cette Boucle. Ce n\'est pas tout ce que BouclePro en sait.',
+    'digest_dismiss' => 'Masquer',
     'why_feedback_title' => 'Cette réponse vous a-t-elle été utile ?',
     'why_feedback_helpful' => 'Utile',
     'why_feedback_improve' => 'À améliorer',
     'why_close' => 'Fermer',
+
+    // TASK-1476 — Catch Me Up V1 : « Rattrape-moi depuis… ».
+    'catch_up_title' => 'Rattrape-moi depuis…',
+    'catch_up_subtitle' => 'Ce qui s\'est passé dans « :loop » sur la période que vous choisissez.',
+    'catch_up_open' => 'Rattrape-moi',
+    'catch_up_period_legend' => 'Depuis quand ?',
+    'catch_up_days_7' => '7 derniers jours',
+    'catch_up_days_14' => '14 derniers jours',
+    'catch_up_days_30' => '30 derniers jours',
+    'catch_up_days_90' => '3 derniers mois',
+    'catch_up_since_label' => 'ou depuis une date précise',
+    'catch_up_apply' => 'Afficher',
+    'catch_up_window' => 'Du :since au :until',
+    'catch_up_window_default' => 'Aucune période demandée : voici les 7 derniers jours, du :since au :until.',
+    'catch_up_no_reading_position' => 'BouclePro ne suit pas ce que vous avez lu dans une Boucle. La période est donc toujours celle que vous demandez, jamais une « dernière visite » devinée.',
+    'catch_up_empty' => 'Rien de nouveau dans cette Boucle sur cette période.',
+    'catch_up_empty_hint' => 'Élargissez la période si vous cherchez quelque chose de plus ancien.',
+    'catch_up_section_to_know' => 'À savoir',
+    'catch_up_section_decisions' => 'Décisions',
+    'catch_up_section_documents' => 'Documents',
+    'catch_up_section_open' => 'Demandes et questions ouvertes',
+    'catch_up_section_to_know_empty' => 'Aucun message ni évènement sur la période.',
+    'catch_up_section_decisions_empty' => 'Aucune décision consignée sur la période.',
+    'catch_up_section_documents_empty' => 'Aucun document déposé sur la période.',
+    'catch_up_section_open_empty' => 'Aucune demande ni action ouverte sur la période.',
+    'catch_up_more' => '{1} 1 élément de plus n\'est pas affiché.|[2,*] :count éléments de plus ne sont pas affichés.',
+    'catch_up_source_loop' => 'Dans la Boucle',
+    'catch_up_source_dossier' => 'Dossier : :name',
+    'catch_up_source_dossier_locked' => 'Dossier : :name — vous n\'y avez pas accès',
+    'catch_up_pinned' => 'Épinglé',
+    'catch_up_by' => 'par :name',
+    'catch_up_kind_loop_event' => 'Évènement',
+    'catch_up_kind_poll_event' => 'Sondage',
+    'catch_up_kind_help_request' => 'Demande d\'aide',
+    'catch_up_kind_roadmap_todo' => 'Action à faire',
+    'catch_up_kind_roadmap_in_progress' => 'Action en cours',
+    'catch_up_decision_from_message' => 'Issue d\'un message de la Boucle',
+    'catch_up_no_ai' => 'Ce rattrapage est une lecture directe des objets de la Boucle. Aucun modèle d\'IA n\'est appelé, rien n\'est résumé ni interprété.',
 ];

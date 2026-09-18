@@ -57,9 +57,13 @@ class RegistrationEmailFailureTest extends TestCase
 
     public function test_registration_succeeds_even_when_welcome_email_transport_fails(): void
     {
+        // TASK-1412 : depuis que `User` implemente `MustVerifyEmail`, une
+        // inscription tente DEUX envois — la verification (listener framework
+        // sur `Registered`) puis la bienvenue. Les deux echouent ici, et les
+        // deux sont absorbes par `rescue()` : le compte est cree quand meme.
         $mailerMock = Mockery::mock(MailerContract::class);
         $mailerMock->shouldReceive('send')
-            ->once()
+            ->twice()
             ->andThrow(new TransportException('Simulated transport failure — domain not verified'));
 
         $factoryMock = Mockery::mock(MailFactory::class);

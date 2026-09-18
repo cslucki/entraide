@@ -1,0 +1,68 @@
+{
+  "lab_scenario_key": "LAB.MULTITURN_REFERENT_1B",
+  "organization": "ai-lab",
+  "loop": "L2",
+  "user": "lab.member.a",
+  "turns": [
+    {
+      "order": 1,
+      "surface": "loop_chat",
+      "mode": "dossiers",
+      "question": "Quel est le rôle de Bob Okafor dans la Loop ?",
+      "reply_to": null
+    },
+    {
+      "order": 2,
+      "surface": "loop_chat",
+      "mode": "dossiers",
+      "question": "Et pour Alice ?",
+      "reply_to": null
+    }
+  ],
+  "execution": "new_execution",
+  "preconditions": {
+    "pack_loaded": "required",
+    "gold_exists": "required",
+    "gold_indexed": "required",
+    "gold_access": {
+      "expected": "allowed"
+    },
+    "derived_chunks_absent": "required",
+    "quota": "required"
+  },
+  "expected": {
+    "access": {
+      "status": "allowed",
+      "stage": "ai_pipeline"
+    },
+    "turn": "present",
+    "answer": {
+      "class": "observe",
+      "assertion": {
+        "type": "none",
+        "values": []
+      }
+    },
+    "execution_path": "loop_chat.dossiers",
+    "steps": {
+      "conversation_history": "conditional",
+      "economic_check": "executed",
+      "context_builder": "bypassed",
+      "grounding": "executed",
+      "provider_call": "executed"
+    },
+    "history": {
+      "turn_2": {
+        "PREVIOUS_AI_ANSWER_VISIBLE": "UNAVAILABLE"
+      }
+    },
+    "sources": {
+      "must_not_use_source_type": [
+        "derived_knowledge"
+      ]
+    },
+    "tenant": {
+      "must_not_leak": "SENTINEL-B"
+    }
+  }
+}

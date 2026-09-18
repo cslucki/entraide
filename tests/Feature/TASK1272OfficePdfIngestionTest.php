@@ -95,7 +95,9 @@ class TASK1272OfficePdfIngestionTest extends TestCase
         $this->assertNotNull($text);
         $this->assertStringContainsString('Station Lyra', $text);
         $this->assertStringContainsString('exactly 18 green modules', $text);
-        $this->assertStringContainsString('cell A cell B', $text);
+        // TASK-1522 : « cell A cell B » figeait l'aplatissement du tableau, le
+        // defaut lui-meme. Deux cellules gardent desormais leur frontiere.
+        $this->assertStringContainsString('cell A|cell B', $text);
         $this->assertStringContainsString('first item', $text);
         // PHPWord echappe a la lecture (htmlspecialchars) : le texte doit
         // retrouver sa forme d'origine.

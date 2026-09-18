@@ -6,9 +6,36 @@
     // lisant le DOM et n'appelle jamais un provider : il ouvre des surfaces
     // qui existent (evenements window) ou suit un lien. Rendu dans le seul
     // layout membre (`layouts.app`), jamais guest / admin / org-admin.
-    $fab = app(\App\Support\Ai\AiFabContext::class)->forRequest(request(), auth()->user());
+    // TASK-1466 : le rendu passe par `shouldRenderFab()` — sur un ChatLoop, la
+    // Boucle porte deja son IA et le FAB n'ouvre pas une seconde porte vers
+    // les memes actions. Le contexte, lui, reste calcule par la meme autorite.
+    $fabContext = app(\App\Support\Ai\AiFabContext::class);
+    $fab = $fabContext->shouldRenderFab(request(), auth()->user())
+        ? $fabContext->forRequest(request(), auth()->user())
+        : null;
+
+    // TASK-1477 : le repere d'usage de la surface courante, lu par la MEME
+    // classe que le Shell. Aucune seconde resolution, aucun droit accorde.
+    $fabSurface = (string) ($fab['page_context']['surface'] ?? \App\Support\Ai\AiShellPageContext::SURFACE_UNKNOWN);
+    $fabUsageReference = $fab
+        ? app(\App\Support\Ai\AiShellUsageReference::class)->forSurface($fabSurface, app()->getLocale())
+        : null;
 @endphp
 @if($fab)
+{{-- TASK-1472 : le declencheur « BouclePro IA » herite de la couleur « Action
+     principale » du theme de l'Organization. Un <style> local plutot que des
+     classes Tailwind arbitraires : une classe Tailwind arbitraire portant le token, absente
+     du build serait un no-op SILENCIEUX, et ce piege a deja mordu ici. Le
+     repli couvre le cas ou le token manquerait — jamais de bouton
+     transparent. --}}
+<style>
+  .bp-ai-trigger{background:var(--bp-primary,#4f46e5)}
+  .bp-ai-trigger:hover{background:var(--bp-primary-deep,#4338ca)}
+  /* L'anneau de focus vit ici aussi : une classe utilitaire arbitraire portant le token
+     est une valeur arbitraire Tailwind, absente du build tant qu'elle n'y a pas
+     ete generee — l'anneau aurait disparu sans un mot. */
+  .bp-ai-trigger:focus-visible{outline:3px solid var(--bp-primary-deep,#4338ca);outline-offset:2px}
+</style>
 <div x-data="{
         open: false,
         ctx: @js($fab),
@@ -33,14 +60,29 @@
 
     {{-- Bouton flottant. Mobile : au-dessus du FAB « + » (bottom-20) et de la
          barre basse ; desktop : au-dessus des toasts (bottom-5). --}}
+    {{-- TASK-1478 — UN clic.
+
+         Le declencheur ouvrait un panneau, qui portait un bouton « Ouvrir
+         BouclePro IA », qui ouvrait enfin la conversation. Deux clics pour
+         ecrire une phrase.
+
+         Desormais il ouvre directement le Shell : `show()` y met le focus dans
+         le composeur, et le fil est relu en base a chaque montage — rien n'est
+         perdu. Le panneau reste le chemin lorsqu'AUCUN Shell n'existe
+         (`shell_enabled` faux) : cette configuration doit continuer de
+         fonctionner, et elle est le seul cas ou le panneau a encore un role.
+
+         Aucun second Shell n'est monte : cet evenement est ecoute par l'UNIQUE
+         instance de `<livewire:ai-shell />` du layout membre. --}}
     <button type="button"
-            @click="toggle()"
+            @click="{{ $fab['shell_enabled'] ? "window.dispatchEvent(new CustomEvent('bp-open-ai-shell', { detail: {} }))" : 'toggle()' }}"
             :aria-expanded="open ? 'true' : 'false'"
-            aria-controls="ai-fab-panel"
+            @if(! $fab['shell_enabled']) aria-controls="ai-fab-panel" @endif
+            data-ai-fab-opens="{{ $fab['shell_enabled'] ? 'shell' : 'panel' }}"
             aria-label="{{ __('ai.fab_open') }}"
             title="{{ __('ai.fab_label') }}"
             data-ai-fab-toggle
-            class="fixed bottom-36 right-4 md:bottom-24 md:right-6 z-40 inline-flex items-center gap-2 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-indigo-900/20 ring-1 ring-white/20 hover:from-violet-500 hover:to-indigo-500 active:scale-95 transition h-12 w-12 md:h-auto md:w-auto md:px-4 md:py-2.5 justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500">
+            class="bp-ai-trigger fixed bottom-36 right-4 md:bottom-24 md:right-6 z-40 inline-flex items-center gap-2 rounded-full text-white shadow-lg shadow-gray-900/20 ring-1 ring-white/20 active:scale-95 transition h-12 w-12 md:h-auto md:w-auto md:px-4 md:py-2.5 justify-center focus:outline-none">
         {{-- Symbole de marque en monochrome blanc translucide : essai visuel,
              directement sur l'aplat violet/indigo du bouton, sans pastille. --}}
         <svg class="h-5 w-5 flex-shrink-0" viewBox="0 0 512 512" fill="none" stroke="white" stroke-width="46" stroke-linecap="round" stroke-opacity="0.92" aria-hidden="true">
@@ -61,6 +103,22 @@
         @endif
     </button>
 
+    {{-- TASK-1478 — le panneau ne subsiste QUE lorsqu'aucun Shell n'existe.
+
+         Il etait l'etape intermediaire : on l'ouvrait pour y trouver un bouton
+         « Ouvrir BouclePro IA ». Ce bouton disparait, donc le panneau aussi —
+         le laisser dans le DOM sans rien pour l'ouvrir serait une interface
+         morte.
+
+         Mais `ai.shell.enabled` peut etre faux, et dans cette configuration le
+         panneau est la SEULE surface : actions de page et credit n'auraient
+         plus nulle part ou vivre. Il reste donc, inchange, pour ce cas.
+
+         Quand le Shell existe, tout ce que ce panneau portait vit desormais
+         dans le Shell : le lieu, le repere d'usage, le credit, le lien
+         d'usages, et les actions — calculees par la MEME autorite
+         (`AiFabContext::loopActions()` / `dossierActions()`). --}}
+    @unless($fab['shell_enabled'])
     {{-- Panneau contextuel. --}}
     {{-- TASK-1244.BUG : pas de x-transition ici. Alpine fait alors dependre le
          basculement de `display` d'une sequence requestAnimationFrame, qui
@@ -84,9 +142,12 @@
                          serait inutile ici. « Aucune action propre a cette page »
                          ne signifie pas « BouclePro IA indisponible » : la
                          distinction est faite plus bas, a l'endroit des actions. --}}
-                    @if($fab['page'] === 'loop') {{ __('ai.fab_subtitle_loop') }}
-                    @elseif($fab['page'] === 'dossier') {{ __('ai.fab_subtitle_dossier') }}
-                    @else {{ __('ai.fab_subtitle_other') }}
+                    {{-- TASK-1469 : « Disponible partout sur BouclePro » ne disait rien
+                         et n'etait meme pas vrai depuis TASK-1466 (pas sur une Boucle).
+                         Le sous-titre nomme desormais la SURFACE, via la seule autorite
+                         qui la resout — la meme que celle lue par le Shell. --}}
+                    @if($fab['page'] === 'dossier') {{ __('ai.fab_subtitle_dossier') }}
+                    @else {{ __('ai.shell_surface_'.($fab['page_context']['surface'] ?? \App\Support\Ai\AiShellPageContext::SURFACE_UNKNOWN)) }}
                     @endif
                 </p>
             </div>
@@ -104,7 +165,7 @@
                 <button type="button"
                         @click="close(); window.dispatchEvent(new CustomEvent('bp-open-ai-shell', { detail: {} }))"
                         data-ai-fab-shell
-                        class="w-full text-left flex items-start gap-3 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 px-3 py-2.5 text-white shadow-sm hover:from-violet-500 hover:to-indigo-500 transition">
+                        class="bp-ai-trigger w-full text-left flex items-start gap-3 rounded-xl px-3 py-2.5 text-white shadow-sm transition">
                     <span class="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white/15">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8M8 14h5M21 12a8 8 0 0 1-8 8H7l-4 3v-5.5A8 8 0 1 1 21 12Z"/></svg>
                     </span>
@@ -167,15 +228,25 @@
                     </li>
                 @endforeach
             </ul>
-        @elseif($fab['shell_enabled'])
-            {{-- TASK-1350 — l'honnetete du panneau, en une phrase.
-                 Cette page n'expose aucune action IA propre : on le DIT, et on
-                 dit dans la meme phrase que la conversation, elle, reste
-                 ouverte. C'est exactement la distinction que le produit doit
-                 tenir — « pas d'action ici » n'est pas « pas d'IA ici ». --}}
-            <p class="px-4 py-3 text-xs leading-5 text-gray-500 dark:text-gray-400" data-ai-fab-no-page-action>
-                {{ __('ai.fab_no_page_action') }}
-            </p>
+        @else
+            {{-- TASK-1350 tenait deja la bonne distinction — « pas d'action ici »
+                 n'est pas « pas d'IA ici » — mais l'enonçait par une NEGATION,
+                 et c'etait la seule chose que le panneau savait dire sur
+                 l'agenda, l'annuaire ou les echanges.
+
+                 TASK-1477 : quand un repere publie existe pour cette surface, on
+                 dit A QUOI SERT le lieu. Sinon, une phrase neutre qui decrit ce
+                 que le Shell peut reellement faire — repondre sur ce que la
+                 personne consulte — plutot que d'ouvrir sur ce qu'il ne fait pas.
+
+                 Le repere n'ajoute AUCUNE capacite : les actions, au-dessus,
+                 restent calculees par la seule autorite qui les gouverne. --}}
+            @if($fabUsageReference !== null)
+                <div class="px-4 py-3" data-ai-fab-usage-reference="{{ $fabSurface }}">
+                    <p class="text-xs font-semibold text-gray-700 dark:text-gray-200">{{ $fabUsageReference['title'] }}</p>
+                    <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ $fabUsageReference['content'] }}</p>
+                </div>
+            @endif
         @endif
 
         {{-- Credit utilisateur : la seule chose chiffree que le FAB montre.
@@ -200,6 +271,7 @@
             </a>
         </div>
     </div>
+    @endunless
 </div>
 @endif
 @endauth

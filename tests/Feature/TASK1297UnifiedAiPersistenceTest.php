@@ -166,7 +166,12 @@ class TASK1297UnifiedAiPersistenceTest extends TestCase
         // Rien n'a coûté (pas d'appel modèle, pas d'interaction) : rien n'est
         // publié — ni la réponse « rien trouvé », ni la question.
         LoopKnowledgeAgent::assertNotPrompted(fn (AgentPrompt $prompt): bool => true);
-        $this->assertDatabaseCount('ai_interactions', 0);
+        // TASK-1570 / CDC-01 V0-B : l'abstention laisse UNE interaction NON
+        // GENERATIVE (rien n'est parti, rien ne se paie) — et toujours AUCUN
+        // message dans le fil, ni ligne au ledger.
+        $this->assertDatabaseCount('ai_interactions', 1);
+        $this->assertSame('abstained', AiInteraction::query()->sole()->metadata['status']);
+        $this->assertDatabaseCount('ai_provider_invocations', 0);
         $this->assertSame(0, LoopMessage::count());
     }
 
@@ -299,7 +304,7 @@ class FakeKnowledgeSearch extends DossierSemanticSearchService
 
     public function __construct() {}
 
-    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null): array
+    public function searchAcrossDossiers(string $organizationId, array $dossierIds, string $query, string $embeddingInstance, int $limit = 5, array $traceMetadata = [], ?int $candidateLimit = null, ?array $onlyDossierFileIds = null, ?array $authorizedLoopIds = null): array
     {
         $this->lastCall = compact('organizationId', 'dossierIds', 'query', 'embeddingInstance', 'limit', 'traceMetadata', 'candidateLimit');
 

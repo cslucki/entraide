@@ -54,4 +54,20 @@ return [
         'save' => 'Enregistrer',
         'cancel' => 'Annuler',
     ],
+
+    // TASK-1553 — W2-2 : la carte pre-envoi.
+    //
+    // Elle ne promet RIEN. Le brouillon est un relais ephemere (15 min), deja
+    // consomme quand cette page s'affiche : aucune sauvegarde n'est annoncee,
+    // aucune restauration n'est suggeree. Ce qu'elle dit est ce qui est vrai
+    // maintenant, a l'ecran.
+    'presend_title' => 'Avant de publier',
+    'presend_destination' => 'Sera publiée dans :',
+    'presend_members' => '{0} aucun membre|{1} 1 membre|[2,*] :count membres',
+    // L'ORIGINE du brouillon : de quel geste il vient. Sans elle, la carte
+    // dirait « voici les fondements » sans dire de quoi.
+    'presend_origin_shell' => 'Préparée depuis votre conversation avec BouclePro IA.',
+    'presend_origin_loop_clarification' => 'Préparée depuis « Qui peut m\'aider ? » dans cette Boucle.',
+    'presend_origin_loop_clarification_unavailable' => 'Préparée à partir de vos mots, sans intervention de l\'IA.',
+    'presend_note' => 'Rien n\'est publié tant que vous ne l\'avez pas confirmé. Vous pouvez tout modifier ci-dessous.',
 ];

@@ -81,14 +81,31 @@
         ],
     ] : [];
 
-    $items = auth()->check() ? [
+    // TASK-1500 — UNE seule liste, connecte ou non.
+    //
+    // Le rail portait deux listes : huit entrees pour un membre, quatre pour un
+    // visiteur. Or un visiteur ne rencontre ce composant qu'a un seul endroit,
+    // le Shell Welcome (`layouts/app` ne le monte que sous `@auth`), et
+    // l'arbitrage du 10/09 veut que ce rail soit LE MEME que celui de
+    // l'application — au pixel. Mesure sur l'Organization publique `main`,
+    // visiteur sans cookie : sept des huit destinations redirigent vers
+    // `/login`. C'est voulu : la redirection est l'entonnoir d'inscription
+    // construit par TASK-1453/TASK-1464, et un rail a moitie vide se lisait
+    // comme une page cassee. Ce qui depend d'une session (compteurs, avatar,
+    // « Cooperer ») reste garde par `@auth` plus bas ; la LISTE, elle, ne
+    // depend plus de rien.
+    $items = [
         [
             'url' => $organizationRouteParam && Route::has('organization.flux') ? route('organization.flux', ['organization' => $organizationRouteParam]) : route('dashboard'),
             'active' => ['flux', 'organization.flux'],
             'label' => __('navigation.feed'),
             'hint' => __('navigation.announcements'),
             'icon' => 'M4 5h16M4 12h10M4 19h16M18 9l3 3-3 3',
-            'visible' => $canSeeFlux,
+            // Arbitrage Cyril 10/09 : l'entree se montre TOUJOURS, connecte ou non.
+            // C'est la page qui applique les droits (policy `create FeedPost`),
+            // pas le rail — un rail qui cache ce qu'on n'a pas le droit de faire
+            // cache aussi ce qui existe. `$canSeeFlux` reste pour le menu avatar.
+            'visible' => true,
             'tone' => 'flux',
         ],
         [
@@ -126,20 +143,6 @@
             'badge' => $unreadMessagesCount,
         ],
         [
-            // `active` porte les DEUX noms : la comparaison est une egalite
-            // stricte ou un prefixe suivi d'un point, donc 'notifications' ne
-            // matche pas 'organization.notifications.index'. Et cette cle est
-            // lue SANS `??` plus bas : l'omettre casserait le rail sur toutes
-            // les pages, pas seulement sur celle-ci.
-            'key' => 'notifications',
-            'url' => $routeUrl('notifications.index', 'organization.notifications.index'),
-            'active' => ['notifications', 'organization.notifications'],
-            'label' => __('navigation.notifications'),
-            'hint' => __('navigation.notifications_hint'),
-            'icon' => 'M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
-            'badge' => $unreadNotificationsCount,
-        ],
-        [
             'url' => $routeUrl('members.index', 'organization.members.index'),
             'active' => ['members', 'organization.members', 'profile.show'],
             'label' => __('navigation.directory'),
@@ -160,35 +163,6 @@
             'hint' => __('navigation.my_dossiers'),
             'icon' => 'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z',
             'visible' => (bool) $organizationRouteParam && Route::has('organization.dossiers.index'),
-        ],
-    ] : [
-        [
-            'url' => $routeUrl('boucles.index', 'organization.boucles.index'),
-            'active' => ['boucles'],
-            'label' => __('navigation.loops'),
-            'hint' => __('navigation.groups'),
-            'icon' => 'M8 10h8M8 14h5m8-2a9 9 0 11-18 0 9 9 0 0118 0z',
-        ],
-        [
-            'url' => $routeUrl('explorer', 'organization.explorer'),
-            'active' => ['explorer'],
-            'label' => __('navigation.exchanges'),
-            'hint' => __('navigation.services'),
-            'icon' => 'M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4',
-        ],
-        [
-            'url' => $routeUrl('members.index', 'organization.members.index'),
-            'active' => ['members', 'organization.members', 'profile.show'],
-            'label' => __('navigation.directory'),
-            'hint' => __('navigation.members'),
-            'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm6 0V9a2 2 0 00-2-2h-2a2 2 0 00-2 2v10m6 0h2a2 2 0 002-2V5a2 2 0 00-2-2h-2a2 2 0 00-2 2v14z',
-        ],
-        [
-            'url' => $routeUrl('blog.index', 'organization.blog.index'),
-            'active' => ['blog', 'organization.blog'],
-            'label' => __('navigation.blog'),
-            'hint' => __('navigation.articles'),
-            'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 00-2-2h-2M7 8h6M7 12h6M7 16h4',
         ],
     ];
 
@@ -339,6 +313,43 @@
              surtout l'avatar restent visibles quel que soit le nombre d'entrées
              au-dessus — c'est la nav qui défile, pas le bas du rail. --}}
         <div class="mt-2 flex shrink-0 flex-col items-center gap-1.5 border-t border-[var(--bp-border)] pt-2">
+            @auth
+                {{-- TASK-1411 — Notifications vit dans la zone BASSE du rail, avec les
+                     reglages et l'avatar : c'est un signal personnel, pas une entree
+                     de navigation metier. L'item a ete RETIRE de $items (aucune
+                     duplication). Tout ce que TASK-1373 mesure est preserve a
+                     l'identique : `data-nav-badge-notifications` porte la valeur
+                     BRUTE, le texte visible est plafonne a « 9+ », et l'attribut
+                     disparait a zero. `active` porte les DEUX noms de route, comme
+                     avant : 'notifications' ne matche pas
+                     'organization.notifications.index'. --}}
+                @php
+                    $notificationsActive = $isActive(['active' => ['notifications', 'organization.notifications']]);
+                @endphp
+                <a href="{{ $routeUrl('notifications.index', 'organization.notifications.index') }}"
+                   data-side-nav-notifications
+                   class="group relative flex w-full shrink-0 flex-col items-center px-1 py-0.5 text-[9px] font-medium leading-none transition {{ $notificationsActive ? 'text-[var(--bp-primary)]' : 'text-[var(--bp-muted)] hover:text-[var(--bp-text)]' }}"
+                   title="{{ __('navigation.notifications_hint') }}"
+                   aria-label="{{ __('navigation.notifications') }}"
+                   @if($notificationsActive) aria-current="page" @endif>
+                    <span class="relative flex h-8 w-8 items-center justify-center rounded-lg transition {{ $notificationsActive ? 'bg-[color-mix(in_srgb,var(--bp-primary)_14%,transparent)] text-[var(--bp-primary)] shadow-sm' : 'bg-transparent group-hover:bg-[var(--bp-panel)] group-hover:shadow-sm' }}">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                        @if($unreadNotificationsCount > 0)
+                            <span data-nav-badge-notifications="{{ $unreadNotificationsCount }}"
+                                  class="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold leading-none text-white ring-2 ring-[var(--bp-surface)]">
+                                {{ $unreadNotificationsCount > 9 ? '9+' : $unreadNotificationsCount }}
+                            </span>
+                        @endif
+                    </span>
+                    <span class="mt-0.5 leading-none">{{ __('navigation.notifications') }}</span>
+                    @if($notificationsActive)
+                        <span class="absolute right-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-l-full bg-[var(--bp-primary)]"></span>
+                    @endif
+                </a>
+            @endauth
+
             <button type="button" @click="$store.visualTheme.next()" class="flex w-9 flex-col items-center rounded-lg border border-[var(--bp-border)] bg-[var(--bp-panel)] px-0.5 py-0.5 text-[7px] font-semibold uppercase tracking-wide text-[var(--bp-muted)] shadow-sm transition hover:text-[var(--bp-text)]" aria-label="{{ __('navigation.change_theme') }}">
                 <span class="h-1.5 w-1.5 rounded-full bg-[var(--bp-primary)] ring-2 ring-[var(--bp-surface-soft)]" aria-hidden="true"></span>
                 <span class="mt-0.5 leading-none" x-text="$store.visualTheme.label()">Sable</span>

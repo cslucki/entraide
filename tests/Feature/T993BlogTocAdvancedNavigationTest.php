@@ -23,7 +23,10 @@ class T993BlogTocAdvancedNavigationTest extends TestCase
     {
         parent::setUp();
 
-        $this->org = Organization::factory()->create(['is_default' => true]);
+        // TASK-1492 : le blog d'une Organization `is_public = false` n'est plus servi
+        // a un invite. Ce fichier lit la page publique de l'article — l'Organization est
+        // declaree publique, ce qu'elle etait implicitement (defaut de factory).
+        $this->org = Organization::factory()->create(['is_default' => true, 'is_public' => true]);
         $this->owner = User::factory()->create(['organization_id' => $this->org->id]);
 
         $this->post = BlogPost::create([

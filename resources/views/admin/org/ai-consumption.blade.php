@@ -95,6 +95,46 @@
             + $economics['embedding_ingestion']['invocation_count']
             + $economics['embedding_undeclared']['invocation_count'];
     @endphp
+    {{-- TASK-1438 — SW-10 : le Shell Welcome de CETTE Organization (Shell Welcome V3 §17/§18). Jamais un contenu de conversation. --}}
+    @php
+        $guestState = strtolower($guestShell['state']->status);
+        // TASK-1470 : meme autorite de presentation que les deux cockpits SuperAdmin.
+        // Cet ecran est celui de l'admin d'UNE Organization : le diagnostic porte sur
+        // SON etat, calcule a partir de SON `GuestShellState`, jamais celui d'une autre.
+        $diag = \App\Support\GuestShell\GuestShellDiagnosis::for($guestShell['state']);
+    @endphp
+    <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6" data-consumption-guest-block data-consumption-guest-state="{{ $guestState }}" data-consumption-guest-mode="{{ $guestShell['state']->policy->display_mode }}" data-consumption-guest-effective="{{ $guestShell['display']->mode }}" data-consumption-guest-effective-reason="{{ $guestShell['display']->reason }}">
+        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-1">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.consumption_guest_title') }}</h2>
+            <span class="px-2 py-0.5 rounded text-xs font-semibold {{ \App\Support\GuestShell\GuestShellDiagnosis::badgeClasses($diag['tone']) }}" data-guest-shell-diag="{{ $diag['key'] }}">{{ $diag['label'] }}</span>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('ai.consumption_guest_hint') }}</p>
+        @if($diag['cause'] !== null || $diag['action'] !== null)
+        <div class="text-xs mb-4 space-y-0.5">
+            @if($diag['cause'] !== null)<p class="text-gray-600 dark:text-gray-300" data-guest-shell-diag-cause>{{ $diag['cause'] }}</p>@endif
+            @if($diag['action'] !== null)<p class="font-medium text-gray-900 dark:text-gray-100" data-guest-shell-diag-action>&rarr; {{ $diag['action'] }}</p>@endif
+            @if($diag['technical'] !== null)<p class="font-mono text-[11px] text-gray-400" data-guest-shell-diag-technical>{{ __('admin.guest_shell_diag_technical') }} {{ $diag['technical'] }}</p>@endif
+        </div>
+        @else
+        <div class="mb-4"></div>
+        @endif
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            @foreach(['visitor_messages', 'visitors', 'conversations', 'invocations', 'success', 'failed', 'known_cost_usd', 'cost_unknown'] as $key)
+            <div class="rounded-lg border border-gray-100 dark:border-gray-700 px-4 py-3" data-consumption-guest-metric="{{ $key }}" data-consumption-guest-value="{{ $guestShell['usage'][$key] }}">
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.guest_shell_metric_'.$key) }}</div>
+                <div class="text-xl font-semibold tabular-nums {{ $key === 'failed' && $guestShell['usage'][$key] > 0 ? 'text-red-600 dark:text-red-400' : ($key === 'cost_unknown' && $guestShell['usage'][$key] > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-gray-100') }}">{{ $key === 'known_cost_usd' ? $cost($guestShell['usage'][$key]) : $guestShell['usage'][$key] }}</div>
+            </div>
+            @endforeach
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-3">{{ __('admin.guest_shell_units_hint') }}</p>
+        {{-- TASK-1441 (MASTER Q69) : mode choisi par la plateforme et decision effective sur l'accueil public — lecture seule. --}}
+        <p class="text-xs text-gray-600 dark:text-gray-300 mt-2" data-consumption-guest-display>
+            {{ __('ai.consumption_guest_mode', ['mode' => __('admin.guest_shell_display_mode_'.$guestShell['state']->policy->display_mode)]) }}
+            — {{ $guestShell['display']->isVisible() ? __('ai.consumption_guest_effective_on', ['mode' => __('admin.guest_shell_display_mode_'.$guestShell['display']->mode)]) : __('ai.consumption_guest_effective_off', ['reason' => __('admin.guest_shell_display_reason_'.$guestShell['display']->reason)]) }}
+        </p>
+    </section>
+
     <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-6" data-consumption-budget-block>
         <div class="flex flex-wrap items-baseline justify-between gap-2 mb-4">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __('ai.consumption_budget_title') }}</h2>
@@ -148,8 +188,15 @@
                 ['key' => 'embedding_ingestion', 'label' => __('ai.economy_nature_embedding_ingestion'), 'count' => $economics['embedding_ingestion']['invocation_count'], 'known' => $economics['embedding_ingestion']['known_cost_usd'], 'unknown' => $economics['embedding_ingestion']['unknown_count'], 'failed' => $economics['embedding_ingestion']['failed_count']],
                 ['key' => 'embedding_query', 'label' => __('ai.economy_nature_embedding_query'), 'count' => $economics['embedding_query']['invocation_count'], 'known' => $economics['embedding_query']['known_cost_usd'], 'unknown' => $economics['embedding_query']['unknown_count'], 'failed' => $economics['embedding_query']['failed_count']],
                 ['key' => 'embedding_undeclared', 'label' => __('ai.economy_nature_embedding_undeclared'), 'count' => $economics['embedding_undeclared']['invocation_count'], 'known' => $economics['embedding_undeclared']['known_cost_usd'], 'unknown' => $economics['embedding_undeclared']['unknown_count'], 'failed' => $economics['embedding_undeclared']['failed_count']],
+                {{-- TASK-1562 : le rerank documentaire, rendu VISIBLE. Son cout
+                     est inconnu par nature (le SDK ne rend aucun usage sur un
+                     rerank) : il n'entre JAMAIS dans le cout connu ni dans le
+                     nombre d'appels. TASK-1586 (arbitrage MASTER 16/09) : ses
+                     inconnus COMPTENT dans « non mesures » (bandeau et lignes
+                     par utilisateur) — un inconnu ne devient jamais $0. --}}
+                ['key' => 'rerank', 'label' => __('ai.economy_nature_rerank'), 'count' => $economics['rerank']['invocation_count'], 'known' => $economics['rerank']['known_cost_usd'], 'unknown' => $economics['rerank']['unknown_count'], 'failed' => $economics['rerank']['failed_count']],
             ] as $nature)
-                @if($nature['count'] > 0 || $nature['key'] !== 'embedding_undeclared')
+                @if($nature['count'] > 0 || ! in_array($nature['key'], ['embedding_undeclared', 'rerank'], true))
                     <li class="flex flex-wrap items-center justify-between gap-2 py-2" data-consumption-nature="{{ $nature['key'] }}" data-consumption-nature-count="{{ $nature['count'] }}"@if($nature['failed'] !== null) data-consumption-nature-failed="{{ $nature['failed'] }}"@endif>
                         <span class="text-gray-900 dark:text-gray-100">{{ $nature['label'] }}</span>
                         <span class="tabular-nums text-xs text-gray-700 dark:text-gray-300">

@@ -1,0 +1,60 @@
+{
+  "lab_scenario_key": "LAB.TABLE_ORG_ROLE",
+  "organization": "ai-lab",
+  "loop": "L3",
+  "user": "lab.member.a",
+  "turns": [
+    {
+      "order": 1,
+      "surface": "loop_chat",
+      "mode": "dossiers",
+      "question": "Dans le tableau des équipes, qui est Team Lead de l'Atelier Capteurs et quel est son rôle ?",
+      "reply_to": null
+    }
+  ],
+  "execution": "new_execution",
+  "preconditions": {
+    "pack_loaded": "required",
+    "gold_exists": "required",
+    "gold_indexed": "required",
+    "gold_access": {
+      "expected": "allowed"
+    },
+    "derived_chunks_absent": "required",
+    "quota": "required"
+  },
+  "expected": {
+    "access": {
+      "status": "allowed",
+      "stage": "ai_pipeline"
+    },
+    "turn": "present",
+    "answer": {
+      "class": "factual",
+      "assertion": {
+        "type": "contains_all",
+        "values": [
+          "Bob Okafor",
+          "Intégrateur technique"
+        ]
+      }
+    },
+    "execution_path": "loop_chat.dossiers",
+    "steps": {
+      "conversation_history": "executed",
+      "economic_check": "executed",
+      "context_builder": "bypassed",
+      "grounding": "executed",
+      "provider_call": "executed"
+    },
+    "sources": {
+      "must_use_dossier": "L3",
+      "must_not_use_source_type": [
+        "derived_knowledge"
+      ]
+    },
+    "tenant": {
+      "must_not_leak": "SENTINEL-B"
+    }
+  }
+}

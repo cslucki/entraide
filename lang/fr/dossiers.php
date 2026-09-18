@@ -287,6 +287,16 @@ return [
     'insights_no_content' => 'Aucun document indexé n\'a été trouvé dans ce Dossier.',
     'insights_ai_error' => 'La génération de la synthèse a échoué.',
     'insights_empty_response' => 'Aucune synthèse fondée n\'a pu être produite à partir de ce Dossier.',
+    // TASK-1534 — le nom d'une source dérivée d'une conversation. Il doit dire
+    // DEUX choses au lecteur : que l'extrait vient de ce que des humains se
+    // sont dit, et de quelle Boucle. Sans les deux, la citation est invérifiable.
+    'derived_source_named' => 'Conversation de la Boucle « :loop »',
+    'derived_source_generic' => 'Conversation d\'une Boucle',
+    // TASK-1536 — la date QUALIFIE le propos, elle ne le decore pas. C'est
+    // `observed_at` (quand des humains l'ont dit), jamais `derived_at` (quand
+    // la machine a compile), qui n'apprendrait rien a personne.
+    'derived_source_named_at' => 'Conversation de la Boucle « :loop », propos du :date',
+    'derived_source_generic_at' => 'Conversation d\'une Boucle, propos du :date',
     // Rubriques de Smart Dossier Insights. Elles ne sont PAS de la chrome
     // d'ecran : elles sont dictees au modele dans la question preetablie,
     // relues par le parseur de la reponse, puis reemises dans le markdown
@@ -588,4 +598,70 @@ Votre contenu Markdown ici...',
     'drive_article_badge' => 'Article',
     'drive_empty_title' => 'Rien ici pour le moment',
     'drive_empty_desc' => 'Créez un dossier, importez un fichier ou écrivez un Article : tout se retrouvera ici.',
+
+    // ── TASK-1516 — Le Dossier repond ───────────────────────────────────────
+    'answer_label' => "Interroger ce Dossier",
+    'answer_title' => "Posez une question à ce Dossier",
+    'answer_help' => "La réponse s'appuie uniquement sur les documents de ce Dossier auxquels vous avez accès.",
+    'answer_placeholder' => "Votre question…",
+    'answer_button' => "Demander",
+    'answer_loading' => "Recherche dans les documents…",
+    'answer_sources_heading' => "Sources utilisées",
+    'answer_passages_show' => "Voir les passages utilisés",
+    'answer_passages_hide' => "Masquer les passages",
+    'answer_follow_ups_heading' => "Pour approfondir",
+    'answer_open_document' => "Ouvrir",
+    'answer_not_grounded' => "Cette réponse ne cite aucune source : traitez-la avec prudence.",
+    'answer_question_required' => "Posez une question avant de lancer la recherche.",
+    'answer_embedding_unavailable' => "La recherche documentaire n'est pas disponible pour cette organisation.",
+    'answer_no_source' => "Je n'ai pas trouvé suffisamment d'éléments dans ce Dossier pour répondre de façon fiable. Vous pouvez reformuler votre question, consulter les documents, ou nommer un document précis.",
+    'answer_no_source_in_file' => "Je n'ai rien trouvé sur ce sujet dans le document demandé. Vous pouvez reformuler, ou poser la question sur l'ensemble du Dossier.",
+    'answer_preset_instruction' => <<<'TEXT'
+Question du membre :
+:question
+
+Réponds à cette question en t'appuyant UNIQUEMENT sur les sources
+documentaires ci-dessus.
+
+Règles :
+
+1. Commence par le fait demandé, jamais par une reformulation de la
+   question. Si l'on demande ce qu'est un sigle, la première phrase
+   donne ce que LES SOURCES disent de ce sigle.
+2. Ajoute au plus quatre phrases de contexte. Sois bref.
+3. Cite tes sources avec leur numéro, par exemple « ... [S2] ».
+   N'invente JAMAIS une référence absente de la liste ci-dessus.
+4. Ne développe un sigle que si les sources portent elles-mêmes son
+   expansion, mot pour mot. Si tu ne l'y trouves pas, alors les mots
+   de cette expansion ne doivent apparaître SOUS AUCUNE FORME dans ta
+   réponse : ni entre parenthèses, ni entre guillemets, ni introduits
+   par « signifie », « désigne », « correspond à », « c'est-à-dire »
+   ou tout autre tour. Emploie le sigle tel quel et dis seulement ce
+   que les sources en disent. Un sigle très connu ne fait pas
+   exception : c'est ce Dossier qui fait foi, pas ta culture générale.
+5. Une quantité ne répond à la question que dans l'unité que la
+   question demande. Si l'on demande un montant d'argent et que les
+   sources ne donnent aucune valeur portant une devise, dis que les
+   sources n'établissent pas ce montant : ne présente jamais un total
+   d'une autre nature (heures, personnes-mois, effectifs, pourcentages)
+   comme un budget, et n'ajoute jamais une devise ou une unité que la
+   source ne porte pas pour cette valeur. Un total de tableau n'est
+   un budget que si son en-tête ou sa légende le dit : un total dont
+   la colonne s'appelle « PMs », « heures », « effectif » ou « % »
+   n'est PAS le budget, même si c'est le seul total disponible. Une
+   question peut présupposer qu'une valeur existe (« quel est le
+   budget total ? ») : ne confirme jamais cette présupposition avec
+   une valeur d'une autre nature — réponds que les sources ne
+   l'établissent pas.
+6. Si les sources ne suffisent pas à répondre de façon fiable, dis-le
+   franchement en une phrase et n'invente rien. N'utilise aucune
+   connaissance extérieure à ces sources.
+7. Termine par cette rubrique, et par elle seule :
+
+## :questions_heading
+Une liste à puces d'au plus TROIS questions courtes qu'un lecteur
+pourrait poser ensuite pour approfondir, répondables à partir de ce
+Dossier. Texte seul, sans citation.
+
+TEXT,
 ];

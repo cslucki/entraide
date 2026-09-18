@@ -10,6 +10,7 @@ use App\Models\Loop;
 use App\Models\Organization;
 use App\Support\Ai\AiEconomicGuard;
 use DomainException;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -506,22 +507,29 @@ class OrganizationRagOverview
      * NULL si la source n'existe pas dans CETTE Organization (tenant borne
      * avant toute lecture) — jamais une exception.
      *
-     * @return array{type: string, id: string, title: string, dossier_id: string, dossier_name: string, indexed: bool, chunks: list<array{chunk_index: int, content: string, token_count: int, indexed_at: ?string}>}|null
+     * TASK-1515 : `$limit` borne le nombre d'extraits RENDUS, jamais le
+     * compte annonce. `total_chunks` reste le total reel, compte en SQL :
+     * une console de plateforme peut tomber sur un document de plusieurs
+     * milliers d'extraits, et charger l'integralite en memoire pour n'en
+     * afficher que le debut serait une panne qui attend son fichier. `null`
+     * = tout rendre, comportement d'origine de la console d'Organization.
+     *
+     * @return array{type: string, id: string, title: string, dossier_id: string, dossier_name: string, indexed: bool, total_chunks: int, chunks: list<array{chunk_index: int, content: string, token_count: int, indexed_at: ?string}>}|null
      */
-    public function chunksFor(string $organizationId, string $type, string $sourceId): ?array
+    public function chunksFor(string $organizationId, string $type, string $sourceId, ?int $limit = null): ?array
     {
         if ($type === 'article') {
-            return $this->articleChunks($organizationId, $sourceId);
+            return $this->articleChunks($organizationId, $sourceId, $limit);
         }
 
         if ($type === 'file') {
-            return $this->fileChunks($organizationId, $sourceId);
+            return $this->fileChunks($organizationId, $sourceId, $limit);
         }
 
         return null;
     }
 
-    private function articleChunks(string $organizationId, string $sourceId): ?array
+    private function articleChunks(string $organizationId, string $sourceId, ?int $limit = null): ?array
     {
         $post = BlogPost::query()
             ->where('organization_id', $organizationId)
@@ -550,14 +558,13 @@ class OrganizationRagOverview
             return null;
         }
 
-        $chunks = DB::table('dossier_chunks')
+        $query = DB::table('dossier_chunks')
             ->where('organization_id', $organizationId)
             ->where('dossier_id', $dossier->id)
-            ->where('blog_post_id', $sourceId)
-            ->orderBy('chunk_index')
-            ->get(['chunk_index', 'content', 'token_count', 'indexed_at'])
-            ->map(fn (object $row): array => $this->mapChunkRow($row))
-            ->all();
+            ->where('blog_post_id', $sourceId);
+
+        $total = (int) (clone $query)->count();
+        $chunks = $this->readChunks($query, $limit);
 
         return [
             'type' => 'article',
@@ -565,12 +572,15 @@ class OrganizationRagOverview
             'title' => (string) $post->title,
             'dossier_id' => (string) $dossier->id,
             'dossier_name' => (string) $dossier->name,
-            'indexed' => $chunks !== [],
+            // « Indexe » se juge sur le TOTAL, jamais sur la page rendue :
+            // une borne a 0 ne doit pas faire passer un document pour vide.
+            'indexed' => $total > 0,
+            'total_chunks' => $total,
             'chunks' => $chunks,
         ];
     }
 
-    private function fileChunks(string $organizationId, string $sourceId): ?array
+    private function fileChunks(string $organizationId, string $sourceId, ?int $limit = null): ?array
     {
         $file = DossierFile::query()
             ->where('organization_id', $organizationId)
@@ -591,14 +601,13 @@ class OrganizationRagOverview
             return null;
         }
 
-        $chunks = DB::table('dossier_chunks')
+        $query = DB::table('dossier_chunks')
             ->where('organization_id', $organizationId)
             ->where('dossier_id', $dossier->id)
-            ->where('dossier_file_id', $sourceId)
-            ->orderBy('chunk_index')
-            ->get(['chunk_index', 'content', 'token_count', 'indexed_at'])
-            ->map(fn (object $row): array => $this->mapChunkRow($row))
-            ->all();
+            ->where('dossier_file_id', $sourceId);
+
+        $total = (int) (clone $query)->count();
+        $chunks = $this->readChunks($query, $limit);
 
         return [
             'type' => 'file',
@@ -606,9 +615,34 @@ class OrganizationRagOverview
             'title' => (string) ($file->display_name ?: $file->original_name),
             'dossier_id' => (string) $dossier->id,
             'dossier_name' => (string) $dossier->name,
-            'indexed' => $chunks !== [],
+            'indexed' => $total > 0,
+            'total_chunks' => $total,
             'chunks' => $chunks,
         ];
+    }
+
+    /**
+     * TASK-1515 : la selection de colonnes est ici, en un seul endroit, et
+     * elle est une LISTE BLANCHE — la PREMIERE des trois qui tiennent le
+     * vecteur a l'ecart. Les deux autres sont `mapChunkRow()`, qui nomme ses
+     * quatre clefs, et le partiel, qui lit champ par champ. Mesure : casser
+     * une seule des trois ne fait rien fuir ; c'est voulu, et c'est pourquoi
+     * le test de TASK-1515 mesure le RENDU et non cette liste.
+     *
+     * @return list<array{chunk_index: int, content: string, token_count: int, indexed_at: ?string}>
+     */
+    private function readChunks(Builder $query, ?int $limit): array
+    {
+        $query = (clone $query)->orderBy('chunk_index');
+
+        if ($limit !== null) {
+            $query->limit(max(0, $limit));
+        }
+
+        return $query->get(['chunk_index', 'content', 'token_count', 'indexed_at'])
+            ->map(fn (object $row): array => $this->mapChunkRow($row))
+            ->values()
+            ->all();
     }
 
     /**

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Ai\Agents\HelpRequestClarifierAgent;
+use App\Ai\Agents\ShellGeneralAnswerAgent;
 use App\Ai\CapabilityRegistry;
 use App\Ai\Context\ContextBuilder;
 use App\Ai\Context\ContexteBorne;
@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
-use Laravel\Ai\Responses\StructuredTextResponse;
+use Laravel\Ai\Responses\TextResponse;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -205,13 +205,20 @@ class TASK1370ProductSurfaceManifestTest extends TestCase
      * `situated()` et faisait tomber neuf de leurs assertions. L'autorite
      * appartient au contexte borne, pas au texte de la personne.
      */
-    public function test_the_user_question_reaches_the_prompt_byte_exact(): void
+    public function test_the_user_question_reaches_the_general_prompt_byte_exact_after_context(): void
     {
-        $this->fakeClarifier();
+        ShellGeneralAnswerAgent::fake([
+            new TextResponse('Voici comment cela fonctionne.', new Usage(80, 30), new Meta('openai', 'gpt-4o-mini')),
+        ]);
 
-        $this->send('Comment ça marche ici ?');
+        $question = 'Comment ça marche ici ?';
 
-        $this->assertSame('Comment ça marche ici ?', $this->lastPrompt());
+        $this->send($question);
+
+        $prompt = $this->lastPrompt();
+
+        $this->assertStringEndsWith("\n\n".$question, $prompt);
+        $this->assertSame(1, substr_count($prompt, $question));
     }
 
     /** 9. Les surfaces arrivent dans le CONTEXTE GOUVERNE, et y sont tracees. */
@@ -405,27 +412,5 @@ class TASK1370ProductSurfaceManifestTest extends TestCase
             ->orderByDesc('id')
             ->firstOrFail()
             ->prompt;
-    }
-
-    private function fakeClarifier(): void
-    {
-        $structured = [
-            'title' => '',
-            'clarified_request' => '',
-            'help_type' => 'information',
-            'suggested_loop_id' => '',
-            'suggested_category_id' => '',
-            'suggestion_reason' => '',
-            'questions_for_user' => [],
-            'confidence' => 0.9,
-            'needs_human_review' => false,
-        ];
-
-        HelpRequestClarifierAgent::fake(fn (): StructuredTextResponse => new StructuredTextResponse(
-            $structured,
-            json_encode($structured, JSON_UNESCAPED_UNICODE),
-            new Usage(120, 80),
-            new Meta('openai', 'gpt-4o-mini'),
-        ));
     }
 }

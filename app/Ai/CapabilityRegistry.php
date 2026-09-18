@@ -11,6 +11,29 @@ final class CapabilityRegistry
 
     public const CLARIFY_HELP_REQUEST = 'clarify_help_request';
 
+    /** TASK-1526 : reponse generale du Shell membre, distincte de la clarification d'entraide. */
+    public const SHELL_GENERAL_ANSWER = 'shell_general_answer';
+
+    /**
+     * TASK-1534 — compiler ce que des HUMAINS se sont dit dans une Boucle en
+     * connaissance durable et retrouvable.
+     *
+     * C'est la premiere capability du cote WRITE : elle ne repond a personne.
+     * Sa sortie n'est lue par aucun humain au moment ou elle est produite ;
+     * elle est rangee, indexee, et retrouvee plus tard.
+     */
+    public const LOOP_CONVERSATION_KNOWLEDGE = 'loop_conversation_knowledge';
+
+    /**
+     * TASK-1540 — le protocole de patch de la memoire de Boucle.
+     *
+     * Distincte de `LOOP_CONVERSATION_KNOWLEDGE` : elle ne produit pas un
+     * texte a ranger mais des OPERATIONS a valider, et sa depense se lit donc
+     * separement dans le ledger. Les confondre rendrait illisible le cout de
+     * la bascule claim-level.
+     */
+    public const LOOP_CLAIM_PATCH = 'loop_claim_patch';
+
     public const SCOPE_ORGANIZATION = 'organization';
 
     public const SCOPE_LOOP = 'loop';
@@ -46,6 +69,17 @@ final class CapabilityRegistry
      * qu'une recherche semantique sur des chunks ne peut pas atteindre.
      */
     public const SOURCE_DOSSIER_MANIFEST = 'dossier.manifest';
+
+    /**
+     * TASK-1543 : l'HISTOIRE de la memoire d'une Boucle — ce qui a ete ajoute,
+     * corrige ou retire, avec les preuves des deux cotes.
+     *
+     * Lecture de LIGNAGE, deterministe, sans recherche ni embedding. Une
+     * question de changement n'a aucun bon voisin vectoriel : le plus proche
+     * chunk de « change » est un paragraphe qui PARLE de changement. Meme
+     * argument que `dossier.manifest` pour les questions d'inventaire.
+     */
+    public const SOURCE_KNOWLEDGE_DELTA = 'knowledge.delta';
 
     /**
      * TASK-1213 : reponse documentaire sourcee depuis une Boucle. Read-only :
@@ -139,6 +173,32 @@ final class CapabilityRegistry
      */
     public const LOOP_DECISION_SUGGESTION = 'loop_decision_suggestion';
 
+    /**
+     * TASK-1435 — SW-5 : le Shell Welcome, pour un visiteur NON connecte. Scope
+     * Organization seulement ; sources = la whitelist PUBLIQUE (cadre Cyril §8) :
+     * jamais une Boucle, un Dossier, People, la memoire membre, le CRM, la
+     * doctrine interne, un autre visiteur, ni credentials/economie/admin.
+     */
+    public const GUEST_SHELL_WELCOME = 'guest_shell_welcome';
+
+    /** Ce que la landing publique montre deja a n'importe qui (nom, tagline, accroche, presentation). */
+    public const SOURCE_ORGANIZATION_PUBLIC_IDENTITY = 'organization.public_identity';
+
+    /** La Constitution IA de la plateforme (Mycelium public, /mycelium). */
+    public const SOURCE_PLATFORM_CONSTITUTION = 'platform.constitution';
+
+    /** La Constitution IA de l'Organization, SEULEMENT si elle l'a publiee (ai_constitution_public + version active). */
+    public const SOURCE_ORGANIZATION_CONSTITUTION_PUBLIC = 'organization.constitution_public';
+
+    /** TASK-1439 — UsageReference V1 (V3 §9, MASTER Q67) : « a quoi sert cette surface ? », texte cure plateforme, bloc entier apres l'identite, avant les Constitutions. */
+    public const SOURCE_USAGE_REFERENCE = 'usage_reference';
+
+    /** TASK-1440 — Guest PageContext V1 (V3 §10, MASTER Q68) : « ou se trouve exactement le visiteur ? », DTO borne issu d'une whitelist de routes, bloc entier apres la UsageReference, avant les Constitutions. */
+    public const SOURCE_PAGE_CONTEXT = 'page_context';
+
+    /** TASK-1461 — Growth V3 §17 : « ce qui est reellement possible ici, maintenant » — les ateliers PUBLIES a venir de l'Organization (titre, prochaine session, URL publique), derives des routes reelles, bornes ; jamais une documentation bis, jamais toutes les capabilities. */
+    public const SOURCE_WORKSHOPS_RUNTIME = 'workshops.runtime';
+
     /** @var array<string, CapabilityDefinition> */
     private array $definitions;
 
@@ -178,6 +238,24 @@ final class CapabilityRegistry
             contextCharBudget: self::clarifyContextBudget(),
         );
 
+        // TASK-1526 : le Shell ne demande plus au clarificateur de demandes
+        // d'aide de repondre aux questions generales. La capability reste
+        // strictement Organization-scoped et ne gagne aucune source
+        // documentaire. Elle reutilise le process economique historique du
+        // Shell : meme appel texte, meme budget, mais capability distincte et
+        // donc routage/trace observables sans nouveau cutover.
+        $shellGeneralAnswer = new CapabilityDefinition(
+            id: self::SHELL_GENERAL_ANSWER,
+            process: AiProcess::fromScenarioId('clarify_help_request'),
+            requiresHumanConfirmation: false,
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION],
+            allowedSources: [self::SOURCE_PRODUCT_SURFACES],
+            maxOutput: 2000,
+            promptKey: 'shell_general_answer',
+            contextCharBudget: self::clarifyContextBudget(),
+        );
+
         $loopKnowledgeAnswer = new CapabilityDefinition(
             id: self::LOOP_KNOWLEDGE_ANSWER,
             process: AiProcess::fromScenarioId('loop_knowledge_answer'),
@@ -190,7 +268,11 @@ final class CapabilityRegistry
             // les Dossiers savent. TASK-1307 : le manifest structurel est
             // declare EN PREMIER (petit, deterministe, prioritaire sur le
             // budget) — le retrieval semantique consomme le reste.
-            allowedSources: [self::SOURCE_DOSSIER_MANIFEST, self::SOURCE_DOSSIER_RETRIEVAL],
+            // TASK-1543 : l'histoire EN PREMIER, pour la meme raison que le
+            // manifest — petite, deterministe, et elle ne produit rien du tout
+            // hors d'une question de changement. Le retrieval semantique
+            // consomme le budget restant.
+            allowedSources: [self::SOURCE_KNOWLEDGE_DELTA, self::SOURCE_DOSSIER_MANIFEST, self::SOURCE_DOSSIER_RETRIEVAL],
             maxOutput: 4000,
             promptKey: 'loop_knowledge_answer',
             contextCharBudget: self::knowledgeContextBudget(),
@@ -216,7 +298,7 @@ final class CapabilityRegistry
             requiresHumanConfirmation: false,
             canWrite: false,
             allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
-            allowedSources: [self::SOURCE_DOSSIER_MANIFEST, self::SOURCE_DOSSIER_RETRIEVAL],
+            allowedSources: [self::SOURCE_KNOWLEDGE_DELTA, self::SOURCE_DOSSIER_MANIFEST, self::SOURCE_DOSSIER_RETRIEVAL],
             maxOutput: 4000,
             promptKey: 'loop_hybrid_answer',
             contextCharBudget: self::knowledgeContextBudget(),
@@ -335,9 +417,72 @@ final class CapabilityRegistry
             contextCharBudget: self::loopSummaryContextBudget(),
         );
 
+        $guestShellWelcome = new CapabilityDefinition(
+            id: self::GUEST_SHELL_WELCOME,
+            process: AiProcess::GUEST_SHELL,
+            requiresHumanConfirmation: false,
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION],
+            allowedSources: [
+                self::SOURCE_ORGANIZATION_PUBLIC_IDENTITY,
+                self::SOURCE_USAGE_REFERENCE,
+                self::SOURCE_PAGE_CONTEXT,
+                self::SOURCE_WORKSHOPS_RUNTIME,
+                self::SOURCE_PLATFORM_CONSTITUTION,
+                self::SOURCE_ORGANIZATION_CONSTITUTION_PUBLIC,
+            ],
+            // MASTER Q61 : UNE seule autorite de sortie — `ai.guest_shell.max_output_tokens` —
+            // lue ici (definition) et imposee cote serveur par la garde SW-6 (execution).
+            maxOutput: self::guestShellMaxOutput(),
+            promptKey: 'guest_shell_welcome',
+            contextCharBudget: self::guestShellContextBudget(),
+        );
+
+        // TASK-1534 — la compilation d'une conversation humaine.
+        //
+        // `allowedSources` : AUCUNE source du builder. Le materiau de cette
+        // capability n'est pas un contexte a assembler, c'est la conversation
+        // elle-meme, transmise par le service appelant qui seul a verifie les
+        // droits de la Boucle. Le registre exige neanmoins une source non
+        // vide ; `loop.messages` est donc declaree parce que c'est exactement
+        // ce que la capability lit — et le service la fournit deja bornee.
+        $loopConversationKnowledge = new CapabilityDefinition(
+            id: self::LOOP_CONVERSATION_KNOWLEDGE,
+            process: AiProcess::fromScenarioId('loop_conversation_knowledge'),
+            // Rien a confirmer : une note derivee n'est pas une publication
+            // humaine. Elle est revisable, et elle ne parait nulle part comme
+            // l'oeuvre de quelqu'un.
+            requiresHumanConfirmation: false,
+            // Elle n'ecrit aucun objet METIER. La note derivee qu'elle nourrit
+            // est de la memoire, pas une Interaction.
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
+            allowedSources: [self::SOURCE_LOOP_MESSAGES],
+            maxOutput: 1200,
+            promptKey: 'loop_conversation_knowledge',
+            contextCharBudget: self::loopSummaryContextBudget(),
+        );
+
+        $loopClaimPatch = new CapabilityDefinition(
+            id: self::LOOP_CLAIM_PATCH,
+            process: AiProcess::fromScenarioId('loop_claim_patch'),
+            requiresHumanConfirmation: false,
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
+            allowedSources: [self::SOURCE_LOOP_MESSAGES],
+            // Un patch porte N operations, chacune avec son texte et ses
+            // preuves : il lui faut plus de place qu'a un paragraphe unique.
+            maxOutput: 2000,
+            promptKey: 'loop_claim_patch',
+            contextCharBudget: self::loopSummaryContextBudget(),
+        );
+
         $this->definitions = [
             $loopSummary->id => $loopSummary,
+            $loopConversationKnowledge->id => $loopConversationKnowledge,
+            $loopClaimPatch->id => $loopClaimPatch,
             $clarifyHelpRequest->id => $clarifyHelpRequest,
+            $shellGeneralAnswer->id => $shellGeneralAnswer,
             $loopKnowledgeAnswer->id => $loopKnowledgeAnswer,
             $loopHybridAnswer->id => $loopHybridAnswer,
             $loopAnswer->id => $loopAnswer,
@@ -347,6 +492,7 @@ final class CapabilityRegistry
             $memberProfileLoopReply->id => $memberProfileLoopReply,
             $memberProfileVisitorChat->id => $memberProfileVisitorChat,
             $loopDecisionSuggestion->id => $loopDecisionSuggestion,
+            $guestShellWelcome->id => $guestShellWelcome,
         ];
     }
 
@@ -434,6 +580,34 @@ final class CapabilityRegistry
         }
 
         return (int) config('ai.member_profile.max_context_chars', $default);
+    }
+
+    /**
+     * TASK-1435 — budget de contexte du Shell Welcome : identite publique +
+     * Constitutions ; tres en deca du Shell membre, car le materiau est court
+     * et public par definition.
+     */
+    private static function guestShellContextBudget(): int
+    {
+        $default = 6000;
+
+        if (! function_exists('app') || ! app()->bound('config')) {
+            return $default;
+        }
+
+        return (int) config('ai.guest_shell.max_context_chars', $default);
+    }
+
+    /** TASK-1435 / MASTER Q61 : la borne de sortie du Shell Welcome, jamais dupliquee, jamais fournie par le visiteur. */
+    private static function guestShellMaxOutput(): int
+    {
+        $default = 650;
+
+        if (! function_exists('app') || ! app()->bound('config')) {
+            return $default;
+        }
+
+        return (int) config('ai.guest_shell.max_output_tokens', $default);
     }
 
     public function has(string $capability): bool

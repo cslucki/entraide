@@ -24,7 +24,10 @@ $primaryCtaUrl = $safeUrl($settings['primary_cta_url'] ?? null, route('organizat
 $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organization.loops.index', $organization));
 ?>
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+{{-- TASK-1471 : la cle de theme est posee cote SERVEUR. Un visiteur anonyme
+     doit voir les couleurs de l'Organization qu'il consulte, jamais une
+     preference de theme laissee dans son navigateur par une autre page. --}}
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-bp-theme="{{ bp_organization_theme_key($organization) }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -34,6 +37,8 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css">
 <link rel="stylesheet" href="{{ asset('css/bouclepro-hero.css') }}?v={{ filemtime(public_path('css/bouclepro-hero.css')) }}">
+{{-- TASK-1471 : le MEME producteur de tokens que les layouts applicatifs. --}}
+<x-theme-tokens />
 </head>
 <body class="bp-hero-v2">
 <div class="page">
@@ -64,6 +69,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
       <button class="burger" aria-label="{{ __('common.open_menu') }}" aria-expanded="false" aria-controls="m-menu"><i class="ti ti-menu-2"></i></button>
     </nav>
   </header>
+  @include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'top'])
 
   {{-- MOBILE MENU --}}
   <div class="m-menu" id="m-menu" hidden>
@@ -192,6 +198,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
       </div>
     </section>
 
+  @include('organization.partials.workshops-block', ['publicWorkshops' => $publicWorkshops ?? collect(), 'organization' => $organization])
   </main>
 
   {{-- FOOTER --}}
@@ -254,5 +261,6 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
   document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
 })();
 </script>
+@include('organization.partials.guest-shell-overlay', ['guestShell' => $guestShell ?? null, 'organization' => $organization, 'position' => 'bottom'])
 </body>
 </html>

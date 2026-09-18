@@ -13,10 +13,15 @@ use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
 use App\Services\ChatLoop\AiResponseExplanationService;
 use App\Services\ChatLoop\ChatLoopAiService;
+use App\Services\Knowledge\ClaimPatch;
+use App\Services\Knowledge\HumanClaimCorrection;
+use App\Services\Knowledge\LoopMemoryDigest;
 use App\Services\LoopMessageService;
 use App\Services\Loops\LoopAnswerCapitalizationService;
+use App\Services\Loops\LoopDossierAnswerService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Services\UrlPreviewService;
+use App\Support\Ai\AiExecutionPath;
 use App\Support\Ai\AiTurnLock;
 use App\Support\Ai\LoopAiTurnSignal;
 use App\Support\Loops\LoopPermissionResolver;
@@ -26,6 +31,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\WebpEncoder;
 use Intervention\Image\Laravel\Facades\Image;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -38,6 +44,21 @@ class LoopChat extends Component
 
     public string $body = '';
 
+    /**
+     * L'adhésion ACTIVE de ce spectateur, conclue à chaque requête par
+     * {@see self::booted()}.
+     *
+     * `#[Locked]` — REMÉDIATION R2 (audit Codex F5). Livewire applique les
+     * mises à jour du client APRÈS `booted()` : une requête portant à la fois
+     * `isMember: true` et un appel de méthode écrasait donc la conclusion
+     * serveur pour toute la durée de cet appel. Aucune écriture n'en découlait
+     * — `AiResponseExplanationService::canView()` et `HumanClaimCorrection`
+     * relisent l'adhésion en base — mais la couche d'honnêteté d'affichage,
+     * elle, s'ouvrait, et le refus final se présentait comme un conflit de
+     * concurrence au lieu d'un refus de droit. Ce verrou ferme l'honnêteté
+     * Livewire ; il ne déplace AUCUNE autorité métier vers la vue.
+     */
+    #[Locked]
     public bool $isMember = false;
 
     public ?string $replyToMessageId = null;
@@ -64,6 +85,41 @@ class LoopChat extends Component
      * @var list<string>
      */
     private const COMPOSER_MODES = ['normal', 'ia', 'dossiers', 'ia_dossiers'];
+
+    /**
+     * TASK-1549 : les deux gestes de correction, et le seul endroit où cette
+     * liste existe. `startCorrection()` comme `submitCorrection()` s'y
+     * réfèrent — aucune des deux ne fait autorité toute seule.
+     */
+    public const MODE_RETRACT = 'retract';
+
+    public const MODE_UPDATE = 'update';
+
+    /** @var list<string> */
+    private const CORRECTION_MODES = [self::MODE_RETRACT, self::MODE_UPDATE];
+
+    /**
+     * TASK-1550 : les deux ANCRES depuis lesquelles un énoncé mémoire peut être
+     * corrigé — et il n'y en aura pas de troisième sans décision.
+     *
+     * L'ancre n'est pas un second chemin de correction : le moteur
+     * (`HumanClaimCorrection`), les gardes, les trois issues et les clés de
+     * langue sont les mêmes. Ce qui change, et seulement cela, c'est **comment
+     * l'énoncé est adressé** :
+     *
+     *  - `why`    — une bulle IA et sa référence de citation (`S1`…), T1549 ;
+     *  - `digest` — la carte « Depuis cet échange… » et un jeton d'énoncé,
+     *               opaque et lié au sujet ({@see LoopMemoryDigest::jeton()}).
+     *
+     * Chaque ancre a sa propre carte de versions figées, et la soumission ne
+     * lit QUE celle de l'ancre du formulaire ouvert.
+     */
+    public const ANCRE_WHY = 'why';
+
+    public const ANCRE_DIGEST = 'digest';
+
+    /** @var list<string> */
+    private const ANCRES = [self::ANCRE_WHY, self::ANCRE_DIGEST];
 
     public $photo = null;
 
@@ -108,10 +164,197 @@ class LoopChat extends Component
      * `wire:poll` de la page (même motif que `$capitalizingMessageId`).
      * `$whyPanel` ne contient QUE ce que le service a jugé montrable à CE
      * spectateur : il voyage dans le snapshot, qui est lisible côté client.
+     *
+     * `#[Locked]` — REMÉDIATION R2 (audit Codex F1). Cette propriété désigne
+     * la bulle dont les citations seront RE-RÉSOLUES à la soumission d'une
+     * correction : c'est elle, et non la référence affichée, qui décide quel
+     * énoncé est muté. Laissée réinscriptible, elle rendait le verrou de
+     * `$correctingRef` inopérant — un formulaire ouvert sur la bulle X
+     * rétractait l'énoncé cité par la bulle Y dès que les deux nommaient leur
+     * source `S1` et partageaient un numéro de version, avec ACCUSÉ DE
+     * RÉCEPTION POSITIF. Le verrou ne suffit pas à lui seul : voir
+     * `$whyMemoryVersions`, dont la clé porte désormais le message.
      */
+    #[Locked]
     public ?string $whyMessageId = null;
 
     public ?array $whyPanel = null;
+
+    /**
+     * TASK-1549 : le spectateur peut-il CONTRIBUER ici — calculé à l'ouverture
+     * du panneau, côté serveur, pour que la vue n'offre jamais un geste
+     * impossible. Les vraies gardes restent dans le service à la soumission.
+     */
+    public bool $whyCanCorrect = false;
+
+    /**
+     * TASK-1549 : la version de chaque énoncé mémoire AU MOMENT où le panneau
+     * l'a affiché. C'est la version que la personne a LUE — l'idempotence de
+     * T1548 corrige une VERSION, jamais un sujet. `#[Locked]` : le poll ne la
+     * fait pas bouger, et le client ne peut pas la forger.
+     *
+     * REMÉDIATION R2 (audit Codex F1) — la clé porte le MESSAGE, pas seulement
+     * la référence : `"<message_id>|S1" => version`.
+     *
+     * Indexée par la seule référence affichée, cette carte ne disait pas DE
+     * QUELLE BULLE la version venait. Deux bulles qui nomment toutes deux leur
+     * source `S1`, sur deux sujets différents en même version, satisfaisaient
+     * donc trivialement la garde d'appariement : `S1 == S1`, `1 == 1`. La
+     * garde comparait deux valeurs vraies pour conclure à un couple qu'elle
+     * n'avait jamais vérifié.
+     *
+     * La clé composite fait porter au couple ce qui l'identifie réellement.
+     * C'est la défense en profondeur du verrou ci-dessus : même si
+     * `$whyMessageId` redevenait réinscriptible, `"<Y>|S1"` serait absent
+     * d'une carte figée sur X, et rien ne s'écrirait.
+     *
+     * @var array<string, int>
+     */
+    #[Locked]
+    public array $whyMemoryVersions = [];
+
+    /**
+     * TASK-1550 : la carte « Depuis cet échange, BouclePro a retenu… ».
+     * `null` = rien à dire, et c'est le cas le plus fréquent.
+     *
+     * ÉTAT du composant, recalculé à chaque render — « l'état courant des
+     * claims au rendu » est une exigence produit, pas un détail : la carte ne
+     * doit jamais montrer une mémoire périmée.
+     *
+     * SAUF pendant qu'un formulaire de correction de la carte est ouvert. Le
+     * `wire:poll.3s` ferait alors disparaître l'entrée sous la main de la
+     * personne — avec le texte qu'elle est en train d'écrire. Gelée, la carte
+     * reste celle qu'elle a LUE, et une version devenue périmée est refusée par
+     * l'idempotence de T1548 **avant toute écriture** (`version_perimee` rend
+     * `message_id = null`) : le conflit est donc « rien n'a été enregistré »,
+     * jamais un message public orphelin.
+     */
+    public ?array $digestPanel = null;
+
+    /**
+     * La version de chaque énoncé de la carte, au moment où la carte l'a
+     * affiché — même rôle que `$whyMemoryVersions`, même verrou.
+     *
+     * La clé est le jeton lui-même : il est déjà dérivé du sujet ET de la
+     * Boucle, donc il identifie ce qu'il adresse. C'est ce qui rend ici
+     * structurellement impossible la confusion que le triplet de T1549 doit
+     * garder : deux entrées ne peuvent pas partager une adresse.
+     *
+     * @var array<string, int>
+     */
+    #[Locked]
+    public array $digestMemoryVersions = [];
+
+    /**
+     * La carte a-t-elle été renvoyée pour CETTE session de composant ?
+     *
+     * Ce n'est PAS un accusé de lecture et cela ne prétend pas en être un :
+     * rien n'est persisté, un rechargement la fait revenir. Le produit ne porte
+     * aucune position de lecture de Boucle (mesure du Gate SPEC), et cette
+     * TASK n'en crée pas.
+     */
+    public bool $digestDismissed = false;
+
+    /**
+     * Le spectateur peut-il CONTRIBUER ici — recalculé à chaque render, même
+     * rôle et même limite que `$whyCanCorrect` : de l'honnêteté d'affichage,
+     * jamais une garde.
+     */
+    public bool $digestCanCorrect = false;
+
+    /**
+     * TASK-1550 : l'ANCRE du formulaire ouvert — `why` ou `digest`.
+     *
+     * `#[Locked]` pour la même raison que l'adresse et la version : elle décide
+     * quelle carte figée fait autorité et comment l'énoncé est re-résolu côté
+     * serveur. Réinscriptible, elle aurait permis de soumettre une adresse de
+     * carte contre la carte du panneau, ou l'inverse.
+     */
+    #[Locked]
+    public ?string $correctingAnchor = null;
+
+    /**
+     * TASK-1549 : formulaire « Corriger ». `null` = fermé. L'adresse est la
+     * référence de source AFFICHÉE (`S1`…) — jamais `subject_key`, qui est
+     * une identité choisie par le modèle : le service la RETROUVE parmi les
+     * énoncés actifs, elle n'entre pas dans le snapshot Livewire.
+     *
+     * `#[Locked]` — REMÉDIATION TASK-1549. Sans ce verrou, l'ADRESSE était
+     * réécrivable par le client alors que la VERSION, elle, était figée : le
+     * couple se décorrélait, et un formulaire ouvert sur `S1` rétractait `S2`
+     * dès que les deux sujets partageaient un numéro de version — avec un
+     * ACCUSÉ DE RÉCEPTION POSITIF.
+     *
+     * Le coût n'était pas seulement un mauvais sujet muté. La forge aurait
+     * créé SUR S2 une frontière humaine AUTO-COHÉRENTE MAIS FAUSSE, fondée sur
+     * un message qui parle de S1. Elle aurait ensuite influencé
+     * l'apprentissage et les corrections FUTURS DE S2 — et potentiellement les
+     * `ADD` Loop-wide soumis au compromis fail-closed.
+     *
+     * Rien dans les données ne permettrait de voir l'écart : la frontière est
+     * cohérente avec elle-même, seul son rattachement est faux.
+     */
+    #[Locked]
+    public ?string $correctingRef = null;
+
+    /**
+     * La bulle DEPUIS LAQUELLE le formulaire a été ouvert, figée elle aussi
+     * (REMÉDIATION R2, audit Codex F1). La soumission exige que la bulle
+     * affichée soit encore celle-ci : l'adresse, la version ET le message
+     * forment un TRIPLET, capturé ensemble et revérifié ensemble.
+     */
+    #[Locked]
+    public ?string $correctingMessageId = null;
+
+    /** La version LUE, figée à l'ouverture du formulaire. */
+    #[Locked]
+    public int $correctingVersion = 0;
+
+    /**
+     * `retract` (« ce n'est plus vrai ») ou `update` (« c'est devenu… »).
+     *
+     * `#[Locked]` — REMÉDIATION R2 (audit Codex F2). Ce champ décide entre une
+     * réécriture et une SUPPRESSION d'énoncé. `startCorrection()` contrôlait
+     * son domaine, `submitCorrection()` ne le refaisait pas : une valeur hors
+     * domaine retombait silencieusement sur `retract` — l'opération
+     * destructrice — en sautant au passage la validation du nouvel énoncé, et
+     * en rendant un ACCUSÉ DE RÉCEPTION POSITIF pour un geste que la personne
+     * n'avait pas demandé. Le mode se change désormais par une ACTION
+     * ({@see self::setCorrectionMode()}), jamais par liaison de propriété.
+     */
+    #[Locked]
+    public string $correctingMode = self::MODE_RETRACT;
+
+    /** La phrase humaine — obligatoire : c'est la PREUVE, visible dans la Boucle. */
+    public string $correctionText = '';
+
+    /** Le nouvel énoncé, mode `update` seulement. */
+    public string $correctionNewText = '';
+
+    /**
+     * ACK de correction en propriété publique, jamais en flash de session —
+     * même piège T1213 que `$capitalizeFlash` : le `wire:poll` consommerait
+     * le flash avant que la personne ne le lise.
+     */
+    public string $correctionFlash = '';
+
+    /**
+     * L'un des DEUX états de conflit, en langage humain — jamais une raison
+     * technique. Avant message : rien n'est enregistré. Après message : le
+     * message humain reste, la mémoire n'est pas corrigée.
+     */
+    public ?string $correctionConflict = null;
+
+    /**
+     * TASK-1550 : l'ancre qui a PRODUIT l'ACK ou le conflit affiché.
+     *
+     * Deux surfaces peuvent désormais rendre le même message, et sans cette
+     * marque elles le rendraient TOUTES LES DEUX : une correction faite depuis
+     * le panneau « Pourquoi ? » aurait fait apparaître son accusé de réception
+     * dans la carte aussi, comme si la carte avait été corrigée. Le résultat
+     * d'un geste s'affiche là où le geste a été fait.
+     */
+    public ?string $correctionFeedbackAnchor = null;
 
     public function mount(Loop $loop): void
     {
@@ -509,7 +752,12 @@ class LoopChat extends Component
     private function respondWithDossiers(LoopMessage $message, string $question, User $user): void
     {
         try {
-            $answer = app(LoopKnowledgeAnswerService::class)
+            // TASK-1595 : le mode Dossiers passe par le moteur documentaire
+            // CANONIQUE — celui de « Posez une question a ce Dossier » —, sur
+            // le Dossier RACINE de la Boucle. L'adaptateur porte le chemin
+            // `loop_chat.dossiers` (C15 : le point d'entree nomme le sien) et
+            // le contrat de publication ; il ne decide de rien d'autre.
+            $answer = app(LoopDossierAnswerService::class)
                 ->answer($this->loop, $user, $question, inThreadTrigger: $message);
 
             if ($answer->interactionId === null) {
@@ -538,10 +786,58 @@ class LoopChat extends Component
     {
         try {
             app(LoopKnowledgeAnswerService::class)
-                ->answerHybrid($this->loop, $user, $question, inThreadTrigger: $message);
+                ->answerHybrid($this->loop, $user, $question, inThreadTrigger: $message, executionPath: AiExecutionPath::LOOP_CHAT_IA_DOSSIERS);
         } catch (\RuntimeException $exception) {
             $this->addError('body', $exception->getMessage());
         }
+    }
+
+    /**
+     * TASK-1595 : une question d'approfondissement devient un tour Dossiers.
+     *
+     * Le clic RESTE dans la Boucle. Il ne prepare rien ailleurs, n'ouvre aucun
+     * Shell et n'invente aucun moteur : il repose exactement la question dans
+     * le composeur, en mode `dossiers`, et emprunte donc le chemin
+     * `loop_chat.dossiers` comme n'importe quel envoi. C'est la difference avec
+     * la page Dossier, dont les memes boutons ouvrent le Shell (CDC §6) : la,
+     * il n'y a pas de fil ou poursuivre ; ici, il y en a un.
+     *
+     * L'INDEX voyage, jamais le texte. La question est relue dans la bulle —
+     * elle-meme relue DANS cette Boucle — pour que ce qui part dans le fil soit
+     * ce que le serveur a propose, et pas une chaine reecrite par le client.
+     */
+    public function askFollowUp(string $messageId, int $index, LoopMessageService $service): void
+    {
+        $user = auth()->user();
+
+        if (! $this->canContribute($user)) {
+            return;
+        }
+
+        $bulle = LoopMessage::where('id', $messageId)
+            ->where('loop_id', $this->loop->id)
+            ->where('type', 'ai')
+            ->first();
+
+        if (! $bulle) {
+            return;
+        }
+
+        $questions = $bulle->metadata['follow_up_questions'] ?? null;
+        $question = is_array($questions) ? ($questions[$index] ?? null) : null;
+
+        if (! is_string($question) || trim($question) === '') {
+            return;
+        }
+
+        // Un reply en cours ne doit pas capturer cet envoi : la question est un
+        // nouveau message du fil. `cancelReply()` remet le mode a `normal` —
+        // d'ou l'ordre, qui n'est pas cosmetique.
+        $this->cancelReply();
+        $this->composerMode = 'dossiers';
+        $this->body = $question;
+
+        $this->sendMessage($service);
     }
 
     /**
@@ -615,14 +911,78 @@ class LoopChat extends Component
             return;
         }
 
-        $this->whyMessageId = $message->id;
-        $this->whyPanel = $panel;
+        // REMÉDIATION TASK-1549 : aucune correction ne survit à un changement
+        // de contexte. `closeWhy()` fermait déjà le formulaire, `showWhy()` ne
+        // le faisait PAS — ouvrir « Pourquoi ? » sur une autre bulle laissait
+        // donc le formulaire ouvert, collé à un énoncé différent, en gardant
+        // la version figée de l'ANCIEN. Sans la moindre forge : la personne
+        // lisait une assertion et en corrigeait une autre, ou lisait « ce point
+        // a changé entre-temps » alors que rien n'avait changé.
+        $this->cancelCorrection();
+
+        $this->whyMessageId = (string) $message->id;
+        $this->applyWhyPanel((string) $message->id, $panel);
+        $this->whyCanCorrect = $this->canContribute($user);
+        $this->correctionFlash = '';
+        $this->correctionConflict = null;
+        $this->correctionFeedbackAnchor = null;
     }
 
     public function closeWhy(): void
     {
         $this->whyMessageId = null;
         $this->whyPanel = null;
+        $this->whyCanCorrect = false;
+        $this->whyMemoryVersions = [];
+        $this->correctionFlash = '';
+        $this->correctionConflict = null;
+        $this->correctionFeedbackAnchor = null;
+        $this->cancelCorrection();
+    }
+
+    /**
+     * TASK-1549 : poser le panneau ET figer la version de chaque énoncé
+     * mémoire que la personne est en train de LIRE — c'est cette version-là,
+     * et aucune autre, qu'une correction visera.
+     *
+     * REMÉDIATION R2 (F1) : la carte est indexée par BULLE ET par référence.
+     * Le message est passé explicitement plutôt que relu sur `$this` — ce que
+     * la carte décrit, c'est le panneau qu'on est en train de poser, jamais
+     * l'état courant du composant.
+     *
+     * @param  array<string, mixed>  $panel
+     */
+    private function applyWhyPanel(string $messageId, array $panel): void
+    {
+        $this->whyPanel = $panel;
+
+        $versions = [];
+
+        foreach ($panel['ledger']['memory']['entries'] ?? [] as $entry) {
+            // Seules les entrées CORRIGEABLES entrent dans la carte : une
+            // référence cross-Loop ou rétractée n'a pas de version à viser,
+            // et `startCorrection` la refusera donc d'emblée — même forgée.
+            if (is_array($entry)
+                && is_string($entry['ref'] ?? null)
+                && is_int($entry['subject_version'] ?? null)
+                && ($entry['can_correct'] ?? false) === true) {
+                $versions[$this->cleMemoire($messageId, $entry['ref'])] = $entry['subject_version'];
+            }
+        }
+
+        $this->whyMemoryVersions = $versions;
+    }
+
+    /**
+     * L'adresse d'un énoncé mémoire DANS LE PANNEAU D'UNE BULLE DONNÉE.
+     *
+     * Une référence (`S1`) n'est unique qu'à l'intérieur d'une réponse : c'est
+     * un numéro d'ordre de citation, pas une identité. Le couple bulle +
+     * référence, lui, désigne une seule chose.
+     */
+    private function cleMemoire(string $messageId, string $ref): string
+    {
+        return $messageId.'|'.$ref;
     }
 
     /**
@@ -649,6 +1009,417 @@ class LoopChat extends Component
 
         if ($service->submitFeedback($this->loop, $message, $user, $verdict)) {
             $this->whyPanel = $service->explain($this->loop, $message, $user) ?? $this->whyPanel;
+        }
+    }
+
+    /**
+     * TASK-1549 : ouvrir le formulaire « Corriger » sur un énoncé mémoire du
+     * panneau. La version visée est copiée depuis `$whyMemoryVersions` — la
+     * version que la personne a LUE à l'ouverture du panneau, figée côté
+     * serveur — jamais relue au render : le `wire:poll.3s` la ferait bouger
+     * sous la main, et la personne corrigerait une version qu'elle n'a pas
+     * lue.
+     *
+     * TASK-1550 : `$ancre` ouvre le MÊME formulaire depuis la carte « Depuis
+     * cet échange… ». Le paramètre est en dernière position et vaut `why` par
+     * défaut — la signature de T1549 est donc inchangée, et son contrat avec
+     * elle. Un mode ou une ancre hors domaine n'ouvre rien.
+     */
+    public function startCorrection(string $ref, string $mode, string $ancre = self::ANCRE_WHY): void
+    {
+        $user = auth()->user();
+
+        // REMÉDIATION TASK-1549 : un droit tombé se DIT. Un `return` muet
+        // laissait la personne cliquer dans le vide — « un refus silencieux
+        // passe pour une panne » (même motif que le composeur).
+        if (! $this->canContribute($user)) {
+            $this->cancelCorrection();
+            $this->whyCanCorrect = false;
+            $this->digestCanCorrect = false;
+            $this->correctionConflict = __('loops.correct_refused_right');
+            $this->correctionFeedbackAnchor = in_array($ancre, self::ANCRES, true) ? $ancre : self::ANCRE_WHY;
+
+            return;
+        }
+
+        if (! in_array($mode, self::CORRECTION_MODES, true) || ! in_array($ancre, self::ANCRES, true)) {
+            return;
+        }
+
+        if ($ancre === self::ANCRE_WHY && $this->whyMessageId === null) {
+            return;
+        }
+
+        $cle = $ancre === self::ANCRE_DIGEST
+            ? $ref
+            : $this->cleMemoire((string) $this->whyMessageId, $ref);
+
+        $carte = $ancre === self::ANCRE_DIGEST ? $this->digestMemoryVersions : $this->whyMemoryVersions;
+
+        if (! array_key_exists($cle, $carte)) {
+            return;
+        }
+
+        // Le QUADRUPLET est capturé ICI, ensemble : l'ancre lue, la bulle lue
+        // (pour l'ancre `why`), la référence lue, la version lue. C'est lui, et
+        // lui seul, que la soumission aura le droit de mettre à exécution.
+        $this->correctingAnchor = $ancre;
+        $this->correctingMessageId = $ancre === self::ANCRE_DIGEST ? null : $this->whyMessageId;
+        $this->correctingRef = $ref;
+        $this->correctingVersion = $carte[$cle];
+        $this->correctingMode = $mode;
+        $this->correctionText = '';
+        $this->correctionNewText = '';
+        $this->correctionConflict = null;
+        $this->correctionFlash = '';
+        $this->correctionFeedbackAnchor = null;
+        $this->resetErrorBag(['correctionText', 'correctionNewText']);
+    }
+
+    /**
+     * Changer de geste sans fermer le formulaire. C'est une ACTION et non une
+     * liaison de propriété (REMÉDIATION R2, F2) : `$correctingMode` est
+     * `#[Locked]`, donc le domaine se contrôle à l'entrée, une fois, au lieu
+     * d'être supposé partout en aval.
+     */
+    public function setCorrectionMode(string $mode): void
+    {
+        if ($this->correctingRef === null || ! in_array($mode, self::CORRECTION_MODES, true)) {
+            return;
+        }
+
+        $this->correctingMode = $mode;
+        $this->resetErrorBag(['correctionText', 'correctionNewText']);
+    }
+
+    public function cancelCorrection(): void
+    {
+        $this->correctingAnchor = null;
+        $this->correctingMessageId = null;
+        $this->correctingRef = null;
+        $this->correctingVersion = 0;
+        $this->correctingMode = self::MODE_RETRACT;
+        $this->correctionText = '';
+        $this->correctionNewText = '';
+        $this->resetErrorBag(['correctionText', 'correctionNewText']);
+    }
+
+    /**
+     * TASK-1549 : soumettre la correction. Le composant ne décide RIEN —
+     * la référence affichée est re-résolue MAINTENANT par le service
+     * (`citedMemoryNote`), et `HumanClaimCorrection` refait toutes ses
+     * gardes. Il rend `{ok, raison, message_id}` : `message_id === null`
+     * signifie qu'AUCUNE trace n'existe (pas même un message) ;
+     * `message_id !== null` avec `ok === false` signifie que le message
+     * humain est bien dans la Boucle mais que la mémoire n'a pas bougé.
+     * Aucune raison technique n'atteint l'écran : elle CHOISIT le message,
+     * elle n'est pas le message.
+     *
+     * Fermer AVANT d'annoncer (motif T1310) : le formulaire disparaît, une
+     * seconde soumission n'a plus d'état — et côté serveur, l'idempotence de
+     * version de T1548 ferme la fenêtre restante.
+     */
+    public function submitCorrection(
+        HumanClaimCorrection $correction,
+        AiResponseExplanationService $service,
+        // TASK-1550 : la dépendance est DÉCLARÉE — Livewire l'injecte comme les
+        // deux autres — mais elle est optionnelle pour une raison précise :
+        // trois tests de T1549 appellent cette méthode directement, en
+        // contournant l'injection, afin de forcer un état hors domaine. Un
+        // paramètre obligatoire aurait exigé de réécrire des appels dans le
+        // filet de régression qui garde exactement le comportement qu'on
+        // étend ici. Le filet reste donc à diff NUL.
+        ?LoopMemoryDigest $digest = null,
+    ): void {
+        $digest ??= app(LoopMemoryDigest::class);
+        $user = auth()->user();
+
+        if (! $this->canContribute($user)) {
+            // Le droit est tombé pendant que le panneau était ouvert. Le
+            // service refuserait de toute façon — mais il ne doit même pas
+            // être appelé, et surtout la personne doit LIRE le refus.
+            $this->correctionFeedbackAnchor = in_array((string) $this->correctingAnchor, self::ANCRES, true)
+                ? (string) $this->correctingAnchor
+                : self::ANCRE_WHY;
+            $this->cancelCorrection();
+            $this->whyCanCorrect = false;
+            $this->digestCanCorrect = false;
+            $this->correctionConflict = __('loops.correct_refused_right');
+
+            return;
+        }
+
+        if ($this->correctingRef === null || ! in_array((string) $this->correctingAnchor, self::ANCRES, true)) {
+            return;
+        }
+
+        // L'ancre `why` exige en plus que la bulle du quadruplet soit encore
+        // celle que le panneau affiche : c'est la garde R2 de T1549, intacte.
+        if ($this->correctingAnchor === self::ANCRE_WHY
+            && ($this->whyMessageId === null || $this->correctingMessageId === null)) {
+            return;
+        }
+
+        // REMÉDIATION R2 (F2) — le domaine du mode se revérifie ICI, au point
+        // d'écriture. `#[Locked]` empêche le client de l'écrire ; il n'empêche
+        // pas ce code de lire une valeur qu'il n'a jamais contrôlée. Une
+        // valeur hors domaine ne retombe PAS sur le geste destructeur : elle
+        // ne fait rien, et se dit.
+        if (! in_array($this->correctingMode, self::CORRECTION_MODES, true)) {
+            $this->correctionFeedbackAnchor = (string) $this->correctingAnchor;
+            $this->cancelCorrection();
+            $this->correctionConflict = __('loops.correct_conflict_before');
+
+            return;
+        }
+
+        // REMÉDIATION TASK-1549 — `MIN_TEXTE` validé ICI, AVANT tout appel.
+        //
+        // `ClaimPatch::valider()` refuse un énoncé de moins de 15 caractères,
+        // mais ce refus arrive APRÈS que `HumanClaimCorrection` a déjà publié
+        // le message humain : une faute de saisie laissait donc un message
+        // PUBLIC et DÉFINITIF dans la Boucle, puis s'affichait en « conflit,
+        // rechargez la version actuelle » — un incident inventé pour une
+        // contrainte de saisie, et chaque nouvel essai ajoutait un doublon.
+        //
+        // La contrainte se nomme, elle ne se déguise pas.
+        $this->validate([
+            'correctionText' => 'required|string|max:2000',
+            'correctionNewText' => $this->correctingMode === self::MODE_UPDATE
+                ? 'required|string|min:'.ClaimPatch::MIN_TEXTE.'|max:2000'
+                : 'nullable|string|max:2000',
+        ], [
+            'correctionText.required' => __('loops.correct_text_required'),
+            'correctionNewText.required' => __('loops.correct_new_text_required'),
+            'correctionNewText.min' => __('loops.correct_new_text_min', ['min' => ClaimPatch::MIN_TEXTE]),
+        ]);
+
+        $ancre = (string) $this->correctingAnchor;
+        $messageId = $this->correctingMessageId;
+        $ref = $this->correctingRef;
+        $mode = $this->correctingMode;
+        $version = $this->correctingVersion;
+        $texte = trim($this->correctionText);
+        $nouveau = trim($this->correctionNewText);
+
+        // REMÉDIATION TASK-1549, DURCIE EN R2 (F1) — le TRIPLET se revalide,
+        // pas seulement l'adresse, et AVANT toute résolution.
+        //
+        // `#[Locked]` protège une valeur ; il ne protège pas l'INVARIANT qui
+        // en lie plusieurs. L'ancre, la bulle, l'adresse et la version ont été
+        // capturées ENSEMBLE à l'ouverture : elles se revérifient ENSEMBLE ici,
+        // contre la carte figée de CETTE ancre (elle-même `#[Locked]`).
+        //
+        // La version R1 comparait `S1` à `S1` et `1` à `1` : deux égalités
+        // vraies qui ne prouvaient rien, puisque la carte ne disait pas de
+        // quelle bulle la version venait. Un triplet rompu n'écrit rien,
+        // plutôt que d'écrire au mauvais endroit.
+        //
+        // TASK-1550 : la carte de l'ancre `digest` est indexée par le JETON,
+        // qui dérive du sujet et de la Boucle. Une adresse de carte ne peut donc
+        // pas désigner deux énoncés — la classe de défaut de R2 n'a pas
+        // d'équivalent de ce côté, et la garde reste néanmoins posée.
+        $cle = $ancre === self::ANCRE_DIGEST ? $ref : $this->cleMemoire((string) $messageId, $ref);
+        $carte = $ancre === self::ANCRE_DIGEST ? $this->digestMemoryVersions : $this->whyMemoryVersions;
+
+        if (($ancre === self::ANCRE_WHY && $messageId !== $this->whyMessageId)
+            || ! array_key_exists($cle, $carte)
+            || $carte[$cle] !== $version) {
+            $this->correctionFeedbackAnchor = $ancre;
+            $this->cancelCorrection();
+            $this->correctionConflict = __('loops.correct_conflict_before');
+
+            return;
+        }
+
+        // La bulle dont on re-résout les citations est celle que le QUADRUPLET
+        // désigne — jamais celle que le composant affiche au moment du clic.
+        // L'ancre `digest` n'en a pas : son jeton se résout dans la mémoire.
+        $message = $ancre === self::ANCRE_DIGEST
+            ? null
+            : LoopMessage::where('id', $messageId)->where('loop_id', $this->loop->id)->first();
+
+        if ($ancre === self::ANCRE_WHY && $message === null) {
+            $this->cancelCorrection();
+
+            return;
+        }
+
+        // La résolution serveur, par ancre. Les deux rendent la MÊME chose — le
+        // sujet à corriger — et aucune ne fait autorité sur le droit : le
+        // lecteur standard est reposé de part et d'autre, puis
+        // `HumanClaimCorrection` refait toutes ses gardes.
+        if ($ancre === self::ANCRE_DIGEST) {
+            $subjectKey = $digest->sujetCorrigeable($this->loop->organization, $this->loop, $user, $ref);
+        } else {
+            $note = $service->citedMemoryNote($this->loop, $message, $user, $ref);
+            $subjectKey = $note === null || (string) $note->source_loop_id !== (string) $this->loop->id
+                ? null
+                : (string) $note->subject_key;
+        }
+
+        // Fermer d'abord : quoi qu'il arrive ensuite, une double soumission
+        // triviale n'a plus d'état à rejouer.
+        $this->cancelCorrection();
+        $this->correctionFeedbackAnchor = $ancre;
+
+        if ($subjectKey === null) {
+            // La trace citée n'est plus résoluble (l'énoncé a évolué et son
+            // chunk a été remplacé), le jeton ne désigne plus aucun énoncé
+            // actif, ou le geste vise une autre Boucle — dans tous les cas
+            // RIEN n'a été écrit, et on le dit.
+            $this->correctionConflict = __('loops.correct_conflict_before');
+            $this->refreshPanels($service, $message, $user);
+
+            return;
+        }
+
+        $resultat = $mode === self::MODE_UPDATE
+            ? $correction->mettreAJour($this->loop->organization, $this->loop, $user, $subjectKey, $version, $texte, $nouveau)
+            : $correction->retracter($this->loop->organization, $this->loop, $user, $subjectKey, $version, $texte);
+
+        if ($resultat['ok']) {
+            $this->correctionFlash = __('loops.correct_ack');
+        } elseif ($resultat['message_id'] === null) {
+            $this->correctionConflict = __('loops.correct_conflict_before');
+        } else {
+            $this->correctionConflict = __('loops.correct_conflict_after');
+        }
+
+        $this->refreshPanels($service, $message, $user);
+    }
+
+    /**
+     * TASK-1550 : renvoyer la carte « Depuis cet échange… » pour cette session
+     * de composant. Rien n'est écrit, rien n'est promis : ce n'est pas un
+     * accusé de lecture, et un rechargement la fait revenir. Le formulaire
+     * ouvert depuis la carte se ferme avec elle — aucune correction ne survit à
+     * la disparition de ce qu'elle visait (règle T1549).
+     */
+    public function dismissDigest(): void
+    {
+        $this->digestDismissed = true;
+        $this->digestPanel = null;
+        $this->digestMemoryVersions = [];
+
+        if ($this->correctingAnchor === self::ANCRE_DIGEST) {
+            $this->cancelCorrection();
+        }
+
+        if ($this->correctionFeedbackAnchor === self::ANCRE_DIGEST) {
+            $this->correctionFlash = '';
+            $this->correctionConflict = null;
+            $this->correctionFeedbackAnchor = null;
+        }
+    }
+
+    /**
+     * TASK-1550 : poser la carte ET figer la version de chaque énoncé qu'elle
+     * montre — même discipline que {@see self::applyWhyPanel()}, et pour la
+     * même raison : c'est cette version-là, et aucune autre, qu'une correction
+     * pourra viser.
+     *
+     * Seules les entrées CORRIGEABLES entrent dans la carte des versions : une
+     * entrée rétractée n'a pas de version active à viser, et
+     * `startCorrection()` la refusera donc d'emblée, même forgée.
+     *
+     * @param  array<string, mixed>  $panel
+     */
+    private function applyDigestPanel(array $panel): void
+    {
+        $this->digestPanel = $panel;
+
+        $versions = [];
+
+        foreach ($panel['entries'] ?? [] as $entry) {
+            if (is_array($entry)
+                && is_string($entry['ref'] ?? null)
+                && is_int($entry['subject_version'] ?? null)
+                && ($entry['can_correct'] ?? false) === true) {
+                $versions[$entry['ref']] = $entry['subject_version'];
+            }
+        }
+
+        $this->digestMemoryVersions = $versions;
+    }
+
+    /**
+     * Recalculer la carte, sauf si elle est GELÉE.
+     *
+     * Deux raisons de geler, et une seule est un choix produit :
+     *
+     *  - un formulaire de correction ouvert DEPUIS la carte : le `wire:poll.3s`
+     *    ferait disparaître l'entrée, et avec elle le texte en cours de saisie.
+     *    Une version devenue périmée est de toute façon refusée AVANT toute
+     *    écriture par l'idempotence de T1548 (`version_perimee` rend
+     *    `message_id = null`), donc geler ne crée aucun risque de message
+     *    public orphelin ;
+     *  - la carte renvoyée pour cette session.
+     *
+     * Hors de ces deux cas, elle se recalcule à chaque render : « l'état
+     * courant des claims au rendu » est une exigence, pas une optimisation.
+     */
+    private function syncDigestPanel(LoopMemoryDigest $digest): void
+    {
+        if ($this->digestDismissed) {
+            $this->digestPanel = null;
+            $this->digestMemoryVersions = [];
+
+            return;
+        }
+
+        if ($this->correctingAnchor === self::ANCRE_DIGEST && $this->digestPanel !== null) {
+            return;
+        }
+
+        if (! $this->isMember || $this->loop->organization === null) {
+            $this->digestPanel = null;
+            $this->digestMemoryVersions = [];
+
+            return;
+        }
+
+        $panel = $digest->pour($this->loop->organization, $this->loop, auth()->user());
+
+        if ($panel === null) {
+            $this->digestPanel = null;
+            $this->digestMemoryVersions = [];
+
+            return;
+        }
+
+        $this->applyDigestPanel($panel);
+    }
+
+    /**
+     * Remettre à l'état de la base ce qui était affiché, APRÈS avoir écrit.
+     *
+     * Le panneau « Pourquoi ? » est un état stocké : il se recalcule ici, comme
+     * en T1549. La carte du digest, elle, se recalcule d'elle-même au render
+     * suivant — le formulaire vient d'être fermé, donc plus rien ne la gèle.
+     * Il suffit de la libérer.
+     */
+    private function refreshPanels(AiResponseExplanationService $service, ?LoopMessage $message, User $user): void
+    {
+        $this->digestPanel = null;
+        $this->digestMemoryVersions = [];
+
+        if ($message !== null) {
+            $this->refreshWhyPanel($service, $message, $user);
+        }
+    }
+
+    /**
+     * Recalculer le panneau APRÈS avoir écrit depuis lui (motif T1328,
+     * `submitWhyFeedback`) : l'état affiché — énoncé courant, historique de
+     * correction, versions lisibles — redevient celui de la base.
+     */
+    private function refreshWhyPanel(AiResponseExplanationService $service, LoopMessage $message, User $user): void
+    {
+        $panel = $service->explain($this->loop, $message, $user);
+
+        if ($panel !== null) {
+            $this->applyWhyPanel((string) $message->id, $panel);
         }
     }
 
@@ -998,6 +1769,33 @@ class LoopChat extends Component
         if (! $this->isMember) {
             $this->loadedMessageIds = [];
         }
+
+        // REMÉDIATION TASK-1549 : `whyCanCorrect` était calculé UNE fois, à
+        // l'ouverture du panneau. Un droit révoqué pendant que le panneau reste
+        // ouvert laissait donc les boutons « Corriger » vivants jusqu'au
+        // prochain `wire:poll`. Recalculé ici, l'affichage redevient honnête.
+        //
+        // C'est de l'HONNÊTETÉ D'AFFICHAGE, pas une garde : l'autorité reste
+        // côté serveur — `startCorrection()` et `submitCorrection()` refusent
+        // et le disent, et `HumanClaimCorrection` refait ses propres gardes.
+        // Aucune de ces trois vérifications ne remplace les autres.
+        if ($this->whyMessageId !== null) {
+            $this->whyCanCorrect = $this->canContribute(auth()->user());
+        }
+
+        // TASK-1550 : la carte « Depuis cet échange… » se recalcule ici, à
+        // l'état courant de la mémoire. Elle coûte deux requêtes indexées quand
+        // il n'y a rien — le cas de loin le plus fréquent sous `wire:poll.3s` —
+        // parce que `LoopMemoryDigest` court-circuite sur l'ancre puis sur la
+        // date de la dernière compilation avant de lire le moindre lignage.
+        $this->syncDigestPanel(app(LoopMemoryDigest::class));
+
+        // Le geste n'est offert qu'à qui peut écrire ici, et c'est recalculé à
+        // chaque render pour la même raison que `whyCanCorrect` : un droit
+        // révoqué ne doit pas laisser des boutons vivants jusqu'au prochain
+        // poll. Ce n'est pas une garde — `startCorrection()` et
+        // `submitCorrection()` refusent et le disent.
+        $this->digestCanCorrect = $this->digestPanel !== null && $this->canContribute(auth()->user());
 
         $this->syncNewerMessages();
 

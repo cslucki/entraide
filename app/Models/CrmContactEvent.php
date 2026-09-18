@@ -1,0 +1,132 @@
+<?php
+
+namespace App\Models;
+
+use Database\Factories\CrmContactEventFactory;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use LogicException;
+
+/**
+ * TASK-1414 — un fait de la timeline d'un Contact.
+ *
+ * APPEND-ONLY : un evenement s'ecrit une fois et ne se modifie jamais (CDC §6 :
+ * « aucune disparition silencieuse »). La garde est dans le modele, pas
+ * seulement dans les usages : `update()` ou `delete()` sur une ligne existante
+ * levent. La suppression en cascade avec le Contact reste possible au niveau
+ * SQL — c'est le Contact qui disparait, pas un fait isole.
+ *
+ * Le `payload` porte ce qu'il faut pour relire le fait SANS dependre de l'etat
+ * courant (par exemple les libelles des statuts au moment du changement : un
+ * statut renomme ensuite ne reecrit pas l'histoire).
+ */
+class CrmContactEvent extends Model
+{
+    /** @use HasFactory<CrmContactEventFactory> */
+    use HasFactory, HasUuids;
+
+    public const TYPE_STATUS_CHANGED = 'status_changed';
+
+    /** TASK-1415 — une note ecrite par un humain ; `payload.channel` non nul = interaction reelle. */
+    public const TYPE_NOTE = 'note';
+
+    public const TYPE_ACCOUNT_CREATED = 'account_created';
+
+    public const TYPE_EMAIL_VERIFIED = 'email_verified';
+
+    /** TASK-1417 — coordonnees modifiees par un humain : `payload.changes` = champ => [from, to]. */
+    public const TYPE_CONTACT_UPDATED = 'contact_updated';
+
+    /** TASK-1418 — prochaine action planifiee / faite : `payload` = action_type, due_at, label. */
+    public const TYPE_NEXT_ACTION_PLANNED = 'next_action_planned';
+
+    public const TYPE_NEXT_ACTION_DONE = 'next_action_done';
+
+    /** TASK-1421 — un email envoye (accepte par le transport) ou echoue : `payload` = template, subject, to, log_id, error. */
+    public const TYPE_EMAIL_SENT = 'email_sent';
+
+    public const TYPE_EMAIL_FAILED = 'email_failed';
+
+    /** TASK-1422 — contactabilite changee explicitement : `payload` = from_contactable, to_contactable, reason, note. */
+    public const TYPE_CONTACT_POLICY_CHANGED = 'contact_policy_changed';
+
+    /**
+     * TASK-1430 — un membre EXISTANT relie au Contact par decision de l'OrgAdmin
+     * (MASTER Q51 : pas « compte cree », le compte existait deja).
+     */
+    public const TYPE_MEMBER_LINKED = 'member_linked';
+
+    /** TASK-1431 — suppression (SoftDelete) et restauration par la plateforme, avec leur auteur. */
+    public const TYPE_CONTACT_DELETED = 'contact_deleted';
+
+    public const TYPE_CONTACT_RESTORED = 'contact_restored';
+
+    /** Faits systeme : sans auteur humain, une seule fois par Contact. */
+    public const SYSTEM_TYPES = [self::TYPE_ACCOUNT_CREATED, self::TYPE_EMAIL_VERIFIED, self::TYPE_WORKSHOP_PARTICIPATION_CONFIRMED, self::TYPE_SHELL_CLAIMED];
+
+    /** Faits enregistres UNE seule fois par Contact (systeme, ou liaison d'un membre par un humain). */
+    public const ONCE_TYPES = [self::TYPE_ACCOUNT_CREATED, self::TYPE_EMAIL_VERIFIED, self::TYPE_MEMBER_LINKED];
+
+    /** F0 (audit OPUS) — faits REPETABLES par objet : identite = type + reference canonique (Mini-CRM V2 §6). */
+    public const TYPE_WORKSHOP_PARTICIPATION_CONFIRMED = 'workshop_participation_confirmed';
+
+    public const TYPE_SHELL_CLAIMED = 'shell_claimed';
+
+    public const REPEATABLE_ONCE_TYPES = [self::TYPE_WORKSHOP_PARTICIPATION_CONFIRMED, self::TYPE_SHELL_CLAIMED];
+
+    protected $fillable = [
+        'organization_id',
+        'crm_contact_id',
+        'type',
+        'author_user_id',
+        'payload',
+        'dedupe_key',
+        'occurred_at',
+    ];
+
+    protected $casts = [
+        'payload' => 'array',
+        'occurred_at' => 'datetime',
+    ];
+
+    protected static function booted(): void
+    {
+        static::updating(function () {
+            throw new LogicException('A CRM timeline event is append-only and cannot be updated.');
+        });
+
+        static::deleting(function () {
+            throw new LogicException('A CRM timeline event is append-only and cannot be deleted.');
+        });
+    }
+
+    public function contact(): BelongsTo
+    {
+        return $this->belongsTo(CrmContact::class, 'crm_contact_id');
+    }
+
+    public function author(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'author_user_id');
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
+    public function scopeForOrganization(Builder $query, Organization|string $organization): Builder
+    {
+        $id = $organization instanceof Organization ? $organization->id : $organization;
+
+        return $query->where('crm_contact_events.organization_id', $id);
+    }
+
+    public function scopeChronological(Builder $query): Builder
+    {
+        return $query->orderBy('crm_contact_events.occurred_at')->orderBy('crm_contact_events.created_at');
+    }
+}

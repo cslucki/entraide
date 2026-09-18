@@ -6,6 +6,7 @@ use App\Livewire\LoopChat;
 use App\Models\AiInteraction;
 use App\Models\AiInteractionFeedback;
 use App\Models\Dossier;
+use App\Models\DossierChunk;
 use App\Models\Loop;
 use App\Models\LoopMessage;
 use App\Models\Organization;
@@ -62,6 +63,14 @@ class TASK1328AiResponseExplanationTest extends TestCase
     private Loop $loop;
 
     private Dossier $rootDossier;
+
+    /**
+     * Les lignes `dossier_chunks` réellement créées par {@see self::retrievalEntry()},
+     * par nom logique — une citation désigne une ligne, pas une chaîne libre.
+     *
+     * @var array<string, string>
+     */
+    private array $chunkIds = [];
 
     protected function setUp(): void
     {
@@ -191,8 +200,14 @@ class TASK1328AiResponseExplanationTest extends TestCase
 
     public function test_a_cited_source_whose_dossier_became_inaccessible_is_masked(): void
     {
+        // REMÉDIATION TASK-1549 R2 : le Dossier devenu inaccessible est du MÊME
+        // tenant, simplement plus rattaché à cette Boucle — c'est la forme que
+        // prend réellement une perte d'accès, l'autorité (`DossierAccessScope`)
+        // étant loop-scoped. Le retrieval étant lui-même borné au tenant, une
+        // citation ne désigne jamais une ligne d'une autre Organization : la
+        // fixture précédente décrivait un état impossible en production.
         $foreignDossier = Dossier::factory()->create([
-            'organization_id' => $this->otherOrganization->id,
+            'organization_id' => $this->organization->id,
         ]);
 
         $interaction = $this->interaction('loop_knowledge_answer', [
@@ -536,11 +551,39 @@ class TASK1328AiResponseExplanationTest extends TestCase
     }
 
     /**
+     * Une citation du ledger — et la LIGNE `dossier_chunks` qu'elle désigne.
+     *
+     * REMÉDIATION TASK-1549 R2 : ce banc citait auparavant des identifiants
+     * inventés (`c1`, `c2`) qui n'avaient jamais existé en base. C'était
+     * indolore tant que le panneau ne lisait que la trace ; ça ne l'est plus
+     * depuis qu'il distingue trois familles de source, dont « la ligne citée
+     * n'existe plus ». Une trace de génération désigne toujours une ligne qui
+     * existait : la fixture le dit maintenant.
+     *
+     * Le nom logique (`c1`…) est mémorisé par Dossier, pour qu'une même
+     * citation reste la même ligne entre `consulted` et `cited`.
+     *
      * @return array{chunk_id: string, dossier_id: string, blog_post_id: null}
      */
-    private function retrievalEntry(string $chunkId, string $dossierId): array
+    private function retrievalEntry(string $chunkId, string $dossierId, ?string $organizationId = null): array
     {
-        return ['chunk_id' => $chunkId, 'dossier_id' => (string) $dossierId, 'blog_post_id' => null];
+        $cle = $chunkId.'@'.$dossierId;
+
+        if (! array_key_exists($cle, $this->chunkIds)) {
+            $this->chunkIds[$cle] = (string) DossierChunk::create([
+                'organization_id' => $organizationId ?? (string) $this->organization->id,
+                'dossier_id' => (string) $dossierId,
+                'chunk_index' => count($this->chunkIds),
+                'content' => 'Extrait indexé '.$chunkId,
+                'content_hash' => hash('sha256', $cle),
+                'embedding' => array_fill(0, 1536, 0.01),
+                'embedding_provider' => 'openrouter',
+                'embedding_model' => 'openai/text-embedding-3-small',
+                'indexed_at' => now(),
+            ])->id;
+        }
+
+        return ['chunk_id' => $this->chunkIds[$cle], 'dossier_id' => (string) $dossierId, 'blog_post_id' => null];
     }
 
     /**
