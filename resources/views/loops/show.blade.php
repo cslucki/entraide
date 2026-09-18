@@ -250,8 +250,23 @@
 
         {{-- Topbar --}}
         <div class="flex flex-nowrap items-center gap-2 border-b border-[var(--bp-border)] px-3 py-2.5 flex-shrink-0 sm:gap-3 sm:px-4">
-            @php $backHome = app()->bound('current_organization') && app('current_organization')->isMonoLoop(); @endphp
-            <a href="{{ $backHome ? route('home') : $_loopRoute('index') }}"
+            @php
+                // TASK-1602 — ce bouton pointait sur `route('home')`, c'est-a-dire
+                // la RACINE, qui retombe sur l'Organization par defaut : depuis une
+                // Boucle de `launchpals`, il ramenait chez `main`.
+                //
+                // Il n'apparait QUE pour une Organization mono-boucle. On n'utilise
+                // donc PAS `canonicalHome()` ici : ce helper est une destination
+                // d'ENTREE, et pour une mono-boucle il renvoie vers `.../loops`, qui
+                // redirige aussitot sur la Boucle unique — soit la page que l'on
+                // quitte. Un bouton retour circulaire (arbitrage MASTER).
+                $backOrganization = app()->bound('current_organization') ? app('current_organization') : null;
+                $backHome = $backOrganization && $backOrganization->isMonoLoop();
+                $backHref = $backHome
+                    ? route('organization.home', ['organization' => $backOrganization->slug])
+                    : $_loopRoute('index');
+            @endphp
+            <a href="{{ $backHref }}"
                class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] text-[var(--bp-muted)] transition hover:text-[var(--bp-text)]"
                aria-label="{{ $backHome ? __('loops.back_home') : __('loops.back_to_loops') }}">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
