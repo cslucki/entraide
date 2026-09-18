@@ -868,6 +868,14 @@ Route::prefix('/org/{organization}')
         Route::get('/constitution', [MyceliumController::class, 'organization'])->name('constitution');
         Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
 
+          // TASK-1602 — les mentions legales servies DANS le contexte de
+          // l'Organization : MEME vue, donc contenu unique, jamais duplique.
+          // Seuls la marque, la charte et la navigation changent, parce que le
+          // groupe `/org/{organization}` lie deja l'Organization courante.
+          // Mesure avant correctif : en invite, `/mentions-legales` depuis
+          // `launchpals` rendait 7 occurrences « BouclePro » et 0 « LaunchPals ».
+          Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');
+
         Route::middleware('guest')->group(function () {
             Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
             Route::post('/login', [AuthenticatedSessionController::class, 'store']);
