@@ -222,10 +222,20 @@ class T1392RouteSmokeGatesTest extends TestCase
             ->assertOk();
     }
 
+    /**
+     * TASK-1602 — la porte reste fermee a l'invite ; c'est la PORTE qui a
+     * change. Un invite surpris sur `/org/{slug}/dashboard` partait vers
+     * `/login`, qui appartient a l'Organization par defaut : il entrait dans le
+     * produit chez quelqu'un d'autre. Il recoit desormais le login de
+     * l'Organization qu'il visitait. Le gate mesure toujours la meme chose —
+     * un invite ne voit pas le dashboard.
+     */
     public function test_org_dashboard_redirects_guest(): void
     {
         $this->get("/org/{$this->organization->slug}/dashboard")
-            ->assertRedirect(route('login'));
+            ->assertRedirect(route('organization.login', [
+                'organization' => $this->organization->slug,
+            ]));
     }
 
     public function test_org_dashboard_returns_200_for_authenticated_user(): void

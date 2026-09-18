@@ -57,8 +57,12 @@ class DossiersArticleAttachmentTest extends TestCase
     {
         $dossier = $this->dossier($this->orgA, $this->authorA, 'Private folder');
 
+        // TASK-1602 — la porte reste fermee ; c'est la PORTE qui a change. Un
+        // invite sur `/org/{slug}/…` recoit desormais le login de
+        // l'Organization qu'il visitait, au lieu de `/login`, qui appartient a
+        // l'Organization par defaut. Le refus mesure ici est identique.
         $this->get(route('organization.dossiers.show', ['organization' => $this->orgA, 'dossier' => $dossier->id]))
-            ->assertRedirect(route('login'));
+            ->assertRedirect(route('organization.login', ['organization' => $this->orgA->slug]));
     }
 
     public function test_owner_can_open_dossier(): void
