@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\Organization;
+use App\Models\OrganizationAiConstitution;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -232,6 +233,26 @@ class TASK1604OrganizationUxIsolationTest extends TestCase
      */
     public function test_b_the_scoped_mycelium_serves_the_same_content_as_the_global_one(): void
     {
+        // Une Organization qui a REELLEMENT publie sa Constitution. Sans elle,
+        // les deux listes seraient vides et leur egalite ne mesurerait rien :
+        // premiere version de ce test, `pluck('id')` sur des TABLEAUX sans cle
+        // `id` comparait deux listes de `null`. Le sabotage l'a revele.
+        $publiante = Organization::factory()->create([
+            'slug' => 'org-1604-publiante',
+            'name' => 'Org 1604 Publiante',
+            'is_active' => true,
+            'is_public' => true,
+            'ai_constitution_public' => true,
+        ]);
+
+        OrganizationAiConstitution::query()->create([
+            'organization_id' => $publiante->id,
+            'version' => 1,
+            'body' => 'Constitution publiee de test TASK-1604.',
+            'status' => 'active',
+            'activated_at' => now(),
+        ]);
+
         $this->oublierOrganisation();
         $borne = $this->get(route('organization.mycelium', [
             'organization' => $this->otherOrg->slug,
@@ -240,17 +261,25 @@ class TASK1604OrganizationUxIsolationTest extends TestCase
         $this->oublierOrganisation();
         $global = $this->get(route('mycelium'))->assertOk();
 
+        $slugs = fn ($reponse) => collect($reponse->viewData('organizations'))
+            ->pluck('slug')->sort()->values()->all();
+
+        // ATTENTE POSITIVE d'abord : sans elle, l'egalite ci-dessous resterait
+        // vraie meme si les deux surfaces se vidaient ensemble — elles
+        // partagent le meme controleur.
+        $this->assertContains($publiante->slug, $slugs($borne),
+            'le Mycelium borne ne publie plus l\'Organization qui a choisi de publier');
+        $this->assertContains($publiante->slug, $slugs($global),
+            'le Mycelium global ne publie plus l\'Organization qui a choisi de publier');
+
         $this->assertSame(
             $global->viewData('platformText'),
             $borne->viewData('platformText'),
             'le texte de la Constitution plateforme differe entre les deux surfaces'
         );
 
-        $this->assertEquals(
-            $global->viewData('organizations')->pluck('id')->sort()->values()->all(),
-            $borne->viewData('organizations')->pluck('id')->sort()->values()->all(),
-            'la liste des Organizations publiees differe : le PERIMETRE DES DONNEES a bouge'
-        );
+        $this->assertSame($slugs($global), $slugs($borne),
+            'la liste des Organizations publiees differe : le PERIMETRE DES DONNEES a bouge');
     }
 
     // =====================================================================
