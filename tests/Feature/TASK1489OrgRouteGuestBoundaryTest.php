@@ -72,6 +72,16 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
         // changent. Rien d'interne n'y transite.
         'organization.mentions-legales' => 'Mentions legales, contenu global servi dans le contexte de l\'Organization.',
 
+        // TASK-1604 — Mycelium servi DANS le contexte d'une Organization.
+        // Publique par nature : c'est le MEME controleur et la MEME vue que la
+        // route globale `/mycelium`, deja publique, qui publie la Constitution
+        // IA de la plateforme et la liste des Organizations ayant EXPLICITEMENT
+        // choisi de publier la leur. Aucune donnee nouvelle n'y transite ;
+        // seules l'URL, la navigation et la charte changent. A ne pas confondre
+        // avec `organization.constitution`, qui publie la Constitution de CETTE
+        // Organization et rend 404 tant que personne ne l'a rendue publique.
+        'organization.mycelium' => 'Mycelium, gouvernance IA publique servie dans le contexte de l\'Organization.',
+
         // Blog public. ATTENTION a ce que T123 a reellement decide : cet audit
         // (2026-05-23) a durci le TENANT SCOPE — quels articles apparaissent —
         // et ne dit pas un mot de `is_public`, des Organizations privees, ni
