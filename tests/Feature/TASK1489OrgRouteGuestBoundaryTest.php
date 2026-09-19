@@ -65,6 +65,13 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
         'organization.constitution' => 'Texte fondateur public.',
         'organization.subscriptions' => 'Grille d\'abonnements, surface commerciale.',
 
+        // TASK-1602 — les mentions legales servies DANS le contexte d'une
+        // Organization. Publiques par nature : c'est la MEME vue que la route
+        // globale `/mentions-legales`, deja publique, et son contenu est unique
+        // (aucune duplication par tenant). Seuls la navigation et la charte
+        // changent. Rien d'interne n'y transite.
+        'organization.mentions-legales' => 'Mentions legales, contenu global servi dans le contexte de l\'Organization.',
+
         // Blog public. ATTENTION a ce que T123 a reellement decide : cet audit
         // (2026-05-23) a durci le TENANT SCOPE — quels articles apparaissent —
         // et ne dit pas un mot de `is_public`, des Organizations privees, ni

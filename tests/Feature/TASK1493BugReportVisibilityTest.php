@@ -130,7 +130,7 @@ class TASK1493BugReportVisibilityTest extends TestCase
         $this->post(route('organization.bug-reports.store', [$this->public]), [
             'reason' => 'Navigation',
             'details' => 'Tentative anonyme T1493',
-        ])->assertRedirect(route('login'));
+        ])->assertRedirect(route('organization.login', ['organization' => $this->public->slug]));
 
         $this->assertDatabaseMissing('bug_reports', ['details' => 'Tentative anonyme T1493']);
     }

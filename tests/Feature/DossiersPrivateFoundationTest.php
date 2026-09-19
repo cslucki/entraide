@@ -46,8 +46,12 @@ class DossiersPrivateFoundationTest extends TestCase
 
     public function test_guest_is_redirected_from_dossiers(): void
     {
+        // TASK-1602 — la porte reste fermee ; c'est la PORTE qui a change. Un
+        // invite sur `/org/{slug}/…` recoit desormais le login de
+        // l'Organization qu'il visitait, au lieu de `/login`, qui appartient a
+        // l'Organization par defaut. Le refus mesure ici est identique.
         $this->get(route('organization.dossiers.index', $this->orgA))
-            ->assertRedirect(route('login'));
+            ->assertRedirect(route('organization.login', ['organization' => $this->orgA->slug]));
     }
 
     public function test_member_sees_only_own_private_dossiers_in_current_organization(): void
