@@ -143,7 +143,11 @@
     <div class="flex items-center justify-between h-14 px-4 gap-3">
         <div class="flex min-w-0 items-center gap-3">
             @if(request()->routeIs('login', 'organization.login'))
-            <a href="{{ url('/') }}" class="flex items-center gap-2 min-w-0" aria-label="{{ __('navigation.home') }} {{ $brandOrganizationName ?? config('app.name') }}">
+            {{-- TASK-1605 — meme regle que partout : la marque reste dans
+                 l'Organization de l'URL. Ce bloc n'est rendu que sur la route de
+                 connexion (garde ci-dessus) ; ailleurs la barre affiche un bouton
+                 retour. --}}
+            <a href="{{ organizationScopedUrl('home', 'organization.home') }}" class="flex items-center gap-2 min-w-0" aria-label="{{ __('navigation.home') }} {{ $brandOrganizationName ?? config('app.name') }}">
                 <img src="{{ $brandLogoUrl }}" alt="" class="h-9 w-9 shrink-0">
                 <span class="truncate text-base font-bold text-gray-900 dark:text-gray-100">{{ $brandOrganizationName ?? config('app.name') }}</span>
             </a>

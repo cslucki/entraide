@@ -4,18 +4,16 @@
     $bugReportIndexRoute = $usesOrganizationRoutes
         ? route('organization.bug-reports.index', ['organization' => $organizationRouteParam])
         : route('bug-reports.index');
-    $bugReportStoreRoute = $usesOrganizationRoutes
-        ? route('organization.bug-reports.store', ['organization' => $organizationRouteParam])
-        : route('bug-reports.store');
-    $loginRoute = $usesOrganizationRoutes
-        ? route('organization.login', ['organization' => $organizationRouteParam])
-        : route('login');
+    // TASK-1605 — `$bugReportStoreRoute` et `$loginRoute` vivaient ici pour le
+    // popup de signalement. Le popup a cede la place a un lien vers la page
+    // bornee, qui porte desormais le formulaire et le message invite : ces deux
+    // variables n'avaient plus d'usage.
 @endphp
 
 <footer class="flex-shrink-0">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div class="flex flex-col sm:flex-row items-center justify-center gap-2 text-xs text-gray-400 dark:text-gray-500">
-            <div x-data="{ bugOpen: false }" class="relative flex flex-wrap items-center justify-center text-center divide-x divide-gray-300 dark:divide-gray-700">
+            <div class="relative flex flex-wrap items-center justify-center text-center divide-x divide-gray-300 dark:divide-gray-700">
                 {{-- TASK-1349 : le credit de portage cede sa place au lien de
                      gouvernance. Un lien discret, au meme rang que les autres :
                      le footer n'est pas surcharge, une entree en remplace une. --}}
@@ -45,54 +43,22 @@
                     </svg>
                     <span>{{ __('footer.opensource') }}</span>
                 </a>
-                <button type="button"
-                        @click="bugOpen = !bugOpen"
-                        class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors">
-                    {{ __('footer.bug') }}
-                </button>
+                {{-- TASK-1605 — arbitrage MASTER : PAS de popup Alpine.
+                     « Un bug ? » mene a la vraie page de signalement, deja
+                     bornee a l'Organization (`organization.bug-reports.index`,
+                     `GET /org/{organization}/bugs`). Le backend existait deja :
+                     rien n'a ete reinvente, seul le popup disparait.
 
-                <div x-show="bugOpen"
-                     x-cloak
-                     @click.outside="bugOpen = false"
-                     x-transition
-                     class="absolute bottom-full left-1/2 z-40 mb-3 w-80 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-xl border border-gray-200 bg-white p-4 text-left text-sm text-gray-700 shadow-xl dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:left-0 sm:translate-x-0">
-                    @auth
-                        <form method="POST" action="{{ $bugReportStoreRoute }}" x-data x-init="$refs.pageUrl.value = window.location.href" class="space-y-3">
-                            @csrf
-                            <input x-ref="pageUrl" type="hidden" name="page_url" value="{{ request()->fullUrl() }}">
-                            <div>
-                                <p class="font-semibold text-gray-900 dark:text-gray-100">{{ __('footer.bug_title') }}</p>
-                                <a href="{{ $bugReportIndexRoute }}" class="mt-1 inline-block text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-                                    {{ __('footer.bug_view_reported') }}
-                                </a>
-                            </div>
-                            <select name="reason" required class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
-                                <option value="">{{ __('footer.bug_type') }}</option>
-                                <option value="Affichage mobile">{{ __('footer.bug_type_mobile') }}</option>
-                                <option value="Fonctionnement">{{ __('footer.bug_type_function') }}</option>
-                                <option value="Navigation">{{ __('footer.bug_type_navigation') }}</option>
-                                <option value="Autre">{{ __('footer.bug_type_other') }}</option>
-                            </select>
-                            <textarea name="details" rows="3" required placeholder="{{ __('footer.bug_details') }}"
-                                      class="w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"></textarea>
-                            <div class="flex items-center gap-2">
-                                <button type="submit" class="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white">
-                                    {{ __('footer.bug_submit') }}
-                                </button>
-                                <button type="button" @click="bugOpen = false" class="rounded-lg border border-gray-200 px-3 py-2 text-xs transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700">
-                                    {{ __('footer.bug_cancel') }}
-                                </button>
-                            </div>
-                        </form>
-                    @else
-                        <p class="font-semibold text-gray-900 dark:text-gray-100">{{ __('footer.bug_guest_title') }}</p>
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('footer.bug_guest_text') }}</p>
-                        <div class="mt-3 flex items-center gap-3 text-xs">
-                            <a href="{{ $loginRoute }}" class="font-semibold text-indigo-600 hover:underline dark:text-indigo-400">{{ __('footer.bug_guest_login') }}</a>
-                            <a href="{{ $bugReportIndexRoute }}" class="text-gray-500 hover:underline dark:text-gray-400">{{ __('footer.bug_guest_view') }}</a>
-                        </div>
-                    @endauth
-                </div>
+                     Ce qui etait ici : un `<button>` basculant
+                     `x-data="{ bugOpen: false }"`, avec le formulaire embarque
+                     pour les membres et un message pour les invites. Le
+                     formulaire et le message vivent desormais sur la page, ou
+                     ils ont la place de s'expliquer. --}}
+                <a href="{{ $bugReportIndexRoute }}"
+                   class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
+                   data-footer-bug-report>
+                    {{ __('footer.bug') }}
+                </a>
             </div>
 
             <span class="text-[11px] opacity-60">{{ config('app.version') }}</span>
