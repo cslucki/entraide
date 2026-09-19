@@ -100,7 +100,20 @@ class LocaleControllerTest extends TestCase
         $this->assertEquals('fr', session('locale'));
     }
 
-    public function test_redirect_to_external_url_with_external_referer_falls_back_to_root(): void
+    /**
+     * Les DEUX sources externes sont refusees a la fois : le `redirect_to` et
+     * le `Referer`.
+     *
+     * TASK-1602 — ce test asserait `url('/')` exactement. Ce que la racine
+     * exprimait, c'est « une destination de cette application, jamais celle de
+     * l'attaquant ». Depuis TASK-1602, le dernier repli d'un membre d'une
+     * Organization non par defaut est l'accueil de SON Organization, pas la
+     * racine — qui le faisait basculer chez l'Organization par defaut. La
+     * propriete defendue ici est donc reformulee telle qu'elle est reellement :
+     * interne, et jamais `evil.com`. C'est exactement la forme deja employee
+     * par `test_redirect_to_external_url_refused` ci-dessus.
+     */
+    public function test_redirect_to_external_url_with_external_referer_stays_inside_the_application(): void
     {
         $user = User::factory()->create();
 
@@ -110,7 +123,11 @@ class LocaleControllerTest extends TestCase
                 'redirect_to' => 'https://evil.com/steal',
             ]);
 
-        $response->assertRedirect(url('/'));
+        $response->assertRedirect();
+        $target = $response->headers->get('Location');
+
+        $this->assertStringStartsWith(url('/'), $target);
+        $this->assertStringNotContainsString('evil.com', $target);
         $this->assertEquals('fr', session('locale'));
     }
 
