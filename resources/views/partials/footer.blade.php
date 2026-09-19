@@ -19,12 +19,12 @@
                 {{-- TASK-1349 : le credit de portage cede sa place au lien de
                      gouvernance. Un lien discret, au meme rang que les autres :
                      le footer n'est pas surcharge, une entree en remplace une. --}}
-                <a href="{{ route('mycelium') }}"
+                <a href="{{ organizationScopedUrl('mycelium', 'organization.mycelium') }}"
                    class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
                    data-footer-mycelium>
                     {{ __('mycelium.footer_link') }}
                 </a>
-                <a href="{{ route('mentions-legales') }}"
+                <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}"
                    class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors">
                     {{ __('footer.mentions_legales') }}
                 </a>

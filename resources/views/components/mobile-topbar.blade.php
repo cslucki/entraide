@@ -235,7 +235,7 @@
                     <x-dropdown-link :href="$routeUrl('blog.my-posts', 'organization.blog.my-posts')">{{ __('navigation.my_articles') }}</x-dropdown-link>
                     <x-dropdown-link :href="route('profile.edit')">{{ __('navigation.settings') }}</x-dropdown-link>
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                    <x-dropdown-link :href="route('mentions-legales')">{{ __('navigation.legal_notices') }}</x-dropdown-link>
+                    <x-dropdown-link :href="organizationScopedUrl('mentions-legales', 'organization.mentions-legales')">{{ __('navigation.legal_notices') }}</x-dropdown-link>
                     <a href="{{ $bugReportUrl }}" class="block w-full px-4 py-2 text-start text-sm font-semibold leading-5 text-amber-700 transition duration-150 ease-in-out hover:bg-amber-50 focus:bg-amber-50 focus:outline-none dark:text-amber-300 dark:hover:bg-amber-950/40 dark:focus:bg-amber-950/40">
                         {{ __('navigation.report_bug') }}
                     </a>

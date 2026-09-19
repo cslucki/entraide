@@ -30,6 +30,48 @@ if (! function_exists('organizationRoute')) {
     }
 }
 
+if (! function_exists('organizationScopedUrl')) {
+    /**
+     * TASK-1604 — un lien qui part d'une page `/org/{organization}/…` y reste.
+     *
+     * Usage :
+     *   organizationScopedUrl('mycelium', 'organization.mycelium')
+     *
+     * LE DECLENCHEUR EST L'URL, jamais l'Organization liee au conteneur. Sur
+     * une route GLOBALE courte, `ResolveUrlOrganization` lie tout de meme une
+     * Organization — celle par defaut, ou celle de l'utilisateur. S'y brancher
+     * ne conserverait pas un contexte : cela en fabriquerait un, et ferait
+     * apparaitre un prefixe d'Organization dans des parcours qui n'en ont
+     * exprime aucun. C'est la lecon mesuree de TASK-1601 et TASK-1602.
+     *
+     * On ne nomme par ailleurs que l'Organization ECRITE dans l'URL : si le
+     * liage pointait ailleurs, on retombe sur la route globale plutot que de
+     * fabriquer un lien vers un tenant que le visiteur n'a pas demande.
+     *
+     * DIFFERENCE ASSUMEE avec `aiOffersUrl()` ci-dessous, qui exclut
+     * l'Organization par defaut : l'arbitrage MASTER de TASK-1604 demande
+     * explicitement `/org/main/mentions-legales` et `/org/main/mycelium`.
+     * `main` est donc borne comme les autres.
+     *
+     * Le contenu servi est le MEME : seules l'URL, la navigation et la charte
+     * changent. Aucune page, aucune donnee n'est dupliquee.
+     */
+    function organizationScopedUrl(string $globalRoute, string $scopedRoute): string
+    {
+        $request = request();
+        $organization = currentOrganization();
+
+        if ($request->segment(1) === 'org'
+            && $organization
+            && $organization->slug === $request->segment(2)
+            && Route::has($scopedRoute)) {
+            return route($scopedRoute, ['organization' => $organization->slug]);
+        }
+
+        return route($globalRoute);
+    }
+}
+
 if (! function_exists('aiOffersUrl')) {
     /**
      * TASK-1229 : URL de la page « Voir les offres » (information, sans
