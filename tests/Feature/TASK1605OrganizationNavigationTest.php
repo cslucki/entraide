@@ -85,6 +85,17 @@ class TASK1605OrganizationNavigationTest extends TestCase
         Http::fake();
     }
 
+    /**
+     * `is_default` est une colonne GLOBALE : la reposer a faux evite qu'un test
+     * qui l'a activee empoisonne la suite — meme precaution que `T1392`.
+     */
+    protected function tearDown(): void
+    {
+        Organization::query()->where('is_default', true)->update(['is_default' => false]);
+
+        parent::tearDown();
+    }
+
     private function oublierOrganisation(): void
     {
         app()->forgetInstance('current_organization');
@@ -179,6 +190,66 @@ class TASK1605OrganizationNavigationTest extends TestCase
             '#<a href="'.preg_quote(route('organization.home', ['organization' => $this->otherOrg->slug]), '#').'"[^>]*aria-label="[^"]*'.preg_quote($this->otherOrg->name, '#').'"#',
             $html,
             'la marque de la barre mobile ne mene pas a l\'accueil de l\'Organization'
+        );
+    }
+
+    /**
+     * LE DEFAUT D'ORIGINE — celui qui a motive la TASK.
+     *
+     * `organization/artscilab-hero` est le gabarit public de `launchpals` :
+     * son logo pointait sur `url('/')`, donc sur l'Organization par defaut.
+     *
+     * Ce test n'existait pas dans la premiere version du fichier. Un sabotage
+     * — rendre `url('/')` a ce gabarit — laissait les 14 tests VERTS : le
+     * defaut nomme par l'arbitrage n'etait tenu par AUCUN test. Les autres
+     * surfaces le masquaient.
+     */
+    public function test_a_the_public_organization_template_brand_is_scoped(): void
+    {
+        $this->otherOrg->forceFill(['homepage_template' => 'artscilab_hero'])->save();
+
+        $this->oublierOrganisation();
+
+        $html = $this->get(route('organization.home', ['organization' => $this->otherOrg->slug]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString(
+            'href="'.route('organization.home', ['organization' => $this->otherOrg->slug]).'"><img class="logo"',
+            $html,
+            'le logo du gabarit public mene encore hors de l\'Organization'
+        );
+        $this->assertAucunLienVersLaRacine($html, 'gabarit public d\'Organization');
+    }
+
+    /**
+     * La marque BUREAU du gabarit invite, mesuree pour elle-meme.
+     *
+     * Sabotage revelateur : remettre l'ancienne regle de `layouts/guest` ne
+     * faisait rien rougir, parce que la marque MOBILE de la meme page portait
+     * deja le bon lien et satisfaisait l'assertion. Deux elements distincts
+     * demandent deux mesures distinctes.
+     */
+    public function test_a_the_desktop_guest_brand_is_scoped_on_its_own(): void
+    {
+        // L'ancienne regle de `layouts/guest` testait la COLONNE `is_default`.
+        // La poser ici n'est pas un detail : sans elle, `$this->defaultOrg` est
+        // « par defaut » seulement par l'ordre de creation — ce qui suffit a
+        // `resolveDefaultOrganization()` mais PAS a cette regle. Une premiere
+        // version de ce test l'omettait et restait verte sous sabotage : elle
+        // ne mesurait pas ce qu'elle annoncait.
+        $this->defaultOrg->forceFill(['is_default' => true])->save();
+
+        $this->oublierOrganisation();
+
+        $html = $this->get(route('organization.login', ['organization' => $this->defaultOrg->slug]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString(
+            'href="'.route('organization.home', ['organization' => $this->defaultOrg->slug]).'" class="flex items-center gap-3 group"',
+            $html,
+            'la marque BUREAU de la page de connexion n\'est pas bornee (l\'Organization par defaut etait exclue)'
         );
     }
 
