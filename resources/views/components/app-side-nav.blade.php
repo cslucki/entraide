@@ -458,7 +458,7 @@
                                     <span>{{ __('navigation.logout') }}</span>
                                 </button>
                             </form>
-                            <a href="{{ route('mentions-legales') }}" @click="open = false" class="mt-1 flex items-center gap-3 px-4 py-2 text-xs text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">
+                            <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}" @click="open = false" class="mt-1 flex items-center gap-3 px-4 py-2 text-xs text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">
                                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 12h6m-6 4h6"/><path d="M5 3h10l4 4v17H5z"/><path d="M15 3v4h4"/></svg>
                                 <span>{{ __('navigation.legal_notices') }}</span>
                             </a>

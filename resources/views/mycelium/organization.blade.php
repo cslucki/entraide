@@ -11,7 +11,7 @@
         <div class="mx-auto max-w-3xl space-y-8 py-8">
 
             <header>
-                <a href="{{ route('mycelium') }}"
+                <a href="{{ organizationScopedUrl('mycelium', 'organization.mycelium') }}"
                    class="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--bp-muted)] transition hover:text-[var(--bp-text)]"
                    data-mycelium-back>
                     <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
@@ -44,7 +44,7 @@
                 <h2 class="text-sm font-semibold text-[var(--bp-text)]">{{ __('mycelium.org_inherits') }}</h2>
                 <p class="mt-2 text-sm leading-6 text-[var(--bp-muted)]">{{ __('mycelium.inheritance_body') }}</p>
                 <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
-                    <a href="{{ route('mycelium') }}"
+                    <a href="{{ organizationScopedUrl('mycelium', 'organization.mycelium') }}"
                        class="inline-flex text-xs font-semibold text-[var(--bp-primary)] hover:underline">
                         {{ __('mycelium.tree_open_root') }}
                     </a>
