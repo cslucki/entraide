@@ -876,6 +876,26 @@ Route::prefix('/org/{organization}')
           // `launchpals` rendait 7 occurrences « BouclePro » et 0 « LaunchPals ».
           Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');
 
+          // TASK-1604 — Mycelium servi DANS le contexte de l'Organization.
+          //
+          // MEME controleur, MEME vue, MEMES donnees : `MyceliumController@index`
+          // lit la Constitution plateforme et la liste des Organizations qui ont
+          // choisi de publier. Rien n'est duplique, et le PERIMETRE DES DONNEES ne
+          // bouge pas — un test compare explicitement les deux surfaces.
+          //
+          // Ce qui change est l'enveloppe : URL, navigation et charte, parce que le
+          // groupe `/org/{organization}` lie deja l'Organization courante et que
+          // `x-app-layout` s'y conforme.
+          //
+          // Mesure avant correctif : `/mycelium` en invite depuis `launchpals`
+          // rendait 0 occurrence « LaunchPals » et 0 lien `/org/launchpals` ;
+          // `/org/launchpals/mycelium` rendait 404.
+          //
+          // A ne pas confondre avec `/org/{organization}/constitution`, qui publie
+          // la Constitution de CETTE Organization et reste 404 tant que personne ne
+          // l'a explicitement rendue publique.
+          Route::get('/mycelium', [MyceliumController::class, 'index'])->name('mycelium');
+
         Route::middleware('guest')->group(function () {
             Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
             Route::post('/login', [AuthenticatedSessionController::class, 'store']);

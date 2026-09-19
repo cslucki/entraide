@@ -207,10 +207,10 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
          Meme emplacement, meme rang visuel que les autres liens du pied : le
          footer ne s'allonge pas, une entree en remplace une. --}}
     <div class="foot-credit">
-      <a href="{{ route('mycelium') }}" data-footer-mycelium>{{ __('mycelium.footer_link') }}</a>
+      <a href="{{ organizationScopedUrl('mycelium', 'organization.mycelium') }}" data-footer-mycelium>{{ __('mycelium.footer_link') }}</a>
     </div>
     <nav class="foot-links">
-      <a href="{{ route('mentions-legales') }}">{{ __('footer.mentions_legales') }}</a>
+      <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}">{{ __('footer.mentions_legales') }}</a>
       <a href="https://github.com/cslucki/entraide" target="_blank" rel="noopener">{{ __('footer.opensource') }}</a>
       <a href="{{ route('organization.bug-reports.index', $organization) }}">{{ __('footer.bug') }}</a>
       <a href="https://github.com/cslucki/entraide" target="_blank" rel="noopener" aria-label="Code source sur GitHub">
