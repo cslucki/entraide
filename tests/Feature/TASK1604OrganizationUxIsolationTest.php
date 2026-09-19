@@ -310,6 +310,41 @@ class TASK1604OrganizationUxIsolationTest extends TestCase
         );
     }
 
+    /**
+     * LE DECLENCHEUR EST L'URL, pas le liage.
+     *
+     * Sur une route GLOBALE courte — ici `/dashboard`, route personnelle —,
+     * `ResolveUrlOrganization` lie tout de meme une Organization. Si le helper
+     * s'y branchait, un membre y verrait apparaitre `/org/{slug}/…` dans des
+     * liens qu'aucune URL n'a bornes : ce ne serait pas conserver un contexte,
+     * mais en fabriquer un. C'est la lecon mesuree de TASK-1601 et TASK-1602.
+     *
+     * Ce test n'existait pas dans la premiere version du fichier. Un sabotage
+     * — remplacer la garde d'URL du helper par le seul liage — laissait les 12
+     * tests VERTS. La discipline etait revendiquee, pas mesuree.
+     */
+    public function test_c_a_global_short_route_keeps_global_links(): void
+    {
+        $this->oublierOrganisation();
+
+        $html = $this->actingAs($this->otherMember)
+            ->get('/dashboard')
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString(
+            '/org/'.$this->otherOrg->slug.'/mentions-legales',
+            $html,
+            'un lien a ete borne sur une route GLOBALE : le helper suit le liage au lieu de l\'URL'
+        );
+
+        $this->assertStringContainsString(
+            'href="'.route('mentions-legales').'"',
+            $html,
+            'la route globale des mentions legales n\'est plus servie sur une page globale'
+        );
+    }
+
     /** La garde tenant n'est pas affaiblie. */
     public function test_c_cross_tenant_access_is_still_refused(): void
     {
