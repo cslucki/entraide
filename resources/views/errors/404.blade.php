@@ -48,21 +48,20 @@
             {{ __('errors.404_message') }}
         </p>
 
-        <form action="{{ url('/search') }}" method="GET" role="search" class="mb-10">
-            <label for="error-search" class="sr-only">{{ __('errors.404_search') }}</label>
-            <div class="relative">
-                <input
-                    id="error-search"
-                    type="text"
-                    name="q"
-                    placeholder="{{ __('errors.404_search') }}"
-                    class="w-full rounded-xl border border-gray-700 bg-gray-900 px-4 py-3 pl-11 text-sm text-white placeholder-gray-500 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
-                >
-                <svg class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
-                </svg>
-            </div>
-        </form>
+        {{--
+            TASK-1603 — il y avait ici un moteur de recherche (« Que cherchez-vous ? »,
+            `<form action="/search" role="search">`). Retire : une page d'erreur qui
+            invite a chercher promet une issue qu'elle n'a pas. Parcours reel :
+            /mycelium -> /loops -> login -> 404 tenant -> l'utilisateur tente une
+            recherche -> seconde frustration.
+
+            Le moteur de recherche NORMAL du produit vit dans
+            `layouts/navigation.blade.php` et n'est pas touche : cette vue est un
+            document autonome, sans @extends ni @include.
+
+            L'espacement est deja porte par le `mb-10` du paragraphe ci-dessus ;
+            rien a restyler.
+        --}}
 
         <a
             href="{{ $homeUrl }}"

@@ -3,7 +3,6 @@
 return [
     '404_title' => 'Page introuvable',
     '404_message' => 'Hmm, cette boucle semble partie en vacances…',
-    '404_search' => 'Que cherchez-vous ?',
     '404_back_home' => 'Retour à l\'accueil',
     // TASK-1483 — le refus explique d'un tableau de bord d'une autre Organization.
     // Le NOM n'apparait que si l'Organization est publique ; sinon la variante
