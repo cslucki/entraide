@@ -18,10 +18,12 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Http\Request;
+use Illuminate\Pipeline\Pipeline;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -114,5 +116,59 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // TASK-1603 — la page 404 parle la langue de l'utilisateur.
         //
+        // LE DEFAUT, mesure. Sur une URI NON ROUTEE, le routeur leve la 404
+        // AVANT tout middleware de groupe : `StartSession` n'a jamais tourne
+        // (`$request->session()->isStarted()` vaut `false`), donc `SetLocale`
+        // non plus. La page sortait toujours dans la langue par DEFAUT, meme
+        // pour un utilisateur ayant explicitement choisi l'anglais — choix
+        // prouve actif sur les pages normales de la meme session.
+        //
+        // Le 404 leve DEPUIS un controleur (refus cross-tenant) n'a pas ce
+        // defaut : la pile `web` y a tourne, et il rendait deja `lang="en"`.
+        // Ce correctif ne le touche donc pas — la garde ci-dessous s'efface.
+        //
+        // POURQUOI PAS UNE ROUTE DE REPLI. `Route::fallback()` est la reponse
+        // idiomatique, et elle a ete essayee puis MESUREE : faire passer toute
+        // URI inconnue par le groupe `web` la soumet aussi a la resolution
+        // tenant. `GET /services` sans Organization passait alors de 405 a 404,
+        // refuse par `ResolveUrlOrganization` avant meme d'atteindre la route.
+        // Six tests voisins l'ont dit (MembersPageTest, TASK-1077, TASK-1078
+        // x2, TASK-1513, TASK-1515). C'eut ete une modification du routage
+        // tenant : hors mandat, et a juste titre.
+        //
+        // CE QUE FAIT CE BLOC. Il rejoue les middlewares EXISTANTS dont la
+        // locale depend, uniquement au moment de rendre l'erreur. Aucune
+        // detection de langue n'est ajoutee : `SetLocale` reste seul juge, avec
+        // sa cascade (session, utilisateur, Organization, navigateur, defaut).
+        // Le routage n'est pas touche, et les 405 restent des 405.
+        //
+        // La session n'est demarree que si la requete PORTE DEJA son cookie :
+        // une 404 anonyme n'en cree jamais. Sans cookie, la cascade se poursuit
+        // sur le navigateur puis le defaut, ce qui est exactement voulu.
+        $exceptions->render(function (NotFoundHttpException $e, Request $request) {
+            // La condition EXACTE, et non un proxy : si le routeur a resolu une
+            // route, sa pile de middleware a tourne et la locale est deja
+            // etablie — c'est le cas du refus cross-tenant. Seule une URI que
+            // le routeur n'a jamais fait correspondre arrive ici sans locale.
+            // (Un premier jet testait `hasSession()` : vrai proxy, mauvaise
+            // question, et il divergeait entre le harnais et le HTTP reel.)
+            if ($request->expectsJson() || $request->route() !== null) {
+                return null;
+            }
+
+            $pile = [EncryptCookies::class];
+
+            if ($request->cookies->has((string) config('session.cookie'))) {
+                $pile[] = StartSession::class;
+            }
+
+            $pile[] = SetLocale::class;
+
+            return app(Pipeline::class)
+                ->send($request)
+                ->through($pile)
+                ->then(fn () => response()->view('errors.404', [], 404));
+        });
     })->create();

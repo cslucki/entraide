@@ -3,7 +3,6 @@
 return [
     '404_title' => 'Page not found',
     '404_message' => 'Hmm, this loop seems to be on vacation…',
-    '404_search' => 'What are you looking for?',
     '404_back_home' => 'Back to home',
     // TASK-1483 — see the French file: the name only shows for a public
     // Organization, otherwise the neutral wording.
