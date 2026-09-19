@@ -48,7 +48,10 @@
 
             <!-- Header avec logo -->
             <div class="hidden md:flex justify-center pt-10 pb-6">
-                @php $homeLink = $currentOrganization && !$currentOrganization->is_default ? route('organization.home', $currentOrganization) : route('home'); @endphp
+                {{-- TASK-1605 — l'Organization PAR DEFAUT est bornee elle aussi
+     (arbitrage MASTER : « main -> /org/main »). L'ancienne regle l'excluait et
+     la renvoyait sur la racine. Le declencheur est desormais l'URL. --}}
+                @php $homeLink = organizationScopedUrl('home', 'organization.home'); @endphp
                 <a href="{{ $homeLink }}" class="flex items-center gap-3 group">
                     <img src="{{ $brandLogoUrl }}" alt="" class="h-10 w-10" aria-hidden="true">
                     <div class="text-left">
