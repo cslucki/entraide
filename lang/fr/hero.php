@@ -26,6 +26,10 @@ return [
     'card_meet' => 'Je crée<br>du lien',
     'card_create' => "J'explore<br>une piste",
 
+    // TASK-1611 — en-tete du composant « prochain atelier » du HERO.
+    'next_workshop' => 'Prochain atelier',
+    'upcoming_events' => 'Événements à venir',
+
     'ai_note' => "L'IA aide à clarifier. Les humains restent au centre.",
 
     'credit' => "Projet porté par l'association AMT",

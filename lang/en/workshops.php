@@ -29,6 +29,11 @@ return [
     'col_journey' => 'Journey',
     'col_author' => 'Author',
     'col_published' => 'Published on',
+    // TASK-1611 — the optional workshop visual (flyer + social preview).
+    'col_flyer' => 'Visual (flyer)',
+    'flyer_hint' => 'Optional, a single visual. JPEG, PNG or WebP, :max MB maximum. It illustrates the workshop on the home page and becomes the thumbnail when the page is shared on social networks. A ratio close to 1200 x 630 px gives the best preview; any other ratio is still accepted.',
+    'flyer_remove' => 'Remove the visual',
+    'flyer_alt' => 'Flyer - :title',
     'col_actions' => 'Actions',
     // TASK-1454 — OrgAdmin cockpit (read only).
     'col_funnel' => 'Sessions · interests · registered',
@@ -95,6 +100,10 @@ return [
     // TASK-1463 — public home “Workshops” block.
     'home_block_title' => 'Open workshops',
     'home_block_hint' => 'Upcoming published sessions. Pick yours on the workshop page; a verified account confirms the seat.',
+    // TASK-1611 — compact HERO duration (“45 min”); `public_duration` stays the long form of the workshop page.
+    // TASK-1611 — date en toutes lettres du HERO, sans l'heure (elle a sa propre ligne).
+    'hero_date_format' => 'l F j, Y',
+    'hero_duration' => ':minutes min',
     'public_session_time_format' => 'g:i a',
     'public_session_capacity' => ':count seats (indicative)',
     'public_guest_register_hint' => 'To confirm your participation, create an account: after verifying your email you will come back here to confirm your seat.',

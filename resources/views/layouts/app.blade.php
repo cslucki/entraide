@@ -86,13 +86,40 @@
         @isset($ogUrl)
         <meta property="og:url" content="{{ $ogUrl }}">
         @endisset
+        {{-- TASK-1611 : `canonical` suit EXACTEMENT la regle de `og:url` —
+             declaree par la page, jamais deduite de l'URL ambiante. --}}
+        @isset($canonicalUrl)
+        <link rel="canonical" href="{{ $canonicalUrl }}">
+        @endisset
         <meta property="og:site_name" content="{{ $bpNomPlateforme }}">
         <meta property="og:image" content="{{ $ogImage ?? asset('brand/bouclepro-symbol-64.png') }}">
+        {{-- TASK-1611 : les precisions d'image, uniquement quand la page les
+             CONNAIT. Les reseaux reservent la vignette sur ces valeurs avant
+             d'avoir telecharge le fichier ; les inventer serait pire que se
+             taire. --}}
+        @isset($ogImageAlt)
+        <meta property="og:image:alt" content="{{ $ogImageAlt }}">
+        @endisset
+        @isset($ogImageType)
+        <meta property="og:image:type" content="{{ $ogImageType }}">
+        @endisset
+        @isset($ogImageWidth)
+        <meta property="og:image:width" content="{{ $ogImageWidth }}">
+        @endisset
+        @isset($ogImageHeight)
+        <meta property="og:image:height" content="{{ $ogImageHeight }}">
+        @endisset
 
-        <meta name="twitter:card" content="summary">
+        {{-- TASK-1611 : `summary` reste le defaut — une vignette carree de
+             marque ne remplit pas une grande carte. Une page qui fournit un
+             VRAI visuel demande `summary_large_image`. --}}
+        <meta name="twitter:card" content="{{ $twitterCard ?? 'summary' }}">
         <meta name="twitter:title" content="{{ $ogTitle ?? $bpTitre }}">
         <meta name="twitter:description" content="{{ $ogDescription ?? $bpDescription }}">
         <meta name="twitter:image" content="{{ $ogImage ?? asset('brand/bouclepro-symbol-64.png') }}">
+        @isset($ogImageAlt)
+        <meta name="twitter:image:alt" content="{{ $ogImageAlt }}">
+        @endisset
         @isset($jsonLd)
         <script type="application/ld+json">{!! $jsonLd !!}</script>
         @endisset

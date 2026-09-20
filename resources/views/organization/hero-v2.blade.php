@@ -93,7 +93,14 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
   </div>
 
   {{-- HERO --}}
-  <main class="hero">
+  @php
+    $heroSessions = collect($heroSessions ?? []);
+  @endphp
+  {{-- TASK-1611 : `hero--next` dit au CSS que la colonne droite est occupee
+       par le prochain atelier. Sur mobile, cette classe SEULE autorise le
+       reordonnancement slogan → evenement → CTA ; sans atelier a venir, la
+       page retrouve exactement la mise en page d'avant. --}}
+  <main class="hero @if($heroSessions->isNotEmpty()) hero--next @endif">
 
     {{-- LEFT --}}
     <section class="lead">
@@ -145,7 +152,17 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 
        Les identifiants fonctionnels ne bougent pas : un admin personnalise le
        LIBELLE, jamais la destination. --}}
-  {{-- RIGHT : ORBIT --}}
+  {{-- RIGHT : le prochain atelier s'il y en a un, l'orbite sinon.
+
+       TASK-1611 — arbitrage assume : quand un atelier est a venir, il PREND la
+       place de l'orbite au lieu de s'ajouter a elle. Consequence a connaitre :
+       les quatre cartes d'orbite (Explorer / Demandes / Annuaire / Blog,
+       destinations corrigees par TASK-1608) disparaissent alors de l'accueil ;
+       ces surfaces restent atteintes par les CTA, la navigation, le
+       logigramme et le pied de page. --}}
+    @include('organization.partials.hero-next-events', ['heroSessions' => $heroSessions, 'organization' => $organization])
+
+    @if($heroSessions->isEmpty())
     <section class="orbit" aria-hidden="true">
       <img class="rings-img" src="{{ asset('img/boucle-rings.svg') }}" alt="" width="600" height="600">
 
@@ -225,8 +242,16 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
         <p>{{ $settings['ai_note'] ?? org_trans('hero.ai_note') }}</p>
       </div>
     </section>
+    @endif
 
-  @include('organization.partials.workshops-block', ['publicWorkshops' => $publicWorkshops ?? collect(), 'organization' => $organization])
+  {{-- TASK-1611 — le bloc « Ateliers ouverts » (TASK-1463) ne s'affiche plus
+       ICI. Il disait exactement ce que le HERO dit desormais — titre,
+       promesse, prochaine date, lien d'attribution borne — quelques centaines
+       de pixels plus bas, et la meme selection publique alimente les deux.
+       SEUL l'affichage de CE gabarit est retire : le partial, la selection,
+       les routes publiques, les pages atelier et l'administration ne bougent
+       pas, et les deux autres gabarits d'accueil (`artscilab-hero`,
+       `organization.home`) continuent de porter le bloc. --}}
   </main>
 
   {{-- FOOTER --}}

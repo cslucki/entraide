@@ -198,6 +198,106 @@ body.bp-hero-v2{
 .bp-hero-v2 .slot{transform:rotate(var(--a,0deg))}
 .bp-hero-v2 .slot .ocard{transform:rotate(calc(-1 * var(--a,0deg)))}
 
+/* ============ TASK-1611 : PROCHAIN ATELIER DANS LE HERO ============
+   Un seul composant, deux rendus : `.bp-next--solo` (une date) et
+   `.bp-next--list` (deux dates ou plus). Il occupe la colonne droite du HERO
+   a la place de l'orbite ; sans atelier a venir il n'est pas rendu du tout et
+   l'orbite reprend sa place. Aucune couleur, aucun rayon, aucune ombre, aucune
+   police hors du systeme deja pose en tete de fichier. */
+.bp-hero-v2 .bp-next{position:relative;width:100%;max-width:600px;margin-left:auto;display:flex;align-items:center;min-width:0}
+.bp-hero-v2 .bp-next-rings{
+  position:absolute;left:-6%;top:50%;transform:translateY(-50%);
+  width:112%;height:auto;max-width:none;
+  z-index:0;opacity:.5;pointer-events:none;user-select:none;
+}
+.bp-hero-v2 .bp-next-card{
+  position:relative;z-index:1;width:100%;
+  background:var(--panel);border:1px solid var(--border);border-radius:28px;padding:18px;
+  box-shadow:0 30px 64px -22px rgba(20,24,60,.24), 0 3px 10px rgba(20,24,60,.05);
+}
+.bp-hero-v2 .bp-next-head{display:flex;align-items:center;gap:11px;padding:2px 6px 14px}
+.bp-hero-v2 .bp-next-headic{
+  width:34px;height:34px;border-radius:11px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:#EFE9FF;color:var(--purple);font-size:19px;
+}
+.bp-hero-v2 .bp-next-headtitle{margin:0;font-size:15.5px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+
+/* le statut : une pastille coloree par format, jamais un mot invente */
+.bp-hero-v2 .bp-next-badge{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink-soft);white-space:nowrap}
+.bp-hero-v2 .bp-next-dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0}
+.bp-hero-v2 .bp-next-badge--online .bp-next-dot{background:var(--green)}
+.bp-hero-v2 .bp-next-badge--in_person .bp-next-dot{background:var(--orange)}
+.bp-hero-v2 .bp-next-badge--hybrid .bp-next-dot{background:var(--blue)}
+
+/* ---- etat SOLO : une seule date ---- */
+.bp-hero-v2 .bp-next-item{
+  display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:18px;
+  background:var(--cream);border-radius:20px;padding:16px 18px;
+  transition:background .18s, box-shadow .2s;
+}
+.bp-hero-v2 .bp-next-item:hover{background:#F6F1E6;box-shadow:0 10px 26px -16px rgba(20,24,60,.35)}
+.bp-hero-v2 .bp-next-when{display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-width:104px}
+.bp-hero-v2 .bp-next-date{display:block;line-height:1}
+.bp-hero-v2 .bp-next-dow{display:block;font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.bp-hero-v2 .bp-next-day{display:block;font-size:40px;font-weight:900;letter-spacing:-.04em;line-height:1.02;color:var(--ink)}
+.bp-hero-v2 .bp-next-month{display:block;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.bp-hero-v2 .bp-next-hours{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink-soft)}
+.bp-hero-v2 .bp-next-hours .ti{font-size:15px;color:var(--muted)}
+.bp-hero-v2 .bp-next-body{display:flex;flex-direction:column;gap:5px;min-width:0}
+.bp-hero-v2 .bp-next-title{font-size:20px;font-weight:800;letter-spacing:-.025em;line-height:1.15;color:#16204A;text-wrap:balance}
+.bp-hero-v2 .bp-next-promise{
+  font-size:13.5px;line-height:1.45;color:var(--muted);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.bp-hero-v2 .bp-next-meta{font-size:12.5px;font-weight:600;color:var(--muted)}
+.bp-hero-v2 .bp-next-go{
+  width:46px;height:46px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--purple);color:#fff;font-size:21px;
+  box-shadow:0 12px 26px -10px rgba(107,44,255,.6);
+  transition:transform .2s var(--ease);
+}
+.bp-hero-v2 .bp-next-item:hover .bp-next-go{transform:translateX(4px)}
+
+/* ---- etat MEDIA : une seule date, AVEC flyer ---- */
+.bp-hero-v2 .bp-next-item--media{grid-template-columns:minmax(0,38%) 1fr auto;gap:16px;align-items:center;padding:14px}
+.bp-hero-v2 .bp-next-media{
+  display:block;position:relative;overflow:hidden;
+  border-radius:16px;background:#EFEBE0;aspect-ratio:4/3;
+}
+.bp-hero-v2 .bp-next-media img{display:block;width:100%;height:100%;object-fit:cover}
+.bp-hero-v2 .bp-next-line{display:flex;align-items:center;flex-wrap:wrap;gap:7px;font-size:13px;font-weight:600;color:var(--ink-soft)}
+.bp-hero-v2 .bp-next-line .ti{font-size:15px;color:var(--muted)}
+.bp-hero-v2 .bp-next-item--media .bp-next-title{margin-top:3px}
+
+/* ---- etat LISTE : deux dates ou plus, compact ---- */
+.bp-hero-v2 .bp-next-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.bp-hero-v2 .bp-next-row{
+  display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;
+  background:var(--cream);border-radius:18px;padding:13px 16px;
+  transition:background .18s, box-shadow .2s;
+}
+.bp-hero-v2 .bp-next-row:hover{background:#F6F1E6;box-shadow:0 10px 24px -16px rgba(20,24,60,.35)}
+.bp-hero-v2 .bp-next-rowdate{display:flex;flex-direction:column;align-items:center;min-width:52px;line-height:1.05}
+.bp-hero-v2 .bp-next-rowdate .bp-next-day{font-size:26px;letter-spacing:-.035em}
+.bp-hero-v2 .bp-next-rowdate .bp-next-month{font-size:10.5px}
+.bp-hero-v2 .bp-next-hour{display:block;margin-top:3px;font-size:12px;font-weight:700;color:var(--muted)}
+.bp-hero-v2 .bp-next-rowbody{display:flex;flex-direction:column;gap:4px;min-width:0}
+.bp-hero-v2 .bp-next-rowtitle{font-size:15.5px;font-weight:800;letter-spacing:-.02em;line-height:1.2;color:#16204A}
+.bp-hero-v2 .bp-next-rowmeta{display:flex;align-items:center;flex-wrap:wrap;gap:7px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.bp-hero-v2 .bp-next-sep{opacity:.6}
+.bp-hero-v2 .bp-next-chev{
+  width:30px;height:30px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--purple);font-size:19px;transition:transform .2s var(--ease);
+}
+.bp-hero-v2 .bp-next-row:hover .bp-next-chev{transform:translateX(3px)}
+
+/* le clavier voit ou il est : la carte entiere est UN lien, jamais des liens imbriques */
+.bp-hero-v2 .bp-next-item:focus-visible,
+.bp-hero-v2 .bp-next-row:focus-visible{outline:3px solid var(--purple);outline-offset:3px}
+
 /* ============ RESPONSIVE ============ */
 @media (max-width:1080px){
   .bp-hero-v2 .page{padding:22px 30px 24px}
@@ -292,4 +392,54 @@ body.bp-hero-v2{
   .bp-hero-v2 .ocard{padding:14px 14px 13px}
   .bp-hero-v2 .ocard h3{font-size:16px}
   .bp-hero-v2 .ocard .ic{width:37px;height:37px;font-size:18px}
+}
+
+/* ============ TASK-1611 : RESPONSIVE DU PROCHAIN ATELIER ============
+   L'ordre demande sur mobile est slogan → evenement → CTA. Le CTA vit DANS
+   `.lead` ; `order` ne classe que des freres. Plutot que de deplacer le bloc
+   CTA dans le balisage (ce qui changerait le rendu desktop de tous les
+   gabarits), `.lead` devient transparent a la grille sous 1080px : ses enfants
+   deviennent eux-memes des cellules de `.hero`, et le composant se glisse
+   entre le triptyque et les CTA.
+
+   Ce basculement est conditionne a `.hero--next`, pose par le gabarit
+   UNIQUEMENT quand un atelier est a venir : sans atelier, pas un pixel de
+   l'accueil actuel ne change. Le `gap` de la grille repasse a 0 dans ce mode
+   parce que les enfants de `.lead` portent deja leurs propres marges basses ;
+   le composant pose la sienne. */
+@media (max-width:1080px){
+  .bp-hero-v2 .hero--next{gap:0}
+  .bp-hero-v2 .hero--next .lead{display:contents}
+  .bp-hero-v2 .hero--next .bp-next{order:2;max-width:560px;margin:0 auto 26px}
+  .bp-hero-v2 .hero--next .cta-row{order:3}
+}
+@media (max-width:560px){
+  .bp-hero-v2 .hero--next .bp-next{max-width:none;margin:0 0 26px}
+  .bp-hero-v2 .bp-next-rings{width:124%;left:-12%;opacity:.4}
+  .bp-hero-v2 .bp-next-card{padding:14px;border-radius:24px}
+  .bp-hero-v2 .bp-next-head{padding:2px 4px 12px}
+  .bp-hero-v2 .bp-next-headic{width:31px;height:31px;font-size:17px}
+  .bp-hero-v2 .bp-next-headtitle{font-size:14.5px}
+  .bp-hero-v2 .bp-next-item{gap:13px;padding:14px;border-radius:18px}
+  .bp-hero-v2 .bp-next-when{min-width:86px;gap:6px}
+  .bp-hero-v2 .bp-next-day{font-size:34px}
+  .bp-hero-v2 .bp-next-title{font-size:17px}
+  /* la promesse tient sur la page de l'atelier ; ici elle vole la hauteur au CTA */
+  .bp-hero-v2 .bp-next-promise{display:none}
+  .bp-hero-v2 .bp-next-go{width:42px;height:42px;font-size:19px}
+  .bp-hero-v2 .bp-next-row{gap:12px;padding:12px 13px}
+  .bp-hero-v2 .bp-next-rowdate{min-width:46px}
+  .bp-hero-v2 .bp-next-rowdate .bp-next-day{font-size:23px}
+  .bp-hero-v2 .bp-next-rowtitle{font-size:14.5px}
+  /* cible tactile confortable pour le chevron, sans agrandir la ligne */
+  .bp-hero-v2 .bp-next-chev{width:36px;height:36px}
+}
+
+/* TASK-1611 — etat MEDIA sur petit ecran : le visuel PASSE AU-DESSUS des
+   informations, comme la maquette. Le reste de la carte ne bouge pas. */
+@media (max-width:560px){
+  .bp-hero-v2 .bp-next-item--media{grid-template-columns:1fr auto;gap:12px}
+  .bp-hero-v2 .bp-next-media{grid-column:1 / -1;aspect-ratio:16/9;border-radius:14px}
+  .bp-hero-v2 .bp-next-item--media .bp-next-body{grid-column:1}
+  .bp-hero-v2 .bp-next-item--media .bp-next-go{grid-column:2;align-self:end}
 }

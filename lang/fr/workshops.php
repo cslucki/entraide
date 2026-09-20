@@ -29,6 +29,11 @@ return [
     'col_journey' => 'Parcours',
     'col_author' => 'Auteur',
     'col_published' => 'Publié le',
+    // TASK-1611 — LE visuel facultatif de l'atelier (flyer + apercu de partage).
+    'col_flyer' => 'Visuel (flyer)',
+    'flyer_hint' => 'Facultatif, un seul visuel. JPEG, PNG ou WebP, :max Mo maximum. Il illustre l\'atelier sur l\'accueil et sert de vignette quand la page est partagee sur les reseaux. Un format proche de 1200 x 630 px donne le meilleur apercu ; une autre proportion reste acceptee.',
+    'flyer_remove' => 'Retirer le visuel',
+    'flyer_alt' => 'Flyer - :title',
     'col_actions' => 'Actions',
     // TASK-1454 — cockpit OrgAdmin (lecture seule).
     'col_funnel' => 'Sessions · intérêts · inscrits',
@@ -96,6 +101,10 @@ return [
     // TASK-1463 — bloc « Ateliers » de l'accueil public.
     'home_block_title' => 'Ateliers ouverts',
     'home_block_hint' => 'Les prochaines sessions publiées. Choisissez la vôtre sur la page de l\'atelier ; un compte vérifié confirme la place.',
+    // TASK-1611 — duree compacte du HERO (« 45 min »), a cote de `public_duration` qui reste la forme longue de la page atelier.
+    // TASK-1611 — date en toutes lettres du HERO, sans l'heure (elle a sa propre ligne).
+    'hero_date_format' => 'l j F Y',
+    'hero_duration' => ':minutes min',
     'public_session_time_format' => 'H\hi',
     'public_session_capacity' => ':count places (indicatif)',
     'public_guest_register_hint' => 'Pour confirmer votre participation, créez un compte : après la vérification de votre email, vous reviendrez ici confirmer votre place.',

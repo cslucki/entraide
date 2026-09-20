@@ -169,20 +169,36 @@ class TASK1463OrganizationHomeWorkshopsTest extends TestCase
         $this->assertSame('demo', $visitor->shortcut);
     }
 
-    public function test_the_three_home_templates_carry_the_block_and_a_private_or_inactive_organization_shows_nothing(): void
+    public function test_the_home_templates_carry_the_selection_and_a_private_or_inactive_organization_shows_nothing(): void
     {
-        foreach (['bouclepro_hero_v2', 'artscilab_hero', null] as $template) {
+        foreach (['artscilab_hero', null] as $template) {
             $this->a->forceFill(['homepage_template' => $template])->save();
             $html = $this->home($this->a, '?shortcut=demo')->assertOk()->getContent();
             $this->assertStringContainsString('data-org-workshops', $html, "gabarit {$template}");
             $this->assertStringContainsString('shortcut=demo', $this->links($html)[0], "gabarit {$template} : le lien transporte le code");
             $this->assertStringNotContainsString('secret-room', $html);
         }
+
+        // TASK-1611 : `bouclepro_hero_v2` ne porte plus le bloc de bas de page.
+        // La MEME selection y est remontee dans le HERO, qui doit tenir les
+        // memes promesses — d'ou la reprise des assertions ici plutot que leur
+        // suppression : le gabarit a change de forme, pas de contrat.
+        $this->a->forceFill(['homepage_template' => 'bouclepro_hero_v2'])->save();
+        $hero = $this->home($this->a, '?shortcut=demo')->assertOk()->getContent();
+        $this->assertStringNotContainsString('data-org-workshops', $hero, 'le bloc a cede la place au HERO');
+        $this->assertStringContainsString('data-hero-next', $hero, 'et le HERO dit la meme chose, plus haut');
+        preg_match_all('/href="([^"]+)"[^>]*data-hero-next-link/', $hero, $m);
+        $this->assertNotEmpty($m[1], 'le HERO expose au moins un lien d\'atelier');
+        $this->assertStringContainsString('shortcut=demo', html_entity_decode($m[1][0]), 'le lien du HERO transporte le code de Shortcut');
+        foreach (['Brouillon secret', 'Atelier passé', 'Atelier de B', 'secret-room', 'meet.'] as $never) {
+            $this->assertStringNotContainsString($never, $hero, "jamais dans le HERO : {$never}");
+        }
         // Organization NON publique : son accueil n'est servi qu'a ses membres — et meme a eux, aucun bloc public (les pages atelier publiques sont fermees).
         $this->a->forceFill(['homepage_template' => null, 'is_public' => false])->save();
         $private = $this->actingAs($this->adminA)->get(route('organization.home', ['organization' => $this->a->slug]));
         $this->assertContains($private->getStatusCode(), [200, 302]);
         $this->assertStringNotContainsString('data-org-workshops', (string) $private->getContent(), 'une Organization non publique n\'expose rien');
+        $this->assertStringNotContainsString('data-hero-next', (string) $private->getContent());
         if ($private->getStatusCode() === 200) {
             $this->assertStringContainsString($this->a->name, $private->getContent(), 'la preuve porte sur un accueil reellement rendu');
         }
