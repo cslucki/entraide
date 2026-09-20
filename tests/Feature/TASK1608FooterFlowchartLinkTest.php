@@ -195,6 +195,50 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
     }
 
     // =====================================================================
+    // A (addendum recette) — la page flowchart porte le pied d'Organization
+    // =====================================================================
+
+    /**
+     * La carte elle-meme sert le pied partage, Mycelium et logigramme compris.
+     *
+     * Mesure AVANT correctif : `/org/{slug}/flowchart` n'affichait AUCUN pied.
+     * La cause n'etait pas la page mais le layout — `layouts/app.blade.php`
+     * n'inclut pas `partials/footer`, ses liens legaux vivant dans la nav
+     * laterale (`components/app-side-nav:461`).
+     *
+     * Le pied est donc pose sur cette page par `@include('partials.footer')` :
+     * le MEME fichier que les surfaces publiques, jamais une copie de son HTML.
+     * L'ajouter au layout aurait donne un pied a TOUTES les pages
+     * applicatives, ce que l'addendum ne demande pas.
+     */
+    public function test_a_the_flowchart_page_serves_the_organization_footer(): void
+    {
+        $this->oublierOrganisation();
+        $this->from('/org/'.$this->main->slug)->post('/locale/fr');
+
+        $this->oublierOrganisation();
+        $response = $this->get('/org/'.$this->main->slug.'/flowchart');
+        $response->assertOk();
+
+        $html = $response->getContent();
+
+        $mycelium = strpos($html, 'data-footer-mycelium');
+        $flowchart = strpos($html, 'data-footer-flowchart');
+
+        $this->assertNotFalse($mycelium, 'La page flowchart doit porter le pied d\'Organization.');
+        $this->assertNotFalse($flowchart, 'Le logigramme doit y figurer aussi.');
+        $this->assertLessThan($flowchart, $mycelium, 'Le logigramme vient APRES Mycelium.');
+
+        $response->assertSee('Mycélium & organisations');
+        $response->assertSee('Logigramme', false);
+
+        // Les liens du pied restent bornes a CETTE Organization.
+        $response->assertSee('/org/'.$this->main->slug.'/mycelium', false);
+        $response->assertSee('/org/'.$this->main->slug.'/flowchart', false);
+        $response->assertDontSee('/org/'.$this->launchpals->slug.'/', false);
+    }
+
+    // =====================================================================
     // La borne : hors `/org/{slug}`, aucun lien invente
     // =====================================================================
 
