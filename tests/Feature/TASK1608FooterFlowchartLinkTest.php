@@ -111,7 +111,7 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
         $this->assertNotFalse($flowchart, 'Le lien Logigramme doit etre pose.');
         $this->assertLessThan($flowchart, $mycelium, 'Le logigramme vient APRES Mycelium, pas avant.');
 
-        $response->assertSee('Mycelium', false);
+        $response->assertSee(__('mycelium.footer_link'), false);
         $response->assertSee('Logigramme', false);
         $response->assertSee('/org/'.$this->main->slug.'/flowchart', false);
     }
@@ -238,7 +238,7 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
         $this->assertNotFalse($flowchart, 'Le logigramme doit y figurer aussi.');
         $this->assertLessThan($flowchart, $mycelium, 'Le logigramme vient APRES Mycelium.');
 
-        $response->assertSee('Mycelium', false);
+        $response->assertSee(__('mycelium.footer_link'), false);
         $response->assertSee('Logigramme', false);
 
         // Les liens du pied restent bornes a CETTE Organization.
@@ -298,9 +298,11 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
     public function test_the_footer_pairs_mycelium_and_flowchart_with_a_separator(): void
     {
         foreach ([
-            [$this->main, 'fr', 'Logigramme'],
-            [$this->launchpals, 'en', 'Flowchart'],
-        ] as [$organisation, $locale, $libelle]) {
+            // TASK-1609 : « Mycelium » porte son ACCENT en francais. Le
+            // libelle est donc une donnee de la locale, pas une constante.
+            [$this->main, 'fr', 'Logigramme', 'Mycélium'],
+            [$this->launchpals, 'en', 'Flowchart', 'Mycelium'],
+        ] as [$organisation, $locale, $libelle, $mycelium_libelle]) {
             $this->oublierOrganisation();
             $this->from('/org/'.$organisation->slug)->post('/locale/'.$locale);
 
@@ -321,7 +323,7 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
             $this->assertLessThan($separateur, $mycelium, 'Mycelium vient avant le separateur.');
             $this->assertLessThan($flowchart, $separateur, 'Le separateur vient avant le logigramme.');
 
-            $response->assertSee('Mycelium', false);
+            $response->assertSee($mycelium_libelle, false);
             $response->assertSee($libelle, false);
             $response->assertDontSee('Mycélium & organisations', false);
             $response->assertDontSee('Mycelium & organizations', false);

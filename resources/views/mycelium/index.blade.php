@@ -47,6 +47,26 @@
                  son `h1` des qu'une organisation est selectionnee. --}}
             <h1 class="sr-only">{{ __('mycelium.title') }}</h1>
 
+            {{-- TASK-1609 — le nom de l'Organization, quand on vient de la
+                 sienne (`/org/{slug}/mycelium`).
+
+                 Il etait auparavant rendu par le FAB « BouclePro IA », que
+                 cette TASK retire de cette page. Le retirer sans le remplacer a
+                 fait tomber `TASK1604OrganizationUxIsolationTest` — et cette
+                 garde avait raison : sur une surface scopee, le lecteur doit
+                 voir DANS QUELLE Organization il se trouve. Le porter par la
+                 page plutot que par une pastille IA est d'ailleurs sa vraie
+                 place.
+
+                 Rien sur la route GLOBALE `/mycelium`, qui n'appartient a
+                 aucune Organization. --}}
+            @if(request()->route()?->getName() === 'organization.mycelium' && ($orgCourante = currentOrganization()))
+                <p class="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--bp-primary)]"
+                   data-mycelium-organization-courante>
+                    {{ $orgCourante->name }}
+                </p>
+            @endif
+
             {{-- L'ARBRE — un selecteur, pas une navigation. Il ouvre la page :
                  ce qu'est le Mycelium s'explique plus bas, une fois qu'on l'a
                  vu. --}}
@@ -299,4 +319,8 @@
 
         </div>
     </x-page-container>
+
+    {{-- TASK-1609 — la barre basse de decouverte, partagee avec « A propos » et
+         « Logigramme ». Telephone uniquement, connecte ou non. --}}
+    <x-discovery-bottom-nav />
 </x-app-layout>

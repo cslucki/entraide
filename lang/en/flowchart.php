@@ -70,6 +70,18 @@ return [
     'overview' => 'Overview',
     'reset' => 'Reset',
 
+    // TASK-1609 — icon controls: the label is no longer shown on mobile, it
+    // stays carried by `aria-label` and `title`.
+    'fullscreen' => 'Full screen',
+    'fullscreen_exit' => 'Exit full screen',
+
+    // Bottom bar specific to the flowchart, replacing the app tabs.
+    'nav_label' => 'Discover BouclePro',
+    'nav_about' => 'About',
+    'nav_mycelium' => 'Mycelium',
+    'nav_flowchart' => 'Flowchart',
+    'nav_demo' => 'Demo',
+
     // Accessibility / fallback (§15)
     'fallback_title' => 'Read the path as text',
     'fallback_intro' => 'The same map, readable without the interactive graph.',

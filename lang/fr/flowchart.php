@@ -71,6 +71,18 @@ return [
     'overview' => "Vue d'ensemble",
     'reset' => 'Réinitialiser',
 
+    // TASK-1609 — commandes en pictos : le libellé n'est plus affiché sur
+    // mobile, il reste porté par `aria-label` et `title`.
+    'fullscreen' => 'Plein écran',
+    'fullscreen_exit' => 'Quitter le plein écran',
+
+    // Barre basse propre au logigramme, en remplacement des onglets applicatifs.
+    'nav_label' => 'Découvrir BouclePro',
+    'nav_about' => 'À propos',
+    'nav_mycelium' => 'Mycélium',
+    'nav_flowchart' => 'Logigramme',
+    'nav_demo' => 'Démo',
+
     // Accessibilité / repli (§15)
     'fallback_title' => 'Lire le parcours en texte',
     'fallback_intro' => "La même carte, lisible sans le graphe interactif.",

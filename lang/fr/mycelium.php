@@ -41,7 +41,9 @@ return [
     'org_inherits' => 'Cette organisation hérite du Mycélium BouclePro.',
     'org_back_to_mycelium' => 'Retour au Mycélium',
 
-    'footer_link' => 'Mycelium',
+    // TASK-1609 — « Mycélium » porte son accent en francais. TASK-1608 avait
+    // raccourci le libelle et perdu l'accent au passage.
+    'footer_link' => 'Mycélium',
 
     'admin_org_title' => 'Constitution de l\'organisation',
     'admin_org_subtitle' => 'Qui sommes-nous, et quels principes fondamentaux gouvernent notre IA ?',

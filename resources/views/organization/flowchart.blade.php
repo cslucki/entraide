@@ -40,6 +40,27 @@
 
            Une classe dediee, avec `!important`, ne depend plus de cet ordre. */
         .bp-invisible { display: none !important; }
+
+        /* Le masquage de la barre applicative basse vit desormais dans le
+           composant `x-discovery-bottom-nav`, avec la barre qui la remplace :
+           les deux gestes sont indissociables et ne doivent pas diverger.
+
+           NE JAMAIS ecrire ce nom entre chevrons ici : un commentaire CSS
+           n'est pas un commentaire Blade. Blade a compile la chaine comme une
+           VRAIE balise de composant, jamais refermee — d'ou un `if` sans
+           `endif` et un 500 sur toute la page. */
+
+        /* Plein ecran : l'element promu par l'API Fullscreen doit oublier la
+           hauteur calculee de sa vignette, sinon il garde ses 100dvh MOINS
+           l'en-tete au milieu d'un ecran noir. */
+        [data-flowchart-stage]:fullscreen,
+        [data-flowchart-stage]:-webkit-full-screen {
+            width: 100vw;
+            height: 100vh;
+            max-height: none;
+            margin: 0;
+            border-radius: 0;
+        }
     </style>
 
     <div class="flex flex-col">
@@ -48,33 +69,58 @@
              cede toute la place au graphe. --}}
         <div class="px-4 pt-4 sm:px-6 lg:px-8">
             <div class="flex flex-wrap items-end justify-between gap-3">
-                <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--bp-primary)]">
-                        {{ $organization->name }}
-                    </p>
-                    <h1 class="mt-1 text-xl font-semibold text-[var(--bp-text)] sm:text-2xl">{{ __('flowchart.title') }}</h1>
-                    <p class="mt-1 hidden max-w-2xl text-sm text-[var(--bp-muted)] sm:block">{{ __('flowchart.subtitle') }}</p>
-                    {{-- Le mot d'ensemble sur le produit. C'est une
-                         EXPLICATION, pas une regle : aucun code ne s'y
-                         branche, et rien dans le graphe n'en depend. --}}
-                    <p class="mt-2 hidden max-w-3xl text-sm leading-6 text-[var(--bp-muted)] sm:block" data-flowchart-orchestration>
-                        {{ __('flowchart.orchestration') }}
-                    </p>
+                {{-- TASK-1609 — le titre ne s'ecrit qu'UNE fois.
+                     `<x-app-layout title>` pose deja « Logigramme » dans la
+                     barre d'application, visible en permanence sur mobile : ce
+                     bloc le repetait juste en dessous. Il reste sur >= sm, ou
+                     la barre d'application ne porte pas ce titre. --}}
+                {{-- TASK-1609 — en-tete reduit au strict necessaire.
+
+                     Arbitrage de Cyril : ni le nom « BouclePro » (le lecteur
+                     sait ou il est), ni le sous-titre, ni le paragraphe
+                     d'orchestration — trois blocs de texte qui repoussaient le
+                     graphe vers le bas sans rien lui apprendre que la carte ne
+                     dise mieux. Le graphe EST l'explication.
+
+                     Le titre reste porte par la barre d'application sur
+                     mobile, et par ce `h1` a partir de `sm` — ou cette barre
+                     ne l'affiche pas. Il n'est donc jamais ecrit deux fois,
+                     jamais zero fois. --}}
+                <div class="hidden sm:block">
+                    <h1 data-flowchart-heading class="text-xl font-semibold text-[var(--bp-text)] sm:text-2xl">{{ __('flowchart.title') }}</h1>
                 </div>
 
-                <div class="flex flex-wrap items-center gap-2" role="group" aria-label="{{ __('flowchart.graph_label') }}">
-                    <button type="button" data-flowchart-overview
-                            class="rounded-full border border-[var(--bp-border)] bg-[var(--bp-surface)]/70 px-4 py-2 text-sm font-medium text-[var(--bp-text)] transition hover:bg-[var(--bp-surface)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bp-primary)]">
-                        {{ __('flowchart.overview') }}
-                    </button>
-                    <button type="button" data-flowchart-back
-                            class="rounded-full border border-[var(--bp-border)] bg-[var(--bp-surface)]/70 px-4 py-2 text-sm font-medium text-[var(--bp-text)] transition hover:bg-[var(--bp-surface)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bp-primary)]">
-                        {{ __('flowchart.back') }}
-                    </button>
-                    <button type="button" data-flowchart-reset
-                            class="rounded-full border border-[var(--bp-border)] bg-[var(--bp-surface)]/70 px-4 py-2 text-sm font-medium text-[var(--bp-text)] transition hover:bg-[var(--bp-surface)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bp-primary)]">
-                        {{ __('flowchart.reset') }}
-                    </button>
+                {{-- TASK-1609 — barre de transport, sur UNE seule ligne.
+                     Les trois libelles se repliaient sur trois lignes en 390 px
+                     et mangeaient le graphe. Chaque commande porte desormais un
+                     picto ; le mot ne reapparait qu'a partir de `sm`, et la
+                     rangee defile horizontalement si elle deborde. Le libelle
+                     reste toujours lisible par un lecteur d'ecran via
+                     `aria-label`. --}}
+                <div class="-mx-4 flex w-full snap-x items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:w-auto sm:overflow-visible sm:px-0 sm:pb-0"
+                     role="group" aria-label="{{ __('flowchart.graph_label') }}">
+                    @foreach([
+                        ['overview', 'flowchart.overview', 'M4 5h6v6H4zM14 5h6v6h-6zM4 15h6v4H4zM14 15h6v4h-6z'],
+                        ['back', 'flowchart.back', 'M15 6l-6 6 6 6'],
+                        ['reset', 'flowchart.reset', 'M4 12a8 8 0 1 0 2.3-5.6M4 4v4h4'],
+                        ['fullscreen', 'flowchart.fullscreen', 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5'],
+                    ] as [$geste, $cle, $trace])
+                        <button type="button" data-flowchart-{{ $geste }}
+                                aria-label="{{ __($cle) }}" title="{{ __($cle) }}"
+                                @if($geste === 'fullscreen')
+                                    aria-pressed="false"
+                                    data-label-enter="{{ __('flowchart.fullscreen') }}"
+                                    data-label-exit="{{ __('flowchart.fullscreen_exit') }}"
+                                @endif
+                                class="inline-flex shrink-0 snap-start items-center gap-2 rounded-full border border-[var(--bp-border)] bg-[var(--bp-surface)]/70 px-3 py-2 text-sm font-medium text-[var(--bp-text)] transition hover:bg-[var(--bp-surface)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bp-primary)] sm:px-4">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                                 stroke-linecap="round" stroke-linejoin="round"
+                                 class="h-5 w-5 shrink-0" aria-hidden="true">
+                                <path d="{{ $trace }}"></path>
+                            </svg>
+                            <span class="hidden sm:inline" data-flowchart-label>{{ __($cle) }}</span>
+                        </button>
+                    @endforeach
                 </div>
             </div>
 
@@ -103,17 +149,52 @@
              capture.
 
              La soustraction couvre l'en-tete, la nav et l'encoche. --}}
-        <div class="relative mt-3 h-[calc(100dvh-20rem-env(safe-area-inset-bottom,0px))] min-h-[24rem] overflow-hidden sm:h-[calc(100dvh-15rem)]">
+        {{-- TASK-1609 — l'en-tete mobile a maigri (titre dedouble retire, barre
+             sur une ligne) : la soustraction passe de 20rem a 16rem et rend
+             ces 64 px au graphe. `data-flowchart-stage` est aussi l'element
+             qui passe en plein ecran. --}}
+        <div data-flowchart-stage
+             {{-- `--bp-page` et NON `--bp-bg` : ce dernier n'existe pas. Un
+                  `var()` qui ne resout rien rend le fond transparent, et la
+                  scene promue en plein ecran s'affichait alors sur le NOIR du
+                  navigateur. Jetons verifies dans le style calcule, pas devines. --}}
+             {{-- L'en-tete desktop a fondu (sous-titre et orchestration
+                  retires) : la soustraction passe de 15rem a 11rem et rend ces
+                  64 px au graphe. --}}
+             class="relative mt-3 h-[calc(100dvh-16rem-env(safe-area-inset-bottom,0px))] min-h-[24rem] overflow-hidden bg-[var(--bp-page)] sm:h-[calc(100dvh-11rem)]">
             <div data-flowchart-canvas
                  role="application"
                  aria-label="{{ __('flowchart.graph_label') }}"
                  class="h-full w-full touch-none"></div>
 
+            {{-- TASK-1609 — la sortie de plein ecran vit DANS la scene.
+                 L'API Fullscreen ne rend que le sous-arbre de l'element promu :
+                 la barre d'outils, qui est au-dessus, disparait entierement.
+                 Un bouton de sortie place la-haut serait donc injoignable — et
+                 sur un telephone il n'existe aucune touche Echap pour s'en
+                 tirer. Mesure a l'appui : le clic de sortie expirait, le canvas
+                 interceptant le pointeur.
+
+                 Il ne s'affiche qu'en plein ecran (bascule par le moteur). --}}
+            <button type="button" data-flowchart-fullscreen-exit
+                    class="bp-invisible absolute right-3 top-3 z-20 items-center gap-2 rounded-full border border-[var(--bp-border)] bg-[var(--bp-surface)]/95 px-3 py-2 text-sm font-medium text-[var(--bp-text)] shadow-lg backdrop-blur transition hover:bg-[var(--bp-surface)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bp-primary)]"
+                    aria-label="{{ __('flowchart.fullscreen_exit') }}" title="{{ __('flowchart.fullscreen_exit') }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 shrink-0" aria-hidden="true">
+                    <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"></path>
+                </svg>
+                <span class="hidden sm:inline">{{ __('flowchart.fullscreen_exit') }}</span>
+            </button>
+
             {{-- §8 des correctifs — les commandes de zoom, visibles.
                  La molette et le pincement restent disponibles, mais ne sont
                  plus la seule methode : sur une tablette ou au pave tactile,
                  ils sont inegalement fiables. --}}
-            <div class="absolute bottom-3 left-3 z-10 flex flex-col gap-1 rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-surface)]/90 p-1 shadow-lg backdrop-blur">
+            {{-- TASK-1609 — en colonne, ces quatre boutons faisaient 160 px de
+                 haut et recouvraient une carte du graphe sur la capture de
+                 Cyril (« Explorer une idee »). En rangee sur mobile, l'amas
+                 n'occupe plus qu'une bande basse de 44 px. --}}
+            <div class="absolute bottom-3 left-3 z-10 flex flex-row gap-1 rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-surface)]/90 p-1 shadow-lg backdrop-blur sm:flex-col">
                 @foreach([
                     ['zoom-in', '+', 'flowchart.zoom_in'],
                     ['zoom-out', '−', 'flowchart.zoom_out'],
@@ -289,9 +370,18 @@
              la nav laterale) : il est donc pose ICI, pour cette page, plutot
              que dans le layout — ce qui changerait TOUTES les pages
              applicatives, ce que l'addendum ne demande pas. --}}
-        @include('partials.footer')
+        {{-- TASK-1609 — le pied classique est une colonne de liens longue : sur
+             un telephone il repoussait le graphe et doublonnait avec la barre
+             basse. Il reste ENTIER a partir de `md`. --}}
+        <div class="hidden md:block">
+            @include('partials.footer')
+        </div>
     </div>
 
+    {{-- TASK-1609 — la barre basse de decouverte, partagee avec « A propos »
+         et « Mycelium ». Elle REMPLACE `x-mobile-bottom-nav` : sur ces trois
+         pages, un visiteur n'a que faire des onglets applicatifs. --}}
+    <x-discovery-bottom-nav :organization="$organization" />
     {{-- Le payload. `@json` echappe `<`, `>`, `&`, `'` et `"` : un nom de
          Boucle ecrit par un membre ne peut pas refermer ce bloc. --}}
     <script type="application/json" data-flowchart-graph>@json($graph)</script>

@@ -1,5 +1,18 @@
 name: SQLite CI
 
+# TASK-1609 — chaque execution porte le numero et le titre de sa TASK.
+# Sans cela, la liste alignait des « SQLite CI » indistinguables : rien ne disait
+# quelle TASK avait produit quel resultat.
+#
+# Sur une PR, `pull_request.title` vaut DEJA « TASK-NNNN — Titre » : c'est la
+# source la plus juste, et le format demande. Hors PR (push sur main,
+# declenchement manuel), il n'y a pas de titre : on retombe sur le nom de la
+# branche, qui porte lui aussi le numero.
+#
+# Le moteur reste en suffixe : sans lui, les deux workflows rendraient un
+# libelle identique dans `gh run list`.
+run-name: "${{ github.event.pull_request.title || github.ref_name }} · SQLite"
+
 # Deuxieme moitie du filet, en parallele du gate PostgreSQL.
 #
 # Deux workflows separes plutot qu'un seul a deux jobs : chacun se lit, se

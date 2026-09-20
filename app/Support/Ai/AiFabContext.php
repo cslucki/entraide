@@ -63,6 +63,28 @@ final class AiFabContext
     // par un `str_contains` sur « loops ».
     public const LOOP_SURFACE_ROUTES = ['loops.show', 'organization.loops.show', 'organization.loops.catch-up'];
 
+    /**
+     * Les surfaces de DECOUVERTE — ni FAB, ni Shell.
+     *
+     * TASK-1609. « A propos », « Mycelium » et « Logigramme » expliquent le
+     * produit a quelqu'un qui ne le connait pas encore. Arbitrage de Cyril :
+     * les EPURER. Une pastille « BouclePro IA » posee par-dessus une page dont
+     * l'objet est justement d'expliquer ce qu'est BouclePro ajoute du bruit la
+     * ou l'on cherche de la clarte — et le Mycelium PARLE de la gouvernance de
+     * cette IA : l'y convoquer en meme temps brouille le propos.
+     *
+     * La garde vit ici, et non dans les gabarits, parce que `forRequest()` est
+     * l'autorite unique : elle alimente le FAB **et** `shouldMountShell()`, qui
+     * en depend. Un seul geste eteint donc les deux, et aucune vue ne peut les
+     * faire diverger.
+     */
+    public const DISCOVERY_SURFACE_ROUTES = [
+        'organization.about',
+        'organization.mycelium',
+        'organization.flowchart',
+        'mycelium',
+    ];
+
     /** Cle memo : id utilisateur -> contexte (une lecture par requete). */
     private array $memo = [];
 
@@ -97,6 +119,13 @@ final class AiFabContext
             return null;
         }
 
+        // TASK-1609 — surfaces de decouverte : aucun contexte, donc aucun FAB
+        // et, par ricochet, aucun Shell (`shouldMountShell()` lit ce retour).
+        // Place AVANT le memo : on ne veut meme pas construire le contexte.
+        if ($this->isDiscoverySurface($request)) {
+            return null;
+        }
+
         return $this->memo[$user->id] ??= $this->build($request, $user);
     }
 
@@ -128,6 +157,12 @@ final class AiFabContext
     public function isLoopSurface(Request $request): bool
     {
         return in_array((string) ($request->route()?->getName() ?? ''), self::LOOP_SURFACE_ROUTES, true);
+    }
+
+    /** TASK-1609 — « A propos », « Mycelium », « Logigramme » : pages epurees. */
+    public function isDiscoverySurface(Request $request): bool
+    {
+        return in_array((string) ($request->route()?->getName() ?? ''), self::DISCOVERY_SURFACE_ROUTES, true);
     }
 
     /**
