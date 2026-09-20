@@ -26,6 +26,10 @@ return [
     'card_meet' => 'I build<br>connections',
     'card_create' => 'I explore<br>an idea',
 
+    // TASK-1611 — heading of the HERO “next workshop” component.
+    'next_workshop' => 'Next workshop',
+    'upcoming_events' => 'Upcoming events',
+
     'ai_note' => 'AI helps clarify. Humans stay at the center.',
 
     'credit' => 'A project run by the AMT non-profit',

@@ -1,7 +1,34 @@
-<x-app-layout :title="$workshop->title">
+{{-- TASK-1611 — la page DECLARE son apercu social. Le layout partage n'en
+     deduit rien de la requete (TASK-1610) : c'est le controller qui a bati
+     `$social` a partir de l'identite de l'atelier. --}}
+<x-app-layout
+    :title="$workshop->title"
+    :description="$social['description']"
+    :og-description="$social['description']"
+    :og-url="$social['url']"
+    :canonical-url="$social['url']"
+    :og-image="$social['image']"
+    :og-image-alt="$social['imageAlt']"
+    :og-image-type="$social['imageType']"
+    :og-image-width="$social['imageWidth']"
+    :og-image-height="$social['imageHeight']"
+    :twitter-card="$social['twitterCard']">
     {{-- TASK-1450 — La page PUBLIQUE d'un atelier (Growth V3 §8) : titre, promesse, description, format, duree. Ni meeting_url, ni participants, ni CRM, ni CTA d'inscription inventee (B4). Pas de Shell Welcome ici (MASTER Q76). --}}
     <section class="min-h-screen bg-[var(--bp-page)] px-4 py-6 text-[var(--bp-text)] md:px-8 md:py-8">
         <article class="mx-auto max-w-3xl rounded-[2rem] border border-[var(--bp-border)] bg-[var(--bp-surface)]/80 p-6 shadow-sm md:p-10" data-workshop-page="{{ $workshop->slug }}" data-workshop-format="{{ $workshop->format }}">
+            {{-- TASK-1611 : le visuel, quand il existe — au-dessus du titre,
+                 pleine largeur, proportions d'origine conservees. Il illustre,
+                 il ne porte aucune information : l'intitule, la promesse et
+                 les dates restent lisibles sans lui. --}}
+            @if($workshop->hasFlyer())
+                <img src="{{ $workshop->flyerUrl() }}"
+                     alt="{{ __('workshops.flyer_alt', ['title' => $workshop->title]) }}"
+                     @if($workshop->flyer_width) width="{{ $workshop->flyer_width }}" @endif
+                     @if($workshop->flyer_height) height="{{ $workshop->flyer_height }}" @endif
+                     loading="lazy" decoding="async"
+                     class="mb-6 h-auto w-full rounded-2xl border border-[var(--bp-border)] object-cover"
+                     data-workshop-flyer>
+            @endif
             <p class="text-xs font-semibold uppercase tracking-wide text-[var(--bp-muted)]">{{ __('workshops.public_eyebrow', ['name' => $organization->name]) }}</p>
             <h1 class="mt-2 text-3xl font-bold md:text-4xl" data-workshop-title>{{ $workshop->title }}</h1>
             @if($workshop->promise)

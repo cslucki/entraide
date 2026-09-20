@@ -8,8 +8,8 @@ use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
 use App\Services\GuestShell\GuestShellSurface;
-use App\Support\GuestShell\GuestShellDisplayMode;
 use App\Services\Workshops\PublicWorkshopListing;
+use App\Support\GuestShell\GuestShellDisplayMode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -83,7 +83,19 @@ class OrganizationLandingController extends Controller
                 ->map(fn ($user) => $user->avatar_url)
                 ->values();
 
-            return view('organization.hero-v2', compact('organization', 'heroAvatars', 'guestShell', 'publicWorkshops'));
+            // TASK-1611 — le prochain atelier monte DANS le HERO.
+            //
+            // Meme selection publique, lue une seule fois : `heroSessions()`
+            // aplatit `$publicWorkshops` a la maille de la date, sans aucune
+            // requete de plus. Vide (pas d'atelier, ou Organization privee /
+            // inactive) => le gabarit garde son visuel d'origine a droite.
+            //
+            // Ce gabarit ne recoit plus `publicWorkshops` : le bloc « Ateliers
+            // ouverts » du bas de page y est remplace par le HERO, qui dit la
+            // meme chose plus haut. Les deux autres gabarits le conservent.
+            $heroSessions = PublicWorkshopListing::heroSessions($publicWorkshops);
+
+            return view('organization.hero-v2', compact('organization', 'heroAvatars', 'guestShell', 'heroSessions'));
         }
 
         if ($organization->homepage_template === 'artscilab_hero') {
