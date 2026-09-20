@@ -1403,6 +1403,99 @@ function demarrer(racine, graph) {
         reinitialiser();
     });
 
+    // TASK-1609 — plein ecran.
+    //
+    // On promeut la SCENE, pas le canvas : les commandes de zoom et le panneau
+    // de detail vivent dedans, et un canvas promu seul les laisserait derriere,
+    // donc invisibles pendant tout le plein ecran.
+    //
+    // Cytoscape ne surveille pas son conteneur : sans `resize()`, il continue
+    // de dessiner a l'ancienne taille et le graphe reste tasse dans un coin.
+    const scene = document.querySelector('[data-flowchart-stage]');
+    const boutonPleinEcran = document.querySelector('[data-flowchart-fullscreen]');
+
+    // `fullscreenEnabled` est faux dans une iframe sans `allowfullscreen`, et
+    // l'API entiere manque sur iOS Safari (iPhone). Plutot que d'offrir un
+    // bouton qui ne fera rien, on le retire.
+    const pleinEcranPossible = !!(scene && boutonPleinEcran
+        && (document.fullscreenEnabled || document.webkitFullscreenEnabled)
+        && (scene.requestFullscreen || scene.webkitRequestFullscreen));
+
+    if (boutonPleinEcran && !pleinEcranPossible) {
+        boutonPleinEcran.remove();
+    }
+
+    if (pleinEcranPossible) {
+        const enPleinEcran = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+        const sortir = () => (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+        const sortie = document.querySelector('[data-flowchart-fullscreen-exit]');
+
+        surClic('[data-flowchart-fullscreen]', () => {
+            if (enPleinEcran()) {
+                sortir();
+
+                return;
+            }
+
+            // La promesse est rejetee quand le geste n'est pas reconnu comme
+            // une activation utilisateur : on ne laisse pas filer l'erreur.
+            const promesse = (scene.requestFullscreen || scene.webkitRequestFullscreen).call(scene);
+
+            if (promesse && typeof promesse.catch === 'function') {
+                promesse.catch(() => {});
+            }
+        });
+
+        // Le SEUL bouton joignable une fois la scene promue : la barre d'outils
+        // vit hors du sous-arbre plein ecran, donc elle n'est plus rendue.
+        surClic('[data-flowchart-fullscreen-exit]', sortir);
+
+        const surBascule = () => {
+            // Surtout PAS `actif` ici : ce nom porte deja le NOEUD actif dans
+            // la portee englobante (`let actif = null`). Le masquer ferait
+            // recentrer le graphe sur un booleen.
+            const estPleinEcran = enPleinEcran();
+            const libelle = boutonPleinEcran.dataset[estPleinEcran ? 'labelExit' : 'labelEnter'];
+
+            if (libelle) {
+                boutonPleinEcran.setAttribute('aria-label', libelle);
+                boutonPleinEcran.setAttribute('title', libelle);
+
+                const texte = boutonPleinEcran.querySelector('[data-flowchart-label]');
+
+                if (texte) {
+                    texte.textContent = libelle;
+                }
+            }
+
+            boutonPleinEcran.setAttribute('aria-pressed', estPleinEcran ? 'true' : 'false');
+
+            if (sortie) {
+                // `bp-invisible` porte `!important` : on ne peut pas la
+                // contredire par `style.display`, il faut la RETIRER.
+                sortie.classList.toggle('bp-invisible', !estPleinEcran);
+                sortie.classList.toggle('inline-flex', estPleinEcran);
+            }
+
+            // Deux temps : la taille du conteneur n'est connue qu'APRES que le
+            // navigateur a peint le changement de mode.
+            requestAnimationFrame(() => {
+                cy.resize();
+
+                if (actif) {
+                    focaliser(actif, null, 0);
+
+                    return;
+                }
+
+                ajusterLisible(cy.elements(':visible'));
+            });
+        };
+
+        document.addEventListener('fullscreenchange', surBascule);
+        document.addEventListener('webkitfullscreenchange', surBascule);
+    }
+
     function reinitialiser() {
         cacherEchanges();
         revelees.clear();

@@ -1,4 +1,9 @@
-<nav class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_-2px_8px_rgba(0,0,0,0.3)]">
+{{-- TASK-1609 : `data-bp-mobile-nav` est un simple POINT D'ANCRAGE. Il
+     n'ajoute aucun comportement et ne change rien au rendu ; il permet a une
+     page qui remplace cette barre (le logigramme) de la masquer par un
+     selecteur STABLE, au lieu de viser `nav.fixed.bottom-0` — une chaine de
+     classes utilitaires qui casserait au premier ajustement de style. --}}
+<nav data-bp-mobile-nav class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_-2px_8px_rgba(0,0,0,0.3)]">
     <div class="flex justify-around items-center h-16 px-2">
         @php
             $currentRoute = request()->route()?->getName() ?? '';
