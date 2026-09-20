@@ -34,7 +34,7 @@ return [
     'org_inherits' => 'This organisation inherits the BouclePro Mycelium.',
     'org_back_to_mycelium' => 'Back to the Mycelium',
 
-    'footer_link' => 'Mycelium & organisations',
+    'footer_link' => 'Mycelium',
 
     'admin_org_title' => 'Organisation constitution',
     'admin_org_subtitle' => 'Who are we, and which founding principles govern our AI?',

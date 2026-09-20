@@ -119,7 +119,10 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
           </div>
         </a>
 
-        <a href="{{ route('organization.members.index', $organization) }}" class="ocard c3">
+        {{-- TASK-1608 — c3 porte l'intention EXPLORER (icone `ti-bulb`, libelle
+             « Je suis actuellement fascine par… ») : elle mene desormais aux
+             CONTENUS, pas a l'Annuaire. Meme arbitrage MASTER que `hero-v2`. --}}
+        <a href="{{ route('organization.blog.index', $organization) }}" class="ocard c3">
           <div class="top">
             <span class="ic"><i class="ti ti-bulb"></i></span>
             <span class="lbl">{{ $settingText('card_3_label', 'artscilab.card_3_label') }}</span>
@@ -132,7 +135,12 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
           </div>
         </a>
 
-        <a href="{{ route('organization.loops.index', $organization) }}" class="ocard c4">
+        {{-- c4 porte l'intention RELIER (icone `ti-friends`, libelle « Je pense
+             que ces deux personnes devraient se rencontrer… ») : elle mene aux
+             PERSONNES. Consequence acceptee par MASTER : plus aucune des quatre
+             cartes ne mene au catalogue des Boucles — il reste atteint par le
+             CTA secondaire, la navigation et le logigramme. --}}
+        <a href="{{ route('organization.members.index', $organization) }}" class="ocard c4">
           <div class="top">
             <span class="ic"><i class="ti ti-friends"></i></span>
             <span class="lbl">{{ $settingText('card_4_label', 'artscilab.card_4_label') }}</span>
@@ -164,6 +172,19 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
       <img class="foot-symbol" src="{{ asset('img/bouclepro-symbol.png') }}" alt="" aria-hidden="true">
     </div>
     <nav class="foot-right">
+      {{-- TASK-1608, addendum vocabulaire — « Mycelium · Flowchart ».
+
+           ECART ASSUME, rapporte a MASTER : ce gabarit ne portait AUCUN lien
+           Mycelium avant cette TASK — TASK-1604 n'en avait pas mis ici. Le
+           lien Mycelium est donc AJOUTE, parce que l'addendum nomme
+           explicitement `/org/launchpals/mycelium` et `Mycelium · Flowchart`
+           pour cette Organization. C'est un ajout de surface, pas une
+           correction : il vaut d'etre lu comme tel. --}}
+      <span class="foot-pair">
+        <a href="{{ organizationScopedUrl('mycelium', 'organization.mycelium') }}" data-footer-mycelium>{{ __('mycelium.footer_link') }}</a>
+        <span class="foot-sep" aria-hidden="true">·</span>
+        <a href="{{ route('organization.flowchart', ['organization' => $organization->slug]) }}" data-footer-flowchart>{{ __('footer.flowchart') }}</a>
+      </span>
       <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}">{{ org_trans('artscilab.footer_terms') }}</a>
       <a href="https://github.com/cslucki/entraide" target="_blank" rel="noopener" aria-label="GitHub">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 .1.8 1.7 2.5 1.4.1-.7.4-1.2.7-1.5-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.5 18.3 4.8 18.3 4.8c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.6.8.5 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
