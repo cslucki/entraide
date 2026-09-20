@@ -49,7 +49,11 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
   {{-- HEADER --}}
   <header class="nav">
     <div class="brand">
-      <a href="{{ url('/') }}"><img class="logo" src="{{ asset('img/artscilab-icon.png') }}" alt="{{ $organization->name }}"></a>
+      {{-- TASK-1605 — la marque de l'Organization mene a l'accueil de CETTE
+           Organization, jamais a la racine nue : celle-ci retombe sur
+           l'Organization par defaut, et cliquer le logo LaunchPals faisait donc
+           sortir de LaunchPals. --}}
+      <a href="{{ organizationScopedUrl('home', 'organization.home') }}"><img class="logo" src="{{ asset('img/artscilab-icon.png') }}" alt="{{ $organization->name }}"></a>
     </div>
     <div class="nav-right">
       <div class="lang" aria-label="Langue / Language">

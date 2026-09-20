@@ -7,9 +7,11 @@
                     @php
                         $tenant = $currentOrganization ?? (Auth::check() ? Auth::user()->organization : null);
                         $desktopBrandName = $tenant?->name ?? ($brandOrganizationName ?? config('app.name'));
-                        $desktopBrandHref = isset($currentOrganization)
-                            ? route('organization.home', ['organization' => $currentOrganization])
-                            : route('home');
+                        // TASK-1605 — le declencheur est l'URL, pas le LIAGE : sur une
+                        // route globale courte, `ResolveUrlOrganization` lie tout de meme
+                        // une Organization, et s'y brancher ferait apparaitre un prefixe
+                        // qu'aucune URL n'a demande.
+                        $desktopBrandHref = organizationScopedUrl('home', 'organization.home');
                         $organizationRouteParam = request()->route('organization');
                         $loopsIndexHref = $organizationRouteParam && request()->routeIs('organization.*')
                             ? route('organization.loops.index', ['organization' => $organizationRouteParam])
