@@ -4,6 +4,15 @@
     $bugReportIndexRoute = $usesOrganizationRoutes
         ? route('organization.bug-reports.index', ['organization' => $organizationRouteParam])
         : route('bug-reports.index');
+    // TASK-1608 — la cible du logigramme, resolue une fois.
+    //
+    // `$usesOrganizationRoutes` est deja le predicat « l'URL exprime une
+    // Organization » : on le reutilise plutot que d'en ecrire un second, qui
+    // divergerait au premier changement.
+    $flowchartUrl = $usesOrganizationRoutes && Route::has('organization.flowchart')
+        ? route('organization.flowchart', ['organization' => $organizationRouteParam])
+        : null;
+
     // TASK-1605 — `$bugReportStoreRoute` et `$loginRoute` vivaient ici pour le
     // popup de signalement. Le popup a cede la place a un lien vers la page
     // bornee, qui porte desormais le formulaire et le message invite : ces deux
@@ -22,6 +31,28 @@
                    data-footer-mycelium>
                     {{ __('mycelium.footer_link') }}
                 </a>
+                {{-- TASK-1608 — la carte interactive, immediatement a droite de
+                     Mycelium et au meme rang visuel : un lien discret de plus,
+                     pas un bouton.
+
+                     Il n'est PAS bati avec `organizationScopedUrl()`, et c'est
+                     deliberé : ce helper prend une route globale en repli, or
+                     MASTER interdit une route `/flowchart` globale. Lui passer
+                     une autre cible en repli enverrait ailleurs qu'au
+                     logigramme — un lien qui ment.
+
+                     Le lien n'apparait donc que quand l'URL EXPRIME une
+                     Organization. C'est la borne heritee de TASK-1602/1604 :
+                     le declencheur est le prefixe `/org/{slug}`, jamais un
+                     tenant devine par defaut. Sans lui, on n'isolerait pas un
+                     contexte, on en inventerait un. --}}
+                @if($flowchartUrl)
+                    <a href="{{ $flowchartUrl }}"
+                       class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
+                       data-footer-flowchart>
+                        {{ __('footer.flowchart') }}
+                    </a>
+                @endif
                 <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}"
                    class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors">
                     {{ __('footer.mentions_legales') }}

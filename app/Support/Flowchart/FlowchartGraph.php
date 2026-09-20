@@ -5,7 +5,6 @@ namespace App\Support\Flowchart;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
-use App\Support\Loops\VisibleLoops;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 
@@ -14,48 +13,24 @@ use Illuminate\Support\Str;
  *
  * ## Cette classe ne decide AUCUNE permission
  *
- * `App\Support\Loops\VisibleLoops` (TASK-1364) reste l'autorite UNIQUE des
- * Boucles qu'une personne peut voir, et `LoopPolicy` reste la seule autorite
- * de ce qu'elle peut y faire. Rien n'est recopie ici. Ce fichier consomme
- * l'autorite, puis applique une **projection de presentation** qui ne peut que
- * RETRANCHER — jamais ajouter une Boucle que l'autorite n'a pas rendue.
+ * Elle assemble des noeuds et des aretes. Quelles Boucles y entrent est
+ * decide par {@see FlowchartLoops}, la projection dediee au payload ; ce que
+ * l'on peut y FAIRE reste decide par `LoopPolicy`, au moment du clic, sur la
+ * fiche de la Boucle. Rien n'est recopie ici.
  *
- * ## La projection, et la decision produit qui la motive
+ * `App\Support\Loops\VisibleLoops` n'est **pas** consommee, et n'est pas
+ * modifiee : elle reste l'autorite du catalogue interne, qui repond a une
+ * autre question. Voir le docblock de {@see FlowchartLoops} pour la raison.
  *
- * Arbitrage MASTER du 2026-09-20 :
+ * ## Ce qui entre sur la carte (arbitrage MASTER corrige du 2026-09-20)
  *
- * | access_mode | is_member | flowchart |
- * |---|---|---|
- * | `open`       | —     | visible |
- * | `request`    | —     | visible (y compris demande en attente) |
- * | `invitation` | true  | visible — cette Boucle fait partie de son espace |
- * | `invitation` | false | ABSENTE |
+ * Socle public, servi a tout le monde : `status = active`,
+ * `visibility = public`, `access_mode ∈ {open, request}`.
+ * Ajout pour qui appartient a l'Organization visitee : ses Boucles actives
+ * dont il est membre ACTIF, meme privees, meme sur invitation.
  *
- * Le catalogue `/org/{org}/loops` nomme, lui, toute Boucle active du tenant :
- * « privee » ne veut pas dire « cachee » (TASK-1075). Le flowchart est une
- * carte des POSSIBILITES REELLES : une Boucle qu'on ne peut ni rejoindre ni
- * demander n'en est pas une. C'est une soustraction assumee, et la seule.
- *
- * ## Le piege que `$aRetrancher()` evite, et qui a ete mesure
- *
- * Le predicat lit `Loop::access_mode`, **jamais** `accessStateFor()`.
- *
- * `VisibleLoops::accessStateFor()` rend `ACCESS_INVITATION` PAR DEFAUT, des
- * que ni `join` ni `requestToJoin` n'autorisent. Or `LoopPolicy::join` refuse
- * aussi quand la personne est **deja membre actif**
- * ({@see \App\Policies\LoopPolicy::join()}). Une Boucle `open` dont on est
- * membre rend donc l'etat `invitation`.
- *
- * Filtrer sur cet etat aurait masque TOUTES les Boucles de la personne —
- * l'exact contraire de la decision. L'etat reste l'autorite de l'ETIQUETTE
- * (il interroge les Policies) ; `access_mode` est l'autorite du RETRAIT.
- *
- * ## Un invite ne recoit aucune Boucle
- *
- * `VisibleLoops::query()` exige un `User`, et aucune surface du produit ne
- * nomme une Boucle a un visiteur anonyme. Aucune primitive invite n'est
- * inventee ici : sans utilisateur du tenant visite, la branche est vide et le
- * graphe se limite a sa partie structurelle.
+ * Un invite recoit donc des Boucles — les publiques et praticables — et
+ * aucune autre.
  *
  * ## Les couleurs ne sont pas ici
  *
@@ -99,7 +74,7 @@ final class FlowchartGraph
     /** Une accroche de noeud reste une accroche : le detail va au panneau lateral. */
     private const MAX_TAGLINE_CHARS = 140;
 
-    public function __construct(private readonly VisibleLoops $visibleLoops) {}
+    public function __construct(private readonly FlowchartLoops $loops) {}
 
     /**
      * @return array{
@@ -187,40 +162,17 @@ final class FlowchartGraph
      */
     private function loopNodes(Organization $organization, ?User $user): array
     {
-        // Un invite, ou quelqu'un d'une autre Organization : aucune Boucle.
-        // `VisibleLoops` bornerait deja la requete au tenant visite, mais un
-        // non-membre n'a de toute facon aucune surface qui les lui nomme — la
-        // page publique n'en ouvre pas une.
-        if ($user === null || $user->organization_id !== $organization->id) {
-            return [];
-        }
-
-        // `groupedFor()` plutot que `query()` : il porte DEJA la restriction
-        // `loop_mode = mono` (pas de catalogue, donc `other` vide). La
-        // contourner enrichirait la demo en revelant ce qu'aucune surface ne
-        // montre.
-        $grouped = $this->visibleLoops->groupedFor($organization, $user);
-
-        $aRetrancher = static fn (Loop $loop): bool => $loop->access_mode === Loop::ACCESS_INVITATION
-            && ! (bool) $loop->getAttribute('is_member');
-
-        return $grouped['member']
-            ->merge($grouped['other'])
-            ->reject($aRetrancher)
+        return $this->loops->for($organization, $user)
             ->map(fn (Loop $loop): array => $this->loopNode($loop, $user))
             ->values()
             ->all();
     }
 
     /** @return array{data: array<string, mixed>} */
-    private function loopNode(Loop $loop, User $user): array
+    private function loopNode(Loop $loop, ?User $user): array
     {
-        $estMembre = (bool) $loop->getAttribute('is_member');
-
-        // `member` court-circuite : pour un membre, `accessStateFor()` rend
-        // `invitation` (voir le docblock de classe), ce qui serait faux a
-        // afficher. Hors appartenance, l'etat vient des Policies.
-        $access = $estMembre ? 'member' : $this->visibleLoops->accessStateFor($loop, $user);
+        $estMembre = $this->loops->isMember($loop, $user);
+        $access = $this->loops->accessLabelFor($loop, $user);
 
         return $this->node('loop:'.$loop->id, 'loop', $this->borne($loop->name, self::MAX_LABEL_CHARS), [
             'loop_id' => (string) $loop->id,

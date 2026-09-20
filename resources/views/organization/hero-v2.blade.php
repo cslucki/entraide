@@ -208,6 +208,11 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
          footer ne s'allonge pas, une entree en remplace une. --}}
     <div class="foot-credit">
       <a href="{{ organizationScopedUrl('mycelium', 'organization.mycelium') }}" data-footer-mycelium>{{ __('mycelium.footer_link') }}</a>
+      {{-- TASK-1608 — le logigramme, immediatement a droite de Mycelium et au
+           meme rang. La landing est TOUJOURS servie sous `/org/{slug}` : la
+           cible est donc bornee sans repli possible, et n'a aucun besoin de
+           `organizationScopedUrl()`. --}}
+      <a href="{{ route('organization.flowchart', ['organization' => $organization->slug]) }}" data-footer-flowchart>{{ __('footer.flowchart') }}</a>
     </div>
     <nav class="foot-links">
       <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}">{{ __('footer.mentions_legales') }}</a>
