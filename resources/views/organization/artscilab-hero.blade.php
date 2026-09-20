@@ -119,7 +119,10 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
           </div>
         </a>
 
-        <a href="{{ route('organization.members.index', $organization) }}" class="ocard c3">
+        {{-- TASK-1608 — c3 porte l'intention EXPLORER (icone `ti-bulb`, libelle
+             « Je suis actuellement fascine par… ») : elle mene desormais aux
+             CONTENUS, pas a l'Annuaire. Meme arbitrage MASTER que `hero-v2`. --}}
+        <a href="{{ route('organization.blog.index', $organization) }}" class="ocard c3">
           <div class="top">
             <span class="ic"><i class="ti ti-bulb"></i></span>
             <span class="lbl">{{ $settingText('card_3_label', 'artscilab.card_3_label') }}</span>
@@ -132,7 +135,12 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
           </div>
         </a>
 
-        <a href="{{ route('organization.loops.index', $organization) }}" class="ocard c4">
+        {{-- c4 porte l'intention RELIER (icone `ti-friends`, libelle « Je pense
+             que ces deux personnes devraient se rencontrer… ») : elle mene aux
+             PERSONNES. Consequence acceptee par MASTER : plus aucune des quatre
+             cartes ne mene au catalogue des Boucles — il reste atteint par le
+             CTA secondaire, la navigation et le logigramme. --}}
+        <a href="{{ route('organization.members.index', $organization) }}" class="ocard c4">
           <div class="top">
             <span class="ic"><i class="ti ti-friends"></i></span>
             <span class="lbl">{{ $settingText('card_4_label', 'artscilab.card_4_label') }}</span>

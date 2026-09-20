@@ -8,7 +8,22 @@ use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
- * TASK-1608, addendum MASTER — les quatre cartes de `hero-v2`.
+ * TASK-1608, addendum MASTER — les quatre cartes d'accueil, sur TOUS les
+ * gabarits scopes.
+ *
+ * ## Pourquoi ce fichier a du etre elargi
+ *
+ * La premiere version ne mesurait que `hero-v2`. Or `hero-v2` ne sert QUE
+ * `main`, et le correctif y etait vert pendant que `audit-1014-alpha`
+ * continuait d'envoyer « Je suis actuellement fascine par… » vers l'Annuaire.
+ * Une garde qui ne couvre qu'un gabarit sur trois laisse passer la regression
+ * qu'elle pretend interdire.
+ *
+ * `OrganizationLandingController` arbitre entre TROIS gabarits : `hero-v2`,
+ * `artscilab-hero`, et le repli `home`. Les deux premiers portent les quatre
+ * memes intentions sous des noms de classe differents (`card-*` / `c1..c4`) —
+ * c'est ce depaysement de nommage qui m'avait fait conclure a tort que le
+ * second « n'etait pas concerne ». On lit donc l'INTENTION, jamais le nom.
  *
  * ## Deux defauts, les memes quatre lignes
  *
@@ -50,7 +65,37 @@ class TASK1608HomepageCardDestinationsTest extends TestCase
         Http::fake();
     }
 
-    private function organisation(bool $defaut, array $homepage = []): Organization
+    /**
+     * L'intention de chaque carte, et la classe qui la porte sur chaque gabarit.
+     *
+     * Les deux gabarits racontent les memes quatre intentions ; seuls les noms
+     * de classe different. La table ci-dessous est la traduction, etablie sur
+     * le LIBELLE par defaut ET sur l'icone — deux temoins concordants, aucun
+     * des deux devine.
+     *
+     * | intention | `hero-v2` | `artscilab-hero` (icone) |
+     * |---|---|---|
+     * | demander de l'aide | `card-help` | `c2` (`ti-lifebuoy`) |
+     * | offrir de l'aide | `card-offer` | `c1` (`ti-hand-stop`) |
+     * | explorer une piste | `card-create` | `c3` (`ti-bulb`) |
+     * | creer du lien | `card-meet` | `c4` (`ti-friends`) |
+     */
+    private const CLASSES = [
+        'bouclepro_hero_v2' => [
+            'need_help' => 'card-help',
+            'offer_help' => 'card-offer',
+            'explore_idea' => 'card-create',
+            'connect' => 'card-meet',
+        ],
+        'artscilab_hero' => [
+            'need_help' => 'c2',
+            'offer_help' => 'c1',
+            'explore_idea' => 'c3',
+            'connect' => 'c4',
+        ],
+    ];
+
+    private function organisation(bool $defaut, array $homepage = [], string $gabarit = 'bouclepro_hero_v2'): Organization
     {
         return Organization::factory()->create([
             'slug' => ($defaut ? 'main-' : 'autre-').bin2hex(random_bytes(4)),
@@ -58,7 +103,7 @@ class TASK1608HomepageCardDestinationsTest extends TestCase
             'is_public' => true,
             'is_default' => $defaut,
             'loops_enabled' => true,
-            'homepage_template' => 'bouclepro_hero_v2',
+            'homepage_template' => $gabarit,
             'homepage_settings' => $homepage,
         ]);
     }
@@ -219,6 +264,102 @@ class TASK1608HomepageCardDestinationsTest extends TestCase
         $this->assertSame(
             route('organization.members.index', $organisation),
             $this->destination($html, 'card-meet'),
+        );
+    }
+
+    // =====================================================================
+    // D. Le gabarit que la premiere version de ce fichier ne voyait pas
+    // =====================================================================
+
+    /**
+     * La destination attendue de chaque intention, sur N'IMPORTE quel gabarit.
+     *
+     * @return array<string, string>
+     */
+    private function attendues(Organization $organisation): array
+    {
+        $explorer = route('organization.explorer', $organisation);
+
+        return [
+            'need_help' => $explorer,
+            'offer_help' => $explorer.'?tab=requests',
+            'explore_idea' => route('organization.blog.index', $organisation),
+            'connect' => route('organization.members.index', $organisation),
+        ];
+    }
+
+    /**
+     * Le meme mapping sur les DEUX gabarits qui portent les quatre cartes.
+     *
+     * C'est la garde qui manquait : sans elle, corriger `hero-v2` rendait la
+     * suite verte alors que toutes les autres Organizations scopees — celles
+     * qui n'utilisent pas ce gabarit — gardaient l'inversion.
+     */
+    public function test_the_mapping_holds_on_every_scoped_template(): void
+    {
+        foreach (self::CLASSES as $gabarit => $classes) {
+            $organisation = $this->organisation(false, [], $gabarit);
+            $html = $this->landing($organisation)->assertOk()->getContent();
+            $attendues = $this->attendues($organisation);
+
+            foreach ($classes as $intention => $classe) {
+                $this->assertSame(
+                    $attendues[$intention],
+                    $this->destination($html, $classe),
+                    "Gabarit {$gabarit} : l'intention « {$intention} » (carte `{$classe}`) ne mene pas ou elle devrait.",
+                );
+            }
+        }
+    }
+
+    /**
+     * Sur chaque gabarit, les quatre cartes restent dans l'Organization.
+     */
+    public function test_every_scoped_template_keeps_its_cards_at_home(): void
+    {
+        foreach (self::CLASSES as $gabarit => $classes) {
+            $organisation = $this->organisation(false, [], $gabarit);
+            $html = $this->landing($organisation)->assertOk()->getContent();
+
+            foreach ($classes as $classe) {
+                $url = (string) $this->destination($html, $classe);
+
+                $this->assertStringContainsString(
+                    '/org/'.$organisation->slug.'/',
+                    $url,
+                    "Gabarit {$gabarit} : la carte `{$classe}` sort de l'Organization — {$url}",
+                );
+                $this->assertStringNotContainsString(
+                    '/boucles',
+                    $url,
+                    "Gabarit {$gabarit} : la carte `{$classe}` mene encore au catalogue global.",
+                );
+            }
+        }
+    }
+
+    /**
+     * Le gabarit de REPLI ne sort pas non plus de l'Organization.
+     *
+     * `organization/home` ne porte pas les quatre intentions, mais son CTA
+     * invite « Decouvrir les Boucles » visait la route GLOBALE `boucles.index`
+     * depuis une page servie sous `/org/{slug}`.
+     */
+    public function test_the_fallback_template_has_no_global_route(): void
+    {
+        $organisation = $this->organisation(false, [], 'bouclepro_default');
+        $html = $this->landing($organisation)->assertOk()->getContent();
+
+        $this->assertStringNotContainsString(
+            'href="'.route('boucles.index').'"',
+            $html,
+            'Le gabarit de repli renvoie encore vers le catalogue global des Boucles.',
+        );
+
+        $this->assertStringContainsString(
+            'href="'.route('organization.loops.index', $organisation).'"',
+            $html,
+            'Le CTA « Decouvrir les Boucles » a disparu au lieu d\'etre borne.',
         );
     }
 }

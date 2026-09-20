@@ -35,7 +35,10 @@
                                 <a href="{{ route('organization.register', $organization) }}" class="inline-flex items-center justify-center rounded-full bg-[var(--bp-primary)] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--bp-primary-deep)]">
                                     {{ org_trans('navigation.create_account') }}
                                 </a>
-                                <a href="{{ route('boucles.index') }}" class="inline-flex items-center justify-center rounded-full border border-[var(--bp-border)] px-6 py-3 text-sm font-semibold text-[var(--bp-muted)] transition hover:bg-[var(--bp-panel)] hover:text-[var(--bp-text)]">
+                                {{-- TASK-1608 — ce CTA invite visait la route GLOBALE sur une
+                                     page servie sous `/org/{slug}` : il sortait le visiteur de
+                                     l'Organization qu'il consultait. --}}
+                                <a href="{{ route('organization.loops.index', $organization) }}" class="inline-flex items-center justify-center rounded-full border border-[var(--bp-border)] px-6 py-3 text-sm font-semibold text-[var(--bp-muted)] transition hover:bg-[var(--bp-panel)] hover:text-[var(--bp-text)]">
                                     {{ org_trans('navigation.discover_loops') }}
                                 </a>
                             @else
