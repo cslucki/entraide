@@ -10,6 +10,7 @@ use App\Services\GuestShell\GuestVisitorResolver;
 use App\Services\Workshops\WorkshopInterestService;
 use App\Services\Workshops\WorkshopRegistrationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 /**
@@ -59,7 +60,84 @@ class WorkshopPageController extends Controller
             'canSelect' => $request->user() === null,
             // TASK-1453 : l'etat MEMBRE — inscriptions, droit de confirmer (verifie + meme Organization), sessions choisies en Guest (visiteurs claimes).
             'member' => $this->memberState($request, $organization, $workshop),
+            // TASK-1611 : l'apercu social de CETTE page, construit ici.
+            'social' => $this->socialMeta($organization, $workshop),
         ]);
+    }
+
+    /**
+     * TASK-1611 — l'apercu social d'un atelier, DECLARE par la page.
+     *
+     * TASK-1610 a interdit au layout partage de deduire `og:url` de la
+     * requete, et cette interdiction tient : l'URL courante d'une page de
+     * refus porte l'identifiant refuse. Ici c'est l'inverse — la page EST
+     * publique, elle connait son atelier, elle peut donc nommer son URL
+     * canonique a partir de l'identite metier (slug d'Organization + slug
+     * d'atelier), jamais a partir de l'URL parcourue. Les parametres
+     * d'attribution presents dans l'URL visitee n'entrent pas dans la
+     * canonique : partager la page ne doit pas partager le canal d'arrivee.
+     *
+     * L'image : le flyer s'il existe — il devient la vignette et fait passer
+     * la carte Twitter en grand format. Sinon l'icone de marque 512 px, qui
+     * reste sous le seuil des grandes cartes mais est lisible la ou le
+     * symbole 64 px du repli global ne l'est pas.
+     *
+     * HOTE : tout est bati sur `config('app.url')`, jamais sur l'hote de la
+     * requete. `route()` absolu et `asset()` reprennent le domaine par lequel
+     * on est arrive — donc, sur un domaine de courtoisie, une canonique qui
+     * DESIGNE ce domaine de courtoisie, c'est-a-dire l'inverse de ce qu'une
+     * canonique promet ; et un `og:image` qui pouvait deja diverger de
+     * `og:url`, `Workshop::flyerUrl()` etant, lui, deja ancre sur `APP_URL`.
+     *
+     * @return array<string, string|int|null>
+     */
+    private function socialMeta(Organization $organization, Workshop $workshop): array
+    {
+        $url = $this->canonicalUrl(
+            route('organization.workshop.show', ['organization' => $organization->slug, 'workshop' => $workshop->slug], absolute: false)
+        );
+
+        // Texte BRUT et court : la promesse est deja ecrite pour etre lue seule ;
+        // a defaut, le debut de la description, sans retours ni espaces doubles.
+        $source = filled($workshop->promise) ? $workshop->promise : (string) $workshop->description;
+        $description = Str::limit(trim(preg_replace('/\s+/u', ' ', strip_tags($source)) ?? ''), 200);
+
+        if ($workshop->hasFlyer()) {
+            return [
+                'url' => $url,
+                'description' => $description,
+                'image' => $workshop->flyerUrl(),
+                'imageAlt' => __('workshops.flyer_alt', ['title' => $workshop->title]),
+                'imageType' => $workshop->flyerMimeType(),
+                'imageWidth' => $workshop->flyer_width,
+                'imageHeight' => $workshop->flyer_height,
+                'twitterCard' => 'summary_large_image',
+            ];
+        }
+
+        return [
+            'url' => $url,
+            'description' => $description,
+            'image' => $this->canonicalUrl('/brand/icon-512.png'),
+            'imageAlt' => null,
+            'imageType' => 'image/png',
+            'imageWidth' => 512,
+            'imageHeight' => 512,
+            'twitterCard' => 'summary',
+        ];
+    }
+
+    /**
+     * Un chemin de l'application, ancre sur le domaine CANONIQUE.
+     *
+     * `config('app.url')` est la seule source : aucun domaine ecrit en dur,
+     * aucune lecture de la requete. Meme regle que `Workshop::flyerUrl()`,
+     * pour que `og:url`, `canonical` et `og:image` d'une meme page ne
+     * puissent pas designer deux hotes differents.
+     */
+    private function canonicalUrl(string $path): string
+    {
+        return rtrim((string) config('app.url'), '/').'/'.ltrim($path, '/');
     }
 
     /**

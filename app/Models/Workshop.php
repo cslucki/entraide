@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * TASK-1450 — Un atelier (Workshop) de l'Organization (Growth V3 §7).
@@ -33,6 +34,9 @@ use Illuminate\Support\Carbon;
  * @property string $format
  * @property int|null $duration_minutes
  * @property string $locale
+ * @property string|null $flyer_path
+ * @property int|null $flyer_width
+ * @property int|null $flyer_height
  * @property string $status
  * @property string|null $created_by
  * @property string|null $published_by
@@ -60,6 +64,16 @@ class Workshop extends Model
 
     public const FORMATS = [self::FORMAT_IN_PERSON, self::FORMAT_ONLINE, self::FORMAT_HYBRID];
 
+    /** TASK-1611 — le flyer : disque, dossier et bornes de validation, une seule fois. */
+    public const FLYER_DISK = 'public';
+
+    public const FLYER_DIRECTORY = 'workshops/flyers';
+
+    public const FLYER_MAX_KILOBYTES = 5120;
+
+    /** @var list<string> */
+    public const FLYER_MIMES = ['jpeg', 'jpg', 'png', 'webp'];
+
     public const MAX_SLUG_CHARS = 80;
 
     public const MAX_TITLE_CHARS = 160;
@@ -83,6 +97,9 @@ class Workshop extends Model
         'format',
         'duration_minutes',
         'locale',
+        'flyer_path',
+        'flyer_width',
+        'flyer_height',
         'status',
         'created_by',
         'published_by',
@@ -94,9 +111,56 @@ class Workshop extends Model
     {
         return [
             'duration_minutes' => 'integer',
+            'flyer_width' => 'integer',
+            'flyer_height' => 'integer',
             'published_at' => 'datetime',
             'retired_at' => 'datetime',
         ];
+    }
+
+    /** TASK-1611 — un atelier porte AU PLUS un visuel, et il est facultatif. */
+    public function hasFlyer(): bool
+    {
+        return filled($this->flyer_path);
+    }
+
+    /**
+     * L'URL PUBLIQUE et ABSOLUE du flyer — celle que les reseaux sociaux
+     * telechargent. Elle est batie sur `APP_URL` par le disque `public`
+     * (config/filesystems), jamais sur l'hote de la requete : un partage fait
+     * depuis un domaine de courtoisie ne doit pas propager ce domaine.
+     */
+    public function flyerUrl(): ?string
+    {
+        if (! $this->hasFlyer()) {
+            return null;
+        }
+
+        $url = Storage::disk(self::FLYER_DISK)->url($this->flyer_path);
+
+        // Selon le pilote, le disque rend deja une URL absolue (S3, ou
+        // `FILESYSTEM_PUBLIC_URL` pose) ou un simple chemin `/storage/...`.
+        // Un reseau social ne sait rien faire d'un chemin : on le complete sur
+        // `APP_URL`, jamais sur l'hote de la requete — partager depuis un
+        // domaine de courtoisie ne doit pas propager ce domaine.
+        return str_starts_with($url, 'http://') || str_starts_with($url, 'https://')
+            ? $url
+            : rtrim((string) config('app.url'), '/').'/'.ltrim($url, '/');
+    }
+
+    /** Le type MIME deduit de l'extension stockee — `og:image:type`. */
+    public function flyerMimeType(): ?string
+    {
+        if (! $this->hasFlyer()) {
+            return null;
+        }
+
+        return match (strtolower(pathinfo($this->flyer_path, PATHINFO_EXTENSION))) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            default => null,
+        };
     }
 
     public static function isValidSlug(string $slug): bool

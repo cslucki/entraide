@@ -4,7 +4,7 @@
         <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">{{ $workshop ? __('workshops.edit_title', ['title' => $workshop->title]) : __('workshops.create_title') }}</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">{{ __('workshops.form_hint') }}</p>
 
-        <form method="POST" action="{{ $workshop ? route('organization.admin.workshops.update', [$organization, $workshop]) : route('organization.admin.workshops.store', $organization) }}" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4" data-workshop-form>
+        <form method="POST" action="{{ $workshop ? route('organization.admin.workshops.update', [$organization, $workshop]) : route('organization.admin.workshops.store', $organization) }}" enctype="multipart/form-data" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4" data-workshop-form>
             @csrf
             @if($workshop) @method('PUT') @endif
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -59,6 +59,24 @@
                     <span class="text-[11px] text-gray-400">{{ __('workshops.journey_hint') }}</span>
                     @error('acquisition_journey_id')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                 </label>
+                {{-- TASK-1611 — LE visuel facultatif : un seul par atelier. Il
+                     sert de flyer sur l'accueil et de vignette quand la page
+                     de l'atelier est partagee. --}}
+                <div class="block md:col-span-2" data-workshop-flyer-field>
+                    <span class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">{{ __('workshops.col_flyer') }}</span>
+                    @if($workshop?->hasFlyer())
+                        <div class="mb-2 flex flex-wrap items-center gap-3">
+                            <img src="{{ $workshop->flyerUrl() }}" alt="{{ __('workshops.flyer_alt', ['title' => $workshop->title]) }}" class="h-24 w-auto max-w-full rounded-lg border border-gray-200 dark:border-gray-700 object-cover" data-workshop-flyer-preview>
+                            <label class="inline-flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                                <input type="checkbox" name="remove_flyer" value="1" class="rounded border-gray-300 dark:border-gray-600" data-workshop-flyer-remove>
+                                {{ __('workshops.flyer_remove') }}
+                            </label>
+                        </div>
+                    @endif
+                    <input type="file" name="flyer" accept="image/jpeg,image/png,image/webp" class="w-full text-sm text-gray-600 dark:text-gray-300 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-xs file:font-medium file:text-indigo-700 dark:file:bg-gray-700 dark:file:text-gray-100" data-workshop-flyer>
+                    <span class="mt-1 block text-[11px] text-gray-400">{{ __('workshops.flyer_hint', ['max' => (int) (\App\Models\Workshop::FLYER_MAX_KILOBYTES / 1024)]) }}</span>
+                    @error('flyer')<p class="mt-1 text-xs text-red-600" data-workshop-flyer-error>{{ $message }}</p>@enderror
+                </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700" data-workshop-save>{{ __('workshops.save') }}</button>

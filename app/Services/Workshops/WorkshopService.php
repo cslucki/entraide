@@ -7,6 +7,8 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Models\Workshop;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use LogicException;
@@ -51,6 +53,80 @@ final class WorkshopService
         }
 
         $workshop->fill($data)->save();
+
+        return $workshop;
+    }
+
+    /**
+     * TASK-1611 — attacher (ou remplacer) LE visuel facultatif de l'atelier.
+     *
+     * Meme convention que l'image d'un article de blog : disque `public`,
+     * chemin relatif en base. Deux differences assumees :
+     *
+     *  - le dossier est cloisonne par Organization, pour qu'un flyer se
+     *    retrouve et se purge avec son tenant ;
+     *  - les dimensions sont relevees ICI, une fois, parce que la page
+     *    publique doit les annoncer aux reseaux (`og:image:width/height`)
+     *    sans relire le fichier a chaque affichage.
+     *
+     * Le fichier precedent est supprime : un remplacement ne laisse pas
+     * d'orphelin sur le disque.
+     */
+    public function attachFlyer(Workshop $workshop, UploadedFile $file, User $actor): Workshop
+    {
+        $this->guardActor($workshop->organization, $actor);
+
+        $previous = $workshop->flyer_path;
+
+        // Les dimensions se lisent AVANT le rangement, sur le fichier temporaire
+        // dont on est encore proprietaire. Les lire apres marcherait aujourd'hui
+        // — `putFileAs` copie par flux et laisse le temporaire en place — mais
+        // ferait dependre la justesse d'un detail d'implementation du framework.
+        // `getimagesize` lit l'en-tete du fichier RECU, jamais une valeur
+        // annoncee par le client ; un fichier illisible ne bloque pas l'upload,
+        // il prive seulement l'apercu social de ses dimensions.
+        [$width, $height] = rescue(fn () => getimagesize($file->getRealPath()), [null, null], false) ?: [null, null];
+
+        $path = $file->store(Workshop::FLYER_DIRECTORY.'/'.$workshop->organization_id, Workshop::FLYER_DISK);
+
+        if ($path === false) {
+            throw new InvalidArgumentException('The flyer could not be stored.');
+        }
+
+        try {
+            $workshop->forceFill([
+                'flyer_path' => $path,
+                'flyer_width' => is_int($width) && $width > 0 && $width <= 65535 ? $width : null,
+                'flyer_height' => is_int($height) && $height > 0 && $height <= 65535 ? $height : null,
+            ])->save();
+        } catch (\Throwable $exception) {
+            // Le fichier est ecrit, la ligne ne l'est pas : sans ce rattrapage
+            // il resterait sur le disque sans que rien ne le designe. On defait
+            // ce que l'on vient de faire, puis on laisse l'erreur remonter —
+            // l'ancien flyer, lui, n'a pas encore ete touche.
+            Storage::disk(Workshop::FLYER_DISK)->delete($path);
+
+            throw $exception;
+        }
+
+        if (filled($previous) && $previous !== $path) {
+            Storage::disk(Workshop::FLYER_DISK)->delete($previous);
+        }
+
+        return $workshop;
+    }
+
+    /** Retirer le visuel : la colonne ET le fichier, jamais l'un sans l'autre. */
+    public function removeFlyer(Workshop $workshop, User $actor): Workshop
+    {
+        $this->guardActor($workshop->organization, $actor);
+
+        $previous = $workshop->flyer_path;
+        $workshop->forceFill(['flyer_path' => null, 'flyer_width' => null, 'flyer_height' => null])->save();
+
+        if (filled($previous)) {
+            Storage::disk(Workshop::FLYER_DISK)->delete($previous);
+        }
 
         return $workshop;
     }

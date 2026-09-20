@@ -12,6 +12,7 @@ use App\Models\WorkshopSessionInterest;
 use App\Services\Workshops\WorkshopService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use InvalidArgumentException;
@@ -49,6 +50,7 @@ class OrgWorkshopController extends Controller
     public function store(Request $request, Organization $organization): RedirectResponse
     {
         $workshop = $this->guarded(fn () => $this->workshops->create($organization, $this->validated($request), $request->user()));
+        $this->applyFlyer($request, $workshop);
 
         return redirect()->route('organization.admin.workshops', $organization)->with('success', __('workshops.flash_created', ['title' => $workshop->title]));
     }
@@ -62,6 +64,7 @@ class OrgWorkshopController extends Controller
     {
         $target = $this->resolve($organization, $workshop);
         $this->guarded(fn () => $this->workshops->update($target, $this->validated($request), $request->user()));
+        $this->applyFlyer($request, $target);
 
         return redirect()->route('organization.admin.workshops', $organization)->with('success', __('workshops.flash_saved', ['title' => $target->title]));
     }
@@ -99,7 +102,7 @@ class OrgWorkshopController extends Controller
     /** @return array<string, mixed> */
     private function validated(Request $request): array
     {
-        return $request->validate([
+        return Arr::except($request->validate([
             'title' => ['required', 'string', 'max:'.Workshop::MAX_TITLE_CHARS],
             'slug' => ['nullable', 'string', 'max:'.Workshop::MAX_SLUG_CHARS],
             'promise' => ['nullable', 'string', 'max:'.Workshop::MAX_PROMISE_CHARS],
@@ -108,7 +111,32 @@ class OrgWorkshopController extends Controller
             'duration_minutes' => ['nullable', 'integer', 'min:1', 'max:'.Workshop::MAX_DURATION_MINUTES],
             'locale' => ['required', 'string', 'in:'.implode(',', Workshop::supportedLocales())],
             'acquisition_journey_id' => ['nullable', 'uuid'],
-        ]);
+            // TASK-1611 — LE visuel facultatif. Valide comme l'image d'un
+            // article de blog (image reelle, formats usuels, 5 Mo), et jamais
+            // transmis au service metier : il ne se range pas dans une colonne
+            // de formulaire mais sur un disque, par `applyFlyer()`.
+            'flyer' => ['nullable', 'image', 'mimes:'.implode(',', Workshop::FLYER_MIMES), 'max:'.Workshop::FLYER_MAX_KILOBYTES],
+            'remove_flyer' => ['nullable', 'boolean'],
+        ]), ['flyer', 'remove_flyer']);
+    }
+
+    /**
+     * TASK-1611 — le geste flyer, apres que l'atelier existe et soit valide.
+     *
+     * Ordre volontaire : retirer AVANT d'attacher, pour qu'un formulaire qui
+     * coche « retirer » ET depose un fichier finisse avec le NOUVEAU fichier
+     * plutot qu'avec rien. Les deux gestes passent par le service, donc par la
+     * garde d'acteur et par la suppression du fichier precedent.
+     */
+    private function applyFlyer(Request $request, Workshop $workshop): void
+    {
+        if ($request->boolean('remove_flyer') && $workshop->hasFlyer()) {
+            $this->workshops->removeFlyer($workshop, $request->user());
+        }
+
+        if ($request->hasFile('flyer')) {
+            $this->workshops->attachFlyer($workshop, $request->file('flyer'), $request->user());
+        }
     }
 
     /**
