@@ -98,6 +98,7 @@ use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MyceliumController;
 use App\Http\Controllers\NotificationCenterController;
 use App\Http\Controllers\NotificationPreferenceController;
+use App\Http\Controllers\OpenSourceController;
 use App\Http\Controllers\OrganizationFlowchartController;
 use App\Http\Controllers\OrganizationLandingController;
 use App\Http\Controllers\OrganizationRequestController;
@@ -286,6 +287,19 @@ Route::get('/search', [SearchController::class, 'index'])->middleware(['auth', '
 Route::view('/aide', 'help')->name('help');
 Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');
 Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
+
+// TASK-1612 — Open Source Explorer.
+//
+// `/open-source/repository` sert l'instantane du depot public ; il est
+// throttle parce qu'il est anonyme et qu'un cache froid lui coute une salve
+// de 14 appels sortants. `/open-source/github` est la SORTIE : elle existe
+// pour que l'URL du depot n'apparaisse jamais dans un `href` — ni dans le
+// HTML, ni au survol. Les deux sont publiques : le drawer vit dans le pied
+// de page, visible d'un visiteur anonyme.
+Route::get('/open-source/repository', [OpenSourceController::class, 'repository'])
+    ->middleware('throttle:30,1')
+    ->name('open-source.repository');
+Route::get('/open-source/github', [OpenSourceController::class, 'github'])->name('open-source.github');
 
 // Authenticated routes
 Route::middleware('auth')->group(function () {

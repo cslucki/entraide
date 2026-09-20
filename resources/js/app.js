@@ -1,4 +1,5 @@
 import './bootstrap';
+import { registerOpenSourceDrawer } from './open-source-drawer';
 import { createEditor } from './blog-editor';
 import './markdown-wysiwyg-editor';
 import { extractEmbedUrl } from './tiptap/media-embed-node.js';
@@ -7982,6 +7983,17 @@ function registerRoadmapMenu() {
 
 document.addEventListener('alpine:init', registerRoadmapMenu);
 registerRoadmapMenu();
+
+// TASK-1612 — Open Source Explorer. Le drawer vit dans le pied de page, donc
+// sur des surfaces qui n'ont PAS toutes Alpine (`layouts/guest` n'en monte
+// pas) : il s'enregistre ici, en JS nu, ou qu'il soit rendu. Le script est
+// charge en `type="module"` — donc apres l'analyse du document — mais le
+// garde `DOMContentLoaded` couvre le cas d'un chargement plus precoce.
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', registerOpenSourceDrawer);
+} else {
+    registerOpenSourceDrawer();
+}
 
 // Service Worker registration
 if ('serviceWorker' in navigator) {
