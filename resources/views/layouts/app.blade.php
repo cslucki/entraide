@@ -68,7 +68,24 @@
         <meta property="og:title" content="{{ $ogTitle ?? $bpTitre }}">
         <meta property="og:description" content="{{ $ogDescription ?? $bpDescription }}">
         <meta property="og:type" content="website">
-        <meta property="og:url" content="{{ url()->current() }}">
+        {{-- `og:url` est DECLARATIF, jamais deduit de la requete.
+
+             Une premiere version emettait `url()->current()` par defaut. La
+             garde de TASK-1145 l'a refusee, et elle avait raison : sur le refus
+             d'acces a un Dossier, l'URL courante PORTE l'identifiant refuse, et
+             le layout le reinjectait dans le HTML.
+
+             `dossiers/acces-refuse` tient sa promesse par l'ABSENCE DE DONNEE —
+             la vue ne recoit jamais le Dossier, donc elle ne peut rien en dire.
+             Aller chercher une source ambiante que la vue n'a pas choisie
+             contournait cette garantie par le bas.
+
+             Une page qui veut cette balise la DECLARE. Les reseaux traitent de
+             toute facon l'URL qu'ils ont chargee comme canonique : l'apercu
+             social reste complet sans elle. --}}
+        @isset($ogUrl)
+        <meta property="og:url" content="{{ $ogUrl }}">
+        @endisset
         <meta property="og:site_name" content="{{ $bpNomPlateforme }}">
         <meta property="og:image" content="{{ $ogImage ?? asset('brand/bouclepro-symbol-64.png') }}">
 

@@ -116,7 +116,7 @@ class TASK1610SocialMetadataTest extends TestCase
     {
         $html = $this->flowchart($this->organisation('LaunchPals', 'launchpals'));
 
-        foreach (['og:title', 'og:description', 'og:type', 'og:url', 'og:site_name', 'og:image'] as $balise) {
+        foreach (['og:title', 'og:description', 'og:type', 'og:site_name', 'og:image'] as $balise) {
             $this->assertNotNull(
                 $this->balise($html, 'property', $balise),
                 "`{$balise}` est absent : l'apercu social redevient devinable par le reseau.",
@@ -216,6 +216,36 @@ class TASK1610SocialMetadataTest extends TestCase
         foreach (self::ANCIEN_SLOGAN as $chaine) {
             $this->assertStringNotContainsString($chaine, $html, "« {$chaine} » est encore rendu.");
         }
+    }
+
+    /**
+     * `og:url` n'est JAMAIS deduit de la requete.
+     *
+     * Une premiere version de ce patch emettait `url()->current()` par defaut.
+     * `TASK1145DossierAccessDeniedTest` l'a refusee, et elle avait raison : sur
+     * le refus d'acces a un Dossier, l'URL courante PORTE l'identifiant refuse,
+     * et le layout le reinjectait dans le HTML.
+     *
+     * `dossiers/acces-refuse` tient sa promesse par l'ABSENCE DE DONNEE — la
+     * vue ne recoit jamais le Dossier. Aller chercher une source ambiante
+     * qu'elle n'a pas choisie contournait cette garantie par le bas.
+     *
+     * Cette garde fige la lecon pour que le raccourci ne revienne pas.
+     */
+    public function test_the_social_url_is_never_inferred_from_the_request(): void
+    {
+        $html = $this->flowchart($this->organisation('LaunchPals', 'launchpals'));
+
+        $this->assertNull(
+            $this->balise($html, 'property', 'og:url'),
+            '`og:url` est emis sans avoir ete declare : le layout lit la requete.',
+        );
+
+        // Declaree, elle est rendue — la balise n'est pas supprimee, elle est
+        // rendue a la page, qui seule sait si son URL est partageable.
+        $rendu = view('layouts.app', ['slot' => '', 'title' => 'Page', 'ogUrl' => 'https://exemple.test/page'])->render();
+
+        $this->assertSame('https://exemple.test/page', $this->balise($rendu, 'property', 'og:url'));
     }
 
     // =====================================================================
