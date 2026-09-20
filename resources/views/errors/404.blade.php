@@ -1,12 +1,38 @@
 @php
-    $errorOrg = $currentOrganization ?? null;
-    if (! $errorOrg && request()->segment(1) === 'org' && request()->segment(2)) {
-        try {
-            $errorOrg = \App\Models\Organization::where('slug', request()->segment(2))->first();
-        } catch (\Exception $e) {
-            //
+    // TASK-1606 — d'ou vient l'Organization de cette page d'erreur.
+    //
+    // LE DEFAUT. Les deux branches precedentes lisaient l'URL REFUSEE :
+    // `$currentOrganization`, que `ResolveUrlOrganization` lie depuis elle, puis
+    // a defaut une requete `Organization::where('slug', segment(2))`. Mesure :
+    // un membre de LaunchPals refuse sur `/org/main/loops` recevait une sortie
+    // vers `/org/main` — l'Organization ETRANGERE — et un titre annoncant le nom
+    // de celle-ci, sans une seule mention de la sienne.
+    //
+    // LE CONTEXTE SUR. Pour un utilisateur AUTHENTIFIE, son Organization est
+    // connue independamment de ce qu'il a demande. On la prefere, toujours :
+    // aucune requete n'interroge plus la ressource refusee dans ce cas, donc
+    // son existence n'est jamais un signal.
+    //
+    // L'INVITE NE CHANGE PAS. Il n'a pas d'Organization legitime, et l'URL
+    // qu'il a demandee reste l'expression de son contexte — meme doctrine que
+    // TASK-1602/1604. On ne lui invente rien.
+    //
+    // Le statut reste 404 et le message reste muet sur la ressource : cette
+    // TASK ne touche a aucune autorisation.
+    $errorOrg = auth()->user()?->organization;
+
+    if (! $errorOrg) {
+        $errorOrg = $currentOrganization ?? null;
+
+        if (! $errorOrg && request()->segment(1) === 'org' && request()->segment(2)) {
+            try {
+                $errorOrg = \App\Models\Organization::where('slug', request()->segment(2))->first();
+            } catch (\Exception $e) {
+                //
+            }
         }
     }
+
     $homeUrl = $errorOrg
         ? route('organization.home', ['organization' => $errorOrg])
         : (auth()->check() ? route('dashboard') : url('/'));
