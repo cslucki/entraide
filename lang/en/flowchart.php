@@ -71,7 +71,7 @@ return [
     'reset' => 'Reset',
 
     // Accessibility / fallback (§15)
-    'fallback_title' => 'The path, in text',
+    'fallback_title' => 'Read the path as text',
     'fallback_intro' => 'The same map, readable without the interactive graph.',
     'fallback_loops' => 'Loops reachable from this page',
     'graph_label' => 'Interactive flowchart of this Organization',
@@ -111,10 +111,14 @@ return [
     // terminology (`explorer.services` / `explorer.requests`): two words for
     // the same thing would have created a vocabulary debt.
     'outlet_need_help' => 'Proposals',
-    'outlet_need_help_hint' => 'What members already offer in this Organization. Sign in to browse them.',
+    'outlet_need_help_hint' => 'What members already offer in this Organization.',
     'outlet_offer_help' => 'Requests',
-    'outlet_offer_help_hint' => 'What members are looking for right now in this Organization. Sign in to browse them.',
+    'outlet_offer_help_hint' => 'What members are looking for right now in this Organization.',
     'outlet_members_only' => 'Sign in to this Organization to see these exchanges.',
+    // Le CTA nomme ce qu'il ouvre. « Voir la Boucle » figurait ici :
+    // ces cards sont des ANNONCES, pas des Boucles.
+    'cta_view_proposal' => 'View proposal',
+    'cta_view_request' => 'View request',
     'outlet_empty' => 'Nothing to show here yet.',
 
     // The shared-engine scene, revealed at once rather than in eight clicks.
@@ -123,4 +127,12 @@ return [
     // The one-line account of the product. It is an EXPLANATION, not a
     // business rule: no code branches on it.
     'orchestration' => 'BouclePro orchestrates cooperation between people, Loops, projects, resources and AI, turning an intention into action.',
+
+    // TASK-1608 — outlet wording follows the ACCESS STATE, the very state that
+    // decides whether the data is loaded. It creates no rule: it states what is
+    // already true.
+    'outlet_state_guest' => 'Sign in to browse them.',
+    'outlet_state_outsider' => 'You must be a member of this Organization to browse them.',
+    'outlet_state_member_proposals' => 'The proposals of this Organization are shown below.',
+    'outlet_state_member_requests' => 'The requests of this Organization are shown below.',
 ];

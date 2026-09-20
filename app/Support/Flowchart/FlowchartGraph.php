@@ -165,6 +165,17 @@ final class FlowchartGraph
         $nodes = [];
         $edges = [];
 
+        // L'ETAT D'ACCES, en trois valeurs. C'est exactement le predicat que
+        // `FlowchartExchanges::autorise()` applique pour decider de charger les
+        // donnees : le wording des debouches le REFLETE, il ne le redefinit
+        // pas. Sans cela, un membre voyait ses cards ET « Connectez-vous pour
+        // les consulter » — mesure sur capture.
+        $etatAcces = match (true) {
+            $user === null => 'guest',
+            $user->organization_id !== $organization->id => 'outsider',
+            default => 'member',
+        };
+
         $nodes[] = $this->node(self::NODE_ROOT, 'root', __('flowchart.root'));
 
         // --- Les quatre portes, et leur entree propre -------------------
@@ -190,9 +201,13 @@ final class FlowchartGraph
             if (isset(self::OUTLETS[$intent])) {
                 $debouche = self::OUTLETS[$intent];
 
+                $quoi = $intent === 'need_help' ? 'proposals' : 'requests';
+
                 $nodes[] = $this->node($debouche, 'outlet', __('flowchart.outlet_'.$intent), [
-                    'hint' => __('flowchart.outlet_'.$intent.'_hint'),
-                    'outlet' => $intent === 'need_help' ? 'proposals' : 'requests',
+                    'hint' => __('flowchart.outlet_'.$intent.'_hint')
+                        .' '.$this->messageAcces($etatAcces, $quoi),
+                    'outlet' => $quoi,
+                    'access_state' => $etatAcces,
                 ]);
 
                 $edges[] = $this->edge($porte, $debouche, 'detail');
@@ -264,6 +279,7 @@ final class FlowchartGraph
             'edges' => $edges,
             'has_loops' => $boucles !== [],
             'is_guest' => $user === null,
+            'access_state' => $etatAcces,
         ];
     }
 
@@ -312,6 +328,22 @@ final class FlowchartGraph
         }
 
         return org_trans('flowchart.intent_'.$intent, $organization);
+    }
+
+    /**
+     * Ce que l'on dit a cette personne, selon ce qu'elle peut reellement voir.
+     *
+     * Trois etats, trois phrases. Aucune n'accorde ni ne refuse quoi que ce
+     * soit : la decision est prise par {@see FlowchartExchanges}, ici on la
+     * nomme.
+     */
+    private function messageAcces(string $etat, string $quoi): string
+    {
+        return match ($etat) {
+            'guest' => __('flowchart.outlet_state_guest'),
+            'outsider' => __('flowchart.outlet_state_outsider'),
+            default => __('flowchart.outlet_state_member_'.$quoi),
+        };
     }
 
     /** Cette etape du tronc est-elle repliee dans un agregat de la vue d'ensemble ? */

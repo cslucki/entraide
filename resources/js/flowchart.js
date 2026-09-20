@@ -249,8 +249,8 @@ function demarrer(racine, graph) {
 
     const CARD = COMPACT
         ? {
-            intent: { w: 176, h: 68, icone: true, puce: 30 },
-            explore: { w: 176, h: 68, icone: true, puce: 30 },
+            intent: { w: 168, h: 68, icone: true, puce: 28 },
+            explore: { w: 168, h: 68, icone: true, puce: 28 },
             outlet: { w: 168, h: 58, icone: false, puce: 0 },
             outcome: { w: 164, h: 56, icone: true, puce: 28 },
             entry: { w: 168, h: 58, icone: false, puce: 0 },
@@ -463,6 +463,18 @@ function demarrer(racine, graph) {
                         'border-width': 4,
                         'border-color': couleurs.primary,
                         'border-opacity': 1,
+                    },
+                },
+                // Le retour a la ligne de la scene du moteur : un coude, pas
+                // une diagonale. `taxi` trace des segments orthogonaux, donc
+                // le changement de rangee se LIT au lieu de se deviner.
+                {
+                    selector: 'edge.bp-retour',
+                    style: {
+                        'curve-style': 'taxi',
+                        'taxi-direction': 'downward',
+                        'taxi-turn': '50%',
+                        'taxi-turn-min-distance': 12,
                     },
                 },
                 { selector: 'edge.bp-actif', style: { 'line-color': couleurs.primary, 'target-arrow-color': couleurs.primary, width: 3, opacity: 1 } },
@@ -724,16 +736,21 @@ function demarrer(racine, graph) {
             // La composition mobile est donc VERTICALE : une colonne sous la
             // question, plus d'espacement, moins de contexte simultane. C'est
             // le parti demande par MASTER, et non un rabotage du texte.
-            const pasVertical = 88;
+            // ROOT, puis les quatre portes en GRILLE 2x2, puis « Explorer les
+            // Boucles ». Une colonne unique de cinq cards descendait a 440 px
+            // de modele : la derniere passait sous la barre de navigation
+            // basse, mesure sur capture.
+            const colonneX = 90;
+            const rangeeY = [130, 225];
 
             const ancrages = etroit()
                 ? [
-                    { x: 0, y: pasVertical },
-                    { x: 0, y: pasVertical * 2 },
-                    { x: 0, y: pasVertical * 3 },
-                    { x: 0, y: pasVertical * 4 },
-                    { x: 0, y: pasVertical * 5 },
-                    { x: 0, y: -pasVertical },
+                    { x: -colonneX, y: rangeeY[0] },
+                    { x: colonneX, y: rangeeY[0] },
+                    { x: -colonneX, y: rangeeY[1] },
+                    { x: colonneX, y: rangeeY[1] },
+                    { x: 0, y: 320 },
+                    { x: 0, y: -130 },
                 ]
                 : [
                     { x: 0, y: -ry },
@@ -887,11 +904,20 @@ function demarrer(racine, graph) {
         const x0 = Math.max(base.x + PAS_CHAINE_X, bordDroitPlace() + 140);
         const y0 = base.y - ((rangees - 1) * pasY) / 2;
 
+        cy.edges().removeClass('bp-retour');
+
         etapes.forEach((etape, i) => {
             etape.position({
                 x: x0 + (i % colonnes) * pasX,
                 y: y0 + Math.floor(i / colonnes) * pasY,
             });
+
+            // Le lien qui CHANGE DE RANGEE : en bezier, il traversait la grille
+            // en longue diagonale et se lisait comme une liaison parasite. Il
+            // devient un coude — on descend, puis on repart.
+            if (i > 0 && i % colonnes === 0) {
+                etapes[i - 1].edgesTo(etape).addClass('bp-retour');
+            }
 
             revelees.add(etape.id());
             placees.add(etape.id());

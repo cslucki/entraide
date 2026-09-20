@@ -72,7 +72,7 @@ return [
     'reset' => 'Réinitialiser',
 
     // Accessibilité / repli (§15)
-    'fallback_title' => 'Le parcours, en texte',
+    'fallback_title' => 'Lire le parcours en texte',
     'fallback_intro' => "La même carte, lisible sans le graphe interactif.",
     'fallback_loops' => 'Boucles accessibles depuis cette page',
     'graph_label' => 'Logigramme interactif de cette Organization',
@@ -113,10 +113,14 @@ return [
     // `explorer.requests`) : deux mots pour la meme chose auraient cree une
     // dette de vocabulaire.
     'outlet_need_help' => 'Propositions',
-    'outlet_need_help_hint' => "Ce que des membres proposent deja dans cette Organization. Connectez-vous pour les consulter.",
+    'outlet_need_help_hint' => "Ce que des membres proposent déjà dans cette Organization.",
     'outlet_offer_help' => 'Demandes',
-    'outlet_offer_help_hint' => 'Ce que des membres cherchent en ce moment dans cette Organization. Connectez-vous pour les consulter.',
+    'outlet_offer_help_hint' => 'Ce que des membres cherchent en ce moment dans cette Organization.',
     'outlet_members_only' => 'Connectez-vous à cette Organization pour voir ces échanges.',
+    // Le CTA nomme ce qu'il ouvre. « Voir la Boucle » figurait ici :
+    // ces cards sont des ANNONCES, pas des Boucles.
+    'cta_view_proposal' => 'Voir la proposition',
+    'cta_view_request' => 'Voir la demande',
     'outlet_empty' => 'Rien à afficher ici pour le moment.',
 
     // La scene du moteur commun, revelee d'un coup plutot qu'en huit clics.
@@ -125,4 +129,12 @@ return [
     // Le mot d'ensemble sur le produit. C'est une EXPLICATION, pas une regle
     // metier : rien dans le code ne s'y branche.
     'orchestration' => "BouclePro orchestre la coopération entre personnes, Boucles, projets, ressources et IA pour transformer une intention en action.",
+
+    // TASK-1608 — le wording des debouches suit l'ETAT D'ACCES, le meme que
+    // celui qui decide du chargement des donnees. Il ne cree aucune regle : il
+    // dit ce qui est deja vrai.
+    'outlet_state_guest' => 'Connectez-vous pour les consulter.',
+    'outlet_state_outsider' => 'Vous devez être membre de cette Organization pour les consulter.',
+    'outlet_state_member_proposals' => 'Les propositions de cette Organization sont affichées ci-dessous.',
+    'outlet_state_member_requests' => 'Les demandes de cette Organization sont affichées ci-dessous.',
 ];

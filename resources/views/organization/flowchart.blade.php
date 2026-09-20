@@ -93,10 +93,17 @@
 
              `overflow-hidden` borne Cytoscape a son cadre : le canvas se
              navigue, la PAGE ne defile jamais horizontalement (§13). --}}
-        {{-- La hauteur mobile tient compte de la barre de navigation basse,
-             qui recouvre le bas du viewport : sans cela, le dernier tiers du
-             canvas vivait dessous. --}}
-        <div class="relative mt-3 h-[calc(100dvh-16rem)] min-h-[26rem] overflow-hidden sm:h-[calc(100dvh-15rem)]">
+        {{-- La hauteur mobile RESERVE la barre de navigation basse.
+
+             `x-mobile-bottom-nav` est `fixed bottom-0` et haute de 4rem, plus
+             `env(safe-area-inset-bottom)`. Le conteneur de page porte bien
+             `mobile-safe-bottom-auth`, mais ce padding agit en FIN de page :
+             au premier ecran, la nav recouvrait donc les 54 derniers pixels du
+             canvas — « Explorer les Boucles » passait dessous, mesure sur
+             capture.
+
+             La soustraction couvre l'en-tete, la nav et l'encoche. --}}
+        <div class="relative mt-3 h-[calc(100dvh-20rem-env(safe-area-inset-bottom,0px))] min-h-[24rem] overflow-hidden sm:h-[calc(100dvh-15rem)]">
             <div data-flowchart-canvas
                  role="application"
                  aria-label="{{ __('flowchart.graph_label') }}"
@@ -152,16 +159,21 @@
              Memes regles metier qu'Explorer : `Service::active()` et
              `ServiceRequest::open()`, bornees a cette Organization. --}}
         @foreach([
-            ['proposals', $proposals, 'flowchart.outlet_need_help'],
-            ['requests', $requests, 'flowchart.outlet_offer_help'],
-        ] as [$quoi, $cartes, $titre])
+            ['proposals', $proposals, 'flowchart.outlet_need_help', 'flowchart.cta_view_proposal'],
+            ['requests', $requests, 'flowchart.outlet_offer_help', 'flowchart.cta_view_request'],
+        ] as [$quoi, $cartes, $titre, $cta])
             <div data-flowchart-echanges="{{ $quoi }}" hidden
                  class="border-t border-[var(--bp-border)] px-4 py-6 sm:px-6 lg:px-8">
                 <h2 class="text-lg font-semibold text-[var(--bp-text)]">{{ __($titre) }}</h2>
 
+                {{-- Le meme etat que celui qui a decide du chargement : la zone
+                     ne peut donc pas dire autre chose que ce que le serveur a
+                     fait. --}}
                 @if(! $isOrganizationMember)
                     <p class="mt-3 rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-surface)]/60 px-4 py-3 text-sm text-[var(--bp-muted)]">
-                        {{ __('flowchart.outlet_members_only') }}
+                        {{ $graph['access_state'] === 'guest'
+                            ? __('flowchart.outlet_state_guest')
+                            : __('flowchart.outlet_state_outsider') }}
                     </p>
                 @elseif($cartes->isEmpty())
                     <p class="mt-3 rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-surface)]/60 px-4 py-3 text-sm text-[var(--bp-muted)]">
@@ -183,7 +195,7 @@
                                 <p class="mt-3 text-xs text-[var(--bp-muted)]">{{ $carte['author'] }}</p>
                                 <a href="{{ $carte['url'] }}"
                                    class="mt-4 inline-flex w-fit items-center justify-center rounded-full border border-[var(--bp-primary)] px-4 py-2 text-sm font-semibold text-[var(--bp-primary)] transition hover:bg-[var(--bp-primary)] hover:text-white">
-                                    {{ __('flowchart.cta_view') }}
+                                    {{ __($cta) }}
                                 </a>
                             </article>
                         @endforeach
@@ -192,94 +204,80 @@
             </div>
         @endforeach
 
-        {{-- §11 des correctifs — le parcours en CARTES, pas une liste a plat. --}}
+        {{-- LA VERSION TEXTE — une ALTERNATIVE, pas une seconde interface.
+
+             Version precedente : quatre sections de cards, qui refaisaient le
+             logigramme en bas de page. MASTER l'a rejetee — le bas de page
+             devenait une seconde presentation du produit.
+
+             Ici : HTML semantique, replie par defaut, lisible en moins d'une
+             minute. Elle lit `$graph`, donc elle ne peut pas montrer une
+             Boucle que la carte cache : memes regles de visibilite, meme
+             source, aucune logique en double. --}}
         @php
             $parGenre = collect($graph['nodes'])->groupBy(fn (array $n): string => $n['data']['kind']);
-            $intentions = $parGenre->get('intent', collect());
             $entrees = $parGenre->get('entry', collect())->keyBy(fn (array $n): string => $n['data']['id']);
-            $etapes = $parGenre->get('step', collect());
-            $resultats = $parGenre->get('outcome', collect());
             $bouclesTexte = $parGenre->get('loop', collect());
         @endphp
 
-        <div class="space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+        <div class="px-4 py-6 sm:px-6 lg:px-8">
+            <details class="rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-surface)]/50 px-5 py-4">
+                <summary class="cursor-pointer text-sm font-semibold text-[var(--bp-text)]">
+                    {{ __('flowchart.fallback_title') }}
+                </summary>
 
-            {{-- SECTION 1 — les quatre portes, chacune avec SA premiere etape. --}}
-            <section>
-                <h2 class="text-lg font-semibold text-[var(--bp-text)]">{{ __('flowchart.cards_intents_title') }}</h2>
-                <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    @foreach($intentions as $intention)
-                        @php $entree = $entrees->get(str_replace('intent:', 'entry:', $intention['data']['id'])); @endphp
-                        <article class="flex h-full flex-col rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-surface)]/70 p-5">
-                            <span class="h-1 w-10 rounded-full bg-[var(--bp-primary)]" aria-hidden="true"></span>
-                            <h3 class="mt-3 text-base font-semibold text-[var(--bp-text)]">{{ $intention['data']['label'] }}</h3>
-                            <p class="mt-2 text-sm leading-6 text-[var(--bp-muted)]">{{ $intention['data']['hint'] ?? '' }}</p>
-                            @if($entree)
-                                <p class="mt-3 border-t border-[var(--bp-border)] pt-3 text-sm font-medium text-[var(--bp-primary)]">
-                                    {{ $entree['data']['label'] }}
-                                </p>
-                            @endif
-                        </article>
-                    @endforeach
-                </div>
-            </section>
+                <div class="mt-4 space-y-5 text-sm leading-6 text-[var(--bp-muted)]">
 
-            {{-- SECTION 2 — le moteur commun, numerote parce qu'il a un ordre. --}}
-            <section>
-                <h2 class="text-lg font-semibold text-[var(--bp-text)]">{{ __('flowchart.cards_engine_title') }}</h2>
-                <ol class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    @foreach($etapes as $rang => $etape)
-                        <li class="flex h-full flex-col rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-surface)]/70 p-5">
-                            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--bp-info)_18%,transparent)] text-sm font-semibold text-[var(--bp-info)]">
-                                {{ $rang + 1 }}
-                            </span>
-                            <h3 class="mt-3 text-base font-semibold text-[var(--bp-text)]">{{ $etape['data']['label'] }}</h3>
-                            <p class="mt-2 text-sm leading-6 text-[var(--bp-muted)]">{{ $etape['data']['hint'] ?? '' }}</p>
-                        </li>
-                    @endforeach
-                </ol>
-            </section>
+                    <section>
+                        <h2 class="text-sm font-semibold text-[var(--bp-text)]">{{ __('flowchart.cards_intents_title') }}</h2>
+                        <ul class="mt-2 list-disc space-y-1 pl-5">
+                            @foreach($parGenre->get('intent', collect()) as $intention)
+                                @php $entree = $entrees->get(str_replace('intent:', 'entry:', $intention['data']['id'])); @endphp
+                                <li>
+                                    <span class="font-medium text-[var(--bp-text)]">{{ $intention['data']['label'] }}</span>
+                                    @if($entree) — {{ $entree['data']['label'] }} @endif
+                                </li>
+                            @endforeach
+                        </ul>
+                    </section>
 
-            {{-- SECTION 3 — ce que cela produit. --}}
-            <section>
-                <h2 class="text-lg font-semibold text-[var(--bp-text)]">{{ __('flowchart.cards_outcomes_title') }}</h2>
-                <div class="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
-                    @foreach($resultats as $resultat)
-                        <p class="rounded-2xl border border-[var(--bp-border)] bg-[color-mix(in_srgb,var(--bp-validation)_10%,transparent)] px-4 py-3 text-sm font-medium text-[var(--bp-text)]">
-                            {{ $resultat['data']['label'] }}
+                    <section>
+                        <h2 class="text-sm font-semibold text-[var(--bp-text)]">{{ __('flowchart.cards_engine_title') }}</h2>
+                        {{-- Le moteur condense : la chaine, pas huit cards. --}}
+                        <p class="mt-2">
+                            {{ collect([
+                                'step_clarify', 'step_match', 'step_exchange',
+                                'aggregate_engine', 'step_synthesis', 'step_decision',
+                            ])->map(fn (string $cle): string => __('flowchart.'.$cle))->join(' → ') }}
                         </p>
-                    @endforeach
+                    </section>
+
+                    <section>
+                        <h2 class="text-sm font-semibold text-[var(--bp-text)]">{{ __('flowchart.cards_outcomes_title') }}</h2>
+                        <p class="mt-2">
+                            {{ $parGenre->get('outcome', collect())->pluck('data.label')->join(' · ') }}
+                        </p>
+                    </section>
+
+                    <section>
+                        <h2 class="text-sm font-semibold text-[var(--bp-text)]">{{ __('flowchart.cards_loops_title') }}</h2>
+
+                        @if($bouclesTexte->isEmpty())
+                            <p class="mt-2">{{ $graph['is_guest'] ? __('flowchart.guest_hint') : __('flowchart.explore_loops_empty') }}</p>
+                        @else
+                            <ul class="mt-2 list-disc space-y-1 pl-5">
+                                @foreach($bouclesTexte as $boucle)
+                                    <li>
+                                        <a href="{{ $boucle['data']['url'] }}"
+                                           class="font-medium text-[var(--bp-primary)] hover:underline">{{ $boucle['data']['name'] }}</a>
+                                        — {{ $boucle['data']['type_label'] }} · {{ $boucle['data']['access_label'] }}
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </section>
                 </div>
-            </section>
-
-            {{-- SECTION 4 — les Boucles REELLES, memes regles de visibilite. --}}
-            <section>
-                <h2 class="text-lg font-semibold text-[var(--bp-text)]">{{ __('flowchart.cards_loops_title') }}</h2>
-
-                @if($bouclesTexte->isEmpty())
-                    <p class="mt-4 rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-surface)]/60 px-4 py-3 text-sm text-[var(--bp-muted)]">
-                        {{ $graph['is_guest'] ? __('flowchart.guest_hint') : __('flowchart.explore_loops_empty') }}
-                    </p>
-                @else
-                    <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                        @foreach($bouclesTexte as $boucle)
-                            <article class="flex h-full flex-col rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-surface)]/70 p-5">
-                                <span class="w-fit rounded-full bg-[color-mix(in_srgb,var(--bp-accent)_15%,transparent)] px-3 py-1 text-xs font-semibold text-[var(--bp-accent)]">
-                                    {{ $boucle['data']['access_label'] }}
-                                </span>
-                                <h3 class="mt-3 text-base font-semibold text-[var(--bp-text)]">{{ $boucle['data']['name'] }}</h3>
-                                @if(filled($boucle['data']['tagline'] ?? null))
-                                    <p class="mt-2 text-sm leading-6 text-[var(--bp-muted)]">{{ $boucle['data']['tagline'] }}</p>
-                                @endif
-                                <a href="{{ $boucle['data']['url'] }}"
-                                   class="mt-4 inline-flex w-fit items-center justify-center rounded-full border border-[var(--bp-primary)] px-4 py-2 text-sm font-semibold text-[var(--bp-primary)] transition hover:bg-[var(--bp-primary)] hover:text-white">
-                                    {{ $boucle['data']['cta_label'] }}
-                                </a>
-                            </article>
-                        @endforeach
-                    </div>
-                @endif
-            </section>
+            </details>
         </div>
 
         {{-- Addendum MASTER A — le MEME pied que les autres surfaces
