@@ -12,18 +12,87 @@
         <meta name="user-id" content="{{ auth()->id() }}">
         @endauth
 
-        <title>{{ isset($title) && filled($title) ? $title . ' — ' : '' }}{{ config('app.name', 'Entraide') }}</title>
-        <meta name="description" content="{{ isset($description) ? $description : 'Plateforme de troc de services entre professionnels — échangez vos compétences sans argent.' }}">
+        {{-- TASK-1610 — identite de la page : titre, description, apercu social.
 
-        @isset($ogTitle)
-        <meta property="og:title" content="{{ $ogTitle }}">
-        <meta property="og:description" content="{{ $ogDescription ?? '' }}">
+             Trois defauts mesures, corriges ici et ICI SEULEMENT (c'est la
+             seule source vivante : les 22 autres `name="description"` du depot
+             sont des CHAMPS DE FORMULAIRE, et `layouts/guest` n'a qu'un titre).
+
+             1. La description de repli portait l'ancien positionnement du
+                produit (l'echange de competences entre professionnels).
+
+                Ce texte n'est volontairement PAS recopie ici : une garde de
+                TASK-1610 balaye les sources servies et refuserait le fichier.
+                La citation exacte vit dans le TASK file, qui n'est pas servi.
+             2. Le bloc OG etait enveloppe dans `@isset($ogTitle)` : une page
+                qui n'en definit pas — le logigramme, par exemple — n'emettait
+                AUCUNE balise `og:*`. WhatsApp se rabattait alors sur la
+                `meta description`, donc sur l'ancien slogan. C'est la cause
+                exacte de l'apercu signale sur `/org/launchpals/flowchart`.
+             3. Le titre ignorait l'Organization.
+
+             Les valeurs posees par une page restent PRIORITAIRES : ces trois
+             variables ne sont que des replis. --}}
+        @php
+            $bpNomPlateforme = config('app.name', 'Entraide');
+
+            // `brandOrganizationName` est deja partage avec TOUTES les vues par
+            // le `View::composer('*')` d'AppServiceProvider : aucune
+            // architecture nouvelle. Mais il retombe sur l'Organization PAR
+            // DEFAUT hors contexte scope, et celle-ci se nomme « BouclePro » —
+            // d'ou « BouclePro | BouclePro » si on ne s'en garde pas.
+            $bpOrganisation = $brandOrganizationName ?? null;
+            $bpOrganisationDistincte = filled($bpOrganisation)
+                && mb_strtolower(trim($bpOrganisation)) !== mb_strtolower(trim($bpNomPlateforme));
+
+            // « Logigramme · LaunchPals | BouclePro », sinon « Logigramme | BouclePro ».
+            // La LANGUE du titre de page reste celle de la page : on ne compose
+            // que le gabarit, jamais le libelle.
+            $bpTitrePage = isset($title) && filled($title) ? trim($title) : null;
+            $bpTitre = collect([
+                    $bpTitrePage,
+                    $bpOrganisationDistincte ? $bpOrganisation : null,
+                ])->filter()->implode(' · ');
+            $bpTitre = filled($bpTitre) ? $bpTitre.' | '.$bpNomPlateforme : $bpNomPlateforme;
+
+            $bpDescription = isset($description) && filled($description)
+                ? $description
+                : 'Intelligence augmented by your peers.';
+        @endphp
+
+        <title>{{ $bpTitre }}</title>
+        <meta name="description" content="{{ $bpDescription }}">
+
+        {{-- L'apercu social est emis SANS CONDITION : c'est precisement son
+             absence qui laissait les reseaux inventer un resume. --}}
+        <meta property="og:title" content="{{ $ogTitle ?? $bpTitre }}">
+        <meta property="og:description" content="{{ $ogDescription ?? $bpDescription }}">
         <meta property="og:type" content="website">
-        <meta property="og:url" content="{{ url()->current() }}">
-        @if(!empty($ogImage))
-        <meta property="og:image" content="{{ $ogImage }}">
-        @endif
+        {{-- `og:url` est DECLARATIF, jamais deduit de la requete.
+
+             Une premiere version emettait `url()->current()` par defaut. La
+             garde de TASK-1145 l'a refusee, et elle avait raison : sur le refus
+             d'acces a un Dossier, l'URL courante PORTE l'identifiant refuse, et
+             le layout le reinjectait dans le HTML.
+
+             `dossiers/acces-refuse` tient sa promesse par l'ABSENCE DE DONNEE —
+             la vue ne recoit jamais le Dossier, donc elle ne peut rien en dire.
+             Aller chercher une source ambiante que la vue n'a pas choisie
+             contournait cette garantie par le bas.
+
+             Une page qui veut cette balise la DECLARE. Les reseaux traitent de
+             toute facon l'URL qu'ils ont chargee comme canonique : l'apercu
+             social reste complet sans elle. --}}
+        @isset($ogUrl)
+        <meta property="og:url" content="{{ $ogUrl }}">
         @endisset
+        <meta property="og:site_name" content="{{ $bpNomPlateforme }}">
+        <meta property="og:image" content="{{ $ogImage ?? asset('brand/bouclepro-symbol-64.png') }}">
+
+        <meta name="twitter:card" content="summary">
+        <meta name="twitter:title" content="{{ $ogTitle ?? $bpTitre }}">
+        <meta name="twitter:description" content="{{ $ogDescription ?? $bpDescription }}">
+        <meta name="twitter:image" content="{{ $ogImage ?? asset('brand/bouclepro-symbol-64.png') }}">
         @isset($jsonLd)
         <script type="application/ld+json">{!! $jsonLd !!}</script>
         @endisset
