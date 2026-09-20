@@ -53,7 +53,13 @@
                         {{ $organization->name }}
                     </p>
                     <h1 class="mt-1 text-xl font-semibold text-[var(--bp-text)] sm:text-2xl">{{ __('flowchart.title') }}</h1>
-                    <p class="mt-1 max-w-2xl text-sm text-[var(--bp-muted)]">{{ __('flowchart.subtitle') }}</p>
+                    <p class="mt-1 hidden max-w-2xl text-sm text-[var(--bp-muted)] sm:block">{{ __('flowchart.subtitle') }}</p>
+                    {{-- Le mot d'ensemble sur le produit. C'est une
+                         EXPLICATION, pas une regle : aucun code ne s'y
+                         branche, et rien dans le graphe n'en depend. --}}
+                    <p class="mt-2 hidden max-w-3xl text-sm leading-6 text-[var(--bp-muted)] sm:block" data-flowchart-orchestration>
+                        {{ __('flowchart.orchestration') }}
+                    </p>
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2" role="group" aria-label="{{ __('flowchart.graph_label') }}">
@@ -87,7 +93,10 @@
 
              `overflow-hidden` borne Cytoscape a son cadre : le canvas se
              navigue, la PAGE ne defile jamais horizontalement (§13). --}}
-        <div class="relative mt-3 h-[calc(100dvh-19rem)] min-h-[30rem] overflow-hidden sm:h-[calc(100dvh-15rem)]">
+        {{-- La hauteur mobile tient compte de la barre de navigation basse,
+             qui recouvre le bas du viewport : sans cela, le dernier tiers du
+             canvas vivait dessous. --}}
+        <div class="relative mt-3 h-[calc(100dvh-16rem)] min-h-[26rem] overflow-hidden sm:h-[calc(100dvh-15rem)]">
             <div data-flowchart-canvas
                  role="application"
                  aria-label="{{ __('flowchart.graph_label') }}"
@@ -129,6 +138,59 @@
                    class="bp-invisible mt-3 inline-flex items-center justify-center rounded-full bg-[var(--bp-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--bp-primary-deep)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bp-primary)]"></a>
             </aside>
         </div>
+
+        {{-- LES ECHANGES REELS — Propositions et Demandes.
+
+             Rendus par LARAVEL, masques par defaut, devoiles au clic sur le
+             noeud correspondant. La garde n'est PAS ce `hidden` : pour un
+             invite ou un visiteur d'un autre tenant, `FlowchartExchanges`
+             n'emet meme pas la requete, et ces boucles `@foreach` tournent
+             donc a vide. Il n'y a rien a cacher parce qu'il n'y a rien a
+             recevoir — c'est la lecon de TASK-1488, dont le correctif avait
+             mesure « 200 sans aucun cookie, avec le nom reel de la personne ».
+
+             Memes regles metier qu'Explorer : `Service::active()` et
+             `ServiceRequest::open()`, bornees a cette Organization. --}}
+        @foreach([
+            ['proposals', $proposals, 'flowchart.outlet_need_help'],
+            ['requests', $requests, 'flowchart.outlet_offer_help'],
+        ] as [$quoi, $cartes, $titre])
+            <div data-flowchart-echanges="{{ $quoi }}" hidden
+                 class="border-t border-[var(--bp-border)] px-4 py-6 sm:px-6 lg:px-8">
+                <h2 class="text-lg font-semibold text-[var(--bp-text)]">{{ __($titre) }}</h2>
+
+                @if(! $isOrganizationMember)
+                    <p class="mt-3 rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-surface)]/60 px-4 py-3 text-sm text-[var(--bp-muted)]">
+                        {{ __('flowchart.outlet_members_only') }}
+                    </p>
+                @elseif($cartes->isEmpty())
+                    <p class="mt-3 rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-surface)]/60 px-4 py-3 text-sm text-[var(--bp-muted)]">
+                        {{ __('flowchart.outlet_empty') }}
+                    </p>
+                @else
+                    <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        @foreach($cartes as $carte)
+                            <article class="flex h-full flex-col rounded-2xl border border-[var(--bp-border)] bg-[var(--bp-surface)]/70 p-5">
+                                @if($carte['category'])
+                                    <span class="w-fit rounded-full bg-[color-mix(in_srgb,var(--bp-info)_15%,transparent)] px-3 py-1 text-xs font-semibold text-[var(--bp-info)]">
+                                        {{ $carte['category'] }}
+                                    </span>
+                                @endif
+                                <h3 class="mt-3 text-base font-semibold text-[var(--bp-text)]">{{ $carte['title'] }}</h3>
+                                @if(filled($carte['excerpt']))
+                                    <p class="mt-2 text-sm leading-6 text-[var(--bp-muted)]">{{ $carte['excerpt'] }}</p>
+                                @endif
+                                <p class="mt-3 text-xs text-[var(--bp-muted)]">{{ $carte['author'] }}</p>
+                                <a href="{{ $carte['url'] }}"
+                                   class="mt-4 inline-flex w-fit items-center justify-center rounded-full border border-[var(--bp-primary)] px-4 py-2 text-sm font-semibold text-[var(--bp-primary)] transition hover:bg-[var(--bp-primary)] hover:text-white">
+                                    {{ __('flowchart.cta_view') }}
+                                </a>
+                            </article>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+        @endforeach
 
         {{-- §11 des correctifs — le parcours en CARTES, pas une liste a plat. --}}
         @php

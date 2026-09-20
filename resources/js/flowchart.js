@@ -112,6 +112,26 @@ const PAS_CHAINE_Y = 140;
 /** Au-dela, les freres passent en grille plutot qu'en eventail (§6, §7). */
 const SEUIL_GRILLE = 6;
 
+/**
+ * L'ordre du tronc commun.
+ *
+ * Il double `FlowchartGraph::STEPS` cote client — la scene a besoin de
+ * positionner les etapes AVANT de les afficher, donc de connaitre leur ordre.
+ * Le payload, lui, ne porte que des aretes. Si les deux divergeaient, la scene
+ * afficherait un ordre faux : le test `TASK1608FlowchartSceneTest` compare les
+ * deux listes.
+ */
+const ORDRE_TRONC = [
+    'step:clarify',
+    'step:match',
+    'step:exchange',
+    'step:ai',
+    'step:resources',
+    'step:dossiers',
+    'step:synthesis',
+    'step:decision',
+];
+
 const racine = document.querySelector('[data-flowchart-canvas]');
 const source = document.querySelector('[data-flowchart-graph]');
 
@@ -229,17 +249,19 @@ function demarrer(racine, graph) {
 
     const CARD = COMPACT
         ? {
-            intent: { w: 168, h: 78, icone: true, puce: 34 },
-            explore: { w: 168, h: 78, icone: true, puce: 34 },
-            outcome: { w: 160, h: 60, icone: true, puce: 30 },
-            entry: { w: 164, h: 60, icone: false, puce: 0 },
-            step: { w: 158, h: 56, icone: false, puce: 0 },
-            aggregate: { w: 166, h: 64, icone: false, puce: 0 },
-            loop: { w: 172, h: 72, icone: false, puce: 0 },
+            intent: { w: 176, h: 68, icone: true, puce: 30 },
+            explore: { w: 176, h: 68, icone: true, puce: 30 },
+            outlet: { w: 168, h: 58, icone: false, puce: 0 },
+            outcome: { w: 164, h: 56, icone: true, puce: 28 },
+            entry: { w: 168, h: 58, icone: false, puce: 0 },
+            step: { w: 162, h: 54, icone: false, puce: 0 },
+            aggregate: { w: 168, h: 60, icone: false, puce: 0 },
+            loop: { w: 176, h: 70, icone: false, puce: 0 },
         }
         : {
             intent: { w: 236, h: 96, icone: true, puce: 46 },
             explore: { w: 236, h: 96, icone: true, puce: 46 },
+            outlet: { w: 214, h: 70, icone: false, puce: 0 },
             outcome: { w: 214, h: 68, icone: true, puce: 40 },
             entry: { w: 216, h: 68, icone: false, puce: 0 },
             step: { w: 208, h: 64, icone: false, puce: 0 },
@@ -285,6 +307,7 @@ function demarrer(racine, graph) {
             aggregate: couleurs.info,
             outcome: couleurs.validation,
             explore: couleurs.accent,
+            outlet: couleurs.progress,
             loop: couleurs.accent,
         };
 
@@ -374,8 +397,8 @@ function demarrer(racine, graph) {
                     selector: 'node[kind = "root"]',
                     style: {
                         shape: 'ellipse',
-                        width: COMPACT ? 124 : 168,
-                        height: COMPACT ? 124 : 168,
+                        width: COMPACT ? 96 : 168,
+                        height: COMPACT ? 96 : 168,
                         'background-color': couleurs.primary,
                         'border-width': 3,
                         'border-color': couleurs.primaryDeep,
@@ -425,27 +448,30 @@ function demarrer(racine, graph) {
                     selector: 'node.bp-survol',
                     style: { 'border-width': 3, 'border-color': couleurs.accent },
                 },
+                // L'etat actif se lit sur la CARD elle-meme, et nulle part
+                // autour.
+                //
+                // La version precedente peignait un halo `underlay-*`, pose
+                // pour remplacer le `shadow-*` que Cytoscape 3.34 ne connait
+                // pas sur un noeud. En sombre, ce halo se lisait comme un
+                // grand rectangle opaque derriere la card — un bloc, pas une
+                // mise en evidence. Il est retire : la bordure suffit, et elle
+                // epouse la forme du noeud au lieu d'en dessiner une seconde.
                 {
                     selector: 'node.bp-actif',
                     style: {
                         'border-width': 4,
                         'border-color': couleurs.primary,
-                        // `underlay-*` remplace le `shadow-*` demande : Cytoscape
-                        // 3.34 ne connait pas l'ombre portee sur un noeud (warning
-                        // en console), mais sait peindre un halo SOUS lui.
-                        'underlay-color': couleurs.primary,
-                        'underlay-opacity': 0.28,
-                        'underlay-padding': 10,
-                        'underlay-shape': 'round-rectangle',
+                        'border-opacity': 1,
                     },
                 },
-                // La racine est un cercle : son halo doit l'etre aussi. En
-                // rectangle, il dessinait une boite fantome autour d'elle.
-                { selector: 'node[kind = "root"].bp-actif', style: { 'underlay-shape': 'ellipse' } },
                 { selector: 'edge.bp-actif', style: { 'line-color': couleurs.primary, 'target-arrow-color': couleurs.primary, width: 3, opacity: 1 } },
+                // Focus clavier : meme principe, teinte distincte du survol.
+                // Une bordure epouse la card ; un `overlay`/`underlay` y
+                // collerait un bloc rectangulaire.
                 {
                     selector: 'node.bp-focus',
-                    style: { 'border-width': 4, 'border-color': couleurs.progress },
+                    style: { 'border-width': 4, 'border-color': couleurs.progress, 'border-opacity': 1 },
                 },
 
                 // En synthese, les cards sont plus compactes : la vue doit se lire
@@ -540,6 +566,35 @@ function demarrer(racine, graph) {
         cy.animate(
             { zoom: z, pan: { x: centre.x - p.x * z, y: centre.y - p.y * z } },
             { duration: duree, easing: 'ease-in-out-cubic' },
+        );
+    }
+
+    /**
+     * Cadre une SCENE : un ensemble revele d'un coup, centre sur lui-meme.
+     *
+     * Distinct de `focaliser()`, qui centre UN noeud. Une scene n'a pas de
+     * noeud unique a mettre au milieu — c'est l'ensemble qui fait sens.
+     *
+     * `facteur` permet un leger dezoom delibere, sans jamais passer sous le
+     * plancher de lisibilite.
+     */
+    function focaliserScene(elements, facteur = 1) {
+        const cadre = racine.getBoundingClientRect();
+        const centre = zoneUtile();
+        const bb = elements.boundingBox({ includeLabels: true });
+        const marge = Math.min(70, Math.round(Math.min(cadre.width, cadre.height) * 0.06));
+
+        const tenir = Math.min(
+            (Math.min(centre.x, cadre.width - centre.x) * 2 - marge * 2) / Math.max(bb.w, 1),
+            (Math.min(centre.y, cadre.height - centre.y) * 2 - marge * 2) / Math.max(bb.h, 1),
+        );
+
+        const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN_LISIBLE, Math.min(ZOOM_LECTURE, tenir) * facteur));
+        const milieu = { x: bb.x1 + bb.w / 2, y: bb.y1 + bb.h / 2 };
+
+        cy.animate(
+            { zoom: z, pan: { x: centre.x - milieu.x * z, y: centre.y - milieu.y * z } },
+            { duration: 460, easing: 'ease-in-out-cubic' },
         );
     }
 
@@ -658,18 +713,27 @@ function demarrer(racine, graph) {
 
             // Haut, droite, bas, gauche — puis les diagonales pour tout
             // satellite supplementaire (« Explorer les Boucles »).
-            // En large, la croix dessinee par MASTER. En etroit, elle ne tient
-            // pas : deux cards de 168 px cote a cote plus la racine au milieu
-            // dépasseraient. Les portes passent donc en DEUX COLONNES sous la
-            // question — meme grammaire, format different.
+            // En large, la croix dessinee par MASTER.
+            //
+            // En etroit, elle est GEOMETRIQUEMENT impossible : la racine fait
+            // 96 px de diametre et une card 176 de large. Les poser cote a
+            // cote demande 118 px d'ecart horizontal minimum, pour une
+            // demi-largeur utile de 163. Deux colonnes tenaient, mais forcaient
+            // l'echelle a 0,78 et les libelles a 10,9 px — mesure.
+            //
+            // La composition mobile est donc VERTICALE : une colonne sous la
+            // question, plus d'espacement, moins de contexte simultane. C'est
+            // le parti demande par MASTER, et non un rabotage du texte.
+            const pasVertical = 88;
+
             const ancrages = etroit()
                 ? [
-                    { x: -rx, y: ry },
-                    { x: rx, y: ry },
-                    { x: -rx, y: ry * 1.62 },
-                    { x: rx, y: ry * 1.62 },
-                    { x: 0, y: ry * 2.3 },
-                    { x: 0, y: -ry },
+                    { x: 0, y: pasVertical },
+                    { x: 0, y: pasVertical * 2 },
+                    { x: 0, y: pasVertical * 3 },
+                    { x: 0, y: pasVertical * 4 },
+                    { x: 0, y: pasVertical * 5 },
+                    { x: 0, y: -pasVertical },
                 ]
                 : [
                     { x: 0, y: -ry },
@@ -773,10 +837,172 @@ function demarrer(racine, graph) {
 
     const sortants = (noeud, vue) => noeud.outgoers('edge').filter((e) => e.data('view') === vue || e.data('view') === 'both');
 
+    /**
+     * Le bord droit de tout ce qui est deja sur la carte.
+     *
+     * Une scene se pose APRES lui. La carte ne se recompose jamais : sans
+     * cette borne, les nouvelles cards se seraient posees sur les anciennes —
+     * mesure : 3 collisions sur la scene du moteur, 10 sur celle de Decision.
+     */
+    function bordDroitPlace() {
+        const posees = cy.nodes().filter((n) => placees.has(n.id()));
+
+        if (posees.empty()) {
+            return 0;
+        }
+
+        return posees.boundingBox({ includeLabels: true }).x2;
+    }
+
+    /**
+     * LA SCENE DU MOTEUR — huit etapes revelees d'un coup.
+     *
+     * ## Pourquoi elle existe
+     *
+     * Avec « un clic = un saut », atteindre un resultat demandait onze
+     * interactions : intention, entree, puis les huit etapes une a une, puis
+     * le resultat. Le Mermaid complet l'a rendu visible. Le contrat produit
+     * est de 3 interactions, 4 au maximum.
+     *
+     * AUCUN concept n'est retire : les huit etapes sont toutes la, dans
+     * l'ordre, et chacune garde son panneau explicatif au clic. Ce qui change
+     * est la NAVIGATION — elles ne sont plus huit niveaux obligatoires.
+     *
+     * ## La disposition
+     *
+     * Un serpentin de trois colonnes : la lecture descend en zigzag, donc
+     * l'ordre reste continu d'une rangee a l'autre. Une seule ligne de huit
+     * cards ferait 2000 px de modele et retomberait au plancher de zoom.
+     */
+    function ouvrirSceneMoteur(entree) {
+        const etapes = ORDRE_TRONC.map((id) => cy.getElementById(id)).filter((n) => n.nonempty());
+        const base = entree.position();
+
+        const colonnes = etroit() ? 2 : 4;
+        const pasX = etroit() ? 186 : 236;
+        const pasY = etroit() ? 92 : 118;
+        const rangees = Math.ceil(etapes.length / colonnes);
+
+        // En TERRAIN LIBRE, a droite de tout ce qui existe deja.
+        const x0 = Math.max(base.x + PAS_CHAINE_X, bordDroitPlace() + 140);
+        const y0 = base.y - ((rangees - 1) * pasY) / 2;
+
+        etapes.forEach((etape, i) => {
+            etape.position({
+                x: x0 + (i % colonnes) * pasX,
+                y: y0 + Math.floor(i / colonnes) * pasY,
+            });
+
+            revelees.add(etape.id());
+            placees.add(etape.id());
+        });
+
+        actif = entree;
+        appliquerVisibilite();
+
+        // On cadre LES ETAPES, pas l'entree : elle reste a gauche, en
+        // contexte. L'inclure etirait la boite sur toute la distance qui les
+        // separe — zoom 0,78 et libelles a 10,9 px, mesure.
+        let scene = cy.collection();
+        etapes.forEach((e) => { scene = scene.union(e); });
+
+        focaliserScene(scene);
+    }
+
+    /**
+     * LA SCENE DE CONVERGENCE — Decision et ses six resultats.
+     *
+     * Decision n'ouvre pas un niveau de plus : elle EST l'aboutissement. Les
+     * six resultats apparaissent donc ensemble, trois au-dessus et trois en
+     * dessous, Decision restant le centre visuel.
+     *
+     * Le leger dezoom est deliberé et borne : `facteur` reduit l'echelle sans
+     * jamais passer sous le plancher de lisibilite, la ou un `fit()` global
+     * l'aurait ecrasee.
+     *
+     * C'est la seule entorse assumee a « un seul voisin par clic », et elle
+     * est justifiee : une convergence ne se parcourt pas, elle se constate.
+     */
+    function ouvrirSceneDecision(decision) {
+        const resultats = cy.nodes('[kind = "outcome"]').toArray();
+        const centre = decision.position();
+
+        // Un EVENTAIL RADIAL, et ce n'est pas un choix esthetique.
+        //
+        // Deux colonnes de trois avaient ete essayees : les aretes vers la
+        // seconde colonne TRAVERSAIENT les cards de la premiere — visible sur
+        // la capture, et contraire au §4 (« les edges arrivent sur le bord de
+        // la card, pas a travers le texte »).
+        //
+        // Sur un arc, chaque arete est un RAYON partant de Decision : deux
+        // rayons ne se croisent jamais, et aucun ne traverse une card voisine
+        // tant que l'arc est assez ouvert pour les espacer.
+        //
+        // Decision reste l'ancre : tout part d'elle.
+        const n = resultats.length;
+        const rx = etroit() ? 150 : 430;
+        const ry = etroit() ? 300 : 280;
+        const ouverture = etroit() ? Math.PI * 0.9 : Math.PI * 0.56;
+        const depart = -ouverture / 2;
+        const pas = n > 1 ? ouverture / (n - 1) : 0;
+
+        resultats.forEach((resultat, i) => {
+            const angle = depart + pas * i;
+
+            resultat.position({
+                x: centre.x + Math.cos(angle) * rx,
+                y: centre.y + Math.sin(angle) * ry,
+            });
+
+            revelees.add(resultat.id());
+            placees.add(resultat.id());
+        });
+
+        actif = decision;
+        appliquerVisibilite();
+
+        let ensemble = decision;
+        resultats.forEach((r) => { ensemble = ensemble.union(r); });
+
+        focaliserScene(ensemble, 0.95);
+    }
+
     function entrerDans(noeud, { empiler = true } = {}) {
         mode = 'exploration';
 
+        if (empiler) {
+            empilerDepuis(noeud);
+        }
+
+        // Deux SCENES court-circuitent le pas a pas, et c'est ce qui tient le
+        // contrat de 3 interactions : le tronc commun s'ouvre en entier apres
+        // l'entree, et Decision revele ses six resultats d'un coup.
+        if (noeud.data('kind') === 'entry') {
+            revelees.add(noeud.id());
+            ouvrirSceneMoteur(noeud);
+
+            return;
+        }
+
+        if (noeud.id() === 'step:decision') {
+            ouvrirSceneDecision(noeud);
+
+            return;
+        }
+
         const vue = 'detail';
+
+        // Une etape du tronc deja revelee par la scene n'ouvre aucun niveau :
+        // elle explique, elle ne ramifie pas. Sinon on rendrait a l'utilisateur
+        // les huit paliers que la scene vient justement d'eviter.
+        if (noeud.data('kind') === 'step') {
+            actif = noeud;
+            appliquerVisibilite();
+            focaliser(noeud);
+
+            return;
+        }
+
         const proches = sortants(noeud, vue).targets();
 
         // UN SEUL SAUT — « les elements DIRECTEMENT lies apparaissent autour
@@ -799,10 +1025,6 @@ function demarrer(racine, graph) {
             revelees.add(parent.id());
         }
 
-        if (empiler && actif && actif.id() !== noeud.id()) {
-            pile.push(actif.id());
-        }
-
         actif = noeud;
 
         placerNouveaux(noeud, nouveaux, parent);
@@ -814,6 +1036,17 @@ function demarrer(racine, graph) {
         const essentiels = [noeud, ...proches.toArray()].map((n) => ({ noeud: n, repere: false }));
         if (parent && parent.nonempty()) {
             essentiels.push({ noeud: parent, repere: true });
+        }
+
+        // En colonne, centrer sur la RACINE laisserait toute la suite d'un
+        // seul cote du cadre. L'ecran initial etroit se cadre donc comme une
+        // scene : sur l'ensemble.
+        if (etroit() && (!parent || parent.empty())) {
+            let ensemble = noeud;
+            proches.forEach((p) => { ensemble = ensemble.union(p); });
+            focaliserScene(ensemble);
+
+            return;
         }
 
         focaliser(noeud, essentiels);
@@ -967,9 +1200,21 @@ function demarrer(racine, graph) {
 
         const d = noeud.data();
 
-        champ('kind').textContent = d.access_label || '';
+        // Pour une Boucle : type ET statut, comme sur le noeud. Le type vient
+        // du `LoopTypeRegistry` cote serveur — rien n'est devine ici.
+        champ('kind').textContent = d.kind === 'loop'
+            ? [d.type_label, d.access_label].filter(Boolean).join(' · ')
+            : (d.access_label || '');
+
         champ('title').textContent = d.name || d.label || '';
-        champ('body').textContent = d.hint || d.tagline || '';
+
+        // La tagline de la Boucle d'abord — elle est ecrite pour elle ; a
+        // defaut la description de son TYPE, qui explique au moins de quoi il
+        // s'agit. Aucun contenu n'est invente.
+        champ('body').textContent = d.kind === 'loop'
+            ? (d.tagline || d.type_description || '')
+            : (d.hint || d.tagline || '');
+
         champ('meta').textContent = d.kind === 'loop' && d.members ? `${d.members}` : '';
 
         const cta = champ('cta');
@@ -997,15 +1242,14 @@ function demarrer(racine, graph) {
 
     cy.on('tap', 'node', (evenement) => {
         const noeud = evenement.target;
+        const genre = noeud.data('kind');
 
         ouvrirPanneau(noeud);
 
         // Une Boucle est une destination, pas un embranchement : on la centre
         // et on montre sa fiche, ses soeurs restant en contexte autour.
-        if (noeud.data('kind') === 'loop') {
-            if (actif && actif.id() !== noeud.id()) {
-                pile.push(actif.id());
-            }
+        if (genre === 'loop') {
+            empilerDepuis(noeud);
             actif = noeud;
             appliquerVisibilite();
             focaliser(noeud);
@@ -1013,8 +1257,26 @@ function demarrer(racine, graph) {
             return;
         }
 
+        // Un DEBOUCHE remplit la zone de cards sous le graphe. Il ne deplie
+        // rien : ce qu'il mene a voir n'est pas dans le graphe.
+        if (genre === 'outlet') {
+            empilerDepuis(noeud);
+            actif = noeud;
+            appliquerVisibilite();
+            focaliser(noeud);
+            montrerEchanges(noeud.data('outlet'));
+
+            return;
+        }
+
         entrerDans(noeud);
     });
+
+    function empilerDepuis(noeud) {
+        if (actif && actif.id() !== noeud.id()) {
+            pile.push(actif.id());
+        }
+    }
 
     // Survol : l'etat est porte par une classe, comme les autres, plutot que
     // par un style inline — un seul endroit decide de l'apparence.
@@ -1044,6 +1306,29 @@ function demarrer(racine, graph) {
             focaliser(actif);
         }
     });
+
+    /**
+     * Ouvre la zone de cards sous le graphe.
+     *
+     * Elle est RENDUE PAR LARAVEL, pas fabriquee ici : les Propositions et les
+     * Demandes n'atteignent le navigateur que si le serveur a juge la personne
+     * membre de cette Organization. Le JavaScript ne fait que devoiler ce qui
+     * lui a ete donne — s'il n'y a rien, il n'y a rien a devoiler.
+     */
+    function montrerEchanges(quoi) {
+        document.querySelectorAll('[data-flowchart-echanges]').forEach((zone) => {
+            zone.hidden = zone.dataset.flowchartEchanges !== quoi;
+        });
+
+        document.querySelector(`[data-flowchart-echanges="${quoi}"]`)
+            ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function cacherEchanges() {
+        document.querySelectorAll('[data-flowchart-echanges]').forEach((zone) => {
+            zone.hidden = true;
+        });
+    }
 
     // --- Barre d'outils (§8) ------------------------------------------
     const surClic = (selecteur, action) => document.querySelector(selecteur)?.addEventListener('click', action);
@@ -1093,6 +1378,7 @@ function demarrer(racine, graph) {
     });
 
     function reinitialiser() {
+        cacherEchanges();
         revelees.clear();
         placees.clear();
         pile.length = 0;

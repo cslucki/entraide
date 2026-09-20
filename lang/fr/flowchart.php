@@ -107,4 +107,22 @@ return [
     'cards_engine_title' => 'Comment BouclePro vous accompagne',
     'cards_outcomes_title' => 'Ce que cela produit',
     'cards_loops_title' => 'Les Boucles que vous pouvez explorer',
+
+    // TASK-1608 — les DEBOUCHES concrets. Les libelles reprennent la
+    // terminologie canonique de l'Explorer (`explorer.services` /
+    // `explorer.requests`) : deux mots pour la meme chose auraient cree une
+    // dette de vocabulaire.
+    'outlet_need_help' => 'Propositions',
+    'outlet_need_help_hint' => "Ce que des membres proposent deja dans cette Organization. Connectez-vous pour les consulter.",
+    'outlet_offer_help' => 'Demandes',
+    'outlet_offer_help_hint' => 'Ce que des membres cherchent en ce moment dans cette Organization. Connectez-vous pour les consulter.',
+    'outlet_members_only' => 'Connectez-vous à cette Organization pour voir ces échanges.',
+    'outlet_empty' => 'Rien à afficher ici pour le moment.',
+
+    // La scene du moteur commun, revelee d'un coup plutot qu'en huit clics.
+    'scene_engine' => 'Comment BouclePro vous accompagne',
+
+    // Le mot d'ensemble sur le produit. C'est une EXPLICATION, pas une regle
+    // metier : rien dans le code ne s'y branche.
+    'orchestration' => "BouclePro orchestre la coopération entre personnes, Boucles, projets, ressources et IA pour transformer une intention en action.",
 ];

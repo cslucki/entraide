@@ -5,6 +5,7 @@ namespace App\Support\Flowchart;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 
@@ -115,6 +116,21 @@ final class FlowchartGraph
     /** Le noeud qui porte les Boucles reelles — §11 : aucune intention n'y est reliee. */
     public const NODE_LOOPS = 'loops';
 
+    /**
+     * Les DEBOUCHES concrets, un par intention d'entraide.
+     *
+     * Une intention ne doit pas seulement mener a un geste d'expression : elle
+     * doit aussi donner acces au reel de la plateforme. « J'ai besoin d'aide »
+     * ouvre donc sur les Propositions, « Je peux aider » sur les Demandes.
+     *
+     * Les NOEUDS sont publics — ils disent ou mene BouclePro. Les DONNEES,
+     * elles, sont reservees aux membres : voir {@see FlowchartExchanges}.
+     */
+    public const OUTLETS = [
+        'need_help' => 'outlet:proposals',
+        'offer_help' => 'outlet:requests',
+    ];
+
     /** « IA + ressources + documents », replie pour la vue d'ensemble. */
     public const NODE_ENGINE = 'agg:engine';
 
@@ -169,6 +185,18 @@ final class FlowchartGraph
             $edges[] = $this->edge($entree, 'step:clarify', 'detail');
             // Synthese : les quatre portes tombent directement dans le tronc.
             $edges[] = $this->edge($porte, 'step:clarify', 'overview');
+
+            // Le debouche concret, quand cette intention en a un.
+            if (isset(self::OUTLETS[$intent])) {
+                $debouche = self::OUTLETS[$intent];
+
+                $nodes[] = $this->node($debouche, 'outlet', __('flowchart.outlet_'.$intent), [
+                    'hint' => __('flowchart.outlet_'.$intent.'_hint'),
+                    'outlet' => $intent === 'need_help' ? 'proposals' : 'requests',
+                ]);
+
+                $edges[] = $this->edge($porte, $debouche, 'detail');
+            }
         }
 
         // --- Le tronc commun -------------------------------------------
@@ -314,14 +342,22 @@ final class FlowchartGraph
         $nom = $this->borne($loop->name, self::MAX_LABEL_CHARS);
         $statut = __('flowchart.access_'.$access);
 
+        // Le TYPE vient du `LoopTypeRegistry`, seule autorite du catalogue —
+        // types de plateforme ET types crees par l'Organization. Le recopier
+        // dans le JavaScript aurait fige une liste que le produit fait vivre.
+        $registre = app(LoopTypeRegistry::class);
+        $typeLibelle = $registre->label($loop->type, $loop->organization);
+
         // §6 des correctifs : le STATUT vit dans le noeud, pas seulement dans
         // le panneau. Deux lignes, parce qu'une Boucle sans son mode d'entree
         // n'est pas une possibilite lisible — c'est juste un nom.
-        return $this->node('loop:'.$loop->id, 'loop', $nom."\n".$statut, [
+        return $this->node('loop:'.$loop->id, 'loop', $nom."\n".$typeLibelle.' · '.$statut, [
             'loop_id' => (string) $loop->id,
             'name' => $nom,
             'access' => $access,
             'access_label' => $statut,
+            'type_label' => $typeLibelle,
+            'type_description' => $registre->description($loop->type, $loop->organization),
             'cta_label' => __($estMembre ? 'flowchart.cta_open' : 'flowchart.cta_view'),
             'url' => $this->loopUrl($loop),
             'tagline' => $this->borne($loop->tagline ?: $loop->description, self::MAX_TAGLINE_CHARS),

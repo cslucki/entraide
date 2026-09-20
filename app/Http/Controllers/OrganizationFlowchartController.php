@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Organization;
+use App\Support\Flowchart\FlowchartExchanges;
 use App\Support\Flowchart\FlowchartGraph;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -44,9 +45,20 @@ class OrganizationFlowchartController extends Controller
             return redirect()->route('organization.login', ['organization' => $organization->slug]);
         }
 
+        $user = auth()->user();
+
+        // Les Propositions et les Demandes ne sont servies qu'a un membre de
+        // CETTE Organization. La garde vit dans `FlowchartExchanges`, en
+        // premiere ligne de chaque lecture : sans membre, la requete n'est
+        // jamais emise, et le tableau arrive vide jusqu'ici.
+        $echanges = app(FlowchartExchanges::class);
+
         return view('organization.flowchart', [
             'organization' => $organization,
-            'graph' => $builder->build($organization, auth()->user()),
+            'graph' => $builder->build($organization, $user),
+            'proposals' => $echanges->proposals($organization, $user),
+            'requests' => $echanges->requests($organization, $user),
+            'isOrganizationMember' => $user !== null && $user->organization_id === $organization->id,
         ]);
     }
 }

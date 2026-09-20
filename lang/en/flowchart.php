@@ -106,4 +106,21 @@ return [
     'cards_engine_title' => 'How BouclePro supports you',
     'cards_outcomes_title' => 'What it produces',
     'cards_loops_title' => 'Loops you can explore',
+
+    // TASK-1608 — the concrete outlets. Labels reuse the Explorer canonical
+    // terminology (`explorer.services` / `explorer.requests`): two words for
+    // the same thing would have created a vocabulary debt.
+    'outlet_need_help' => 'Proposals',
+    'outlet_need_help_hint' => 'What members already offer in this Organization. Sign in to browse them.',
+    'outlet_offer_help' => 'Requests',
+    'outlet_offer_help_hint' => 'What members are looking for right now in this Organization. Sign in to browse them.',
+    'outlet_members_only' => 'Sign in to this Organization to see these exchanges.',
+    'outlet_empty' => 'Nothing to show here yet.',
+
+    // The shared-engine scene, revealed at once rather than in eight clicks.
+    'scene_engine' => 'How BouclePro supports you',
+
+    // The one-line account of the product. It is an EXPLANATION, not a
+    // business rule: no code branches on it.
+    'orchestration' => 'BouclePro orchestrates cooperation between people, Loops, projects, resources and AI, turning an intention into action.',
 ];
