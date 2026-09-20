@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+{{-- TASK-1609 : PAS de `class="dark"` ici.
+
+     Le `background:#1a1a1a` de `body` est TROMPEUR — un conteneur clair le
+     recouvre, et la page est visuellement CLAIRE. Le style calcule du `body`
+     disait le contraire ; c'est la capture qui a tranche. La palette par
+     defaut (claire) est donc la bonne pour la barre de decouverte. --}}
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
   <meta charset="UTF-8">
@@ -7,6 +13,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  {{-- TASK-1609 : ce document est AUTONOME (pas de layout applicatif), il
+       n'avait donc aucun jeton `--bp-*`. La barre de decouverte est stylee
+       avec ces jetons : sans eux, `var()` ne resout rien et la barre
+       s'affiche transparente, texte invisible. Verifie dans le style calcule. --}}
+  <x-theme-tokens />
+
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:#fff;background:#1a1a1a}
@@ -381,5 +393,9 @@
   });
 })();
 </script>
+
+{{-- TASK-1609 — la barre basse de decouverte, partagee avec « Mycelium » et
+     « Logigramme ». Telephone uniquement, connecte ou non. --}}
+<x-discovery-bottom-nav :organization="$organization" />
 </body>
 </html>
