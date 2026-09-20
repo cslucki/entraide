@@ -15,15 +15,26 @@ use Tests\TestCase;
  *
  * Trois pieds portent des liens d'Organization, et ils sont distincts :
  *
- * | gabarit | Mycelium ? | logigramme pose |
+ * | gabarit | Mycelium avant cette TASK | apres |
  * |---|---|---|
- * | `partials/footer` (layout applicatif) | oui, en bas a gauche | juste a sa droite |
- * | `organization/hero-v2` (landing `main`) | oui, `.foot-credit` | juste a sa droite |
- * | `organization/artscilab-hero` (landing `launchpals`) | **non** | 1re place de `.foot-right` |
+ * | `partials/footer` (layout applicatif) | oui, en bas a gauche | `Mycelium · Logigramme` |
+ * | `organization/hero-v2` (landing `main`) | oui, `.foot-credit` | `Mycelium · Logigramme` |
+ * | `organization/artscilab-hero` (landing `launchpals`) | **non** | `Mycelium · Flowchart` |
  *
- * L'ecart du 3e gabarit est rapporte a MASTER : lui ajouter un lien Mycelium
- * pour satisfaire « immediatement a droite de Mycelium » reviendrait a defaire
- * un choix de TASK-1604 sous couvert d'addendum.
+ * ECART ASSUME, rapporte a MASTER : le 3e gabarit ne portait AUCUN lien
+ * Mycelium — TASK-1604 n'en avait pas mis la. L'addendum vocabulaire nomme
+ * explicitement `Mycelium · Flowchart` et `/org/launchpals/mycelium` pour cette
+ * Organization : le lien Mycelium y est donc AJOUTE. C'est un ajout de surface,
+ * pas une correction.
+ *
+ * ## Le libelle a change de sens, pas seulement de mot
+ *
+ * `mycelium.footer_link` valait « Mycelium & organisations » ; il vaut
+ * « Mycelium ». Ses trois usages sont des liens de pied
+ * (`partials/footer`, `hero-v2`, et desormais `artscilab-hero`), et le seul
+ * test qui l'assertait — `TASK1349MyceliumPublicGovernanceTest:463,474` — le
+ * fait PAR LA CLE, jamais par la chaine. Rien n'est casse silencieusement, et
+ * aucune clé dediee n'etait donc necessaire.
  *
  * ## La borne heritee de TASK-1602 / 1604
  *
@@ -100,9 +111,7 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
         $this->assertNotFalse($flowchart, 'Le lien Logigramme doit etre pose.');
         $this->assertLessThan($flowchart, $mycelium, 'Le logigramme vient APRES Mycelium, pas avant.');
 
-        // `assertSee` SANS `false` : Blade echappe `&` en `&amp;`, et chercher
-        // la chaine brute mesurerait l'echappement, pas le libelle.
-        $response->assertSee('Mycélium & organisations');
+        $response->assertSee('Mycelium', false);
         $response->assertSee('Logigramme', false);
         $response->assertSee('/org/'.$this->main->slug.'/flowchart', false);
     }
@@ -229,13 +238,97 @@ class TASK1608FooterFlowchartLinkTest extends TestCase
         $this->assertNotFalse($flowchart, 'Le logigramme doit y figurer aussi.');
         $this->assertLessThan($flowchart, $mycelium, 'Le logigramme vient APRES Mycelium.');
 
-        $response->assertSee('Mycélium & organisations');
+        $response->assertSee('Mycelium', false);
         $response->assertSee('Logigramme', false);
 
         // Les liens du pied restent bornes a CETTE Organization.
         $response->assertSee('/org/'.$this->main->slug.'/mycelium', false);
         $response->assertSee('/org/'.$this->main->slug.'/flowchart', false);
         $response->assertDontSee('/org/'.$this->launchpals->slug.'/', false);
+    }
+
+    // =====================================================================
+    // Addendum vocabulaire — Organization, jamais « communaute »
+    // =====================================================================
+
+    /**
+     * Le titre de la page est « Logigramme » en FR, « Flowchart » en EN.
+     *
+     * Et surtout : plus aucune occurrence de « communaute » / « community ».
+     * BouclePro pose Organization = Tenant ; introduire un second mot pour la
+     * meme chose sur une surface neuve aurait ete une dette de vocabulaire
+     * creee a la main.
+     */
+    public function test_the_page_is_named_logigramme_in_french(): void
+    {
+        $this->oublierOrganisation();
+        $this->from('/org/'.$this->main->slug)->post('/locale/fr');
+
+        $this->oublierOrganisation();
+        $response = $this->get('/org/'.$this->main->slug.'/flowchart');
+        $response->assertOk();
+
+        $response->assertSee('Logigramme', false);
+        $response->assertDontSee('Carte de la communauté', false);
+        $response->assertDontSee('communauté', false);
+    }
+
+    public function test_the_page_is_named_flowchart_in_english(): void
+    {
+        $this->oublierOrganisation();
+        $this->from('/org/'.$this->launchpals->slug)->post('/locale/en');
+
+        $this->oublierOrganisation();
+        $response = $this->get('/org/'.$this->launchpals->slug.'/flowchart');
+        $response->assertOk();
+
+        $response->assertSee('Flowchart', false);
+        $response->assertDontSee('Community map', false);
+        $response->assertDontSee('community', false);
+    }
+
+    /**
+     * Le pied rend « Mycelium · Logigramme », dans cet ordre, avec le
+     * separateur explicite.
+     *
+     * L'ordre et le separateur se mesurent sur le HTML, pas sur la seule
+     * presence des deux libelles : « Logigramme · Mycelium » les contiendrait
+     * tous les deux et serait faux.
+     */
+    public function test_the_footer_pairs_mycelium_and_flowchart_with_a_separator(): void
+    {
+        foreach ([
+            [$this->main, 'fr', 'Logigramme'],
+            [$this->launchpals, 'en', 'Flowchart'],
+        ] as [$organisation, $locale, $libelle]) {
+            $this->oublierOrganisation();
+            $this->from('/org/'.$organisation->slug)->post('/locale/'.$locale);
+
+            $this->oublierOrganisation();
+            $response = $this->get('/org/'.$organisation->slug.'/flowchart');
+            $response->assertOk();
+
+            $html = $response->getContent();
+
+            $mycelium = strpos($html, 'data-footer-mycelium');
+            $separateur = strpos($html, '·', (int) $mycelium);
+            $flowchart = strpos($html, 'data-footer-flowchart');
+
+            $this->assertNotFalse($mycelium, "Mycelium absent du pied ({$locale}).");
+            $this->assertNotFalse($flowchart, "Logigramme absent du pied ({$locale}).");
+            $this->assertNotFalse($separateur, "Separateur « · » absent ({$locale}).");
+
+            $this->assertLessThan($separateur, $mycelium, 'Mycelium vient avant le separateur.');
+            $this->assertLessThan($flowchart, $separateur, 'Le separateur vient avant le logigramme.');
+
+            $response->assertSee('Mycelium', false);
+            $response->assertSee($libelle, false);
+            $response->assertDontSee('Mycélium & organisations', false);
+            $response->assertDontSee('Mycelium & organizations', false);
+
+            $response->assertSee('/org/'.$organisation->slug.'/mycelium', false);
+            $response->assertSee('/org/'.$organisation->slug.'/flowchart', false);
+        }
     }
 
     // =====================================================================

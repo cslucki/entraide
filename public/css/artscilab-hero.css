@@ -157,6 +157,10 @@ body.bp-artscilab::before{
 .bp-artscilab .foot-right{display:flex;align-items:center;gap:18px}
 .bp-artscilab .foot-right a{color:rgba(255,255,255,.82);font-weight:500;transition:color .15s;display:inline-flex;align-items:center}
 .bp-artscilab .foot-right a:hover{color:#fff}
+/* TASK-1608 : Mycelium et le logigramme forment UNE entree, separee par « · ».
+   Le `gap` de `.foot-right` separe des rubriques ; ces deux-la n'en font qu'une. */
+.bp-artscilab .foot-right .foot-pair{display:inline-flex;align-items:center}
+.bp-artscilab .foot-right .foot-pair .foot-sep{margin:0 .4rem;color:rgba(255,255,255,.55)}
 
 /* ============ RESPONSIVE ============ */
 @media (max-width:1080px){

@@ -8,8 +8,8 @@
  * (§13 du mandat).
  */
 return [
-    'title' => 'Carte de la communauté',
-    'subtitle' => 'Comment fonctionne BouclePro, et ce qui existe réellement ici.',
+    'title' => 'Logigramme',
+    'subtitle' => 'Comment fonctionne BouclePro, et ce qui existe réellement dans cette Organization.',
 
     // Premier niveau (§4)
     'root' => 'Que voulez-vous faire ?',
@@ -19,7 +19,7 @@ return [
     'intent_offer_help' => 'Je peux aider',
     'intent_offer_help_hint' => 'Décrivez ce que vous savez faire. Vos compétences deviennent visibles là où elles sont utiles.',
     'intent_explore_idea' => 'Explorer une idée',
-    'intent_explore_idea_hint' => "Une intuition, une fascination, un sujet à creuser : la communauté et ses documents deviennent votre matière.",
+    'intent_explore_idea_hint' => "Une intuition, une fascination, un sujet à creuser : cette Organization et ses documents deviennent votre matière.",
     'intent_connect' => 'Créer du lien',
     'intent_connect_hint' => 'Ces personnes devraient se rencontrer. Provoquez la rencontre plutôt que de l\'attendre.',
 
@@ -51,6 +51,9 @@ return [
 
     // La branche des Boucles réelles (§11 — aucune recommandation)
     'explore_loops' => 'Explorer les Boucles de cette Organization',
+    // Le libelle du NOEUD : une card n'a pas la place d'une phrase. Le texte
+    // long reste celui des sections en cartes, ou il a la place de se dire.
+    'explore_loops_node' => 'Explorer les Boucles',
     'explore_loops_empty' => 'Aucune Boucle à explorer ici pour le moment.',
     'guest_hint' => 'Connectez-vous pour explorer les Boucles de cette Organization.',
 
@@ -72,5 +75,36 @@ return [
     'fallback_title' => 'Le parcours, en texte',
     'fallback_intro' => "La même carte, lisible sans le graphe interactif.",
     'fallback_loops' => 'Boucles accessibles depuis cette page',
-    'graph_label' => 'Carte interactive de la communauté',
+    'graph_label' => 'Logigramme interactif de cette Organization',
+
+    // TASK-1608 §2 correctifs — la PREMIERE ETAPE propre a chaque intention.
+    // Entrees differentes, moteur commun : sans elles, les quatre portes
+    // revelaient exactement les memes noeuds.
+    'entry_need_help' => 'Clarifier mon besoin',
+    'entry_need_help_hint' => "Dire ce qui bloque, avec vos mots. BouclePro reformule avec vous jusqu'à ce que la demande soit claire pour quelqu'un d'autre.",
+    'entry_offer_help' => 'Décrire ce que je peux apporter',
+    'entry_offer_help_hint' => 'Nommer une compétence, un temps disponible, un savoir-faire. Ce que vous offrez devient visible là où il sert.',
+    'entry_explore_idea' => 'Formuler le sujet à explorer',
+    'entry_explore_idea_hint' => "Poser la question, même mal dégrossie. Une intuition se travaille ; elle n'a pas besoin d'être déjà une thèse.",
+    'entry_connect' => 'Identifier les personnes et la raison',
+    'entry_connect_hint' => 'Dire qui devrait se rencontrer, et pourquoi maintenant. La raison compte autant que les noms.',
+
+    // Les deux replis de la vue d'ensemble.
+    'aggregate_engine' => 'IA, ressources et documents',
+    'aggregate_engine_hint' => "L'assistance, les outils de la Boucle et les Dossiers partagés : ce que BouclePro mobilise pour répondre.",
+    'aggregate_decide' => 'Synthèse et décision',
+    'aggregate_decide_hint' => 'Une réponse qui cite ses sources, puis un choix que le groupe assume et dont la trace reste.',
+
+    // Barre d'outils du graphe (§8 correctifs).
+    'zoom_in' => 'Agrandir',
+    'zoom_out' => 'Réduire',
+    'recenter' => 'Recentrer sur la sélection',
+    'fit' => 'Ajuster à la vue',
+    'continue' => 'Continuer',
+
+    // Parcours en cartes (§11 correctifs).
+    'cards_intents_title' => 'Que voulez-vous faire ?',
+    'cards_engine_title' => 'Comment BouclePro vous accompagne',
+    'cards_outcomes_title' => 'Ce que cela produit',
+    'cards_loops_title' => 'Les Boucles que vous pouvez explorer',
 ];

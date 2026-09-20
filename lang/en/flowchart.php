@@ -7,8 +7,8 @@
  * and are never machine-translated (§13 of the mandate).
  */
 return [
-    'title' => 'Community map',
-    'subtitle' => 'How BouclePro works, and what actually exists here.',
+    'title' => 'Flowchart',
+    'subtitle' => 'How BouclePro works, and what actually exists in this Organization.',
 
     // First level (§4)
     'root' => 'What would you like to do?',
@@ -18,7 +18,7 @@ return [
     'intent_offer_help' => 'I can help',
     'intent_offer_help_hint' => 'Describe what you know how to do. Your skills become visible where they are useful.',
     'intent_explore_idea' => 'Explore an idea',
-    'intent_explore_idea_hint' => 'A hunch, a fascination, a subject to dig into: the community and its documents become your material.',
+    'intent_explore_idea_hint' => 'A hunch, a fascination, a subject to dig into: this Organization and its documents become your material.',
     'intent_connect' => 'Connect people',
     'intent_connect_hint' => 'These people should meet. Make the introduction rather than waiting for it.',
 
@@ -50,6 +50,9 @@ return [
 
     // The real-Loops branch (§11 — no recommendation engine)
     'explore_loops' => 'Explore the Loops of this Organization',
+    // The NODE label: a card has no room for a sentence. The long form stays
+    // in the card sections, where it has space to be said.
+    'explore_loops_node' => 'Explore the Loops',
     'explore_loops_empty' => 'No Loop to explore here yet.',
     'guest_hint' => 'Sign in to explore the Loops of this Organization.',
 
@@ -71,5 +74,36 @@ return [
     'fallback_title' => 'The path, in text',
     'fallback_intro' => 'The same map, readable without the interactive graph.',
     'fallback_loops' => 'Loops reachable from this page',
-    'graph_label' => 'Interactive community map',
+    'graph_label' => 'Interactive flowchart of this Organization',
+
+    // TASK-1608 §2 fixes — the FIRST STEP specific to each intention.
+    // Different doors, shared engine: without these, all four revealed
+    // exactly the same nodes.
+    'entry_need_help' => 'Clarify what I need',
+    'entry_need_help_hint' => 'Say what is blocking you, in your own words. BouclePro rephrases it with you until it is clear to someone else.',
+    'entry_offer_help' => 'Describe what I can bring',
+    'entry_offer_help_hint' => 'Name a skill, some time, a craft. What you offer becomes visible where it is useful.',
+    'entry_explore_idea' => 'Frame the subject to explore',
+    'entry_explore_idea_hint' => 'Ask the question, even roughly. A hunch is something you work on; it need not already be a thesis.',
+    'entry_connect' => 'Name the people, and the reason',
+    'entry_connect_hint' => 'Say who should meet, and why now. The reason matters as much as the names.',
+
+    // The two foldings used by the overview.
+    'aggregate_engine' => 'AI, resources and documents',
+    'aggregate_engine_hint' => 'Assistance, the Loop toolkit and shared Dossiers: what BouclePro draws on to answer.',
+    'aggregate_decide' => 'Synthesis and decision',
+    'aggregate_decide_hint' => 'An answer that cites its sources, then a choice the group owns and that stays on record.',
+
+    // Graph toolbar (§8 fixes).
+    'zoom_in' => 'Zoom in',
+    'zoom_out' => 'Zoom out',
+    'recenter' => 'Recentre on selection',
+    'fit' => 'Fit to view',
+    'continue' => 'Continue',
+
+    // Card walkthrough (§11 fixes).
+    'cards_intents_title' => 'What would you like to do?',
+    'cards_engine_title' => 'How BouclePro supports you',
+    'cards_outcomes_title' => 'What it produces',
+    'cards_loops_title' => 'Loops you can explore',
 ];
