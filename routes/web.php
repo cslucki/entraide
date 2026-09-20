@@ -98,6 +98,7 @@ use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MyceliumController;
 use App\Http\Controllers\NotificationCenterController;
 use App\Http\Controllers\NotificationPreferenceController;
+use App\Http\Controllers\OrganizationFlowchartController;
 use App\Http\Controllers\OrganizationLandingController;
 use App\Http\Controllers\OrganizationRequestController;
 use App\Http\Controllers\PointController;
@@ -867,6 +868,19 @@ Route::prefix('/org/{organization}')
         // ressource n'existe pas.
         Route::get('/constitution', [MyceliumController::class, 'organization'])->name('constitution');
         Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
+
+        // TASK-1608 — la carte interactive de l'Organization.
+        //
+        // PUBLIQUE, comme la landing et pour la meme raison : elle explique le
+        // produit et sert de porte d'entree graphique. Elle n'ouvre aucune
+        // divulgation pour autant — `FlowchartGraph` consomme `VisibleLoops`,
+        // qui exige un `User` du tenant visite. Un invite recoit le graphe
+        // structurel et ZERO Boucle reelle.
+        //
+        // Pas de route globale `/flowchart` : le mandat la reserve a une
+        // necessite demontree, et il n'y en a pas — une carte hors
+        // Organization n'aurait ni charte, ni Boucles, ni sens.
+        Route::get('/flowchart', OrganizationFlowchartController::class)->name('flowchart');
 
           // TASK-1602 — les mentions legales servies DANS le contexte de
           // l'Organization : MEME vue, donc contenu unique, jamais duplique.

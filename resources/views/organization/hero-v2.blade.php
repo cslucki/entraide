@@ -117,13 +117,41 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
       </div>
     </section>
 
-    {{-- RIGHT : ORBIT --}}
+    {{-- TASK-1608 — LES QUATRE CARTES : destination ET portee.
+
+       DEUX defauts corriges ensemble, parce qu'ils vivent sur les memes
+       quatre lignes.
+
+       1. Le MAPPING mentait. Mesure avant correctif :
+
+          | carte | libelle | destination |
+          |---|---|---|
+          | `card-create` | « J'explore une piste » | `/membres` (Annuaire) |
+          | `card-meet`   | « Je cree du lien »     | `/boucles` |
+
+          Le libelle et la destination ne racontaient pas la meme action.
+          Arbitrage MASTER : explorer mene aux CONTENUS (Blog), creer du lien
+          mene aux PERSONNES (Annuaire). Consequence acceptee : plus aucune
+          carte ne mene aux Boucles — elles restent atteintes par le CTA
+          principal, la navigation et le logigramme.
+
+       2. La PORTEE. Les quatre `href` visaient les routes GLOBALES
+          (`explorer`, `boucles.index`, `members.index`) sur une page servie
+          sous `/org/{slug}`. Seule `main` utilise ce gabarit aujourd'hui, et
+          `main` etant l'Organization par defaut, la fuite etait invisible :
+          toute autre Organization l'adoptant aurait envoye ses visiteurs sur
+          les surfaces globales. C'est la doctrine TASK-1602 / 1604 — le
+          declencheur est ce que l'URL EXPRIME.
+
+       Les identifiants fonctionnels ne bougent pas : un admin personnalise le
+       LIBELLE, jamais la destination. --}}
+  {{-- RIGHT : ORBIT --}}
     <section class="orbit" aria-hidden="true">
       <img class="rings-img" src="{{ asset('img/boucle-rings.svg') }}" alt="" width="600" height="600">
 
       <div class="slot slot-help" style="--d:0s;--a:0deg">
         <div class="hand">
-          <a href="{{ route('explorer') }}" class="ocard card-help" data-anim>
+          <a href="{{ route('organization.explorer', $organization) }}" class="ocard card-help" data-anim>
             <div class="top">
               <span class="ic"><i class="ti ti-heart"></i></span>
               <h3>{!! $cardLabel('card_help_label', 'hero.card_help') !!}</h3>
@@ -140,7 +168,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 
       <div class="slot slot-offer" style="--d:-17s;--a:90deg">
         <div class="hand">
-          <a href="{{ route('explorer').'?tab=requests' }}" class="ocard card-offer" data-anim>
+          <a href="{{ route('organization.explorer', $organization).'?tab=requests' }}" class="ocard card-offer" data-anim>
             <div class="top">
               <span class="ic"><i class="ti ti-hand-stop"></i></span>
               <h3>{!! $cardLabel('card_offer_label', 'hero.card_offer') !!}</h3>
@@ -157,7 +185,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 
       <div class="slot slot-meet" style="--d:-34s;--a:180deg">
         <div class="hand">
-          <a href="{{ route('boucles.index') }}" class="ocard card-meet" data-anim>
+          <a href="{{ route('organization.members.index', $organization) }}" class="ocard card-meet" data-anim>
             <div class="top">
               <span class="ic"><i class="ti ti-link"></i></span>
               <h3>{!! $cardLabel('card_meet_label', 'hero.card_meet') !!}</h3>
@@ -174,7 +202,7 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
 
       <div class="slot slot-create" style="--d:-51s;--a:270deg">
         <div class="hand">
-          <a href="{{ route('members.index') }}" class="ocard card-create" data-anim>
+          <a href="{{ route('organization.blog.index', $organization) }}" class="ocard card-create" data-anim>
             <div class="top">
               <span class="ic"><i class="ti ti-bulb"></i></span>
               <h3>{!! $cardLabel('card_create_label', 'hero.card_create') !!}</h3>
@@ -208,6 +236,12 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
          footer ne s'allonge pas, une entree en remplace une. --}}
     <div class="foot-credit">
       <a href="{{ organizationScopedUrl('mycelium', 'organization.mycelium') }}" data-footer-mycelium>{{ __('mycelium.footer_link') }}</a>
+      {{-- TASK-1608 — le logigramme, immediatement a droite de Mycelium,
+           separe par « · ». La landing est TOUJOURS servie sous `/org/{slug}` :
+           la cible est donc bornee sans repli possible, et n'a aucun besoin de
+           `organizationScopedUrl()`. --}}
+      <span class="foot-sep" aria-hidden="true">·</span>
+      <a href="{{ route('organization.flowchart', ['organization' => $organization->slug]) }}" data-footer-flowchart>{{ __('footer.flowchart') }}</a>
     </div>
     <nav class="foot-links">
       <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}">{{ __('footer.mentions_legales') }}</a>

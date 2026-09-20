@@ -122,6 +122,20 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
         // liste. Un 200 ne disait pas cela ; il a fallu lire le rendu.
         'organization.boucles.index' => 'Vitrine publique des Boucles — rendu mesure : presentation + CTA connexion, jamais la liste.',
 
+        // Logigramme (TASK-1608). Publique PAR MANDAT : elle explique le
+        // produit a un visiteur qui n'a pas de compte. Elle n'est pas une
+        // ESCALADE au sens de `blog.index` — le controleur reprend la frontiere
+        // de la landing : Organization inactive -> 404, Organization privee et
+        // visiteur anonyme -> redirection vers le login borne.
+        //
+        // Ce qu'un anonyme obtient est MESURE, pas espere : la projection
+        // `FlowchartLoops` ne retient que `status=active` + `visibility=public`
+        // + `access_mode IN (open, request)`. Une Boucle sur invitation
+        // n'existe ni dans la requete, ni dans le JSON, ni dans le DOM, ni dans
+        // les compteurs — c'est la garde §7 du mandat, tenue par
+        // `TASK1608FlowchartVisibilityTest`.
+        'organization.flowchart' => 'Logigramme public (TASK-1608) — seules les Boucles publiques a entree libre ou sur demande y figurent.',
+
         // ─── TOLEREES, explicitement PAS validees ───
 
         // Page publique de transparence produit — et l'intention est ECRITE,

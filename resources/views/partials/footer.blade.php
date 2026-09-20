@@ -4,6 +4,15 @@
     $bugReportIndexRoute = $usesOrganizationRoutes
         ? route('organization.bug-reports.index', ['organization' => $organizationRouteParam])
         : route('bug-reports.index');
+    // TASK-1608 — la cible du logigramme, resolue une fois.
+    //
+    // `$usesOrganizationRoutes` est deja le predicat « l'URL exprime une
+    // Organization » : on le reutilise plutot que d'en ecrire un second, qui
+    // divergerait au premier changement.
+    $flowchartUrl = $usesOrganizationRoutes && Route::has('organization.flowchart')
+        ? route('organization.flowchart', ['organization' => $organizationRouteParam])
+        : null;
+
     // TASK-1605 — `$bugReportStoreRoute` et `$loginRoute` vivaient ici pour le
     // popup de signalement. Le popup a cede la place a un lien vers la page
     // bornee, qui porte desormais le formulaire et le message invite : ces deux
@@ -17,11 +26,44 @@
                 {{-- TASK-1349 : le credit de portage cede sa place au lien de
                      gouvernance. Un lien discret, au meme rang que les autres :
                      le footer n'est pas surcharge, une entree en remplace une. --}}
-                <a href="{{ organizationScopedUrl('mycelium', 'organization.mycelium') }}"
-                   class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
-                   data-footer-mycelium>
-                    {{ __('mycelium.footer_link') }}
-                </a>
+                {{-- TASK-1608, addendum vocabulaire — Mycelium et le
+                     logigramme forment UNE entree, separee par « · ».
+
+                     Ils vivent dans la meme cellule du `divide-x` : le trait
+                     vertical du pied separe des rubriques, et ces deux-la n'en
+                     font qu'une. Les mettre dans deux cellules aurait rendu
+                     « Mycelium | · | Logigramme », soit deux separateurs pour
+                     une seule coupure. --}}
+                <span class="inline-flex items-center px-2">
+                    <a href="{{ organizationScopedUrl('mycelium', 'organization.mycelium') }}"
+                       class="hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
+                       data-footer-mycelium>
+                        {{ __('mycelium.footer_link') }}
+                    </a>
+                {{-- TASK-1608 — la carte interactive, immediatement a droite de
+                     Mycelium et au meme rang visuel : un lien discret de plus,
+                     pas un bouton.
+
+                     Il n'est PAS bati avec `organizationScopedUrl()`, et c'est
+                     deliberé : ce helper prend une route globale en repli, or
+                     MASTER interdit une route `/flowchart` globale. Lui passer
+                     une autre cible en repli enverrait ailleurs qu'au
+                     logigramme — un lien qui ment.
+
+                     Le lien n'apparait donc que quand l'URL EXPRIME une
+                     Organization. C'est la borne heritee de TASK-1602/1604 :
+                     le declencheur est le prefixe `/org/{slug}`, jamais un
+                     tenant devine par defaut. Sans lui, on n'isolerait pas un
+                     contexte, on en inventerait un. --}}
+                    @if($flowchartUrl)
+                        <span class="mx-1.5 opacity-60" aria-hidden="true">·</span>
+                        <a href="{{ $flowchartUrl }}"
+                           class="hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
+                           data-footer-flowchart>
+                            {{ __('footer.flowchart') }}
+                        </a>
+                    @endif
+                </span>
                 <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}"
                    class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors">
                     {{ __('footer.mentions_legales') }}

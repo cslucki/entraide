@@ -4,6 +4,8 @@ return [
     'by_amt' => 'A project supported by AMT',
     'partner_artscilab' => 'in partnership with ArtSciLab',
     'mentions_legales' => 'Legal notices',
+    // TASK-1608 — the link to the interactive map, right after Mycelium.
+    'flowchart' => 'Flowchart',
     'kit_demo' => 'Demo kit',
     'opensource' => 'OpenSource',
     'bug' => 'A bug?',

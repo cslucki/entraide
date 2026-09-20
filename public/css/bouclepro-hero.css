@@ -134,6 +134,8 @@ body.bp-hero-v2{
 }
 .bp-hero-v2 .foot-credit{font-weight:500;justify-self:start;color:#7D8294;transition:color .15s}
 .bp-hero-v2 .foot-credit:hover{color:var(--ink-soft)}
+/* TASK-1608 : le separateur discret entre Mycelium et le logigramme. */
+.bp-hero-v2 .foot-credit .foot-sep{margin:0 .4rem;opacity:.6}
 .bp-hero-v2 .foot-beta{
   justify-self:center;display:inline-flex;align-items:center;gap:7px;
   font-size:12.5px;font-weight:700;color:var(--purple);
