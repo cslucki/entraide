@@ -1,5 +1,11 @@
 name: SQLite CI
 
+# TASK-1609 — le run porte le nom de la BRANCHE, donc son numero de TASK.
+# Sans cela, la liste des executions aligne des « SQLite CI » indistinguables :
+# impossible de dire quelle TASK a produit quel resultat, surtout quand
+# plusieurs branches tournent le meme jour.
+run-name: "SQLite CI — ${{ github.ref_name }}"
+
 # Deuxieme moitie du filet, en parallele du gate PostgreSQL.
 #
 # Deux workflows separes plutot qu'un seul a deux jobs : chacun se lit, se

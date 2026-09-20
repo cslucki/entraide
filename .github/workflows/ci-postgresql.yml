@@ -1,5 +1,11 @@
 name: PostgreSQL CI
 
+# TASK-1609 — le run porte le nom de la BRANCHE, donc son numero de TASK.
+# Sans cela, la liste des executions aligne des « PostgreSQL CI » indistinguables :
+# impossible de dire quelle TASK a produit quel resultat, surtout quand
+# plusieurs branches tournent le meme jour.
+run-name: "PostgreSQL CI — ${{ github.ref_name }}"
+
 on:
   push:
     branches: [main]
