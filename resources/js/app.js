@@ -1,5 +1,4 @@
 import './bootstrap';
-import { registerOpenSourceDrawer } from './open-source-drawer';
 import { createEditor } from './blog-editor';
 import './markdown-wysiwyg-editor';
 import { extractEmbedUrl } from './tiptap/media-embed-node.js';
@@ -7984,16 +7983,14 @@ function registerRoadmapMenu() {
 document.addEventListener('alpine:init', registerRoadmapMenu);
 registerRoadmapMenu();
 
-// TASK-1612 — Open Source Explorer. Le drawer vit dans le pied de page, donc
-// sur des surfaces qui n'ont PAS toutes Alpine (`layouts/guest` n'en monte
-// pas) : il s'enregistre ici, en JS nu, ou qu'il soit rendu. Le script est
-// charge en `type="module"` — donc apres l'analyse du document — mais le
-// garde `DOMContentLoaded` couvre le cas d'un chargement plus precoce.
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', registerOpenSourceDrawer);
-} else {
-    registerOpenSourceDrawer();
-}
+// TASK-1613 — l'explorateur Open Source n'a plus AUCUN code ici.
+//
+// TASK-1612 en avait fait une surcouche pilotee depuis ce bundle. Deux
+// mesures l'ont condamnee : les gabarits autonomes (dont la HOMEPAGE) ne
+// chargent pas ce fichier, et une surcouche fait payer son CSS et son JS a
+// toutes les pages pour une fonction que peu ouvrent. C'est desormais une
+// PAGE, `/open-source`, rendue cote serveur : les autres pages ne portent
+// plus qu'un lien.
 
 // Service Worker registration
 if ('serviceWorker' in navigator) {

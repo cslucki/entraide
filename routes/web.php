@@ -296,6 +296,7 @@ Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.in
 // pour que l'URL du depot n'apparaisse jamais dans un `href` — ni dans le
 // HTML, ni au survol. Les deux sont publiques : le drawer vit dans le pied
 // de page, visible d'un visiteur anonyme.
+Route::get('/open-source', [OpenSourceController::class, 'page'])->name('open-source.page');
 Route::get('/open-source/repository', [OpenSourceController::class, 'repository'])
     ->middleware('throttle:30,1')
     ->name('open-source.repository');
@@ -903,6 +904,19 @@ Route::prefix('/org/{organization}')
           // Mesure avant correctif : en invite, `/mentions-legales` depuis
           // `launchpals` rendait 7 occurrences « BouclePro » et 0 « LaunchPals ».
           Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');
+
+          // TASK-1613 — l'explorateur Open Source servi DANS le contexte de
+          // l'Organization, exactement comme les mentions legales ci-dessus :
+          // MEME controleur, MEME vue, MEME instantane. Rien n'est duplique.
+          //
+          // Le contenu ne depend d'aucun tenant — c'est le depot du produit —
+          // mais l'URL, elle, doit rester coherente avec la page d'ou l'on
+          // vient : un visiteur de `/org/launchpals` ne doit pas etre ejecte
+          // a la racine du site pour lire cette page. La route globale
+          // subsiste pour les surfaces qui n'EXPRIMENT pas d'Organization
+          // (`/login`, `/about`), et `organizationScopedUrl()` choisit entre
+          // les deux — jamais un tenant devine par defaut (borne TASK-1602).
+          Route::get('/open-source', [OpenSourceController::class, 'page'])->name('open-source');
 
           // TASK-1604 — Mycelium servi DANS le contexte de l'Organization.
           //

@@ -13,8 +13,7 @@ return [
     'title' => 'BouclePro Core',
     'tagline' => 'Le code source de BouclePro est ouvert et développé publiquement.',
 
-    'trigger_aria' => 'Découvrir le code source de BouclePro',
-    'close' => 'Fermer',
+    'github_aria' => 'Code source sur GitHub',
 
     'badge_public' => 'Public',
 
@@ -31,7 +30,6 @@ return [
     'type_dir' => 'Dossier',
     'type_file' => 'Fichier',
 
-    'loading' => 'Lecture du dépôt…',
     'empty' => 'La racine du dépôt ne contient rien à afficher.',
     'unavailable' => 'Les informations du dépôt ne sont pas accessibles pour le moment. Le code, lui, reste consultable.',
     'stale' => 'Informations issues de la dernière synchronisation.',
@@ -39,13 +37,4 @@ return [
     'cta_github' => 'Voir sur GitHub',
     'cta_contribute' => 'Contribuer',
 
-    // Temps relatif, rendu par le navigateur faute de date au moment du rendu.
-    'ago_now' => 'à l\'instant',
-    'ago_minutes' => 'il y a :count min',
-    'ago_hours' => 'il y a :count h',
-    'ago_yesterday' => 'hier',
-    'ago_days' => 'il y a :count j',
-    'ago_months' => 'il y a :count mois',
-    'ago_years_one' => 'il y a :count an',
-    'ago_years_other' => 'il y a :count ans',
 ];

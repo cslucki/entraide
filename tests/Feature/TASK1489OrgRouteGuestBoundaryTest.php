@@ -82,6 +82,25 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
         // Organization et rend 404 tant que personne ne l'a rendue publique.
         'organization.mycelium' => 'Mycelium, gouvernance IA publique servie dans le contexte de l\'Organization.',
 
+        // TASK-1613 — l'explorateur Open Source servi DANS le contexte d'une
+        // Organization. Publique par nature, et pour la MEME raison que les
+        // mentions legales ci-dessus : c'est le MEME controleur et la MEME vue
+        // que la route globale `/open-source`, deja publique.
+        //
+        // Ce qu'elle publie, verifie champ par champ : le nom declare du
+        // projet, sa licence, sa pile, et la RACINE du depot GitHub PUBLIC de
+        // BouclePro. Zero donnee d'Organization n'y entre — le contenu est
+        // rigoureusement identique d'un tenant a l'autre, seules l'URL, la
+        // navigation et la charte changent. `OpenSourceSnapshotService` ne lit
+        // aucune table : il n'interroge que l'API publique de GitHub, et
+        // RECONSTRUIT sa reponse champ par champ.
+        //
+        // Le scope de l'URL est un confort de navigation, pas une frontiere :
+        // il evite d'ejecter a la racine du site un visiteur venu de
+        // `/org/{slug}`. La frontiere de vie privee, elle, n'a rien a garder
+        // ici — il n'y a aucune donnee privee a garder.
+        'organization.open-source' => 'Explorateur Open Source, contenu global (le depot public du produit) servi dans le contexte de l\'Organization.',
+
         // Blog public. ATTENTION a ce que T123 a reellement decide : cet audit
         // (2026-05-23) a durci le TENANT SCOPE — quels articles apparaissent —
         // et ne dit pas un mot de `is_public`, des Organizations privees, ni

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\OpenSource;
 
+use App\Models\Organization;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
@@ -293,14 +294,172 @@ class OpenSourceExplorerTest extends TestCase
         $this->assertStringNotContainsString('Co-Authored-By', $payload);
     }
 
-    public function test_the_footer_never_exposes_the_repository_url(): void
+    public function test_the_footer_links_to_the_open_source_page(): void
     {
         $html = $this->get('/')->assertOk()->getContent();
 
-        $this->assertStringContainsString('data-open-source-trigger', $html);
+        $this->assertStringContainsString('/open-source"', $html);
+        $this->assertStringNotContainsString('cslucki', $html);
+        $this->assertStringNotContainsString('github.com/cslucki', $html);
+    }
+
+    /**
+     * TASK-1613 — la page suit le contexte de l'URL.
+     *
+     * Meme regle que les mentions legales (TASK-1602) : sous `/org/{slug}`
+     * elle est servie DANS l'Organization ; ailleurs elle est globale. Le
+     * declencheur est le PREFIXE de l'URL, jamais un tenant devine par
+     * defaut — sans quoi on n'isolerait pas un contexte, on en inventerait
+     * un.
+     */
+    public function test_the_page_is_served_inside_the_organization_context(): void
+    {
+        Organization::factory()->create([
+            'slug' => 'test-open-source',
+            'is_active' => true,
+            'is_public' => true,
+            'homepage_template' => 'bouclepro_hero_v2',
+        ]);
+
+        $this->fakeGithub();
+
+        // MEME vue, MEME contenu : rien n'est duplique.
+        $this->get('/org/test-open-source/open-source')
+            ->assertOk()
+            ->assertSee('BouclePro Core')
+            ->assertSee('.github');
+
+        $this->get('/open-source')->assertOk()->assertSee('BouclePro Core');
+    }
+
+    public function test_the_footer_link_follows_the_url_prefix(): void
+    {
+        Organization::factory()->create([
+            'slug' => 'test-open-source',
+            'is_active' => true,
+            'is_public' => true,
+        ]);
+
+        // Sous `/org/{slug}` : la cible est bornee a l'Organization.
+        //
+        // Le logigramme, et pas Mycelium : `layouts/app` n'inclut AUCUN pied
+        // de page (ses liens legaux vivent ailleurs). Mesure faite — le
+        // premier jet visait `/mycelium` et cherchait un lien sur une page
+        // qui n'a pas de pied.
+        $this->assertStringContainsString(
+            '/org/test-open-source/open-source',
+            $this->get('/org/test-open-source/flowchart')->assertOk()->getContent(),
+        );
+
+        // Hors de tout prefixe : la route globale, jamais un tenant devine.
+        $global = $this->get('/login')->assertOk()->getContent();
+        $this->assertStringContainsString('/open-source"', $global);
+        $this->assertStringNotContainsString('/org/test-open-source/open-source', $global);
+    }
+
+    /**
+     * TASK-1613 — les gabarits AUTONOMES, ceux que TASK-1612 avait laisses
+     * de cote.
+     *
+     * Le test du pied de page ne visitait que `/`, qui rend `home.blade.php`
+     * sous `<x-app-layout>`. En PRODUCTION, `/` redirige vers `/org/{slug}`,
+     * servi par `hero-v2` — un document HTML autonome. L'URL du depot y
+     * restait donc dans le HTML de la HOMEPAGE. Le trou etait dans la
+     * SURFACE couverte, pas dans l'assertion.
+     *
+     * @return list<array{0: string, 1: string}>
+     */
+    public static function autonomousLandings(): array
+    {
+        return [
+            'homepage hero-v2' => ['bouclepro_hero_v2', '/org/test-open-source'],
+            'landing artscilab' => ['artscilab_hero', '/org/test-open-source'],
+            'a propos de l\'Organization' => ['bouclepro_hero_v2', '/org/test-open-source/about'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('autonomousLandings')]
+    public function test_an_autonomous_landing_never_exposes_the_repository_url(string $template, string $path): void
+    {
+        Organization::factory()->create([
+            'slug' => 'test-open-source',
+            'is_active' => true,
+            'is_public' => true,
+            'homepage_template' => $template,
+        ]);
+
+        $html = $this->get($path)->assertOk()->getContent();
+
+        // La sortie passe par la redirection BouclePro, jamais par l'URL du
+        // depot : c'est la regression vue en production apres la 1.612.
         $this->assertStringContainsString('/open-source/github', $html);
         $this->assertStringNotContainsString('cslucki', $html);
         $this->assertStringNotContainsString('github.com/cslucki', $html);
+    }
+
+    public function test_no_page_loads_drawer_assets_anymore(): void
+    {
+        Organization::factory()->create([
+            'slug' => 'test-open-source',
+            'is_active' => true,
+            'is_public' => true,
+            'homepage_template' => 'bouclepro_hero_v2',
+        ]);
+
+        // TASK-1613 : l'explorateur est une PAGE. Aucune autre surface ne
+        // doit plus payer de CSS ni de JS pour lui — c'est la raison meme de
+        // l'arbitrage. Ce test rougit si une surcouche revient par la bande.
+        foreach (['/', '/org/test-open-source', '/login'] as $path) {
+            $html = $this->get($path)->assertOk()->getContent();
+
+            $this->assertStringNotContainsString('open-source-drawer', $html, $path);
+            $this->assertStringNotContainsString('data-open-source-drawer', $html, $path);
+        }
+    }
+
+    public function test_the_page_shows_the_repository_root(): void
+    {
+        $this->fakeGithub();
+
+        $html = $this->get('/open-source')->assertOk()->getContent();
+
+        $this->assertStringContainsString('BouclePro Core', $html);
+        $this->assertStringContainsString('AGPL-3.0', $html);
+        $this->assertStringContainsString('.github', $html);
+        $this->assertStringContainsString('README.md', $html);
+        $this->assertStringContainsString('feat(flowchart): presentation mobile (TASK-1609)', $html);
+
+        // Ni l'owner ni l'URL du depot, sur la page qui en parle le plus.
+        $this->assertStringNotContainsString('cslucki', $html);
+        $this->assertStringNotContainsString('github.com/cslucki', $html);
+        // Le corps du commit ne traverse pas davantage ici qu'ailleurs.
+        $this->assertStringNotContainsString('Co-Authored-By', $html);
+        $this->assertStringNotContainsString('claude.ai', $html);
+    }
+
+    public function test_the_page_survives_a_github_outage(): void
+    {
+        $this->fakeGithub(down: true);
+
+        $html = $this->get('/open-source')->assertOk()->getContent();
+
+        // Etat propre : le message d'indisponibilite, les badges declares et
+        // les deux CTA. Jamais une erreur technique.
+        $this->assertStringContainsString(__('open_source.unavailable'), $html);
+        $this->assertStringContainsString('AGPL-3.0', $html);
+        $this->assertStringContainsString('/open-source/github', $html);
+        $this->assertStringNotContainsString('Exception', $html);
+    }
+
+    public function test_the_legal_notice_keeps_the_repository_url(): void
+    {
+        // Arbitrage MASTER : citer le depot et son URL a une valeur
+        // JURIDIQUE sur cette page. La regle de presentation ne s'y applique
+        // pas, et ce test l'ecrit pour qu'on ne « corrige » pas la page par
+        // zele au prochain passage.
+        $html = $this->get('/mentions-legales')->assertOk()->getContent();
+
+        $this->assertStringContainsString('github.com/cslucki/entraide', $html);
     }
 
     /* ================================================================== */

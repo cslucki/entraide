@@ -6,6 +6,7 @@ use App\Services\OpenSource\OpenSourceSnapshotService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\View\View;
 
 /**
  * TASK-1612 — les deux seules portes du drawer Open Source.
@@ -29,6 +30,19 @@ class OpenSourceController extends Controller
         'repository' => '',
         'contributing' => '/blob/{branch}/CONTRIBUTING.md',
     ];
+
+    /**
+     * TASK-1613 — la page. Rendu SERVEUR : pas de squelette, pas de `fetch`,
+     * rien a charger sur les autres pages du produit.
+     *
+     * Un cache froid coute ~3,7 s ici. C'est assume : sur une page dediee,
+     * l'attente est a sa place — elle ne l'etait pas sur une page d'accueil,
+     * ou la surcouche de TASK-1612 la faisait porter a tout le monde.
+     */
+    public function page(OpenSourceSnapshotService $snapshots): View
+    {
+        return view('open-source', ['snapshot' => $snapshots->snapshot()]);
+    }
 
     public function repository(OpenSourceSnapshotService $snapshots): JsonResponse
     {

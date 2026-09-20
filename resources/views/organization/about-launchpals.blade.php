@@ -352,7 +352,10 @@
         <a href="{{ route('organization.register', $organization) }}" class="lp-button lp-button--primary">Join LaunchPals</a>
         <a href="{{ route('organization.home', $organization) }}" class="lp-button lp-button--secondary">Discover the circles</a>
         <a href="{{ route('organization.home', 'main') }}" class="lp-button lp-button--primary">Voir BouclePro</a>
-        <a href="https://github.com/cslucki/entraide" target="_blank" rel="noopener" class="lp-button lp-button--secondary">Contribuer sur GitHub</a>
+        {{-- TASK-1613 — ouvre l'explorateur du depot. Document autonome lui
+             aussi : le drawer y entre parce qu'il est autoportant. --}}
+        <a href="{{ route('open-source.github') }}" target="_blank" rel="noopener"
+                      class="lp-button lp-button--secondary">Contribuer sur GitHub</a>
       </div>
     </div>
   </section>
