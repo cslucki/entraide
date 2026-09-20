@@ -9,8 +9,7 @@ return [
     'title' => 'BouclePro Core',
     'tagline' => 'BouclePro\'s source code is open and developed in public.',
 
-    'trigger_aria' => 'Explore the BouclePro source code',
-    'close' => 'Close',
+    'github_aria' => 'Source code on GitHub',
 
     'badge_public' => 'Public',
 
@@ -27,7 +26,6 @@ return [
     'type_dir' => 'Folder',
     'type_file' => 'File',
 
-    'loading' => 'Reading the repository…',
     'empty' => 'The repository root has nothing to show.',
     'unavailable' => 'Repository details are unavailable right now. The code itself is still there.',
     'stale' => 'Details from the last successful sync.',
@@ -35,12 +33,4 @@ return [
     'cta_github' => 'View on GitHub',
     'cta_contribute' => 'Contribute',
 
-    'ago_now' => 'just now',
-    'ago_minutes' => ':count min ago',
-    'ago_hours' => ':count h ago',
-    'ago_yesterday' => 'yesterday',
-    'ago_days' => ':count d ago',
-    'ago_months' => ':count mo ago',
-    'ago_years_one' => ':count year ago',
-    'ago_years_other' => ':count years ago',
 ];

@@ -322,7 +322,12 @@
         <a href="{{ route('partenaires.request.create') }}" class="about-button about-button--primary">{{ __('about.cta_primary') }}</a>
         <a href="{{ route('partenaires.request.create') }}" class="about-button about-button--secondary">{{ __('about.cta_secondary') }}</a>
         <a href="{{ route('organization.home', 'launchpals') }}" class="about-button about-button--primary">{{ __('about.cta_artscilab') }}</a>
-        <a href="https://github.com/cslucki/entraide" target="_blank" rel="noopener" class="about-button about-button--secondary">{{ __('about.cta_github') }}</a>
+        {{-- TASK-1613 — le CTA ouvre l'explorateur du depot. « A propos » est
+             un document autonome (ni Tailwind ni bundle) : le drawer y entre
+             parce qu'il est devenu autoportant. Cible : `/open-source/github`,
+             une redirection BouclePro, jamais l'URL du depot. --}}
+        <a href="{{ route('open-source.github') }}" target="_blank" rel="noopener"
+                      class="about-button about-button--secondary">{{ __('about.cta_github') }}</a>
       </div>
     </div>
   </section>
