@@ -394,6 +394,35 @@ class TASK1618MultiAiOrchestrationTest extends TestCase
             'un appel parti qui leve se paie : il a sa ligne, contrairement a un refus');
     }
 
+    public function test_une_panne_hors_provider_ne_fait_pas_tomber_les_voisins(): void
+    {
+        // Le filet de securite : tout ce qui casse chez UN assistant, y compris
+        // ce qu'on n'avait pas prevu (garde qui leve, base qui hoquette), reste
+        // chez lui. La panne est provoquee AVANT l'appel provider, donc en
+        // dehors du `catch` qui protege la generation.
+        app()->instance(LoopPluginModelGuard::class, new class(app(LoopPluginAiModels::class), app(OpenRouterModelCatalog::class), app(LoopAiAssistants::class)) extends LoopPluginModelGuard
+        {
+            public function eligibleSlug(string $assistantKey, ?string &$reason = null): ?string
+            {
+                if ($assistantKey === 'traverse') {
+                    throw new RuntimeException('la garde a hoquete');
+                }
+
+                return parent::eligibleSlug($assistantKey, $reason);
+            }
+        });
+
+        $this->fakeTroisReponses();
+
+        $run = $this->orchestrateur()->run($this->loop, $this->membre, 'Quel est le budget ?');
+
+        $this->assertTrue($run->outcomeFor('aperio')?->succeeded());
+        $this->assertSame(AssistantOutcome::STATUS_ERROR, $run->outcomeFor('traverse')?->status);
+        $this->assertTrue($run->outcomeFor('limen')?->succeeded());
+        $this->assertSame(2, AiProviderInvocation::query()->count(),
+            'la panne est survenue AVANT le provider : elle ne facture rien');
+    }
+
     // ── 4. LE LEDGER ET L'ECONOMIE ──────────────────────────────────────────
 
     public function test_trois_generations_donnent_trois_lignes_de_ledger(): void
