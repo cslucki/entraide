@@ -122,6 +122,43 @@ class TASK1617OpenRouterFreeModelsTest extends TestCase
             $this->model('x/y', ['prompt' => '0', 'completion' => '0', 'poste_inedit' => '0.5'])));
     }
 
+    /**
+     * CDC §3 : `openrouter/free` est GRATUIT et pourtant REFUSE.
+     *
+     * Ce routeur choisit lui-meme parmi les modeles gratuits a chaque appel :
+     * l'affecter a un assistant ferait perdre le controle de ce qui repond, et
+     * la trace du ledger nommerait le routeur plutot que le modele employe.
+     * Le produit exige des slugs DETERMINISTES — ce n'est pas une question de
+     * tarif.
+     *
+     * Trouve par la RECETTE, pas par un test : le routeur apparaissait dans le
+     * selecteur de l'ecran.
+     */
+    public function test_le_routeur_openrouter_free_est_refuse_bien_qu_il_soit_gratuit(): void
+    {
+        $this->fakeCatalogue([
+            $this->model('openrouter/free', ['prompt' => '0', 'completion' => '0']),
+            $this->model('openrouter/auto', ['prompt' => '0', 'completion' => '0']),
+            $this->model('vendor/nomme', ['prompt' => '0', 'completion' => '0']),
+        ]);
+
+        $catalogue = app(OpenRouterModelCatalog::class);
+        $libres = $catalogue->verifiedFreeModels();
+
+        // Il est bien PROUVE gratuit...
+        $this->assertTrue($catalogue->isVerifiedFree(
+            $this->model('openrouter/free', ['prompt' => '0', 'completion' => '0'])));
+
+        // ... et pourtant il n'est pas selectionnable.
+        $this->assertArrayNotHasKey('openrouter/free', $libres);
+        $this->assertArrayNotHasKey('openrouter/auto', $libres);
+        $this->assertArrayHasKey('vendor/nomme', $libres);
+
+        // Et il ne s'enregistre pas davantage par un POST forge.
+        $this->expectException(\InvalidArgumentException::class);
+        app(LoopPluginAiModels::class)->assign('aperio', 'openrouter/free', $this->superAdmin);
+    }
+
     public function test_un_modele_non_textuel_est_refuse_meme_a_zero(): void
     {
         $catalogue = app(OpenRouterModelCatalog::class);
@@ -285,6 +322,39 @@ class TASK1617OpenRouterFreeModelsTest extends TestCase
         $this->fakeCatalogue([$this->model('vendor/autre', ['prompt' => '0', 'completion' => '0'])]);
 
         $this->assertNull(app(LoopPluginModelGuard::class)->eligibleSlug('aperio'));
+    }
+
+    /**
+     * REGRESSION — une preuve ECRITE A L'INSTANT doit etre relue comme fraiche.
+     *
+     * Trivial en apparence, et pourtant : la colonne etait declaree
+     * `timestampTz`. PostgreSQL rendait alors la valeur dans le fuseau de la
+     * SESSION (`+02:00` en CEST) pendant que `Carbon::now()` reste en UTC — la
+     * preuve se lisait DEUX HEURES dans le passe, donc toujours perimee, et la
+     * garde refusait tout pendant l'heure d'ete.
+     *
+     * SQLite ignore les fuseaux : ce test ne peut echouer qu'en PostgreSQL.
+     * C'est la recette navigateur qui l'a trouve, pas la suite locale.
+     */
+    public function test_une_preuve_ecrite_a_l_instant_est_relue_comme_FRAICHE(): void
+    {
+        $this->fakeCatalogue([$this->model('vendor/a', ['prompt' => '0', 'completion' => '0'])]);
+
+        $service = app(LoopPluginAiModels::class);
+        $service->assign('aperio', 'vendor/a', $this->superAdmin);
+
+        // Relecture DEPUIS LA BASE : c'est la que le fuseau se joue.
+        $ligne = $service->lineFor('aperio');
+
+        $this->assertNotNull($ligne?->verified_free_at);
+        $this->assertLessThan(60, abs((int) $ligne->verified_free_at->diffInSeconds(Carbon::now())),
+            'la preuve doit etre datee de MAINTENANT, pas decalee du fuseau de la session SQL');
+        $this->assertTrue($service->proofIsFresh($ligne),
+            'une preuve de quelques secondes ne peut pas etre perimee');
+
+        $aperio = collect($service->describe())->firstWhere('assistant_key', 'aperio');
+        $this->assertTrue($aperio['proof_fresh']);
+        $this->assertTrue($aperio['eligible'], 'l\'ecran doit annoncer « Operationnel », pas « Preuve expiree »');
     }
 
     /** Addendum §4 : preuve fraiche = recevable. */

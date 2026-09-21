@@ -40,7 +40,18 @@ return new class extends Migration
             $table->string('provider')->default('openrouter');
             $table->string('model_slug');
 
-            $table->timestampTz('verified_free_at')->nullable();
+            // `timestamp`, PAS `timestampTz`, et c'est un CORRECTIF trouve par
+            // la recette : avec `timestampTz`, PostgreSQL rend la valeur dans
+            // le fuseau de la SESSION (`+02:00` en CEST) alors que
+            // `Carbon::now()` est en UTC. Une preuve ecrite a l'instant se
+            // lisait donc DEUX HEURES dans le passe, donc toujours perimee —
+            // la garde aurait refuse toute generation pendant l'heure d'ete.
+            //
+            // Toutes les autres colonnes de date du depot sont des `timestamp`
+            // nus, dans la convention UTC de l'application. SQLite ignore les
+            // fuseaux : le defaut est INVISIBLE en local et n'existe qu'en
+            // PostgreSQL.
+            $table->timestamp('verified_free_at')->nullable();
 
             $table->foreignUuid('updated_by')->nullable()->constrained('users')->nullOnDelete();
 

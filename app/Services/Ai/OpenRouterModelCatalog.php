@@ -66,6 +66,23 @@ class OpenRouterModelCatalog
     ];
 
     /**
+     * Slugs ROUTEURS : exclus des modeles selectionnables, meme gratuits.
+     *
+     * `openrouter/free` (« Free Models Router ») choisit LUI-MEME parmi les
+     * modeles gratuits a chaque appel. L'affecter a un assistant ferait perdre
+     * le controle de ce qui repond reellement : Aperio pourrait etre servi par
+     * un modele different a chaque tour, et la trace du ledger nommerait le
+     * routeur plutot que le modele employe.
+     *
+     * Le produit exige des slugs DETERMINISTES — un assistant, un modele
+     * nomme. Ce n'est pas une question de tarif : ce routeur est bien gratuit,
+     * et il est refuse quand meme.
+     *
+     * @var list<string>
+     */
+    private const ROUTER_SLUGS = ['openrouter/free', 'openrouter/auto'];
+
+    /**
      * Postes qui, lorsqu'ils sont exposes, DOIVENT valoir 0.
      *
      * `request` est ici parce qu'un modele peut afficher `prompt` et
@@ -126,6 +143,12 @@ class OpenRouterModelCatalog
             $slug = $model['id'] ?? null;
 
             if (! is_string($slug) || $slug === '' || ! $this->isVerifiedFree($model)) {
+                continue;
+            }
+
+            // Un routeur est gratuit mais NON DETERMINISTE : il n'est pas un
+            // choix de modele, il est l'absence de choix.
+            if ($this->isRouter($slug)) {
                 continue;
             }
 
@@ -202,6 +225,12 @@ class OpenRouterModelCatalog
         // `request`, lui, n'est exige que s'il est expose — mais alors il doit
         // etre nul, ce que la boucle ci-dessus a deja verifie.
         return true;
+    }
+
+    /** Ce slug designe-t-il un ROUTEUR plutot qu'un modele nomme ? */
+    public function isRouter(string $slug): bool
+    {
+        return in_array($slug, self::ROUTER_SLUGS, true);
     }
 
     /**
