@@ -1387,4 +1387,29 @@ return [
     'catch_up_kind_roadmap_in_progress' => 'Action in progress',
     'catch_up_decision_from_message' => 'Came from a Loop message',
     'catch_up_no_ai' => 'This catch-up reads the Loop\'s objects directly. No AI model is called, nothing is summarised or interpreted.',
+
+    // TASK-1614 — Loop plugin catalogue (super-admin).
+    'plugins_admin_title' => 'Loop plugins',
+    'plugins_admin_intro' => "The optional capabilities of a Loop, and the Organizations where they are allowed. Allowing a plugin here activates nothing in any Loop: it grants an Organization the right to use it.",
+    'plugins_admin_status_experimental' => 'Experimental',
+    'plugins_admin_status_stable' => 'Stable',
+    'plugins_admin_organizations' => 'Organizations',
+    'plugins_admin_enabled_count' => ':count of :total',
+    'plugins_admin_available' => 'Allowed',
+    'plugins_admin_unavailable' => 'Not allowed',
+    'plugins_admin_enable' => 'Allow',
+    'plugins_admin_disable' => 'Remove',
+    'plugins_admin_enabled' => ':plugin is now allowed for :organization.',
+    'plugins_admin_disabled' => ':plugin has been removed from :organization.',
+    'plugins_admin_no_organizations' => 'No Organization.',
+    'plugins_admin_last_decision' => 'Changed on :date by :author',
+    'plugins_admin_last_decision_anonymous' => 'Changed on :date',
+    'plugins_admin_experimental_notice' => "Experimental capability: it can be withdrawn at any time, and is off by default wherever nobody allowed it.",
+
+    'plugins' => [
+        'multi_ai_assistants' => [
+            'label' => '3 AI assistants',
+            'description' => "Ask a question once, then pick several viewpoints — Aperio, Traverse and Limen — to better understand, challenge and synthesise.",
+        ],
+    ],
 ];
