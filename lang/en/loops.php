@@ -1390,7 +1390,7 @@ return [
 
     // TASK-1614 — Loop plugin catalogue (super-admin).
     'plugins_admin_title' => 'Loop plugins',
-    'plugins_admin_intro' => "The optional capabilities of a Loop, and the Organizations where they are allowed. Allowing a plugin here activates nothing in any Loop: it grants an Organization the right to use it.",
+    'plugins_admin_intro' => 'The optional capabilities of a Loop, and the Organizations where they are allowed. Allowing a plugin here activates nothing in any Loop: it grants an Organization the right to use it.',
     'plugins_admin_status_experimental' => 'Experimental',
     'plugins_admin_status_stable' => 'Stable',
     'plugins_admin_organizations' => 'Organizations',
@@ -1404,12 +1404,12 @@ return [
     'plugins_admin_no_organizations' => 'No Organization.',
     'plugins_admin_last_decision' => 'Changed on :date by :author',
     'plugins_admin_last_decision_anonymous' => 'Changed on :date',
-    'plugins_admin_experimental_notice' => "Experimental capability: it can be withdrawn at any time, and is off by default wherever nobody allowed it.",
+    'plugins_admin_experimental_notice' => 'Experimental capability: it can be withdrawn at any time, and is off by default wherever nobody allowed it.',
 
     'plugins' => [
         'multi_ai_assistants' => [
             'label' => '3 AI assistants',
-            'description' => "Ask a question once, then pick several viewpoints — Aperio, Traverse and Limen — to better understand, challenge and synthesise.",
+            'description' => 'Ask a question once, then pick several viewpoints — Aperio, Traverse and Limen — to better understand, challenge and synthesise.',
 
             // TASK-1616 — default postures of the three assistants (spec §4).
             'assistants' => [
@@ -1433,6 +1433,26 @@ return [
     'plugins_loop_saved' => 'The assistants of :plugin have been saved.',
     'plugins_loop_unavailable' => 'This plugin is not allowed for this Organization.',
     'plugins_loop_not_enabled' => 'The 3 AI assistants are not enabled in this Loop.',
+
+    // TASK-1619 / SLICE E — what the member reads. No technical code appears
+    // here: `PROVIDER_CALL_FAILED`, `429` and `upstream_provider_shared_pool`
+    // stay in the SuperAdmin traces. MASTER arbitration, 21/09.
+    'plugins_multi_ai_ask_one' => 'Ask :assistant',
+    'plugins_multi_ai_ask_all' => 'Ask all 3',
+    'plugins_multi_ai_pending' => ':assistant is thinking…',
+    'plugins_multi_ai_rate_limited_title' => ':assistant is momentarily unavailable.',
+    'plugins_multi_ai_rate_limited_body' => 'The free model used by :assistant cannot answer right now.',
+    'plugins_multi_ai_failed_title' => ':assistant could not answer.',
+    'plugins_multi_ai_failed_body' => 'You can retry, or ask another assistant.',
+    'plugins_multi_ai_refused_title' => ':assistant is not available.',
+    'plugins_multi_ai_refused_body' => 'No model is configured for :assistant. An administrator can pick one.',
+    'plugins_multi_ai_retry' => 'Retry',
+    'plugins_multi_ai_dismiss' => 'Dismiss',
+    'plugins_multi_ai_synthesise' => 'Synthesise with :assistant',
+    'plugins_multi_ai_nothing_to_synthesise' => 'There is no answer to synthesise.',
+    'plugins_multi_ai_synthesis_question' => 'Compare the answers given to: :question',
+    'plugins_multi_ai_discover' => 'Configure the 3 AI assistants',
+    'plugins_multi_ai_none_enabled' => 'No assistant is active in this Loop.',
     'plugins_loop_last_change' => 'Changed on :date by :author',
     'plugins_loop_last_change_anonymous' => 'Changed on :date',
     'plugins_assistants_title' => 'The three assistants',

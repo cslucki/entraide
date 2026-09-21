@@ -33,6 +33,7 @@ use App\Support\Ai\AiTurnTrace;
 use App\Support\Ai\AiUsage;
 use DomainException;
 use Illuminate\Support\Str;
+use Laravel\Ai\Exceptions\RateLimitedException;
 use RuntimeException;
 
 /**
@@ -98,6 +99,18 @@ final class LoopMultiAiOrchestrator
     /** La raison portee par la metadonnee des trois tours d'assistant. */
     public const EVIDENCE_REUSED = 'evidence_shared';
 
+    /** TASK-1619 — au plus trois suggestions, comme partout ailleurs (T1595). */
+    public const FOLLOW_UP_LIMIT = 3;
+
+    /**
+     * L'assistant qui SYNTHETISE. Limen, et c'est sa posture de catalogue qui
+     * le designe : « comparer les positions, distinguer accords et desaccords
+     * [...] sans decider a la place du groupe » (TASK-1616). Le choix n'est
+     * donc pas arbitraire — il aurait ete etrange de faire synthetiser celui
+     * dont le role est de chercher les objections.
+     */
+    public const SYNTHESISER = 'limen';
+
     public function __construct(
         private CapabilityRegistry $capabilities,
         private ProviderResolver $providers,
@@ -119,6 +132,94 @@ final class LoopMultiAiOrchestrator
      * Organization sans credential. Aucune ne concerne un assistant.
      */
     public function run(Loop $loop, User $requester, string $question, ?string $executionPath = null): MultiAssistantRun
+    {
+        return $this->execute($loop, $requester, $question, null, $executionPath);
+    }
+
+    /**
+     * UN seul assistant. (TASK-1619)
+     *
+     * C'est ce que servent les boutons individuels, « demander a une autre IA »
+     * et « Reessayer ». Le chemin est EXACTEMENT celui de `run()` — memes
+     * gardes, meme Evidence, memes traces — restreint a un assistant : un
+     * second chemin aurait derive du premier au premier correctif applique
+     * d'un seul cote.
+     *
+     * L'Evidence est reconstruit pour ce tour, et c'est voulu : un reessai
+     * quelques minutes plus tard doit voir la conversation TELLE QU'ELLE EST,
+     * pas telle qu'elle etait. Le partage vaut a l'interieur d'un tour, pas
+     * entre deux demandes separees par un geste humain.
+     */
+    public function runOne(Loop $loop, User $requester, string $question, string $assistantKey, ?string $executionPath = null): MultiAssistantRun
+    {
+        return $this->execute($loop, $requester, $question, [$assistantKey], $executionPath);
+    }
+
+    /**
+     * La SYNTHESE de Limen. (TASK-1619)
+     *
+     * Limen relit ce que les autres ont repondu et en tire une comparaison.
+     * C'est la SEULE lecture d'une IA par une autre dans tout le plugin, et
+     * elle n'a lieu que parce qu'un humain a clique : rien ne la declenche a
+     * sa place, ni la fin d'un tour, ni l'arrivee d'une reponse, ni un
+     * compteur. « Demander aux 3 » ne la lance pas — les trois y repondent en
+     * PAIRS, aucun ne lisant les autres (contrat SLICE D, inchange).
+     *
+     * La distinction tient a une chose : une IA qui relit une IA sans qu'on
+     * le lui demande est une conversation entre machines, et personne ne l'a
+     * decidee. Ici, quelqu'un l'a decidee.
+     *
+     * Les reponses relues sont passees comme MATIERE — delimitees, annoncees
+     * comme des propos tenus. Elles n'ont pas rang d'instruction : une reponse
+     * qui contiendrait « ignore tes regles » resterait du texte cite.
+     *
+     * @param  list<array{assistant: string, answer: string}>  $reponses
+     */
+    public function synthesise(Loop $loop, User $requester, string $question, array $reponses, ?string $executionPath = null): MultiAssistantRun
+    {
+        if ($reponses === []) {
+            throw new RuntimeException(__('loops.plugins_multi_ai_nothing_to_synthesise'));
+        }
+
+        return $this->execute(
+            $loop, $requester, $question, [self::SYNTHESISER], $executionPath,
+            $this->matiereDeSynthese($reponses, $this->localeDeReference($loop->organization()->firstOrFail())),
+        );
+    }
+
+    /**
+     * Le bloc des reponses a comparer, delimite.
+     *
+     * Meme precaution que la persona : ce qui vient d'ailleurs est ANNONCE et
+     * BORNE. La difference est que ce texte-ci a ete produit par un modele,
+     * donc qu'il peut contenir n'importe quoi — y compris une phrase qui
+     * ressemble a une consigne.
+     *
+     * @param  list<array{assistant: string, answer: string}>  $reponses
+     */
+    private function matiereDeSynthese(array $reponses, string $locale): string
+    {
+        $blocs = [];
+
+        foreach ($reponses as $reponse) {
+            $cle = (string) ($reponse['assistant'] ?? '');
+            $texte = trim((string) ($reponse['answer'] ?? ''));
+
+            if ($cle === '' || $texte === '') {
+                continue;
+            }
+
+            $blocs[] = '### '.$this->assistants->label($cle)."\n".$texte;
+        }
+
+        return trans('ai.loop_multi_ai_synthesis_material', [], $locale)
+            ."\n<<<REPONSES\n".implode("\n\n", $blocs)."\nREPONSES";
+    }
+
+    /**
+     * @param  list<string>|null  $seulement  null = tous les assistants actifs
+     */
+    private function execute(Loop $loop, User $requester, string $question, ?array $seulement, ?string $executionPath, ?string $matiere = null): MultiAssistantRun
     {
         $question = trim($question);
 
@@ -144,11 +245,14 @@ final class LoopMultiAiOrchestrator
         return AiTurnLock::run(
             $loop,
             $requester,
-            fn (): MultiAssistantRun => $this->runUnderLock($loop, $requester, $question, $executionPath),
+            fn (): MultiAssistantRun => $this->runUnderLock($loop, $requester, $question, $seulement, $executionPath, $matiere),
         );
     }
 
-    private function runUnderLock(Loop $loop, User $requester, string $question, ?string $executionPath): MultiAssistantRun
+    /**
+     * @param  list<string>|null  $seulement
+     */
+    private function runUnderLock(Loop $loop, User $requester, string $question, ?array $seulement, ?string $executionPath, ?string $matiere = null): MultiAssistantRun
     {
         $capability = CapabilityRegistry::LOOP_MULTI_AI;
         $definition = $this->capabilities->get($capability);
@@ -195,11 +299,19 @@ final class LoopMultiAiOrchestrator
                 continue;
             }
 
+            // TASK-1619 — la restriction s'applique APRES `enabled` : demander
+            // nommement un assistant que la Boucle a eteint ne le rallume pas.
+            // Un bouton ne contourne pas un reglage.
+            if ($seulement !== null && ! in_array((string) $assistant['key'], $seulement, true)) {
+                continue;
+            }
+
             $outcomes[] = $this->runAssistant(
                 (string) $assistant['key'],
                 (string) $assistant['instruction'],
                 $socle,
                 $question,
+                $matiere,
                 $evidence,
                 $base,
                 $organization,
@@ -342,6 +454,7 @@ final class LoopMultiAiOrchestrator
         string $persona,
         string $socle,
         string $question,
+        ?string $matiere,
         SharedEvidence $evidence,
         ResolvedModel $base,
         Organization $organization,
@@ -424,7 +537,7 @@ final class LoopMultiAiOrchestrator
 
             AiTurnTrace::step($organizationId, $turnId, 'economic_check', 'executed', null, ['assistant_key' => $key]);
 
-            return $this->generate($key, $persona, $socle, $question, $evidence, $resolved, $organization, $loop,
+            return $this->generate($key, $persona, $socle, $question, $matiere, $evidence, $resolved, $organization, $loop,
                 $requester, $definition, $locale, $doctrineVersion, $turnId, $portelaTraceDuBuild);
         } catch (\Throwable $exception) {
             // Invariant 3. Rien de ce qui arrive a un assistant ne doit
@@ -458,6 +571,7 @@ final class LoopMultiAiOrchestrator
         string $persona,
         string $socle,
         string $question,
+        ?string $matiere,
         SharedEvidence $evidence,
         ResolvedModel $resolved,
         Organization $organization,
@@ -502,14 +616,21 @@ final class LoopMultiAiOrchestrator
             (float) config('ai.multi_ai.temperature', 0.3),
         );
 
-        $prompt = $this->prompt($evidence, $question, $locale);
+        $prompt = $this->prompt($evidence, $question, $matiere, $locale);
         $startedAt = microtime(true);
 
         try {
             $response = $agent->prompt($prompt, provider: $resolved->instance, model: $resolved->model);
         } catch (\Throwable $exception) {
+            // TASK-1619 — la SATURATION se distingue de la panne. Le pool
+            // gratuit partage d'OpenRouter rend 429 regulierement : c'est le
+            // cas nominal d'un palier gratuit, pas un incident. Et c'est le
+            // SEUL echec dont le remede soit « reessayer dans un instant ».
+            $sature = $exception instanceof RateLimitedException;
+
             AiTurnTrace::step($organizationId, $turnId, 'provider_call', 'failed', AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED, [
                 'assistant_key' => $key,
+                'rate_limited' => $sature,
             ]);
 
             // L'appel EST parti : il a sa ligne au ledger, comme partout
@@ -535,13 +656,21 @@ final class LoopMultiAiOrchestrator
                 'failed', $startedAt, null, $exception::class, AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED,
                 $doctrineVersion, $portelaTraceDuBuild);
 
-            return AssistantOutcome::error($key, AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED, $turnId, $resolved->model);
+            return $sature
+                ? AssistantOutcome::rateLimited($key, $turnId, $resolved->model)
+                : AssistantOutcome::error($key, AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED, $turnId, $resolved->model);
         }
 
         AiTurnTrace::step($organizationId, $turnId, 'provider_call', 'executed', null, ['assistant_key' => $key]);
 
+        // TASK-1619 — la reponse ET ses questions d'approfondissement sortent
+        // du MEME tour provider. Le precedent est TASK-1595 : une question
+        // suggeree ne vaut pas une generation de plus, et deux appels
+        // rendraient des suggestions qui ne parlent pas de la reponse rendue.
+        [$texte, $followUps] = $this->separerLesFollowUps((string) $response->text, $locale);
+
         $answer = AiMarkdownSanitizer::sanitize(
-            (string) $response->text,
+            $texte,
             (int) config('ai.multi_ai.max_answer_chars', 3000),
         );
 
@@ -587,7 +716,7 @@ final class LoopMultiAiOrchestrator
             $prompt, $answer, $usage, $cost->traceAttributes(), 'completed', $startedAt, $response->invocationId,
             null, null, $doctrineVersion, $portelaTraceDuBuild);
 
-        return AssistantOutcome::success($key, $answer, $evidence->borne->provenance, $turnId, $resolved->model);
+        return AssistantOutcome::success($key, $answer, $evidence->borne->provenance, $turnId, $resolved->model, $followUps);
     }
 
     /**
@@ -596,13 +725,73 @@ final class LoopMultiAiOrchestrator
      * Identique pour les trois — c'est tout le sens du partage. Ce qui les
      * distingue est en amont (la persona) et en aval (le modele).
      */
-    private function prompt(SharedEvidence $evidence, string $question, string $locale): string
+    private function prompt(SharedEvidence $evidence, string $question, ?string $matiere, string $locale): string
     {
         $sources = $evidence->borne->text !== ''
             ? $evidence->borne->text
             : trans('ai.loop_multi_ai_no_sources', [], $locale);
 
-        return $sources."\n\n".trans('ai.loop_knowledge_member_question', [], $locale)."\n".$question;
+        // TASK-1619 — la matiere de SYNTHESE, quand un humain l'a demandee.
+        // Elle s'insere entre les preuves et la question, au meme rang qu'un
+        // extrait de conversation : ce sont des propos tenus, pas des
+        // instructions. Le bloc est delimite et annonce comme tel.
+        $sources .= $matiere === null ? '' : "\n\n".$matiere;
+
+        return $sources."\n\n".trans('ai.loop_knowledge_member_question', [], $locale)."\n".$question
+            ."\n\n".trans('ai.loop_multi_ai_follow_ups_instruction', [
+                'heading' => trans('dossiers.answer_follow_ups_heading', [], $locale),
+                'limit' => self::FOLLOW_UP_LIMIT,
+            ], $locale);
+    }
+
+    /**
+     * Separer la reponse de sa section « Pour aller plus loin ».
+     *
+     * Meme forme que `DossierInsightsService::splitAnswer()` — deliberement :
+     * le blade de ChatLoop lit deja `follow_up_questions` avec cette forme-la
+     * (TASK-1595), et une seconde convention obligerait l'affichage a en
+     * connaitre deux.
+     *
+     * Le modele peut tres bien ne pas produire la section : c'est un cas
+     * NOMINAL, pas une erreur. La reponse est alors rendue telle quelle, sans
+     * suggestion — jamais un second appel pour en arracher.
+     *
+     * @return array{0: string, 1: list<string>}
+     */
+    private function separerLesFollowUps(string $markdown, string $locale): array
+    {
+        $titre = preg_quote((string) trans('dossiers.answer_follow_ups_heading', [], $locale), '/');
+
+        if (! preg_match('/^##\s*'.$titre.'\s*$/mu', $markdown, $trouve, PREG_OFFSET_CAPTURE)) {
+            return [trim($markdown), []];
+        }
+
+        $corps = trim(substr($markdown, 0, $trouve[0][1]));
+        $reste = substr($markdown, $trouve[0][1] + strlen($trouve[0][0]));
+
+        $questions = [];
+
+        foreach (preg_split('/\r?\n/', $reste) ?: [] as $ligne) {
+            $ligne = trim($ligne);
+
+            if ($ligne === '' || ! str_starts_with($ligne, '-')) {
+                continue;
+            }
+
+            $question = trim(ltrim($ligne, "- \t"));
+
+            if ($question === '') {
+                continue;
+            }
+
+            $questions[] = $question;
+
+            if (count($questions) >= self::FOLLOW_UP_LIMIT) {
+                break;
+            }
+        }
+
+        return [$corps, $questions];
     }
 
     // ────────────────────────────────────────────────────────────────────────

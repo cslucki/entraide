@@ -1421,21 +1421,21 @@ return [
     'plugins' => [
         'multi_ai_assistants' => [
             'label' => '3 assistants IA',
-            'description' => "Poser une question une fois, puis choisir plusieurs regards — Aperio, Traverse et Limen — pour mieux comprendre, confronter et synthétiser.",
+            'description' => 'Poser une question une fois, puis choisir plusieurs regards — Aperio, Traverse et Limen — pour mieux comprendre, confronter et synthétiser.',
 
             // TASK-1616 — postures PAR DEFAUT des trois assistants (CDC §4).
             // Une Boucle peut les réécrire ; elle ne peut pas les renommer.
             'assistants' => [
                 'aperio' => "Explorer les meilleurs arguments en faveur d'une piste, clarifier et structurer, tout en restant fidèle aux faits et aux sources disponibles.",
                 'traverse' => "Rechercher les objections, limites, contradictions et alternatives sans inventer d'arguments non étayés.",
-                'limen' => "Comparer les positions, distinguer accords et désaccords et proposer des compromis ou options possibles sans décider à la place du groupe.",
+                'limen' => 'Comparer les positions, distinguer accords et désaccords et proposer des compromis ou options possibles sans décider à la place du groupe.',
             ],
         ],
     ],
 
     // TASK-1616 — le plugin dans une Boucle.
     'plugins_loop_title' => 'Actions de ChatLoop',
-    'plugins_loop_hint' => "Les capacités que la conversation de cette Boucle peut mobiliser.",
+    'plugins_loop_hint' => 'Les capacités que la conversation de cette Boucle peut mobiliser.',
     'plugins_loop_active' => 'Activé',
     'plugins_loop_inactive' => 'Désactivé',
     'plugins_loop_enable' => 'Activer',
@@ -1445,22 +1445,42 @@ return [
     'plugins_loop_disabled_flash' => ':plugin est désactivé dans cette Boucle.',
     'plugins_loop_saved' => 'Les assistants de :plugin ont été enregistrés.',
     'plugins_loop_unavailable' => "Ce plugin n'est pas autorisé pour cette Organization.",
-    'plugins_loop_not_enabled' => "Les 3 assistants IA ne sont pas activés dans cette Boucle.",
+    'plugins_loop_not_enabled' => 'Les 3 assistants IA ne sont pas activés dans cette Boucle.',
+
+    // TASK-1619 / SLICE E — ce que le membre lit. Aucun code technique n'y
+    // figure : `PROVIDER_CALL_FAILED`, `429` et `upstream_provider_shared_pool`
+    // restent dans les traces SuperAdmin. Arbitrage MASTER du 21/09.
+    'plugins_multi_ai_ask_one' => 'Demander à :assistant',
+    'plugins_multi_ai_ask_all' => 'Demander aux 3',
+    'plugins_multi_ai_pending' => ':assistant réfléchit…',
+    'plugins_multi_ai_rate_limited_title' => ':assistant est momentanément indisponible.',
+    'plugins_multi_ai_rate_limited_body' => 'Le modèle gratuit utilisé par :assistant ne peut pas répondre pour le moment.',
+    'plugins_multi_ai_failed_title' => ":assistant n'a pas pu répondre.",
+    'plugins_multi_ai_failed_body' => 'Vous pouvez réessayer ou demander à un autre assistant.',
+    'plugins_multi_ai_refused_title' => ":assistant n'est pas disponible.",
+    'plugins_multi_ai_refused_body' => "Aucun modèle n'est configuré pour :assistant. Un administrateur peut en choisir un.",
+    'plugins_multi_ai_retry' => 'Réessayer',
+    'plugins_multi_ai_dismiss' => 'Masquer',
+    'plugins_multi_ai_synthesise' => 'Synthétiser avec :assistant',
+    'plugins_multi_ai_nothing_to_synthesise' => "Il n'y a aucune réponse à synthétiser.",
+    'plugins_multi_ai_synthesis_question' => 'Compare les réponses obtenues à : :question',
+    'plugins_multi_ai_discover' => 'Configurer les 3 assistants IA',
+    'plugins_multi_ai_none_enabled' => "Aucun assistant n'est actif dans cette Boucle.",
     'plugins_loop_last_change' => 'Modifié le :date par :author',
     'plugins_loop_last_change_anonymous' => 'Modifié le :date',
     'plugins_assistants_title' => 'Les trois assistants',
     'plugins_assistants_intro' => "Chaque assistant a une posture. Vous pouvez la réécrire pour cette Boucle ; vous ne pouvez ni les renommer, ni en ajouter. Une instruction locale ne contourne jamais la Constitution ni la doctrine de l'Organization : elle s'y ajoute.",
     'plugins_assistants_instruction' => 'Posture',
     'plugins_assistants_enabled' => 'Actif',
-    'plugins_assistants_reset_hint' => "Vider le champ rétablit la posture par défaut.",
+    'plugins_assistants_reset_hint' => 'Vider le champ rétablit la posture par défaut.',
     'plugins_assistants_save' => 'Enregistrer',
     'plugins_assistants_inactive_notice' => "Le plugin est désactivé dans cette Boucle : les postures restent enregistrées, mais personne ne peut s'en servir.",
 
     // TASK-1617 — configuration IA plateforme du plugin.
     'plugins_models_title' => 'Modèles OpenRouter',
-    'plugins_models_intro' => "Chaque assistant appelle son propre modèle. Seuls les modèles vérifiés gratuits sont proposés, et la vérification porte sur les tarifs publiés par OpenRouter — jamais sur le nom du modèle.",
+    'plugins_models_intro' => 'Chaque assistant appelle son propre modèle. Seuls les modèles vérifiés gratuits sont proposés, et la vérification porte sur les tarifs publiés par OpenRouter — jamais sur le nom du modèle.',
     'plugins_models_catalog_ok' => ':count modèles gratuits vérifiés · dernière vérification :date',
-    'plugins_models_catalog_never' => "Catalogue jamais relevé.",
+    'plugins_models_catalog_never' => 'Catalogue jamais relevé.',
     'plugins_models_catalog_failed' => "Catalogue OpenRouter indisponible (:reason). Aucun modèle n'est proposé tant que le relevé n'a pas abouti.",
     'plugins_models_refresh' => 'Actualiser les modèles OpenRouter',
     'plugins_models_refreshed' => 'Catalogue OpenRouter actualisé : :count modèles gratuits vérifiés.',
