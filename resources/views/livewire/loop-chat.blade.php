@@ -536,7 +536,28 @@
             'ia' => in_array($composerMode, ['ia', 'ia_dossiers'], true),
             'dossiers' => in_array($composerMode, ['dossiers', 'ia_dossiers'], true),
         ];
+        // TASK-1619 / SLICE E — les 3 assistants IA. Calcule UNE fois : les
+        // boutons apparaissent a deux endroits (rangee bureau + feuille
+        // mobile) et deux calculs auraient pu diverger.
+        $multiAiAssistants = $this->multiAiAssistants();
+        $multiAiConfigureUrl = $this->multiAiConfigureUrl();
+        $multiAiCanSynthesise = $this->canSynthesiseAssistants();
     @endphp
+
+    @if($isMember && $canContribute && ($multiAiAssistants !== [] || $multiAiStates !== []))
+        {{-- TASK-1619 — l'etat des assistants, AU-DESSUS du composeur et sur
+             TOUS les formats. Ce bloc n'est pas dans la rangee `hidden md:flex`
+             : un membre sur telephone doit lire « Traverse est momentanement
+             indisponible » comme un membre sur ordinateur. --}}
+        <div class="flex-shrink-0 px-3 pt-2">
+            @include('livewire.partials.loop-chat-multi-ai-states', [
+                'states' => $multiAiStates,
+                'assistants' => $multiAiAssistants,
+                'canSynthesise' => $multiAiCanSynthesise,
+                'synthesiserLabel' => $this->multiAiSynthesiserLabel(),
+            ])
+        </div>
+    @endif
 
     @if($isMember && $canContribute && config('ai.chatloop.enabled', true))
         {{-- TASK-1237 : le FAB dispatche `bp-open-ask-ai` / `bp-open-knowledge`
@@ -590,6 +611,15 @@
             </span>
             @endif
             @endif
+
+            {{-- TASK-1619 — les 3 assistants IA. Rangee BUREAU ; la feuille
+                 mobile du `+` porte les memes boutons, depuis la meme
+                 partielle. --}}
+            @include('livewire.partials.loop-chat-multi-ai-actions', [
+                'assistants' => $multiAiAssistants,
+                'configureUrl' => $multiAiConfigureUrl,
+                'variant' => 'pills',
+            ])
 
             <button
                 type="button"
@@ -778,6 +808,17 @@
                                         </span>
                                         <span class="text-[11px] font-medium leading-tight {{ $engineActive['dossiers'] ? 'text-sky-800 dark:text-sky-100' : 'text-gray-700 dark:text-gray-200' }}">{{ __('loops.knowledge_button') }}</span>
                                     </button>
+
+                                    {{-- TASK-1619 — les 3 assistants IA, dans
+                                         la grille de tuiles existante. Memes
+                                         libelles et memes `data-multi-ai-*`
+                                         que la rangee bureau : c'est la meme
+                                         partielle. --}}
+                                    @include('livewire.partials.loop-chat-multi-ai-actions', [
+                                        'assistants' => $multiAiAssistants,
+                                        'configureUrl' => $multiAiConfigureUrl,
+                                        'variant' => 'tiles',
+                                    ])
                                     <button type="button" wire:click="setComposerMode('ia_dossiers')" x-on:click="sheetOpen = false"
                                         data-hybrid-shortcut
                                         aria-pressed="{{ $composerMode === 'ia_dossiers' ? 'true' : 'false' }}"

@@ -554,6 +554,11 @@ class LoopChat extends Component
         return match ($this->resolvedAiMode($parent)) {
             'rag' => 'dossiers',
             'llm_rag' => 'ia_dossiers',
+            // TASK-1619 — repondre a un assistant ne preselectionne AUCUN
+            // moteur du composeur : le plugin n'en est pas un, et heriter
+            // `ia` ferait partir la reponse chez un autre moteur que celui a
+            // qui le membre croit parler.
+            LoopMultiAiPublisher::AI_MODE => 'normal',
             default => 'ia',
         };
     }
@@ -573,7 +578,10 @@ class LoopChat extends Component
     {
         $mode = $message->metadata['ai_mode'] ?? null;
 
-        if (in_array($mode, ['llm', 'rag', 'llm_rag'], true)) {
+        // TASK-1619 — `multi_ai` rejoint le vocabulaire. Comme `llm_rag` en
+        // son temps, aucun message anterieur ne peut le porter : il n'a donc
+        // aucune derivation historique a prevoir.
+        if (in_array($mode, ['llm', 'rag', 'llm_rag', LoopMultiAiPublisher::AI_MODE], true)) {
             return $mode;
         }
 
@@ -588,6 +596,19 @@ class LoopChat extends Component
      */
     private function aiBubbleLabel(LoopMessage $message): string
     {
+        // TASK-1619 — trois assistants dans un meme fil ne se distinguent que
+        // par leur NOM. « Organization · IA » sur les trois donnerait a lire
+        // trois bulles identiques qui se contredisent poliment. L'Organization
+        // reste le locuteur — la doctrine T1308 tient, elle est seulement
+        // precisee d'un cran.
+        $assistant = $message->metadata['assistant_key'] ?? null;
+
+        if ($this->resolvedAiMode($message) === LoopMultiAiPublisher::AI_MODE && is_string($assistant)) {
+            $orgName = $this->loop->organization?->name ?? config('app.name', 'BouclePro');
+
+            return $orgName.' · '.app(LoopAiAssistants::class)->label($assistant);
+        }
+
         return $this->aiIdentity($this->resolvedAiMode($message));
     }
 
@@ -898,6 +919,40 @@ class LoopChat extends Component
             'loop' => $this->loop->id,
             'plugin' => LoopAiAssistants::PLUGIN,
         ]);
+    }
+
+    /**
+     * Peut-on proposer la synthese ?
+     *
+     * Trois conditions, et chacune ferme une absurdite : il faut un tour
+     * (sinon il n'y a rien a comparer), au moins UNE reponse publiee d'un
+     * autre assistant que le synthetiseur (Limen ne se synthetise pas
+     * lui-meme), et Limen doit etre actif dans cette Boucle.
+     */
+    public function canSynthesiseAssistants(): bool
+    {
+        if ($this->multiAiQuestionMessageId === null || ! $this->multiAiAvailable()) {
+            return false;
+        }
+
+        $actifs = array_column($this->multiAiAssistants(), 'key');
+
+        if (! in_array(LoopMultiAiOrchestrator::SYNTHESISER, $actifs, true)) {
+            return false;
+        }
+
+        return LoopMessage::where('loop_id', $this->loop->id)
+            ->where('reply_to_id', $this->multiAiQuestionMessageId)
+            ->where('type', 'ai')
+            ->get()
+            ->contains(fn (LoopMessage $m): bool => ($m->metadata['assistant_key'] ?? null) !== null
+                && $m->metadata['assistant_key'] !== LoopMultiAiOrchestrator::SYNTHESISER);
+    }
+
+    /** Le nom du synthetiseur, pour le libelle du bouton. */
+    public function multiAiSynthesiserLabel(): string
+    {
+        return app(LoopAiAssistants::class)->label(LoopMultiAiOrchestrator::SYNTHESISER);
     }
 
     /** UN assistant, depuis son bouton. */
