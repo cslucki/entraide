@@ -1432,6 +1432,7 @@ return [
     'plugins_loop_disabled_flash' => ':plugin is now disabled in this Loop.',
     'plugins_loop_saved' => 'The assistants of :plugin have been saved.',
     'plugins_loop_unavailable' => 'This plugin is not allowed for this Organization.',
+    'plugins_loop_not_enabled' => 'The 3 AI assistants are not enabled in this Loop.',
     'plugins_loop_last_change' => 'Changed on :date by :author',
     'plugins_loop_last_change_anonymous' => 'Changed on :date',
     'plugins_assistants_title' => 'The three assistants',

@@ -1445,6 +1445,7 @@ return [
     'plugins_loop_disabled_flash' => ':plugin est désactivé dans cette Boucle.',
     'plugins_loop_saved' => 'Les assistants de :plugin ont été enregistrés.',
     'plugins_loop_unavailable' => "Ce plugin n'est pas autorisé pour cette Organization.",
+    'plugins_loop_not_enabled' => "Les 3 assistants IA ne sont pas activés dans cette Boucle.",
     'plugins_loop_last_change' => 'Modifié le :date par :author',
     'plugins_loop_last_change_anonymous' => 'Modifié le :date',
     'plugins_assistants_title' => 'Les trois assistants',
