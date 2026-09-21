@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Ai\MultiAssistant\AssistantOutcome;
 use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopMember;
@@ -11,15 +12,19 @@ use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
+use App\Services\Ai\LoopMultiAiOrchestrator;
 use App\Services\ChatLoop\AiResponseExplanationService;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\Knowledge\ClaimPatch;
 use App\Services\Knowledge\HumanClaimCorrection;
 use App\Services\Knowledge\LoopMemoryDigest;
 use App\Services\LoopMessageService;
+use App\Services\Loops\LoopAiAssistants;
 use App\Services\Loops\LoopAnswerCapitalizationService;
 use App\Services\Loops\LoopDossierAnswerService;
 use App\Services\Loops\LoopLifecycleService;
+use App\Services\Loops\LoopMultiAiPublisher;
+use App\Services\Loops\LoopPluginActivation;
 use App\Services\UrlPreviewService;
 use App\Support\Ai\AiExecutionPath;
 use App\Support\Ai\AiTurnLock;
@@ -76,6 +81,37 @@ class LoopChat extends Component
      * message. Ce n'est pas un troisieme bouton : c'est les deux boutons
      * existants actifs en meme temps (voir `toggleComposerEngine()`).
      */
+    /**
+     * TASK-1619 / SLICE E — l'etat des assistants du tour EN COURS.
+     *
+     * EPHEMERE, et c'est un arbitrage produit, pas une facilite technique
+     * (MASTER, 21/09). Les reponses reussies deviennent des bulles permanentes
+     * du fil ; ce qui vit ici est ce que le fil ne doit PAS garder — « Traverse
+     * est momentanement indisponible », son bouton « Reessayer », et rien
+     * d'autre. Visible du SEUL demandeur, perdu au rechargement.
+     *
+     * Le fil est lu par tout le cercle et pour toujours. Un incident de trente
+     * secondes y resterait des mois, pour des gens qui n'ont pas pose la
+     * question.
+     *
+     * @var array<string, array{status: string, label: string, retryable: bool}>
+     */
+    public array $multiAiStates = [];
+
+    /**
+     * La question du tour multi-assistants, conservee pour « Reessayer » et
+     * « demander a une autre IA ». Sans elle, un reessai reposerait une
+     * question vide ou obligerait le membre a la retaper.
+     */
+    public string $multiAiQuestion = '';
+
+    /**
+     * La bulle QUESTION deja publiee. Un reessai s'y raccroche au lieu d'en
+     * publier une seconde : le membre a demande une fois, le fil ne doit pas
+     * laisser croire qu'il a demande trois fois.
+     */
+    public ?string $multiAiQuestionMessageId = null;
+
     public string $composerMode = 'normal';
 
     /**
@@ -790,6 +826,261 @@ class LoopChat extends Component
         } catch (\RuntimeException $exception) {
             $this->addError('body', $exception->getMessage());
         }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // TASK-1619 / SLICE E — les 3 assistants IA dans ChatLoop
+    // ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Le plugin est-il utilisable ICI ?
+     *
+     * `isEnabled()` reconfronte la disponibilite de l'Organization a CHAQUE
+     * lecture (garde TASK-1616) : retirer l'autorisation eteint toutes les
+     * Boucles d'un coup, sans qu'aucune vue ait a le savoir.
+     */
+    public function multiAiAvailable(): bool
+    {
+        return $this->isMember
+            && app(LoopPluginActivation::class)->isEnabled(LoopAiAssistants::PLUGIN, $this->loop);
+    }
+
+    /**
+     * Les assistants ACTIFS de cette Boucle, dans l'ordre du catalogue.
+     *
+     * Un assistant eteint n'a pas de bouton : c'est un reglage de la Boucle, et
+     * l'interface doit le refleter plutot que de proposer une action qui
+     * n'aboutira pas.
+     *
+     * @return list<array{key: string, label: string}>
+     */
+    public function multiAiAssistants(): array
+    {
+        if (! $this->multiAiAvailable()) {
+            return [];
+        }
+
+        return array_values(array_map(
+            static fn (array $a): array => ['key' => (string) $a['key'], 'label' => (string) $a['label']],
+            array_filter(
+                app(LoopAiAssistants::class)->describeFor($this->loop),
+                static fn (array $a): bool => (bool) ($a['enabled'] ?? true),
+            ),
+        ));
+    }
+
+    /**
+     * Le FACILITATOR peut-il configurer le plugin ?
+     *
+     * C'est la dette `UX_DEBT_SLICE_E` de TASK-1616 : le droit
+     * `loop_plugins.configure` existait et la route aussi, mais rien nulle part
+     * n'y menait pour quelqu'un qui n'est pas proprietaire — `/outils` reste
+     * garde par la doctrine des Cards, qu'on ne touche pas. Le lien manquant
+     * est ici, dans la surface ou le plugin SERT.
+     */
+    public function canConfigureMultiAi(): bool
+    {
+        return app(LoopPluginActivation::class)
+            ->canConfigure(auth()->user(), LoopAiAssistants::PLUGIN, $this->loop);
+    }
+
+    /** L'adresse de configuration, scopee comme la page courante. */
+    public function multiAiConfigureUrl(): ?string
+    {
+        if (! $this->canConfigureMultiAi()) {
+            return null;
+        }
+
+        $organization = $this->loop->organization;
+
+        return $organization === null ? null : route('organization.loops.plugins.configure', [
+            'organization' => $organization->slug,
+            'loop' => $this->loop->id,
+            'plugin' => LoopAiAssistants::PLUGIN,
+        ]);
+    }
+
+    /** UN assistant, depuis son bouton. */
+    public function askAssistant(string $assistantKey): void
+    {
+        $this->lancerLesAssistants(trim($this->body), [$assistantKey], publierLaQuestion: true);
+    }
+
+    /**
+     * « Demander aux 3 ».
+     *
+     * Les trois repondent EN PAIRS sur l'Evidence partage : aucun ne lit les
+     * autres (contrat SLICE D, inchange). La synthese est une action separee,
+     * declenchee par un humain.
+     */
+    public function askAllAssistants(): void
+    {
+        $this->lancerLesAssistants(trim($this->body), null, publierLaQuestion: true);
+    }
+
+    /**
+     * « Reessayer », sur clic HUMAIN.
+     *
+     * Aucun reessai automatique, jamais : un modele sature qu'on rappelle tout
+     * seul reste sature et consomme le quota de tout le monde. C'est une
+     * personne qui decide que ca vaut la peine de redemander.
+     *
+     * La question n'est pas republiee — elle est deja dans le fil.
+     */
+    public function retryAssistant(string $assistantKey): void
+    {
+        $this->lancerLesAssistants($this->multiAiQuestion, [$assistantKey], publierLaQuestion: false);
+    }
+
+    /** Masquer un avertissement qu'on a lu. */
+    public function dismissAssistantState(string $assistantKey): void
+    {
+        unset($this->multiAiStates[$assistantKey]);
+    }
+
+    /**
+     * La SYNTHESE, declenchee explicitement par un humain.
+     *
+     * Seule lecture d'une IA par une autre dans tout le plugin, et elle n'a
+     * lieu que parce que quelqu'un a clique. Elle relit les bulles DEJA
+     * PUBLIEES du meme tour — donc ce que le membre a reellement sous les
+     * yeux, jamais un etat interne qu'il n'aurait pas vu.
+     */
+    public function synthesiseAssistants(): void
+    {
+        $user = auth()->user();
+
+        if (! $this->canContribute($user) || ! $this->multiAiAvailable() || $this->multiAiQuestionMessageId === null) {
+            return;
+        }
+
+        $reponses = LoopMessage::where('loop_id', $this->loop->id)
+            ->where('reply_to_id', $this->multiAiQuestionMessageId)
+            ->where('type', 'ai')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (LoopMessage $m): bool => ($m->metadata['assistant_key'] ?? null) !== null
+                && $m->metadata['assistant_key'] !== LoopMultiAiOrchestrator::SYNTHESISER)
+            ->map(fn (LoopMessage $m): array => [
+                'assistant' => (string) $m->metadata['assistant_key'],
+                'answer' => (string) $m->body,
+            ])
+            ->values()
+            ->all();
+
+        if ($reponses === []) {
+            $this->addError('body', __('loops.plugins_multi_ai_nothing_to_synthesise'));
+
+            return;
+        }
+
+        $this->executer(
+            fn () => app(LoopMultiAiOrchestrator::class)->synthesise(
+                $this->loop,
+                $user,
+                __('loops.plugins_multi_ai_synthesis_question', ['question' => $this->multiAiQuestion]),
+                $reponses,
+                AiExecutionPath::LOOP_CHAT_MULTI_AI,
+            ),
+            $user,
+            $this->multiAiQuestion,
+            publierLaQuestion: false,
+        );
+    }
+
+    /**
+     * Le corps partage des quatre boutons.
+     *
+     * @param  list<string>|null  $seulement  null = tous les assistants actifs
+     */
+    private function lancerLesAssistants(string $question, ?array $seulement, bool $publierLaQuestion): void
+    {
+        $user = auth()->user();
+
+        if (! $this->canContribute($user) || ! $this->multiAiAvailable()) {
+            return;
+        }
+
+        if (trim($question) === '') {
+            $this->addError('body', __('loops.knowledge_question_required'));
+
+            return;
+        }
+
+        $this->executer(
+            fn () => $seulement === null
+                ? app(LoopMultiAiOrchestrator::class)->run($this->loop, $user, $question, AiExecutionPath::LOOP_CHAT_MULTI_AI)
+                : app(LoopMultiAiOrchestrator::class)->runOne($this->loop, $user, $question, $seulement[0], AiExecutionPath::LOOP_CHAT_MULTI_AI),
+            $user,
+            $question,
+            $publierLaQuestion,
+        );
+    }
+
+    /**
+     * Executer un tour, publier ce qui a reussi, retenir ce qui a echoue.
+     *
+     * L'ordre compte : on PUBLIE d'abord. Un membre doit voir les reponses
+     * obtenues meme si une autre a echoue — « Demander aux 3 » n'est jamais une
+     * transaction atomique ou « une IA echoue donc tout a echoue » (MASTER).
+     */
+    private function executer(callable $tour, User $user, string $question, bool $publierLaQuestion): void
+    {
+        try {
+            $run = $tour();
+        } catch (\RuntimeException $exception) {
+            $this->addError('body', $exception->getMessage());
+
+            return;
+        }
+
+        $dejaPubliee = $publierLaQuestion ? null : $this->messageQuestion();
+
+        $publie = app(LoopMultiAiPublisher::class)
+            ->publish($this->loop, $user, $question, $run, $dejaPubliee);
+
+        if ($publie['question'] !== null) {
+            $this->multiAiQuestionMessageId = (string) $publie['question']->id;
+        }
+
+        $this->multiAiQuestion = $question;
+
+        // Les echecs, et EUX SEULS, restent a l'ecran. Une reussite efface son
+        // ancien avertissement : le reessai a abouti, il n'y a plus rien a dire.
+        foreach ($run->outcomes as $outcome) {
+            if ($outcome->succeeded()) {
+                unset($this->multiAiStates[$outcome->assistantKey]);
+
+                continue;
+            }
+
+            $this->multiAiStates[$outcome->assistantKey] = [
+                'status' => $outcome->status === AssistantOutcome::STATUS_REFUSED
+                    ? 'refused'
+                    : ($outcome->isRetryable() ? 'rate_limited' : 'failed'),
+                'label' => app(LoopAiAssistants::class)->label($outcome->assistantKey),
+                'retryable' => $outcome->isRetryable(),
+            ];
+        }
+
+        if ($publie['bubbles'] !== []) {
+            $this->body = '';
+            $this->resetErrorBag('body');
+            $this->loadInitialMessages();
+        }
+    }
+
+    /** La bulle question du tour courant, relue DANS cette Boucle. */
+    private function messageQuestion(): ?LoopMessage
+    {
+        if ($this->multiAiQuestionMessageId === null) {
+            return null;
+        }
+
+        return LoopMessage::where('id', $this->multiAiQuestionMessageId)
+            ->where('loop_id', $this->loop->id)
+            ->first();
     }
 
     /**
