@@ -49,7 +49,16 @@
                         'llm_rag' => __('loops.hybrid_mode_label'),
                         default => __('loops.ia_mode_label'),
                     };
-                    $aiBubbleLabel = fn ($message) => $orgName.' · '.$aiModeLabel($aiModeOf($message));
+                    // TASK-1619 — une seule autorite pour l'identite de bulle.
+                    //
+                    // Cette ligne portait une COPIE de `LoopChat::aiBubbleLabel()`,
+                    // et la copie a fait exactement ce que font les copies :
+                    // corriger le composant n'a rien change a l'ecran, parce
+                    // que l'ecran ne le lisait pas. Le test l'a montre.
+                    //
+                    // La vue delegue desormais au composant. Les deux closures
+                    // ci-dessus restent utilisees par l'en-tete de reply.
+                    $aiBubbleLabel = fn ($message) => $this->bubbleLabelFor($message);
 
                     $isOwn = $msg->sender_id === auth()->id();
                     $senderDisplayable = $msg->sender?->isDisplayableIn(currentOrganization()) ?? false;
@@ -250,6 +259,10 @@
                                  (apercu de reply, composeur). --}}
                             :name="$orgName"
                             :ai-mode="$aiModeOf($msg)"
+                            {{-- TASK-1619 — le badge NOMME l'assistant. Trois
+                                 bulles qui diraient toutes « IA » se liraient
+                                 comme un seul interlocuteur qui se contredit. --}}
+                            :ai-mode-label="$this->bubbleBadgeFor($msg)"
                             :subtitle="$aiBubbleSubtitle"
                             :requested-by="$aiRequestedBy"
                             :message-id="$msg->id"
@@ -536,7 +549,28 @@
             'ia' => in_array($composerMode, ['ia', 'ia_dossiers'], true),
             'dossiers' => in_array($composerMode, ['dossiers', 'ia_dossiers'], true),
         ];
+        // TASK-1619 / SLICE E — les 3 assistants IA. Calcule UNE fois : les
+        // boutons apparaissent a deux endroits (rangee bureau + feuille
+        // mobile) et deux calculs auraient pu diverger.
+        $multiAiAssistants = $this->multiAiAssistants();
+        $multiAiConfigureUrl = $this->multiAiConfigureUrl();
+        $multiAiCanSynthesise = $this->canSynthesiseAssistants();
     @endphp
+
+    @if($isMember && $canContribute && ($multiAiAssistants !== [] || $multiAiStates !== []))
+        {{-- TASK-1619 — l'etat des assistants, AU-DESSUS du composeur et sur
+             TOUS les formats. Ce bloc n'est pas dans la rangee `hidden md:flex`
+             : un membre sur telephone doit lire « Traverse est momentanement
+             indisponible » comme un membre sur ordinateur. --}}
+        <div class="flex-shrink-0 px-3 pt-2">
+            @include('livewire.partials.loop-chat-multi-ai-states', [
+                'states' => $multiAiStates,
+                'assistants' => $multiAiAssistants,
+                'canSynthesise' => $multiAiCanSynthesise,
+                'synthesiserLabel' => $this->multiAiSynthesiserLabel(),
+            ])
+        </div>
+    @endif
 
     @if($isMember && $canContribute && config('ai.chatloop.enabled', true))
         {{-- TASK-1237 : le FAB dispatche `bp-open-ask-ai` / `bp-open-knowledge`
@@ -590,6 +624,15 @@
             </span>
             @endif
             @endif
+
+            {{-- TASK-1619 — les 3 assistants IA. Rangee BUREAU ; la feuille
+                 mobile du `+` porte les memes boutons, depuis la meme
+                 partielle. --}}
+            @include('livewire.partials.loop-chat-multi-ai-actions', [
+                'assistants' => $multiAiAssistants,
+                'configureUrl' => $multiAiConfigureUrl,
+                'variant' => 'pills',
+            ])
 
             <button
                 type="button"
@@ -778,6 +821,17 @@
                                         </span>
                                         <span class="text-[11px] font-medium leading-tight {{ $engineActive['dossiers'] ? 'text-sky-800 dark:text-sky-100' : 'text-gray-700 dark:text-gray-200' }}">{{ __('loops.knowledge_button') }}</span>
                                     </button>
+
+                                    {{-- TASK-1619 — les 3 assistants IA, dans
+                                         la grille de tuiles existante. Memes
+                                         libelles et memes `data-multi-ai-*`
+                                         que la rangee bureau : c'est la meme
+                                         partielle. --}}
+                                    @include('livewire.partials.loop-chat-multi-ai-actions', [
+                                        'assistants' => $multiAiAssistants,
+                                        'configureUrl' => $multiAiConfigureUrl,
+                                        'variant' => 'tiles',
+                                    ])
                                     <button type="button" wire:click="setComposerMode('ia_dossiers')" x-on:click="sheetOpen = false"
                                         data-hybrid-shortcut
                                         aria-pressed="{{ $composerMode === 'ia_dossiers' ? 'true' : 'false' }}"

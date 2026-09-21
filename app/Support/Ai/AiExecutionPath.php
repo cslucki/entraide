@@ -75,6 +75,17 @@ final class AiExecutionPath
     /** `LoopController::knowledge()` — endpoint JSON de la modale knowledge. */
     public const LOOP_CONTROLLER_KNOWLEDGE_JSON = 'loop_controller.knowledge_json';
 
+    /**
+     * TASK-1619 / SLICE E — les « 3 assistants IA » de ChatLoop.
+     *
+     * Un chemin A LUI, et non `loop_chat.ia` : c'est exactement la regression
+     * que V0-G a corrigee (B1). Trois generations sequentielles sur un Evidence
+     * partage n'ont rien du composeur IA — meme surface, autre branche — et les
+     * confondre rendrait l'inspection incapable de distinguer un tour du plugin
+     * d'un tour du composeur.
+     */
+    public const LOOP_CHAT_MULTI_AI = 'loop_chat.multi_ai';
+
     // ----------------------------------------------------------------
     // AI Shell — 9 branches heuristiques (10 noms, C16)
     // ----------------------------------------------------------------
@@ -133,6 +144,7 @@ final class AiExecutionPath
             self::LOOP_CHAT_LEGACY_ASK,
             self::LOOP_CHAT_LEGACY_ANSWER,
             self::LOOP_CONTROLLER_KNOWLEDGE_JSON,
+            self::LOOP_CHAT_MULTI_AI,
             self::AI_SHELL_SELF_KNOWLEDGE,
             self::AI_SHELL_DOSSIER,
             self::AI_SHELL_ARTICLE,
