@@ -594,6 +594,38 @@ class LoopChat extends Component
      * TASK-1308 : identite tenant-generique d'une bulle IA — jamais
      * « Facilitateur IA », jamais un nom d'Organization code en dur.
      */
+    /**
+     * L'identite de bulle, exposee a la VUE. (TASK-1619)
+     *
+     * Publique parce que le blade la reclame : il en portait une copie, et une
+     * copie est un correctif qui n'arrive pas a destination.
+     */
+    public function bubbleLabelFor(LoopMessage $message): string
+    {
+        return $this->aiBubbleLabel($message);
+    }
+
+    /**
+     * Le LIBELLE DU BADGE d'une bulle IA, ou `null` pour laisser la carte
+     * fermee du composant decider. (TASK-1619)
+     *
+     * Ne rend quelque chose que pour les assistants : partout ailleurs, le
+     * badge reste ce qu'il etait, et un mode inconnu continue de ne produire
+     * aucun badge plutot qu'un badge menteur (doctrine T1312).
+     */
+    public function bubbleBadgeFor(LoopMessage $message): ?string
+    {
+        $assistant = $message->metadata['assistant_key'] ?? null;
+
+        if ($message->type !== 'ai' || ! is_string($assistant)) {
+            return null;
+        }
+
+        return $this->resolvedAiMode($message) === LoopMultiAiPublisher::AI_MODE
+            ? app(LoopAiAssistants::class)->label($assistant)
+            : null;
+    }
+
     private function aiBubbleLabel(LoopMessage $message): string
     {
         // TASK-1619 — trois assistants dans un meme fil ne se distinguent que

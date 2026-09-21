@@ -30,6 +30,12 @@
     // d'une couleur, d'une classe CSS ou du texte de la bulle. `null` sur toute
     // bulle humaine — il n'y a pas de badge « Humain ».
     'aiMode' => null,
+    // TASK-1619 — un libelle de badge EXPLICITE, quand le mode seul ne suffit
+    // pas a le nommer. Les « 3 assistants IA » partagent un mode (`multi_ai`)
+    // et se distinguent par leur assistant : la carte fermee ci-dessous ne
+    // peut pas le savoir, et l'elargir aurait demande d'y faire entrer une
+    // notion qui n'est pas un mode.
+    'aiModeLabel' => null,
     // TASK-1316 : l'humain qui a demande cette reponse IA — ['id' => ..., 'name' => ...],
     // lu depuis `metadata.requested_by`, JAMAIS reconstruit en analysant un texte.
     // `null` sur toute bulle qui n'est pas une reponse IA a une demande nommee.
@@ -77,7 +83,11 @@ $aiModeLabels = [
     'rag' => __('loops.dossiers_mode_label'),
     'llm_rag' => __('loops.hybrid_mode_label'),
 ];
-$aiModeBadge = ($isAi && is_string($aiMode)) ? ($aiModeLabels[$aiMode] ?? null) : null;
+$aiModeBadge = $isAi
+    ? (is_string($aiModeLabel) && trim($aiModeLabel) !== ''
+        ? $aiModeLabel
+        : (is_string($aiMode) ? ($aiModeLabels[$aiMode] ?? null) : null))
+    : null;
 
 // Badge « mode demande » sur la bulle HUMAINE. Memes libelles que le badge de
 // la bulle IA (ia_mode_label / dossiers_mode_label / hybrid_mode_label) — le

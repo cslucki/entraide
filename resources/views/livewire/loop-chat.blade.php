@@ -49,7 +49,16 @@
                         'llm_rag' => __('loops.hybrid_mode_label'),
                         default => __('loops.ia_mode_label'),
                     };
-                    $aiBubbleLabel = fn ($message) => $orgName.' · '.$aiModeLabel($aiModeOf($message));
+                    // TASK-1619 — une seule autorite pour l'identite de bulle.
+                    //
+                    // Cette ligne portait une COPIE de `LoopChat::aiBubbleLabel()`,
+                    // et la copie a fait exactement ce que font les copies :
+                    // corriger le composant n'a rien change a l'ecran, parce
+                    // que l'ecran ne le lisait pas. Le test l'a montre.
+                    //
+                    // La vue delegue desormais au composant. Les deux closures
+                    // ci-dessus restent utilisees par l'en-tete de reply.
+                    $aiBubbleLabel = fn ($message) => $this->bubbleLabelFor($message);
 
                     $isOwn = $msg->sender_id === auth()->id();
                     $senderDisplayable = $msg->sender?->isDisplayableIn(currentOrganization()) ?? false;
@@ -250,6 +259,10 @@
                                  (apercu de reply, composeur). --}}
                             :name="$orgName"
                             :ai-mode="$aiModeOf($msg)"
+                            {{-- TASK-1619 — le badge NOMME l'assistant. Trois
+                                 bulles qui diraient toutes « IA » se liraient
+                                 comme un seul interlocuteur qui se contredit. --}}
+                            :ai-mode-label="$this->bubbleBadgeFor($msg)"
                             :subtitle="$aiBubbleSubtitle"
                             :requested-by="$aiRequestedBy"
                             :message-id="$msg->id"
