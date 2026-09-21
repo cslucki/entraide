@@ -1399,4 +1399,29 @@ return [
     'catch_up_kind_roadmap_in_progress' => 'Action en cours',
     'catch_up_decision_from_message' => 'Issue d\'un message de la Boucle',
     'catch_up_no_ai' => 'Ce rattrapage est une lecture directe des objets de la Boucle. Aucun modèle d\'IA n\'est appelé, rien n\'est résumé ni interprété.',
+
+    // TASK-1614 — catalogue des plugins de Boucle (SuperAdmin).
+    'plugins_admin_title' => 'Plugins de Boucles',
+    'plugins_admin_intro' => "Les capacités optionnelles d'une Boucle, et les Organizations où elles sont autorisées. Autoriser un plugin ici n'active rien dans aucune Boucle : cela donne à une Organization le droit de s'en servir.",
+    'plugins_admin_status_experimental' => 'Expérimental',
+    'plugins_admin_status_stable' => 'Stable',
+    'plugins_admin_organizations' => 'Organizations',
+    'plugins_admin_enabled_count' => ':count sur :total',
+    'plugins_admin_available' => 'Autorisé',
+    'plugins_admin_unavailable' => 'Non autorisé',
+    'plugins_admin_enable' => 'Autoriser',
+    'plugins_admin_disable' => 'Retirer',
+    'plugins_admin_enabled' => ':plugin est maintenant autorisé pour :organization.',
+    'plugins_admin_disabled' => ':plugin a été retiré de :organization.',
+    'plugins_admin_no_organizations' => 'Aucune Organization.',
+    'plugins_admin_last_decision' => 'Modifié le :date par :author',
+    'plugins_admin_last_decision_anonymous' => 'Modifié le :date',
+    'plugins_admin_experimental_notice' => "Capacité expérimentale : elle peut être retirée à tout moment, et l'est par défaut partout où personne ne l'a autorisée.",
+
+    'plugins' => [
+        'multi_ai_assistants' => [
+            'label' => '3 assistants IA',
+            'description' => "Poser une question une fois, puis choisir plusieurs regards — Aperio, Traverse et Limen — pour mieux comprendre, confronter et synthétiser.",
+        ],
+    ],
 ];

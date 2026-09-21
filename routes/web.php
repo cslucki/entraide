@@ -28,6 +28,7 @@ use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
 use App\Http\Controllers\Admin\AdminLoopPermissionController;
+use App\Http\Controllers\Admin\AdminLoopPluginController;
 use App\Http\Controllers\Admin\AdminLoopTypeController;
 use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
@@ -691,6 +692,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::delete('/loop-types/custom/{customLoopType}', [AdminLoopTypeController::class, 'destroy'])->name('loop-types.destroy');
     Route::put('/loop-types/{type}', [AdminLoopTypeController::class, 'update'])->name('loop-types.update');
     Route::delete('/loop-types/{type}', [AdminLoopTypeController::class, 'reset'])->name('loop-types.reset');
+    // TASK-1614 — ou chaque plugin de Boucle est DISPONIBLE, Organization par
+    // Organization. Surface PLATEFORME : le controleur verifie lui-meme
+    // `is_admin`, le groupe admin ne suffit pas. Elle ne sert aucune donnee
+    // metier d'une Organization — seulement son nom et son identifiant.
+    Route::get('/loop-plugins', [AdminLoopPluginController::class, 'index'])->name('loop-plugins');
+    Route::put('/loop-plugins/{plugin}', [AdminLoopPluginController::class, 'update'])->name('loop-plugins.update');
+
     Route::get('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'index'])->name('system-email-templates');
     Route::get('/system-email-templates/{systemEmailTemplate}/edit', [AdminSystemEmailTemplatesController::class, 'edit'])->name('system-email-templates.edit');
     Route::put('/system-email-templates/{systemEmailTemplate}', [AdminSystemEmailTemplatesController::class, 'update'])->name('system-email-templates.update');
