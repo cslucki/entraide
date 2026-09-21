@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
+use App\Services\Ai\LoopPluginAiModels;
+use App\Services\Ai\OpenRouterModelCatalog;
 use App\Services\Loops\LoopPluginAvailabilityService;
 use App\Support\Loops\LoopPluginRegistry;
 use Illuminate\Http\RedirectResponse;
@@ -40,6 +42,8 @@ class AdminLoopPluginController extends Controller
     public function __construct(
         private LoopPluginRegistry $plugins,
         private LoopPluginAvailabilityService $availability,
+        private LoopPluginAiModels $models,
+        private OpenRouterModelCatalog $catalogue,
     ) {}
 
     public function index(Request $request): View
@@ -75,10 +79,79 @@ class AdminLoopPluginController extends Controller
             ];
         }
 
+        // TASK-1617 — la configuration IA PLATEFORME. Le catalogue est lu
+        // depuis le cache : ouvrir cet ecran ne doit pas appeler OpenRouter a
+        // chaque affichage. Le geste explicite « Actualiser » existe pour ca.
+        $releve = $this->catalogue->catalogue();
+
         return view('admin.loop-plugins.index', [
             'plugins' => $rows,
             'organizations' => $organizations,
+            'assistantModels' => $this->models->describe(),
+            'freeModels' => $this->catalogue->verifiedFreeModels(),
+            'catalogState' => [
+                'ok' => $releve['ok'],
+                'fetched_at' => $releve['fetched_at'],
+                'error' => $releve['error'],
+            ],
         ]);
+    }
+
+    /**
+     * Affecter un modele a un assistant.
+     *
+     * Le service refuse tout slug qui n'est pas VERIFIE GRATUIT au moment du
+     * geste : l'ecran ne propose que des modeles eligibles, mais un POST forge
+     * ne doit pas pouvoir en enregistrer un autre. Le refus est un message,
+     * pas une exception qui fuit.
+     */
+    public function updateModel(Request $request, string $plugin): RedirectResponse
+    {
+        abort_unless($request->user()?->is_admin, 403);
+        abort_unless($this->plugins->exists($plugin), 404);
+
+        $data = $request->validate([
+            'assistant_key' => 'required|string',
+            'model_slug' => 'required|string|max:200',
+        ]);
+
+        try {
+            $this->models->assign($data['assistant_key'], $data['model_slug'], $request->user());
+        } catch (\InvalidArgumentException) {
+            return back()->with('error', __('loops.plugins_models_rejected', [
+                'model' => $data['model_slug'],
+            ]));
+        }
+
+        return back()->with('success', __('loops.plugins_models_assigned', [
+            'assistant' => $data['assistant_key'],
+            'model' => $data['model_slug'],
+        ]));
+    }
+
+    /**
+     * Relever le catalogue OpenRouter, maintenant.
+     *
+     * Le seul endroit de cette TASK qui sort sur le reseau, et il le fait sur
+     * un GESTE. Un echec ne vide rien et ne modifie aucune affectation : il le
+     * dit.
+     */
+    public function refreshModels(Request $request, string $plugin): RedirectResponse
+    {
+        abort_unless($request->user()?->is_admin, 403);
+        abort_unless($this->plugins->exists($plugin), 404);
+
+        $releve = $this->catalogue->catalogue(forceRefresh: true);
+
+        if (! $releve['ok']) {
+            return back()->with('error', __('loops.plugins_models_refresh_failed', [
+                'reason' => (string) $releve['error'],
+            ]));
+        }
+
+        return back()->with('success', __('loops.plugins_models_refreshed', [
+            'count' => count($this->catalogue->verifiedFreeModels()),
+        ]));
     }
 
     /**

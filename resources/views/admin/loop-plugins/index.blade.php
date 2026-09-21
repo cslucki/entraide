@@ -25,6 +25,12 @@
             </div>
         @endif
 
+        @if(session('error'))
+            <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300" role="alert">
+                {{ session('error') }}
+            </div>
+        @endif
+
         <div class="space-y-6">
             @foreach($plugins as $plugin)
                 <section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800"
@@ -54,6 +60,117 @@
                         <p class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
                             {{ __('loops.plugins_admin_experimental_notice') }}
                         </p>
+                    @endif
+
+                    {{-- ── Configuration IA PLATEFORME (TASK-1617) ──────────────
+                         Quel modele OpenRouter sert quel assistant. C'est un
+                         reglage d'INFRASTRUCTURE, decide une fois pour toute la
+                         plateforme — a ne pas confondre avec les POSTURES, qui
+                         sont Loop-scoped (TASK-1616). --}}
+                    @if($plugin['key'] === 'multi_ai_assistants')
+                        <div class="mt-5 rounded-2xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-900/40"
+                             data-section="plugin-models">
+
+                            <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                                {{ __('loops.plugins_models_title') }}
+                            </h3>
+                            <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ __('loops.plugins_models_intro') }}</p>
+
+                            {{-- L'etat du catalogue, dit en toutes lettres : un
+                                 releve echoue ne doit pas ressembler a « aucun
+                                 modele gratuit n'existe ». --}}
+                            <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+                                <p class="text-xs {{ $catalogState['ok'] ? 'text-gray-500 dark:text-gray-400' : 'text-red-600 dark:text-red-400' }}"
+                                   data-catalog-state="{{ $catalogState['ok'] ? 'ok' : 'failed' }}">
+                                    @if(! $catalogState['ok'])
+                                        {{ __('loops.plugins_models_catalog_failed', ['reason' => $catalogState['error'] ?? '—']) }}
+                                    @elseif($catalogState['fetched_at'])
+                                        {{ __('loops.plugins_models_catalog_ok', [
+                                            'count' => count($freeModels),
+                                            'date' => \Illuminate\Support\Carbon::parse($catalogState['fetched_at'])->format('d/m/Y H:i'),
+                                        ]) }}
+                                    @else
+                                        {{ __('loops.plugins_models_catalog_never') }}
+                                    @endif
+                                </p>
+
+                                <form method="POST" action="{{ route('admin.loop-plugins.models.refresh', $plugin['key']) }}">
+                                    @csrf
+                                    <button type="submit" data-action="refresh-models"
+                                            class="min-h-[44px] rounded-xl border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">
+                                        {{ __('loops.plugins_models_refresh') }}
+                                    </button>
+                                </form>
+                            </div>
+
+                            <div class="mt-4 space-y-3">
+                                @foreach($assistantModels as $assistant)
+                                    @php
+                                        // TASK-1585 : ne jamais nommer une variable
+                                        // de vue `$loop`, Blade se la reserve.
+                                        $etat = $assistant['model_slug'] === null ? 'unset'
+                                            : (! $assistant['still_free'] ? 'gone'
+                                            : (! $assistant['proof_fresh'] ? 'stale' : 'ok'));
+                                    @endphp
+
+                                    <div class="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800"
+                                         data-assistant-model="{{ $assistant['assistant_key'] }}">
+
+                                        <div class="flex flex-wrap items-center justify-between gap-2">
+                                            <p class="text-sm font-bold uppercase tracking-wide text-gray-800 dark:text-gray-100">{{ $assistant['label'] }}</p>
+                                            <span data-model-status="{{ $etat }}"
+                                                  class="rounded-full px-2.5 py-1 text-[11px] font-medium
+                                                         {{ $etat === 'ok'
+                                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                                            : ($etat === 'unset'
+                                                               ? 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                                                               : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300') }}">
+                                                {{ __('loops.plugins_models_status_'.$etat) }}
+                                            </span>
+                                        </div>
+
+                                        @if($assistant['model_slug'])
+                                            <p class="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{{ $assistant['model_slug'] }}</p>
+                                            @if($assistant['verified_free_at'])
+                                                <p class="text-[11px] text-gray-400">
+                                                    {{ __('loops.plugins_models_free_verified', ['date' => $assistant['verified_free_at']->format('d/m/Y H:i')]) }}
+                                                    @if($assistant['catalog_entry']['context_length'] ?? null)
+                                                        · {{ __('loops.plugins_models_context', ['tokens' => number_format($assistant['catalog_entry']['context_length'], 0, ',', ' ')]) }}
+                                                    @endif
+                                                </p>
+                                            @endif
+                                        @endif
+
+                                        <form method="POST" action="{{ route('admin.loop-plugins.models.update', $plugin['key']) }}"
+                                              class="mt-2 flex flex-wrap items-center gap-2">
+                                            @csrf
+                                            @method('PUT')
+                                            <input type="hidden" name="assistant_key" value="{{ $assistant['assistant_key'] }}">
+
+                                            <select name="model_slug" required
+                                                    data-model-select="{{ $assistant['assistant_key'] }}"
+                                                    class="min-h-[44px] flex-1 rounded-xl border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                                                <option value="">{{ __('loops.plugins_models_choose') }}</option>
+                                                @forelse($freeModels as $slug => $modele)
+                                                    <option value="{{ $slug }}" @selected($assistant['model_slug'] === $slug)>
+                                                        {{ $modele['name'] }} — {{ $slug }}
+                                                    </option>
+                                                @empty
+                                                    <option value="" disabled>{{ __('loops.plugins_models_none') }}</option>
+                                                @endforelse
+                                            </select>
+
+                                            <button type="submit"
+                                                    class="min-h-[44px] rounded-xl bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-700">
+                                                {{ __('loops.plugins_assistants_save') }}
+                                            </button>
+                                        </form>
+                                    </div>
+                                @endforeach
+                            </div>
+
+                            <p class="mt-3 text-[11px] leading-5 text-gray-400">{{ __('loops.plugins_models_fail_closed') }}</p>
+                        </div>
                     @endif
 
                     <div class="mt-5">

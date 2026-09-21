@@ -426,6 +426,7 @@ return [
         'loop_hybrid_answer' => 'Questions croisées IA + Dossiers',
         'loop_answer' => 'Réponse IA dans la Boucle',
         'loop_ask' => 'Question à l\'IA dans la Boucle',
+        'loop_multi_ai' => 'Les 3 assistants IA (Aperio, Traverse, Limen)',
         'blog_generate' => 'Génération d\'article de blog',
         'blog_correct' => 'Correction d\'article de blog',
         'member_profile_agent_loop_reply' => 'Réponse de l\'agent de profil dans une Boucle',

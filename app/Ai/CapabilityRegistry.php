@@ -117,6 +117,28 @@ final class CapabilityRegistry
     public const LOOP_ASK = 'loop_ask';
 
     /**
+     * TASK-1617 (SLICE C) : les generations du plugin « 3 assistants IA ».
+     *
+     * UNE capability pour les trois assistants, et non trois. Ce qui les
+     * distingue — la posture, le modele — ne change ni le contrat de reponse,
+     * ni les sources autorisees, ni la regle economique : Aperio, Traverse et
+     * Limen repondent a la MEME question avec le meme perimetre, et c'est
+     * precisement la promesse produit. Le critere de separation applique
+     * ailleurs dans ce registre (voir LOOP_HYBRID_ANSWER : « ce qui change est
+     * le CONTRAT de reponse, et il est incompatible ») ne s'applique donc pas
+     * ici.
+     *
+     * La sous-identite se lit dans la `feature` de la trace
+     * (`assistant = aperio|traverse|limen`), jamais dans l'identite de la
+     * capability.
+     *
+     * L'Evidence Build partage restera une operation DISTINCTE (SLICE D), qui
+     * reutilisera `loop_knowledge_answer` : c'est un retrieval, pas une
+     * generation de persona.
+     */
+    public const LOOP_MULTI_AI = 'loop_multi_ai';
+
+    /**
      * TASK-1284 (BLOC E) : les deux fonctions IA de l'editeur de Blog,
      * ex-chemin herite `blog_ai` (BlogAiService::generate / ::correct).
      * Memes identifiants de feature et de process qu'avant la migration :
@@ -331,6 +353,27 @@ final class CapabilityRegistry
             contextCharBudget: self::loopSummaryContextBudget(),
         );
 
+        // TASK-1617 : les trois assistants. `canWrite = false` — une reponse
+        // d'assistant est PROPOSEE dans le fil, jamais publiee ailleurs sans
+        // geste humain (CDC §10 : « aucune reponse n'est publiee ailleurs sans
+        // action humaine »). Sources : les messages de la Boucle, comme
+        // `loop_ask` ; l'Evidence documentaire partage viendra en SLICE D par
+        // `loop_knowledge_answer`, capability distincte.
+        $loopMultiAi = new CapabilityDefinition(
+            id: self::LOOP_MULTI_AI,
+            process: AiProcess::LOOP_MULTI_AI,
+            requiresHumanConfirmation: false,
+            canWrite: false,
+            allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
+            allowedSources: [self::SOURCE_LOOP_MESSAGES],
+            maxOutput: 8000,
+            // Le prompt par assistant sera compose en SLICE D a partir de la
+            // posture Loop-scoped (TASK-1616). Cette cle porte le socle commun
+            // et n'est branchee sur aucun PromptRepository dans cette TASK.
+            promptKey: 'loop_multi_ai',
+            contextCharBudget: self::loopSummaryContextBudget(),
+        );
+
         // TASK-1284 : la generation ecrit l'article en brouillon dans le flux
         // de creation (`BlogController::handleAi()`, sans validation humaine
         // supplementaire) : `canWrite = true`, declare tel quel — comportement
@@ -487,6 +530,7 @@ final class CapabilityRegistry
             $loopHybridAnswer->id => $loopHybridAnswer,
             $loopAnswer->id => $loopAnswer,
             $loopAsk->id => $loopAsk,
+            $loopMultiAi->id => $loopMultiAi,
             $blogGenerate->id => $blogGenerate,
             $blogCorrect->id => $blogCorrect,
             $memberProfileLoopReply->id => $memberProfileLoopReply,

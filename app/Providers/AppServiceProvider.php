@@ -87,6 +87,22 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(SupervisionProviderResolver::class);
         $this->app->singleton(AdminAiInteractionPersistence::class);
 
+        // TASK-1617 — la source de tarif RESOLUE A L'APPEL pour les modeles
+        // gratuits d'OpenRouter.
+        //
+        // `bind`, PAS `singleton`, et surtout : AUCUNE lecture ici. Le
+        // conteneur enregistre une fabrique ; rien n'est instancie, aucune
+        // requete n'est faite, tant qu'`AiPricingCatalog` ne pose pas une
+        // question — c'est-a-dire jamais pendant `artisan migrate`,
+        // `config:cache` ou un demarrage avec la base injoignable.
+        //
+        // C'est precisement pour cela que ce n'est pas un ServiceProvider qui
+        // fusionnerait la configuration au boot : `config:cache` figerait la
+        // fusion dans un fichier, et une preuve de gratuite perimee serait
+        // servie indefiniment.
+        $this->app->bind(\App\Support\Ai\Pricing\DynamicPricingSource::class,
+            \App\Services\Ai\LoopPluginAiModels::class);
+
         // Singleton for its per-request memo: card presets are asked for on
         // every workspace render, and a fresh instance per resolution would
         // query loop_type_settings each time.

@@ -100,6 +100,17 @@ final class AiEconomicGuard
         // process serait lu dans le registre legacy (vide) et ses budgets ne
         // s'appliqueraient jamais.
         'guest_shell' => '2026-09-07T00:00:00+00:00',
+        // TASK-1617 (SLICE C) : le plugin « 3 assistants IA » nait SOUS
+        // l'autorite du ledger, comme `guest_shell` avant lui. Sans cette
+        // ligne, `loop_multi_ai` serait lu dans `ai_interactions` — un
+        // registre ou ce process n'ecrira JAMAIS — et ses budgets ne
+        // s'appliqueraient donc jamais : une famille d'appels invisible a la
+        // garde, ce qui est pire qu'une famille non gardee.
+        //
+        // La date precede tout trafic reel : aucune generation n'existe encore
+        // (SLICE C ne genere rien), la fenetre s'ouvre donc vide, et la
+        // premiere invocation de SLICE D tombera du bon cote.
+        'loop_multi_ai' => '2026-09-21T00:00:00+00:00',
     ];
 
     /**

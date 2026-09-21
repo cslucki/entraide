@@ -104,8 +104,11 @@ class TASK1286LedgerConvergenceTest extends TestCase
         );
 
         // 12 (T1286) + les 2 de la surface courte (T1291) + guest_shell (T1436, SW-6 :
-        // le Shell Welcome nait sous l'autorite du ledger, il n'ecrit jamais ai_interactions) = 15.
-        $this->assertCount(15, AiEconomicGuard::ledgerAuthorityProcesses());
+        // le Shell Welcome nait sous l'autorite du ledger, il n'ecrit jamais ai_interactions)
+        // + loop_multi_ai (T1617, SLICE C : le plugin « 3 assistants IA » nait lui aussi
+        // sous l'autorite du ledger — sans cette ligne il serait lu dans ai_interactions,
+        // un registre ou il n'ecrira jamais, et ses budgets ne s'appliqueraient pas) = 16.
+        $this->assertCount(16, AiEconomicGuard::ledgerAuthorityProcesses());
     }
 
     // =====================================================================
