@@ -79,6 +79,27 @@ return [
             'module' => 'loops', 'label_fr' => 'Gérer les Cards', 'label_en' => 'Manage cards',
             'description' => 'Activer ou désactiver les composants de la Boucle.', 'locked' => false,
         ],
+        /*
+         * TASK-1616 — activer et configurer un PLUGIN de Boucle.
+         *
+         * Distinct de `loops.manage_cards`, et deliberement. Un plugin n'est
+         * pas une Card : il n'entre dans aucun socle de type, ne compte pas
+         * parmi les outils mis en avant, et sa disponibilite est decidee un
+         * cran plus haut, par le SuperAdmin et par Organization
+         * (`organization_loop_plugins`, TASK-1614).
+         *
+         * C'est pour cela qu'il lui faut son propre droit plutot qu'une
+         * extension de `loops.manage_cards` : cette derniere a ete RETIREE de
+         * l'owner par TASK-1083, et `LoopPresetConfigurator::canConfigure()`
+         * reste proprietaire-only — « un animateur anime, il ne recompose
+         * pas ». L'animateur, lui, DOIT pouvoir regler les assistants de la
+         * conversation qu'il anime. Elargir `manage_cards` lui aurait donne au
+         * passage la composition de la Boucle, ce que personne n'a demande.
+         */
+        'loop_plugins.configure' => [
+            'module' => 'loops', 'label_fr' => 'Configurer les plugins', 'label_en' => 'Configure plugins',
+            'description' => "Activer un plugin dans la Boucle et régler son comportement.", 'locked' => false,
+        ],
         'loops.archive' => [
             'module' => 'loops', 'label_fr' => 'Archiver la Boucle', 'label_en' => 'Archive the Loop',
             'description' => 'Rendre la Boucle inactive sans la supprimer.', 'locked' => false,
@@ -527,6 +548,9 @@ return [
         'owner' => [
             'loops.view', 'loops.update_identity', 'loops.change_type',
             'loops.archive', 'loops.manage_owners', 'loops.manage_facilitators',
+            // TASK-1616 : les plugins, PAS les Cards. `loops.manage_cards`
+            // reste absente de ce socle (TASK-1083) et le demeure.
+            'loop_plugins.configure',
             'loop_members.view', 'loop_members.invite', 'loop_members.add', 'loop_members.remove',
             'loop_members.review_join_requests', 'loop_members.change_role',
             'manifesto.view', 'manifesto.update', 'manifesto.publish', 'manifesto.manage_sources',
@@ -565,6 +589,10 @@ return [
             // facilitator avait deja `loop_members.review_join_requests`, mais
             // le chemin `manageJoinRequests` le refusait.
             'loop_members.view', 'loop_members.invite', 'loop_members.add', 'loop_members.review_join_requests',
+            // TASK-1616 : l'animateur regle les assistants de la conversation
+            // qu'il anime. Il ne gagne AUCUN droit sur la composition : la
+            // ligne « no structural cards » ci-dessus tient toujours.
+            'loop_plugins.configure',
             'manifesto.view', 'manifesto.update', 'manifesto.manage_sources',
             'roadmap.view', 'roadmap.manage',
             'chatloop.view', 'chatloop.post', 'chatloop.manage',
