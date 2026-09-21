@@ -699,6 +699,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // metier d'une Organization — seulement son nom et son identifiant.
     Route::get('/loop-plugins', [AdminLoopPluginController::class, 'index'])->name('loop-plugins');
     Route::put('/loop-plugins/{plugin}', [AdminLoopPluginController::class, 'update'])->name('loop-plugins.update');
+    // TASK-1617 — la configuration IA PLATEFORME du plugin : quel modele
+    // OpenRouter sert quel assistant. `refresh` est le SEUL chemin de cette
+    // TASK qui sort sur le reseau, et il part d'un geste explicite.
+    Route::put('/loop-plugins/{plugin}/models', [AdminLoopPluginController::class, 'updateModel'])->name('loop-plugins.models.update');
+    Route::post('/loop-plugins/{plugin}/models/refresh', [AdminLoopPluginController::class, 'refreshModels'])
+        ->middleware('throttle:10,1')->name('loop-plugins.models.refresh');
 
     Route::get('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'index'])->name('system-email-templates');
     Route::get('/system-email-templates/{systemEmailTemplate}/edit', [AdminSystemEmailTemplatesController::class, 'edit'])->name('system-email-templates.edit');

@@ -49,6 +49,19 @@ final class AiProcess
     public const GUEST_SHELL = 'guest_shell';
 
     /**
+     * TASK-1617 — les generations des trois assistants du plugin
+     * « 3 assistants IA » (Aperio, Traverse, Limen).
+     *
+     * UN SEUL process pour les trois, volontairement. Ce qui les distingue —
+     * la posture et le modele — ne change ni le traitement, ni le tenant, ni
+     * la regle economique : c'est la meme famille d'appel. La sous-identite se
+     * lit dans `feature` (`assistant = aperio|traverse|limen`), qui est
+     * exactement ce pour quoi ce champ existe. Trois process auraient triple
+     * chaque liste d'autorite pour ne rien distinguer d'utile.
+     */
+    public const LOOP_MULTI_AI = 'loop_multi_ai';
+
+    /**
      * `ai_interactions.feature` → process (correspondance exacte).
      *
      * @var array<string, string>
