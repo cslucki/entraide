@@ -298,9 +298,16 @@ class TASK1096SeriesNumberingTest extends TestCase
         // moment du rendu, deduit du rang.
         $this->assertDatabaseMissing('blog_posts', ['title' => '01 La racine']);
         $this->assertDatabaseMissing('blog_posts', ['title' => '02 Une annexe']);
+        // TASK-1615 — l'ordre doit etre TOTAL. `blog_posts.created_at` est un
+        // `timestamp` de precision 0 : les deux articles de ce test sont
+        // ecrits dans la meme requete, donc a la meme SECONDE. A egalite,
+        // `created_at` seul ne departage rien et PostgreSQL rend un ordre
+        // indefini — ce test asserait donc un ordre que la requete ne
+        // garantissait pas, et la CI l'a rendu inverse. Departager par `id`
+        // ne l'affaiblit pas : il lui fait asserter quelque chose de DEFINI.
         $this->assertSame(
             ['La racine', 'Une annexe'],
-            BlogPost::orderBy('created_at')->pluck('title')->all()
+            BlogPost::orderBy('created_at')->orderBy('id')->pluck('title')->all()
         );
     }
 }
