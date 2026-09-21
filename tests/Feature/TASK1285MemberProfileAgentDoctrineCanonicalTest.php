@@ -543,7 +543,11 @@ class TASK1285MemberProfileAgentDoctrineCanonicalTest extends TestCase
         // TASK-1526 : + `shell_general_answer` (Shell membre) = 13.
         // TASK-1534 : + `loop_conversation_knowledge` = 14 canoniques.
         // TASK-1540 : + `loop_claim_patch` (le protocole de patch de la memoire) = 15.
-        $this->assertSame(15, $coverage->coveredCount());
-        $this->assertSame(19, $coverage->totalCount());
+        // TASK-1617 : + `loop_multi_ai` (les 3 assistants du plugin, UNE capability
+        // pour les trois : meme contrat de reponse, la sous-identite se lit dans
+        // la `feature` de la trace) = 16.
+        $this->assertSame(16, $coverage->coveredCount());
+        // 16 canoniques + 3 heritees. TASK-1617 : +1 canonique.
+        $this->assertSame(20, $coverage->totalCount());
     }
 }

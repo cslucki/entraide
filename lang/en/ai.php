@@ -424,6 +424,7 @@ return [
         'loop_hybrid_answer' => 'Combined AI + Folders questions',
         'loop_answer' => 'AI answer in the Loop',
         'loop_ask' => 'Question to the AI in the Loop',
+        'loop_multi_ai' => 'The 3 AI assistants (Aperio, Traverse, Limen)',
         'blog_generate' => 'Blog article generation',
         'blog_correct' => 'Blog article correction',
         'member_profile_agent_loop_reply' => 'Profile agent reply in a Loop',

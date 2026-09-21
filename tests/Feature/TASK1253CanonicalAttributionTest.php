@@ -235,6 +235,12 @@ class TASK1253CanonicalAttributionTest extends TestCase
                 CapabilityRegistry::LOOP_HYBRID_ANSWER,
                 CapabilityRegistry::LOOP_ANSWER,
                 CapabilityRegistry::LOOP_ASK,
+                // TASK-1617 (SLICE C) : les trois assistants du plugin
+                // « 3 assistants IA ». UNE capability pour les trois — meme
+                // contrat de reponse, memes sources, meme perimetre ; seuls
+                // la posture et le modele different, et cela se lit dans la
+                // `feature` de la trace (`assistant = aperio|traverse|limen`).
+                CapabilityRegistry::LOOP_MULTI_AI,
                 CapabilityRegistry::BLOG_GENERATE,
                 CapabilityRegistry::BLOG_CORRECT,
                 CapabilityRegistry::MEMBER_PROFILE_AGENT_LOOP_REPLY,
@@ -264,7 +270,7 @@ class TASK1253CanonicalAttributionTest extends TestCase
         $this->assertSame(BlogExplorerController::class, NervousSystemCoverage::INHERITED['blog_explorer']);
         $this->assertNotSame('ai.inherited_label.blog_explorer', __('ai.inherited_label.blog_explorer', [], 'fr'));
         $this->assertNotSame('ai.inherited_label.blog_explorer', __('ai.inherited_label.blog_explorer', [], 'en'));
-        $this->assertSame(15 + 4, $coverage->totalCount(), 'Quinze canoniques (TASK-1540 : + le protocole de patch de la memoire de Boucle) + quatre heritees (configuration conversationnelle du profil, suggestion sur selection Blog, Explorer, offre de service).');
+        $this->assertSame(16 + 4, $coverage->totalCount(), 'Seize canoniques (TASK-1540 : + le protocole de patch de la memoire de Boucle ; TASK-1617 : + les 3 assistants IA) + quatre heritees (configuration conversationnelle du profil, suggestion sur selection Blog, Explorer, offre de service).');
     }
 
     // =====================================================================
