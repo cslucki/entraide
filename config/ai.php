@@ -631,4 +631,29 @@ return [
     'usage_reference' => [
         'max_chars' => (int) env('AI_USAGE_REFERENCE_MAX_CHARS', 4000),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | ChatLoop — 3 assistants IA (TASK-1618, SLICE D)
+    |--------------------------------------------------------------------------
+    | Bornes de l'orchestration sequentielle Aperio -> Traverse -> Limen.
+    |
+    | Le MODELE n'est PAS ici, et c'est delibere : il est choisi a l'ecran
+    | /admin/loop-plugins, prouve gratuit par `LoopPluginAiModels` (TASK-1617)
+    | et sa fraicheur a une peremption. Une cle de configuration figerait ce
+    | que `config:cache` ne sait pas rafraichir.
+    |
+    | La garde economique reste celle de la plateforme : les modeles sont
+    | gratuits, donc le cout connu vaut 0.0 — mais un modele qui cesserait
+    | d'etre gratuit ne doit pas pouvoir depenser sans plafond pour autant.
+    */
+    'multi_ai' => [
+        'max_tokens' => (int) env('AI_MULTI_AI_MAX_TOKENS', 900),
+        'temperature' => (float) env('AI_MULTI_AI_TEMPERATURE', 0.3),
+        'max_answer_chars' => (int) env('AI_MULTI_AI_MAX_ANSWER_CHARS', 3000),
+        'economic_guard' => [
+            'monthly_budget_usd' => (float) env('AI_MULTI_AI_MONTHLY_BUDGET_USD', 2.00),
+            'monthly_unknown_limit' => (int) env('AI_MULTI_AI_MONTHLY_UNKNOWN_LIMIT', 10),
+        ],
+    ],
 ];
