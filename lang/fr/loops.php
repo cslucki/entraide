@@ -1422,6 +1422,36 @@ return [
         'multi_ai_assistants' => [
             'label' => '3 assistants IA',
             'description' => "Poser une question une fois, puis choisir plusieurs regards — Aperio, Traverse et Limen — pour mieux comprendre, confronter et synthétiser.",
+
+            // TASK-1616 — postures PAR DEFAUT des trois assistants (CDC §4).
+            // Une Boucle peut les réécrire ; elle ne peut pas les renommer.
+            'assistants' => [
+                'aperio' => "Explorer les meilleurs arguments en faveur d'une piste, clarifier et structurer, tout en restant fidèle aux faits et aux sources disponibles.",
+                'traverse' => "Rechercher les objections, limites, contradictions et alternatives sans inventer d'arguments non étayés.",
+                'limen' => "Comparer les positions, distinguer accords et désaccords et proposer des compromis ou options possibles sans décider à la place du groupe.",
+            ],
         ],
     ],
+
+    // TASK-1616 — le plugin dans une Boucle.
+    'plugins_loop_title' => 'Actions de ChatLoop',
+    'plugins_loop_hint' => "Les capacités que la conversation de cette Boucle peut mobiliser.",
+    'plugins_loop_active' => 'Activé',
+    'plugins_loop_inactive' => 'Désactivé',
+    'plugins_loop_enable' => 'Activer',
+    'plugins_loop_disable' => 'Désactiver',
+    'plugins_loop_configure' => 'Configurer',
+    'plugins_loop_enabled_flash' => ':plugin est activé dans cette Boucle.',
+    'plugins_loop_disabled_flash' => ':plugin est désactivé dans cette Boucle.',
+    'plugins_loop_saved' => 'Les assistants de :plugin ont été enregistrés.',
+    'plugins_loop_unavailable' => "Ce plugin n'est pas autorisé pour cette Organization.",
+    'plugins_loop_last_change' => 'Modifié le :date par :author',
+    'plugins_loop_last_change_anonymous' => 'Modifié le :date',
+    'plugins_assistants_title' => 'Les trois assistants',
+    'plugins_assistants_intro' => "Chaque assistant a une posture. Vous pouvez la réécrire pour cette Boucle ; vous ne pouvez ni les renommer, ni en ajouter. Une instruction locale ne contourne jamais la Constitution ni la doctrine de l'Organization : elle s'y ajoute.",
+    'plugins_assistants_instruction' => 'Posture',
+    'plugins_assistants_enabled' => 'Actif',
+    'plugins_assistants_reset_hint' => "Vider le champ rétablit la posture par défaut.",
+    'plugins_assistants_save' => 'Enregistrer',
+    'plugins_assistants_inactive_notice' => "Le plugin est désactivé dans cette Boucle : les postures restent enregistrées, mais personne ne peut s'en servir.",
 ];

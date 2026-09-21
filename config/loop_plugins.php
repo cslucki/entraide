@@ -63,6 +63,37 @@ return [
             'label_key' => 'loops.plugins.multi_ai_assistants.label',
             'description_key' => 'loops.plugins.multi_ai_assistants.description',
             'status' => 'experimental',
+
+            /*
+             * TASK-1616 — les trois assistants, et ils sont FIXES en V0.
+             *
+             * Les cles ne sont pas renommables : elles portent les lignes de
+             * `loop_ai_assistants`. Les postures ci-dessous sont les DEFAUTS —
+             * une Boucle peut les reecrire, et c'est tout ce qu'elle peut
+             * reecrire. Ni le nom, ni l'ordre canonique, ni le modele : la
+             * Product Spec V0 les gele, et le provider reste resolu par le
+             * mecanisme Organization existant (SLICE C).
+             *
+             * Une instruction locale ne contourne jamais les couches du
+             * dessus — Constitution, Doctrine, Capability. Elle s'y ajoute.
+             */
+            'assistants' => [
+                'aperio' => [
+                    'label' => 'Aperio',
+                    'order' => 1,
+                    'instruction_key' => 'loops.plugins.multi_ai_assistants.assistants.aperio',
+                ],
+                'traverse' => [
+                    'label' => 'Traverse',
+                    'order' => 2,
+                    'instruction_key' => 'loops.plugins.multi_ai_assistants.assistants.traverse',
+                ],
+                'limen' => [
+                    'label' => 'Limen',
+                    'order' => 3,
+                    'instruction_key' => 'loops.plugins.multi_ai_assistants.assistants.limen',
+                ],
+            ],
         ],
 
     ],

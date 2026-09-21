@@ -1410,6 +1410,35 @@ return [
         'multi_ai_assistants' => [
             'label' => '3 AI assistants',
             'description' => "Ask a question once, then pick several viewpoints — Aperio, Traverse and Limen — to better understand, challenge and synthesise.",
+
+            // TASK-1616 — default postures of the three assistants (spec §4).
+            'assistants' => [
+                'aperio' => 'Explore the strongest arguments in favour of a direction, clarify and structure them, while staying faithful to the available facts and sources.',
+                'traverse' => 'Look for objections, limits, contradictions and alternatives, without inventing unsupported arguments.',
+                'limen' => 'Compare the positions, separate agreement from disagreement, and propose possible compromises or options without deciding for the group.',
+            ],
         ],
     ],
+
+    // TASK-1616 — the plugin inside a Loop.
+    'plugins_loop_title' => 'ChatLoop actions',
+    'plugins_loop_hint' => "The capabilities this Loop's conversation can draw on.",
+    'plugins_loop_active' => 'Enabled',
+    'plugins_loop_inactive' => 'Disabled',
+    'plugins_loop_enable' => 'Enable',
+    'plugins_loop_disable' => 'Disable',
+    'plugins_loop_configure' => 'Configure',
+    'plugins_loop_enabled_flash' => ':plugin is now enabled in this Loop.',
+    'plugins_loop_disabled_flash' => ':plugin is now disabled in this Loop.',
+    'plugins_loop_saved' => 'The assistants of :plugin have been saved.',
+    'plugins_loop_unavailable' => 'This plugin is not allowed for this Organization.',
+    'plugins_loop_last_change' => 'Changed on :date by :author',
+    'plugins_loop_last_change_anonymous' => 'Changed on :date',
+    'plugins_assistants_title' => 'The three assistants',
+    'plugins_assistants_intro' => "Each assistant has a posture. You may rewrite it for this Loop; you cannot rename them or add any. A local instruction never bypasses the Constitution or the Organization's doctrine: it adds to them.",
+    'plugins_assistants_instruction' => 'Posture',
+    'plugins_assistants_enabled' => 'Active',
+    'plugins_assistants_reset_hint' => 'Clearing the field restores the default posture.',
+    'plugins_assistants_save' => 'Save',
+    'plugins_assistants_inactive_notice' => 'The plugin is disabled in this Loop: the postures stay saved, but nobody can use them.',
 ];

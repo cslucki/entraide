@@ -241,6 +241,28 @@
                 </section>
             @endif
 
+            {{-- ── Actions de ChatLoop (TASK-1616) ──────────────────────────
+                 Cette zone N'EXISTAIT PAS sur cet ecran : il ne rendait que les
+                 outils (mis en avant + actifs). Un plugin n'est ni l'un ni
+                 l'autre — il ne compte donc JAMAIS parmi les trois mis en
+                 avant, et c'est structurel, pas un reglage.
+
+                 Absente si l'Organization n'a pas le plugin : « pas autorise »
+                 n'est pas « eteint ». --}}
+            @if(($plugins ?? []) !== [])
+                <section class="mt-8" data-zone="chatloop-actions">
+                    <h2 class="text-sm font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        {{ __('loops.plugins_loop_title') }}
+                    </h2>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('loops.plugins_loop_hint') }}</p>
+
+                    {{-- La Boucle arrive du controleur sous `$pluginLoop` : ici
+                         `$loop` est DEJA null, ecrase par la grille des outils
+                         rendue au-dessus (TASK-1585). --}}
+                    @include('loops.partials.plugin-actions', ['orgParam' => $organizationRouteParam])
+                </section>
+            @endif
+
         </div>
     </x-page-container>
 </x-app-layout>
