@@ -769,6 +769,22 @@ final class LoopMultiAiOrchestrator
         $corps = trim(substr($markdown, 0, $trouve[0][1]));
         $reste = substr($markdown, $trouve[0][1] + strlen($trouve[0][0]));
 
+        // GARDE — un decoupage ne doit JAMAIS faire disparaitre une reponse.
+        //
+        // Si le modele place la section en TETE (ou n'ecrit qu'elle), le corps
+        // ressort vide et le tour finit en `EMPTY_MODEL_ANSWER` : le membre ne
+        // voit rien alors que le modele a parle, et l'appel est paye. On rend
+        // alors le texte ENTIER, sans suggestions — une reponse mal mise en
+        // forme vaut infiniment mieux qu'une reponse perdue.
+        //
+        // Trouve par la RECETTE REELLE ARIA, pas par le banc : Traverse a
+        // repondu et son tour s'est conclu `EMPTY_MODEL_ANSWER`. Les doublures
+        // des tests mettent toujours la section a sa place — elles ne
+        // pouvaient pas voir ce defaut.
+        if ($corps === '') {
+            return [trim($markdown), []];
+        }
+
         $questions = [];
 
         foreach (preg_split('/\r?\n/', $reste) ?: [] as $ligne) {

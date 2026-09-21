@@ -409,6 +409,30 @@ class TASK1619MultiAiChatLoopTest extends TestCase
             'cle ABSENTE, jamais un tableau vide qui se lirait comme une mesure');
     }
 
+    public function test_une_section_en_tete_ne_fait_pas_perdre_la_reponse(): void
+    {
+        // Defaut trouve par la RECETTE REELLE, pas par le banc : un modele
+        // gratuit a place la section « Pour approfondir » en tete, le corps est
+        // ressorti vide, et le tour s'est conclu `EMPTY_MODEL_ANSWER` — appel
+        // paye, membre sans reponse. Une reponse mal mise en forme vaut mieux
+        // qu'une reponse perdue.
+        $titre = __('dossiers.answer_follow_ups_heading');
+
+        LoopMultiAiAgent::fake(fn (string $prompt, $attachments, $provider, string $model) => new TextResponse(
+            '## '.$titre."\n- Une question ?\n\nLe budget est de 40 000 euros.",
+            new Usage(20, 10), new Meta('openrouter', $model),
+        ));
+
+        Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
+            ->set('body', 'Quel est le budget ?')
+            ->call('askAssistant', 'aperio');
+
+        $bulle = LoopMessage::where('loop_id', $this->loop->id)->where('type', 'ai')->first();
+
+        $this->assertNotNull($bulle, 'la reponse ne doit pas etre perdue a cause de sa mise en forme');
+        $this->assertStringContainsString('40 000 euros', (string) $bulle->body);
+    }
+
     // ── F. La synthese, un GESTE ────────────────────────────────────────────
 
     public function test_la_synthese_n_est_pas_proposee_sans_reponse_prealable(): void
