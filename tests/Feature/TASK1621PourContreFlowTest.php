@@ -11,6 +11,7 @@ use App\Livewire\LoopChat;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
 use App\Models\AiProviderInvocation;
+use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
@@ -27,7 +28,9 @@ use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Laravel\Ai\Exceptions\RateLimitedException;
+use Laravel\Ai\Responses\Data\FinishReason;
 use Laravel\Ai\Responses\Data\Meta;
+use Laravel\Ai\Responses\Data\Step;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\TextResponse;
 use Livewire\Features\SupportTesting\Testable;
@@ -546,17 +549,340 @@ class TASK1621PourContreFlowTest extends TestCase
         $this->assertSame(0, substr_count($composant->html(), 'askFollowUp'));
     }
 
+    // ── 6. LA CARTE DE DEBAT — arrivee progressive (addendum UX 22/09) ──────
+    //
+    // Garde MASTER : la carte se construit depuis le message declencheur et
+    // l'etat de la file, JAMAIS depuis l'existence simultanee des deux bulles
+    // IA. La machine a etats est pinnee telle quelle :
+    //   submit -> carte visible ; POUR absent -> mire ; CONTRE absent ->
+    //   attente ; POUR publie -> visible immediatement ; CONTRE ensuite.
+
+    public function test_la_carte_existe_des_le_submit_avant_toute_reponse(): void
+    {
+        $this->fakeDeuxReponses();
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
+            ->set('body', 'Faut-il tout automatiser ?')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage');
+
+        $this->assertSame(0, AiProviderInvocation::query()->count(),
+            'la carte precede toute generation : elle ne depend d\'aucune bulle IA');
+
+        $composant->assertSeeHtml('data-pour-contre-debat')
+            ->assertSeeHtml('data-pour-contre-mire="aperio"')
+            ->assertSeeHtml('data-pour-contre-attente="traverse"');
+    }
+
+    public function test_pour_se_lit_des_sa_publication_sans_attendre_contre(): void
+    {
+        $this->fakeDeuxReponses();
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
+            ->set('body', 'Faut-il tout automatiser ?')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage')
+            ->call('runNextPourContre');
+
+        // POUR est publie et LISIBLE pendant que CONTRE se prepare — aucune
+        // periode ou une reponse terminee reste masquee.
+        $composant->assertSee('Reponse de '.self::MODELES['aperio'])
+            ->assertSeeHtml('data-pour-contre-mire="traverse"')
+            ->assertDontSeeHtml('data-pour-contre-mire="aperio"')
+            ->assertDontSeeHtml('data-pour-contre-attente');
+    }
+
+    public function test_le_remplacement_se_fait_sans_recreer_la_carte(): void
+    {
+        // L'identite DOM est la cle du non-clignotement : le MEME wire:key,
+        // present UNE fois, du submit a la fin — Livewire met a jour la carte,
+        // il ne la recree jamais.
+        $this->fakeDeuxReponses();
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
+            ->set('body', 'Faut-il tout automatiser ?')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage');
+
+        $declencheur = (string) LoopMessage::where('loop_id', $this->loop->id)
+            ->where('type', 'user')->where('body', 'Faut-il tout automatiser ?')->value('id');
+        $cle = 'wire:key="debat-'.$declencheur.'"';
+
+        $this->assertSame(1, substr_count($composant->html(), $cle), 'une carte, des le submit');
+
+        $composant->call('runNextPourContre');
+        $this->assertSame(1, substr_count($composant->html(), $cle), 'la meme carte pendant CONTRE');
+
+        $composant->call('runNextPourContre');
+        $this->assertSame(1, substr_count($composant->html(), $cle), 'la meme carte une fois complete');
+    }
+
+    public function test_une_seule_mire_visible_par_viewport(): void
+    {
+        // La capture de recette du 22/09 montrait la mire DEUX fois : dans la
+        // colonne CONTRE et au-dessus du composeur. Le bandeau reste rendu
+        // (c'est la surface du telephone) mais porte `md:hidden` ; la mire de
+        // la carte, elle, ne le porte pas.
+        $this->fakeDeuxReponses();
+
+        $html = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
+            ->set('body', 'Faut-il tout automatiser ?')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage')
+            ->html();
+
+        preg_match('/<div[^>]*data-multi-ai-pending[^>]*>/', $html, $bandeau);
+        $this->assertNotEmpty($bandeau, 'la mire du bandeau existe pour le telephone');
+        $this->assertStringContainsString('md:hidden', $bandeau[0],
+            'des md:, la carte porte la mire — le bandeau ne la repete pas');
+
+        preg_match('/<p[^>]*data-pour-contre-mire="aperio"[^>]*>/', $html, $mireCarte);
+        $this->assertNotEmpty($mireCarte, 'la mire de la carte existe');
+        $this->assertStringNotContainsString('md:hidden', $mireCarte[0],
+            'la mire de la carte est la surface Desktop');
+    }
+
+    public function test_la_bulle_regroupee_reste_au_telephone_et_la_carte_a_l_ordinateur(): void
+    {
+        // Decision Cyril 22/09 : pas de tableau sur telephone. Les DEUX
+        // projections sont rendues, chacune derriere sa porte CSS — bulle de
+        // fil `md:hidden`, carte `hidden md:block`.
+        $this->fakeDeuxReponses();
+
+        $html = $this->tourComplet('Faut-il tout automatiser ?')->html();
+
+        $bulle = LoopMessage::where('loop_id', $this->loop->id)->where('type', 'ai')
+            ->orderBy('created_at')->orderBy('id')->first();
+
+        preg_match('/<div[^>]*id="loop-message-'.preg_quote((string) $bulle->id, '/').'"[^>]*>/', $html, $wrapper);
+        $this->assertNotEmpty($wrapper, 'la bulle regroupee reste rendue');
+        $this->assertStringContainsString('md:hidden', $wrapper[0],
+            'au-dela de md:, seule la carte la montre');
+
+        preg_match('/<div[^>]*data-pour-contre-debat[^>]*>/', $html, $carte);
+        $this->assertNotEmpty($carte);
+        $this->assertStringContainsString('hidden', $carte[0]);
+        $this->assertStringContainsString('md:block', $carte[0],
+            'la carte est une projection Desktop uniquement');
+    }
+
+    public function test_not_applicable_n_ouvre_aucune_carte(): void
+    {
+        $this->fakeHorsSujet();
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
+            ->set('body', 'Quel CMS choisir ?')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage')
+            ->call('runNextPourContre');
+
+        $composant->assertDontSeeHtml('data-pour-contre-debat')
+            ->assertSeeHtml('data-multi-ai-not-applicable');
+    }
+
+    public function test_l_echec_d_un_role_se_lit_dans_sa_colonne_sans_emporter_l_autre(): void
+    {
+        $this->fakeAvecSaturation(LoopMultiAiOrchestrator::ROLE_CONTRE);
+
+        $composant = $this->tourComplet('Faut-il tout automatiser ?');
+
+        // POUR reste lisible, l'echec de CONTRE est compact dans SA colonne,
+        // avec le geste humain de reprise. (La doublure de saturation rend
+        // « Argument de … », pas « Reponse de … ».)
+        $composant->assertSee('Argument de '.self::MODELES['aperio'])
+            ->assertSeeHtml('data-pour-contre-echec="traverse"')
+            ->assertSeeHtml('data-multi-ai-retry="traverse"');
+    }
+
+    public function test_la_carte_survit_a_l_echec_des_deux_roles(): void
+    {
+        // File videe, AUCUNE bulle publiee : sans la clause sur les etats,
+        // la carte disparaissait d'un coup avec ses deux encarts — le flash
+        // de disparition que l'addendum interdit.
+        LoopMultiAiAgent::fake(function (string $prompt, $attachments, $provider, string $model) {
+            throw new RateLimitedException('sature en amont');
+        });
+
+        $composant = $this->tourComplet('Faut-il tout automatiser ?');
+
+        $this->assertSame(0, LoopMessage::where('loop_id', $this->loop->id)->where('type', 'ai')->count());
+
+        $composant->assertSeeHtml('data-pour-contre-debat')
+            ->assertSeeHtml('data-pour-contre-echec="aperio"')
+            ->assertSeeHtml('data-pour-contre-echec="traverse"');
+    }
+
+    // ── 7. LES ACTIONS DE LA CARTE — deux gestes, uniques (Cyril 22/09) ─────
+
+    public function test_repondre_a_quitte_la_carte(): void
+    {
+        $this->fakeDeuxReponses();
+
+        $this->tourComplet('Faut-il tout automatiser ?')
+            ->assertDontSeeHtml('data-pour-contre-repondre');
+    }
+
+    public function test_copier_est_un_geste_unique_de_la_carte(): void
+    {
+        $this->fakeDeuxReponses();
+
+        $html = $this->tourComplet('Faut-il tout automatiser ?')->html();
+
+        $this->assertSame(1, substr_count($html, 'data-pour-contre-copier'),
+            'un seul copier pour la carte entiere');
+    }
+
+    public function test_ajouter_au_dossier_attend_le_debat_complet(): void
+    {
+        // Garde MASTER : jamais un demi-debat capitalise en silence. Tant que
+        // les deux camps publiables ne sont pas la, le bouton N'EXISTE PAS.
+        $this->fakeDeuxReponses();
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
+            ->set('body', 'Faut-il tout automatiser ?')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage');
+
+        $composant->assertDontSeeHtml('data-pour-contre-capitaliser');
+
+        $composant->call('runNextPourContre');
+        $composant->assertDontSeeHtml('data-pour-contre-capitaliser');
+
+        $composant->call('runNextPourContre');
+        $this->assertSame(1, substr_count($composant->html(), 'data-pour-contre-capitaliser'),
+            'un seul « Ajouter au Dossier », au niveau carte, une fois le debat complet');
+    }
+
+    public function test_un_role_en_echec_ne_laisse_pas_capitaliser_un_demi_debat(): void
+    {
+        $this->fakeAvecSaturation(LoopMultiAiOrchestrator::ROLE_CONTRE);
+        // Un Dossier inscriptible EXISTE : sans lui, `defaultDossier()` rend
+        // null et la methode s'arrete pour la MAUVAISE raison — le sabotage
+        // de la garde du demi-debat restait vert (mesure le 22/09).
+        $this->dossierInscriptible();
+
+        $composant = $this->tourCompletEnTantQue($this->owner, 'Faut-il tout automatiser ?');
+
+        $composant->assertDontSeeHtml('data-pour-contre-capitaliser');
+
+        // Et une requete FORGEE qui atteindrait la methode s'arrete a la
+        // garde elle-meme : l'UI n'est jamais une barriere.
+        $declencheur = (string) LoopMessage::where('loop_id', $this->loop->id)
+            ->where('type', 'user')->where('body', 'Faut-il tout automatiser ?')->value('id');
+
+        $composant->call('startDebateCapitalization', $declencheur)
+            ->assertSet('capitalizingMessageId', null)
+            ->assertSet('capitalizeContent', '');
+    }
+
+    public function test_le_brouillon_reunit_les_deux_camps_dans_l_ordre(): void
+    {
+        $this->fakeDeuxReponses();
+        $this->dossierInscriptible();
+
+        $composant = $this->tourCompletEnTantQue($this->owner, 'Faut-il tout automatiser ?');
+
+        $declencheur = (string) LoopMessage::where('loop_id', $this->loop->id)
+            ->where('type', 'user')->where('body', 'Faut-il tout automatiser ?')->value('id');
+        $pour = LoopMessage::where('loop_id', $this->loop->id)->where('type', 'ai')
+            ->get()->first(fn (LoopMessage $m) => ($m->metadata['assistant_key'] ?? null) === 'aperio');
+
+        $composant->call('startDebateCapitalization', $declencheur)
+            ->assertSet('capitalizingMessageId', $pour->id)
+            ->assertHasNoErrors();
+
+        $contenu = $composant->get('capitalizeContent');
+        $this->assertStringContainsString("POUR\n\nReponse de ".self::MODELES['aperio'], $contenu);
+        $this->assertStringContainsString("CONTRE\n\nReponse de ".self::MODELES['traverse'], $contenu);
+        $this->assertLessThan(strpos($contenu, 'CONTRE'), strpos($contenu, 'POUR'),
+            'POUR precede CONTRE, comme a l\'ecran');
+
+        $this->assertStringContainsString('Faut-il tout automatiser', $composant->get('capitalizeTitle'),
+            'le titre derive de la QUESTION du debat');
+    }
+
+    public function test_un_camp_ecourte_est_annonce_dans_le_brouillon(): void
+    {
+        // PARTIAL reste capitalisable, mais son etat s'ecrit EN TOUTES
+        // LETTRES : le document ne se presente jamais comme un debat complet
+        // qu'il n'est pas (garde MASTER). Le chemin est le VRAI : un Step
+        // `Length` du provider, pas une metadata posee a la main.
+        $this->fakeContreEcourtee();
+        $this->dossierInscriptible();
+
+        $composant = $this->tourCompletEnTantQue($this->owner, 'Faut-il tout automatiser ?');
+
+        $declencheur = (string) LoopMessage::where('loop_id', $this->loop->id)
+            ->where('type', 'user')->where('body', 'Faut-il tout automatiser ?')->value('id');
+
+        $composant->call('startDebateCapitalization', $declencheur)->assertHasNoErrors();
+
+        $contenu = $composant->get('capitalizeContent');
+        $this->assertStringContainsString('CONTRE — '.__('loops.plugins_multi_ai_truncated'), $contenu);
+        $this->assertStringContainsString("POUR\n\n", $contenu);
+        $this->assertStringNotContainsString('POUR — ', $contenu,
+            'seul le camp reellement ecourte porte la mention');
+    }
+
     // ── Outils du flux ──────────────────────────────────────────────────────
 
     /** Un tour complet : publication puis les deux requetes differees. */
     private function tourComplet(string $question): Testable
     {
-        return Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
+        return $this->tourCompletEnTantQue($this->membre, $question);
+    }
+
+    /** Le meme tour, pour l'acteur des tests de capitalisation (l'owner). */
+    private function tourCompletEnTantQue(User $acteur, string $question): Testable
+    {
+        return Livewire::actingAs($acteur)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', $question)
             ->call('toggleMultiAiMode')
             ->call('sendMessage')
             ->call('runNextPourContre')
             ->call('runNextPourContre');
+    }
+
+    /**
+     * Un Dossier ou l'owner peut deposer — `Loop::factory()` n'en cree aucun,
+     * contrairement a `LoopService::createLoop`. Le tenant courant est lie
+     * comme dans le banc T1310 : les requetes de perimetre en dependent.
+     */
+    private function dossierInscriptible(): void
+    {
+        app()->instance('current_organization', $this->organization);
+
+        Dossier::factory()->create([
+            'organization_id' => $this->organization->id,
+            'owner_id' => $this->owner->id,
+            'loop_id' => $this->loop->id,
+            'name' => 'Dossier du banc 1621',
+            'visibility' => Dossier::VISIBILITY_ORGANIZATION,
+        ]);
+    }
+
+    /**
+     * POUR complet, CONTRE ecourte par le budget de sortie : le VRAI signal —
+     * un `Step` portant `FinishReason::Length`, comme la passerelle OpenRouter
+     * le produit. Les doublures nues (steps vide) mesurent l'absence de
+     * signal, pas une troncature.
+     */
+    private function fakeContreEcourtee(): void
+    {
+        $ecourte = self::MODELES['traverse'];
+
+        LoopMultiAiAgent::fake(function (string $prompt, $attachments, $provider, string $model) use ($ecourte) {
+            $usage = new Usage(20, 10);
+            $meta = new Meta('openrouter', $model);
+            $texte = 'Reponse de '.$model;
+
+            if ($model !== $ecourte) {
+                return new TextResponse($texte, $usage, $meta);
+            }
+
+            return (new TextResponse($texte, $usage, $meta))
+                ->withSteps(collect([new Step($texte, [], [], FinishReason::Length, $usage, $meta)]));
+        });
     }
 
     // ── Outils du banc ──────────────────────────────────────────────────────

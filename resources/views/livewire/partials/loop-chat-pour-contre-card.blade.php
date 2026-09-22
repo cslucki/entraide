@@ -15,9 +15,16 @@
     zone par zone — attente, POUR, mire CONTRE, CONTRE — sans jamais etre
     recreee : c'est ce qui evite le clignotement et le saut de mise en page.
 
+    PROJECTION DESKTOP UNIQUEMENT (`hidden md:block`, decision Cyril 22/09) :
+    sur telephone, pas de tableau — les bulles classiques du fil restent
+    rendues (leur wrapper porte `md:hidden`), et les etats d'attente / d'echec
+    se lisent au-dessus du composeur comme avant. Une seule mire visible par
+    viewport, jamais deux surfaces pour un meme etat.
+
     Variables attendues (heritees du scope appelant) :
       $declencheurId, $questionDebat, $messagesDebat, $queue, $states,
-      $labels, $models, et le contexte de fil ($isMember, etc.).
+      $labels, $models, et le contexte de fil ($isMember,
+      $capitalizableMessageIds, $canCapitalize).
 --}}
 @php
     $roles = ['aperio', 'traverse'];
@@ -26,16 +33,38 @@
     // sont en attente. Hors file et sans message : rien ne viendra plus.
     $enCours = $queue[0] ?? null;
     $enAttente = array_slice($queue, 1);
+
+    // « Ajouter au Dossier » est un geste UNIQUE de la carte, et il porte sur
+    // le DEBAT ENTIER (decision Cyril + garde MASTER 22/09) : jamais un
+    // demi-debat capitalise en silence. Tant que les deux camps publiables ne
+    // sont pas la — l'un genere encore, ou a echoue — le bouton n'existe pas.
+    // L'eligibilite reste celle du service (via $capitalizableMessageIds,
+    // calculee dans render()), jamais une seconde regle en Blade.
+    $bullePour = $messagesDebat['aperio'] ?? null;
+    $bulleContre = $messagesDebat['traverse'] ?? null;
+    $debatCapitalisable = $bullePour !== null && $bulleContre !== null
+        && in_array($bullePour->id, $capitalizableMessageIds, true)
+        && in_array($bulleContre->id, $capitalizableMessageIds, true);
 @endphp
 
 <div wire:key="debat-{{ $declencheurId }}"
      data-pour-contre-debat="{{ $declencheurId }}"
+     x-data="{ copie: false }"
      {{-- La carte est BORNEE en largeur. Sans plafond, elle occupait tout le
           fil et chaque colonne rendait des lignes de 150 caracteres : la place
           disponible sur grand ecran ne doit pas devenir de la longueur de
           ligne. A 5xl, chaque colonne tient ~500 px, soit une mesure lisible.
-          Elle reste calee a GAUCHE, comme toute reponse recue. --}}
-     class="mt-1 w-full max-w-full overflow-hidden rounded-2xl border border-gray-200 bg-white/60 lg:max-w-5xl dark:border-gray-700 dark:bg-gray-800/40">
+          Elle reste calee a GAUCHE, comme toute reponse recue.
+
+          `hidden md:block` : la carte est une projection DESKTOP (decision
+          Cyril 22/09). Sur telephone, les bulles classiques du fil restent
+          rendues (elles portent `md:hidden`) — pas de tableau.
+
+          `x-data` vit sur CETTE racine : le bouton « copier » cherche les
+          colonnes par `$root.querySelectorAll(...)`, et `$root` est l'element
+          porteur du x-data. Pose sur la barre d'actions (une soeur des
+          colonnes), il ne trouvait jamais rien et le bouton etait inerte. --}}
+     class="mt-1 hidden w-full max-w-full overflow-hidden rounded-2xl border border-gray-200 bg-white/60 md:block lg:max-w-5xl dark:border-gray-700 dark:bg-gray-800/40">
 
     {{-- La question, UNE SEULE FOIS. Le gros bloc cite de chaque bulle
          consommait deux fois la meme information sur quatre lignes. --}}
@@ -139,30 +168,42 @@
 
          Recette : repondre / epingler / copier / supprimer affiches dans
          CHAQUE colonne se lisaient comme une interface en double. Ces gestes
-         concernent le debat, pas un camp.
+         concernent le debat, pas un camp. Decision Cyril 22/09 : DEUX gestes,
+         uniques —
 
-         Deux d'entre eux sont sans ambiguite et sont implementes ici :
-           - REPONDRE vise la QUESTION. C'est a elle qu'on repond dans un fil,
-             pas a l'un des deux camps ;
+           - AJOUTER AU DOSSIER capitalise le DEBAT ENTIER (POUR puis CONTRE)
+             dans un seul brouillon relu par l'humain. Il n'apparait que
+             lorsque les deux camps publiables sont la : un demi-debat ne se
+             capitalise jamais en silence (garde MASTER). Si un camp est
+             ecourte, le brouillon le dit — c'est `startDebateCapitalization`
+             qui l'ecrit, pas la vue ;
            - COPIER prend les deux reponses, dans l'ordre POUR puis CONTRE.
              Geste client, aucun aller-retour serveur.
 
-         EPINGLER et SUPPRIMER ne sont PAS ici : ils visent UN message, et
-         « epingler le debat » n'a pas de representation (une Boucle n'a qu'un
-         seul message epingle). Les monter ici demanderait une decision
-         produit, pas une initiative d'affichage. --}}
+         REPONDRE a ete RETIRE (meme decision) : repondre a la question se
+         fait dans le fil, comme pour n'importe quel message. EPINGLER et
+         SUPPRIMER ne sont pas ici non plus : ils visent UN message, et
+         « epingler le debat » n'a pas de representation. --}}
     @if($isMember)
         <div data-pour-contre-actions
-             class="flex items-center justify-end gap-1 border-t border-gray-200 px-2 py-1 dark:border-gray-700"
-             x-data="{ copie: false }">
-            <button type="button"
-                    wire:click="replyTo('{{ $declencheurId }}')"
-                    data-pour-contre-repondre
-                    title="{{ __('messages.reply') }}"
-                    aria-label="{{ __('messages.reply') }}"
-                    class="inline-flex h-6 w-6 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200">
-                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>
-            </button>
+             class="flex items-center justify-end gap-1 border-t border-gray-200 px-2 py-1 dark:border-gray-700">
+            @if($debatCapitalisable)
+                <button type="button"
+                        @if($canCapitalize)
+                            wire:click="startDebateCapitalization('{{ $declencheurId }}')"
+                            wire:loading.attr="disabled"
+                            wire:target="startDebateCapitalization('{{ $declencheurId }}')"
+                        @else
+                            disabled
+                        @endif
+                        data-pour-contre-capitaliser
+                        data-capitalize-allowed="{{ $canCapitalize ? '1' : '0' }}"
+                        title="{{ __('loops.capitalize_action') }}"
+                        class="mr-auto inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 transition disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:bg-emerald-100 dark:text-emerald-400 dark:enabled:hover:bg-emerald-900/40">
+                    <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v4m2-2h-4"/></svg>
+                    <span>{{ __('loops.capitalize_action') }}</span>
+                </button>
+            @endif
 
             <button type="button"
                     data-pour-contre-copier

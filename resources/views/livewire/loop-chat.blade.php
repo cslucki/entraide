@@ -73,9 +73,24 @@
 
                 // Le tour EN COURS : sa carte doit exister AVANT la premiere
                 // reponse, sinon elle apparaitrait d'un coup au milieu du fil.
+                // Elle est construite depuis le declencheur et l'etat de la
+                // file — JAMAIS depuis l'existence des deux bulles IA (garde
+                // MASTER, addendum UX) : submit -> carte, POUR absent -> mire,
+                // CONTRE absent -> attente.
+                //
+                // `$multiAiStates` entre dans la condition pour que la carte
+                // SURVIVE a une file videe par des echecs : deux roles en
+                // erreur laissaient la file vide et aucune bulle publiee — la
+                // carte disparaissait d'un coup avec ses deux encarts. Un
+                // flash de disparition est exactement ce que l'addendum
+                // interdit.
+                //
                 // Exception : NOT_APPLICABLE n'ouvre aucune carte — la notice
-                // neutre suffit, et une carte vide serait un mensonge.
-                $debatEnCours = ($pourContreQueue !== [] && $multiAiQuestionMessageId !== null
+                // neutre suffit, et une carte vide serait un mensonge. La cle
+                // `_hors_sujet` etant le seul etat non lie a un role, le test
+                // d'existence ci-dessous suffit a l'ecarter.
+                $debatEnCours = (($pourContreQueue !== [] || $multiAiStates !== [])
+                        && $multiAiQuestionMessageId !== null
                         && ! array_key_exists('_hors_sujet', $multiAiStates))
                     ? (string) $multiAiQuestionMessageId
                     : null;
@@ -163,9 +178,16 @@
                     }
                 @endphp
                 @php
-                    // Une bulle « Pour / Contre » deja regroupee ne se rend
-                    // JAMAIS seule : sa place est dans la carte, posee sous le
-                    // message humain qui l'a declenchee.
+                    // TASK-1621 — la carte de debat est une projection DESKTOP
+                    // (`md:` et au-dela, decision Cyril 22/09) : sur telephone,
+                    // pas de tableau — les bulles classiques empilees suffisent
+                    // et arrivent une a une, comme avant la carte.
+                    //
+                    // Le serveur ne connait pas le viewport : les DEUX
+                    // projections sont rendues, chacune derriere sa porte CSS.
+                    // Une bulle regroupee garde donc son rendu de fil, masque
+                    // des `md:` — la carte, elle, est `hidden md:block`. Meme
+                    // identite DOM (`wire:key`) sur les deux formats.
                     $estRegroupee = $msg->type === 'ai'
                         && ($msg->metadata['ai_mode'] ?? null) === 'multi_ai'
                         && $msg->reply_to_id !== null
@@ -175,11 +197,7 @@
                     $debatDeCeMessage = $debats[(string) $msg->id] ?? null;
                 @endphp
 
-                @if($estRegroupee)
-                    @continue
-                @endif
-
-                <div id="loop-message-{{ $msg->id }}" wire:key="msg-{{ $msg->id }}" class="transition-all duration-300">
+                <div id="loop-message-{{ $msg->id }}" wire:key="msg-{{ $msg->id }}" class="transition-all duration-300 {{ $estRegroupee ? 'md:hidden' : '' }}">
                     @if($isDeleted)
                         <x-conversation.message-bubble
                             :type="$isOwn ? 'sent' : 'received'"

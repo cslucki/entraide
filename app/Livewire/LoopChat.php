@@ -29,6 +29,7 @@ use App\Services\Loops\LoopPluginActivation;
 use App\Services\UrlPreviewService;
 use App\Support\Ai\AiExecutionPath;
 use App\Support\Ai\AiTurnLock;
+use App\Support\Ai\AiTurnReason;
 use App\Support\Ai\LoopAiTurnSignal;
 use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
@@ -1372,6 +1373,93 @@ class LoopChat extends Component
         $this->capitalizeDossierId = (string) $dossier->id;
         $this->capitalizeTitle = $service->suggestedTitle($message);
         $this->capitalizeContent = (string) $message->body;
+    }
+
+    /**
+     * TASK-1621 : ouvre le brouillon « Ajouter au Dossier » pour un DEBAT
+     * « Pour / Contre » entier — les deux camps dans un seul brouillon, titre
+     * derive de la question (decision Cyril 22/09).
+     *
+     * GARDE MASTER : jamais un demi-debat capitalise en silence. Si l'une des
+     * deux bulles manque — role encore en generation, echec, verdict
+     * NOT_APPLICABLE — la methode ne fait RIEN : l'UI masque le bouton dans
+     * ces etats, et une requete forgee qui l'atteindrait quand meme s'arrete
+     * ici. Une reponse ECOURTEE (PARTIAL) reste capitalisable, mais son etat
+     * est ecrit EN TOUTES LETTRES dans le brouillon : le document ne se
+     * presente jamais comme un debat complet qu'il n'est pas.
+     *
+     * Le flux existant est reutilise tel quel : memes proprietes de brouillon,
+     * meme `saveCapitalization()`, memes gardes du service — l'ancre du
+     * brouillon est la bulle POUR (une bulle IA eligible, revalidee au save).
+     * Les bulles sont relues DANS cette Boucle par `reply_to_id` : un
+     * identifiant venu du front n'assemble jamais un debat d'ailleurs.
+     */
+    public function startDebateCapitalization(string $questionMessageId, LoopAnswerCapitalizationService $service): void
+    {
+        $user = auth()->user();
+
+        if (! $this->canContribute($user)) {
+            return;
+        }
+
+        $bulles = LoopMessage::where('loop_id', $this->loop->id)
+            ->where('reply_to_id', $questionMessageId)
+            ->where('type', 'ai')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (LoopMessage $bulle): bool => ($bulle->metadata['ai_mode'] ?? null) === LoopMultiAiPublisher::AI_MODE
+                && is_string($bulle->metadata['assistant_key'] ?? null))
+            ->keyBy(fn (LoopMessage $bulle): string => $bulle->metadata['assistant_key']);
+
+        $pour = $bulles->get(LoopMultiAiOrchestrator::ROLE_POUR);
+        $contre = $bulles->get(LoopMultiAiOrchestrator::ROLE_CONTRE);
+
+        if ($pour === null || $contre === null
+            || ! $service->isCapitalizable($this->loop, $pour)
+            || ! $service->isCapitalizable($this->loop, $contre)) {
+            return;
+        }
+
+        $dossier = $service->defaultDossier($this->loop, $user);
+
+        if ($dossier === null) {
+            $this->addError('capitalizeDossierId', __('loops.capitalize_no_dossier'));
+
+            return;
+        }
+
+        $this->resetErrorBag();
+        $this->capitalizeFlash = '';
+        $this->capitalizingMessageId = $pour->id;
+        $this->capitalizeDossierId = (string) $dossier->id;
+        // `suggestedTitle()` lit `metadata['question']` en premier : sur une
+        // bulle « Pour / Contre », c'est exactement la question du debat.
+        $this->capitalizeTitle = $service->suggestedTitle($pour);
+        $this->capitalizeContent = $this->contenuDuDebat($pour, $contre);
+    }
+
+    /**
+     * Le contenu pre-rempli du brouillon de debat : POUR puis CONTRE, chaque
+     * camp sous son intitule. Un camp ecourte l'annonce dans son intitule —
+     * l'information « Reponse ecourtee » que porte le badge de la bulle ne
+     * doit pas se perdre dans le document (garde MASTER).
+     */
+    private function contenuDuDebat(LoopMessage $pour, LoopMessage $contre): string
+    {
+        $assistants = app(LoopAiAssistants::class);
+
+        $section = function (LoopMessage $bulle) use ($assistants): string {
+            $titre = mb_strtoupper($assistants->label((string) $bulle->metadata['assistant_key']));
+
+            if (($bulle->metadata['partial'] ?? null) === AiTurnReason::DEGRADED_OUTPUT_TRUNCATED) {
+                $titre .= ' — '.__('loops.plugins_multi_ai_truncated');
+            }
+
+            return $titre."\n\n".trim((string) $bulle->body);
+        };
+
+        return $section($pour)."\n\n".$section($contre);
     }
 
     /**

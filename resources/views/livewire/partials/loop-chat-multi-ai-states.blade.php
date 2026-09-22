@@ -40,9 +40,14 @@
                 : 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800/60 dark:bg-emerald-900/25 dark:text-emerald-100';
         @endphp
 
+        {{-- `md:hidden` (TASK-1621, addendum UX) : des `md:`, la carte de
+             debat porte sa propre mire DANS la colonne du role — ce bandeau
+             la repetait mot pour mot juste au-dessus du composeur (constate
+             sur la capture de recette du 22/09). Une seule mire visible par
+             viewport : ici sur telephone, dans la carte sur ordinateur. --}}
         <div data-multi-ai-pending
              data-multi-ai-pending-role="{{ $queue[0] }}"
-             class="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs {{ $couleursMire }}">
+             class="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs md:hidden {{ $couleursMire }}">
             {{-- L'icone du SELECTEUR, a gauche : c'est elle qui dit de quel
                  module vient cette attente. Le sablier seul ne le disait pas
                  (retour de Cyril). L'activite reste signalee, mais a droite :
@@ -106,9 +111,14 @@
             };
         @endphp
 
+        {{-- `md:hidden` : meme regle que la mire — l'echec d'un role se lit
+             dans SA colonne de la carte sur ordinateur (data-pour-contre-echec,
+             avec le meme « Reessayer »), et ici sur telephone. La notice
+             NOT_APPLICABLE au-dessus reste, elle, visible sur TOUS les
+             formats : la carte ne la montre jamais. --}}
         <div data-multi-ai-state="{{ $key }}"
              data-multi-ai-status="{{ $state['status'] }}"
-             class="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 dark:border-amber-700/60 dark:bg-amber-900/25 dark:text-amber-100">
+             class="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs md:hidden text-amber-900 dark:border-amber-700/60 dark:bg-amber-900/25 dark:text-amber-100">
 
             <p class="font-semibold">{{ $titre }}</p>
             <p class="mt-0.5 text-amber-800 dark:text-amber-200">{{ $corps }}</p>
