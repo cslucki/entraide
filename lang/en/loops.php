@@ -1413,9 +1413,9 @@ return [
 
             // TASK-1616 — default postures of the three assistants (spec §4).
             'assistants' => [
-                'aperio' => 'Explore the strongest arguments in favour of a direction, clarify and structure them, while staying faithful to the available facts and sources.',
-                'traverse' => 'Look for objections, limits, contradictions and alternatives, without inventing unsupported arguments.',
-                'limen' => 'Compare the positions, separate agreement from disagreement, and propose possible compromises or options without deciding for the group.',
+                'aperio' => "Argue in favour of the proposition expressed in the question. Give 3 to 5 solid arguments supporting it. If the question holds no clear proposition, briefly restate the favourable angle you are analysing. Invent no facts, and do not manufacture artificial balance against an established fact.",
+                'traverse' => "Challenge the proposition expressed in the question. Give 3 to 5 objections, limits or solid arguments against it. If the question holds no clear proposition, briefly restate the critical angle you are analysing. Invent no facts, and do not manufacture artificial balance against an established fact.",
+                'limen' => "Compare the positions, separate agreements from disagreements and offer possible compromises or options without deciding for the group.",
             ],
         ],
     ],
@@ -1433,15 +1433,21 @@ return [
     'plugins_loop_saved' => 'The assistants of :plugin have been saved.',
     'plugins_loop_unavailable' => 'This plugin is not allowed for this Organization.',
     'plugins_loop_not_enabled' => 'The 3 AI assistants are not enabled in this Loop.',
+    'plugins_multi_ai_ask_all' => 'For / Against',
+    'plugins_multi_ai_armed' => 'For / Against enabled',
+    'plugins_multi_ai_working' => 'The assistants are preparing their arguments…',
+    'plugins_multi_ai_modal_title' => 'For or against?',
+    'plugins_multi_ai_modal_promise' => 'Get the case for and the case against a given question.',
+    'plugins_multi_ai_modal_explain' => 'Your question goes to two independent AI assistants. In this version they answer from their general knowledge and do not read the Loop files.',
+    'plugins_multi_ai_modal_cancel' => 'Cancel',
+    'plugins_multi_ai_modal_activate' => 'Enable For / Against',
+    'plugins_multi_ai_disable' => 'Disable For / Against',
+    'plugins_multi_ai_preparing' => ':assistant is preparing its arguments…',
+    'plugins_multi_ai_discover' => 'Configure For / Against',
 
     // TASK-1619 / SLICE E — what the member reads. No technical code appears
     // here: `PROVIDER_CALL_FAILED`, `429` and `upstream_provider_shared_pool`
     // stay in the SuperAdmin traces. MASTER arbitration, 21/09.
-    'plugins_multi_ai_ask_one' => 'Ask :assistant',
-    'plugins_multi_ai_ask_all' => 'Ask all 3',
-    'plugins_multi_ai_pending' => ':assistant is thinking…',
-    'plugins_multi_ai_working' => 'The 3 assistants are analysing your request…',
-    'plugins_multi_ai_armed' => '3 AI enabled for this message',
     'plugins_multi_ai_rate_limited_title' => ':assistant is momentarily unavailable.',
     'plugins_multi_ai_rate_limited_body' => 'The free model used by :assistant cannot answer right now.',
     'plugins_multi_ai_failed_title' => ':assistant could not answer.',
@@ -1450,10 +1456,7 @@ return [
     'plugins_multi_ai_refused_body' => 'No model is configured for :assistant. An administrator can pick one.',
     'plugins_multi_ai_retry' => 'Retry',
     'plugins_multi_ai_dismiss' => 'Dismiss',
-    'plugins_multi_ai_synthesise' => 'Synthesise with :assistant',
-    'plugins_multi_ai_nothing_to_synthesise' => 'There is no answer to synthesise.',
     'plugins_multi_ai_synthesis_question' => 'Compare the answers given to: :question',
-    'plugins_multi_ai_discover' => 'Configure the 3 AI assistants',
     'plugins_multi_ai_none_enabled' => 'No assistant is active in this Loop.',
     'plugins_loop_last_change' => 'Changed on :date by :author',
     'plugins_loop_last_change_anonymous' => 'Changed on :date',

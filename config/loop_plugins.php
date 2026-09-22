@@ -77,17 +77,33 @@ return [
              * Une instruction locale ne contourne jamais les couches du
              * dessus — Constitution, Doctrine, Capability. Elle s'y ajoute.
              */
+            /*
+             * TASK-1621 — le module visible devient « Pour / Contre ».
+             *
+             * Les CLES TECHNIQUES ne bougent pas : `aperio` porte le role POUR,
+             * `traverse` le role CONTRE. Renommer les cles pour un changement
+             * d'affichage aurait casse les lignes `loop_ai_assistants` et
+             * `loop_plugin_ai_models` deja ecrites, pour un gain nul — meme
+             * arbitrage que `key = training` (TASK-1116).
+             *
+             * `limen` RESTE DECLARE et ses donnees restent en place : il n'est
+             * simplement plus lance ni affiche. Aucune migration destructive.
+             * Son `order` le place apres les deux roles, ou il dort.
+             */
             'assistants' => [
                 'aperio' => [
-                    'label' => 'Aperio',
+                    // Role POUR. Le libelle est ce que le membre lit.
+                    'label' => 'Pour',
                     'order' => 1,
                     'instruction_key' => 'loops.plugins.multi_ai_assistants.assistants.aperio',
                 ],
                 'traverse' => [
-                    'label' => 'Traverse',
+                    // Role CONTRE.
+                    'label' => 'Contre',
                     'order' => 2,
                     'instruction_key' => 'loops.plugins.multi_ai_assistants.assistants.traverse',
                 ],
+                // DORMANT depuis TASK-1621 : ni lance, ni affiche au membre.
                 'limen' => [
                     'label' => 'Limen',
                     'order' => 3,

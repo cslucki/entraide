@@ -557,14 +557,19 @@
         // quitte cette zone : il vit desormais dans « Gerer la Boucle », avec
         // Outils et Modifier. Configurer n'est pas un geste de conversation.
         $multiAiModeActive = $this->multiAiModeActive();
-        $multiAiCanSynthesise = $this->canSynthesiseAssistants();
+        // TASK-1621 — les libelles des roles, pour l'indicateur d'attente.
+        $multiAiLabels = collect($multiAiAssistants)->pluck('label', 'key')->all();
     @endphp
 
     {{-- TASK-1620 — le panneau doit etre dans le DOM AVANT le submit, sinon
          `wire:loading` n'a rien a montrer : Livewire n'ajoute pas un element
          pendant la requete qu'il est cense accompagner. Des que le mode est
          arme, le conteneur existe. --}}
-    @if($isMember && $canContribute && ($multiAiModeActive || $multiAiStates !== [] || $multiAiCanSynthesise))
+    @if($isMember && $canContribute && $multiAiAssistants !== [])
+        @include('livewire.partials.loop-chat-pour-contre-modal')
+    @endif
+
+    @if($isMember && $canContribute && ($multiAiModeActive || $multiAiStates !== [] || $pourContreQueue !== []))
         {{-- TASK-1619 — l'etat des assistants, AU-DESSUS du composeur et sur
              TOUS les formats. Ce bloc n'est pas dans la rangee `hidden md:flex`
              : un membre sur telephone doit lire « Traverse est momentanement
@@ -572,9 +577,9 @@
         <div class="flex-shrink-0 px-3 pt-2">
             @include('livewire.partials.loop-chat-multi-ai-states', [
                 'states' => $multiAiStates,
-                'assistants' => $multiAiAssistants,
-                'canSynthesise' => $multiAiCanSynthesise,
-                'synthesiserLabel' => $this->multiAiSynthesiserLabel(),
+                'queue' => $pourContreQueue,
+                'labels' => $multiAiLabels,
+                'modeActive' => $multiAiModeActive,
             ])
         </div>
     @endif
@@ -641,15 +646,11 @@
                 'variant' => 'pills',
             ])
 
-            {{-- TASK-1620 — l'etat ARME se lit. Sans cela, un membre ne saurait
-                 pas que son prochain envoi coutera trois generations. --}}
-            @if($multiAiModeActive)
-                <span data-multi-ai-armed
-                      class="inline-flex items-center gap-1.5 rounded-full border border-teal-300 bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white dark:border-teal-500">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
-                    {{ __('loops.plugins_multi_ai_armed') }}
-                </span>
-            @endif
+            {{-- TASK-1621 — l'indicateur d'armement a QUITTE cette rangee.
+                 Il vivait dans `hidden md:flex`, donc invisible sur mobile :
+                 le membre armait le mode sans aucun retour (finding de la
+                 campagne humaine). Le badge unique est desormais dans le
+                 panneau d'etat, rendu sur tous les formats. --}}
 
             <button
                 type="button"

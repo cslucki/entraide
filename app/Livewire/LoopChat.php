@@ -99,11 +99,29 @@ class LoopChat extends Component
     public array $multiAiStates = [];
 
     /**
-     * La question du tour multi-assistants, conservee pour « Reessayer » et
-     * « demander a une autre IA ». Sans elle, un reessai reposerait une
-     * question vide ou obligerait le membre a la retaper.
+     * La question du tour, conservee pour « Reessayer ». Sans elle, un reessai
+     * reposerait une question vide ou obligerait le membre a la retaper.
      */
     public string $multiAiQuestion = '';
+
+    /**
+     * Les roles qui RESTENT a lancer pour le tour en cours. (TASK-1621)
+     *
+     * C'est le decouplage demande par MASTER : `sendMessage()` publie le
+     * message humain, remplit cette file et REND LA MAIN. Le membre voit son
+     * message tout de suite. Le blade insere alors un `wire:init` qui declenche
+     * une SECONDE requete, laquelle lance le premier role, publie sa reponse,
+     * et laisse la file plus courte — ce qui insere un nouveau `wire:init`
+     * pour le suivant.
+     *
+     * Precedent du depot : `loop-ai-summary-card.blade.php`, meme mecanisme et
+     * meme garde (« une tentative au plus, jamais de boucle »). Ici la garde
+     * est la file elle-meme : la cle est CONSOMMEE avant le moindre appel, si
+     * bien qu'un `wire:init` qui partirait deux fois ne trouve plus rien.
+     *
+     * @var list<string>
+     */
+    public array $pourContreQueue = [];
 
     /**
      * La bulle QUESTION deja publiee. Un reessai s'y raccroche au lieu d'en
@@ -960,57 +978,64 @@ class LoopChat extends Component
     // interroge directement `LoopPluginActivation::canConfigure()`. Les
     // laisser aurait laisse deux autorites pour une meme question.
 
-    /**
-     * Peut-on proposer la synthese ?
-     *
-     * Trois conditions, et chacune ferme une absurdite : il faut un tour
-     * (sinon il n'y a rien a comparer), au moins UNE reponse publiee d'un
-     * autre assistant que le synthetiseur (Limen ne se synthetise pas
-     * lui-meme), et Limen doit etre actif dans cette Boucle.
-     */
-    public function canSynthesiseAssistants(): bool
-    {
-        if ($this->multiAiQuestionMessageId === null || ! $this->multiAiAvailable()) {
-            return false;
-        }
-
-        $actifs = array_column($this->multiAiAssistants(), 'key');
-
-        if (! in_array(LoopMultiAiOrchestrator::SYNTHESISER, $actifs, true)) {
-            return false;
-        }
-
-        return LoopMessage::where('loop_id', $this->loop->id)
-            ->where('reply_to_id', $this->multiAiQuestionMessageId)
-            ->where('type', 'ai')
-            ->get()
-            ->contains(fn (LoopMessage $m): bool => ($m->metadata['assistant_key'] ?? null) !== null
-                && $m->metadata['assistant_key'] !== LoopMultiAiOrchestrator::SYNTHESISER);
-    }
-
-    /** Le nom du synthetiseur, pour le libelle du bouton. */
-    public function multiAiSynthesiserLabel(): string
-    {
-        return app(LoopAiAssistants::class)->label(LoopMultiAiOrchestrator::SYNTHESISER);
-    }
+    // TASK-1621 — `canSynthesiseAssistants()`, `multiAiSynthesiserLabel()` et
+    // `synthesiseAssistants()` ont ete RETIREES avec la fonctionnalite. Le
+    // module « Pour / Contre » rend deux regards ; c'est l'humain qui tranche,
+    // et plus aucune IA n'en relit une autre.
 
     /**
-     * Les 3 assistants, APRES publication du message humain. (TASK-1620)
+     * APRES publication du message humain : on ARME la file, on ne genere pas.
+     * (TASK-1621)
      *
-     * Le message existe deja — `sendMessage()` vient de le publier — donc il
-     * est transmis au publieur comme question DEJA PUBLIEE. Sans cela le fil
-     * porterait deux fois la meme demande.
-     *
-     * Aucune orchestration nouvelle : c'est l'orchestrateur de TASK-1618,
-     * appele tel quel.
+     * C'est ici que le decouplage se joue. TASK-1620 lancait les generations
+     * dans la MEME requete que la publication : le membre ne voyait donc son
+     * propre message qu'a la fin du tour, des dizaines de secondes plus tard.
+     * On se contente desormais de noter QUOI lancer, et la requete rend la
+     * main immediatement.
      */
     private function respondWithMultiAi(LoopMessage $message, string $question, User $user): void
     {
         $this->multiAiQuestionMessageId = (string) $message->id;
+        $this->multiAiQuestion = $question;
+        $this->multiAiStates = [];
+
+        // Seuls les roles ACTIFS de cette Boucle. Un role eteint n'entre pas
+        // dans la file : une action ne contourne pas un reglage.
+        $actifs = array_column($this->multiAiAssistants(), 'key');
+
+        $this->pourContreQueue = array_values(array_filter(
+            LoopMultiAiOrchestrator::ROLES,
+            static fn (string $role): bool => in_array($role, $actifs, true),
+        ));
+    }
+
+    /**
+     * UN role de la file, sur la requete differee declenchee par le blade.
+     *
+     * La cle est retiree AVANT tout appel : c'est la garde anti-double-appel.
+     * Un `wire:init` qui partirait deux fois — rechargement, double clic,
+     * reconnexion — ne trouverait plus la meme file.
+     */
+    public function runNextPourContre(): void
+    {
+        $role = array_shift($this->pourContreQueue);
+
+        if ($role === null) {
+            return;
+        }
+
+        $user = auth()->user();
+        $question = trim($this->multiAiQuestion);
+
+        if (! $this->canContribute($user) || ! $this->multiAiAvailable() || $question === '') {
+            $this->pourContreQueue = [];
+
+            return;
+        }
 
         $this->executer(
             fn () => app(LoopMultiAiOrchestrator::class)
-                ->run($this->loop, $user, $question, AiExecutionPath::LOOP_CHAT_MULTI_AI),
+                ->runOne($this->loop, $user, $question, $role, AiExecutionPath::LOOP_CHAT_MULTI_AI),
             $user,
             $question,
             publierLaQuestion: false,
@@ -1018,16 +1043,16 @@ class LoopChat extends Component
     }
 
     /**
-     * L'interrupteur « Demander aux 3 IA ». (TASK-1620)
+     * L'interrupteur « Pour / Contre ». (TASK-1620, renomme TASK-1621)
      *
      * Il ne declenche RIEN. Il choisit le moteur du PROCHAIN envoi, exactement
      * comme les interrupteurs IA et Dossiers — aucun appel provider, aucune
      * interaction, aucune invocation, aucun message, aucun indicateur
      * d'attente ne doit naitre d'un clic ici.
      *
-     * EXCLUSIF a dessein : activer les 3 IA eteint IA et Dossiers. Trois
-     * assistants qui repondent EN PLUS d'un moteur documentaire seraient
-     * quatre generations pour un envoi, et personne ne l'a demande.
+     * EXCLUSIF a dessein : l'activer eteint IA et Dossiers. Deux regards EN
+     * PLUS d'un moteur documentaire seraient trois generations pour un envoi,
+     * et personne ne l'a demande.
      */
     public function toggleMultiAiMode(): void
     {
@@ -1067,58 +1092,7 @@ class LoopChat extends Component
     }
 
     /**
-     * La SYNTHESE, declenchee explicitement par un humain.
-     *
-     * Seule lecture d'une IA par une autre dans tout le plugin, et elle n'a
-     * lieu que parce que quelqu'un a clique. Elle relit les bulles DEJA
-     * PUBLIEES du meme tour — donc ce que le membre a reellement sous les
-     * yeux, jamais un etat interne qu'il n'aurait pas vu.
-     */
-    public function synthesiseAssistants(): void
-    {
-        $user = auth()->user();
-
-        if (! $this->canContribute($user) || ! $this->multiAiAvailable() || $this->multiAiQuestionMessageId === null) {
-            return;
-        }
-
-        $reponses = LoopMessage::where('loop_id', $this->loop->id)
-            ->where('reply_to_id', $this->multiAiQuestionMessageId)
-            ->where('type', 'ai')
-            ->orderBy('created_at')
-            ->orderBy('id')
-            ->get()
-            ->filter(fn (LoopMessage $m): bool => ($m->metadata['assistant_key'] ?? null) !== null
-                && $m->metadata['assistant_key'] !== LoopMultiAiOrchestrator::SYNTHESISER)
-            ->map(fn (LoopMessage $m): array => [
-                'assistant' => (string) $m->metadata['assistant_key'],
-                'answer' => (string) $m->body,
-            ])
-            ->values()
-            ->all();
-
-        if ($reponses === []) {
-            $this->addError('body', __('loops.plugins_multi_ai_nothing_to_synthesise'));
-
-            return;
-        }
-
-        $this->executer(
-            fn () => app(LoopMultiAiOrchestrator::class)->synthesise(
-                $this->loop,
-                $user,
-                __('loops.plugins_multi_ai_synthesis_question', ['question' => $this->multiAiQuestion]),
-                $reponses,
-                AiExecutionPath::LOOP_CHAT_MULTI_AI,
-            ),
-            $user,
-            $this->multiAiQuestion,
-            publierLaQuestion: false,
-        );
-    }
-
-    /**
-     * Le corps partage des quatre boutons.
+     * Le corps partage du reessai.
      *
      * @param  list<string>|null  $seulement  null = tous les assistants actifs
      */

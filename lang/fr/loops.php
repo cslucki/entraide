@@ -1426,9 +1426,18 @@ return [
             // TASK-1616 — postures PAR DEFAUT des trois assistants (CDC §4).
             // Une Boucle peut les réécrire ; elle ne peut pas les renommer.
             'assistants' => [
-                'aperio' => "Explorer les meilleurs arguments en faveur d'une piste, clarifier et structurer, tout en restant fidèle aux faits et aux sources disponibles.",
-                'traverse' => "Rechercher les objections, limites, contradictions et alternatives sans inventer d'arguments non étayés.",
-                'limen' => 'Comparer les positions, distinguer accords et désaccords et proposer des compromis ou options possibles sans décider à la place du groupe.',
+                // TASK-1621 — des ROLES, pas des tons.
+                //
+                // TASK-1620 a mesure l'echec de la formulation precedente :
+                // meme modele, memes preuves, meme question -> deux reponses
+                // quasi identiques, ouvrant par la meme phrase. Une posture
+                // enoncee comme un tone (« explorer », « rechercher ») ne
+                // suffit pas a deplacer un modele qui, par defaut, equilibre.
+                //
+                // L'instruction dit donc ce qu'il faut PRODUIRE, et combien.
+                'aperio' => "Defends la proposition exprimee par la question. Presente 3 a 5 arguments solides en sa faveur. Si la question ne contient pas une proposition nette, reformule brievement l'angle favorable que tu analyses. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
+                'traverse' => "Conteste la proposition exprimee par la question. Presente 3 a 5 objections, limites ou arguments solides contre elle. Si la question ne contient pas une proposition nette, reformule brievement l'angle critique que tu analyses. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
+                'limen' => "Comparer les positions, distinguer accords et desaccords et proposer des compromis ou options possibles sans decider a la place du groupe.",
             ],
         ],
     ],
@@ -1446,15 +1455,21 @@ return [
     'plugins_loop_saved' => 'Les assistants de :plugin ont été enregistrés.',
     'plugins_loop_unavailable' => "Ce plugin n'est pas autorisé pour cette Organization.",
     'plugins_loop_not_enabled' => 'Les 3 assistants IA ne sont pas activés dans cette Boucle.',
+    'plugins_multi_ai_ask_all' => 'Pour / Contre',
+    'plugins_multi_ai_armed' => 'Pour / Contre activé',
+    'plugins_multi_ai_working' => 'Les assistants préparent leurs arguments…',
+    'plugins_multi_ai_modal_title' => 'Pour ou contre ?',
+    'plugins_multi_ai_modal_promise' => 'Recevez le pour et le contre sur une question donnée.',
+    'plugins_multi_ai_modal_explain' => "Votre question sera envoyée à deux assistants IA indépendants. Dans cette version, ils répondent à partir de leurs connaissances générales et ne consultent pas les Dossiers de la Boucle.",
+    'plugins_multi_ai_modal_cancel' => 'Annuler',
+    'plugins_multi_ai_modal_activate' => 'Activer Pour / Contre',
+    'plugins_multi_ai_disable' => 'Désactiver Pour / Contre',
+    'plugins_multi_ai_preparing' => ':assistant prépare ses arguments…',
+    'plugins_multi_ai_discover' => 'Configurer Pour / Contre',
 
     // TASK-1619 / SLICE E — ce que le membre lit. Aucun code technique n'y
     // figure : `PROVIDER_CALL_FAILED`, `429` et `upstream_provider_shared_pool`
     // restent dans les traces SuperAdmin. Arbitrage MASTER du 21/09.
-    'plugins_multi_ai_ask_one' => 'Demander à :assistant',
-    'plugins_multi_ai_ask_all' => 'Demander aux 3',
-    'plugins_multi_ai_pending' => ':assistant réfléchit…',
-    'plugins_multi_ai_working' => 'Les 3 assistants analysent votre demande…',
-    'plugins_multi_ai_armed' => '3 IA activées pour ce message',
     'plugins_multi_ai_rate_limited_title' => ':assistant est momentanément indisponible.',
     'plugins_multi_ai_rate_limited_body' => 'Le modèle gratuit utilisé par :assistant ne peut pas répondre pour le moment.',
     'plugins_multi_ai_failed_title' => ":assistant n'a pas pu répondre.",
@@ -1463,10 +1478,7 @@ return [
     'plugins_multi_ai_refused_body' => "Aucun modèle n'est configuré pour :assistant. Un administrateur peut en choisir un.",
     'plugins_multi_ai_retry' => 'Réessayer',
     'plugins_multi_ai_dismiss' => 'Masquer',
-    'plugins_multi_ai_synthesise' => 'Synthétiser avec :assistant',
-    'plugins_multi_ai_nothing_to_synthesise' => "Il n'y a aucune réponse à synthétiser.",
     'plugins_multi_ai_synthesis_question' => 'Compare les réponses obtenues à : :question',
-    'plugins_multi_ai_discover' => 'Configurer les 3 assistants IA',
     'plugins_multi_ai_none_enabled' => "Aucun assistant n'est actif dans cette Boucle.",
     'plugins_loop_last_change' => 'Modifié le :date par :author',
     'plugins_loop_last_change_anonymous' => 'Modifié le :date',

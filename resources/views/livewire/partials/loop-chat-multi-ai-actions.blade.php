@@ -1,50 +1,46 @@
 {{--
-    TASK-1620 — UN SEUL interrupteur : « Demander aux 3 IA ».
+    TASK-1621 — « Pour / Contre » : UNE action, et elle ouvre une MODALE.
 
-    TASK-1619 posait ici trois actions (« Demander a Aperio / Traverse /
-    Limen ») plus une quatrieme. Deux defauts, et le second est grave :
-
-      1. AMBIGU — quatre actions d'envoi la ou le composeur n'en a qu'une ;
-      2. FAUX DECLENCHEUR — le clic lisait le composeur et GENERAIT aussitot,
-         sans que le message humain ait ete soumis. Un membre pouvait voir
-         « reflechit… » sur un texte qu'il n'avait pas envoye, et payer trois
-         generations pour un brouillon.
-
-    Cet interrupteur ne declenche RIEN. Il arme le mode du PROCHAIN envoi,
-    exactement comme les interrupteurs IA et Dossiers. Le declencheur est le
-    submit du composeur, et lui seul — Entree comprise, puisqu'elle emprunte le
-    meme `sendMessage`.
+    Le clic ne genere rien et n'arme meme rien : il explique d'abord. Le
+    module envoie la question a deux IA qui ne lisent PAS les Dossiers de la
+    Boucle — une promesse qu'il vaut mieux poser avant, plutot que laisser un
+    membre s'etonner apres.
 
     Deux formes, deux points d'insertion, un seul jeu de libelles :
       `pills`  la rangee bureau (`hidden md:flex`) ;
       `tiles`  la feuille mobile, dans sa grille `grid-cols-3` existante.
+
+    COULEURS — pas de `text-white` en dur.
+    Les captures humaines de TASK-1620 ont montre du blanc sur fond clair en
+    theme LIGHT. L'etat actif utilise donc un fond teinte et un texte teinte de
+    la MEME famille, lisible dans les deux themes, au lieu d'un contraste
+    suppose.
 --}}
 @php($variant = $variant ?? 'pills')
 
 @if($assistants !== [])
     @if($variant === 'tiles')
         <button type="button"
-                wire:click="toggleMultiAiMode"
-                data-multi-ai-mode
-                aria-pressed="{{ $modeActive ? 'true' : 'false' }}"
-                class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition {{ $modeActive ? 'bg-teal-50 dark:bg-teal-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700' }}">
-            <span class="flex h-10 w-10 items-center justify-center rounded-full transition {{ $modeActive ? 'bg-teal-600 text-white shadow-sm shadow-teal-500/30' : 'bg-teal-100 text-teal-600 dark:bg-teal-900/40 dark:text-teal-300' }}">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.1 9.1 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.9 11.9 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6 6 0 0 1 6 18.719m12 .001c0-.568-.079-1.117-.226-1.637m-5.437 3.348A3 3 0 0 0 6 18.72m9-9.22a3 3 0 1 1-6 0 3 3 0 0 1 6 0m6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0m-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0"/></svg>
+                x-on:click="$dispatch('bp-open-pour-contre')"
+                data-multi-ai-open
+                aria-haspopup="dialog"
+                class="flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2 text-center transition {{ $modeActive ? 'bg-teal-100 dark:bg-teal-900/40' : 'hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+            <span class="flex h-10 w-10 items-center justify-center rounded-full transition {{ $modeActive ? 'bg-teal-600 text-teal-50' : 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-200' }}">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m0-18 7.5 4.5M12 3 4.5 7.5m15 0-2.25 6.75a3 3 0 0 0 4.5 0zm-15 0L2.25 14.25a3 3 0 0 0 4.5 0z"/></svg>
             </span>
-            <span class="text-[11px] font-medium leading-tight {{ $modeActive ? 'text-teal-800 dark:text-teal-100' : 'text-gray-700 dark:text-gray-200' }}">{{ __('loops.plugins_multi_ai_ask_all') }}</span>
+            <span class="text-[11px] font-semibold leading-tight {{ $modeActive ? 'text-teal-900 dark:text-teal-100' : 'text-gray-700 dark:text-gray-200' }}">{{ __('loops.plugins_multi_ai_ask_all') }}</span>
         </button>
     @else
         <div class="flex flex-wrap items-center gap-2" data-multi-ai-actions>
             <button type="button"
-                    wire:click="toggleMultiAiMode"
-                    data-multi-ai-mode
-                    aria-pressed="{{ $modeActive ? 'true' : 'false' }}"
+                    x-on:click="$dispatch('bp-open-pour-contre')"
+                    data-multi-ai-open
+                    aria-haspopup="dialog"
                     class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition {{ $modeActive
-                        ? 'border-teal-400 bg-teal-600 text-white hover:bg-teal-700 dark:border-teal-500'
-                        : 'border-teal-200 bg-teal-50/70 text-teal-700 hover:border-teal-300 hover:bg-teal-100 dark:border-teal-800/50 dark:bg-teal-900/20 dark:text-teal-200 dark:hover:bg-teal-900/40' }}">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.1 9.1 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.9 11.9 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6 6 0 0 1 6 18.719m12 .001c0-.568-.079-1.117-.226-1.637m-5.437 3.348A3 3 0 0 0 6 18.72m9-9.22a3 3 0 1 1-6 0 3 3 0 0 1 6 0m6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0m-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0"/></svg>
+                        ? 'border-teal-500 bg-teal-100 text-teal-900 hover:bg-teal-200 dark:border-teal-500 dark:bg-teal-900/50 dark:text-teal-100 dark:hover:bg-teal-900/70'
+                        : 'border-teal-200 bg-teal-50 text-teal-800 hover:border-teal-300 hover:bg-teal-100 dark:border-teal-800/60 dark:bg-teal-900/25 dark:text-teal-200 dark:hover:bg-teal-900/40' }}">
+                <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m0-18 7.5 4.5M12 3 4.5 7.5m15 0-2.25 6.75a3 3 0 0 0 4.5 0zm-15 0L2.25 14.25a3 3 0 0 0 4.5 0z"/></svg>
                 {{ __('loops.plugins_multi_ai_ask_all') }}
-                @if($modeActive)<span aria-hidden="true">×</span>@endif
             </button>
         </div>
     @endif
