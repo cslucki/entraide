@@ -9,6 +9,7 @@ use App\Models\DossierBlogPost;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
+use App\Services\Dossiers\DossierFileIndexingDispatcher;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
@@ -72,7 +73,7 @@ class TASK1408DossierArticleQueueRoutingTest extends TestCase
         $this->assertSame('dossier-articles-indexing', DossierArticleIndexingDispatcher::DEDICATED_QUEUE);
 
         $this->assertNotSame(
-            \App\Services\Dossiers\DossierFileIndexingDispatcher::DEDICATED_QUEUE,
+            DossierFileIndexingDispatcher::DEDICATED_QUEUE,
             DossierArticleIndexingDispatcher::DEDICATED_QUEUE,
             'Un worker doit pouvoir consommer les fichiers sans consommer les Articles.'
         );

@@ -257,10 +257,11 @@ class TASK1568ExecutionPathTest extends TestCase
         AiExecutionPath::LOOP_CHAT_LEGACY_ASK => 'executed',
         AiExecutionPath::LOOP_CHAT_LEGACY_ANSWER => 'executed',
         AiExecutionPath::LOOP_CONTROLLER_KNOWLEDGE_JSON => 'executed',
-        // TASK-1619 — l'orchestrateur des 3 assistants APPELLE reellement le
-        // Context Builder : c'est meme la seule facon qu'il a de construire ses
-        // preuves sans passer par un moteur qui genere.
-        AiExecutionPath::LOOP_CHAT_MULTI_AI => 'executed',
+        // TASK-1621 — le module « Pour / Contre » a REMPLACE les 3 assistants
+        // et ne lit plus rien de la Boucle : il repond depuis les
+        // connaissances generales du modele. Le Context Builder est donc
+        // BYPASSE, avec le meme code que le mode `ia` du composeur.
+        AiExecutionPath::LOOP_CHAT_MULTI_AI => 'bypassed',
         AiExecutionPath::AI_SHELL_SELF_KNOWLEDGE => 'not_applicable',
         AiExecutionPath::AI_SHELL_DOSSIER => 'bypassed',
         AiExecutionPath::AI_SHELL_ARTICLE => 'bypassed',
@@ -302,13 +303,13 @@ class TASK1568ExecutionPathTest extends TestCase
         AiExecutionPath::DOSSIER_PAGE_INSIGHTS => 'not_applicable',
     ];
 
-    public function test_a4_le_contrat_context_builder_couvre_les_19_chemins_en_7_8_4(): void
+    public function test_a4_le_contrat_context_builder_couvre_les_19_chemins_en_6_9_4(): void
     {
         $this->assertEqualsCanonicalizing(AiExecutionPath::all(), array_keys(self::CONTEXT_BUILDER_CONTRACT));
 
         $cardinalites = array_count_values(self::CONTEXT_BUILDER_CONTRACT);
 
-        $this->assertSame(['bypassed' => 8, 'executed' => 7, 'not_applicable' => 4], [
+        $this->assertSame(['bypassed' => 9, 'executed' => 6, 'not_applicable' => 4], [
             'bypassed' => $cardinalites['bypassed'],
             'executed' => $cardinalites['executed'],
             'not_applicable' => $cardinalites['not_applicable'],

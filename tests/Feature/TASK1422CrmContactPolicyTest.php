@@ -9,6 +9,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\Crm\CrmContactPolicyService;
 use App\Services\Crm\CrmContactService;
+use App\Services\Crm\CrmEmailSendService;
 use App\Services\Crm\CrmEmailTemplateService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -117,7 +118,11 @@ class TASK1422CrmContactPolicyTest extends TestCase
     public function test_after_blocking_no_email_leaves_and_after_allowing_it_does_again(): void
     {
         $captured = 0;
-        Mail::shouldReceive('html')->andReturnUsing(function () use (&$captured) { $captured++; return null; });
+        Mail::shouldReceive('html')->andReturnUsing(function () use (&$captured) {
+            $captured++;
+
+            return null;
+        });
         $template = app(CrmEmailTemplateService::class)->create($this->orgA, 'Relance', 'Objet', '<p>Corps</p>');
         $preview = route('organization.admin.crm.contacts.email.preview', ['organization' => $this->orgA->slug, 'contact' => $this->contactA->id, 'template' => $template->id]);
 
@@ -130,7 +135,7 @@ class TASK1422CrmContactPolicyTest extends TestCase
         $this->actingAs($this->adminA)->post($this->policyUrl($this->contactA), ['action' => 'allow', 'reason' => 'data_error', 'note' => 'Erreur'])
             ->assertRedirect()->assertSessionHas('success', __('crm.policy.flash_allowed'));
         $this->actingAs($this->adminA)->get($preview)->assertOk();
-        $token = session(\App\Services\Crm\CrmEmailSendService::TOKEN_SESSION_PREFIX.$this->orgA->id.':'.$this->contactA->id.':'.$template->id)['token'];
+        $token = session(CrmEmailSendService::TOKEN_SESSION_PREFIX.$this->orgA->id.':'.$this->contactA->id.':'.$template->id)['token'];
         $this->actingAs($this->adminA)->post(route('organization.admin.crm.contacts.email.send', ['organization' => $this->orgA->slug, 'contact' => $this->contactA->id, 'template' => $template->id]), ['token' => $token])
             ->assertSessionHas('success');
         $this->assertSame(1, $captured);

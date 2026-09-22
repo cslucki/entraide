@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AiInteraction;
-use App\Models\LoginLog;
+use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\Organization;
 use App\Models\ServiceRequest;
@@ -80,7 +80,7 @@ class TASK1504OrgDashboardMetricsTest extends TestCase
         $member = User::factory()->create(['organization_id' => $this->org->id]);
         ServiceRequest::factory()->create(['organization_id' => $this->org->id, 'user_id' => $member->id, 'status' => 'open']);
         ServiceRequest::factory()->create(['organization_id' => $this->org->id, 'user_id' => $member->id, 'status' => 'closed']);
-        $loop = \App\Models\Loop::factory()->create(['organization_id' => $this->org->id, 'created_by' => $member->id]);
+        $loop = Loop::factory()->create(['organization_id' => $this->org->id, 'created_by' => $member->id]);
         foreach ([['pending', '2026-09-30'], ['pending', '2026-09-01'], ['accepted', '2026-09-30']] as [$status, $expires]) {
             LoopInvitation::create([
                 'organization_id' => $this->org->id, 'loop_id' => $loop->id, 'sender_id' => $member->id,

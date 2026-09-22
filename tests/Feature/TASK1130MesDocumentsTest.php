@@ -3,12 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\BlogPost;
+use App\Models\Category;
 use App\Models\Dossier;
 use App\Models\DossierFile;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Dossiers\PersonalDocumentsRoot;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
@@ -88,7 +90,7 @@ class TASK1130MesDocumentsTest extends TestCase
 
         // L'invariant n'est pas la discipline des appelants : c'est l'index
         // partiel qui refuse, meme si quelqu'un ecrit la ligne a la main.
-        $this->expectException(\Illuminate\Database\QueryException::class);
+        $this->expectException(QueryException::class);
 
         Dossier::create([
             'organization_id' => $this->org->id,
@@ -325,7 +327,7 @@ class TASK1130MesDocumentsTest extends TestCase
     {
         $racine = $this->racine();
 
-        $categorie = \App\Models\Category::create([
+        $categorie = Category::create([
             'organization_id' => $this->org->id,
             'name_b2c' => 'Actualites',
             'name_b2b' => 'Actualites',

@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Livewire\LoopPollsCard;
 use App\Models\Loop;
-use App\Models\LoopCard;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\LoopPoll;
@@ -20,6 +19,7 @@ use App\Services\Loops\LoopPresetSyncService;
 use App\Services\Loops\PollException;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -137,7 +137,7 @@ class TASK1087PollCardTest extends TestCase
         ]);
 
         // La contrainte, pas le service : c'est la base qui doit tenir la regle.
-        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+        $this->expectException(UniqueConstraintViolationException::class);
 
         LoopPollVote::create([
             'organization_id' => $this->org->id, 'poll_id' => $poll->id, 'user_id' => $this->member->id,
@@ -154,7 +154,7 @@ class TASK1087PollCardTest extends TestCase
 
         LoopPollVoteOption::create(['vote_id' => $vote->id, 'option_id' => $option->id]);
 
-        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+        $this->expectException(UniqueConstraintViolationException::class);
 
         LoopPollVoteOption::create(['vote_id' => $vote->id, 'option_id' => $option->id]);
     }

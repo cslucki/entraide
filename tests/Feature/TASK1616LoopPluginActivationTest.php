@@ -118,7 +118,7 @@ class TASK1616LoopPluginActivationTest extends TestCase
         $this->assertTrue(app(LoopPluginActivation::class)->isAvailableFor(self::PLUGIN, $this->loop));
     }
 
-    public function test_le_plugin_n_est_PAS_disponible_dans_une_organization_non_autorisee(): void
+    public function test_le_plugin_n_est_pa_s_disponible_dans_une_organization_non_autorisee(): void
     {
         $this->assertFalse(app(LoopPluginActivation::class)->isAvailableFor(self::PLUGIN, $this->loopAilleurs));
     }
@@ -251,7 +251,7 @@ class TASK1616LoopPluginActivationTest extends TestCase
 
         foreach (['owner', 'facilitator', 'member'] as $role) {
             $this->assertNotContains('loops.manage_cards', $defauts[$role],
-                "TASK-1083 : `loops.manage_cards` ne doit revenir dans AUCUN socle de role.");
+                'TASK-1083 : `loops.manage_cards` ne doit revenir dans AUCUN socle de role.');
         }
 
         $this->assertContains('loop_plugins.configure', $defauts['owner']);
@@ -409,7 +409,7 @@ class TASK1616LoopPluginActivationTest extends TestCase
      * reglage. Ni l'extinction dans la Boucle, ni le retrait de la
      * disponibilite Organization.
      */
-    public function test_les_postures_survivent_a_l_extinction_de_la_boucle_ET_de_l_organization(): void
+    public function test_les_postures_survivent_a_l_extinction_de_la_boucle_e_t_de_l_organization(): void
     {
         $service = app(LoopAiAssistants::class);
         $activation = app(LoopPluginActivation::class);
@@ -517,7 +517,6 @@ class TASK1616LoopPluginActivationTest extends TestCase
         ]);
     }
 
-    /** @return string */
     private function urlOrg(string $name): string
     {
         return route($name, [

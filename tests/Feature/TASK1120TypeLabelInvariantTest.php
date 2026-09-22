@@ -353,7 +353,7 @@ class TASK1120TypeLabelInvariantTest extends TestCase
         $this->assertSame(
             $avecUnTypeCree,
             $avecSeptTypesCrees,
-            "Passer de 1 a 7 types crees a change le nombre de lectures du catalogue "
+            'Passer de 1 a 7 types crees a change le nombre de lectures du catalogue '
             ."({$avecUnTypeCree} -> {$avecSeptTypesCrees}) : le nommage des types fait un N+1.",
         );
 
@@ -442,7 +442,7 @@ class TASK1120TypeLabelInvariantTest extends TestCase
             $attendus,
             array_map(fn ($c) => str_replace(DIRECTORY_SEPARATOR, '/', $c), $fautifs),
             "Une vue nomme un type de Boucle par sa cle de traduction. Un type cree n'en a pas : "
-            ."passer par LoopTypeRegistry::label(\$key, \$organization) ou ::description(). "
+            .'passer par LoopTypeRegistry::label($key, $organization) ou ::description(). '
             .'Seules les lectures du catalogue de Cards sont admises dans cette liste, et elle ne grandit pas.',
         );
     }

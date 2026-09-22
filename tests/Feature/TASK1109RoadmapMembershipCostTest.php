@@ -2,13 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\LoopDecisionsCard;
+use App\Livewire\LoopMarketplaceCard;
 use App\Livewire\LoopRoadmapCard;
 use App\Models\Loop;
 use App\Models\LoopCard;
+use App\Models\LoopDecision;
 use App\Models\LoopMember;
 use App\Models\LoopRoadmapItem;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Loops\LoopDecisionService;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -255,8 +259,6 @@ class TASK1109RoadmapMembershipCostTest extends TestCase
         ]);
     }
 
-
-
     // ── Le cache ne survit pas au rendu ─────────────────────────────────────
 
     public function test_the_cache_does_not_outlive_a_render(): void
@@ -308,8 +310,8 @@ class TASK1109RoadmapMembershipCostTest extends TestCase
         );
 
         foreach ([
-            \App\Livewire\LoopDecisionsCard::class,
-            \App\Livewire\LoopMarketplaceCard::class,
+            LoopDecisionsCard::class,
+            LoopMarketplaceCard::class,
         ] as $classe) {
             $composant = Livewire::actingAs($this->animateur)->test($classe, ['loop' => $this->loop]);
             $composant->html();
@@ -330,8 +332,8 @@ class TASK1109RoadmapMembershipCostTest extends TestCase
         // Decisions etait restee en arriere, et repondait sur une Decision
         // d'une autre Organization.
         foreach ([
-            \App\Livewire\LoopDecisionsCard::class,
-            \App\Livewire\LoopMarketplaceCard::class,
+            LoopDecisionsCard::class,
+            LoopMarketplaceCard::class,
         ] as $classe) {
             $methode = new \ReflectionMethod($classe, 'canEdit');
 
@@ -357,10 +359,10 @@ class TASK1109RoadmapMembershipCostTest extends TestCase
             ['organization_id' => $this->org->id, 'enabled' => true],
         );
 
-        $service = app(\App\Services\Loops\LoopDecisionService::class);
+        $service = app(LoopDecisionService::class);
 
         $mesurer = function (int $combien) use ($service): int {
-            \App\Models\LoopDecision::where('loop_id', $this->loop->id)->delete();
+            LoopDecision::where('loop_id', $this->loop->id)->delete();
 
             $premier = null;
             for ($i = 0; $i < $combien; $i++) {
@@ -372,7 +374,7 @@ class TASK1109RoadmapMembershipCostTest extends TestCase
             DB::flushQueryLog();
 
             Livewire::actingAs($this->animateur)
-                ->test(\App\Livewire\LoopDecisionsCard::class, ['loop' => $this->loop])
+                ->test(LoopDecisionsCard::class, ['loop' => $this->loop])
                 ->call('startSuperseding', $premier)
                 ->html();
 

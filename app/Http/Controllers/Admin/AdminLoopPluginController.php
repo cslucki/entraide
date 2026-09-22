@@ -144,13 +144,52 @@ class AdminLoopPluginController extends Controller
         $releve = $this->catalogue->catalogue(forceRefresh: true);
 
         if (! $releve['ok']) {
+            // Catalogue en erreur : AUCUNE preuve n'est renouvelee. Un releve
+            // rate ne prouve rien, et fabriquer une fraicheur ici ferait
+            // exactement ce que la garde de TASK-1617 interdit.
             return back()->with('error', __('loops.plugins_models_refresh_failed', [
                 'reason' => (string) $releve['error'],
             ]));
         }
 
+        $libres = $this->catalogue->verifiedFreeModels();
+
+        // TASK-1621 — le geste tient enfin sa promesse.
+        //
+        // La campagne humaine a trouve le defaut : l'ecran affichait « Preuve
+        // expiree » sur les trois assistants, l'admin cliquait le seul bouton
+        // disponible, obtenait « Catalogue actualise » — et rien ne changeait.
+        // `refreshModels()` rafraichissait le CACHE du catalogue sans jamais
+        // toucher aux lignes d'affectation. Un bandeau de succes qui ne
+        // resout pas le probleme affiche juste a cote est pire qu'aucun bouton.
+        //
+        // La regle de renouvellement reste STRICTE, et c'est le point : une
+        // preuve n'est reconduite que si le releve qui vient d'avoir lieu
+        // montre le slug ENCORE present et ENCORE verifie gratuit. Un modele
+        // disparu ou redevenu payant garde sa preuve perimee et reste
+        // inelligible. Fail closed, inchange.
+        $renouvelees = 0;
+
+        foreach ($this->models->describe() as $assistant) {
+            $slug = $assistant['model_slug'];
+
+            if ($slug === null || ! array_key_exists($slug, $libres)) {
+                continue;
+            }
+
+            $ligne = $this->models->lineFor((string) $assistant['assistant_key']);
+
+            if ($ligne === null) {
+                continue;
+            }
+
+            $this->models->renewProof($ligne);
+            $renouvelees++;
+        }
+
         return back()->with('success', __('loops.plugins_models_refreshed', [
-            'count' => count($this->catalogue->verifiedFreeModels()),
+            'count' => count($libres),
+            'renewed' => $renouvelees,
         ]));
     }
 

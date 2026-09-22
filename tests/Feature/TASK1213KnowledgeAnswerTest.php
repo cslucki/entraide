@@ -18,6 +18,7 @@ use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
+use App\Services\Ai\DTO\KnowledgeAnswer;
 use App\Services\Ai\LoopKnowledgeAnswerService;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Services\LoopService;
@@ -446,7 +447,7 @@ class TASK1213KnowledgeAnswerTest extends TestCase
         $source = $answer->sources[0];
         $this->assertArrayNotHasKey('extrait', $source);
         $this->assertArrayNotHasKey('chunk_id', $source);
-        $this->assertNull(\App\Services\Ai\DTO\KnowledgeAnswer::publicSource($source)['excerpt']);
+        $this->assertNull(KnowledgeAnswer::publicSource($source)['excerpt']);
     }
 
     // =====================================================================

@@ -11,6 +11,7 @@ use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopManifestoService;
+use App\Services\Loops\LoopRootDocumentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -86,7 +87,7 @@ class TASK1079ManifestoSourcesTest extends TestCase
             ]);
         }
 
-        $racine = app(\App\Services\Loops\LoopRootDocumentService::class)->ensureRootDossier($this->loop);
+        $racine = app(LoopRootDocumentService::class)->ensureRootDossier($this->loop);
 
         return DossierFile::factory()->create([
             'organization_id' => $this->org->id, 'dossier_id' => $racine->id, 'uploaded_by' => $this->owner->id,

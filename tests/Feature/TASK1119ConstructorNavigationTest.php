@@ -6,7 +6,9 @@ use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Loops\LoopTypeCreationService;
+use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -64,7 +66,7 @@ class TASK1119ConstructorNavigationTest extends TestCase
 
         // Un bloc `<details>` par type, en plus de celui du formulaire de
         // creation qui existait deja : la page entiere se replie.
-        $types = count(app(\App\Support\Loops\LoopTypeRegistry::class)->all());
+        $types = count(app(LoopTypeRegistry::class)->all());
 
         $this->assertSame(
             $types + 1,
@@ -231,7 +233,7 @@ class TASK1119ConstructorNavigationTest extends TestCase
         // UUID bien forme mais inconnu : meme reponse que scope() sur l'ecran
         // des types.
         $this->actingAs($this->superAdmin)
-            ->get(route('admin.loops', ['organization_id' => (string) \Illuminate\Support\Str::uuid()]))
+            ->get(route('admin.loops', ['organization_id' => (string) Str::uuid()]))
             ->assertNotFound();
     }
 

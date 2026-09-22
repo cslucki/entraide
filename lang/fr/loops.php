@@ -1437,7 +1437,7 @@ return [
                 // L'instruction dit donc ce qu'il faut PRODUIRE, et combien.
                 'aperio' => "Defends la proposition exprimee par la question. Presente 3 a 5 arguments solides en sa faveur. Si la question ne contient pas une proposition nette, reformule brievement l'angle favorable que tu analyses. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
                 'traverse' => "Conteste la proposition exprimee par la question. Presente 3 a 5 objections, limites ou arguments solides contre elle. Si la question ne contient pas une proposition nette, reformule brievement l'angle critique que tu analyses. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
-                'limen' => "Comparer les positions, distinguer accords et desaccords et proposer des compromis ou options possibles sans decider a la place du groupe.",
+                'limen' => 'Comparer les positions, distinguer accords et desaccords et proposer des compromis ou options possibles sans decider a la place du groupe.',
             ],
         ],
     ],
@@ -1460,11 +1460,11 @@ return [
     'plugins_multi_ai_working' => 'Les assistants préparent leurs arguments…',
     'plugins_multi_ai_modal_title' => 'Pour ou contre ?',
     'plugins_multi_ai_modal_promise' => 'Recevez le pour et le contre sur une question donnée.',
-    'plugins_multi_ai_modal_explain' => "Votre question sera envoyée à deux assistants IA indépendants. Dans cette version, ils répondent à partir de leurs connaissances générales et ne consultent pas les Dossiers de la Boucle.",
+    'plugins_multi_ai_modal_explain' => 'Votre question sera envoyée à deux assistants IA indépendants. Dans cette version, ils répondent à partir de leurs connaissances générales et ne consultent pas les Dossiers de la Boucle.',
     'plugins_multi_ai_modal_cancel' => 'Annuler',
     'plugins_multi_ai_modal_activate' => 'Activer Pour / Contre',
     'plugins_multi_ai_disable' => 'Désactiver Pour / Contre',
-    'plugins_multi_ai_preparing' => ':assistant prépare ses arguments…',
+    'plugins_multi_ai_preparing' => 'Préparation des arguments « :assistant »…',
     'plugins_multi_ai_discover' => 'Configurer Pour / Contre',
 
     // TASK-1619 / SLICE E — ce que le membre lit. Aucun code technique n'y
@@ -1497,7 +1497,7 @@ return [
     'plugins_models_catalog_never' => 'Catalogue jamais relevé.',
     'plugins_models_catalog_failed' => "Catalogue OpenRouter indisponible (:reason). Aucun modèle n'est proposé tant que le relevé n'a pas abouti.",
     'plugins_models_refresh' => 'Actualiser les modèles OpenRouter',
-    'plugins_models_refreshed' => 'Catalogue OpenRouter actualisé : :count modèles gratuits vérifiés.',
+    'plugins_models_refreshed' => 'Catalogue OpenRouter actualisé : :count modèles gratuits vérifiés, :renewed preuve(s) renouvelée(s).',
     'plugins_models_refresh_failed' => "Le relevé OpenRouter a échoué (:reason). Rien n'a été modifié.",
     'plugins_models_none' => 'Aucun modèle',
     'plugins_models_choose' => '— choisir un modèle —',

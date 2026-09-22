@@ -2,7 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\ArticleSeries;
+use App\Models\BlogPost;
 use App\Models\Dossier;
+use App\Models\DossierBlogPost;
+use App\Models\DossierFile;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\Organization;
@@ -132,7 +136,7 @@ class TASK1130DossierDeletionTest extends TestCase
         $petitEnfant = Dossier::create([
             'organization_id' => $this->org->id, 'parent_id' => $enfant->getKey(), 'name' => 'Presse',
         ]);
-        $fichier = \App\Models\DossierFile::factory()->create([
+        $fichier = DossierFile::factory()->create([
             'organization_id' => $this->org->id, 'dossier_id' => $petitEnfant->getKey(), 'uploaded_by' => $this->owner->id,
         ]);
 
@@ -148,7 +152,7 @@ class TASK1130DossierDeletionTest extends TestCase
         $enfant = Dossier::create([
             'organization_id' => $this->org->id, 'parent_id' => $this->racineBoucle->getKey(), 'name' => 'Communication',
         ]);
-        $fichier = \App\Models\DossierFile::factory()->create([
+        $fichier = DossierFile::factory()->create([
             'organization_id' => $this->org->id, 'dossier_id' => $enfant->getKey(), 'uploaded_by' => $this->owner->id,
         ]);
 
@@ -165,11 +169,11 @@ class TASK1130DossierDeletionTest extends TestCase
         $enfant = Dossier::create([
             'organization_id' => $this->org->id, 'parent_id' => $this->racineBoucle->getKey(), 'name' => 'Communication',
         ]);
-        $article = \App\Models\BlogPost::create([
+        $article = BlogPost::create([
             'organization_id' => $this->org->id, 'user_id' => $this->owner->id,
             'title' => 'Compte rendu', 'content' => 'Contenu.', 'status' => 'draft',
         ]);
-        \App\Models\DossierBlogPost::create([
+        DossierBlogPost::create([
             'organization_id' => $this->org->id, 'dossier_id' => $enfant->getKey(), 'blog_post_id' => $article->getKey(),
             'added_by' => $this->owner->id, 'position' => 0,
         ]);
@@ -202,7 +206,7 @@ class TASK1130DossierDeletionTest extends TestCase
         $enfant = Dossier::create([
             'organization_id' => $this->org->id, 'parent_id' => $this->racineBoucle->getKey(), 'name' => 'Communication',
         ]);
-        $serie = \App\Models\ArticleSeries::create([
+        $serie = ArticleSeries::create([
             'organization_id' => $this->org->id, 'dossier_id' => $enfant->getKey(),
             'root_blog_post_id' => null, 'name' => 'Serie vide', 'created_by' => $this->owner->id,
         ]);
@@ -271,7 +275,7 @@ class TASK1130DossierDeletionTest extends TestCase
         // "Retirer de cette Boucle" est un partage, pas une suppression : la
         // regle "vide obligatoire" ne doit jamais s'y appliquer.
         $partage = $this->dossierPartage();
-        \App\Models\DossierFile::create([
+        DossierFile::create([
             'organization_id' => $this->org->id, 'dossier_id' => $partage->getKey(), 'uploaded_by' => $this->owner->id,
             'disk' => 'local', 'path' => 'dossiers/x/y.pdf', 'original_name' => 'y.pdf', 'display_name' => 'y.pdf',
             'mime_type' => 'application/pdf', 'size_bytes' => 10, 'checksum_sha256' => hash('sha256', 'y'), 'source' => 'upload',
@@ -297,7 +301,7 @@ class TASK1130DossierDeletionTest extends TestCase
     public function test_the_real_owner_deletes_their_shared_dossier_with_its_content(): void
     {
         $partage = $this->dossierPartage();
-        $fichier = \App\Models\DossierFile::factory()->create([
+        $fichier = DossierFile::factory()->create([
             'organization_id' => $this->org->id, 'dossier_id' => $partage->getKey(), 'uploaded_by' => $this->owner->id,
         ]);
 

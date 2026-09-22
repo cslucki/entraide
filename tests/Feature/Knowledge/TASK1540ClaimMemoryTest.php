@@ -3,6 +3,8 @@
 namespace Tests\Feature\Knowledge;
 
 use App\Ai\Agents\LoopClaimPatchAgent;
+use App\Ai\CapabilityRegistry;
+use App\Models\AdminAiPrompt;
 use App\Models\DerivedKnowledgeNote;
 use App\Models\DossierChunk;
 use App\Models\Loop;
@@ -15,6 +17,7 @@ use App\Services\Knowledge\ClaimMemory;
 use App\Services\Knowledge\LoopClaimCompiler;
 use App\Services\Loops\LoopRootDocumentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Ai\Embeddings;
 use Laravel\Ai\Prompts\AgentPrompt;
 use Laravel\Ai\Prompts\EmbeddingsPrompt;
@@ -337,7 +340,7 @@ class TASK1540ClaimMemoryTest extends TestCase
 
     public function test_sans_prompt_actif_aucun_claim_n_est_ecrit(): void
     {
-        \App\Models\AdminAiPrompt::where('scenario_id', 'loop_claim_patch')->update(['is_active' => false]);
+        AdminAiPrompt::where('scenario_id', 'loop_claim_patch')->update(['is_active' => false]);
         $this->message('Le budget travaux vote pour Belleville est de 486 000 euros.');
         $this->fakePatch([['op' => 'ADD', 'text' => 'Ne devrait jamais etre appele.', 'evidence' => ['x']]]);
 
@@ -354,11 +357,11 @@ class TASK1540ClaimMemoryTest extends TestCase
 
         app(LoopClaimCompiler::class)->compile($this->loop->fresh());
 
-        $ligne = \Illuminate\Support\Facades\DB::table('ai_provider_invocations')
+        $ligne = DB::table('ai_provider_invocations')
             ->where('feature', LoopClaimCompiler::FEATURE)->first();
 
         $this->assertNotNull($ligne, 'la bascule claim-level doit avoir son propre cout lisible');
-        $this->assertSame(\App\Ai\CapabilityRegistry::LOOP_CLAIM_PATCH, $ligne->capability);
+        $this->assertSame(CapabilityRegistry::LOOP_CLAIM_PATCH, $ligne->capability);
         $this->assertSame('success', $ligne->status);
     }
 

@@ -9,7 +9,9 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopInvitationService;
 use App\Support\Notifications\NotificationCatalogue;
+use App\Support\Notifications\NotificationEmissionConflict;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -195,11 +197,11 @@ class TASK1374LoopInvitationNotificationTest extends TestCase
         // On fait pointer la ligne existante vers un AUTRE objet, en contournant
         // l'immutabilite du modele : c'est l'etat de base qu'on veut simuler,
         // pas un chemin d'ecriture legitime.
-        \Illuminate\Support\Facades\DB::table('member_notifications')
+        DB::table('member_notifications')
             ->where('id', $notification->id)
-            ->update(['object_id' => (string) \Illuminate\Support\Str::uuid()]);
+            ->update(['object_id' => (string) Str::uuid()]);
 
-        $this->expectException(\App\Support\Notifications\NotificationEmissionConflict::class);
+        $this->expectException(NotificationEmissionConflict::class);
 
         $this->service->invite($this->loop, $this->senderA, $this->membreA->email);
     }

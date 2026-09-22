@@ -38,8 +38,15 @@
     @if($queue !== [])
         <div data-multi-ai-pending
              class="flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs text-teal-900 dark:border-teal-800/60 dark:bg-teal-900/25 dark:text-teal-100">
-            <svg class="h-4 w-4 flex-shrink-0 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-            <span>{{ __('loops.plugins_multi_ai_preparing', ['assistant' => $labels[$queue[0]] ?? $queue[0]]) }}</span>
+            {{-- L'icone du SELECTEUR, a gauche : c'est elle qui dit de quel
+                 module vient cette attente. Le sablier seul ne le disait pas
+                 (retour de Cyril). L'activite reste signalee, mais a droite :
+                 l'identite d'abord, l'etat ensuite. --}}
+            <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m0-18 7.5 4.5M12 3 4.5 7.5m15 0-2.25 6.75a3 3 0 0 0 4.5 0zm-15 0L2.25 14.25a3 3 0 0 0 4.5 0z"/></svg>
+            {{-- Le role en MINUSCULES : il est cite dans une phrase, pas
+                 employe comme un nom propre. --}}
+            <span>{{ __('loops.plugins_multi_ai_preparing', ['assistant' => mb_strtolower($labels[$queue[0]] ?? $queue[0])]) }}</span>
+            <svg class="ml-auto h-4 w-4 flex-shrink-0 animate-spin opacity-70" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
         </div>
     @endif
 

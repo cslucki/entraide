@@ -723,7 +723,13 @@
             on-cancel-reply="cancelReply"
             show-upload="true"
             :photo="$photo ?? null"
-            :mode="$composerMode !== 'normal' ? $composerMode : null"
+            {{-- TASK-1621 — le composeur ne rend PAS sa propre pastille pour
+                 « Pour / Contre ». Elle ne connait pas ce mode : elle sortait
+                 donc VIDE, reduite a son bouton × (constate par Cyril). Et
+                 meme nommee, elle aurait fait un SECOND indicateur a cote du
+                 badge « Pour / Contre activé » — ce que le mandat interdit.
+                 Un seul badge, celui du panneau d'etat. --}}
+            :mode="! in_array($composerMode, ['normal', 'multi_ai'], true) ? $composerMode : null"
             :mode-label="$composerModeLabel"
             on-clear-mode="setComposerMode('normal')"
         >

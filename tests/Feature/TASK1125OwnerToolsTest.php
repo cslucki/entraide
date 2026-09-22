@@ -11,6 +11,7 @@ use App\Services\Loops\LoopCardCompositionService;
 use App\Services\LoopService;
 use App\Support\Loops\LoopCardRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -66,7 +67,7 @@ class TASK1125OwnerToolsTest extends TestCase
         return app(LoopCardCompositionService::class);
     }
 
-    private function ecran(?User $acteur = null, ?Loop $loop = null, ?Organization $org = null): \Illuminate\Testing\TestResponse
+    private function ecran(?User $acteur = null, ?Loop $loop = null, ?Organization $org = null): TestResponse
     {
         $loop ??= $this->boucle;
         $org ??= $this->orgAutorisee;
@@ -76,7 +77,7 @@ class TASK1125OwnerToolsTest extends TestCase
         ]));
     }
 
-    private function geste(string $action, string $outil, ?User $acteur = null): \Illuminate\Testing\TestResponse
+    private function geste(string $action, string $outil, ?User $acteur = null): TestResponse
     {
         return $this->actingAs($acteur ?? $this->proprietaire)->post(route('organization.loops.tools.update', [
             'organization' => $this->orgAutorisee->slug, 'loop' => $this->boucle->id,

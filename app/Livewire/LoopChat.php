@@ -1012,9 +1012,17 @@ class LoopChat extends Component
     /**
      * UN role de la file, sur la requete differee declenchee par le blade.
      *
-     * La cle est retiree AVANT tout appel : c'est la garde anti-double-appel.
-     * Un `wire:init` qui partirait deux fois — rechargement, double clic,
-     * reconnexion — ne trouverait plus la meme file.
+     * La cle est retiree AVANT tout appel. Ce qui est TESTE, c'est qu'un appel
+     * de trop ne regenere rien (la file est vide, on sort). L'ordre lui-meme
+     * est une DEFENSE : si l'appel levait sans etre rattrape, la cle resterait
+     * en file et le `wire:init` suivant la relancerait — indefiniment, en
+     * facturant a chaque tour.
+     *
+     * Je n'ai pas su ecrire de test qui distingue cet ordre : `executer()`
+     * rattrape les `RuntimeException`, et fabriquer un `Throwable` qui lui
+     * echappe aurait demande de tordre le code pour le mesurer. La defense
+     * reste, sa raison est ecrite ici, et elle n'est pas comptee comme
+     * couverte.
      */
     public function runNextPourContre(): void
     {

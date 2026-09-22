@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\IndexDossierArticleChunks;
 use App\Livewire\LoopChat;
 use App\Models\BlogPost;
 use App\Models\Dossier;
@@ -16,6 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use RuntimeException;
 use Tests\TestCase;
@@ -102,7 +104,7 @@ class TASK1310AddAnswerToDossierTest extends TestCase
         return [['llm'], ['rag'], ['llm_rag']];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('capitalizableModes')]
+    #[DataProvider('capitalizableModes')]
     public function test_every_ai_engine_can_be_added_to_the_dossier(string $aiMode): void
     {
         $message = $this->aiMessage($aiMode);
@@ -254,7 +256,7 @@ class TASK1310AddAnswerToDossierTest extends TestCase
 
         // Le pipeline canonique est bien parti — via BlogPostObserver, sans
         // qu'aucun indexeur ne soit appele par TASK-1310.
-        Queue::assertPushed(\App\Jobs\IndexDossierArticleChunks::class);
+        Queue::assertPushed(IndexDossierArticleChunks::class);
     }
 
     public function test_the_whole_feature_costs_no_provider_call_at_all(): void
@@ -875,7 +877,7 @@ class TASK1310AddAnswerToDossierTest extends TestCase
     /**
      * Capitalise une reponse IA portant CES sources citees, et rend l'Article.
      *
-     * @param list<array<string, mixed>>|null $sources
+     * @param  list<array<string, mixed>>|null  $sources
      */
     private function capitalizedArticleWithSources(?array $sources): BlogPost
     {

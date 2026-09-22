@@ -10,6 +10,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -60,7 +61,7 @@ class TASK1121DossierCardActionsTest extends TestCase
         $this->racine = Dossier::where('loop_id', $this->boucle->id)->firstOrFail();
     }
 
-    private function ecrire(User $user, string $titre): \Illuminate\Testing\TestResponse
+    private function ecrire(User $user, string $titre): TestResponse
     {
         return $this->actingAs($user)->post(route('organization.loops.dossier.articles.store', [
             'organization' => $this->orgA->slug, 'loop' => $this->boucle->id,

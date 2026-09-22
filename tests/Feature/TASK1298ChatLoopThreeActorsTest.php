@@ -16,6 +16,7 @@ use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Ai\MemberProfileAgentResponder;
+use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\Loops\LoopCardCompositionService;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -287,7 +288,7 @@ class TASK1298ChatLoopThreeActorsTest extends TestCase
         $this->message('user', $this->member, 'Question initiale du membre.', at: now()->subMinutes(2));
         $agentMessage = $this->message('member_agent', $this->member, 'Precision apportee par l\'agent.', at: now()->subMinute());
 
-        $answer = app(\App\Services\ChatLoop\ChatLoopAiService::class)->answer($this->loop, $this->member);
+        $answer = app(ChatLoopAiService::class)->answer($this->loop, $this->member);
 
         $this->assertSame((string) $agentMessage->id, (string) $answer->reply_to_id);
     }

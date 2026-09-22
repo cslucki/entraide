@@ -8,6 +8,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\Dossiers\PersonalDocumentsRoot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -74,7 +75,7 @@ class TASK1130MemberSearchRegressionTest extends TestCase
         ]);
     }
 
-    private function chercher(Dossier $dossier, string $q, ?User $acteur = null): \Illuminate\Testing\TestResponse
+    private function chercher(Dossier $dossier, string $q, ?User $acteur = null): TestResponse
     {
         return $this->actingAs($acteur ?? $this->proprietaire)->getJson(
             route('organization.dossiers.members.search', [

@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Services\Dossiers\Extractors\DocxCommentNeutralizer;
 use App\Services\Dossiers\Extractors\WordTextExtractor;
 use App\Services\Dossiers\FileContentExtractor;
+use PhpOffice\PhpWord\IOFactory;
+use PhpOffice\PhpWord\Settings;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -218,8 +220,8 @@ class TASK1510DocxCommentFallbackTest extends TestCase
     private function canonicalFailure(string $path): ?\Throwable
     {
         try {
-            \PhpOffice\PhpWord\Settings::setTempDir(sys_get_temp_dir());
-            \PhpOffice\PhpWord\IOFactory::load($path, 'Word2007');
+            Settings::setTempDir(sys_get_temp_dir());
+            IOFactory::load($path, 'Word2007');
 
             return null;
         } catch (\Throwable $e) {

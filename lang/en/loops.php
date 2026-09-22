@@ -1413,9 +1413,9 @@ return [
 
             // TASK-1616 — default postures of the three assistants (spec §4).
             'assistants' => [
-                'aperio' => "Argue in favour of the proposition expressed in the question. Give 3 to 5 solid arguments supporting it. If the question holds no clear proposition, briefly restate the favourable angle you are analysing. Invent no facts, and do not manufacture artificial balance against an established fact.",
-                'traverse' => "Challenge the proposition expressed in the question. Give 3 to 5 objections, limits or solid arguments against it. If the question holds no clear proposition, briefly restate the critical angle you are analysing. Invent no facts, and do not manufacture artificial balance against an established fact.",
-                'limen' => "Compare the positions, separate agreements from disagreements and offer possible compromises or options without deciding for the group.",
+                'aperio' => 'Argue in favour of the proposition expressed in the question. Give 3 to 5 solid arguments supporting it. If the question holds no clear proposition, briefly restate the favourable angle you are analysing. Invent no facts, and do not manufacture artificial balance against an established fact.',
+                'traverse' => 'Challenge the proposition expressed in the question. Give 3 to 5 objections, limits or solid arguments against it. If the question holds no clear proposition, briefly restate the critical angle you are analysing. Invent no facts, and do not manufacture artificial balance against an established fact.',
+                'limen' => 'Compare the positions, separate agreements from disagreements and offer possible compromises or options without deciding for the group.',
             ],
         ],
     ],
@@ -1442,7 +1442,7 @@ return [
     'plugins_multi_ai_modal_cancel' => 'Cancel',
     'plugins_multi_ai_modal_activate' => 'Enable For / Against',
     'plugins_multi_ai_disable' => 'Disable For / Against',
-    'plugins_multi_ai_preparing' => ':assistant is preparing its arguments…',
+    'plugins_multi_ai_preparing' => 'Preparing the « :assistant » arguments…',
     'plugins_multi_ai_discover' => 'Configure For / Against',
 
     // TASK-1619 / SLICE E — what the member reads. No technical code appears
@@ -1475,7 +1475,7 @@ return [
     'plugins_models_catalog_never' => 'Catalogue never fetched.',
     'plugins_models_catalog_failed' => 'OpenRouter catalogue unavailable (:reason). No model is offered until a fetch succeeds.',
     'plugins_models_refresh' => 'Refresh OpenRouter models',
-    'plugins_models_refreshed' => 'OpenRouter catalogue refreshed: :count verified free models.',
+    'plugins_models_refreshed' => 'OpenRouter catalogue refreshed: :count free models verified, :renewed proof(s) renewed.',
     'plugins_models_refresh_failed' => 'The OpenRouter fetch failed (:reason). Nothing was changed.',
     'plugins_models_none' => 'No model',
     'plugins_models_choose' => '— choose a model —',

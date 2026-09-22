@@ -202,6 +202,16 @@ class TASK1621PourContreEngineTest extends TestCase
             // une cle presente et fausse se lit comme une mesure.
             $this->assertArrayNotHasKey('evidence', $meta);
             $this->assertArrayNotHasKey('sources_used', $meta);
+
+            // Et nulle part AILLEURS dans la metadonnee. Verifier seulement le
+            // premier niveau laissait passer un `retrieval => reused` glisse
+            // DANS le bloc `knowledge` — sabotage qui restait vert.
+            $json = json_encode($meta, JSON_UNESCAPED_UNICODE);
+
+            foreach (['reused', 'evidence_shared', 'source_turn_id'] as $mensonge) {
+                $this->assertStringNotContainsString($mensonge, (string) $json,
+                    "« {$mensonge} » ferait croire a un retrieval qui n'a pas eu lieu");
+            }
         }
     }
 
@@ -720,6 +730,79 @@ class TASK1621PourContreEngineTest extends TestCase
         }
     }
 
+    // ── 7. LE RENOUVELLEMENT DE PREUVE, STRICT ──────────────────────────────
+    //
+    // Defaut trouve par la campagne humaine : l'ecran affichait « Preuve
+    // expiree » sur les trois assistants, l'admin cliquait le seul bouton
+    // disponible, lisait « Catalogue actualise » — et rien ne changeait.
+    // Le geste tient desormais sa promesse, mais SEULEMENT quand le releve
+    // qui vient d'avoir lieu le justifie.
+
+    public function test_un_modele_encore_gratuit_voit_sa_preuve_renouvelee(): void
+    {
+        $this->perimerLaPreuve('aperio');
+
+        $this->actingAs($this->superAdmin)
+            ->post(route('admin.loop-plugins.models.refresh', ['plugin' => self::PLUGIN]))
+            ->assertRedirect();
+
+        $this->assertTrue(app(LoopPluginAiModels::class)->proofIsFresh(
+            app(LoopPluginAiModels::class)->lineFor('aperio'),
+        ), 'le slug est encore au catalogue gratuit : la preuve se reconduit');
+    }
+
+    public function test_un_modele_disparu_ne_voit_pas_sa_preuve_renouvelee(): void
+    {
+        $this->perimerLaPreuve('aperio');
+
+        // Le catalogue ne propose plus ce slug.
+        Http::swap(new Factory);
+        Http::fake(['*/models' => Http::response(['data' => []], 200)]);
+
+        $this->actingAs($this->superAdmin)
+            ->post(route('admin.loop-plugins.models.refresh', ['plugin' => self::PLUGIN]));
+
+        $this->assertFalse(app(LoopPluginAiModels::class)->proofIsFresh(
+            app(LoopPluginAiModels::class)->lineFor('aperio'),
+        ), 'un modele disparu reste inelligible');
+    }
+
+    public function test_un_modele_devenu_payant_ne_voit_pas_sa_preuve_renouvelee(): void
+    {
+        $this->perimerLaPreuve('aperio');
+
+        Http::swap(new Factory);
+        Http::fake(['*/models' => Http::response(['data' => [[
+            'id' => self::MODELES['aperio'],
+            'name' => 'Devenu payant',
+            'context_length' => 32768,
+            'pricing' => ['prompt' => '0.0000015', 'completion' => '0.000002', 'request' => '0'],
+            'architecture' => ['input_modalities' => ['text'], 'output_modalities' => ['text']],
+        ]]], 200)]);
+
+        $this->actingAs($this->superAdmin)
+            ->post(route('admin.loop-plugins.models.refresh', ['plugin' => self::PLUGIN]));
+
+        $this->assertFalse(app(LoopPluginAiModels::class)->proofIsFresh(
+            app(LoopPluginAiModels::class)->lineFor('aperio'),
+        ), 'un modele redevenu payant reste inelligible');
+    }
+
+    public function test_un_catalogue_en_erreur_ne_fabrique_aucune_fraicheur(): void
+    {
+        $this->perimerLaPreuve('aperio');
+
+        Http::swap(new Factory);
+        Http::fake(['*/models' => Http::response('', 500)]);
+
+        $this->actingAs($this->superAdmin)
+            ->post(route('admin.loop-plugins.models.refresh', ['plugin' => self::PLUGIN]));
+
+        $this->assertFalse(app(LoopPluginAiModels::class)->proofIsFresh(
+            app(LoopPluginAiModels::class)->lineFor('aperio'),
+        ), 'un releve rate ne prouve rien : fail closed inchange');
+    }
+
     // ── Outils du banc ──────────────────────────────────────────────────────
 
     private function orchestrateur(): LoopMultiAiOrchestrator
@@ -728,6 +811,14 @@ class TASK1621PourContreEngineTest extends TestCase
     }
 
     /** Une reponse par assistant, distinguee par son modele. */
+    /** Vieillir la preuve au-dela du TTL, sans toucher au reste. */
+    private function perimerLaPreuve(string $assistantKey): void
+    {
+        LoopPluginAiModel::query()
+            ->where('assistant_key', $assistantKey)
+            ->update(['verified_free_at' => now()->subSeconds(LoopPluginAiModels::FREE_PROOF_TTL_SECONDS + 60)]);
+    }
+
     private function fakeDeuxReponses(): void
     {
         // `$attachments` n'est PAS un array : le SDK passe la Collection du
