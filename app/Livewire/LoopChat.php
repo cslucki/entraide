@@ -120,7 +120,23 @@ class LoopChat extends Component
      *
      * @var list<string>
      */
-    private const COMPOSER_MODES = ['normal', 'ia', 'dossiers', 'ia_dossiers'];
+    /**
+     * TASK-1620 — `multi_ai` rejoint les modes du composeur, et c'est la
+     * correction de fond.
+     *
+     * TASK-1619 avait fait des assistants des ACTIONS : cliquer « Demander a
+     * Aperio » lisait le composeur et generait AUSSITOT, sans que le message
+     * humain ait ete soumis. Le declencheur n'etait donc pas le meme que celui
+     * de tous les autres moteurs du composeur, et un membre pouvait voir « 3
+     * assistants IA reflechit… » sur un texte qu'il n'avait pas envoye.
+     *
+     * Le mode retablit la regle unique du composeur : on CHOISIT un moteur, on
+     * ENVOIE, et c'est l'envoi qui declenche. Rien d'autre.
+     */
+    private const COMPOSER_MODES = ['normal', 'ia', 'dossiers', 'ia_dossiers', self::MODE_MULTI_AI];
+
+    /** Le mode « Demander aux 3 IA ». EXCLUSIF : il ne se combine avec aucun autre. */
+    public const MODE_MULTI_AI = 'multi_ai';
 
     /**
      * TASK-1549 : les deux gestes de correction, et le seul endroit où cette
@@ -767,12 +783,28 @@ class LoopChat extends Component
                     // « IA + Dossiers » n'est pas « IA puis Dossiers », ce serait
                     // deux reponses et deux depenses.
                     'ia_dossiers' => $this->respondWithHybrid($message, $question, $user),
+                    // TASK-1620 — les 3 assistants partent d'ICI, et de nulle
+                    // part ailleurs : apres que le message humain a ete publie,
+                    // sous le meme verrou, au meme rang que les autres moteurs.
+                    self::MODE_MULTI_AI => $this->respondWithMultiAi($message, $question, $user),
                     default => null,
                 };
             }
 
             return true;
         };
+
+        // TASK-1620 — le mode 3 IA est ONE-SHOT, contrairement aux autres.
+        //
+        // IA et Dossiers restent armes d'un message a l'autre : c'est leur
+        // comportement depuis T1308 et on n'y touche pas. Trois generations
+        // par envoi, elles, ne doivent PAS se reconduire en silence — un
+        // membre qui a demande trois regards une fois n'a pas demande a en
+        // payer trois a chaque phrase. Le desarmement a lieu AVANT le tour :
+        // meme si la generation echoue, le mode ne reste pas arme.
+        if ($mode === self::MODE_MULTI_AI) {
+            $this->composerMode = 'normal';
+        }
 
         if ($mode === 'normal') {
             // Aucun moteur, aucune depense : rien a verrouiller. Un tour NORMAL
@@ -922,36 +954,11 @@ class LoopChat extends Component
         ));
     }
 
-    /**
-     * Le FACILITATOR peut-il configurer le plugin ?
-     *
-     * C'est la dette `UX_DEBT_SLICE_E` de TASK-1616 : le droit
-     * `loop_plugins.configure` existait et la route aussi, mais rien nulle part
-     * n'y menait pour quelqu'un qui n'est pas proprietaire — `/outils` reste
-     * garde par la doctrine des Cards, qu'on ne touche pas. Le lien manquant
-     * est ici, dans la surface ou le plugin SERT.
-     */
-    public function canConfigureMultiAi(): bool
-    {
-        return app(LoopPluginActivation::class)
-            ->canConfigure(auth()->user(), LoopAiAssistants::PLUGIN, $this->loop);
-    }
-
-    /** L'adresse de configuration, scopee comme la page courante. */
-    public function multiAiConfigureUrl(): ?string
-    {
-        if (! $this->canConfigureMultiAi()) {
-            return null;
-        }
-
-        $organization = $this->loop->organization;
-
-        return $organization === null ? null : route('organization.loops.plugins.configure', [
-            'organization' => $organization->slug,
-            'loop' => $this->loop->id,
-            'plugin' => LoopAiAssistants::PLUGIN,
-        ]);
-    }
+    // TASK-1620 — `canConfigureMultiAi()` et `multiAiConfigureUrl()` ont ete
+    // RETIREES d'ici. Le lien de configuration a quitte le composeur pour le
+    // menu « Gerer la Boucle » (`loops/partials/header-actions`), qui
+    // interroge directement `LoopPluginActivation::canConfigure()`. Les
+    // laisser aurait laisse deux autorites pour une meme question.
 
     /**
      * Peut-on proposer la synthese ?
@@ -987,22 +994,56 @@ class LoopChat extends Component
         return app(LoopAiAssistants::class)->label(LoopMultiAiOrchestrator::SYNTHESISER);
     }
 
-    /** UN assistant, depuis son bouton. */
-    public function askAssistant(string $assistantKey): void
+    /**
+     * Les 3 assistants, APRES publication du message humain. (TASK-1620)
+     *
+     * Le message existe deja — `sendMessage()` vient de le publier — donc il
+     * est transmis au publieur comme question DEJA PUBLIEE. Sans cela le fil
+     * porterait deux fois la meme demande.
+     *
+     * Aucune orchestration nouvelle : c'est l'orchestrateur de TASK-1618,
+     * appele tel quel.
+     */
+    private function respondWithMultiAi(LoopMessage $message, string $question, User $user): void
     {
-        $this->lancerLesAssistants(trim($this->body), [$assistantKey], publierLaQuestion: true);
+        $this->multiAiQuestionMessageId = (string) $message->id;
+
+        $this->executer(
+            fn () => app(LoopMultiAiOrchestrator::class)
+                ->run($this->loop, $user, $question, AiExecutionPath::LOOP_CHAT_MULTI_AI),
+            $user,
+            $question,
+            publierLaQuestion: false,
+        );
     }
 
     /**
-     * « Demander aux 3 ».
+     * L'interrupteur « Demander aux 3 IA ». (TASK-1620)
      *
-     * Les trois repondent EN PAIRS sur l'Evidence partage : aucun ne lit les
-     * autres (contrat SLICE D, inchange). La synthese est une action separee,
-     * declenchee par un humain.
+     * Il ne declenche RIEN. Il choisit le moteur du PROCHAIN envoi, exactement
+     * comme les interrupteurs IA et Dossiers — aucun appel provider, aucune
+     * interaction, aucune invocation, aucun message, aucun indicateur
+     * d'attente ne doit naitre d'un clic ici.
+     *
+     * EXCLUSIF a dessein : activer les 3 IA eteint IA et Dossiers. Trois
+     * assistants qui repondent EN PLUS d'un moteur documentaire seraient
+     * quatre generations pour un envoi, et personne ne l'a demande.
      */
-    public function askAllAssistants(): void
+    public function toggleMultiAiMode(): void
     {
-        $this->lancerLesAssistants(trim($this->body), null, publierLaQuestion: true);
+        if (! $this->multiAiAvailable()) {
+            return;
+        }
+
+        $this->composerMode = $this->composerMode === self::MODE_MULTI_AI
+            ? 'normal'
+            : self::MODE_MULTI_AI;
+    }
+
+    /** Le mode est-il arme pour le prochain envoi ? */
+    public function multiAiModeActive(): bool
+    {
+        return $this->composerMode === self::MODE_MULTI_AI && $this->multiAiAvailable();
     }
 
     /**
