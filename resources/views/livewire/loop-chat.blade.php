@@ -27,6 +27,64 @@
                 </div>
             @endif
 
+            @php
+                // TASK-1621 — les bulles « Pour / Contre » d'un MEME
+                // declenchement se rendent ENSEMBLE, dans une carte de debat.
+                //
+                // La cle de regroupement est `reply_to_id` : le message humain
+                // qui a declenche le tour. C'est une COLONNE indexee, pas une
+                // metadonnee, et elle est exactement ce que le mandat demande
+                // — « meme declenchement humain ».
+                //
+                // Ce n'est PAS `correlation_id`, malgre ce que laissait
+                // entendre le publisher : depuis que les deux roles tournent
+                // dans deux requetes DIFFEREES, chacun genere sa propre
+                // correlation. Mesure : 2 correlations distinctes pour chaque
+                // paire. Regrouper par elle ne regrouperait rien.
+                //
+                // Aucune migration, aucun identifiant neuf : les deux
+                // `LoopMessage` restent distincts en base, seule leur
+                // PROJECTION change.
+                // Libelles et modeles des roles. Ils etaient calcules APRES
+                // le fil, pour le seul indicateur d'attente ; la carte en a
+                // besoin AVANT. Une seule source, lue deux fois.
+                $debatLabels = collect($this->multiAiAssistants())->pluck('label', 'key')->all();
+                $debatModels = $this->multiAiModelLabels();
+
+                $debats = [];
+
+                foreach ($messages as $candidat) {
+                    if ($candidat->type !== 'ai' || ($candidat->metadata['ai_mode'] ?? null) !== 'multi_ai') {
+                        continue;
+                    }
+
+                    $ancre = $candidat->reply_to_id;
+                    $role = $candidat->metadata['assistant_key'] ?? null;
+
+                    // Une bulle sans ancre ni role ne se regroupe pas : elle
+                    // reste rendue seule, comme avant.
+                    if ($ancre === null || ! is_string($role)) {
+                        continue;
+                    }
+
+                    $debats[(string) $ancre][$role] = $candidat;
+                    $debats[(string) $ancre]['_question'] = (string) ($candidat->metadata['question'] ?? '');
+                }
+
+                // Le tour EN COURS : sa carte doit exister AVANT la premiere
+                // reponse, sinon elle apparaitrait d'un coup au milieu du fil.
+                // Exception : NOT_APPLICABLE n'ouvre aucune carte — la notice
+                // neutre suffit, et une carte vide serait un mensonge.
+                $debatEnCours = ($pourContreQueue !== [] && $multiAiQuestionMessageId !== null
+                        && ! array_key_exists('_hors_sujet', $multiAiStates))
+                    ? (string) $multiAiQuestionMessageId
+                    : null;
+
+                if ($debatEnCours !== null && ! isset($debats[$debatEnCours])) {
+                    $debats[$debatEnCours] = ['_question' => trim($multiAiQuestion)];
+                }
+            @endphp
+
             @forelse($messages as $msg)
                 @php
                     // TASK-1308 : identite tenant-generique d'une bulle IA —
@@ -104,6 +162,23 @@
                         }
                     }
                 @endphp
+                @php
+                    // Une bulle « Pour / Contre » deja regroupee ne se rend
+                    // JAMAIS seule : sa place est dans la carte, posee sous le
+                    // message humain qui l'a declenchee.
+                    $estRegroupee = $msg->type === 'ai'
+                        && ($msg->metadata['ai_mode'] ?? null) === 'multi_ai'
+                        && $msg->reply_to_id !== null
+                        && isset($debats[(string) $msg->reply_to_id]);
+
+                    // Ce message humain a-t-il ouvert un debat ?
+                    $debatDeCeMessage = $debats[(string) $msg->id] ?? null;
+                @endphp
+
+                @if($estRegroupee)
+                    @continue
+                @endif
+
                 <div id="loop-message-{{ $msg->id }}" wire:key="msg-{{ $msg->id }}" class="transition-all duration-300">
                     @if($isDeleted)
                         <x-conversation.message-bubble
@@ -444,6 +519,24 @@
                         </x-conversation.message-bubble>
                     @endif
                 </div>
+
+                @if($debatDeCeMessage !== null)
+                    {{-- TASK-1621 — la carte de debat, ANCREE sous la question
+                         qui l'a ouverte. Elle existe des la soumission et se
+                         remplit zone par zone ; son `wire:key` ne change pas,
+                         donc Livewire la met a jour au lieu de la recreer —
+                         c'est ce qui evite le clignotement et le saut de mise
+                         en page entre POUR et CONTRE. --}}
+                    @include('livewire.partials.loop-chat-pour-contre-card', [
+                        'declencheurId' => (string) $msg->id,
+                        'questionDebat' => (string) ($debatDeCeMessage['_question'] ?? ''),
+                        'messagesDebat' => $debatDeCeMessage,
+                        'queue' => ((string) $msg->id === (string) $multiAiQuestionMessageId) ? $pourContreQueue : [],
+                        'states' => ((string) $msg->id === (string) $multiAiQuestionMessageId) ? $multiAiStates : [],
+                        'labels' => $debatLabels,
+                        'models' => $debatModels,
+                    ])
+                @endif
             @empty
                 <x-slot:empty>
                     <div class="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500 py-12">

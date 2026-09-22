@@ -52,6 +52,13 @@
     // Ne JAMAIS le deduire de la longueur du texte ou d'un point final
     // manquant : une bulle ne doit pas diagnostiquer sa propre troncature.
     'aiTruncated' => false,
+    // TASK-1621 — la largeur du conteneur, surchargeable.
+    //
+    // Par defaut, une bulle plafonne pour ne pas s'etaler sur tout le fil.
+    // Dans la carte de debat « Pour / Contre », elle occupe au contraire une
+    // COLONNE de grille : le plafond la raboterait a l'interieur d'un espace
+    // deja borne. Une prop, pas un refactor.
+    'widthClass' => 'max-w-[90%] sm:max-w-md md:max-w-lg',
     // TASK-1316 : l'humain qui a demande cette reponse IA — ['id' => ..., 'name' => ...],
     // lu depuis `metadata.requested_by`, JAMAIS reconstruit en analysant un texte.
     // `null` sur toute bulle qui n'est pas une reponse IA a une demande nommee.
@@ -269,7 +276,7 @@ $renderableBody = preg_replace_callback(
          sur deux lignes (constate en recette mobile). Ici, le pourcentage se
          resout contre le fil (pleine largeur) : une bulle courte garde sa
          ligne, une longue plafonne a 90% / md / lg. --}}
-    <div class="relative min-w-0 max-w-[90%] sm:max-w-md md:max-w-lg">
+    <div class="relative min-w-0 {{ $widthClass }}">
     <div
         class="{{ $bubbleClasses }} px-3 py-2"
         @if($showReactions && $messageId)

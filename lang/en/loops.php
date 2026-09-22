@@ -1441,6 +1441,8 @@ return [
     // tooltip carried by the button itself.
     'plugins_multi_ai_hint' => 'Two AIs lay out the arguments for and against. They take the recent discussion into account but do not read the Files.',
     'plugins_multi_ai_disable' => 'Disable For / Against',
+    'plugins_multi_ai_queued' => 'Waiting…',
+    'plugins_multi_ai_model_hint' => 'Answer prepared by :model',
     'plugins_multi_ai_not_applicable' => 'For / Against found neither a proposition to debate nor two explicit choices to compare. Try rephrasing, for example: « WordPress or Drupal? » or « Should we choose WordPress? »',
     'plugins_multi_ai_truncated' => 'Answer cut short',
     'plugins_multi_ai_preparing' => 'Preparing the « :assistant » arguments…',

@@ -1466,6 +1466,8 @@ return [
     // confirmer coutait un geste a chaque envoi pour la meme phrase.
     'plugins_multi_ai_hint' => 'Deux IA présentent les arguments pour et contre. Elles tiennent compte de la discussion récente mais ne consultent pas les Dossiers.',
     'plugins_multi_ai_disable' => 'Désactiver Pour / Contre',
+    'plugins_multi_ai_queued' => 'En attente…',
+    'plugins_multi_ai_model_hint' => 'Réponse préparée par :model',
     'plugins_multi_ai_not_applicable' => "Pour / Contre n'a pas identifié de proposition à débattre ni deux choix explicites à comparer. Reformulez par exemple : « WordPress ou Drupal ? » ou « Faut-il choisir WordPress ? »",
     'plugins_multi_ai_truncated' => 'Réponse écourtée',
     'plugins_multi_ai_preparing' => 'Préparation des arguments « :assistant »…',
