@@ -852,9 +852,13 @@ class TASK1621PourContreFlowTest extends TestCase
     {
         app()->instance('current_organization', $this->organization);
 
+        // Un Dossier DE BOUCLE : `loop_id` porte, `owner_id` NUL. La
+        // contrainte PostgreSQL `dossiers_holder_xor` exige l'un OU l'autre
+        // — et SQLite ne la voit pas : les deux poses ensemble etaient VERTS
+        // en local et rouges sur les 3 tests du shard PG (CI du 22/09).
         Dossier::factory()->create([
             'organization_id' => $this->organization->id,
-            'owner_id' => $this->owner->id,
+            'owner_id' => null,
             'loop_id' => $this->loop->id,
             'name' => 'Dossier du banc 1621',
             'visibility' => Dossier::VISIBILITY_ORGANIZATION,
