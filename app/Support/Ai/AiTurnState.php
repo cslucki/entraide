@@ -157,6 +157,23 @@ final class AiTurnState
     public const DEGRADED_PARTIAL_FAILURE = 'partial_failure';
 
     /**
+     * TASK-1621 — le modele a ete coupe en cours de phrase.
+     *
+     * Le tour a REPONDU, et sa reponse est utile : elle est publiee. Mais elle
+     * est incomplete, et le dire est le seul moyen de ne pas mentir sur son
+     * propre etat — une bulle qui s'arrete en plein mot sans rien signaler
+     * laisse croire que le modele avait fini.
+     *
+     * Deux causes possibles, un seul code : le budget de sortie du provider
+     * (`finish_reason: length`) et notre propre plafond de caracteres. Du
+     * point de vue du lecteur, c'est la meme chose — il manque la fin.
+     *
+     * PROJETABLE : le membre la voit (« Reponse ecourtee »), contrairement aux
+     * raisons pre-boundary ci-dessous.
+     */
+    public const DEGRADED_OUTPUT_TRUNCATED = 'output_truncated';
+
+    /**
      * Raisons PRE-BOUNDARY — trace/admin uniquement, JAMAIS projetees.
      *
      * Elles existent ici pour etre TRACEES et DISTINGUEES, pas pour etre

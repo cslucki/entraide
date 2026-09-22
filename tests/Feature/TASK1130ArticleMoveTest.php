@@ -12,6 +12,8 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -99,7 +101,7 @@ class TASK1130ArticleMoveTest extends TestCase
         ]);
     }
 
-    private function deplacer(Dossier $source, BlogPost $post, string $cibleId, ?User $acteur = null): \Illuminate\Testing\TestResponse
+    private function deplacer(Dossier $source, BlogPost $post, string $cibleId, ?User $acteur = null): TestResponse
     {
         return $this->actingAs($acteur ?? $this->auteur)->patchJson(
             route('organization.dossiers.articles.move', [
@@ -209,7 +211,7 @@ class TASK1130ArticleMoveTest extends TestCase
     {
         $this->attacher($this->source, $this->article);
 
-        $this->deplacer($this->source, $this->article, (string) \Illuminate\Support\Str::uuid())
+        $this->deplacer($this->source, $this->article, (string) Str::uuid())
             ->assertStatus(404);
     }
 

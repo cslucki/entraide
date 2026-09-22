@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Ai\NervousSystemCoverage;
 use App\Models\Organization;
 use App\Models\OrganizationAiConstitution;
 use App\Models\OrganizationAiDoctrine;
@@ -158,7 +159,7 @@ class TASK1481NervousSystemMapTest extends TestCase
     /** La couverture vient de l'autorite existante, pas d'un compte parallele. */
     public function test_the_capabilities_node_reads_the_existing_coverage(): void
     {
-        $coverage = app(\App\Ai\NervousSystemCoverage::class);
+        $coverage = app(NervousSystemCoverage::class);
 
         $this->assertSame(
             __('ai.map_status_coverage', ['covered' => $coverage->coveredCount(), 'total' => $coverage->totalCount()]),

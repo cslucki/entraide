@@ -95,7 +95,7 @@ class TASK1615SourceOrderTest extends TestCase
      * departager trois lignes qui portent la meme valeur — c'est structurel,
      * et c'est donc structurellement que ca se verifie.
      */
-    public function test_la_requete_de_source_porte_un_ordre_TOTAL(): void
+    public function test_la_requete_de_source_porte_un_ordre_total(): void
     {
         $sql = $this->sqlDeSourceMessages();
 
@@ -105,7 +105,7 @@ class TASK1615SourceOrderTest extends TestCase
         $ordre = substr($sql, strpos($sql, 'order by'));
 
         $this->assertStringContainsString('"id"', $ordre,
-            "A egalite de seconde, `created_at` seul ne departage rien et PostgreSQL rend un ordre "
+            'A egalite de seconde, `created_at` seul ne departage rien et PostgreSQL rend un ordre '
             ."indefini. L'ordre canonique du depot est (created_at, id) — ClaimResurrectionGuard, "
             .'GuestConversation. La requete doit le porter.');
     }

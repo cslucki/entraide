@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Support\ScenarioPacks\Packs\ArtSciLabEnglishPack;
 use App\Support\ScenarioPacks\ScenarioPackLoader;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -283,9 +284,9 @@ class TASK1399ArtSciLabDemoPersonaIntegrityTest extends TestCase
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, User>
+     * @return Collection<int, User>
      */
-    private function personas(Organization $organization): \Illuminate\Support\Collection
+    private function personas(Organization $organization): Collection
     {
         return User::query()
             ->where('organization_id', $organization->id)

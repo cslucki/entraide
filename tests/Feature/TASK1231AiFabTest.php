@@ -14,12 +14,10 @@ use App\Services\Ai\AiUserCreditSettings;
 use App\Services\LoopService;
 use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiFabContext;
-use App\Support\Loops\LoopCardRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 use Tests\Support\Ai\RecordsAiConsumption;
 use Tests\TestCase;
 
@@ -40,7 +38,6 @@ use Tests\TestCase;
 class TASK1231AiFabTest extends TestCase
 {
     use RecordsAiConsumption;
-
     use RefreshDatabase;
 
     private Organization $organization;

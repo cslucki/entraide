@@ -5,6 +5,7 @@ namespace App\Ai\Context;
 use App\Ai\ContexteIa;
 use App\Models\Loop;
 use App\Models\LoopMessage;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
@@ -39,7 +40,7 @@ class LoopMessagesSource implements ContextSource
     {
         $loop = $this->resolveLoop($contexte);
 
-        $messages = $this->selectMessages($loop);
+        $messages = $this->selectMessages($loop, $contexte->maxMessages, $contexte->beforeMessageId);
 
         $lines = [];
         $provenance = [];
@@ -86,13 +87,33 @@ class LoopMessagesSource implements ContextSource
      * `ChatLoopAiService::buildContext()` puisse encore calculer son
      * `triggerMessageId` sur EXACTEMENT le meme ensemble.
      *
+     * TASK-1621 — deux bornes OPTIONNELLES, portees par `ContexteIa`. Les
+     * deux a `null` rendent la requete d'avant, a la virgule pres : les sept
+     * capabilities qui declarent `loop.messages` (resume, ask, answer,
+     * Decision Memory, Knowledge…) ne les renseignent pas et ne changent
+     * donc pas de comportement.
+     *
+     * @param  int|null  $limit  fenetre demandee par l'appelant, jamais plus
+     *                           large que le plafond global de la source
+     * @param  string|null  $beforeMessageId  borne haute EXCLUSIVE : seuls les
+     *                                        messages strictement anterieurs sont retenus
      * @return Collection<int, LoopMessage>
      */
-    public function selectMessages(Loop $loop): Collection
+    public function selectMessages(Loop $loop, ?int $limit = null, ?string $beforeMessageId = null): Collection
     {
-        return $loop->messages()
+        $plafond = (int) config('ai.chatloop.max_context_messages', 30);
+
+        // Une fenetre demandee ne peut que RETRECIR : un appelant ne gagne pas
+        // d'acces en demandant davantage que ce que la source autorise.
+        $retenus = $limit === null ? $plafond : min($limit, $plafond);
+
+        $query = $loop->messages()
             ->with('sender')
-            ->notDeleted()
+            ->notDeleted();
+
+        $this->applyUpperBound($query, $loop, $beforeMessageId);
+
+        return $query
             ->orderByDesc('created_at')
             // Deux messages peuvent partager le meme `created_at` (meme
             // seconde d'insertion) : sans second critere, l'ordre rendu par
@@ -101,10 +122,56 @@ class LoopMessagesSource implements ContextSource
             // `id` est un UUID v7, donc ordonnable dans le temps : il
             // departage selon l'ordre de creation reel, il n'invente rien.
             ->orderByDesc('id')
-            ->limit((int) config('ai.chatloop.max_context_messages', 30))
+            ->limit($retenus)
             ->get()
             ->reverse()
             ->values();
+    }
+
+    /**
+     * La borne haute, posee selon le MEME ordre total que la lecture.
+     *
+     * `created_at` est un timestamp a la SECONDE : deux messages inseres dans
+     * la meme seconde ne se departagent que par `id` (UUID v7, ordonnable
+     * dans le temps). Comparer `created_at` seul laisserait passer le message
+     * declencheur lui-meme des qu'un autre partage son horodatage — et c'est
+     * exactement ce qu'on cherche a exclure. La comparaison porte donc sur le
+     * COUPLE, comme le tri.
+     *
+     * Le message de borne est resolu DANS la Boucle (elle-meme deja verifiee
+     * comme appartenant a l'Organization du contexte) : un identifiant venu
+     * d'ailleurs ne borne rien plutot que de borner n'importe quoi.
+     *
+     * @param  Builder<LoopMessage>  $query
+     */
+    private function applyUpperBound($query, Loop $loop, ?string $beforeMessageId): void
+    {
+        if ($beforeMessageId === null) {
+            return;
+        }
+
+        $borne = LoopMessage::query()
+            ->where('id', $beforeMessageId)
+            ->where('loop_id', $loop->id)
+            ->first();
+
+        // Une borne introuvable — message d'une autre Boucle, ou supprime
+        // entre la publication et la collecte — n'elargit RIEN : le tour
+        // repart de la fenetre nue. Elle ne doit pas pouvoir devenir une
+        // fuite d'un message exterieur au tenant.
+        if ($borne === null) {
+            return;
+        }
+
+        $query->where(function ($anterieurs) use ($borne): void {
+            $anterieurs
+                ->where('created_at', '<', $borne->created_at)
+                ->orWhere(function ($memeSeconde) use ($borne): void {
+                    $memeSeconde
+                        ->where('created_at', '=', $borne->created_at)
+                        ->where('id', '<', $borne->id);
+                });
+        });
     }
 
     public function authorOf(LoopMessage $message): string

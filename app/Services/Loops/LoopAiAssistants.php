@@ -105,6 +105,23 @@ class LoopAiAssistants
      *
      * @return array<int, array<string, mixed>>
      */
+    /**
+     * Les assistants qu'un ecran doit PROPOSER. (TASK-1621)
+     *
+     * Distinct de `catalogue()`, qui reste COMPLET : `label()`, `exists()` et
+     * la lecture des bulles deja publiees ont besoin de connaitre un role
+     * dormant. Ce qu'on ne veut plus, c'est le proposer au reglage.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function catalogueVivant(): array
+    {
+        return array_filter(
+            $this->catalogue(),
+            static fn (array $definition): bool => ($definition['dormant'] ?? false) !== true,
+        );
+    }
+
     public function describeFor(Loop $loop): array
     {
         $lignes = LoopAiAssistant::query()
@@ -115,7 +132,7 @@ class LoopAiAssistants
 
         $sortie = [];
 
-        foreach ($this->catalogue() as $key => $definition) {
+        foreach ($this->catalogueVivant() as $key => $definition) {
             $ligne = $lignes[$key] ?? null;
             $defaut = $this->defaultInstruction($key);
 

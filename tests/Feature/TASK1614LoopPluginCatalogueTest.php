@@ -235,7 +235,7 @@ class TASK1614LoopPluginCatalogueTest extends TestCase
         $this->assertDatabaseCount('organization_loop_plugins', 0);
     }
 
-    public function test_activer_dans_A_ne_rend_rien_disponible_dans_B(): void
+    public function test_activer_dans_a_ne_rend_rien_disponible_dans_b(): void
     {
         $service = app(LoopPluginAvailabilityService::class);
 
@@ -255,7 +255,7 @@ class TASK1614LoopPluginCatalogueTest extends TestCase
         ]);
     }
 
-    public function test_activer_dans_B_ne_rend_rien_disponible_dans_A(): void
+    public function test_activer_dans_b_ne_rend_rien_disponible_dans_a(): void
     {
         $service = app(LoopPluginAvailabilityService::class);
 
@@ -265,7 +265,7 @@ class TASK1614LoopPluginCatalogueTest extends TestCase
         $this->assertFalse($service->isAvailable(self::PLUGIN, $this->organisationA));
     }
 
-    public function test_eteindre_dans_A_n_eteint_pas_B(): void
+    public function test_eteindre_dans_a_n_eteint_pas_b(): void
     {
         $service = app(LoopPluginAvailabilityService::class);
 

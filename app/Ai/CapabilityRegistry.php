@@ -117,24 +117,27 @@ final class CapabilityRegistry
     public const LOOP_ASK = 'loop_ask';
 
     /**
-     * TASK-1617 (SLICE C) : les generations du plugin « 3 assistants IA ».
+     * TASK-1617 (SLICE C), repris par TASK-1621 : les generations du module
+     * « Pour / Contre » (ex-« 3 assistants IA »).
      *
-     * UNE capability pour les trois assistants, et non trois. Ce qui les
-     * distingue — la posture, le modele — ne change ni le contrat de reponse,
-     * ni les sources autorisees, ni la regle economique : Aperio, Traverse et
-     * Limen repondent a la MEME question avec le meme perimetre, et c'est
-     * precisement la promesse produit. Le critere de separation applique
-     * ailleurs dans ce registre (voir LOOP_HYBRID_ANSWER : « ce qui change est
-     * le CONTRAT de reponse, et il est incompatible ») ne s'applique donc pas
-     * ici.
+     * UNE capability pour les deux roles, et non deux. Ce qui les distingue —
+     * le role, le modele — ne change ni le contrat de reponse, ni les sources
+     * autorisees, ni la regle economique : POUR et CONTRE repondent a la MEME
+     * question avec le meme perimetre, et c'est precisement la promesse
+     * produit. Le critere de separation applique ailleurs dans ce registre
+     * (voir LOOP_HYBRID_ANSWER : « ce qui change est le CONTRAT de reponse, et
+     * il est incompatible ») ne s'applique donc pas ici.
      *
      * La sous-identite se lit dans la `feature` de la trace
-     * (`assistant = aperio|traverse|limen`), jamais dans l'identite de la
+     * (`assistant = aperio|traverse`), jamais dans l'identite de la
      * capability.
      *
-     * L'Evidence Build partage restera une operation DISTINCTE (SLICE D), qui
-     * reutilisera `loop_knowledge_answer` : c'est un retrieval, pas une
-     * generation de persona.
+     * TASK-1621 corrige ici une annonce devenue FAUSSE : il n'y a pas, et il
+     * n'y aura pas, d'Evidence documentaire partagee via
+     * `loop_knowledge_answer`. Le module repond depuis les connaissances
+     * generales du modele ; la conversation recente lui parvient en CONTEXTE
+     * par `loop.messages`, ce qui n'est ni un retrieval, ni une consultation
+     * de Dossiers — laquelle reste la fonctionnalite documentaire separee.
      */
     public const LOOP_MULTI_AI = 'loop_multi_ai';
 
@@ -353,12 +356,11 @@ final class CapabilityRegistry
             contextCharBudget: self::loopSummaryContextBudget(),
         );
 
-        // TASK-1617 : les trois assistants. `canWrite = false` — une reponse
-        // d'assistant est PROPOSEE dans le fil, jamais publiee ailleurs sans
-        // geste humain (CDC §10 : « aucune reponse n'est publiee ailleurs sans
-        // action humaine »). Sources : les messages de la Boucle, comme
-        // `loop_ask` ; l'Evidence documentaire partage viendra en SLICE D par
-        // `loop_knowledge_answer`, capability distincte.
+        // TASK-1617, revu par TASK-1621 : les deux roles « Pour / Contre ».
+        // `canWrite = false` — une reponse d'assistant est PROPOSEE dans le
+        // fil, jamais publiee ailleurs sans geste humain (CDC §10). Sources :
+        // les messages de la Boucle, et EUX SEULS — c'est cette ligne, et non
+        // une consigne de prompt, qui ferme l'acces aux Dossiers.
         $loopMultiAi = new CapabilityDefinition(
             id: self::LOOP_MULTI_AI,
             process: AiProcess::LOOP_MULTI_AI,
@@ -367,11 +369,16 @@ final class CapabilityRegistry
             allowedScopes: [self::SCOPE_ORGANIZATION, self::SCOPE_LOOP],
             allowedSources: [self::SOURCE_LOOP_MESSAGES],
             maxOutput: 8000,
-            // Le prompt par assistant sera compose en SLICE D a partir de la
-            // posture Loop-scoped (TASK-1616). Cette cle porte le socle commun
-            // et n'est branchee sur aucun PromptRepository dans cette TASK.
+            // Le socle commun, administrable. La posture Loop-scoped
+            // (TASK-1616) s'y AJOUTE en dernier rang, elle ne le remplace pas.
             promptKey: 'loop_multi_ai',
-            contextCharBudget: self::loopSummaryContextBudget(),
+            // Budget de contexte DEDIE, et volontairement plus etroit que
+            // celui des capabilities documentaires : ici la conversation n'est
+            // qu'un cadrage. La fenetre est deja bornee en nombre de messages
+            // (`ai.multi_ai.context_messages`) ; ce budget est la seconde
+            // borne, en caracteres, pour qu'un seul message tres long ne
+            // remplisse pas le prompt a lui tout seul.
+            contextCharBudget: self::multiAiContextBudget(),
         );
 
         // TASK-1284 : la generation ecrit l'article en brouillon dans le flux
@@ -549,6 +556,23 @@ final class CapabilityRegistry
      * defaut de `config/ai.php` elle-meme : les deux ne peuvent pas diverger
      * en silence, puisque c'est le meme nombre ecrit au meme endroit logique.
      */
+    /**
+     * Le budget de contexte de « Pour / Contre ». (TASK-1621)
+     *
+     * Plus etroit que celui des capabilities documentaires, et lu a l'APPEL :
+     * une valeur figee au boot serait gelee par `config:cache`.
+     */
+    private static function multiAiContextBudget(): int
+    {
+        $default = 4000;
+
+        if (! function_exists('app') || ! app()->bound('config')) {
+            return $default;
+        }
+
+        return (int) config('ai.multi_ai.max_context_chars', $default);
+    }
+
     private static function loopSummaryContextBudget(): int
     {
         $default = 12000;

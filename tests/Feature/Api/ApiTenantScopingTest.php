@@ -6,6 +6,7 @@ use App\Models\Organization;
 use App\Models\Service;
 use App\Models\Transaction;
 use App\Models\User;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
 class ApiTenantScopingTest extends TestCase
@@ -102,7 +103,7 @@ class ApiTenantScopingTest extends TestCase
     // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
     // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
     // n'est pas un endroit ou ranger un test qui gene.
-    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
+    #[Group('ci-known-red')]
     public function test_authenticated_user_organization_wins_over_default_organization(): void
     {
         $this->organizationA->update(['is_default' => true]);

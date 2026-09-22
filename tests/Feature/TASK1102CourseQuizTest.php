@@ -12,6 +12,7 @@ use App\Models\LoopCard;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Loops\CourseMaterialService;
+use App\Services\Loops\CourseProgressService;
 use App\Services\Loops\CourseQuizService;
 use App\Services\LoopService;
 use App\Support\Loops\LoopCardRegistry;
@@ -262,7 +263,7 @@ class TASK1102CourseQuizTest extends TestCase
         $a = $materiel->addSequence($module, $this->formateur, 'S1');
         $b = $materiel->addSequence($module, $this->formateur, 'S2');
 
-        app(\App\Services\Loops\CourseProgressService::class)->unlock($this->formateur, $this->stagiaire, $b);
+        app(CourseProgressService::class)->unlock($this->formateur, $this->stagiaire, $b);
 
         $ligne = CourseSequenceProgress::where('course_sequence_id', $b->id)->firstOrFail();
 
@@ -520,7 +521,6 @@ class TASK1102CourseQuizTest extends TestCase
             ->assertSee(e(__('loops.cards.quiz.no_access')), false);
     }
 
-
     // ── Ce que la revue hostile a trouve ────────────────────────────────────
 
     public function test_the_blocking_switch_actually_blocks(): void
@@ -750,7 +750,6 @@ class TASK1102CourseQuizTest extends TestCase
     }
 
     // ── Cloisonnement ───────────────────────────────────────────────────────
-
 
     public function test_a_quiz_of_another_loop_is_never_reachable(): void
     {

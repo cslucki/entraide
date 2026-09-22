@@ -8,6 +8,7 @@ use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -277,7 +278,7 @@ class OpenSourceExplorerTest extends TestCase
     }
 
     /* ================================================================== */
-    /* Regle de presentation : ni owner, ni URL brute                      */
+    /* Regle de presentation : ni owner, ni URL brute */
     /* ================================================================== */
 
     public function test_the_endpoint_never_leaks_the_repository_owner(): void
@@ -378,7 +379,7 @@ class OpenSourceExplorerTest extends TestCase
         ];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('autonomousLandings')]
+    #[DataProvider('autonomousLandings')]
     public function test_an_autonomous_landing_never_exposes_the_repository_url(string $template, string $path): void
     {
         Organization::factory()->create([
@@ -463,7 +464,7 @@ class OpenSourceExplorerTest extends TestCase
     }
 
     /* ================================================================== */
-    /* La sortie                                                           */
+    /* La sortie */
     /* ================================================================== */
 
     public function test_the_exit_redirects_to_the_public_repository(): void

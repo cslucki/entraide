@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Organization;
 use App\Models\UsageReference;
 use App\Models\User;
+use App\Services\UsageReference\UsageReferenceResolver;
 use App\Services\UsageReference\UsageReferenceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -169,7 +170,7 @@ class TASK1480AdminUsageReferenceUsableTest extends TestCase
 
         $this->assertSame($before, UsageReference::query()->count(), 'ouvrir un formulaire ne cree pas de version');
         $this->assertTrue($published->fresh()->isPublished());
-        $this->assertSame('Toujours en ligne.', app(\App\Services\UsageReference\UsageReferenceResolver::class)->resolve('agenda', 'fr')?->content);
+        $this->assertSame('Toujours en ligne.', app(UsageReferenceResolver::class)->resolve('agenda', 'fr')?->content);
     }
 
     /** Un `from` inconnu n'explose pas : le formulaire s'ouvre vide. */
@@ -268,7 +269,7 @@ class TASK1480AdminUsageReferenceUsableTest extends TestCase
         $this->index();
 
         $this->assertTrue($draft->fresh()->isDraft());
-        $this->assertNull(app(\App\Services\UsageReference\UsageReferenceResolver::class)->resolve('agenda', 'fr'));
+        $this->assertNull(app(UsageReferenceResolver::class)->resolve('agenda', 'fr'));
 
         // Il faut un POST, avec CSRF, sur une action nommee.
         $this->actingAs($this->superAdmin)->post(route('admin.usage-references.publish', $draft))->assertRedirect();

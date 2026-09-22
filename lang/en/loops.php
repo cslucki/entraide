@@ -1408,14 +1408,16 @@ return [
 
     'plugins' => [
         'multi_ai_assistants' => [
-            'label' => '3 AI assistants',
-            'description' => 'Ask a question once, then pick several viewpoints — Aperio, Traverse and Limen — to better understand, challenge and synthesise.',
+            // TASK-1621: the module is called « For / Against » everywhere a
+            // human reads it. Technical keys stay put.
+            'label' => 'For / Against',
+            'description' => 'Ask a question once and get the case for and the case against: two independent assistants each defend one side, and nobody decides for you.',
 
             // TASK-1616 — default postures of the three assistants (spec §4).
             'assistants' => [
-                'aperio' => 'Explore the strongest arguments in favour of a direction, clarify and structure them, while staying faithful to the available facts and sources.',
-                'traverse' => 'Look for objections, limits, contradictions and alternatives, without inventing unsupported arguments.',
-                'limen' => 'Compare the positions, separate agreement from disagreement, and propose possible compromises or options without deciding for the group.',
+                'aperio' => 'You DEFEND the side the base prompt assigns you: the proposition the question puts forward, or the first option it names. Give AT MOST 3 arguments IN ITS FAVOUR, one sentence each. You may show where the other side is weaker, but your answer defends yours — it never merely attacks. You never pick your side and you never switch. If the base prompt says the question does not lend itself to a for / against, follow it and do not argue. Invent no facts, and do not manufacture artificial balance against an established fact.',
+                'traverse' => 'You DEFEND the side the base prompt assigns you: the opposite of the proposition the question puts forward, or the second option it names. Give AT MOST 3 arguments IN ITS FAVOUR, one sentence each. You may show where the other side is weaker, but your answer defends yours — it never merely attacks, and it NEVER attacks your own side. You never pick your side and you never switch. If the base prompt says the question does not lend itself to a for / against, follow it and do not argue. Invent no facts, and do not manufacture artificial balance against an established fact.',
+                'limen' => 'Compare the positions, separate agreements from disagreements and offer possible compromises or options without deciding for the group.',
             ],
         ],
     ],
@@ -1433,15 +1435,22 @@ return [
     'plugins_loop_saved' => 'The assistants of :plugin have been saved.',
     'plugins_loop_unavailable' => 'This plugin is not allowed for this Organization.',
     'plugins_loop_not_enabled' => 'The 3 AI assistants are not enabled in this Loop.',
+    'plugins_multi_ai_ask_all' => 'For / Against',
+
+    // TASK-1621: the modal is gone. What it explained fits in a non-blocking
+    // tooltip carried by the button itself.
+    'plugins_multi_ai_hint' => 'Two AIs lay out the arguments for and against. They take the recent discussion into account but do not read the Files.',
+    'plugins_multi_ai_disable' => 'Disable For / Against',
+    'plugins_multi_ai_queued' => 'Waiting…',
+    'plugins_multi_ai_model_hint' => 'Answer prepared by :model',
+    'plugins_multi_ai_not_applicable' => 'For / Against found neither a proposition to debate nor two explicit choices to compare. Try rephrasing, for example: « WordPress or Drupal? » or « Should we choose WordPress? »',
+    'plugins_multi_ai_truncated' => 'Answer cut short',
+    'plugins_multi_ai_preparing' => 'Preparing the « :assistant » arguments…',
+    'plugins_multi_ai_discover' => 'Configure For / Against',
 
     // TASK-1619 / SLICE E — what the member reads. No technical code appears
     // here: `PROVIDER_CALL_FAILED`, `429` and `upstream_provider_shared_pool`
     // stay in the SuperAdmin traces. MASTER arbitration, 21/09.
-    'plugins_multi_ai_ask_one' => 'Ask :assistant',
-    'plugins_multi_ai_ask_all' => 'Ask all 3',
-    'plugins_multi_ai_pending' => ':assistant is thinking…',
-    'plugins_multi_ai_working' => 'The 3 assistants are analysing your request…',
-    'plugins_multi_ai_armed' => '3 AI enabled for this message',
     'plugins_multi_ai_rate_limited_title' => ':assistant is momentarily unavailable.',
     'plugins_multi_ai_rate_limited_body' => 'The free model used by :assistant cannot answer right now.',
     'plugins_multi_ai_failed_title' => ':assistant could not answer.',
@@ -1450,15 +1459,12 @@ return [
     'plugins_multi_ai_refused_body' => 'No model is configured for :assistant. An administrator can pick one.',
     'plugins_multi_ai_retry' => 'Retry',
     'plugins_multi_ai_dismiss' => 'Dismiss',
-    'plugins_multi_ai_synthesise' => 'Synthesise with :assistant',
-    'plugins_multi_ai_nothing_to_synthesise' => 'There is no answer to synthesise.',
     'plugins_multi_ai_synthesis_question' => 'Compare the answers given to: :question',
-    'plugins_multi_ai_discover' => 'Configure the 3 AI assistants',
     'plugins_multi_ai_none_enabled' => 'No assistant is active in this Loop.',
     'plugins_loop_last_change' => 'Changed on :date by :author',
     'plugins_loop_last_change_anonymous' => 'Changed on :date',
-    'plugins_assistants_title' => 'The three assistants',
-    'plugins_assistants_intro' => "Each assistant has a posture. You may rewrite it for this Loop; you cannot rename them or add any. A local instruction never bypasses the Constitution or the Organization's doctrine: it adds to them.",
+    'plugins_assistants_title' => 'The two assistants',
+    'plugins_assistants_intro' => 'Each assistant defends one side, and never picks it itself: the question decides. You can rewrite its posture for this Loop; you cannot rename them or add any. A local instruction never bypasses the Constitution or the Organization doctrine: it adds to them.',
     'plugins_assistants_instruction' => 'Posture',
     'plugins_assistants_enabled' => 'Active',
     'plugins_assistants_reset_hint' => 'Clearing the field restores the default posture.',
@@ -1472,7 +1478,7 @@ return [
     'plugins_models_catalog_never' => 'Catalogue never fetched.',
     'plugins_models_catalog_failed' => 'OpenRouter catalogue unavailable (:reason). No model is offered until a fetch succeeds.',
     'plugins_models_refresh' => 'Refresh OpenRouter models',
-    'plugins_models_refreshed' => 'OpenRouter catalogue refreshed: :count verified free models.',
+    'plugins_models_refreshed' => 'OpenRouter catalogue refreshed: :count free models verified, :renewed proof(s) renewed.',
     'plugins_models_refresh_failed' => 'The OpenRouter fetch failed (:reason). Nothing was changed.',
     'plugins_models_none' => 'No model',
     'plugins_models_choose' => '— choose a model —',

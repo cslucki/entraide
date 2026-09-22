@@ -3,10 +3,8 @@
 namespace Tests\Feature;
 
 use App\Jobs\GenerateAiAgentResponse;
-use App\Jobs\IndexDossierArticleChunks;
-use App\Jobs\IndexDossierFileChunks;
-use App\Jobs\SendNotificationEmail;
 use App\Models\Loop;
+use App\Models\LoopMessage;
 use App\Models\MemberAiProfile;
 use App\Models\Organization;
 use App\Models\User;
@@ -204,7 +202,7 @@ class TASK1410AiAgentQueueRoutingTest extends TestCase
      * Une Boucle agent ET un message de visiteur dedans. Le `Queue::fake()`
      * est pose AVANT l'envoi : on veut le message en base, pas le job execute.
      *
-     * @return array{0: Loop, 1: \App\Models\LoopMessage}
+     * @return array{0: Loop, 1: LoopMessage}
      */
     private function aiAgentLoopWithMessage(): array
     {
@@ -213,7 +211,7 @@ class TASK1410AiAgentQueueRoutingTest extends TestCase
         $message = app(LoopMessageService::class)
             ->sendUserMessage($loop, $this->visitor, 'Message de fixture TASK-1410.');
 
-        return [$loop, $message instanceof \App\Models\LoopMessage
+        return [$loop, $message instanceof LoopMessage
             ? $message
             : $loop->messages()->latest('id')->firstOrFail()];
     }

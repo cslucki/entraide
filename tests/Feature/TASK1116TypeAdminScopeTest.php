@@ -2,15 +2,16 @@
 
 namespace Tests\Feature;
 
-use App\Models\Loop;
 use App\Models\LoopCard;
 use App\Models\LoopTypeSetting;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Loops\LoopPresetSyncService;
 use App\Services\LoopService;
 use App\Services\LoopTypeSettingsService;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -275,7 +276,7 @@ class TASK1116TypeAdminScopeTest extends TestCase
 
         LoopCard::where('loop_id', $chezB->id)->delete();
 
-        $impact = app(\App\Services\Loops\LoopPresetSyncService::class)
+        $impact = app(LoopPresetSyncService::class)
             ->previewForCards('training', $this->socle('training'), $this->orgA);
 
         $this->assertSame(1, $impact['loops'], 'l’impact a ete compte hors de la portee reglee');
@@ -333,7 +334,7 @@ class TASK1116TypeAdminScopeTest extends TestCase
 
             $surOrganizations = 0;
 
-            \Illuminate\Support\Facades\DB::listen(function ($q) use (&$surOrganizations) {
+            DB::listen(function ($q) use (&$surOrganizations) {
                 if (str_contains($q->sql, 'from "organizations"') || str_contains($q->sql, 'from `organizations`')) {
                     $surOrganizations++;
                 }

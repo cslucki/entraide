@@ -8,6 +8,7 @@ use App\Events\LoopMessageCreated;
 use App\Models\Loop;
 use App\Models\LoopMessage;
 use App\Models\User;
+use App\Support\Ai\AiTurnReason;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -59,7 +60,11 @@ final class LoopMultiAiPublisher
         MultiAssistantRun $run,
         ?LoopMessage $questionMessage = null,
     ): array {
-        $reussites = $run->succeeded();
+        // TASK-1621 — ce qui se PUBLIE, pas ce qui a reussi. Une reponse
+        // ecourtee porte du texte utile : la jeter reviendrait a perdre un
+        // appel deja paye, et a montrer un echec la ou il y avait de la
+        // matiere. Elle entre dans le fil, marquee.
+        $reussites = $run->publishable();
 
         // Aucune reponse : rien n'entre dans le fil, pas meme la question.
         // Publier une question que personne n'a pu honorer laisserait une
@@ -138,6 +143,10 @@ final class LoopMultiAiPublisher
                 // ne change pas pour autant, et le blade la lit deja ainsi.
                 ...($outcome->followUps === [] ? [] : ['follow_up_questions' => $outcome->followUps]),
                 'model' => $outcome->model,
+                // TASK-1621 — la bulle DIT qu'elle est coupee. Cle ABSENTE
+                // quand la reponse est entiere : une cle presente et fausse se
+                // lirait comme une mesure.
+                ...($outcome->isTruncated() ? ['partial' => AiTurnReason::DEGRADED_OUTPUT_TRUNCATED] : []),
                 'turn_id' => $outcome->turnId,
                 // La correlation du tour : c'est par elle que les bulles d'un
                 // meme « Demander aux 3 » se reconnaissent entre elles, et donc

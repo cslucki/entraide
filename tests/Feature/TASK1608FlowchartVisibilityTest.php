@@ -220,7 +220,7 @@ class TASK1608FlowchartVisibilityTest extends TestCase
         $response = $this->get($this->url());
         $response->assertOk();
 
-        $this->assertAbsente($response, $loop, "`access_mode = open` ne rattrape pas `visibility = private`.");
+        $this->assertAbsente($response, $loop, '`access_mode = open` ne rattrape pas `visibility = private`.');
     }
 
     /** 5. `private` + `request` : ABSENTE. */
@@ -284,7 +284,7 @@ class TASK1608FlowchartVisibilityTest extends TestCase
         $response = $this->actingAs($this->membre)->get($this->url());
         $response->assertOk();
 
-        $this->assertPresente($response, $loop, "Une Boucle dont on est membre fait partie de son espace.");
+        $this->assertPresente($response, $loop, 'Une Boucle dont on est membre fait partie de son espace.');
     }
 
     /**

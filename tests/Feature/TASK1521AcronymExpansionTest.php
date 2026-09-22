@@ -14,10 +14,10 @@ use App\Support\Ai\AiShellPageContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
-use Mockery\MockInterface;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\TextResponse;
+use Mockery\MockInterface;
 use Tests\TestCase;
 
 /**
@@ -114,7 +114,7 @@ class TASK1521AcronymExpansionTest extends TestCase
             'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'chunk_index' => 3,
             'content' => "Le ZQX est pilote par l'equipe produit. Le ZQX couvre "
-                ."trois etapes et sert de reference pour la planification.",
+                .'trois etapes et sert de reference pour la planification.',
             'distance' => 0.18,
         ];
 

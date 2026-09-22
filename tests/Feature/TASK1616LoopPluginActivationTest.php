@@ -118,7 +118,7 @@ class TASK1616LoopPluginActivationTest extends TestCase
         $this->assertTrue(app(LoopPluginActivation::class)->isAvailableFor(self::PLUGIN, $this->loop));
     }
 
-    public function test_le_plugin_n_est_PAS_disponible_dans_une_organization_non_autorisee(): void
+    public function test_le_plugin_n_est_pa_s_disponible_dans_une_organization_non_autorisee(): void
     {
         $this->assertFalse(app(LoopPluginActivation::class)->isAvailableFor(self::PLUGIN, $this->loopAilleurs));
     }
@@ -251,7 +251,7 @@ class TASK1616LoopPluginActivationTest extends TestCase
 
         foreach (['owner', 'facilitator', 'member'] as $role) {
             $this->assertNotContains('loops.manage_cards', $defauts[$role],
-                "TASK-1083 : `loops.manage_cards` ne doit revenir dans AUCUN socle de role.");
+                'TASK-1083 : `loops.manage_cards` ne doit revenir dans AUCUN socle de role.');
         }
 
         $this->assertContains('loop_plugins.configure', $defauts['owner']);
@@ -302,22 +302,34 @@ class TASK1616LoopPluginActivationTest extends TestCase
 
     // ── 4. LES TROIS ASSISTANTS ─────────────────────────────────────────────
 
-    public function test_les_trois_assistants_sont_au_catalogue_dans_l_ordre_canonique(): void
+    public function test_le_catalogue_garde_limen_mais_les_ecrans_ne_proposent_que_deux_roles(): void
     {
-        $this->assertSame(['aperio', 'traverse', 'limen'], app(LoopAiAssistants::class)->keys());
+        // TASK-1621 — `limen` est DORMANT, pas supprime. La distinction porte
+        // tout : ses lignes existent en base, des bulles deja publiees portent
+        // sa cle, et `label()` doit encore savoir la rendre. Ce qu'on retire,
+        // c'est sa presence sur les ECRANS de reglage.
+        $service = app(LoopAiAssistants::class);
+
+        $this->assertSame(['aperio', 'traverse', 'limen'], $service->keys(),
+            'le catalogue reste complet : les donnees anciennes doivent rester lisibles');
+        $this->assertTrue($service->exists('limen'));
+        $this->assertSame('Limen', $service->label('limen'));
+
+        $this->assertSame(['aperio', 'traverse'], array_keys($service->catalogueVivant()),
+            'les ecrans ne proposent que les roles reellement lances');
     }
 
     public function test_sans_reglage_une_boucle_herite_des_postures_par_defaut(): void
     {
         $assistants = app(LoopAiAssistants::class)->describeFor($this->loop);
 
-        $this->assertCount(3, $assistants);
+        $this->assertCount(2, $assistants, 'TASK-1621 : deux roles proposes, limen est dormant');
         $this->assertDatabaseCount('loop_ai_assistants', 0);
 
         foreach ($assistants as $assistant) {
             $this->assertNull($assistant['own_instruction'], 'aucun ecart ne doit exister par defaut');
             $this->assertNotSame('', $assistant['instruction'], 'la posture en vigueur vient du catalogue');
-            $this->assertTrue($assistant['enabled'], 'les trois repondent tant que personne ne les eteint');
+            $this->assertTrue($assistant['enabled'], 'les deux repondent tant que personne ne les eteint');
         }
     }
 
@@ -338,10 +350,14 @@ class TASK1616LoopPluginActivationTest extends TestCase
         $this->assertSame('Chercher ce qui tient debout dans cette piste.', $assistants['aperio']['instruction']);
         $this->assertTrue($assistants['aperio']['customised']);
 
-        // Les deux autres suivent toujours le catalogue : aucun ecart n'a ete
-        // ecrit pour eux.
+        // L'autre role suit toujours le catalogue : aucun ecart n'a ete ecrit
+        // pour lui. `limen` ne figure plus a l'ecran (dormant), mais la ligne
+        // envoyee pour lui reste ACCEPTEE : un formulaire ancien, ou un
+        // reglage ecrit avant le pivot, ne doit pas faire echouer la
+        // sauvegarde des roles vivants.
         $this->assertNull($assistants['traverse']['own_instruction']);
-        $this->assertNull($assistants['limen']['own_instruction']);
+        $this->assertArrayNotHasKey('limen', $assistants->all(),
+            'un role dormant ne se propose plus au reglage');
         $this->assertDatabaseCount('loop_ai_assistants', 1);
     }
 
@@ -401,7 +417,7 @@ class TASK1616LoopPluginActivationTest extends TestCase
         ], $this->owner);
 
         $this->assertDatabaseCount('loop_ai_assistants', 0);
-        $this->assertCount(3, app(LoopAiAssistants::class)->describeFor($this->loop));
+        $this->assertCount(2, app(LoopAiAssistants::class)->describeFor($this->loop));
     }
 
     /**
@@ -409,7 +425,7 @@ class TASK1616LoopPluginActivationTest extends TestCase
      * reglage. Ni l'extinction dans la Boucle, ni le retrait de la
      * disponibilite Organization.
      */
-    public function test_les_postures_survivent_a_l_extinction_de_la_boucle_ET_de_l_organization(): void
+    public function test_les_postures_survivent_a_l_extinction_de_la_boucle_e_t_de_l_organization(): void
     {
         $service = app(LoopAiAssistants::class);
         $activation = app(LoopPluginActivation::class);
@@ -472,15 +488,20 @@ class TASK1616LoopPluginActivationTest extends TestCase
     }
 
     /** L'ecran de configuration rend les trois assistants, et seulement eux. */
-    public function test_l_ecran_de_configuration_rend_les_trois_assistants(): void
+    public function test_l_ecran_de_configuration_ne_rend_que_les_roles_vivants(): void
     {
+        // TASK-1621 — l'ecran affichait encore « Limen » et « Les trois
+        // assistants » alors que le moteur ne lance plus que deux roles : un
+        // membre pouvait regler une posture qui ne servait jamais.
         $this->actingAs($this->owner)
             ->get($this->urlOrg('organization.loops.plugins.configure'))
             ->assertOk()
             ->assertSee('data-assistant="aperio"', false)
             ->assertSee('data-assistant="traverse"', false)
-            ->assertSee('data-assistant="limen"', false)
-            ->assertDontSee('data-assistant="oracle"', false);
+            ->assertDontSee('data-assistant="limen"', false)
+            ->assertDontSee('data-assistant="oracle"', false)
+            ->assertSee(__('loops.plugins_assistants_title'))
+            ->assertDontSee('Les trois assistants');
     }
 
     public function test_un_plugin_inconnu_rend_404(): void
@@ -517,7 +538,6 @@ class TASK1616LoopPluginActivationTest extends TestCase
         ]);
     }
 
-    /** @return string */
     private function urlOrg(string $name): string
     {
         return route($name, [

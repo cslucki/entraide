@@ -13,6 +13,8 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\Dossiers\PersonalDocumentsRoot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -93,7 +95,7 @@ class TASK1136SharedSubfolderScopeTest extends TestCase
     }
 
     /** Le geste reel : Admin partage un sous-dossier avec quelqu'un. */
-    private function partagerAvecLInvite(?Dossier $cible = null): \Illuminate\Testing\TestResponse
+    private function partagerAvecLInvite(?Dossier $cible = null): TestResponse
     {
         return $this->actingAs($this->proprietaire)->postJson(
             route('organization.dossiers.members.store', [
@@ -123,7 +125,7 @@ class TASK1136SharedSubfolderScopeTest extends TestCase
             'dossier_id' => $dossier->id,
             'uploaded_by' => $this->proprietaire->id,
             'disk' => 'dossier_files',
-            'path' => 'dossier-files/'.$dossier->id.'/'.\Illuminate\Support\Str::random(12).'.txt',
+            'path' => 'dossier-files/'.$dossier->id.'/'.Str::random(12).'.txt',
             'original_name' => $nom,
             'display_name' => $nom,
             'mime_type' => 'text/plain',

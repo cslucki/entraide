@@ -14,8 +14,8 @@ use App\Services\Loops\LoopInvitationMailer;
 use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
-use Symfony\Component\Mime\Email;
 use Livewire\Livewire;
+use Symfony\Component\Mime\Email;
 use Tests\TestCase;
 
 /**

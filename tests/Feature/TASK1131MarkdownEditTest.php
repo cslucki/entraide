@@ -9,6 +9,8 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -60,7 +62,7 @@ class TASK1131MarkdownEditTest extends TestCase
     private function note(string $nom = 'reunion.md', string $contenu = "# Reunion\n\nOrdre du jour.", ?Dossier $dossier = null): DossierFile
     {
         $dossier ??= $this->dossier;
-        $chemin = 'dossier-files/'.$dossier->id.'/'.\Illuminate\Support\Str::random(20).'.md';
+        $chemin = 'dossier-files/'.$dossier->id.'/'.Str::random(20).'.md';
         Storage::disk('dossier_files')->put($chemin, $contenu);
 
         return DossierFile::create([
@@ -78,7 +80,7 @@ class TASK1131MarkdownEditTest extends TestCase
         ]);
     }
 
-    private function lire(DossierFile $file, ?User $acteur = null): \Illuminate\Testing\TestResponse
+    private function lire(DossierFile $file, ?User $acteur = null): TestResponse
     {
         return $this->actingAs($acteur ?? $this->proprietaire)->getJson(
             route('organization.dossiers.files.markdown', [
@@ -89,7 +91,7 @@ class TASK1131MarkdownEditTest extends TestCase
         );
     }
 
-    private function ecrire(DossierFile $file, string $contenu, ?User $acteur = null, ?Dossier $via = null): \Illuminate\Testing\TestResponse
+    private function ecrire(DossierFile $file, string $contenu, ?User $acteur = null, ?Dossier $via = null): TestResponse
     {
         return $this->actingAs($acteur ?? $this->proprietaire)->patchJson(
             route('organization.dossiers.files.markdown.update', [

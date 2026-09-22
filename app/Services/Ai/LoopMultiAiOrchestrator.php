@@ -6,6 +6,7 @@ use App\Ai\Agents\LoopMultiAiAgent;
 use App\Ai\CapabilityDefinition;
 use App\Ai\CapabilityRegistry;
 use App\Ai\Context\ContextBuilder;
+use App\Ai\Context\ContexteBorne;
 use App\Ai\ContexteIa;
 use App\Ai\MultiAssistant\AssistantInstructions;
 use App\Ai\MultiAssistant\AssistantOutcome;
@@ -34,54 +35,52 @@ use App\Support\Ai\AiUsage;
 use DomainException;
 use Illuminate\Support\Str;
 use Laravel\Ai\Exceptions\RateLimitedException;
+use Laravel\Ai\Responses\Data\FinishReason;
 use RuntimeException;
 
 /**
- * L'orchestration SEQUENTIELLE des trois assistants. (TASK-1618 / SLICE D)
+ * Le moteur du module « Pour / Contre ». (TASK-1621, ex-TASK-1618)
  *
- * Un tour = UN build de preuves, puis TROIS generations qui le partagent, dans
- * l'ordre fixe Aperio -> Traverse -> Limen. Aucune UX ici : ce service rend
- * une structure, SLICE E decidera comment elle s'affiche.
- *
- * ────────────────────────────────────────────────────────────────────────────
- * Les trois invariants que ce fichier doit tenir, et ou ils se lisent
- * ────────────────────────────────────────────────────────────────────────────
- *
- * 1. L'EMPREINTE NE REMPLACE AUCUN CONTROLE. `SharedEvidence::fingerprintFor()`
- *    repond a une seule question — « ces preuves-la peuvent-elles servir a
- *    cette demande-la ? ». Elle n'autorise rien. Les autorisations reelles
- *    sont, dans l'ordre : `assertCanRequest()` (appartenance active + meme
- *    Organization), `LoopPluginActivation::isEnabled()` (qui reconfronte la
- *    disponibilite de l'Organization DE LA BOUCLE a chaque lecture, garde
- *    TASK-1616), et enfin `LoopMessagesSource` qui refuse elle-meme une Boucle
- *    d'un autre tenant. Une empreinte identique sur deux demandes mal
- *    autorisees ne ferait donc rien passer : les trois gardes sont AVANT elle.
- *
- * 2. UN REFUS AVANT LE PROVIDER NE COUTE RIEN ET SE VOIT QUAND MEME. Modele
- *    ineligible, budget atteint : aucune `AiProviderInvocation` n'est ecrite —
- *    il n'y a rien a facturer. Mais une `AiInteraction` NON GENERATIVE l'est,
- *    portant `assistant_key`, `turn_id`, `correlation_id` et la raison exacte.
- *    C'est la difference entre « n'a rien coute » et « n'a pas eu lieu ».
- *
- * 3. UN ASSISTANT QUI TOMBE NE FAIT PAS TOMBER LES SUIVANTS. Chaque assistant
- *    est execute dans son propre `try`, et son echec devient un
- *    `AssistantOutcome` — jamais une exception qui remonte. Aperio SUCCESS /
- *    Traverse ERROR / Limen SUCCESS est un resultat NORMAL, pas un accident
- *    rattrape.
+ * Un tour = DEUX generations sequentielles, POUR puis CONTRE, sur la question
+ * soumise. Aucune UX ici : ce service rend une structure.
  *
  * ────────────────────────────────────────────────────────────────────────────
- * Ce que ce service ne fait PAS, et pourquoi
+ * Ce qui a change, et pourquoi c'est ecrit ici
  * ────────────────────────────────────────────────────────────────────────────
  *
- * Il n'appelle JAMAIS `LoopKnowledgeAnswerService`. La tentation etait forte —
- * ce moteur sait construire un contexte — mais `answer()` GENERE : l'appeler
- * pour ses preuves paierait une quatrieme generation invisible, hors ledger du
- * plugin, hors trace, et sur le modele de l'Organization. Les preuves se
- * construisent donc par `ContextBuilder::build()`, qui ne genere rien : c'est
- * precisement pour cela qu'il existe separement.
+ * Ce fichier a d'abord orchestre TROIS assistants sur un Evidence partage tire
+ * de la Boucle. La campagne humaine de TASK-1620 a tranche autrement :
  *
- * Il ne publie rien dans le fil. Un assistant experimental qui ecrirait dans
- * ChatLoop sans qu'un humain l'ait demande serait une publication autonome.
+ *   - **les connaissances generales D'ABORD, la Boucle ENSUITE.** La matiere
+ *     de la reponse vient du modele. La conversation recente revient en
+ *     CONTEXTE — dix derniers messages, bornes au declencheur — pour deux
+ *     raisons seulement : comprendre de quoi les participants parlent, et ne
+ *     pas redire ce qui vient d'etre dit. Consulter les Dossiers reste la
+ *     fonctionnalite documentaire separee : `loop_multi_ai` ne declare que
+ *     `loop.messages`, et rien ne l'elargit ;
+ *   - **deux roles, pas trois postures.** `aperio` porte POUR, `traverse`
+ *     porte CONTRE. `limen` reste declare et ses donnees restent en place,
+ *     mais il n'est plus lance ;
+ *   - **plus de synthese, plus de follow-ups.** Deux regards, et l'humain
+ *     tranche.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * Les invariants que ce fichier tient
+ * ────────────────────────────────────────────────────────────────────────────
+ *
+ * 1. LA TRACE NE PRETEND RIEN. Un contexte n'est pas une preuve : la trace
+ *    dit `consulted`, et n'ecrit ni `evidence`, ni `retrieval = reused`, ni
+ *    `sources_used` — une source « utilisee » est une source CITEE, et
+ *    aucune reponse d'ici n'en cite. Une cle absente se lit « rien ici » ;
+ *    une cle presente et fausse se lit comme une mesure.
+ * 2. UN REFUS AVANT LE PROVIDER NE COUTE RIEN ET SE VOIT QUAND MEME. Aucune
+ *    `AiProviderInvocation`, mais une `AiInteraction` non generative portant
+ *    l'assistant, le tour, la correlation et la raison exacte.
+ * 3. UN ROLE QUI TOMBE NE FAIT PAS TOMBER L'AUTRE. POUR en erreur laisse
+ *    CONTRE s'executer, et reciproquement.
+ *
+ * Il ne publie rien dans le fil : ecrire dans la conversation de tout le monde
+ * est un acte de l'interface, declenche par un humain qui a clique.
  */
 final class LoopMultiAiOrchestrator
 {
@@ -96,31 +95,45 @@ final class LoopMultiAiOrchestrator
      */
     public const FEATURE_PREFIX = CapabilityRegistry::LOOP_MULTI_AI.':';
 
-    /** La raison portee par la metadonnee des trois tours d'assistant. */
-    public const EVIDENCE_REUSED = 'evidence_shared';
+    /**
+     * Les DEUX roles du module « Pour / Contre ». (TASK-1621)
+     *
+     * Ce sont des CLES TECHNIQUES, pas des libelles : `aperio` porte le role
+     * POUR, `traverse` le role CONTRE. Les renommer aurait casse les lignes
+     * deja ecrites dans `loop_ai_assistants` et `loop_plugin_ai_models` pour
+     * un changement d'affichage — meme arbitrage que `key = training` (T1116).
+     *
+     * `limen` n'y figure pas : il reste declare au catalogue et ses donnees
+     * restent en place, mais il n'est plus lance. Aucune migration.
+     */
+    public const ROLE_POUR = 'aperio';
 
-    /** TASK-1619 — au plus trois suggestions, comme partout ailleurs (T1595). */
-    public const FOLLOW_UP_LIMIT = 3;
+    public const ROLE_CONTRE = 'traverse';
+
+    /** @var list<string> */
+    public const ROLES = [self::ROLE_POUR, self::ROLE_CONTRE];
 
     /**
-     * L'assistant qui SYNTHETISE. Limen, et c'est sa posture de catalogue qui
-     * le designe : « comparer les positions, distinguer accords et desaccords
-     * [...] sans decider a la place du groupe » (TASK-1616). Le choix n'est
-     * donc pas arbitraire — il aurait ete etrange de faire synthetiser celui
-     * dont le role est de chercher les objections.
+     * Le marqueur par lequel le modele dit « cette question ne se prete pas a
+     * un pour / contre ». (TASK-1621)
+     *
+     * Un jeton EXACT, pas une analyse : reconnaitre l'intention dans une
+     * phrase libre demanderait un parser, et un parser se trompe. Le socle
+     * demande ce marqueur et RIEN d'autre ; s'il n'arrive pas, le tour suit
+     * son cours normal — l'absence de marqueur n'invente jamais un verdict.
      */
-    public const SYNTHESISER = 'limen';
+    public const MARQUEUR_HORS_SUJET = '[[PAS_DE_PROPOSITION]]';
 
     public function __construct(
         private CapabilityRegistry $capabilities,
         private ProviderResolver $providers,
-        private ContextBuilder $contextBuilder,
         private PromptRepository $prompts,
         private AiEconomicGuard $economicGuard,
         private AiProviderInvocationLedger $ledger,
         private LoopPluginModelGuard $modelGuard,
         private LoopAiAssistants $assistants,
         private LoopPluginActivation $activation,
+        private ContextBuilder $contextBuilder,
     ) {}
 
     /**
@@ -131,95 +144,48 @@ final class LoopMultiAiOrchestrator
      * tour ENTIER d'exister — question vide, non-membre, plugin eteint,
      * Organization sans credential. Aucune ne concerne un assistant.
      */
-    public function run(Loop $loop, User $requester, string $question, ?string $executionPath = null): MultiAssistantRun
+    public function runPourContre(Loop $loop, User $requester, string $question, ?string $executionPath = null, ?string $questionMessageId = null): MultiAssistantRun
     {
-        return $this->execute($loop, $requester, $question, null, $executionPath);
+        return $this->execute($loop, $requester, $question, self::ROLES, $executionPath, $questionMessageId);
     }
 
     /**
      * UN seul assistant. (TASK-1619)
      *
      * C'est ce que servent les boutons individuels, « demander a une autre IA »
-     * et « Reessayer ». Le chemin est EXACTEMENT celui de `run()` — memes
-     * gardes, meme Evidence, memes traces — restreint a un assistant : un
-     * second chemin aurait derive du premier au premier correctif applique
+     * et « Reessayer ». Le chemin est EXACTEMENT celui de `runPourContre()`
+     * — memes gardes, meme contexte, memes traces — restreint a un assistant :
+     * un second chemin aurait derive du premier au premier correctif applique
      * d'un seul cote.
      *
-     * L'Evidence est reconstruit pour ce tour, et c'est voulu : un reessai
+     * Le contexte est recollecte pour ce tour, et c'est voulu : un reessai
      * quelques minutes plus tard doit voir la conversation TELLE QU'ELLE EST,
-     * pas telle qu'elle etait. Le partage vaut a l'interieur d'un tour, pas
-     * entre deux demandes separees par un geste humain.
+     * pas telle qu'elle etait.
+     *
+     * Avec une reserve, qui est tout l'interet de `$questionMessageId` : tant
+     * que l'appelant transmet le MEME message declencheur, la borne haute est
+     * la meme, donc la fenetre aussi. POUR et CONTRE tournent dans deux
+     * requetes differees separees, et voient pourtant le meme instantane —
+     * y compris apres que POUR a publie sa bulle.
      */
-    public function runOne(Loop $loop, User $requester, string $question, string $assistantKey, ?string $executionPath = null): MultiAssistantRun
+    public function runOne(Loop $loop, User $requester, string $question, string $assistantKey, ?string $executionPath = null, ?string $questionMessageId = null): MultiAssistantRun
     {
-        return $this->execute($loop, $requester, $question, [$assistantKey], $executionPath);
+        return $this->execute($loop, $requester, $question, [$assistantKey], $executionPath, $questionMessageId);
     }
 
-    /**
-     * La SYNTHESE de Limen. (TASK-1619)
-     *
-     * Limen relit ce que les autres ont repondu et en tire une comparaison.
-     * C'est la SEULE lecture d'une IA par une autre dans tout le plugin, et
-     * elle n'a lieu que parce qu'un humain a clique : rien ne la declenche a
-     * sa place, ni la fin d'un tour, ni l'arrivee d'une reponse, ni un
-     * compteur. « Demander aux 3 » ne la lance pas — les trois y repondent en
-     * PAIRS, aucun ne lisant les autres (contrat SLICE D, inchange).
-     *
-     * La distinction tient a une chose : une IA qui relit une IA sans qu'on
-     * le lui demande est une conversation entre machines, et personne ne l'a
-     * decidee. Ici, quelqu'un l'a decidee.
-     *
-     * Les reponses relues sont passees comme MATIERE — delimitees, annoncees
-     * comme des propos tenus. Elles n'ont pas rang d'instruction : une reponse
-     * qui contiendrait « ignore tes regles » resterait du texte cite.
-     *
-     * @param  list<array{assistant: string, answer: string}>  $reponses
-     */
-    public function synthesise(Loop $loop, User $requester, string $question, array $reponses, ?string $executionPath = null): MultiAssistantRun
-    {
-        if ($reponses === []) {
-            throw new RuntimeException(__('loops.plugins_multi_ai_nothing_to_synthesise'));
-        }
-
-        return $this->execute(
-            $loop, $requester, $question, [self::SYNTHESISER], $executionPath,
-            $this->matiereDeSynthese($reponses, $this->localeDeReference($loop->organization()->firstOrFail())),
-        );
-    }
-
-    /**
-     * Le bloc des reponses a comparer, delimite.
-     *
-     * Meme precaution que la persona : ce qui vient d'ailleurs est ANNONCE et
-     * BORNE. La difference est que ce texte-ci a ete produit par un modele,
-     * donc qu'il peut contenir n'importe quoi — y compris une phrase qui
-     * ressemble a une consigne.
-     *
-     * @param  list<array{assistant: string, answer: string}>  $reponses
-     */
-    private function matiereDeSynthese(array $reponses, string $locale): string
-    {
-        $blocs = [];
-
-        foreach ($reponses as $reponse) {
-            $cle = (string) ($reponse['assistant'] ?? '');
-            $texte = trim((string) ($reponse['answer'] ?? ''));
-
-            if ($cle === '' || $texte === '') {
-                continue;
-            }
-
-            $blocs[] = '### '.$this->assistants->label($cle)."\n".$texte;
-        }
-
-        return trans('ai.loop_multi_ai_synthesis_material', [], $locale)
-            ."\n<<<REPONSES\n".implode("\n\n", $blocs)."\nREPONSES";
-    }
+    // TASK-1621 — `synthesise()` et `matiereDeSynthese()` ont ete RETIREES.
+    //
+    // Le module « Pour / Contre » ne propose plus de synthese : deux regards,
+    // et c'est l'humain qui tranche. Garder une entree generative qu'aucune
+    // surface n'appelle aurait laisse du code capable de depenser sans que
+    // personne puisse le declencher — une porte sans poignee, du mauvais cote.
+    //
+    // La seule lecture d'une IA par une IA du plugin disparait donc avec elle.
 
     /**
      * @param  list<string>|null  $seulement  null = tous les assistants actifs
      */
-    private function execute(Loop $loop, User $requester, string $question, ?array $seulement, ?string $executionPath, ?string $matiere = null): MultiAssistantRun
+    private function execute(Loop $loop, User $requester, string $question, ?array $seulement, ?string $executionPath, ?string $questionMessageId = null): MultiAssistantRun
     {
         $question = trim($question);
 
@@ -245,14 +211,14 @@ final class LoopMultiAiOrchestrator
         return AiTurnLock::run(
             $loop,
             $requester,
-            fn (): MultiAssistantRun => $this->runUnderLock($loop, $requester, $question, $seulement, $executionPath, $matiere),
+            fn (): MultiAssistantRun => $this->runUnderLock($loop, $requester, $question, $seulement, $executionPath, $questionMessageId),
         );
     }
 
     /**
      * @param  list<string>|null  $seulement
      */
-    private function runUnderLock(Loop $loop, User $requester, string $question, ?array $seulement, ?string $executionPath, ?string $matiere = null): MultiAssistantRun
+    private function runUnderLock(Loop $loop, User $requester, string $question, ?array $seulement, ?string $executionPath, ?string $questionMessageId = null): MultiAssistantRun
     {
         $capability = CapabilityRegistry::LOOP_MULTI_AI;
         $definition = $this->capabilities->get($capability);
@@ -265,9 +231,9 @@ final class LoopMultiAiOrchestrator
         // quatre tours (E1, A1, T1, L1) lisibles comme un seul acte.
         $correlationId = AiCorrelation::id();
 
-        // ── Etape 1 : les preuves, UNE fois. ────────────────────────────────
-        $evidence = $this->buildEvidence(
-            $organization, $loop, $requester, $question, $locale, $correlationId, $definition, $executionPath,
+        // ── Etape 1 : le CONTEXTE du tour. Court, recent, borne. ────────────
+        $evidence = $this->ancrageContextuel(
+            $organization, $loop, $requester, $question, $locale, $correlationId, $definition, $executionPath, $questionMessageId,
         );
 
         // Le modele de l'Organization, resolu UNE fois. Il n'est pas celui qui
@@ -288,7 +254,6 @@ final class LoopMultiAiOrchestrator
         // precedents. Le trier ici, et pas a l'ecran, est ce qui rendra cette
         // dependance possible sans rien deplacer.
         $outcomes = [];
-        $premier = true;
 
         foreach ($this->assistants->describeFor($loop) as $assistant) {
             // Un assistant eteint n'est pas un assistant en echec : la Boucle a
@@ -311,7 +276,6 @@ final class LoopMultiAiOrchestrator
                 (string) $assistant['instruction'],
                 $socle,
                 $question,
-                $matiere,
                 $evidence,
                 $base,
                 $organization,
@@ -321,35 +285,41 @@ final class LoopMultiAiOrchestrator
                 $locale,
                 $doctrineVersion,
                 $executionPath,
-                $premier,
             );
-
-            $premier = false;
         }
 
         return new MultiAssistantRun($correlationId, $evidence, $outcomes);
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // Etape 1 — les preuves
+    // Etape 1 — le contexte
     // ────────────────────────────────────────────────────────────────────────
 
     /**
-     * E1 — le tour qui construit REELLEMENT les preuves.
+     * Le CONTEXTE du tour : court, recent, borne. (TASK-1621)
      *
-     * Il a sa propre identite parce qu'il fait un travail propre : la
-     * collecte. Les trois assistants la reutiliseront en la CITANT
-     * (`source_turn_id`), jamais en se l'attribuant.
+     * « Pour / Contre » repond depuis les connaissances generales du modele.
+     * C'est la MATIERE de la reponse, et ca reste une decision produit :
+     * consulter les Dossiers demeure la fonctionnalite documentaire separee,
+     * et `loop_multi_ai` ne declare toujours que `loop.messages`.
      *
-     * E1 n'ecrit AUCUNE `AiInteraction`. Ce n'est pas un oubli : la source
-     * autorisee de cette capability (`loop.messages`) est une lecture SQL —
-     * aucun provider n'est appele, aucun embedding n'est emis, il n'y a donc
-     * rien a facturer ni a compter. Lui donner une ligne la ferait entrer dans
-     * les sommes de `OrganizationAiConsumption`, qui compte les generations :
-     * une ligne a zero y serait une generation de plus. Sa trace voyage donc
-     * dans la metadonnee du PREMIER assistant, qui la reclame une fois.
+     * Mais repondre sans RIEN savoir de la discussion a un cout visible : les
+     * deux regards redisent ce qui vient d'etre dit, et ne savent pas de quoi
+     * les participants parlent. La conversation revient donc — en CONTEXTE,
+     * jamais en source :
+     *
+     *   - fenetre COURTE (`ai.multi_ai.context_messages`, 10), pas les 30 du
+     *     plafond global : comprendre le sujet, pas fabriquer un mini-RAG ;
+     *   - borne haute EXCLUSIVE sur le message declencheur, qui est deja
+     *     publie quand la collecte a lieu. Sans elle la question figurerait
+     *     DEUX fois dans le prompt, et CONTRE — qui tourne dans une requete
+     *     ulterieure — lirait la reponse de POUR ;
+     *   - aucune citation attendue, donc aucune provenance affichee : ce que
+     *     la trace dit, c'est `consulted`, pas `sources_used`.
+     *
+     * Rien n'est genere ici. Une lecture SQL, bornee par la capability.
      */
-    private function buildEvidence(
+    private function ancrageContextuel(
         Organization $organization,
         Loop $loop,
         User $requester,
@@ -358,6 +328,7 @@ final class LoopMultiAiOrchestrator
         string $correlationId,
         CapabilityDefinition $definition,
         ?string $executionPath,
+        ?string $questionMessageId,
     ): SharedEvidence {
         $contexte = new ContexteIa(
             organizationId: (string) $organization->id,
@@ -368,20 +339,18 @@ final class LoopMultiAiOrchestrator
             correlationId: $correlationId,
             source: CapabilityRegistry::SOURCE_LOOP_MESSAGES,
             query: $question,
+            maxMessages: (int) config('ai.multi_ai.context_messages', 10),
+            beforeMessageId: $questionMessageId,
         );
 
         AiTurnTrace::identity($contexte->organizationId, $contexte->turnId, array_filter([
             'surface' => 'loop_chat',
-            'mode' => 'multi_ai',
+            'mode' => 'pour_contre',
             'execution_path' => $executionPath,
             'capability' => $definition->id,
             'producer' => self::PRODUCER,
-            'step' => 'evidence_build',
-        ], static fn ($value): bool => $value !== null));
+        ], static fn ($valeur): bool => $valeur !== null));
 
-        // Le SEUL constructeur de preuves de ce chemin. `ContextBuilder` ne
-        // genere rien : il collecte, borne et rend. C'est la raison pour
-        // laquelle il est appele ici plutot que le moteur documentaire.
         $borne = $this->contextBuilder->build($contexte, $definition);
 
         AiTurnTrace::step($contexte->organizationId, $contexte->turnId, 'context_builder', 'executed', null, [
@@ -393,13 +362,13 @@ final class LoopMultiAiOrchestrator
             turnId: $contexte->turnId,
             correlationId: $correlationId,
             fingerprint: SharedEvidence::fingerprintFor(
-                (string) $organization->id,
-                (string) $loop->id,
-                (string) $requester->id,
-                $question,
-                $borne->sourcesUsed,
+                (string) $organization->id, (string) $loop->id, (string) $requester->id, $question, [],
             ),
-            hasRetrieval: $borne->provenance !== [],
+            // Le module ne fait pas de retrieval : il lit la conversation en
+            // clair. `hasRetrieval` commande l'affichage des sources chez le
+            // membre — l'allumer ferait promettre des citations qu'aucune
+            // reponse ne portera.
+            hasRetrieval: false,
         );
     }
 
@@ -454,7 +423,6 @@ final class LoopMultiAiOrchestrator
         string $persona,
         string $socle,
         string $question,
-        ?string $matiere,
         SharedEvidence $evidence,
         ResolvedModel $base,
         Organization $organization,
@@ -464,7 +432,6 @@ final class LoopMultiAiOrchestrator
         string $locale,
         ?int $doctrineVersion,
         ?string $executionPath,
-        bool $portelaTraceDuBuild,
     ): AssistantOutcome {
         // Le tour existe AVANT tout refus : un refus est un tour, pas un vide.
         $turnId = (string) Str::uuid();
@@ -488,7 +455,7 @@ final class LoopMultiAiOrchestrator
                 AiTurnTrace::step($organizationId, $turnId, 'model_eligibility', 'denied', (string) $raison, ['assistant_key' => $key]);
 
                 $this->recordNonGenerativeTurn($loop, $requester, $evidence, $definition, $turnId, $key, null,
-                    'model_eligibility', AiTurnReason::REFUSED_UNAVAILABLE, (string) $raison, $doctrineVersion, $portelaTraceDuBuild);
+                    'model_eligibility', AiTurnReason::REFUSED_UNAVAILABLE, (string) $raison, $doctrineVersion);
 
                 return AssistantOutcome::refused($key, (string) $raison, $turnId);
             }
@@ -530,15 +497,15 @@ final class LoopMultiAiOrchestrator
                 AiTurnTrace::step($organizationId, $turnId, 'economic_check', 'denied', $raisonEconomique, ['assistant_key' => $key]);
 
                 $this->recordNonGenerativeTurn($loop, $requester, $evidence, $definition, $turnId, $key, $resolved,
-                    'economic_check', $raisonEconomique, $raisonEconomique, $doctrineVersion, $portelaTraceDuBuild);
+                    'economic_check', $raisonEconomique, $raisonEconomique, $doctrineVersion);
 
                 return AssistantOutcome::refused($key, $raisonEconomique, $turnId);
             }
 
             AiTurnTrace::step($organizationId, $turnId, 'economic_check', 'executed', null, ['assistant_key' => $key]);
 
-            return $this->generate($key, $persona, $socle, $question, $matiere, $evidence, $resolved, $organization, $loop,
-                $requester, $definition, $locale, $doctrineVersion, $turnId, $portelaTraceDuBuild);
+            return $this->generate($key, $persona, $socle, $question, $evidence, $resolved, $organization, $loop,
+                $requester, $definition, $locale, $doctrineVersion, $turnId);
         } catch (\Throwable $exception) {
             // Invariant 3. Rien de ce qui arrive a un assistant ne doit
             // empecher le suivant de s'executer — y compris une panne qu'on
@@ -571,7 +538,6 @@ final class LoopMultiAiOrchestrator
         string $persona,
         string $socle,
         string $question,
-        ?string $matiere,
         SharedEvidence $evidence,
         ResolvedModel $resolved,
         Organization $organization,
@@ -581,7 +547,6 @@ final class LoopMultiAiOrchestrator
         string $locale,
         ?int $doctrineVersion,
         string $turnId,
-        bool $portelaTraceDuBuild,
     ): AssistantOutcome {
         $organizationId = (string) $organization->id;
 
@@ -600,6 +565,23 @@ final class LoopMultiAiOrchestrator
             $persona,
         );
 
+        // TASK-1621 — LA CONSIGNE DE LANGUE, EN DERNIER ET EN CODE.
+        //
+        // Elle manquait, et la recette l'a montre : question en francais,
+        // reponse en anglais. Doctrine du depot (`LoopKnowledgeAnswerService`) :
+        // en DERNIER, parce que le prompt administrable est redige dans une
+        // langue et ne dit rien de la langue de SORTIE — place avant, la
+        // consigne serait noyee sous des paragraphes qui la contredisent par
+        // leur seule langue. Et EN CODE, jamais dans `admin_ai_prompts` :
+        // reecrire le prompt actif changerait le comportement de tous les
+        // tenants pour une regle manquante.
+        //
+        // Ecart assume avec TASK-1400 (la langue appartient a l'Organization) :
+        // ici c'est la langue de la QUESTION qui commande, arbitrage produit du
+        // 22/09. Un debat « pour / contre » est un echange avec une personne,
+        // pas un contenu relu par tout le cercle.
+        $instructions .= "\n\n".trans('ai.loop_multi_ai_answer_language', [], $locale);
+
         // Le rang de la persona, MESURE et non affirme. Les deux tailles se
         // lisent en production : le socle ne doit jamais retrecir quand une
         // Boucle ecrit une posture — s'il retrecissait, c'est qu'elle aurait
@@ -616,7 +598,7 @@ final class LoopMultiAiOrchestrator
             (float) config('ai.multi_ai.temperature', 0.3),
         );
 
-        $prompt = $this->prompt($evidence, $question, $matiere, $locale);
+        $prompt = $this->prompt($question, $evidence->borne, $locale);
         $startedAt = microtime(true);
 
         try {
@@ -654,7 +636,7 @@ final class LoopMultiAiOrchestrator
             $this->recordGenerativeTurn($loop, $requester, $evidence, $definition, $resolved, $turnId, $key,
                 $prompt, null, AiUsage::notObserved(), ['cost_usd' => null, 'cost_unknown' => null],
                 'failed', $startedAt, null, $exception::class, AiTurnReason::TERMINAL_PROVIDER_CALL_FAILED,
-                $doctrineVersion, $portelaTraceDuBuild);
+                $doctrineVersion);
 
             return $sature
                 ? AssistantOutcome::rateLimited($key, $turnId, $resolved->model)
@@ -663,16 +645,43 @@ final class LoopMultiAiOrchestrator
 
         AiTurnTrace::step($organizationId, $turnId, 'provider_call', 'executed', null, ['assistant_key' => $key]);
 
-        // TASK-1619 — la reponse ET ses questions d'approfondissement sortent
-        // du MEME tour provider. Le precedent est TASK-1595 : une question
-        // suggeree ne vaut pas une generation de plus, et deux appels
-        // rendraient des suggestions qui ne parlent pas de la reponse rendue.
-        [$texte, $followUps] = $this->separerLesFollowUps((string) $response->text, $locale);
+        // ── Le modele a-t-il FINI, ou a-t-il ete coupe ? (TASK-1621) ────────
+        //
+        // Le SDK le sait : la passerelle OpenRouter mappe
+        // `finish_reason: "length"` vers `FinishReason::Length` et peuple
+        // `$response->steps`. Ne pas lire cette information, c'est confondre
+        // « il n'a rien a dire » et « il n'avait plus de place » — deux
+        // diagnostics opposes, et c'est le second qui se produisait :
+        // 13 des 14 tours « vides » s'arretaient EXACTEMENT au plafond.
+        //
+        // ABSENT N'EST PAS `Length`. Une passerelle qui ne peuple pas `steps`,
+        // ou une doublure de test qui n'en fabrique pas, ne doit jamais faire
+        // conclure a une troncature : sans mesure, on garde le comportement
+        // d'avant. Deduire une coupe d'une absence serait inventer une mesure.
+        $coupeParLeProvider = $response->steps->last()?->finishReason === FinishReason::Length;
 
-        $answer = AiMarkdownSanitizer::sanitize(
-            $texte,
-            (int) config('ai.multi_ai.max_answer_chars', 3000),
-        );
+        $brut = (string) $response->text;
+        $plafondCaracteres = (int) config('ai.multi_ai.max_answer_chars', 3000);
+
+        $answer = AiMarkdownSanitizer::sanitize($brut, $plafondCaracteres);
+
+        // La SECONDE source de coupe, et elle est chez nous :
+        // `AiMarkdownSanitizer::truncate()` rogne a `max_answer_chars` sans
+        // rien dire. Ne traiter que le budget du provider aurait laisse notre
+        // propre plafond publier des reponses coupees en silence — le defaut
+        // corrige, revenu par l'autre porte.
+        $coupeParNotrePlafond = mb_strlen($answer) >= $plafondCaracteres
+            && mb_strlen(AiMarkdownSanitizer::sanitize($brut)) > mb_strlen($answer);
+
+        $coupe = $coupeParLeProvider || $coupeParNotrePlafond;
+
+        // ── La question se prete-t-elle a un pour / contre ? (TASK-1621) ────
+        //
+        // Le modele repond par un marqueur exact. On le cherche dans le texte
+        // BRUT : le sanitiseur pourrait avoir mange les crochets, et une
+        // detection qui depend du nettoyage serait fragile la ou elle doit
+        // etre sure.
+        $horsSujet = str_contains($brut, self::MARQUEUR_HORS_SUJET);
 
         $usage = AiUsage::fromSdkTextTokens($response->usage->promptTokens, $response->usage->completionTokens);
 
@@ -690,125 +699,120 @@ final class LoopMultiAiOrchestrator
             resolved: $resolved,
             usage: $usage,
             cost: $cost,
-            status: $answer === '' ? 'failed' : 'completed',
+            // Un tour hors sujet a ABOUTI : l'appel est parti, il a repondu,
+            // il est paye. `failed` le compterait comme une panne dans toutes
+            // les sommes de fiabilite.
+            status: ($answer === '' && ! $horsSujet) ? 'failed' : 'completed',
             correlationId: $evidence->correlationId,
             sdkInvocationId: $response->invocationId,
-            failureReason: $answer === '' ? AiTurnReason::TERMINAL_EMPTY_MODEL_ANSWER : null,
+            failureReason: ($answer === '' && ! $horsSujet)
+                ? ($coupeParLeProvider
+                    ? AiTurnReason::TERMINAL_OUTPUT_BUDGET_EXHAUSTED
+                    : AiTurnReason::TERMINAL_EMPTY_MODEL_ANSWER)
+                : null,
             startedAtMicrotime: $startedAt,
             feature: self::FEATURE_PREFIX.$key,
         );
 
+        if ($horsSujet) {
+            // Le tour a ABOUTI — il a sa ligne au ledger, l'appel est paye —
+            // mais il n'y a aucun camp a distribuer. `abstained`, pas
+            // `failed` : afficher « n'a pas pu repondre » a quelqu'un dont la
+            // question etait simplement d'une autre nature serait faux.
+            AiTurnTrace::step($organizationId, $turnId, 'generation', 'abstained',
+                AiTurnReason::TERMINAL_NO_DEBATABLE_PROPOSITION, ['assistant_key' => $key]);
+
+            $this->recordGenerativeTurn($loop, $requester, $evidence, $definition, $resolved, $turnId, $key,
+                $prompt, null, $usage, $cost->traceAttributes(), 'completed', $startedAt, $response->invocationId,
+                null, AiTurnReason::TERMINAL_NO_DEBATABLE_PROPOSITION, $doctrineVersion);
+
+            return AssistantOutcome::notApplicable($key, $turnId, $resolved->model);
+        }
+
         if ($answer === '') {
-            AiTurnTrace::step($organizationId, $turnId, 'generation', 'failed', AiTurnReason::TERMINAL_EMPTY_MODEL_ANSWER, [
+            // Rien a lire. La raison dit LAQUELLE des deux : budget brule, ou
+            // modele reellement muet. Elles n'appellent pas le meme remede.
+            $raison = $coupeParLeProvider
+                ? AiTurnReason::TERMINAL_OUTPUT_BUDGET_EXHAUSTED
+                : AiTurnReason::TERMINAL_EMPTY_MODEL_ANSWER;
+
+            AiTurnTrace::step($organizationId, $turnId, 'generation', 'failed', $raison, [
                 'assistant_key' => $key,
             ]);
 
             $this->recordGenerativeTurn($loop, $requester, $evidence, $definition, $resolved, $turnId, $key,
                 $prompt, null, $usage, $cost->traceAttributes(), 'failed', $startedAt, $response->invocationId,
-                null, AiTurnReason::TERMINAL_EMPTY_MODEL_ANSWER, $doctrineVersion, $portelaTraceDuBuild);
+                null, $raison, $doctrineVersion);
 
-            return AssistantOutcome::error($key, AiTurnReason::TERMINAL_EMPTY_MODEL_ANSWER, $turnId, $resolved->model);
+            return AssistantOutcome::error($key, $raison, $turnId, $resolved->model);
+        }
+
+        if ($coupe) {
+            // Il y a du texte, et il est incomplet. L'etape est `executed` —
+            // le modele a bien repondu — mais elle porte sa degradation : un
+            // `executed` nu affirmerait que le tour s'est deroule entier.
+            AiTurnTrace::step($organizationId, $turnId, 'generation', 'executed', AiTurnReason::DEGRADED_OUTPUT_TRUNCATED, [
+                'assistant_key' => $key,
+                'truncated_by' => $coupeParLeProvider ? 'output_budget' : 'answer_char_cap',
+            ]);
+
+            $this->recordGenerativeTurn($loop, $requester, $evidence, $definition, $resolved, $turnId, $key,
+                $prompt, $answer, $usage, $cost->traceAttributes(), 'completed', $startedAt, $response->invocationId,
+                null, AiTurnReason::DEGRADED_OUTPUT_TRUNCATED, $doctrineVersion);
+
+            return AssistantOutcome::partial(
+                $key, $answer, AiTurnReason::DEGRADED_OUTPUT_TRUNCATED, $turnId, $resolved->model,
+            );
         }
 
         AiTurnTrace::step($organizationId, $turnId, 'generation', 'executed', null, ['assistant_key' => $key]);
 
         $this->recordGenerativeTurn($loop, $requester, $evidence, $definition, $resolved, $turnId, $key,
             $prompt, $answer, $usage, $cost->traceAttributes(), 'completed', $startedAt, $response->invocationId,
-            null, null, $doctrineVersion, $portelaTraceDuBuild);
+            null, null, $doctrineVersion);
 
-        return AssistantOutcome::success($key, $answer, $evidence->borne->provenance, $turnId, $resolved->model, $followUps);
+        return AssistantOutcome::success($key, $answer, [], $turnId, $resolved->model);
     }
 
     /**
-     * Le prompt utilisateur : les preuves partagees, puis la question.
+     * Le prompt utilisateur : LA QUESTION, puis le contexte. (TASK-1621)
      *
-     * Identique pour les trois — c'est tout le sens du partage. Ce qui les
-     * distingue est en amont (la persona) et en aval (le modele).
+     * L'ORDRE est le livrable. La question vient en premier parce que c'est
+     * a elle qu'on repond ; le contexte vient apres, explicitement etiquete
+     * comme contexte, et precede du contrat qui dit a quoi il sert. Inverser
+     * les deux suffirait a faire croire au modele que la Boucle est la
+     * matiere — c'est exactement ce qui produisait, en recette reelle,
+     * « the provided Loop material says nothing about… ».
+     *
+     * Une Boucle sans rien a dire n'a NI contrat NI intitule : un bloc vide,
+     * ou une phrase annoncant qu'il n'y a pas de contexte, inviterait le
+     * modele a commenter ce vide au lieu de repondre.
+     *
+     * Le role (defendre / contester) vit dans les instructions systeme, pas
+     * ici : il ne doit pas pouvoir etre confondu avec une demande de
+     * l'utilisateur.
      */
-    private function prompt(SharedEvidence $evidence, string $question, ?string $matiere, string $locale): string
+    private function prompt(string $question, ContexteBorne $borne, string $locale): string
     {
-        $sources = $evidence->borne->text !== ''
-            ? $evidence->borne->text
-            : trans('ai.loop_multi_ai_no_sources', [], $locale);
+        $contexte = trim($borne->text);
 
-        // TASK-1619 — la matiere de SYNTHESE, quand un humain l'a demandee.
-        // Elle s'insere entre les preuves et la question, au meme rang qu'un
-        // extrait de conversation : ce sont des propos tenus, pas des
-        // instructions. Le bloc est delimite et annonce comme tel.
-        $sources .= $matiere === null ? '' : "\n\n".$matiere;
+        $bloc = trans('ai.loop_knowledge_member_question', [], $locale)."\n".$question;
 
-        return $sources."\n\n".trans('ai.loop_knowledge_member_question', [], $locale)."\n".$question
-            ."\n\n".trans('ai.loop_multi_ai_follow_ups_instruction', [
-                'heading' => trans('dossiers.answer_follow_ups_heading', [], $locale),
-                'limit' => self::FOLLOW_UP_LIMIT,
-            ], $locale);
+        if ($contexte === '') {
+            return $bloc;
+        }
+
+        return trans('ai.loop_multi_ai_context_contract', [], $locale)
+            ."\n\n".$bloc
+            ."\n\n".trans('ai.loop_multi_ai_context_heading', [], $locale)
+            ."\n".$contexte;
     }
 
-    /**
-     * Separer la reponse de sa section « Pour aller plus loin ».
-     *
-     * Meme forme que `DossierInsightsService::splitAnswer()` — deliberement :
-     * le blade de ChatLoop lit deja `follow_up_questions` avec cette forme-la
-     * (TASK-1595), et une seconde convention obligerait l'affichage a en
-     * connaitre deux.
-     *
-     * Le modele peut tres bien ne pas produire la section : c'est un cas
-     * NOMINAL, pas une erreur. La reponse est alors rendue telle quelle, sans
-     * suggestion — jamais un second appel pour en arracher.
-     *
-     * @return array{0: string, 1: list<string>}
-     */
-    private function separerLesFollowUps(string $markdown, string $locale): array
-    {
-        $titre = preg_quote((string) trans('dossiers.answer_follow_ups_heading', [], $locale), '/');
-
-        if (! preg_match('/^##\s*'.$titre.'\s*$/mu', $markdown, $trouve, PREG_OFFSET_CAPTURE)) {
-            return [trim($markdown), []];
-        }
-
-        $corps = trim(substr($markdown, 0, $trouve[0][1]));
-        $reste = substr($markdown, $trouve[0][1] + strlen($trouve[0][0]));
-
-        // GARDE — un decoupage ne doit JAMAIS faire disparaitre une reponse.
-        //
-        // Si le modele place la section en TETE (ou n'ecrit qu'elle), le corps
-        // ressort vide et le tour finit en `EMPTY_MODEL_ANSWER` : le membre ne
-        // voit rien alors que le modele a parle, et l'appel est paye. On rend
-        // alors le texte ENTIER, sans suggestions — une reponse mal mise en
-        // forme vaut infiniment mieux qu'une reponse perdue.
-        //
-        // Trouve par la RECETTE REELLE ARIA, pas par le banc : Traverse a
-        // repondu et son tour s'est conclu `EMPTY_MODEL_ANSWER`. Les doublures
-        // des tests mettent toujours la section a sa place — elles ne
-        // pouvaient pas voir ce defaut.
-        if ($corps === '') {
-            return [trim($markdown), []];
-        }
-
-        $questions = [];
-
-        foreach (preg_split('/\r?\n/', $reste) ?: [] as $ligne) {
-            $ligne = trim($ligne);
-
-            if ($ligne === '' || ! str_starts_with($ligne, '-')) {
-                continue;
-            }
-
-            $question = trim(ltrim($ligne, "- \t"));
-
-            if ($question === '') {
-                continue;
-            }
-
-            $questions[] = $question;
-
-            if (count($questions) >= self::FOLLOW_UP_LIMIT) {
-                break;
-            }
-        }
-
-        return [$corps, $questions];
-    }
+    // TASK-1621 — `separerLesFollowUps()` a ete RETIREE avec la
+    // fonctionnalite. « Pour / Contre » rend deux regards courts ; des
+    // questions d'approfondissement sous chacun d'eux auraient rallonge la
+    // reponse (donc le budget de sortie, deja juste) pour une action que la
+    // V0 ne propose pas.
 
     // ────────────────────────────────────────────────────────────────────────
     // Les traces
@@ -837,7 +841,6 @@ final class LoopMultiAiOrchestrator
         ?string $failure,
         ?string $reasonCode,
         ?int $doctrineVersion,
-        bool $portelaTraceDuBuild,
     ): AiInteraction {
         $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
 
@@ -869,8 +872,7 @@ final class LoopMultiAiOrchestrator
                 'sdk_invocation_id' => $sdkInvocationId,
                 'turn_id' => $turnId,
                 'failure' => $failure,
-                'evidence' => $this->blocEvidence($evidence, (string) $loop->organization_id, $portelaTraceDuBuild),
-                'sources_used' => $evidence->borne->sourcesUsed,
+                'knowledge' => $this->blocConnaissance($evidence),
                 AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
                     $turnId,
                     AiTurnTrace::claim((string) $loop->organization_id, $turnId),
@@ -907,7 +909,6 @@ final class LoopMultiAiOrchestrator
         string $reasonCode,
         string $refusalReason,
         ?int $doctrineVersion,
-        bool $portelaTraceDuBuild,
     ): AiInteraction {
         return AiInteraction::create([
             'user_id' => $requester->id,
@@ -936,8 +937,7 @@ final class LoopMultiAiOrchestrator
                 // `REFUSED_UNAVAILABLE` dit seulement que c'est indisponible.
                 // Les deux voyagent, a leur place respective.
                 'refusal_reason' => $refusalReason,
-                'evidence' => $this->blocEvidence($evidence, (string) $loop->organization_id, $portelaTraceDuBuild),
-                'sources_used' => $evidence->borne->sourcesUsed,
+                'knowledge' => $this->blocConnaissance($evidence),
                 AiTurnTrace::TURN_METADATA_KEY => AiTurnTrace::compose(
                     $turnId,
                     AiTurnTrace::claim((string) $loop->organization_id, $turnId),
@@ -954,42 +954,31 @@ final class LoopMultiAiOrchestrator
     }
 
     /**
-     * Ce que CHAQUE tour d'assistant dit de ses preuves.
+     * Ce que chaque tour dit de SA CONNAISSANCE. (TASK-1621)
      *
-     * Les trois disent `reused` — aucun d'eux ne les a construites. Le pointeur
-     * `source_turn_id` est ce qui rend la reutilisation VERIFIABLE : sans lui,
-     * trois tours affirmeraient chacun un retrieval qu'aucun n'a fait.
+     * Le module lit la conversation, mais il ne s'en sert pas comme d'une
+     * source : la trace doit donc dire « j'ai regarde N messages pour me
+     * situer », et surtout PAS le vocabulaire de la preuve documentaire.
      *
-     * Le PREMIER porte en plus le tour E1 complet, reclame une seule fois : la
-     * trace du build existe une fois parce que le build a eu lieu une fois.
+     * Restent donc ABSENTES, et c'est le contrat de cette methode :
+     * `evidence`, `retrieval = reused`, `reason = evidence_shared`,
+     * `source_turn_id`, `sources_used` — une source « utilisee » est une
+     * source CITEE, et aucune reponse d'ici n'en cite — et `sources_denied`,
+     * qui allume un bandeau chez le membre.
+     *
+     * Une cle ABSENTE se lit « rien ici » ; une cle presente et fausse se lit
+     * comme une mesure. C'est toute la difference.
      *
      * @return array<string, mixed>
      */
-    private function blocEvidence(SharedEvidence $evidence, string $organizationId, bool $portelaTraceDuBuild): array
+    private function blocConnaissance(SharedEvidence $ancrage): array
     {
-        $bloc = [
-            'retrieval' => 'reused',
-            'reason' => self::EVIDENCE_REUSED,
-            'source_turn_id' => $evidence->turnId,
-            'source_correlation_id' => $evidence->correlationId,
-            'fingerprint' => $evidence->fingerprint,
-            'has_retrieval' => $evidence->hasRetrieval,
-            'sources_denied' => $evidence->borne->sourcesDenied,
+        return [
+            'mode' => 'general_knowledge_first',
+            'context_builder' => 'executed',
+            'consulted' => count($ancrage->borne->provenance),
+            'correlation_turn_id' => $ancrage->turnId,
         ];
-
-        if ($portelaTraceDuBuild) {
-            $bloc['build_turn'] = AiTurnTrace::compose(
-                $evidence->turnId,
-                AiTurnTrace::claim($organizationId, $evidence->turnId),
-                [
-                    'status' => AiTurnState::TURN_NON_INTERACTION,
-                    'stage' => 'evidence_build',
-                    'decided_by' => class_basename(self::class),
-                ],
-            );
-        }
-
-        return $bloc;
     }
 
     // ────────────────────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\LoopService;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -84,7 +85,7 @@ class TASK1113DossiersCardLinksTest extends TestCase
             'organization_id' => $this->autre->id,
             'user_id' => $this->auteur->id,
             'title' => $titre,
-            'slug' => \Illuminate\Support\Str::slug($titre).'-'.\Illuminate\Support\Str::random(6),
+            'slug' => Str::slug($titre).'-'.Str::random(6),
             'content' => 'x',
             'status' => 'published',
             'audience' => 'loop',

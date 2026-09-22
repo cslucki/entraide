@@ -8,6 +8,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
 class InlineMemberAgentTest extends TestCase
@@ -41,7 +42,7 @@ class InlineMemberAgentTest extends TestCase
     // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
     // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
     // n'est pas un endroit ou ranger un test qui gene.
-    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
+    #[Group('ci-known-red')]
     public function test_chat_visible_when_profile_published(): void
     {
         MemberAiProfile::factory()->published()->create([
@@ -157,7 +158,7 @@ class InlineMemberAgentTest extends TestCase
     // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
     // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
     // n'est pas un endroit ou ranger un test qui gene.
-    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
+    #[Group('ci-known-red')]
     public function test_ai_agent_chat_page_shows_chat_interface(): void
     {
         MemberAiProfile::factory()->published()->create([

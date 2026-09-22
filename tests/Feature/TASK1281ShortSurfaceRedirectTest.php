@@ -4,8 +4,8 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\BlogInvitationController;
 use App\Http\Controllers\LoopInvitationController;
-use App\Models\BlogPostInvitation;
 use App\Models\BlogPost;
+use App\Models\BlogPostInvitation;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopMember;

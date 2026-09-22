@@ -93,30 +93,67 @@ class TASK1475LoopMobileAiVisibleTest extends TestCase
     }
 
     // =====================================================================
-    // A. L'action est la, et elle se nomme
+    // A. L'action est la, elle se nomme, et elle se VOIT
     // =====================================================================
 
-    public function test_the_loop_page_offers_a_named_ai_action_without_opening_a_sheet(): void
+    /**
+     * TASK-1621 a change le MOYEN, pas la promesse.
+     *
+     * TASK-1475 avait ajoute un raccourci `data-engine-quick="ia"` dans le
+     * champ de saisie parce que, sous 768 px, la rangee des modes etait
+     * `hidden md:flex` : aucune affordance IA visible, la seule porte etant le
+     * menu `+`, qui ne nomme pas l'IA.
+     *
+     * La rangee est desormais visible sur TOUS les formats (elle defile
+     * horizontalement sur mobile). La promesse de TASK-1475 est donc tenue par
+     * la rangee elle-meme, et le raccourci a ete retire : deux surfaces pour un
+     * meme interrupteur, a vingt pixels l'une de l'autre, dont l'une etait un
+     * glyphe muet — un membre a demande en recette a quoi elle servait.
+     */
+    public function test_the_named_ai_action_is_visible_without_opening_a_sheet(): void
     {
         $html = $this->actingAs($this->member)->get($this->loopUrl())->assertOk()->getContent();
 
-        $this->assertSame(1, preg_match('/<button[^>]*data-engine-quick="ia"[^>]*>/', $html, $button),
-            'le raccourci IA du composeur est rendu');
+        // La rangee qui porte les modes n'est plus masquee sous `md`.
+        $this->assertSame(1, preg_match(
+            '/<div class="(flex[^"]*overflow-x-auto[^"]*)"[^>]*x-data="\{ askOpen/', $html, $rangee,
+        ), 'la rangee des modes est rendue');
+        $this->assertStringNotContainsString('hidden', $rangee[1],
+            'elle doit etre visible sur mobile, pas seulement a partir de md');
+        $this->assertStringContainsString('overflow-x-auto', $rangee[1],
+            'sur mobile elle defile au lieu d\'empiler trois lignes de pastilles');
 
-        // Il se NOMME : un bouton « Plus d'actions » ne disait pas qu'il cachait l'IA.
-        $this->assertStringContainsString('aria-label="'.e(__('loops.ask_ai_button')).'"', $button[0]);
-
-        // Et il porte son etat, comme son jumeau de la feuille.
-        $this->assertStringContainsString('aria-pressed="false"', $button[0]);
+        // Et l'action IA y est NOMMEE, pas reduite a un glyphe.
+        $this->assertStringContainsString(e(__('loops.ask_ai_button')), $html);
+        $this->assertSame(1, preg_match('/<button[^>]*data-engine-toggle="ia"[^>]*>/', $html, $bouton));
+        $this->assertStringContainsString('aria-pressed="false"', $bouton[0]);
     }
 
-    /** Mobile seulement : la barre desktop porte deja l'action. */
-    public function test_it_is_mobile_only(): void
+    /** Le raccourci muet a disparu, et rien ne le remplace en douce. */
+    public function test_the_silent_shortcut_is_gone(): void
     {
         $html = $this->actingAs($this->member)->get($this->loopUrl())->assertOk()->getContent();
 
-        $this->assertSame(1, preg_match('/<button[^>]*data-engine-quick="ia"[^>]*>/', $html, $button));
-        $this->assertStringContainsString('md:hidden', $button[0], 'le desktop n\'a pas besoin de ce raccourci');
+        $this->assertStringNotContainsString('data-engine-quick', $html);
+        $this->assertStringNotContainsString('bp-loop-ai-quick', $html);
+    }
+
+    /**
+     * Le bouton `+` reste la SEULE porte vers l'ajout d'image et « Qui peut
+     * m'aider » sur mobile : il doit se VOIR. Il etait `text-gray-400` sur fond
+     * clair et `dark:text-gray-500` sur fond sombre — invisible dans les deux
+     * themes, au point qu'un membre a cru les modes supprimes.
+     */
+    public function test_the_sheet_button_has_a_real_contrast(): void
+    {
+        $html = $this->actingAs($this->member)->get($this->loopUrl())->assertOk()->getContent();
+
+        $this->assertSame(1, preg_match(
+            '/<button[^>]*aria-label="'.preg_quote(e(__('loops.composer_more_actions')), '/').'"[^>]*>/', $html, $bouton,
+        ), 'le bouton du menu est rendu');
+
+        $this->assertStringContainsString('bg-gray-100', $bouton[0], 'un fond, pas un glyphe gris sur gris');
+        $this->assertStringNotContainsString('text-gray-400', $bouton[0]);
     }
 
     // =====================================================================
@@ -124,10 +161,10 @@ class TASK1475LoopMobileAiVisibleTest extends TestCase
     // =====================================================================
 
     /**
-     * Le raccourci et la feuille commandent le MEME etat. S'ils divergeaient,
-     * l'utilisateur verrait deux boutons IA se contredire.
+     * Les deux surfaces (rangee et feuille) commandent le MEME etat. Si elles
+     * divergeaient, l'utilisateur verrait deux boutons IA se contredire.
      */
-    public function test_the_shortcut_drives_the_same_engine_state_as_the_sheet(): void
+    public function test_both_surfaces_drive_the_same_engine_state(): void
     {
         // L'etat vit dans `composerMode` : `engineActive` est une variable de
         // VUE derivee du mode, pas une propriete Livewire. Asserter
@@ -142,23 +179,13 @@ class TASK1475LoopMobileAiVisibleTest extends TestCase
             ->assertSet('composerMode', 'normal');
     }
 
-    /**
-     * L'attribut est DISTINCT de `data-engine-toggle` : la recette e2e cible ce
-     * dernier par `:visible` et prend la premiere correspondance. Un second
-     * element portant la meme valeur rendrait ce ciblage ambigu.
-     */
-    public function test_the_shortcut_does_not_borrow_the_sheet_attribute(): void
+    /** Deux interrupteurs par moteur, et pas trois : la rangee et la feuille. */
+    public function test_each_engine_has_exactly_two_switches(): void
     {
         $html = $this->actingAs($this->member)->get($this->loopUrl())->assertOk()->getContent();
 
-        $this->assertSame(1, preg_match('/<button[^>]*data-engine-quick="ia"[^>]*>/', $html, $button));
-        $this->assertStringNotContainsString('data-engine-toggle', $button[0]);
-
-        // Et les interrupteurs historiques restent exactement au nombre de deux
-        // par moteur — un dans la barre desktop, un dans la feuille mobile.
-        $this->assertSame(2, substr_count($html, 'data-engine-toggle="ia"'), 'barre desktop + feuille mobile');
+        $this->assertSame(2, substr_count($html, 'data-engine-toggle="ia"'), 'rangee + feuille mobile');
         $this->assertSame(2, substr_count($html, 'data-engine-toggle="dossiers"'));
-        $this->assertSame(1, substr_count($html, 'data-engine-quick="ia"'), 'le raccourci est unique');
     }
 
     // =====================================================================
@@ -181,29 +208,6 @@ class TASK1475LoopMobileAiVisibleTest extends TestCase
 
         $this->assertStringContainsString('@bp-open-ask-ai.window', $html);
         $this->assertStringContainsString(e(__('loops.ask_ai_button')), $html);
-    }
-
-    // =====================================================================
-    // D. La couleur active existe reellement
-    // =====================================================================
-
-    /**
-     * Une classe utilitaire arbitraire absente du build laisserait le bouton
-     * actif TRANSPARENT, sans un mot. La regle doit donc vivre dans une feuille
-     * rendue avec la page, et lire le token du theme avec un repli.
-     */
-    public function test_the_active_colour_does_not_depend_on_the_css_build(): void
-    {
-        $html = $this->actingAs($this->member)->get($this->loopUrl())->assertOk()->getContent();
-
-        $this->assertMatchesRegularExpression(
-            '/\.bp-loop-ai-quick\[aria-pressed="true"\]\s*\{[^}]*background:\s*var\(--bp-primary,\s*#[0-9a-f]{3,8}\)/i',
-            $html,
-            'la couleur active est servie avec la page, et lit le token avec un repli',
-        );
-
-        $this->assertSame(1, preg_match('/<button[^>]*data-engine-quick="ia"[^>]*>/', $html, $button));
-        $this->assertStringNotContainsString('bg-[var(', $button[0], 'aucune valeur arbitraire Tailwind sur ce bouton');
     }
 
     private function loopUrl(): string

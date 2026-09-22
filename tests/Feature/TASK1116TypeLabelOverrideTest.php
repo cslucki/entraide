@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Loop;
 use App\Models\LoopTypeSetting;
 use App\Models\Organization;
 use App\Models\User;

@@ -303,7 +303,7 @@ class TASK1112CiCoverageTest extends TestCase
 
         unlink($scriptPath);
 
-        $this->assertSame(0, $code, "le script a echoue : ".implode("\n", $out));
+        $this->assertSame(0, $code, 'le script a echoue : '.implode("\n", $out));
 
         $contenu = file_get_contents($sortie) ?: '';
         unlink($sortie);
@@ -388,7 +388,7 @@ class TASK1112CiCoverageTest extends TestCase
                 'always()',
                 $condition,
                 "{$nomJob} declare `needs:` sans `if: always()` : il sera skippe des qu’un job amont "
-                    ."echoue, et le required check restera Pending indefiniment",
+                    .'echoue, et le required check restera Pending indefiniment',
             );
         }
     }

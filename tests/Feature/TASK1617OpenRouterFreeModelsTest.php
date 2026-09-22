@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Ai\CapabilityRegistry;
 use App\Models\LoopPluginAiModel;
 use App\Models\Organization;
 use App\Models\User;
@@ -14,10 +15,12 @@ use App\Support\Ai\AiPricingCatalog;
 use App\Support\Ai\AiUsage;
 use App\Support\Ai\Pricing\DynamicPricingSource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
@@ -195,7 +198,10 @@ class TASK1617OpenRouterFreeModelsTest extends TestCase
             ->assertSee('data-section="plugin-models"', false)
             ->assertSee('data-assistant-model="aperio"', false)
             ->assertSee('data-assistant-model="traverse"', false)
-            ->assertSee('data-assistant-model="limen"', false);
+            // TASK-1621 — `limen` est dormant : il n'a pas de modele a choisir,
+            // et le proposer laisserait croire qu'il sera appele. Sa ligne
+            // `loop_plugin_ai_models` reste en base, elle n'est plus offerte.
+            ->assertDontSee('data-assistant-model="limen"', false);
     }
 
     public function test_un_non_superadmin_est_refuse_sur_la_configuration_des_modeles(): void
@@ -336,7 +342,7 @@ class TASK1617OpenRouterFreeModelsTest extends TestCase
      * SQLite ignore les fuseaux : ce test ne peut echouer qu'en PostgreSQL.
      * C'est la recette navigateur qui l'a trouve, pas la suite locale.
      */
-    public function test_une_preuve_ecrite_a_l_instant_est_relue_comme_FRAICHE(): void
+    public function test_une_preuve_ecrite_a_l_instant_est_relue_comme_fraiche(): void
     {
         $this->fakeCatalogue([$this->model('vendor/a', ['prompt' => '0', 'completion' => '0'])]);
 
@@ -376,7 +382,7 @@ class TASK1617OpenRouterFreeModelsTest extends TestCase
 
         // Le releve echoue : OpenRouter injoignable.
         Cache::forget(OpenRouterModelCatalog::CACHE_KEY);
-        Http::swap(new \Illuminate\Http\Client\Factory);
+        Http::swap(new Factory);
         Http::fake(['*/models' => Http::response(null, 503)]);
 
         $raison = null;
@@ -416,13 +422,13 @@ class TASK1617OpenRouterFreeModelsTest extends TestCase
     }
 
     /** Arbitrage produit : trace complete, mais AUCUN credit membre en V0. */
-    public function test_loop_multi_ai_n_est_PAS_creditable(): void
+    public function test_loop_multi_ai_n_est_pa_s_creditable(): void
     {
         $this->assertNotContains('loop_multi_ai', OrganizationAiEconomicUsage::CREDITABLE_PROCESSES,
             'les generations 3IA sont tracees mais ne consomment pas de credit membre pendant l\'experimentation');
     }
 
-    public function test_un_modele_prouve_gratuit_vaut_un_cout_CONNU_de_zero(): void
+    public function test_un_modele_prouve_gratuit_vaut_un_cout_conn_u_de_zero(): void
     {
         $this->fakeCatalogue([$this->model('vendor/a', ['prompt' => '0', 'completion' => '0'])]);
         app(LoopPluginAiModels::class)->assign('aperio', 'vendor/a', $this->superAdmin);
@@ -434,7 +440,7 @@ class TASK1617OpenRouterFreeModelsTest extends TestCase
     }
 
     /** Le point 16 du mandat : sans preuve, ce n'est pas 0 — c'est INCONNU. */
-    public function test_un_modele_sans_preuve_n_est_PAS_a_cout_zero(): void
+    public function test_un_modele_sans_preuve_n_est_pa_s_a_cout_zero(): void
     {
         $cout = AiPricingCatalog::cost('openrouter', 'vendor/jamais-verifie', AiUsage::fromSdkTextTokens(100, 50));
 
@@ -460,13 +466,13 @@ class TASK1617OpenRouterFreeModelsTest extends TestCase
      * Addendum §1 — l'invariant central : `cost()` est sur le chemin de la
      * COMPTABILISATION, et n'a aucune raison d'appeler OpenRouter.
      */
-    public function test_le_chiffrage_ne_declenche_AUCUN_appel_reseau(): void
+    public function test_le_chiffrage_ne_declenche_aucu_n_appel_reseau(): void
     {
         $this->fakeCatalogue([$this->model('vendor/a', ['prompt' => '0', 'completion' => '0'])]);
         app(LoopPluginAiModels::class)->assign('aperio', 'vendor/a', $this->superAdmin);
 
         // On repart d'une fabrique VIERGE : tout appel serait donc visible.
-        Http::swap(new \Illuminate\Http\Client\Factory);
+        Http::swap(new Factory);
         Http::fake();
 
         AiPricingCatalog::cost('openrouter', 'vendor/a', AiUsage::fromSdkTextTokens(10, 10));
@@ -515,7 +521,7 @@ class TASK1617OpenRouterFreeModelsTest extends TestCase
      * sait. Un slug tarife en configuration ne doit pas pouvoir generer si sa
      * preuve FREE est expiree.
      */
-    public function test_une_entree_pricing_statique_ne_contourne_PAS_la_garde_free(): void
+    public function test_une_entree_pricing_statique_ne_contourne_pa_s_la_garde_free(): void
     {
         $this->fakeCatalogue([$this->model('vendor/tarife', ['prompt' => '0', 'completion' => '0'])]);
         app(LoopPluginAiModels::class)->assign('aperio', 'vendor/tarife', $this->superAdmin);
@@ -533,7 +539,7 @@ class TASK1617OpenRouterFreeModelsTest extends TestCase
         // ... et pourtant la garde REFUSE, parce que la preuve a expire.
         $this->perimerLaPreuve('aperio');
         Cache::forget(OpenRouterModelCatalog::CACHE_KEY);
-        Http::swap(new \Illuminate\Http\Client\Factory);
+        Http::swap(new Factory);
         Http::fake(['*/models' => Http::response(null, 503)]);
 
         $raison = null;
@@ -589,7 +595,7 @@ class TASK1617OpenRouterFreeModelsTest extends TestCase
     /** Point 20 : la configuration modele reste PLATEFORME. */
     public function test_la_configuration_des_modeles_n_est_jamais_un_etat_de_tenant(): void
     {
-        $colonnes = \Illuminate\Support\Facades\Schema::getColumnListing('loop_plugin_ai_models');
+        $colonnes = Schema::getColumnListing('loop_plugin_ai_models');
 
         $this->assertNotContains('organization_id', $colonnes,
             'un modele est un reglage d\'INFRASTRUCTURE plateforme, jamais un etat de tenant');
@@ -599,7 +605,7 @@ class TASK1617OpenRouterFreeModelsTest extends TestCase
 
     public function test_la_capability_loop_multi_ai_existe_et_ne_publie_rien(): void
     {
-        $definition = app(\App\Ai\CapabilityRegistry::class)->get('loop_multi_ai');
+        $definition = app(CapabilityRegistry::class)->get('loop_multi_ai');
 
         $this->assertSame('loop_multi_ai', $definition->id);
         $this->assertSame('loop_multi_ai', $definition->process);
@@ -644,7 +650,7 @@ class TASK1617OpenRouterFreeModelsTest extends TestCase
         // cette remise a zero, un test qui appelle ce helper deux fois
         // mesurerait le catalogue du PREMIER appel — il mesurerait donc
         // l'inverse de son intention.
-        Http::swap(new \Illuminate\Http\Client\Factory);
+        Http::swap(new Factory);
         Http::fake(['*/models' => Http::response(['data' => $models], 200)]);
     }
 

@@ -207,7 +207,7 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
             "  2. la surface est VRAIMENT publique -> l'inscrire dans PUBLIC_BY_DECISION\n".
             "     avec la raison, qui devient l'autorite ecrite de sa publicite.\n\n".
             "Un commentaire au-dessus de la route ne suffit pas : c'est precisement\n".
-            "ce qui a laisse passer TASK-1488.",
+            'ce qui a laisse passer TASK-1488.',
             implode("\n", array_map(
                 static fn ($uri, $n) => "  - $n   ($uri)",
                 $undeclared,

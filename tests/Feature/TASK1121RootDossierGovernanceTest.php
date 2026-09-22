@@ -10,6 +10,7 @@ use App\Services\LoopService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -64,7 +65,7 @@ class TASK1121RootDossierGovernanceTest extends TestCase
         $this->racine = Dossier::where('loop_id', $this->boucle->id)->firstOrFail();
     }
 
-    private function voirDossier(User $user): \Illuminate\Testing\TestResponse
+    private function voirDossier(User $user): TestResponse
     {
         return $this->actingAs($user)->get(route('organization.dossiers.show', [
             'organization' => $this->orgA->slug, 'dossier' => $this->racine->id,

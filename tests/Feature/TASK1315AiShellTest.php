@@ -58,7 +58,6 @@ use Tests\TestCase;
 class TASK1315AiShellTest extends TestCase
 {
     use RecordsAiConsumption;
-
     use RefreshDatabase;
 
     private Organization $organizationA;

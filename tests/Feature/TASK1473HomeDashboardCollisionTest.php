@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Organization;
+use App\Models\Service;
 use App\Models\UsageReference;
 use App\Models\User;
 use App\Support\Ai\AiShellPageContext;
@@ -207,7 +208,7 @@ class TASK1473HomeDashboardCollisionTest extends TestCase
         $stranger = User::factory()->complete()->create(['organization_id' => $other->id]);
 
         // Le service de CETTE Organization, qui ne doit jamais apparaitre.
-        $secret = \App\Models\Service::factory()->create([
+        $secret = Service::factory()->create([
             'user_id' => $this->member->id,
             'title' => 'Prestation-privee-TASK1473',
             'status' => 'active',

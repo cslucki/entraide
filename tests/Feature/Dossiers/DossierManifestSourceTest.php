@@ -3,8 +3,8 @@
 namespace Tests\Feature\Dossiers;
 
 use App\Ai\CapabilityRegistry;
-use App\Ai\Context\ContexteBorne;
 use App\Ai\Context\ContextBuilder;
+use App\Ai\Context\ContexteBorne;
 use App\Ai\Context\DossierManifestSource;
 use App\Ai\Context\SourceDenied;
 use App\Ai\ContexteIa;

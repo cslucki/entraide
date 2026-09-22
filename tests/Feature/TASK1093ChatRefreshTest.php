@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Livewire\LoopChat;
-use App\Livewire\LoopEventsCard;
 use App\Livewire\LoopPollsCard;
 use App\Models\Loop;
 use App\Models\LoopMember;
@@ -11,6 +10,7 @@ use App\Models\LoopMessage;
 use App\Models\LoopPoll;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\LoopMessageService;
 use App\Services\Loops\LoopCardCompositionService;
 use App\Services\Loops\LoopPollService;
 use App\Support\Loops\LoopTypeRegistry;
@@ -126,7 +126,7 @@ class TASK1093ChatRefreshTest extends TestCase
         $avant = count($chat->viewData('messages'));
 
         $poll = $this->poll();
-        app(\App\Services\LoopMessageService::class)
+        app(LoopMessageService::class)
             ->sendPollEventMessage($this->loop, $this->owner, $poll, 'created');
 
         // Un simple nouveau rendu suffit : c'est ce que fait le poll.
@@ -195,7 +195,7 @@ class TASK1093ChatRefreshTest extends TestCase
     public function test_the_chat_takes_the_event_of_its_own_loop(): void
     {
         $poll = $this->poll();
-        app(\App\Services\LoopMessageService::class)
+        app(LoopMessageService::class)
             ->sendPollEventMessage($this->loop, $this->owner, $poll, 'created');
 
         $chat = Livewire::actingAs($this->owner)->test(LoopChat::class, ['loop' => $this->loop]);
@@ -203,7 +203,7 @@ class TASK1093ChatRefreshTest extends TestCase
 
         // Un message arrive pendant que le fil est ouvert.
         $poll2 = $this->poll();
-        app(\App\Services\LoopMessageService::class)
+        app(LoopMessageService::class)
             ->sendPollEventMessage($this->loop, $this->owner, $poll2, 'created');
 
         $chat->dispatch('loop-activity-published', loopId: $this->loop->id);
@@ -296,7 +296,7 @@ class TASK1093ChatRefreshTest extends TestCase
             ->set('body', 'Un message que je suis en train d ecrire');
 
         $poll = $this->poll();
-        app(\App\Services\LoopMessageService::class)
+        app(LoopMessageService::class)
             ->sendPollEventMessage($this->loop, $this->owner, $poll, 'created');
 
         $chat->dispatch('loop-activity-published', loopId: $this->loop->id);
@@ -307,7 +307,7 @@ class TASK1093ChatRefreshTest extends TestCase
     public function test_the_same_message_never_appears_twice(): void
     {
         $poll = $this->poll();
-        app(\App\Services\LoopMessageService::class)
+        app(LoopMessageService::class)
             ->sendPollEventMessage($this->loop, $this->owner, $poll, 'created');
 
         $chat = Livewire::actingAs($this->owner)->test(LoopChat::class, ['loop' => $this->loop]);
@@ -325,7 +325,7 @@ class TASK1093ChatRefreshTest extends TestCase
     public function test_a_message_already_loaded_is_not_loaded_again(): void
     {
         $poll = $this->poll();
-        app(\App\Services\LoopMessageService::class)
+        app(LoopMessageService::class)
             ->sendPollEventMessage($this->loop, $this->owner, $poll, 'created');
 
         $chat = Livewire::actingAs($this->owner)->test(LoopChat::class, ['loop' => $this->loop]);

@@ -27,7 +27,11 @@ final class MultiAssistantRun
         public readonly array $outcomes,
     ) {}
 
-    /** @return list<AssistantOutcome> */
+    /**
+     * Les tours COMPLETS. Strict : une reponse ecourtee n'en fait pas partie.
+     *
+     * @return list<AssistantOutcome>
+     */
     public function succeeded(): array
     {
         return array_values(array_filter(
@@ -37,13 +41,33 @@ final class MultiAssistantRun
     }
 
     /**
-     * Au moins un assistant a-t-il repondu ? Un tour ou les trois echouent
-     * reste un tour REEL — il a construit ses preuves, il a ses traces — mais
-     * l'appelant doit pouvoir le distinguer sans inspecter trois statuts.
+     * Ce qu'il y a a METTRE DANS LE FIL — reponses completes ET ecourtees.
+     * (TASK-1621)
+     *
+     * C'est cette liste que le publisher doit lire. `succeeded()` repond a une
+     * autre question (« est-ce complet ? »), et les deux se confondaient tant
+     * qu'il n'existait que deux etats.
+     *
+     * @return list<AssistantOutcome>
+     */
+    public function publishable(): array
+    {
+        return array_values(array_filter(
+            $this->outcomes,
+            static fn (AssistantOutcome $outcome): bool => $outcome->isPublishable(),
+        ));
+    }
+
+    /**
+     * Au moins un assistant a-t-il repondu ? Un tour ou les deux echouent
+     * reste un tour REEL — il a son contexte, il a ses traces — mais
+     * l'appelant doit pouvoir le distinguer sans inspecter deux statuts.
+     *
+     * Une reponse ecourtee COMPTE ici : le membre a bien quelque chose a lire.
      */
     public function hasAnswer(): bool
     {
-        return $this->succeeded() !== [];
+        return $this->publishable() !== [];
     }
 
     public function outcomeFor(string $assistantKey): ?AssistantOutcome

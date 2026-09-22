@@ -11,6 +11,7 @@ use App\Services\LoopService;
 use App\Support\Ai\AiFabContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -214,7 +215,7 @@ class TASK1466NoGlobalShellOnLoopsTest extends TestCase
 
         foreach (AiFabContext::LOOP_SURFACE_ROUTES as $routeName) {
             $request = Request::create('/peu-importe', 'GET');
-            $request->setRouteResolver(fn () => (new \Illuminate\Routing\Route('GET', '/peu-importe', []))->name($routeName));
+            $request->setRouteResolver(fn () => (new Route('GET', '/peu-importe', []))->name($routeName));
 
             $this->assertTrue($fab->isLoopSurface($request), $routeName.' est une surface Boucle');
             $this->assertFalse($fab->shouldRenderFab($request, $this->member));
@@ -224,7 +225,7 @@ class TASK1466NoGlobalShellOnLoopsTest extends TestCase
         // Une route dont le NOM contient « loops » sans etre le ChatLoop n'est
         // pas concernee : la liste est exacte, jamais un `str_contains`.
         $index = Request::create('/peu-importe', 'GET');
-        $index->setRouteResolver(fn () => (new \Illuminate\Routing\Route('GET', '/peu-importe', []))->name('organization.loops.index'));
+        $index->setRouteResolver(fn () => (new Route('GET', '/peu-importe', []))->name('organization.loops.index'));
 
         $this->assertFalse($fab->isLoopSurface($index));
     }

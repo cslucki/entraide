@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Requests\StoreDossierFileRequest;
 use App\Models\Dossier;
 use App\Models\DossierFile;
 use App\Models\DossierMember;
@@ -10,6 +11,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
 class DossierFileTest extends TestCase
@@ -363,7 +365,7 @@ class DossierFileTest extends TestCase
      */
     public function test_an_old_xls_container_is_accepted_whatever_libmagic_says(): void
     {
-        $regles = (new \App\Http\Requests\StoreDossierFileRequest)->rules()['files.*'];
+        $regles = (new StoreDossierFileRequest)->rules()['files.*'];
         $mimes = collect($regles)->first(fn ($regle) => is_string($regle) && str_starts_with($regle, 'mimetypes:'));
 
         foreach (['application/vnd.ms-excel', 'application/x-ole-storage', 'application/CDFV2'] as $type) {
@@ -401,7 +403,7 @@ class DossierFileTest extends TestCase
     // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
     // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
     // n'est pas un endroit ou ranger un test qui gene.
-    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
+    #[Group('ci-known-red')]
     public function test_upload_validates_quota(): void
     {
         $this->orgA->update(['dossier_storage_quota_bytes' => 5000]);
@@ -414,7 +416,7 @@ class DossierFileTest extends TestCase
     // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
     // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
     // n'est pas un endroit ou ranger un test qui gene.
-    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
+    #[Group('ci-known-red')]
     public function test_upload_allows_under_quota(): void
     {
         $this->orgA->update(['dossier_storage_quota_bytes' => 10000]);

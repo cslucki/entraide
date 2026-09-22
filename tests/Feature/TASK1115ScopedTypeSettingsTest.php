@@ -2,14 +2,14 @@
 
 namespace Tests\Feature;
 
-use App\Models\Loop;
 use App\Models\LoopCard;
 use App\Models\LoopTypeSetting;
 use App\Models\Organization;
 use App\Models\User;
-use App\Services\LoopTypeSettingsService;
 use App\Services\LoopService;
+use App\Services\LoopTypeSettingsService;
 use App\Support\Loops\LoopTypeRegistry;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -138,7 +138,7 @@ class TASK1115ScopedTypeSettingsTest extends TestCase
         // et le service en lirait un au hasard.
         $this->reglages()->save('project', ['core.manifesto'], true);
 
-        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+        $this->expectException(UniqueConstraintViolationException::class);
 
         LoopTypeSetting::create([
             'organization_id' => null,

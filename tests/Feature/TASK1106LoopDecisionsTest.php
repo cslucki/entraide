@@ -10,12 +10,15 @@ use App\Models\LoopMessage;
 use App\Models\LoopRoadmapItem;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\Loops\LoopDecisionService;
 use App\Services\LoopService;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -131,7 +134,7 @@ class TASK1106LoopDecisionsTest extends TestCase
     {
         // Une action nee d'une Decision est un item de Roadmap ordinaire.
         foreach (['loop_decision_actions', 'loop_tasks', 'decision_actions'] as $interdite) {
-            $this->assertFalse(\Illuminate\Support\Facades\Schema::hasTable($interdite));
+            $this->assertFalse(Schema::hasTable($interdite));
         }
     }
 
@@ -360,7 +363,7 @@ class TASK1106LoopDecisionsTest extends TestCase
         $message = $this->message('Une fois');
         $this->service()->promote($this->loop, $this->animateur, $message, 'Titre');
 
-        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+        $this->expectException(UniqueConstraintViolationException::class);
 
         LoopDecision::create([
             'organization_id' => $this->org->id,
@@ -778,7 +781,7 @@ class TASK1106LoopDecisionsTest extends TestCase
         $this->decision('Une');
         $this->decision('Deux');
 
-        $composition = app(\App\Services\Loops\LoopCardCompositionService::class)->compositionFor($this->loop->fresh());
+        $composition = app(LoopCardCompositionService::class)->compositionFor($this->loop->fresh());
         $ligne = collect($composition)->firstWhere('key', 'core.decisions');
 
         $this->assertSame(2, $ligne['data_count'] ?? null);
@@ -911,7 +914,6 @@ class TASK1106LoopDecisionsTest extends TestCase
         );
     }
 
-
     // ── Le rattrapage sur les Boucles existantes ────────────────────────────
 
     private function migration(): object
@@ -982,7 +984,7 @@ class TASK1106LoopDecisionsTest extends TestCase
         ] as $fichier) {
             $source = file_get_contents($fichier);
 
-            foreach (["\$loop->type ===", "\$loop->type =="] as $condition) {
+            foreach (['$loop->type ===', '$loop->type =='] as $condition) {
                 $this->assertStringNotContainsString($condition, $source, basename($fichier));
             }
         }

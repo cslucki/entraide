@@ -1420,15 +1420,28 @@ return [
 
     'plugins' => [
         'multi_ai_assistants' => [
-            'label' => '3 assistants IA',
-            'description' => 'Poser une question une fois, puis choisir plusieurs regards — Aperio, Traverse et Limen — pour mieux comprendre, confronter et synthétiser.',
+            // TASK-1621 — le module s'appelle « Pour / Contre » partout ou
+            // un humain le lit. Les cles techniques (`multi_ai_assistants`,
+            // `aperio`, `traverse`) ne bougent pas : renommer aurait casse
+            // les lignes deja ecrites pour un changement d'affichage.
+            'label' => 'Pour / Contre',
+            'description' => 'Poser une question une fois et recevoir le pour et le contre : deux assistants indépendants défendent chacun un camp, et personne ne tranche à votre place.',
 
             // TASK-1616 — postures PAR DEFAUT des trois assistants (CDC §4).
             // Une Boucle peut les réécrire ; elle ne peut pas les renommer.
             'assistants' => [
-                'aperio' => "Explorer les meilleurs arguments en faveur d'une piste, clarifier et structurer, tout en restant fidèle aux faits et aux sources disponibles.",
-                'traverse' => "Rechercher les objections, limites, contradictions et alternatives sans inventer d'arguments non étayés.",
-                'limen' => 'Comparer les positions, distinguer accords et désaccords et proposer des compromis ou options possibles sans décider à la place du groupe.',
+                // TASK-1621 — des ROLES, pas des tons.
+                //
+                // TASK-1620 a mesure l'echec de la formulation precedente :
+                // meme modele, memes preuves, meme question -> deux reponses
+                // quasi identiques, ouvrant par la meme phrase. Une posture
+                // enoncee comme un tone (« explorer », « rechercher ») ne
+                // suffit pas a deplacer un modele qui, par defaut, equilibre.
+                //
+                // L'instruction dit donc ce qu'il faut PRODUIRE, et combien.
+                'aperio' => "Tu DEFENDS le camp que le socle t'assigne : la proposition posee par la question, ou la premiere option qu'elle nomme. Presente AU PLUS 3 arguments EN SA FAVEUR, une phrase chacun. Tu peux montrer en quoi l'autre camp est plus faible, mais ta reponse defend le tien — elle ne se contente jamais d'attaquer. Tu ne choisis pas ton camp et tu n'en changes pas. Si le socle indique que la question ne se prete pas a un pour / contre, suis le socle et n'argumente pas. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
+                'traverse' => "Tu DEFENDS le camp que le socle t'assigne : la position inverse de la proposition posee par la question, ou la seconde option qu'elle nomme. Presente AU PLUS 3 arguments EN SA FAVEUR, une phrase chacun. Tu peux montrer en quoi l'autre camp est plus faible, mais ta reponse defend le tien — elle ne se contente jamais d'attaquer, et elle n'attaque JAMAIS ton propre camp. Tu ne choisis pas ton camp et tu n'en changes pas. Si le socle indique que la question ne se prete pas a un pour / contre, suis le socle et n'argumente pas. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
+                'limen' => 'Comparer les positions, distinguer accords et desaccords et proposer des compromis ou options possibles sans decider a la place du groupe.',
             ],
         ],
     ],
@@ -1446,15 +1459,23 @@ return [
     'plugins_loop_saved' => 'Les assistants de :plugin ont été enregistrés.',
     'plugins_loop_unavailable' => "Ce plugin n'est pas autorisé pour cette Organization.",
     'plugins_loop_not_enabled' => 'Les 3 assistants IA ne sont pas activés dans cette Boucle.',
+    'plugins_multi_ai_ask_all' => 'Pour / Contre',
+
+    // TASK-1621 : la modale a disparu. Ce qu'elle expliquait tient dans une
+    // infobulle non bloquante, portee par le bouton lui-meme — un ecran a
+    // confirmer coutait un geste a chaque envoi pour la meme phrase.
+    'plugins_multi_ai_hint' => 'Deux IA présentent les arguments pour et contre. Elles tiennent compte de la discussion récente mais ne consultent pas les Dossiers.',
+    'plugins_multi_ai_disable' => 'Désactiver Pour / Contre',
+    'plugins_multi_ai_queued' => 'En attente…',
+    'plugins_multi_ai_model_hint' => 'Réponse préparée par :model',
+    'plugins_multi_ai_not_applicable' => "Pour / Contre n'a pas identifié de proposition à débattre ni deux choix explicites à comparer. Reformulez par exemple : « WordPress ou Drupal ? » ou « Faut-il choisir WordPress ? »",
+    'plugins_multi_ai_truncated' => 'Réponse écourtée',
+    'plugins_multi_ai_preparing' => 'Préparation des arguments « :assistant »…',
+    'plugins_multi_ai_discover' => 'Configurer Pour / Contre',
 
     // TASK-1619 / SLICE E — ce que le membre lit. Aucun code technique n'y
     // figure : `PROVIDER_CALL_FAILED`, `429` et `upstream_provider_shared_pool`
     // restent dans les traces SuperAdmin. Arbitrage MASTER du 21/09.
-    'plugins_multi_ai_ask_one' => 'Demander à :assistant',
-    'plugins_multi_ai_ask_all' => 'Demander aux 3',
-    'plugins_multi_ai_pending' => ':assistant réfléchit…',
-    'plugins_multi_ai_working' => 'Les 3 assistants analysent votre demande…',
-    'plugins_multi_ai_armed' => '3 IA activées pour ce message',
     'plugins_multi_ai_rate_limited_title' => ':assistant est momentanément indisponible.',
     'plugins_multi_ai_rate_limited_body' => 'Le modèle gratuit utilisé par :assistant ne peut pas répondre pour le moment.',
     'plugins_multi_ai_failed_title' => ":assistant n'a pas pu répondre.",
@@ -1463,15 +1484,12 @@ return [
     'plugins_multi_ai_refused_body' => "Aucun modèle n'est configuré pour :assistant. Un administrateur peut en choisir un.",
     'plugins_multi_ai_retry' => 'Réessayer',
     'plugins_multi_ai_dismiss' => 'Masquer',
-    'plugins_multi_ai_synthesise' => 'Synthétiser avec :assistant',
-    'plugins_multi_ai_nothing_to_synthesise' => "Il n'y a aucune réponse à synthétiser.",
     'plugins_multi_ai_synthesis_question' => 'Compare les réponses obtenues à : :question',
-    'plugins_multi_ai_discover' => 'Configurer les 3 assistants IA',
     'plugins_multi_ai_none_enabled' => "Aucun assistant n'est actif dans cette Boucle.",
     'plugins_loop_last_change' => 'Modifié le :date par :author',
     'plugins_loop_last_change_anonymous' => 'Modifié le :date',
-    'plugins_assistants_title' => 'Les trois assistants',
-    'plugins_assistants_intro' => "Chaque assistant a une posture. Vous pouvez la réécrire pour cette Boucle ; vous ne pouvez ni les renommer, ni en ajouter. Une instruction locale ne contourne jamais la Constitution ni la doctrine de l'Organization : elle s'y ajoute.",
+    'plugins_assistants_title' => 'Les deux assistants',
+    'plugins_assistants_intro' => "Chaque assistant défend un camp, et ne le choisit jamais lui-même : il est déterminé par la question. Vous pouvez réécrire sa posture pour cette Boucle ; vous ne pouvez ni les renommer, ni en ajouter. Une instruction locale ne contourne jamais la Constitution ni la doctrine de l'Organization : elle s'y ajoute.",
     'plugins_assistants_instruction' => 'Posture',
     'plugins_assistants_enabled' => 'Actif',
     'plugins_assistants_reset_hint' => 'Vider le champ rétablit la posture par défaut.',
@@ -1485,7 +1503,7 @@ return [
     'plugins_models_catalog_never' => 'Catalogue jamais relevé.',
     'plugins_models_catalog_failed' => "Catalogue OpenRouter indisponible (:reason). Aucun modèle n'est proposé tant que le relevé n'a pas abouti.",
     'plugins_models_refresh' => 'Actualiser les modèles OpenRouter',
-    'plugins_models_refreshed' => 'Catalogue OpenRouter actualisé : :count modèles gratuits vérifiés.',
+    'plugins_models_refreshed' => 'Catalogue OpenRouter actualisé : :count modèles gratuits vérifiés, :renewed preuve(s) renouvelée(s).',
     'plugins_models_refresh_failed' => "Le relevé OpenRouter a échoué (:reason). Rien n'a été modifié.",
     'plugins_models_none' => 'Aucun modèle',
     'plugins_models_choose' => '— choisir un modèle —',

@@ -10,6 +10,7 @@ use App\Models\DossierBlogPost;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -47,7 +48,7 @@ class TASK1085EditorPanelsTest extends TestCase
             'user_id' => $this->author->id,
             'organization_id' => $this->org->id,
             'title' => $title,
-            'slug' => \Illuminate\Support\Str::slug($title).'-'.uniqid(),
+            'slug' => Str::slug($title).'-'.uniqid(),
             'content' => '<p>Contenu</p>',
             'status' => 'draft',
         ]);
