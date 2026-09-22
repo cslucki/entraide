@@ -156,6 +156,108 @@ class TASK1621PourContreEngineTest extends TestCase
         $this->catalogueEtModeles();
     }
 
+    // ── 0-QUATER. LA REPONSE EST BORNEE, PAS SEULEMENT ENCOURAGEE ───────────
+
+    public function test_le_socle_borne_la_forme_au_lieu_de_la_suggerer(): void
+    {
+        // Mesure avant correctif : 833 a 1221 caracteres, et 5 puces dans 10
+        // cas sur 12. « Va droit au but » est une intention ; le modele prend
+        // le maximum qu'on lui autorise. Il lui faut une LIMITE.
+        $texte = $this->socleLivre()->prompt_text;
+
+        foreach ([
+            'AU PLUS TROIS puces. Jamais quatre, jamais cinq.',
+            'UNE SEULE PHRASE par puce',
+            // Le sous-titre en gras des puces faisait a lui seul la moitie de
+            // la longueur, et contredisait la regle « une seule phrase en
+            // gras » que le socle enoncait deja sans jamais l'interdire.
+            'AUCUN gras dans les puces',
+            'pas de preambule',
+        ] as $borne) {
+            $this->assertStringContainsString($borne, $texte);
+        }
+
+        // La borne d'avant ne doit plus exister nulle part.
+        $this->assertStringNotContainsString('3 a 5', $texte);
+    }
+
+    public function test_les_deux_roles_ne_demandent_plus_cinq_arguments(): void
+    {
+        foreach (['fr', 'en'] as $locale) {
+            foreach (['aperio', 'traverse'] as $role) {
+                $texte = trans("loops.plugins.multi_ai_assistants.assistants.{$role}", [], $locale);
+
+                foreach (['3 a 5', '3 to 5', '3 à 5'] as $interdit) {
+                    $this->assertStringNotContainsString($interdit, $texte,
+                        "{$locale}/{$role} : le modele prend toujours le maximum autorise");
+                }
+
+                $this->assertMatchesRegularExpression('/AU PLUS 3|AT MOST 3/', $texte,
+                    "{$locale}/{$role} doit borner le nombre d'arguments");
+                $this->assertMatchesRegularExpression('/une phrase chacun|one sentence each/', $texte,
+                    "{$locale}/{$role} doit borner la longueur de chaque argument");
+            }
+        }
+    }
+
+    // ── 0-TER. UNE QUESTION SANS CAMPS NE FAIT QU'UN SEUL APPEL ─────────────
+
+    public function test_le_marqueur_hors_sujet_abstient_le_tour_sans_le_faire_echouer(): void
+    {
+        $this->fakeAvecArret(FinishReason::Stop, LoopMultiAiOrchestrator::MARQUEUR_HORS_SUJET);
+
+        $run = $this->orchestrateur()->runOne(
+            $this->loop, $this->membre, 'Quel CMS choisir ?', LoopMultiAiOrchestrator::ROLE_POUR,
+        );
+
+        $outcome = $run->outcomes[0];
+
+        $this->assertTrue($outcome->isNotApplicable());
+        $this->assertSame('NO_DEBATABLE_PROPOSITION', $outcome->errorCode);
+
+        // Ni reussite, ni panne, ni refus : les trois lectures doivent etre
+        // fausses, sinon l'ecran dira « n'a pas pu repondre ».
+        $this->assertFalse($outcome->succeeded());
+        $this->assertFalse($outcome->isPublishable());
+        $this->assertFalse($outcome->isRetryable());
+        $this->assertNotSame(AssistantOutcome::STATUS_ERROR, $outcome->status);
+        $this->assertNotSame(AssistantOutcome::STATUS_REFUSED, $outcome->status);
+
+        // L'appel EST parti : il a sa ligne, et elle ne compte pas comme un
+        // echec dans les sommes de fiabilite.
+        $ligne = AiProviderInvocation::query()->latest('created_at')->firstOrFail();
+        $this->assertSame('completed', $ligne->status);
+        $this->assertNull($ligne->failure_reason);
+    }
+
+    public function test_aucune_bulle_n_est_publiable_quand_la_question_n_a_pas_de_camps(): void
+    {
+        $this->fakeAvecArret(FinishReason::Stop, LoopMultiAiOrchestrator::MARQUEUR_HORS_SUJET);
+
+        $run = $this->orchestrateur()->runPourContre($this->loop, $this->membre, 'Quel CMS choisir ?');
+
+        $this->assertSame([], $run->publishable(), 'rien n\'entre dans le fil');
+        $this->assertSame([], $run->succeeded());
+        $this->assertFalse($run->hasAnswer());
+    }
+
+    public function test_sans_marqueur_aucun_verdict_hors_sujet_n_est_invente(): void
+    {
+        // LA garde : une reponse qui PARLE de reformulation, sans le marqueur,
+        // reste une reponse ordinaire. Reconnaitre l'intention dans une phrase
+        // libre demanderait un parser, et un parser se trompe.
+        $this->fakeAvecArret(FinishReason::Stop,
+            'Cette question ne se prete pas vraiment a un debat, reformulez-la.');
+
+        $run = $this->orchestrateur()->runPourContre($this->loop, $this->membre, 'Quel CMS choisir ?');
+
+        $this->assertTousReussis($run);
+
+        foreach ($run->outcomes as $outcome) {
+            $this->assertFalse($outcome->isNotApplicable());
+        }
+    }
+
     // ── 0-BIS. AUCUN ROLE NE CHOISIT SON CAMP ───────────────────────────────
     //
     // Defaut mesure : « Windows ou Linux que choisir ? » a produit DEUX
@@ -196,7 +298,12 @@ class TASK1621PourContreEngineTest extends TestCase
         $texte = $this->socleLivre()->prompt_text;
 
         $this->assertStringContainsString("N'invente AUCUN camp", $texte);
-        $this->assertStringContainsString('Les deux roles repondent la meme chose dans ce cas', $texte);
+
+        // TASK-1621 — le modele annonce le verdict par un MARQUEUR exact, et
+        // l'application prend le relais. Reconnaitre l'intention dans une
+        // phrase libre aurait demande un parser.
+        $this->assertStringContainsString(LoopMultiAiOrchestrator::MARQUEUR_HORS_SUJET, $texte);
+        $this->assertStringContainsString('pas un mot avant, pas un mot apres', $texte);
 
         // Un role a quand meme argumente en recette : « presente 3 a 5
         // arguments » se lisait comme un ordre inconditionnel. La regle 3 doit

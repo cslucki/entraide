@@ -1420,8 +1420,12 @@ return [
 
     'plugins' => [
         'multi_ai_assistants' => [
-            'label' => '3 assistants IA',
-            'description' => 'Poser une question une fois, puis choisir plusieurs regards — Aperio, Traverse et Limen — pour mieux comprendre, confronter et synthétiser.',
+            // TASK-1621 — le module s'appelle « Pour / Contre » partout ou
+            // un humain le lit. Les cles techniques (`multi_ai_assistants`,
+            // `aperio`, `traverse`) ne bougent pas : renommer aurait casse
+            // les lignes deja ecrites pour un changement d'affichage.
+            'label' => 'Pour / Contre',
+            'description' => 'Poser une question une fois et recevoir le pour et le contre : deux assistants indépendants défendent chacun un camp, et personne ne tranche à votre place.',
 
             // TASK-1616 — postures PAR DEFAUT des trois assistants (CDC §4).
             // Une Boucle peut les réécrire ; elle ne peut pas les renommer.
@@ -1435,8 +1439,8 @@ return [
                 // suffit pas a deplacer un modele qui, par defaut, equilibre.
                 //
                 // L'instruction dit donc ce qu'il faut PRODUIRE, et combien.
-                'aperio' => "Tu DEFENDS le camp que le socle t'assigne : la proposition posee par la question, ou la premiere option qu'elle nomme. Presente 3 a 5 arguments solides EN SA FAVEUR. Tu peux montrer en quoi l'autre camp est plus faible, mais ta reponse defend le tien — elle ne se contente jamais d'attaquer. Tu ne choisis pas ton camp et tu n'en changes pas. Si le socle indique que la question ne se prete pas a un pour / contre, suis le socle et n'argumente pas. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
-                'traverse' => "Tu DEFENDS le camp que le socle t'assigne : la position inverse de la proposition posee par la question, ou la seconde option qu'elle nomme. Presente 3 a 5 arguments solides EN SA FAVEUR. Tu peux montrer en quoi l'autre camp est plus faible, mais ta reponse defend le tien — elle ne se contente jamais d'attaquer, et elle n'attaque JAMAIS ton propre camp. Tu ne choisis pas ton camp et tu n'en changes pas. Si le socle indique que la question ne se prete pas a un pour / contre, suis le socle et n'argumente pas. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
+                'aperio' => "Tu DEFENDS le camp que le socle t'assigne : la proposition posee par la question, ou la premiere option qu'elle nomme. Presente AU PLUS 3 arguments EN SA FAVEUR, une phrase chacun. Tu peux montrer en quoi l'autre camp est plus faible, mais ta reponse defend le tien — elle ne se contente jamais d'attaquer. Tu ne choisis pas ton camp et tu n'en changes pas. Si le socle indique que la question ne se prete pas a un pour / contre, suis le socle et n'argumente pas. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
+                'traverse' => "Tu DEFENDS le camp que le socle t'assigne : la position inverse de la proposition posee par la question, ou la seconde option qu'elle nomme. Presente AU PLUS 3 arguments EN SA FAVEUR, une phrase chacun. Tu peux montrer en quoi l'autre camp est plus faible, mais ta reponse defend le tien — elle ne se contente jamais d'attaquer, et elle n'attaque JAMAIS ton propre camp. Tu ne choisis pas ton camp et tu n'en changes pas. Si le socle indique que la question ne se prete pas a un pour / contre, suis le socle et n'argumente pas. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
                 'limen' => 'Comparer les positions, distinguer accords et desaccords et proposer des compromis ou options possibles sans decider a la place du groupe.',
             ],
         ],
@@ -1462,6 +1466,7 @@ return [
     // confirmer coutait un geste a chaque envoi pour la meme phrase.
     'plugins_multi_ai_hint' => 'Deux IA présentent les arguments pour et contre. Elles tiennent compte de la discussion récente mais ne consultent pas les Dossiers.',
     'plugins_multi_ai_disable' => 'Désactiver Pour / Contre',
+    'plugins_multi_ai_not_applicable' => "Pour / Contre n'a pas identifié de proposition à débattre ni deux choix explicites à comparer. Reformulez par exemple : « WordPress ou Drupal ? » ou « Faut-il choisir WordPress ? »",
     'plugins_multi_ai_truncated' => 'Réponse écourtée',
     'plugins_multi_ai_preparing' => 'Préparation des arguments « :assistant »…',
     'plugins_multi_ai_discover' => 'Configurer Pour / Contre',
@@ -1481,8 +1486,8 @@ return [
     'plugins_multi_ai_none_enabled' => "Aucun assistant n'est actif dans cette Boucle.",
     'plugins_loop_last_change' => 'Modifié le :date par :author',
     'plugins_loop_last_change_anonymous' => 'Modifié le :date',
-    'plugins_assistants_title' => 'Les trois assistants',
-    'plugins_assistants_intro' => "Chaque assistant a une posture. Vous pouvez la réécrire pour cette Boucle ; vous ne pouvez ni les renommer, ni en ajouter. Une instruction locale ne contourne jamais la Constitution ni la doctrine de l'Organization : elle s'y ajoute.",
+    'plugins_assistants_title' => 'Les deux assistants',
+    'plugins_assistants_intro' => "Chaque assistant défend un camp, et ne le choisit jamais lui-même : il est déterminé par la question. Vous pouvez réécrire sa posture pour cette Boucle ; vous ne pouvez ni les renommer, ni en ajouter. Une instruction locale ne contourne jamais la Constitution ni la doctrine de l'Organization : elle s'y ajoute.",
     'plugins_assistants_instruction' => 'Posture',
     'plugins_assistants_enabled' => 'Actif',
     'plugins_assistants_reset_hint' => 'Vider le champ rétablit la posture par défaut.',

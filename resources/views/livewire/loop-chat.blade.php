@@ -593,6 +593,7 @@
                 'states' => $multiAiStates,
                 'queue' => $pourContreQueue,
                 'labels' => $multiAiLabels,
+                'models' => $this->multiAiModelLabels(),
             ])
         </div>
     @endif

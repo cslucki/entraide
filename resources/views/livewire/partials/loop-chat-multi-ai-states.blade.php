@@ -51,11 +51,44 @@
             {{-- Le role en MINUSCULES : il est cite dans une phrase, pas
                  employe comme un nom propre. --}}
             <span>{{ __('loops.plugins_multi_ai_preparing', ['assistant' => mb_strtolower($labels[$queue[0]] ?? $queue[0])]) }}</span>
+            @if(($models[$queue[0]] ?? null))
+                {{-- TASK-1621 — QUI prepare. Sans ce nom, deux assistants
+                     differents se lisent comme un seul qui repond deux fois.
+                     Discret : casse normale, opacite reduite, pas de fond —
+                     et le MEME abregement que dans la bulle, pour que le
+                     membre reconnaisse le meme nom d'un bout a l'autre. --}}
+                <span data-multi-ai-pending-model="{{ $queue[0] }}"
+                      class="min-w-0 truncate text-[11px] font-normal opacity-60">{{ $models[$queue[0]] }}</span>
+            @endif
             <svg class="ml-auto h-4 w-4 flex-shrink-0 animate-spin opacity-70" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
         </div>
     @endif
 
     @foreach($states as $key => $state)
+        @if($state['status'] === 'not_applicable')
+            {{-- TASK-1621 — la question n'a pas de camps a distribuer.
+                 NEUTRE, pas ambre : ce n'est ni une panne ni un refus, et
+                 « n'a pas pu repondre » serait faux. Aucun nom d'assistant
+                 non plus — ce n'est pas un role qui a echoue. Aucun bouton
+                 « Reessayer » : la meme question rendrait le meme verdict,
+                 c'est la reformulation qui debloque. --}}
+            <div data-multi-ai-not-applicable
+                 class="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-200">
+                <p class="leading-5">{{ __('loops.plugins_multi_ai_not_applicable') }}</p>
+
+                <div class="mt-2 flex">
+                    <button type="button"
+                            wire:click="dismissAssistantState('{{ $key }}')"
+                            data-multi-ai-dismiss="{{ $key }}"
+                            class="ml-auto text-gray-600 underline-offset-2 hover:underline dark:text-gray-300">
+                        {{ __('loops.plugins_multi_ai_dismiss') }}
+                    </button>
+                </div>
+            </div>
+
+            @continue
+        @endif
+
         @php
             [$titre, $corps] = match ($state['status']) {
                 'rate_limited' => [

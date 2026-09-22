@@ -198,7 +198,10 @@ class TASK1617OpenRouterFreeModelsTest extends TestCase
             ->assertSee('data-section="plugin-models"', false)
             ->assertSee('data-assistant-model="aperio"', false)
             ->assertSee('data-assistant-model="traverse"', false)
-            ->assertSee('data-assistant-model="limen"', false);
+            // TASK-1621 — `limen` est dormant : il n'a pas de modele a choisir,
+            // et le proposer laisserait croire qu'il sera appele. Sa ligne
+            // `loop_plugin_ai_models` reste en base, elle n'est plus offerte.
+            ->assertDontSee('data-assistant-model="limen"', false);
     }
 
     public function test_un_non_superadmin_est_refuse_sur_la_configuration_des_modeles(): void

@@ -113,6 +113,17 @@ final class LoopMultiAiOrchestrator
     /** @var list<string> */
     public const ROLES = [self::ROLE_POUR, self::ROLE_CONTRE];
 
+    /**
+     * Le marqueur par lequel le modele dit « cette question ne se prete pas a
+     * un pour / contre ». (TASK-1621)
+     *
+     * Un jeton EXACT, pas une analyse : reconnaitre l'intention dans une
+     * phrase libre demanderait un parser, et un parser se trompe. Le socle
+     * demande ce marqueur et RIEN d'autre ; s'il n'arrive pas, le tour suit
+     * son cours normal — l'absence de marqueur n'invente jamais un verdict.
+     */
+    public const MARQUEUR_HORS_SUJET = '[[PAS_DE_PROPOSITION]]';
+
     public function __construct(
         private CapabilityRegistry $capabilities,
         private ProviderResolver $providers,
@@ -664,6 +675,14 @@ final class LoopMultiAiOrchestrator
 
         $coupe = $coupeParLeProvider || $coupeParNotrePlafond;
 
+        // ── La question se prete-t-elle a un pour / contre ? (TASK-1621) ────
+        //
+        // Le modele repond par un marqueur exact. On le cherche dans le texte
+        // BRUT : le sanitiseur pourrait avoir mange les crochets, et une
+        // detection qui depend du nettoyage serait fragile la ou elle doit
+        // etre sure.
+        $horsSujet = str_contains($brut, self::MARQUEUR_HORS_SUJET);
+
         $usage = AiUsage::fromSdkTextTokens($response->usage->promptTokens, $response->usage->completionTokens);
 
         // Un modele prouve gratuit rend un cout CONNU a 0.0 — jamais un cout
@@ -680,10 +699,13 @@ final class LoopMultiAiOrchestrator
             resolved: $resolved,
             usage: $usage,
             cost: $cost,
-            status: $answer === '' ? 'failed' : 'completed',
+            // Un tour hors sujet a ABOUTI : l'appel est parti, il a repondu,
+            // il est paye. `failed` le compterait comme une panne dans toutes
+            // les sommes de fiabilite.
+            status: ($answer === '' && ! $horsSujet) ? 'failed' : 'completed',
             correlationId: $evidence->correlationId,
             sdkInvocationId: $response->invocationId,
-            failureReason: $answer === ''
+            failureReason: ($answer === '' && ! $horsSujet)
                 ? ($coupeParLeProvider
                     ? AiTurnReason::TERMINAL_OUTPUT_BUDGET_EXHAUSTED
                     : AiTurnReason::TERMINAL_EMPTY_MODEL_ANSWER)
@@ -691,6 +713,21 @@ final class LoopMultiAiOrchestrator
             startedAtMicrotime: $startedAt,
             feature: self::FEATURE_PREFIX.$key,
         );
+
+        if ($horsSujet) {
+            // Le tour a ABOUTI — il a sa ligne au ledger, l'appel est paye —
+            // mais il n'y a aucun camp a distribuer. `abstained`, pas
+            // `failed` : afficher « n'a pas pu repondre » a quelqu'un dont la
+            // question etait simplement d'une autre nature serait faux.
+            AiTurnTrace::step($organizationId, $turnId, 'generation', 'abstained',
+                AiTurnReason::TERMINAL_NO_DEBATABLE_PROPOSITION, ['assistant_key' => $key]);
+
+            $this->recordGenerativeTurn($loop, $requester, $evidence, $definition, $resolved, $turnId, $key,
+                $prompt, null, $usage, $cost->traceAttributes(), 'completed', $startedAt, $response->invocationId,
+                null, AiTurnReason::TERMINAL_NO_DEBATABLE_PROPOSITION, $doctrineVersion);
+
+            return AssistantOutcome::notApplicable($key, $turnId, $resolved->model);
+        }
 
         if ($answer === '') {
             // Rien a lire. La raison dit LAQUELLE des deux : budget brule, ou

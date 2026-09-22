@@ -13,6 +13,7 @@ use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
 use App\Services\Ai\LoopMultiAiOrchestrator;
+use App\Services\Ai\LoopPluginAiModels;
 use App\Services\ChatLoop\AiResponseExplanationService;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\Knowledge\ClaimPatch;
@@ -957,6 +958,44 @@ class LoopChat extends Component
      *
      * @return list<array{key: string, label: string}>
      */
+    /**
+     * Le modele qui repondra, par role. (TASK-1621)
+     *
+     * Sert la mire d'attente : « Préparation des arguments "pour"… » ne disait
+     * pas QUI prépare, et deux IA differentes se lisaient comme une seule.
+     *
+     * Le slug est reduit a sa famille — le fournisseur et le palier tarifaire
+     * sont du jargon d'administration, pas une information pour un membre.
+     * C'est le MEME abregement que dans la bulle, pour que le membre
+     * reconnaisse le meme nom d'un bout a l'autre du tour.
+     *
+     * @return array<string, string>
+     */
+    public function multiAiModelLabels(): array
+    {
+        if (! $this->multiAiAvailable()) {
+            return [];
+        }
+
+        $sortie = [];
+
+        foreach (app(LoopPluginAiModels::class)->describe() as $ligne) {
+            $slug = $ligne['model_slug'] ?? null;
+
+            if (! is_string($slug) || trim($slug) === '') {
+                continue;
+            }
+
+            $famille = trim(explode(':', basename(trim($slug)))[0]);
+
+            if ($famille !== '') {
+                $sortie[(string) $ligne['assistant_key']] = $famille;
+            }
+        }
+
+        return $sortie;
+    }
+
     public function multiAiAssistants(): array
     {
         if (! $this->multiAiAvailable()) {
@@ -1193,6 +1232,27 @@ class LoopChat extends Component
         foreach ($run->outcomes as $outcome) {
             if ($outcome->isPublishable()) {
                 unset($this->multiAiStates[$outcome->assistantKey]);
+
+                continue;
+            }
+
+            // TASK-1621 — la question ne se prete pas a un pour / contre.
+            //
+            // POUR s'execute AVANT CONTRE : des que le premier s'abstient, le
+            // second n'a rien a faire. Vider la file evite un appel provider
+            // qui rendrait exactement le meme verdict, et un second encart qui
+            // repeterait le premier.
+            //
+            // La notice est NEUTRE et unique — elle n'est attachee a aucun
+            // role : ce n'est pas l'assistant qui a echoue, c'est la question
+            // qui n'a pas de camps.
+            if ($outcome->isNotApplicable()) {
+                $this->pourContreQueue = [];
+                $this->multiAiStates = ['_hors_sujet' => [
+                    'status' => 'not_applicable',
+                    'label' => '',
+                    'retryable' => false,
+                ]];
 
                 continue;
             }

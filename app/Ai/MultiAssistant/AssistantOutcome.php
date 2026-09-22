@@ -2,6 +2,8 @@
 
 namespace App\Ai\MultiAssistant;
 
+use App\Support\Ai\AiTurnReason;
+
 /**
  * Ce qu'UN assistant a produit — ou pourquoi il n'a rien produit.
  * (TASK-1618)
@@ -29,6 +31,16 @@ final class AssistantOutcome
      * reponse utile.
      */
     public const STATUS_PARTIAL = 'partial';
+
+    /**
+     * TASK-1621 — la question ne se prete pas a un pour / contre.
+     *
+     * Ni `success`, ni `error`, ni `refused` : l'appel a eu lieu et a abouti,
+     * mais il n'y a aucun camp a distribuer. Le ranger dans `error` ferait
+     * afficher « n'a pas pu repondre » a un membre dont la question etait
+     * simplement d'une autre nature.
+     */
+    public const STATUS_NOT_APPLICABLE = 'not_applicable';
 
     /** Refus AVANT tout appel provider : aucune invocation, aucun cout. */
     public const STATUS_REFUSED = 'refused';
@@ -85,6 +97,17 @@ final class AssistantOutcome
     public static function error(string $key, string $errorCode, ?string $turnId = null, ?string $model = null): self
     {
         return new self($key, self::STATUS_ERROR, null, $errorCode, [], $turnId, $model);
+    }
+
+    /**
+     * Le tour s'abstient : rien a debattre, donc rien a publier.
+     *
+     * L'appel EST parti — il a sa ligne au ledger. Ce qui n'existe pas, c'est
+     * un camp a defendre.
+     */
+    public static function notApplicable(string $key, string $turnId, string $model): self
+    {
+        return new self($key, self::STATUS_NOT_APPLICABLE, null, AiTurnReason::TERMINAL_NO_DEBATABLE_PROPOSITION, [], $turnId, $model);
     }
 
     /**
@@ -161,6 +184,12 @@ final class AssistantOutcome
     public function isTruncated(): bool
     {
         return $this->status === self::STATUS_PARTIAL;
+    }
+
+    /** La question ne se prete-t-elle pas a un pour / contre ? */
+    public function isNotApplicable(): bool
+    {
+        return $this->status === self::STATUS_NOT_APPLICABLE;
     }
 
     /** @return array<string, mixed> */

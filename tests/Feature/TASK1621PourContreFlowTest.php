@@ -250,6 +250,95 @@ class TASK1621PourContreFlowTest extends TestCase
             ->assertDontSeeHtml('data-composer-mode');
     }
 
+    public function test_la_mire_d_attente_nomme_le_modele_qui_prepare(): void
+    {
+        // Sans ce nom, deux assistants differents se lisent comme un seul qui
+        // repond deux fois — constat de recette.
+        $this->fakeDeuxReponses();
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('toggleMultiAiMode')
+            ->set('body', 'Windows ou Linux, que choisir ?')
+            ->call('sendMessage');
+
+        // La file est armee : la mire est a l'ecran, pour le PREMIER role.
+        $this->assertSame('aperio', $composant->get('pourContreQueue')[0] ?? null);
+
+        $composant->assertSeeHtml('data-multi-ai-pending')
+            ->assertSeeHtml('data-multi-ai-pending-model="aperio"');
+
+        // Et le nom est ABREGE, jamais le slug entier : le fournisseur et le
+        // palier tarifaire sont du jargon d'administration.
+        $modeles = $composant->instance()->multiAiModelLabels();
+
+        $this->assertArrayHasKey('aperio', $modeles);
+        $this->assertStringNotContainsString('/', $modeles['aperio']);
+        $this->assertStringNotContainsString(':free', $modeles['aperio']);
+        $composant->assertSee($modeles['aperio']);
+    }
+
+    // ── 1-TER. UNE QUESTION SANS CAMPS S'ARRETE AU PREMIER ROLE ─────────────
+
+    public function test_une_question_sans_camps_ne_fait_qu_un_appel_et_zero_bulle(): void
+    {
+        $this->fakeHorsSujet();
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('toggleMultiAiMode')
+            ->set('body', 'Quel CMS choisir ?')
+            ->call('sendMessage');
+
+        // Le message humain est publie : il n'y a aucune raison de le retenir.
+        $this->assertSame(1, LoopMessage::where('loop_id', $this->loop->id)
+            ->where('body', 'Quel CMS choisir ?')->where('type', 'user')->count());
+
+        // Les deux roles etaient armes...
+        $this->assertCount(2, $composant->get('pourContreQueue'));
+
+        // ... le PREMIER s'abstient, et la file est annulee.
+        $composant->call('runNextPourContre');
+
+        $this->assertSame([], $composant->get('pourContreQueue'),
+            'le second role n\'a rien a faire : il rendrait le meme verdict');
+
+        // UN SEUL appel provider, pas deux.
+        $this->assertSame(1, AiProviderInvocation::query()->count());
+
+        // Aucune bulle, ni POUR ni CONTRE.
+        $this->assertSame(0, LoopMessage::where('loop_id', $this->loop->id)
+            ->where('type', 'ai')->count());
+
+        // Une notice NEUTRE, et une seule.
+        $html = $composant->html();
+        $this->assertSame(1, substr_count($html, 'data-multi-ai-not-applicable'));
+        $composant->assertSee(__('loops.plugins_multi_ai_not_applicable'));
+
+        // Et surtout PAS le vocabulaire de la panne.
+        $composant->assertDontSee(__('loops.plugins_multi_ai_failed_title', ['assistant' => 'Pour']))
+            ->assertDontSee(__('loops.plugins_multi_ai_failed_body'))
+            ->assertDontSeeHtml('data-multi-ai-retry');
+    }
+
+    public function test_une_question_avec_camps_lance_bien_les_deux_roles(): void
+    {
+        // Le sabotage naturel du test precedent : si la file etait videe a
+        // tort, plus aucune question ne produirait deux bulles.
+        $this->fakeDeuxReponses();
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
+            ->call('toggleMultiAiMode')
+            ->set('body', 'Windows ou Linux, que choisir ?')
+            ->call('sendMessage');
+
+        while ($composant->get('pourContreQueue') !== []) {
+            $composant->call('runNextPourContre');
+        }
+
+        $this->assertSame(2, AiProviderInvocation::query()->count());
+        $this->assertSame(2, LoopMessage::where('loop_id', $this->loop->id)->where('type', 'ai')->count());
+        $composant->assertDontSeeHtml('data-multi-ai-not-applicable');
+    }
+
     // ── 2. LE MESSAGE HUMAIN AVANT LES IA ───────────────────────────────────
 
     public function test_le_submit_publie_le_message_humain_sans_generer(): void
@@ -490,6 +579,14 @@ class TASK1621PourContreFlowTest extends TestCase
 
             return new TextResponse('Argument de '.$model, new Usage(20, 10), new Meta('openrouter', $model));
         });
+    }
+
+    /** Le modele annonce que la question n'a pas de camps a distribuer. */
+    private function fakeHorsSujet(): void
+    {
+        LoopMultiAiAgent::fake(fn (string $prompt, $attachments, $provider, string $model) => new TextResponse(
+            LoopMultiAiOrchestrator::MARQUEUR_HORS_SUJET, new Usage(20, 5), new Meta('openrouter', $model),
+        ));
     }
 
     private function fakeDeuxReponses(): void

@@ -70,7 +70,9 @@ class LoopPluginAiModels implements DynamicPricingSource
 
         $sortie = [];
 
-        foreach ($this->assistants->catalogue() as $key => $definition) {
+        // TASK-1621 — le vivant, pas le complet : un role dormant n'a pas
+        // de modele a choisir.
+        foreach ($this->assistants->catalogueVivant() as $key => $definition) {
             $ligne = $lignes[$key] ?? null;
             $slug = $ligne?->model_slug;
 

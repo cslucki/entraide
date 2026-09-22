@@ -282,6 +282,20 @@ final class AiTurnReason
     /** `abstained` — mode Dossiers, aucune provenance : le modele n'est pas appele. */
     public const TERMINAL_NO_SOURCES_FOUND = 'NO_SOURCES_FOUND';
 
+    /**
+     * `abstained` — « Pour / Contre » n'a rien a debattre. (TASK-1621)
+     *
+     * La question n'exprime ni proposition nette, ni deux options explicites :
+     * il n'y a aucun camp a distribuer. Ce n'est NI une reussite, NI une
+     * panne, NI un refus economique — c'est un tour qui s'abstient, et le dire
+     * autrement ferait afficher « n'a pas pu repondre » la ou le produit n'a
+     * simplement pas de prise.
+     *
+     * Le modele l'annonce par un marqueur exact ; l'application prend le
+     * relais et parle au membre. Aucun parser.
+     */
+    public const TERMINAL_NO_DEBATABLE_PROPOSITION = 'NO_DEBATABLE_PROPOSITION';
+
     /** `failed` — le provider a repondu, le texte est vide apres nettoyage ; l'appel a ete paye. */
     public const TERMINAL_EMPTY_MODEL_ANSWER = 'EMPTY_MODEL_ANSWER';
 
@@ -385,6 +399,7 @@ final class AiTurnReason
             'fallthrough' => self::fallthroughVocabulary(),
             'terminal' => [
                 self::TERMINAL_NO_SOURCES_FOUND,
+                self::TERMINAL_NO_DEBATABLE_PROPOSITION,
                 self::TERMINAL_EMPTY_MODEL_ANSWER,
                 self::TERMINAL_OUTPUT_BUDGET_EXHAUSTED,
                 self::TERMINAL_PROVIDER_CALL_FAILED,

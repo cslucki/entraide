@@ -1408,13 +1408,15 @@ return [
 
     'plugins' => [
         'multi_ai_assistants' => [
-            'label' => '3 AI assistants',
-            'description' => 'Ask a question once, then pick several viewpoints — Aperio, Traverse and Limen — to better understand, challenge and synthesise.',
+            // TASK-1621: the module is called « For / Against » everywhere a
+            // human reads it. Technical keys stay put.
+            'label' => 'For / Against',
+            'description' => 'Ask a question once and get the case for and the case against: two independent assistants each defend one side, and nobody decides for you.',
 
             // TASK-1616 — default postures of the three assistants (spec §4).
             'assistants' => [
-                'aperio' => 'You DEFEND the side the base prompt assigns you: the proposition the question puts forward, or the first option it names. Give 3 to 5 solid arguments IN ITS FAVOUR. You may show where the other side is weaker, but your answer defends yours — it never merely attacks. You never pick your side and you never switch. If the base prompt says the question does not lend itself to a for / against, follow it and do not argue. Invent no facts, and do not manufacture artificial balance against an established fact.',
-                'traverse' => 'You DEFEND the side the base prompt assigns you: the opposite of the proposition the question puts forward, or the second option it names. Give 3 to 5 solid arguments IN ITS FAVOUR. You may show where the other side is weaker, but your answer defends yours — it never merely attacks, and it NEVER attacks your own side. You never pick your side and you never switch. If the base prompt says the question does not lend itself to a for / against, follow it and do not argue. Invent no facts, and do not manufacture artificial balance against an established fact.',
+                'aperio' => 'You DEFEND the side the base prompt assigns you: the proposition the question puts forward, or the first option it names. Give AT MOST 3 arguments IN ITS FAVOUR, one sentence each. You may show where the other side is weaker, but your answer defends yours — it never merely attacks. You never pick your side and you never switch. If the base prompt says the question does not lend itself to a for / against, follow it and do not argue. Invent no facts, and do not manufacture artificial balance against an established fact.',
+                'traverse' => 'You DEFEND the side the base prompt assigns you: the opposite of the proposition the question puts forward, or the second option it names. Give AT MOST 3 arguments IN ITS FAVOUR, one sentence each. You may show where the other side is weaker, but your answer defends yours — it never merely attacks, and it NEVER attacks your own side. You never pick your side and you never switch. If the base prompt says the question does not lend itself to a for / against, follow it and do not argue. Invent no facts, and do not manufacture artificial balance against an established fact.',
                 'limen' => 'Compare the positions, separate agreements from disagreements and offer possible compromises or options without deciding for the group.',
             ],
         ],
@@ -1439,6 +1441,7 @@ return [
     // tooltip carried by the button itself.
     'plugins_multi_ai_hint' => 'Two AIs lay out the arguments for and against. They take the recent discussion into account but do not read the Files.',
     'plugins_multi_ai_disable' => 'Disable For / Against',
+    'plugins_multi_ai_not_applicable' => 'For / Against found neither a proposition to debate nor two explicit choices to compare. Try rephrasing, for example: « WordPress or Drupal? » or « Should we choose WordPress? »',
     'plugins_multi_ai_truncated' => 'Answer cut short',
     'plugins_multi_ai_preparing' => 'Preparing the « :assistant » arguments…',
     'plugins_multi_ai_discover' => 'Configure For / Against',
@@ -1458,8 +1461,8 @@ return [
     'plugins_multi_ai_none_enabled' => 'No assistant is active in this Loop.',
     'plugins_loop_last_change' => 'Changed on :date by :author',
     'plugins_loop_last_change_anonymous' => 'Changed on :date',
-    'plugins_assistants_title' => 'The three assistants',
-    'plugins_assistants_intro' => "Each assistant has a posture. You may rewrite it for this Loop; you cannot rename them or add any. A local instruction never bypasses the Constitution or the Organization's doctrine: it adds to them.",
+    'plugins_assistants_title' => 'The two assistants',
+    'plugins_assistants_intro' => 'Each assistant defends one side, and never picks it itself: the question decides. You can rewrite its posture for this Loop; you cannot rename them or add any. A local instruction never bypasses the Constitution or the Organization doctrine: it adds to them.',
     'plugins_assistants_instruction' => 'Posture',
     'plugins_assistants_enabled' => 'Active',
     'plugins_assistants_reset_hint' => 'Clearing the field restores the default posture.',

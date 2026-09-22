@@ -108,6 +108,19 @@ return [
                     'label' => 'Limen',
                     'order' => 3,
                     'instruction_key' => 'loops.plugins.multi_ai_assistants.assistants.limen',
+                    // TASK-1621 — DORMANT, et desormais declare comme tel.
+                    //
+                    // Le moteur ne le lance plus depuis le pivot, mais les
+                    // deux ecrans de reglage continuaient de l'afficher : un
+                    // membre lisait « 3 assistants » et pouvait regler une
+                    // posture qui ne servait jamais.
+                    //
+                    // Il RESTE au catalogue, et c'est deliberé : ses lignes
+                    // `loop_ai_assistants` et `loop_plugin_ai_models`
+                    // existent, les bulles deja publiees portent sa cle, et
+                    // `label()` doit encore savoir la rendre. On le retire des
+                    // ECRANS, pas des donnees. Aucune migration.
+                    'dormant' => true,
                 ],
             ],
         ],
