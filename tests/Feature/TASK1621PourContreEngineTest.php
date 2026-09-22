@@ -224,9 +224,11 @@ class TASK1621PourContreEngineTest extends TestCase
         $this->assertNotSame(AssistantOutcome::STATUS_REFUSED, $outcome->status);
 
         // L'appel EST parti : il a sa ligne, et elle ne compte pas comme un
-        // echec dans les sommes de fiabilite.
+        // echec dans les sommes de fiabilite. `success` — la constante du
+        // ledger — depuis TASK-1622 : `completed` n'entrait dans aucun filtre
+        // `status = success` et rendait la ligne invisible aux releves.
         $ligne = AiProviderInvocation::query()->latest('created_at')->firstOrFail();
-        $this->assertSame('completed', $ligne->status);
+        $this->assertSame(AiProviderInvocation::STATUS_SUCCESS, $ligne->status);
         $this->assertNull($ligne->failure_reason);
     }
 

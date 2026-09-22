@@ -40,7 +40,7 @@ return [
     | Date du releve des tarifs ci-dessous. Tracee dans les diagnostics pour
     | qu'un cout mesure soit toujours rattachable a une version de catalogue.
     */
-    'version' => '2026-08-17',
+    'version' => '2026-09-22',
 
     'currency' => 'USD',
 
@@ -75,6 +75,18 @@ return [
             // clef porte l'identifiant OpenRouter REEL du modele (prefixe
             // `openai/`, cf. ai.providers.openrouter.models.embeddings).
             'openai/text-embedding-3-small' => ['input_per_1m' => 0.02, 'output_per_1m' => 0.0],
+
+            // TASK-1622 — la shortlist payante de « Pour / Contre »
+            // (`ai.multi_ai.paid_model_shortlist`). Tarifs releves le
+            // 2026-09-22 sur `GET openrouter.ai/api/v1/models` (audit au
+            // TASK file). Un slug de la shortlist SANS entree ici est refuse
+            // par `assignPaid()` et par la garde : jamais un payant a cout
+            // inconnu — c'est le mandat.
+            'openai/gpt-4.1-nano' => ['input_per_1m' => 0.10, 'output_per_1m' => 0.40],
+            'mistralai/mistral-nemo' => ['input_per_1m' => 0.019, 'output_per_1m' => 0.030],
+            'mistralai/ministral-8b-2512' => ['input_per_1m' => 0.15, 'output_per_1m' => 0.15],
+            'amazon/nova-micro-v1' => ['input_per_1m' => 0.035, 'output_per_1m' => 0.14],
+            'qwen/qwen3-30b-a3b-instruct-2507' => ['input_per_1m' => 0.048, 'output_per_1m' => 0.193],
         ],
 
         'ollama' => [

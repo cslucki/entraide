@@ -86,6 +86,40 @@ final class AiPricingCatalog
     }
 
     /**
+     * Taux du catalogue STATIQUE seul (`config/ai_pricing.php`), sans
+     * consulter ni la source dynamique ni les overrides. (TASK-1622)
+     *
+     * C'est le contrat du mode « Payant approuve » : un modele payant n'est
+     * autorisable que si son tarif figure au releve statique, verifie par un
+     * humain. La source dynamique porte des preuves de GRATUITE — la laisser
+     * repondre ici permettrait a un slug partage entre une ligne gratuite et
+     * une ligne payante de se faire chiffrer 0.
+     *
+     * @return array{input_per_1m: float, output_per_1m: float, free: bool}|null
+     */
+    public static function staticRateFor(?string $provider, ?string $model): ?array
+    {
+        $providerKey = self::normalizeKey($provider);
+
+        if ($providerKey === null) {
+            return null;
+        }
+
+        $models = config('ai_pricing.models.'.$providerKey);
+        $modelKey = self::normalizeKey($model);
+
+        // Correspondance EXACTE uniquement — jamais le wildcard `*` : un
+        // tarif generique de provider ne vaut pas approbation d'UN modele.
+        // Et absent n'est pas invalide : ne pas faire logguer une
+        // « coquille » a `validate()` pour un slug simplement inconnu.
+        if (! is_array($models) || $modelKey === null || ! array_key_exists($modelKey, $models)) {
+            return null;
+        }
+
+        return self::validate($models[$modelKey], $providerKey, $model);
+    }
+
+    /**
      * Résout le tarif ET la raison d'un échec, afin qu'un diagnostic distingue
      * « personne n'a déclaré ce modèle » de « l'entrée est inexploitable ».
      * Les deux mènent au même verdict prudent, mais pas au même correctif.

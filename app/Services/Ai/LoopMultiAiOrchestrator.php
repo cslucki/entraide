@@ -17,6 +17,7 @@ use App\Ai\ProviderResolver;
 use App\Ai\ResolvedModel;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
+use App\Models\AiProviderInvocation;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\Organization;
@@ -702,7 +703,17 @@ final class LoopMultiAiOrchestrator
             // Un tour hors sujet a ABOUTI : l'appel est parti, il a repondu,
             // il est paye. `failed` le compterait comme une panne dans toutes
             // les sommes de fiabilite.
-            status: ($answer === '' && ! $horsSujet) ? 'failed' : 'completed',
+            //
+            // TASK-1622 — `success`, pas `completed` : la constante du ledger
+            // est `AiProviderInvocation::STATUS_SUCCESS = 'success'`, et tous
+            // les autres writers l'emploient. Les lignes `completed` de ce
+            // moteur n'entraient dans AUCUN filtre `status = success` — quota
+            // des couts inconnus, releves SuperAdmin byUser : invisibles.
+            // Tolerable tant que tout etait gratuit (cout 0) ; avec un modele
+            // PAYANT, ce serait de la depense hors releve. Les lignes
+            // historiques `completed` restent telles quelles : toutes
+            // gratuites, cout connu 0, aucune somme n'en change.
+            status: ($answer === '' && ! $horsSujet) ? 'failed' : AiProviderInvocation::STATUS_SUCCESS,
             correlationId: $evidence->correlationId,
             sdkInvocationId: $response->invocationId,
             failureReason: ($answer === '' && ! $horsSujet)
@@ -723,7 +734,7 @@ final class LoopMultiAiOrchestrator
                 AiTurnReason::TERMINAL_NO_DEBATABLE_PROPOSITION, ['assistant_key' => $key]);
 
             $this->recordGenerativeTurn($loop, $requester, $evidence, $definition, $resolved, $turnId, $key,
-                $prompt, null, $usage, $cost->traceAttributes(), 'completed', $startedAt, $response->invocationId,
+                $prompt, null, $usage, $cost->traceAttributes(), AiProviderInvocation::STATUS_SUCCESS, $startedAt, $response->invocationId,
                 null, AiTurnReason::TERMINAL_NO_DEBATABLE_PROPOSITION, $doctrineVersion);
 
             return AssistantOutcome::notApplicable($key, $turnId, $resolved->model);

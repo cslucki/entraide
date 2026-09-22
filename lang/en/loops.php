@@ -1493,5 +1493,14 @@ return [
     'plugins_models_status_stale' => 'Proof expired — needs re-checking',
     'plugins_models_status_gone' => 'Unavailable or no longer free',
     'plugins_models_status_unset' => 'No model configured',
+    // TASK-1622 — the PAID APPROVED contract, next to verified free.
+    'plugins_models_status_paid' => 'Paid approved',
+    'plugins_models_status_paid_invalid' => 'Paid rejected — missing approval or rate',
+    'plugins_models_paid_approved' => 'PAID approved on :date by :name',
+    'plugins_models_rate' => ':in $ / :out $ per million tokens (input / output)',
+    'plugins_models_rate_missing' => 'rate not recorded — cannot be enabled',
+    'plugins_models_type_free' => 'Verified free',
+    'plugins_models_type_paid' => 'Approved paid',
+    'plugins_models_paid_rejected' => ':model cannot be approved: not on the shortlist, rate not recorded, or unknown to the catalog. Nothing was saved.',
     'plugins_models_fail_closed' => 'Until an assistant has a verified free model, it generates nothing. There is no automatic fallback to another model.',
 ];

@@ -1521,5 +1521,14 @@ return [
     'plugins_models_status_stale' => 'Preuve expirée — à revérifier',
     'plugins_models_status_gone' => 'Indisponible ou plus gratuit',
     'plugins_models_status_unset' => 'Aucun modèle configuré',
+    // TASK-1622 — le contrat PAYANT APPROUVE, a cote du gratuit verifie.
+    'plugins_models_status_paid' => 'Payant approuvé',
+    'plugins_models_status_paid_invalid' => 'Payant refusé — approbation ou tarif manquant',
+    'plugins_models_paid_approved' => 'PAYANT approuvé le :date par :name',
+    'plugins_models_rate' => ':in $ / :out $ par million de tokens (entrée / sortie)',
+    'plugins_models_rate_missing' => 'tarif non relevé — inactivable',
+    'plugins_models_type_free' => 'Gratuit vérifié',
+    'plugins_models_type_paid' => 'Payant approuvé',
+    'plugins_models_paid_rejected' => ":model n'est pas approuvable : hors liste, tarif non relevé ou modèle inconnu du catalogue. Rien n'a été enregistré.",
     'plugins_models_fail_closed' => "Tant qu'un assistant n'a pas de modèle vérifié gratuit, il ne génère rien. Aucun repli automatique vers un autre modèle n'existe.",
 ];

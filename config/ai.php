@@ -678,5 +678,28 @@ return [
             'monthly_budget_usd' => (float) env('AI_MULTI_AI_MONTHLY_BUDGET_USD', 2.00),
             'monthly_unknown_limit' => (int) env('AI_MULTI_AI_MONTHLY_UNKNOWN_LIMIT', 10),
         ],
+
+        // TASK-1622 — la SHORTLIST des modeles PAYANTS approuvables pour
+        // « Pour / Contre » : slug OpenRouter => libelle d'ecran.
+        //
+        // PETITE ET EXPLICITE, c'est le mandat : proposer un payant est une
+        // decision de CODE (auditee ici, avec son tarif au releve
+        // `config/ai_pricing.php` — les deux vont ensemble, un slug sans
+        // tarif statique est refuse par `assignPaid()` et par la garde) ;
+        // l'APPROUVER pour un role reste une decision de SuperAdmin, tracee
+        // (`approved_at` / `approved_by`).
+        //
+        // Selection issue de l'audit du catalogue OpenRouter du 22/09/2026
+        // (TASK-1622, journal) : tres faible cout, non-reasoning — la
+        // pathologie T1621 etait un budget brule en jetons de raisonnement —
+        // bon francais attendu, profil « 3 arguments courts ». AUCUN n'est
+        // un choix par defaut : le benchmark informe, MASTER tranche.
+        'paid_model_shortlist' => [
+            'openai/gpt-4.1-nano' => 'GPT-4.1 nano (OpenAI)',
+            'mistralai/mistral-nemo' => 'Mistral Nemo 12B',
+            'mistralai/ministral-8b-2512' => 'Ministral 3 8B (12/2025)',
+            'amazon/nova-micro-v1' => 'Amazon Nova Micro',
+            'qwen/qwen3-30b-a3b-instruct-2507' => 'Qwen3 30B-A3B Instruct',
+        ],
     ],
 ];
