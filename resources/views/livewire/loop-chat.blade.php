@@ -36,9 +36,18 @@
                     // depuis leur `action` historique (aucune migration).
                     $orgName = $viewLoop->organization?->name ?? config('app.name', 'BouclePro');
                     // TASK-1309 : troisieme valeur `llm_rag` (IA + Dossiers).
+                    // TASK-1621 — `multi_ai` MANQUAIT a cette liste blanche.
+                    //
+                    // Le publisher ecrit pourtant `ai_mode = 'multi_ai'` depuis
+                    // TASK-1618. Non reconnu ici, il tombait dans l'heuristique
+                    // du dessous et ressortait en `'llm'` : la bulle recevait
+                    // un mode faux, et tout ce que le composant conditionnait a
+                    // `multi_ai` — sa couleur — restait eteint a l'ecran alors
+                    // que le code etait bien la. Une valeur canonique doit etre
+                    // reconnue, pas devinee.
                     $aiModeOf = function ($message) {
                         $mode = $message?->metadata['ai_mode'] ?? null;
-                        if (in_array($mode, ['llm', 'rag', 'llm_rag'], true)) {
+                        if (in_array($mode, ['llm', 'rag', 'llm_rag', 'multi_ai'], true)) {
                             return $mode;
                         }
                         $action = $message?->metadata['action'] ?? null;
@@ -263,6 +272,19 @@
                                  bulles qui diraient toutes « IA » se liraient
                                  comme un seul interlocuteur qui se contredit. --}}
                             :ai-mode-label="$this->bubbleBadgeFor($msg)"
+                            {{-- TASK-1621 — le ROLE, et le modele qui a repondu.
+                                 Le role donne sa couleur a la bulle (vert pour
+                                 « Pour », rouge pour « Contre ») ; le modele se
+                                 lit discretement a cote du badge. Les deux
+                                 viennent de la metadata ecrite par le
+                                 publisher, jamais d'une deduction sur le
+                                 texte. --}}
+                            :ai-assistant-key="$msg->metadata['assistant_key'] ?? null"
+                            :ai-model="$msg->metadata['model'] ?? null"
+                            {{-- TASK-1621 — la bulle DIT qu'elle est coupee.
+                                 Ecrit par le publisher quand le modele a ete
+                                 arrete en cours de phrase ; absent sinon. --}}
+                            :ai-truncated="($msg->metadata['partial'] ?? null) === 'output_truncated'"
                             :subtitle="$aiBubbleSubtitle"
                             :requested-by="$aiRequestedBy"
                             :message-id="$msg->id"
@@ -561,15 +583,7 @@
         $multiAiLabels = collect($multiAiAssistants)->pluck('label', 'key')->all();
     @endphp
 
-    {{-- TASK-1620 — le panneau doit etre dans le DOM AVANT le submit, sinon
-         `wire:loading` n'a rien a montrer : Livewire n'ajoute pas un element
-         pendant la requete qu'il est cense accompagner. Des que le mode est
-         arme, le conteneur existe. --}}
-    @if($isMember && $canContribute && $multiAiAssistants !== [])
-        @include('livewire.partials.loop-chat-pour-contre-modal')
-    @endif
-
-    @if($isMember && $canContribute && ($multiAiModeActive || $multiAiStates !== [] || $pourContreQueue !== []))
+    @if($isMember && $canContribute && ($multiAiStates !== [] || $pourContreQueue !== []))
         {{-- TASK-1619 — l'etat des assistants, AU-DESSUS du composeur et sur
              TOUS les formats. Ce bloc n'est pas dans la rangee `hidden md:flex`
              : un membre sur telephone doit lire « Traverse est momentanement
@@ -579,7 +593,6 @@
                 'states' => $multiAiStates,
                 'queue' => $pourContreQueue,
                 'labels' => $multiAiLabels,
-                'modeActive' => $multiAiModeActive,
             ])
         </div>
     @endif
@@ -591,9 +604,21 @@
              cette dependance technique documentee (brief T-1308 section 39 :
              ne pas refondre le FAB global). Les DEUX boutons ci-dessous, eux,
              ne les ouvrent plus : ils selectionnent desormais le moteur du
-             composeur unique (sections 3-4). Masques sur mobile (section 33) :
-             le menu du composeur (`+`) les reprend. --}}
-        <div class="hidden md:flex flex-shrink-0 flex-wrap items-center gap-2 px-3 pt-2" x-data="{ askOpen: false, asking: false }"
+             composeur unique (sections 3-4).
+
+             TASK-1621 — cette rangee etait `hidden md:flex` : sous 768 px les
+             modes n'existaient QUE dans le menu `+`, derriere un geste et sans
+             nom visible. Le menu les contient bien (verifie en recette) — mais
+             le bouton `+` etait lui-meme illisible, et un membre en a conclu
+             que les modes avaient ete retires. Les deux defauts sont corriges :
+             le contraste du `+` plus bas, et cette rangee rendue VISIBLE.
+
+             Sur mobile elle defile HORIZONTALEMENT (`flex-nowrap` +
+             `overflow-x-auto`) au lieu de passer a la ligne : quatre pastilles
+             empilees auraient mange trois lignes de conversation a chaque
+             ouverture. A partir de `md`, le retour a la ligne reprend son
+             comportement d'avant. --}}
+        <div class="flex flex-shrink-0 flex-nowrap items-center gap-2 overflow-x-auto px-3 pt-2 md:flex-wrap md:overflow-visible" x-data="{ askOpen: false, asking: false }"
              @bp-open-ask-ai.window="askOpen = true; $nextTick(() => $refs.askQuestion?.focus())">
             @if($aiEnginesAvailable)
             <button
@@ -601,7 +626,7 @@
                 wire:click="toggleComposerEngine('ia')"
                 data-engine-toggle="ia"
                 aria-pressed="{{ $engineActive['ia'] ? 'true' : 'false' }}"
-                class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition {{ $engineActive['ia']
+                class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition {{ $engineActive['ia']
                     ? 'border-violet-400 bg-violet-600 text-white hover:bg-violet-700'
                     : 'border-violet-100 bg-violet-50/70 text-violet-700 hover:border-violet-200 hover:bg-violet-100 dark:border-violet-800/50 dark:bg-violet-900/20 dark:text-violet-200 dark:hover:bg-violet-900/40' }}"
             >
@@ -616,7 +641,7 @@
                 data-knowledge-open
                 data-engine-toggle="dossiers"
                 aria-pressed="{{ $engineActive['dossiers'] ? 'true' : 'false' }}"
-                class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition {{ $engineActive['dossiers']
+                class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition {{ $engineActive['dossiers']
                     ? 'border-sky-400 bg-sky-600 text-white hover:bg-sky-700'
                     : 'border-sky-100 bg-sky-50/70 text-sky-700 hover:border-sky-200 hover:bg-sky-100 dark:border-sky-800/50 dark:bg-sky-900/20 dark:text-sky-200 dark:hover:bg-sky-900/40' }}"
             >
@@ -630,7 +655,7 @@
                  simplement clique deux boutons sans effet. --}}
             @if($composerMode === 'ia_dossiers')
             <span data-hybrid-indicator
-                  class="inline-flex items-center gap-1.5 rounded-full border border-indigo-300 bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white dark:border-indigo-500">
+                  class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-indigo-300 bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white dark:border-indigo-500">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5a4.5 4.5 0 0 0 0-9H15M16.5 3 21 7.5"/></svg>
                 {{ __('loops.hybrid_mode_label') }}
             </span>
@@ -655,7 +680,7 @@
             <button
                 type="button"
                 x-on:click="window.dispatchEvent(new CustomEvent('bp-open-help-request'))"
-                class="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/80 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-amber-200 bg-amber-50/80 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200 dark:hover:bg-amber-900/40"
             >
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                 {{ __('loops.who_can_help') }}
@@ -723,60 +748,38 @@
             on-cancel-reply="cancelReply"
             show-upload="true"
             :photo="$photo ?? null"
-            {{-- TASK-1621 — le composeur ne rend PAS sa propre pastille pour
-                 « Pour / Contre ». Elle ne connait pas ce mode : elle sortait
-                 donc VIDE, reduite a son bouton × (constate par Cyril). Et
-                 meme nommee, elle aurait fait un SECOND indicateur a cote du
-                 badge « Pour / Contre activé » — ce que le mandat interdit.
-                 Un seul badge, celui du panneau d'etat. --}}
-            :mode="! in_array($composerMode, ['normal', 'multi_ai'], true) ? $composerMode : null"
-            :mode-label="$composerModeLabel"
-            on-clear-mode="setComposerMode('normal')"
+            {{-- TASK-1621 — le composeur ne rend PLUS de pastille de mode, pour
+                 AUCUN moteur.
+                 Le bouton du mode choisi change d'aspect : c'est deja
+                 l'indicateur, il est a l'endroit ou le geste a eu lieu, et il
+                 sert aussi a revenir en arriere. La pastille disait la meme
+                 chose une seconde fois, ailleurs, avec son propre bouton × —
+                 deux surfaces pour un meme etat. Le mode lui-meme n'a pas
+                 bouge : c'est son AFFICHAGE redondant qui disparait.
+                 (`$composerModeLabel` reste calcule : l'accessibilite et les
+                 assertions serveur le lisent encore.) --}}
         >
             {{-- TASK-1308 : menu mobile (section 36) — reprend les DEUX
                  actions IA/Dossiers (masquees dans la barre desktop sur
                  mobile) + « Qui peut m'aider » + l'upload d'image existant,
                  sans dupliquer sa saisie de fichier (voir composer.blade.php). --}}
             <x-slot:leading>
-                {{-- TASK-1475 : l'IA de la Boucle, VISIBLE sur mobile.
+                {{-- TASK-1475, RETIRE par TASK-1621.
 
-                     TASK-1466 a retire le Shell global des Boucles — a raison : la
-                     Boucle porte deja son IA. Mais la mesure a 390 px montrait
-                     ensuite ZERO affordance IA visible : la seule porte etait le
-                     bouton « Plus d'actions », qui ne nomme pas l'IA, et il fallait
-                     l'ouvrir pour la trouver. Sur desktop l'action est dans la barre ;
-                     sur mobile elle avait disparu de la vue.
+                     Ce raccourci « Demander a l'IA » existait parce que, sous
+                     768 px, aucune affordance IA n'etait visible : la seule
+                     porte etait le menu `+`, qui ne nomme pas l'IA. La premisse
+                     est levee — la rangee des modes est desormais visible sur
+                     mobile, avec ses libelles, et elle defile.
 
-                     Ce bouton n'ajoute AUCUNE capacite : il actionne exactement le
-                     meme interrupteur de moteur que la feuille (`toggleComposerEngine`),
-                     avec les memes gardes et le meme `aria-pressed`. Il ne monte pas
-                     le Shell global, ne cree aucune source de contexte, et laisse le
-                     desktop inchange (`md:hidden`).
+                     Le garder aurait fait DEUX surfaces pour le meme
+                     interrupteur, a 20 pixels l'une de l'autre : un glyphe muet
+                     dans le champ de saisie, et une pastille nommee juste
+                     au-dessus. Constat de recette : « je n'arrive pas a
+                     comprendre a quoi sert l'icone en bas a gauche ».
 
-                     Attribut distinct de `data-engine-toggle` : la recette e2e cible
-                     ce dernier par `:visible` et un second element portant la meme
-                     valeur rendrait sa premiere correspondance ambigue. --}}
-                @if($aiEnginesAvailable)
-                {{-- La couleur active vit dans une feuille locale, pas dans une
-                     classe Tailwind arbitraire : `bg-[var(--bp-primary,#4f46e5)]`
-                     n'est pas dans le build et rendait le bouton TRANSPARENT.
-                     Mesure faite avant livraison — `getComputedStyle` rendait
-                     `rgba(0,0,0,0)` alors que la classe etait bien presente. --}}
-                <style>
-                  .bp-loop-ai-quick[aria-pressed="true"]{background:var(--bp-primary,#4f46e5);color:#fff}
-                </style>
-                <button
-                    type="button"
-                    wire:click="toggleComposerEngine('ia')"
-                    data-engine-quick="ia"
-                    aria-pressed="{{ $engineActive['ia'] ? 'true' : 'false' }}"
-                    class="bp-loop-ai-quick md:hidden flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition {{ $engineActive['ia'] ? '' : 'text-gray-400 hover:bg-gray-100 hover:text-indigo-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-indigo-300' }}"
-                    aria-label="{{ __('loops.ask_ai_button') }}"
-                    title="{{ __('loops.ask_ai_button') }}"
-                >
-                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 11.18 18.55a.75.75 0 0 0 1.38-.031l1.745-3.83a.75.75 0 0 1 .322-.36l3.746-2.25a.75.75 0 0 0 0-1.27l-3.746-2.25a.75.75 0 0 1-.322-.36L12.56 5.48a.75.75 0 0 0-1.38-.031l-1.367 2.647a.75.75 0 0 1-.5.369L4.88 9.373a.75.75 0 0 0 0 1.463l3.432.92a.75.75 0 0 1 .5.368z"/></svg>
-                </button>
-                @endif
+                     Il ne reste donc que le `+`, qui ouvre le menu — et lui,
+                     on sait ce qu'il fait. --}}
                 <div class="md:hidden" x-data="{ sheetOpen: false }">
                     {{-- TASK-1329 : bouton INTEGRE au champ (composer.blade.php
                          le positionne en absolu dans le cadre du textarea) —
@@ -785,7 +788,15 @@
                     <button
                         type="button"
                         x-on:click="sheetOpen = true"
-                        class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-indigo-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-indigo-300"
+                        {{-- TASK-1621 — CONTRASTE. Ce bouton etait `text-gray-400`
+                             sur le fond clair du composeur et `dark:text-gray-500`
+                             sur le fond sombre : dans les deux themes il
+                             disparaissait, et avec lui la SEULE porte vers les
+                             modes sur mobile. Un membre a conclu que les modes
+                             avaient ete retires.
+                             Il porte desormais un fond, comme un bouton — ce
+                             qu'il est — au lieu d'un glyphe gris sur gris. --}}
+                        class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition hover:bg-gray-200 hover:text-indigo-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:hover:text-indigo-300"
                         aria-label="{{ __('loops.composer_more_actions') }}"
                         aria-haspopup="true"
                     >
@@ -1000,8 +1011,23 @@
                             'llm' => __('loops.ia_mode_label'),
                             'rag' => __('loops.dossiers_mode_label'),
                             'llm_rag' => __('loops.hybrid_mode_label'),
+                            {{-- TASK-1621 — sans cette ligne, `default` rendait
+                                 la cle technique NUE : le panneau affichait
+                                 « MULTI_AI », un identifiant de code donne a
+                                 lire a un membre. --}}
+                            'multi_ai' => __('loops.plugins_multi_ai_ask_all'),
                             default => $whyPanel['ai_mode'],
-                        } }}</span></dd></div>
+                        } }}</span>
+                        @if($whyPanel['ai_mode'] === 'multi_ai' && $whyPanel['model'])
+                        {{-- TASK-1621 — le role et le modele appele, DISCRETS :
+                             casse normale, gris, pas de fond. Le slug est
+                             reduit a sa famille, comme dans la bulle — le
+                             fournisseur et le palier tarifaire sont du jargon
+                             d'administration, pas une information pour un
+                             membre. --}}
+                        <span data-why-model="{{ $whyPanel['model'] }}" class="ml-2 text-[11px] font-normal text-gray-500 dark:text-gray-400">{{ trim(explode(':', basename($whyPanel['model']))[0]) }}</span>
+                        @endif
+                        </dd></div>
                         @endif
                         @if($whyPanel['requested_by_name'])
                         <div class="flex gap-3 border-t border-gray-100 px-3 py-2 dark:border-gray-800"><dt class="w-32 shrink-0 font-medium text-gray-500 dark:text-gray-400">{{ __('loops.why_requested_by_label') }}</dt><dd class="min-w-0 font-medium text-violet-700 dark:text-violet-300">{{ $whyPanel['requested_by_name'] }}</dd></div>

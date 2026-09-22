@@ -18,6 +18,18 @@ final class AssistantOutcome
 
     public const STATUS_ERROR = 'error';
 
+    /**
+     * TASK-1621 — le modele a repondu, mais il a ete COUPE.
+     *
+     * Ni `success` ni `error` : il y a du texte a publier ET un defaut a dire.
+     * Le ranger dans `success` reviendrait a affirmer que la reponse est
+     * complete — c'est ce que faisait le code, et ce que la recette a montre
+     * (« …moderniser les infrastructures federales et ree »). Le ranger dans
+     * `error` reviendrait a jeter un appel deja paye qui a produit 80 % d'une
+     * reponse utile.
+     */
+    public const STATUS_PARTIAL = 'partial';
+
     /** Refus AVANT tout appel provider : aucune invocation, aucun cout. */
     public const STATUS_REFUSED = 'refused';
 
@@ -76,6 +88,16 @@ final class AssistantOutcome
     }
 
     /**
+     * Une reponse ECOURTEE : publiable, mais jamais comptee comme complete.
+     *
+     * @param  list<array<string, mixed>>  $sources
+     */
+    public static function partial(string $key, string $answer, string $errorCode, string $turnId, string $model, array $sources = []): self
+    {
+        return new self($key, self::STATUS_PARTIAL, $answer, $errorCode, $sources, $turnId, $model);
+    }
+
+    /**
      * Refuse AVANT le provider — modele absent, preuve perimee, plus gratuit,
      * budget atteint. Distinct de `error` : il n'y a eu aucun appel, donc
      * aucune ligne au ledger, et c'est une information, pas une omission.
@@ -98,15 +120,47 @@ final class AssistantOutcome
         return new self($key, self::STATUS_ERROR, null, self::ERROR_RATE_LIMITED, [], $turnId, $model);
     }
 
-    /** Peut-on proposer « Reessayer » ? Seule la saturation le merite. */
+    /**
+     * Peut-on proposer « Reessayer » ?
+     *
+     * La saturation le merite — elle passe. Et desormais une reponse ecourtee
+     * aussi : elle a une chance d'aboutir entiere au tour suivant, ce qui
+     * n'est vrai d'aucun autre echec de ce moteur.
+     */
     public function isRetryable(): bool
     {
-        return $this->errorCode === self::ERROR_RATE_LIMITED;
+        return $this->errorCode === self::ERROR_RATE_LIMITED
+            || $this->status === self::STATUS_PARTIAL;
     }
 
+    /**
+     * STRICT, et c'est le point. Une reponse ecourtee n'est PAS une reussite :
+     * si elle l'etait, aucune mesure ne distinguerait plus une reponse entiere
+     * d'une reponse coupee, et on reviendrait exactement au defaut corrige.
+     */
     public function succeeded(): bool
     {
         return $this->status === self::STATUS_SUCCESS;
+    }
+
+    /**
+     * Y a-t-il un texte a mettre dans le fil ?
+     *
+     * C'est CETTE question que le publisher doit poser, pas « est-ce une
+     * reussite ». Les deux se confondaient tant qu'il n'y avait que deux
+     * etats.
+     */
+    public function isPublishable(): bool
+    {
+        return ($this->status === self::STATUS_SUCCESS || $this->status === self::STATUS_PARTIAL)
+            && is_string($this->answer)
+            && trim($this->answer) !== '';
+    }
+
+    /** La reponse est-elle coupee ? */
+    public function isTruncated(): bool
+    {
+        return $this->status === self::STATUS_PARTIAL;
     }
 
     /** @return array<string, mixed> */

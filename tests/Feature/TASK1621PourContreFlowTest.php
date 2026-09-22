@@ -151,21 +151,25 @@ class TASK1621PourContreFlowTest extends TestCase
 
     // ── 1. RIEN NE PART AVANT « ENVOYER » ───────────────────────────────────
 
-    public function test_ouvrir_la_modale_ne_declenche_rien(): void
+    public function test_le_bouton_est_un_interrupteur_et_aucune_modale_ne_subsiste(): void
     {
-        // L'action du composeur n'arme meme pas : elle EXPLIQUE d'abord.
+        // TASK-1621 — la modale a ete retiree : un ecran a confirmer coutait un
+        // geste a chaque envoi pour une phrase qu'une infobulle porte aussi
+        // bien. Le bouton EST l'interrupteur.
         $this->fakeDeuxReponses();
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Faut-il tout automatiser ?')
-            ->assertSeeHtml('data-multi-ai-open')
-            ->assertSeeHtml('data-pour-contre-modal')
+            ->assertSeeHtml('data-multi-ai-toggle')
+            ->assertDontSeeHtml('data-pour-contre-modal')
+            ->assertDontSeeHtml('bp-open-pour-contre')
+            ->assertSee(__('loops.plugins_multi_ai_hint'))
             ->assertSet('composerMode', 'normal');
 
         $this->assertSame(0, AiProviderInvocation::query()->count());
     }
 
-    public function test_activer_depuis_la_modale_ne_genere_rien(): void
+    public function test_armer_le_mode_ne_genere_rien(): void
     {
         // LE test du defaut d'origine, transpose au nouveau geste.
         $this->fakeDeuxReponses();
@@ -185,16 +189,27 @@ class TASK1621PourContreFlowTest extends TestCase
             ->assertSet('pourContreQueue', []);
     }
 
-    public function test_le_badge_d_activation_est_unique_et_visible(): void
+    public function test_l_etat_arme_se_lit_sur_le_bouton_et_nulle_part_ailleurs(): void
     {
-        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertDontSeeHtml('data-multi-ai-armed')
-            ->call('toggleMultiAiMode');
+        // TASK-1621 — le badge d'activation separe a disparu. Deux surfaces
+        // pour un meme etat, c'est deux occasions qu'elles se contredisent :
+        // l'etat vit sur le bouton, en `aria-pressed`.
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop]);
 
-        // UN seul badge — TASK-1620 en avait deux concurrents.
-        $this->assertSame(1, substr_count($composant->html(), 'data-multi-ai-armed'));
-        $composant->assertSee(__('loops.plugins_multi_ai_armed'))
-            ->assertSeeHtml('data-multi-ai-disarm');
+        $composant->assertSeeHtml('aria-pressed="false"')
+            ->assertDontSeeHtml('data-multi-ai-armed');
+
+        $composant->call('toggleMultiAiMode')
+            ->assertSeeHtml('aria-pressed="true"')
+            ->assertDontSeeHtml('data-multi-ai-armed')
+            ->assertDontSeeHtml('data-multi-ai-disarm');
+
+        // Et le re-clic desarme, sans rien declencher.
+        $composant->call('toggleMultiAiMode')
+            ->assertSet('composerMode', 'normal')
+            ->assertSeeHtml('aria-pressed="false"');
+
+        $this->assertSame(0, AiProviderInvocation::query()->count());
     }
 
     public function test_aucune_pastille_de_mode_vide_ne_double_le_badge(): void
@@ -206,21 +221,33 @@ class TASK1621PourContreFlowTest extends TestCase
         $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->call('toggleMultiAiMode');
 
-        $composant->assertDontSeeHtml('data-composer-mode="multi_ai"')
-            ->assertSeeHtml('data-multi-ai-armed');
+        $composant->assertDontSeeHtml('data-composer-mode')
+            ->assertSeeHtml('aria-pressed="true"');
 
         // Et le mode du composeur reste bien arme : c'est l'AFFICHAGE qui est
         // supprime, pas le mode.
         $composant->assertSet('composerMode', 'multi_ai');
     }
 
-    public function test_les_autres_modes_gardent_leur_pastille(): void
+    public function test_aucun_mode_ne_rend_de_pastille_et_le_mode_reste_arme(): void
     {
-        // La suppression ne vaut QUE pour « Pour / Contre » : IA et Dossiers
-        // doivent continuer d'afficher la leur.
-        Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
-            ->call('toggleComposerEngine', 'ia')
-            ->assertSeeHtml('data-composer-mode="ia"');
+        // Arbitrage de recette : le bouton du mode choisi change d'aspect, a
+        // l'endroit meme ou le geste a eu lieu. La pastille redisait cet etat
+        // ailleurs, avec son propre bouton ×. Elle disparait pour TOUS les
+        // moteurs, pas seulement « Pour / Contre ».
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop]);
+
+        // `toggleComposerEngine` COMBINE (ia + dossiers = ia_dossiers) : on
+        // repart de zero a chaque moteur, sinon on mesure l'accumulation.
+        foreach (['ia', 'dossiers', 'ia_dossiers'] as $moteur) {
+            $composant->call('setComposerMode', $moteur)
+                ->assertSet('composerMode', $moteur)
+                ->assertDontSeeHtml('data-composer-mode');
+        }
+
+        $composant->call('toggleMultiAiMode')
+            ->assertSet('composerMode', 'multi_ai')
+            ->assertDontSeeHtml('data-composer-mode');
     }
 
     // ── 2. LE MESSAGE HUMAIN AVANT LES IA ───────────────────────────────────
@@ -403,15 +430,21 @@ class TASK1621PourContreFlowTest extends TestCase
             ->assertSee('Contre');
     }
 
-    public function test_la_modale_annonce_l_absence_de_dossiers(): void
+    public function test_l_infobulle_annonce_le_contexte_et_l_absence_de_dossiers(): void
     {
-        // La promesse la plus importante a poser AVANT : sans elle, un membre
-        // qui interroge un document conclurait que le produit ne sait pas lire
-        // ses fichiers.
+        // La promesse la plus importante a poser : sans elle, un membre qui
+        // interroge un document conclurait que le produit ne sait pas lire ses
+        // fichiers. Elle est desormais NON BLOQUANTE — une infobulle sur le
+        // bouton, plus une modale a fermer a chaque envoi.
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertSee(__('loops.plugins_multi_ai_modal_title'))
-            ->assertSee(__('loops.plugins_multi_ai_modal_promise'))
-            ->assertSee(__('loops.plugins_multi_ai_modal_explain'));
+            ->assertSee(__('loops.plugins_multi_ai_hint'))
+            ->assertSeeHtml('data-multi-ai-toggle');
+
+        // Et elle dit les deux choses qui comptent : la discussion recente est
+        // lue, les Dossiers ne le sont pas.
+        $infobulle = __('loops.plugins_multi_ai_hint');
+        $this->assertStringContainsString('discussion récente', $infobulle);
+        $this->assertStringContainsString('Dossiers', $infobulle);
     }
 
     public function test_aucune_synthese_ni_follow_up_a_l_ecran(): void

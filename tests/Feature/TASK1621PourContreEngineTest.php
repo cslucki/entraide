@@ -11,6 +11,7 @@ use App\Ai\ContexteIa;
 use App\Ai\MultiAssistant\AssistantInstructions;
 use App\Ai\MultiAssistant\AssistantOutcome;
 use App\Ai\MultiAssistant\MultiAssistantRun;
+use App\Ai\MultiAssistant\SharedEvidence;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
 use App\Models\AiProviderInvocation;
@@ -34,7 +35,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Laravel\Ai\Responses\Data\FinishReason;
 use Laravel\Ai\Responses\Data\Meta;
+use Laravel\Ai\Responses\Data\Step;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\TextResponse;
 use RuntimeException;
@@ -151,23 +154,345 @@ class TASK1621PourContreEngineTest extends TestCase
         $this->catalogueEtModeles();
     }
 
-    // ── 1. ZERO RAG, ET LA TRACE LE DIT ─────────────────────────────────────
+    // ── 0. UNE REPONSE COUPEE NE SE PUBLIE JAMAIS EN SILENCE ────────────────
 
-    public function test_le_moteur_ne_lit_jamais_la_boucle(): void
+    public function test_length_avec_texte_donne_un_tour_partiel_jamais_une_reussite(): void
     {
-        // La garantie centrale du pivot : « Pour / Contre » repond depuis les
-        // connaissances generales. Consulter les Dossiers reste une
-        // fonctionnalite separee.
+        // Le defaut corrige : a 900 jetons, 12 reponses coupees en plein mot
+        // etaient publiees comme completes. « …federales et ree ».
+        $this->fakeAvecArret(FinishReason::Length, 'Premier argument, puis la suite est coup');
+
+        $run = $this->orchestrateur()->runPourContre($this->loop, $this->membre, 'Faut-il tout automatiser ?');
+
+        foreach ($run->outcomes as $outcome) {
+            $this->assertSame(AssistantOutcome::STATUS_PARTIAL, $outcome->status);
+
+            // Le point du mandat : jamais compte comme un SUCCESS complet.
+            $this->assertFalse($outcome->succeeded(), 'une reponse ecourtee n\'est PAS une reussite');
+
+            // Mais elle a du texte, donc elle se publie, et elle se reessaie.
+            $this->assertTrue($outcome->isPublishable());
+            $this->assertTrue($outcome->isTruncated());
+            $this->assertTrue($outcome->isRetryable());
+            $this->assertSame('output_truncated', $outcome->errorCode);
+        }
+
+        // `succeeded()` reste STRICT, `publishable()` porte ce qui entre au fil.
+        $this->assertSame([], $run->succeeded());
+        $this->assertCount(2, $run->publishable());
+        $this->assertTrue($run->hasAnswer());
+    }
+
+    public function test_length_sans_texte_n_est_pas_empty_model_answer(): void
+    {
+        // « le modele s'est tu » et « le modele n'avait plus de place »
+        // demandent deux remedes opposes. 13 des 14 tours vides mesures
+        // etaient du second type, et portaient le nom du premier.
+        $this->fakeAvecArret(FinishReason::Length, '');
+
+        $run = $this->orchestrateur()->runPourContre($this->loop, $this->membre, 'Faut-il tout automatiser ?');
+
+        foreach ($run->outcomes as $outcome) {
+            $this->assertSame(AssistantOutcome::STATUS_ERROR, $outcome->status);
+            $this->assertSame('OUTPUT_BUDGET_EXHAUSTED', $outcome->errorCode);
+            $this->assertNotSame('EMPTY_MODEL_ANSWER', $outcome->errorCode);
+        }
+
+        // Et le ledger porte la MEME raison : la trace et le verdict ne
+        // divergent pas.
+        $this->assertSame(2, AiProviderInvocation::query()
+            ->where('failure_reason', 'OUTPUT_BUDGET_EXHAUSTED')->count());
+        $this->assertSame(0, AiProviderInvocation::query()
+            ->where('failure_reason', 'EMPTY_MODEL_ANSWER')->count());
+    }
+
+    public function test_stop_avec_texte_reste_une_reussite_pleine(): void
+    {
+        $this->fakeAvecArret(FinishReason::Stop, 'Un argument complet, termine.');
+
+        $run = $this->orchestrateur()->runPourContre($this->loop, $this->membre, 'Faut-il tout automatiser ?');
+
+        $this->assertTousReussis($run);
+
+        foreach ($run->outcomes as $outcome) {
+            $this->assertFalse($outcome->isTruncated());
+            $this->assertNull($outcome->errorCode);
+        }
+    }
+
+    public function test_une_raison_d_arret_absent_e_ne_fait_conclure_a_aucune_coupe(): void
+    {
+        // LA garde. `steps` vide — vraie pour une passerelle qui ne les peuple
+        // pas, et pour toute doublure ecrite avant cette TASK. Deduire une
+        // troncature d'une absence de mesure serait inventer la mesure.
+        $this->fakeDeuxReponses();
+
+        $run = $this->orchestrateur()->runPourContre($this->loop, $this->membre, 'Faut-il tout automatiser ?');
+
+        $this->assertTousReussis($run);
+
+        foreach ($run->outcomes as $outcome) {
+            $this->assertFalse($outcome->isTruncated(),
+                'sans finishReason mesure, le comportement d\'avant doit tenir');
+        }
+    }
+
+    public function test_notre_propre_plafond_de_caracteres_marque_aussi_la_coupe(): void
+    {
+        // La seconde source de coupe est CHEZ NOUS : le sanitiseur rogne a
+        // `max_answer_chars` sans rien dire. Ne traiter que le budget du
+        // provider aurait laisse revenir le defaut par l'autre porte.
+        config(['ai.multi_ai.max_answer_chars' => 120]);
+
+        $this->fakeAvecArret(FinishReason::Stop, str_repeat('Argument solide et bien forme. ', 30));
+
+        $run = $this->orchestrateur()->runPourContre($this->loop, $this->membre, 'Faut-il tout automatiser ?');
+
+        foreach ($run->outcomes as $outcome) {
+            $this->assertTrue($outcome->isTruncated(),
+                'le modele a fini (Stop), mais NOUS avons coupe : il faut le dire');
+            $this->assertFalse($outcome->succeeded());
+            $this->assertTrue($outcome->isPublishable());
+        }
+    }
+
+    public function test_une_reponse_courte_sous_le_plafond_n_est_jamais_dite_coupee(): void
+    {
+        // Le sabotage naturel du test precedent : si la garde etait
+        // « longueur >= plafond » seule, toute reponse pile a la limite
+        // serait declaree coupee a tort.
+        config(['ai.multi_ai.max_answer_chars' => 3000]);
+
+        $this->fakeAvecArret(FinishReason::Stop, 'Trois arguments, et c\'est tout.');
+
+        $run = $this->orchestrateur()->runPourContre($this->loop, $this->membre, 'Faut-il tout automatiser ?');
+
+        $this->assertTousReussis($run);
+        foreach ($run->outcomes as $outcome) {
+            $this->assertFalse($outcome->isTruncated());
+        }
+    }
+
+    // ── 1. LA CONNAISSANCE D'ABORD, LA BOUCLE ENSUITE ───────────────────────
+
+    public function test_le_contexte_est_collecte_une_seule_fois_pour_les_deux_roles(): void
+    {
+        // Le contrat du pivot corrige : la conversation revient, mais en
+        // CONTEXTE. UNE collecte, partagee — pas une par role.
         $espion = $this->espionnerLaSource();
         $this->fakeDeuxReponses();
 
         $run = $this->orchestrateur()->runPourContre($this->loop, $this->membre, 'Faut-il tout automatiser ?');
 
         $this->assertTousReussis($run);
-        $this->assertSame(0, $espion::$appels,
-            'aucune collecte : le module a DECIDE de ne pas lire la Boucle');
+        $this->assertSame(1, $espion::$appels,
+            "une seule collecte pour deux roles : c'est le contrat du contexte partage");
+        $this->assertNotSame('', trim($run->evidence->borne->text));
+
+        // Et ce n'est PAS un retrieval : rien ne sera cite, donc rien ne doit
+        // promettre des sources au membre.
         $this->assertFalse($run->evidence->hasRetrieval);
-        $this->assertSame('', $run->evidence->borne->text);
+    }
+
+    public function test_la_question_precede_le_contexte_dans_le_prompt(): void
+    {
+        // L'ORDRE est le livrable : on repond a la question, le contexte n'est
+        // que du cadrage. L'inverser ferait croire au modele que la Boucle est
+        // la matiere — et c'est exactement ce qui produisait, en recette,
+        // « the provided Loop material says nothing about... ».
+        $prompts = $this->capturerLesPrompts();
+
+        $run = $this->orchestrateur()->runPourContre($this->loop, $this->membre, 'Faut-il tout automatiser ?');
+        $this->assertTousReussis($run);
+
+        $this->assertCount(2, $prompts);
+
+        foreach ($prompts as $prompt) {
+            $posQuestion = mb_strpos($prompt, 'Faut-il tout automatiser ?');
+            $posContexte = mb_strpos($prompt, trans('ai.loop_multi_ai_context_heading', [], 'fr'));
+
+            $this->assertIsInt($posQuestion, 'la question doit figurer dans le prompt');
+            $this->assertIsInt($posContexte, 'le bloc de contexte doit etre etiquete');
+            $this->assertLessThan($posContexte, $posQuestion,
+                'la question vient AVANT le contexte, jamais apres');
+
+            // Le contrat d'usage, sans lequel le modele commente la matiere.
+            $this->assertStringContainsString(trans('ai.loop_multi_ai_context_contract', [], 'fr'), $prompt);
+        }
+    }
+
+    public function test_les_deux_roles_recoivent_exactement_le_meme_contexte(): void
+    {
+        $prompts = $this->capturerLesPrompts();
+
+        $this->assertTousReussis(
+            $this->orchestrateur()->runPourContre($this->loop, $this->membre, 'Faut-il tout automatiser ?'),
+        );
+
+        $this->assertCount(2, $prompts);
+        $this->assertSame($prompts[0], $prompts[1],
+            'POUR et CONTRE lisent le MEME instantane de la conversation');
+    }
+
+    public function test_une_boucle_sans_matiere_n_a_ni_intitule_ni_phrase_de_vide(): void
+    {
+        // « Aucun heading vide, aucune phrase disant qu'il n'y a pas de
+        // contexte » : un bloc vide inviterait le modele a commenter ce vide
+        // au lieu de repondre.
+        LoopMessage::query()->where('loop_id', $this->loop->id)->delete();
+
+        $prompts = $this->capturerLesPrompts();
+
+        $this->assertTousReussis(
+            $this->orchestrateur()->runPourContre($this->loop, $this->membre, 'Faut-il tout automatiser ?'),
+        );
+
+        foreach ($prompts as $prompt) {
+            $this->assertStringContainsString('Faut-il tout automatiser ?', $prompt);
+            $this->assertStringNotContainsString(trans('ai.loop_multi_ai_context_heading', [], 'fr'), $prompt);
+            $this->assertStringNotContainsString(trans('ai.loop_multi_ai_context_contract', [], 'fr'), $prompt);
+        }
+    }
+
+    public function test_la_fenetre_est_courte_et_recente(): void
+    {
+        // Ni les 30 du plafond global, ni un mini-RAG : les derniers messages.
+        config(['ai.multi_ai.context_messages' => 4]);
+
+        foreach (range(1, 12) as $rang) {
+            LoopMessage::factory()->create([
+                'loop_id' => $this->loop->id,
+                'sender_id' => $this->membre->id,
+                'body' => 'Message de rang '.$rang,
+                'type' => 'user',
+            ]);
+        }
+
+        $prompts = $this->capturerLesPrompts();
+
+        $run = $this->orchestrateur()->runPourContre($this->loop, $this->membre, 'Faut-il tout automatiser ?');
+        $this->assertTousReussis($run);
+
+        $this->assertCount(4, $run->evidence->borne->provenance,
+            'la fenetre demandee borne la collecte');
+
+        // Les derniers, pas les premiers : un contexte ancien ne dit pas de
+        // quoi on parle MAINTENANT.
+        $this->assertStringContainsString('Message de rang 12', $prompts[0]);
+        $this->assertStringNotContainsString('Message de rang 1 ', $prompts[0]);
+        $this->assertStringNotContainsString('Le budget du projet ARIA', $prompts[0]);
+    }
+
+    public function test_le_message_declencheur_ne_figure_pas_deux_fois(): void
+    {
+        // Le flux publie le message humain AVANT la generation : sans borne, la
+        // question serait dans le prompt comme question ET dans le contexte.
+        $question = "Faut-il ouvrir le teletravail a toute l'equipe ?";
+
+        $declencheur = LoopMessage::factory()->create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->membre->id,
+            'body' => $question,
+            'type' => 'user',
+        ]);
+
+        $prompts = $this->capturerLesPrompts();
+
+        $run = $this->orchestrateur()->runPourContre(
+            $this->loop, $this->membre, $question, null, (string) $declencheur->id,
+        );
+        $this->assertTousReussis($run);
+
+        foreach ($prompts as $prompt) {
+            $this->assertSame(1, mb_substr_count($prompt, $question),
+                'la question figure UNE fois, comme question principale');
+        }
+
+        // Et la borne est bien celle-la : le message n'est pas dans la
+        // provenance collectee.
+        $this->assertNotContains((string) $declencheur->id,
+            array_column($run->evidence->borne->provenance, 'id'));
+    }
+
+    public function test_le_role_suivant_ne_lit_pas_la_reponse_du_precedent(): void
+    {
+        // POUR et CONTRE tournent dans deux requetes differees distinctes. Si
+        // la borne ne tenait pas, CONTRE lirait la bulle que POUR vient de
+        // publier — et repondrait a son voisin plutot qu'a la question.
+        $question = 'Faut-il tout automatiser ?';
+
+        $declencheur = LoopMessage::factory()->create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => $this->membre->id,
+            'body' => $question,
+            'type' => 'user',
+        ]);
+
+        $prompts = $this->capturerLesPrompts();
+
+        $this->assertTousReussis($this->orchestrateur()->runOne(
+            $this->loop, $this->membre, $question, LoopMultiAiOrchestrator::ROLE_POUR, null, (string) $declencheur->id,
+        ));
+
+        // Entre les deux tours, la bulle de POUR entre dans le fil.
+        LoopMessage::factory()->create([
+            'loop_id' => $this->loop->id,
+            'sender_id' => null,
+            'body' => 'PREMIER ROLE A DEJA REPONDU CECI',
+            'type' => 'ai',
+        ]);
+
+        $this->assertTousReussis($this->orchestrateur()->runOne(
+            $this->loop, $this->membre, $question, LoopMultiAiOrchestrator::ROLE_CONTRE, null, (string) $declencheur->id,
+        ));
+
+        $this->assertCount(2, $prompts);
+        $this->assertStringNotContainsString('PREMIER ROLE A DEJA REPONDU CECI', $prompts[1]);
+        $this->assertSame($prompts[0], $prompts[1],
+            'meme declencheur transmis, donc meme instantane');
+    }
+
+    public function test_une_borne_d_une_autre_boucle_ne_borne_rien_et_ne_fuit_rien(): void
+    {
+        // Un identifiant venu d'ailleurs ne doit ni elargir la fenetre, ni
+        // faire entrer une ligne d'une autre Boucle dans le prompt.
+        $autreLoop = Loop::factory()->create([
+            'organization_id' => $this->ailleurs->id,
+            'created_by' => $this->etranger->id,
+            'status' => 'active',
+            'type' => 'general',
+        ]);
+
+        $etranger = LoopMessage::factory()->create([
+            'loop_id' => $autreLoop->id,
+            'sender_id' => $this->etranger->id,
+            'body' => 'SECRET D UNE AUTRE ORGANIZATION',
+            'type' => 'user',
+        ]);
+
+        $prompts = $this->capturerLesPrompts();
+
+        $run = $this->orchestrateur()->runPourContre(
+            $this->loop, $this->membre, 'Faut-il tout automatiser ?', null, (string) $etranger->id,
+        );
+        $this->assertTousReussis($run);
+
+        $this->assertStringNotContainsString('SECRET D UNE AUTRE ORGANIZATION', $prompts[0]);
+        $this->assertStringContainsString('Le budget du projet ARIA', $prompts[0],
+            'la fenetre nue reste servie : une borne introuvable ne vide rien');
+    }
+
+    public function test_l_empreinte_distingue_question_et_demandeur(): void
+    {
+        // Repris de TASK-1618, dont le fichier disparait avec le pivot :
+        // l'empreinte survit, et rien d'autre ne la mesure.
+        $base = SharedEvidence::fingerprintFor('org', 'loop', 'user', 'Quel budget ?', ['loop.messages']);
+
+        $this->assertNotSame($base, SharedEvidence::fingerprintFor('org', 'loop', 'user', 'Quelle date ?', ['loop.messages']));
+        $this->assertNotSame($base, SharedEvidence::fingerprintFor('org', 'loop', 'autre', 'Quel budget ?', ['loop.messages']));
+        $this->assertNotSame($base, SharedEvidence::fingerprintFor('org', 'autre', 'user', 'Quel budget ?', ['loop.messages']));
+        $this->assertSame($base, SharedEvidence::fingerprintFor('org', 'loop', 'user', '  Quel budget ?  ', ['loop.messages']),
+            "un espace de bord n'est pas une question differente");
     }
 
     public function test_aucune_generation_cachee_du_moteur_documentaire(): void
@@ -184,7 +509,7 @@ class TASK1621PourContreEngineTest extends TestCase
             ->count());
     }
 
-    public function test_la_trace_declare_le_bypass_et_ne_pretend_aucune_evidence(): void
+    public function test_la_trace_dit_le_contexte_et_ne_pretend_aucune_preuve(): void
     {
         $this->fakeDeuxReponses();
 
@@ -193,10 +518,10 @@ class TASK1621PourContreEngineTest extends TestCase
         foreach (AiInteraction::query()->get() as $interaction) {
             $meta = $interaction->metadata;
 
-            // Ce qui DOIT etre dit.
-            $this->assertSame('general_knowledge', $meta['knowledge']['mode'] ?? null);
-            $this->assertSame('bypassed', $meta['knowledge']['context_builder'] ?? null);
-            $this->assertSame('LLM_PATH_NO_CONTEXT_BUILDER', $meta['knowledge']['reason'] ?? null);
+            // Ce qui DOIT etre dit : un contexte consulte, et son compte.
+            $this->assertSame('general_knowledge_first', $meta['knowledge']['mode'] ?? null);
+            $this->assertSame('executed', $meta['knowledge']['context_builder'] ?? null);
+            $this->assertSame(3, $meta['knowledge']['consulted'] ?? null);
 
             // Ce qui ne doit PLUS l'etre : une cle absente se lit « rien ici »,
             // une cle presente et fausse se lit comme une mesure.
@@ -215,25 +540,23 @@ class TASK1621PourContreEngineTest extends TestCase
         }
     }
 
-    public function test_le_prompt_ne_contient_que_la_question(): void
+    public function test_le_prompt_ne_parle_jamais_de_sources_absentes(): void
     {
-        $vus = [];
-        LoopMultiAiAgent::fake(function (string $prompt, $attachments, $provider, string $model) use (&$vus) {
-            $vus[] = $prompt;
+        // La Boucle est DANS le prompt (test d'ordre ci-dessus), mais jamais
+        // comme une matiere dont on pourrait constater le manque. La phrase
+        // qui annoncait des sources absentes laisserait croire qu'on a
+        // cherche — c'est elle qui produisait, en recette reelle, « the
+        // provided Loop material says nothing about... ».
+        $prompts = $this->capturerLesPrompts();
 
-            return new TextResponse('Argument.', new Usage(20, 10), new Meta('openrouter', $model));
-        });
+        $this->assertTousReussis(
+            $this->orchestrateur()->runPourContre($this->loop, $this->membre, 'Faut-il tout automatiser ?'),
+        );
 
-        $this->orchestrateur()->runPourContre($this->loop, $this->membre, 'Faut-il tout automatiser ?');
+        $this->assertCount(2, $prompts);
 
-        $this->assertCount(2, $vus);
-
-        foreach ($vus as $prompt) {
+        foreach ($prompts as $prompt) {
             $this->assertStringContainsString('Faut-il tout automatiser ?', $prompt);
-            // Le contenu de la Boucle n'y est pas...
-            $this->assertStringNotContainsString('40 000 euros', $prompt);
-            // ... et on ne parle meme pas de sources absentes : en parler
-            // laisserait croire qu'on a cherche.
             $this->assertStringNotContainsString(__('ai.loop_multi_ai_no_sources'), $prompt);
         }
     }
@@ -839,6 +1162,54 @@ class TASK1621PourContreEngineTest extends TestCase
      * generation echouee : les deux en ecrivent une. Tout test qui suppose
      * que les trois ont repondu doit le DIRE.
      */
+    /**
+     * Les prompts REELLEMENT envoyes, dans l'ordre des appels.
+     *
+     * Un `ArrayObject` plutot qu'un tableau : il se remplit PENDANT le tour et
+     * le test le lit apres, sans passage par reference au point d'appel. C'est
+     * le seul endroit ou l'on peut verifier un ORDRE interne au prompt —
+     * compter des lignes de ledger ne l'aurait jamais dit.
+     *
+     * `$attachments` reste NU : le SDK y passe une Collection, et une
+     * signature typee `array` leverait un TypeError A L'INTERIEUR de l'appel,
+     * lu comme une panne provider. D'ou `assertTousReussis()` partout.
+     *
+     * @return \ArrayObject<int, string>
+     */
+    private function capturerLesPrompts(): \ArrayObject
+    {
+        /** @var \ArrayObject<int, string> $prompts */
+        $prompts = new \ArrayObject;
+
+        LoopMultiAiAgent::fake(function (string $prompt, $attachments, $provider, string $model) use ($prompts) {
+            $prompts[] = $prompt;
+
+            return new TextResponse('Reponse de '.$model, new Usage(20, 10), new Meta('openrouter', $model));
+        });
+
+        return $prompts;
+    }
+
+    /**
+     * Une reponse doublee qui porte SA raison d'arret.
+     *
+     * Les doublures existantes construisent un `TextResponse` nu : sa
+     * collection `steps` est VIDE, donc aucun `finishReason`. C'est voulu et
+     * c'est mesure plus bas — absence de mesure = comportement d'avant. Pour
+     * exercer le chemin `Length`, il faut fabriquer le `Step` que la vraie
+     * passerelle OpenRouter produit.
+     */
+    private function fakeAvecArret(FinishReason $arret, string $texte): void
+    {
+        LoopMultiAiAgent::fake(function (string $prompt, $attachments, $provider, string $model) use ($arret, $texte) {
+            $usage = new Usage(3100, 2400);
+            $meta = new Meta('openrouter', $model);
+
+            return (new TextResponse($texte, $usage, $meta))
+                ->withSteps(collect([new Step($texte, [], [], $arret, $usage, $meta)]));
+        });
+    }
+
     private function assertTousReussis(MultiAssistantRun $run): void
     {
         foreach ($run->outcomes as $outcome) {

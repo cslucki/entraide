@@ -1434,14 +1434,12 @@ return [
     'plugins_loop_unavailable' => 'This plugin is not allowed for this Organization.',
     'plugins_loop_not_enabled' => 'The 3 AI assistants are not enabled in this Loop.',
     'plugins_multi_ai_ask_all' => 'For / Against',
-    'plugins_multi_ai_armed' => 'For / Against enabled',
-    'plugins_multi_ai_working' => 'The assistants are preparing their arguments…',
-    'plugins_multi_ai_modal_title' => 'For or against?',
-    'plugins_multi_ai_modal_promise' => 'Get the case for and the case against a given question.',
-    'plugins_multi_ai_modal_explain' => 'Your question goes to two independent AI assistants. In this version they answer from their general knowledge and do not read the Loop files.',
-    'plugins_multi_ai_modal_cancel' => 'Cancel',
-    'plugins_multi_ai_modal_activate' => 'Enable For / Against',
+
+    // TASK-1621: the modal is gone. What it explained fits in a non-blocking
+    // tooltip carried by the button itself.
+    'plugins_multi_ai_hint' => 'Two AIs lay out the arguments for and against. They take the recent discussion into account but do not read the Files.',
     'plugins_multi_ai_disable' => 'Disable For / Against',
+    'plugins_multi_ai_truncated' => 'Answer cut short',
     'plugins_multi_ai_preparing' => 'Preparing the « :assistant » arguments…',
     'plugins_multi_ai_discover' => 'Configure For / Against',
 

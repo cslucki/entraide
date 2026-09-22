@@ -1,12 +1,14 @@
 {{--
     TASK-1621 — l'etat de « Pour / Contre » pour le tour en cours.
 
-    Trois choses vivent ici, et une seule a la fois se voit :
+    Deux choses vivent ici, et une seule a la fois se voit :
 
-      1. le BADGE d'activation, unique. TASK-1620 en avait deux concurrents
-         (le bouton actif ET une pastille) et le mandat en demande UN ;
-      2. l'attente, pendant qu'un role prepare ses arguments ;
-      3. les echecs, ephemeres : ils n'entrent jamais dans le fil.
+      1. l'attente, pendant qu'un role prepare ses arguments ;
+      2. les echecs, ephemeres : ils n'entrent jamais dans le fil.
+
+    Le badge d'activation a DISPARU (TASK-1621) : l'etat arme se lit sur le
+    bouton « Pour / Contre » lui-meme. Deux surfaces pour un meme etat, c'est
+    deux occasions qu'elles se contredisent.
 
     La REQUETE DIFFEREE est ici aussi. `wire:init` declenche la generation
     APRES que le message humain a ete publie et rendu. La cle change a chaque
@@ -24,20 +26,23 @@
         <div wire:init="runNextPourContre" wire:key="pour-contre-{{ count($queue) }}" class="hidden"></div>
     @endif
 
-    @if($modeActive)
-        <div data-multi-ai-armed
-             class="inline-flex w-fit items-center gap-2 rounded-full border border-teal-300 bg-teal-100 px-3 py-1.5 text-xs font-semibold text-teal-900 dark:border-teal-700 dark:bg-teal-900/50 dark:text-teal-100">
-            <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m0-18 7.5 4.5M12 3 4.5 7.5m15 0-2.25 6.75a3 3 0 0 0 4.5 0zm-15 0L2.25 14.25a3 3 0 0 0 4.5 0z"/></svg>
-            {{ __('loops.plugins_multi_ai_armed') }}
-            <button type="button" wire:click="toggleMultiAiMode" data-multi-ai-disarm
-                    aria-label="{{ __('loops.plugins_multi_ai_disable') }}"
-                    class="ml-0.5 rounded-full px-1 text-teal-800 transition hover:bg-teal-200 dark:text-teal-200 dark:hover:bg-teal-800">×</button>
-        </div>
-    @endif
-
     @if($queue !== [])
+        @php
+            // TASK-1621 — la mire porte la couleur du role QU'ELLE ANNONCE :
+            // vert pour « Pour », rouge pour « Contre », exactement comme la
+            // bulle qui va arriver. Un fond blanc ne disait pas de quel cote
+            // du debat on attend quelque chose.
+            //
+            // C'est la cle TECHNIQUE qui decide, jamais le libelle : celui-ci
+            // est traduit, et une couleur ne doit pas dependre d'une locale.
+            $couleursMire = $queue[0] === 'traverse'
+                ? 'border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-800/60 dark:bg-rose-900/25 dark:text-rose-100'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800/60 dark:bg-emerald-900/25 dark:text-emerald-100';
+        @endphp
+
         <div data-multi-ai-pending
-             class="flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs text-teal-900 dark:border-teal-800/60 dark:bg-teal-900/25 dark:text-teal-100">
+             data-multi-ai-pending-role="{{ $queue[0] }}"
+             class="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs {{ $couleursMire }}">
             {{-- L'icone du SELECTEUR, a gauche : c'est elle qui dit de quel
                  module vient cette attente. Le sablier seul ne le disait pas
                  (retour de Cyril). L'activite reste signalee, mais a droite :

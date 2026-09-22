@@ -261,7 +261,7 @@ class TASK1568ExecutionPathTest extends TestCase
         // et ne lit plus rien de la Boucle : il repond depuis les
         // connaissances generales du modele. Le Context Builder est donc
         // BYPASSE, avec le meme code que le mode `ia` du composeur.
-        AiExecutionPath::LOOP_CHAT_MULTI_AI => 'bypassed',
+        AiExecutionPath::LOOP_CHAT_MULTI_AI => 'executed',
         AiExecutionPath::AI_SHELL_SELF_KNOWLEDGE => 'not_applicable',
         AiExecutionPath::AI_SHELL_DOSSIER => 'bypassed',
         AiExecutionPath::AI_SHELL_ARTICLE => 'bypassed',
@@ -288,10 +288,10 @@ class TASK1568ExecutionPathTest extends TestCase
         AiExecutionPath::LOOP_CHAT_LEGACY_ASK => 'not_applicable',
         AiExecutionPath::LOOP_CHAT_LEGACY_ANSWER => 'not_applicable',
         AiExecutionPath::LOOP_CONTROLLER_KNOWLEDGE_JSON => 'executed',
-        // TASK-1619 — ce chemin n'a AUCUN etage d'historique : sa matiere est
-        // la conversation elle-meme, collectee par `loop.messages`, et il n'y a
-        // pas de chaine de reply a remonter. `not_applicable` est une mesure,
-        // pas un oubli.
+        // TASK-1619 — ce chemin n'a AUCUN etage d'historique : la conversation
+        // lui parvient par `loop.messages`, en contexte, et il n'y a pas de
+        // chaine de reply a remonter. `not_applicable` est une mesure, pas un
+        // oubli — et TASK-1621 ne l'a pas changee.
         AiExecutionPath::LOOP_CHAT_MULTI_AI => 'not_applicable',
         AiExecutionPath::AI_SHELL_DOSSIER => 'executed',
         AiExecutionPath::AI_SHELL_ARTICLE => 'executed',
@@ -303,13 +303,17 @@ class TASK1568ExecutionPathTest extends TestCase
         AiExecutionPath::DOSSIER_PAGE_INSIGHTS => 'not_applicable',
     ];
 
-    public function test_a4_le_contrat_context_builder_couvre_les_19_chemins_en_6_9_4(): void
+    public function test_a4_le_contrat_context_builder_couvre_les_19_chemins_en_7_8_4(): void
     {
         $this->assertEqualsCanonicalizing(AiExecutionPath::all(), array_keys(self::CONTEXT_BUILDER_CONTRACT));
 
         $cardinalites = array_count_values(self::CONTEXT_BUILDER_CONTRACT);
 
-        $this->assertSame(['bypassed' => 9, 'executed' => 6, 'not_applicable' => 4], [
+        // TASK-1621 — 6/9/4 -> 7/8/4 : « Pour / Contre » collecte desormais
+        // un contexte conversationnel court. Ce n'est pas un retour au RAG (la
+        // capability ne declare toujours que `loop.messages`), mais le
+        // `ContextBuilder` tourne, et le recensement doit le dire.
+        $this->assertSame(['bypassed' => 8, 'executed' => 7, 'not_applicable' => 4], [
             'bypassed' => $cardinalites['bypassed'],
             'executed' => $cardinalites['executed'],
             'not_applicable' => $cardinalites['not_applicable'],

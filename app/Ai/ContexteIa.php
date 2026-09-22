@@ -69,6 +69,25 @@ final class ContexteIa
          * @var array<string, string>
          */
         public readonly array $material = [],
+        /**
+         * TASK-1621 : la FENETRE conversationnelle demandee par l'appelant,
+         * quand elle doit etre plus etroite que celle de la source.
+         *
+         * `null` = la source decide, c'est-a-dire exactement le comportement
+         * anterieur. Seul « Pour / Contre » les renseigne aujourd'hui : il
+         * veut un contexte recent et court (comprendre le sujet, ne pas
+         * redire ce qui vient d'etre dit), pas un mini-RAG.
+         *
+         * `beforeMessageId` est une borne haute EXCLUSIVE, pas une simple
+         * exclusion : le message declencheur est deja publie quand la
+         * collecte a lieu, et les deux roles tournent dans deux requetes
+         * separees. Une borne garantit que le second ne lit ni la question
+         * une seconde fois, ni la reponse du premier — ils voient le MEME
+         * instantane. Une exclusion par identifiant n'aurait ferme que le
+         * premier des deux.
+         */
+        public readonly ?int $maxMessages = null,
+        public readonly ?string $beforeMessageId = null,
         ?string $turnId = null,
     ) {
         if ($turnId !== null && ! self::isUuid($turnId)) {
@@ -103,6 +122,14 @@ final class ContexteIa
 
         if ($source !== null && trim($source) === '') {
             throw new InvalidArgumentException('The AI context source cannot be empty when provided.');
+        }
+
+        if ($maxMessages !== null && $maxMessages < 1) {
+            throw new InvalidArgumentException('The AI context message window must be at least one message when provided.');
+        }
+
+        if ($beforeMessageId !== null && ! self::isUuid($beforeMessageId)) {
+            throw new InvalidArgumentException('The AI context boundary message ID must be valid when provided.');
         }
 
         foreach ($material as $key => $text) {

@@ -1043,7 +1043,20 @@ class LoopChat extends Component
 
         $this->executer(
             fn () => app(LoopMultiAiOrchestrator::class)
-                ->runOne($this->loop, $user, $question, $role, AiExecutionPath::LOOP_CHAT_MULTI_AI),
+                ->runOne(
+                    $this->loop,
+                    $user,
+                    $question,
+                    $role,
+                    AiExecutionPath::LOOP_CHAT_MULTI_AI,
+                    // La borne haute du contexte : le message qui a declenche
+                    // le tour. POUR et CONTRE tournent dans deux requetes
+                    // differees distinctes ; en transmettant le MEME
+                    // declencheur, les deux lisent le meme instantane de la
+                    // conversation — et aucun ne relit la question, ni la
+                    // reponse de l'autre.
+                    $this->multiAiQuestionMessageId !== '' ? $this->multiAiQuestionMessageId : null,
+                ),
             $user,
             $question,
             publierLaQuestion: false,
@@ -1090,7 +1103,7 @@ class LoopChat extends Component
      */
     public function retryAssistant(string $assistantKey): void
     {
-        $this->lancerLesAssistants($this->multiAiQuestion, [$assistantKey], publierLaQuestion: false);
+        $this->lancerLesAssistants($this->multiAiQuestion, $assistantKey);
     }
 
     /** Masquer un avertissement qu'on a lu. */
@@ -1100,11 +1113,15 @@ class LoopChat extends Component
     }
 
     /**
-     * Le corps partage du reessai.
+     * Le corps du reessai : UN role, jamais la file entiere.
      *
-     * @param  list<string>|null  $seulement  null = tous les assistants actifs
+     * TASK-1621 — cette methode portait une branche « tous les assistants »
+     * qui appelait un `run()` disparu avec le pivot. Aucun appelant ne la
+     * prenait : elle etait morte, et elle aurait fatal-error le jour ou
+     * quelqu'un l'aurait reveillee. Le reessai est un geste humain, sur un
+     * role nomme.
      */
-    private function lancerLesAssistants(string $question, ?array $seulement, bool $publierLaQuestion): void
+    private function lancerLesAssistants(string $question, string $assistantKey): void
     {
         $user = auth()->user();
 
@@ -1119,12 +1136,21 @@ class LoopChat extends Component
         }
 
         $this->executer(
-            fn () => $seulement === null
-                ? app(LoopMultiAiOrchestrator::class)->run($this->loop, $user, $question, AiExecutionPath::LOOP_CHAT_MULTI_AI)
-                : app(LoopMultiAiOrchestrator::class)->runOne($this->loop, $user, $question, $seulement[0], AiExecutionPath::LOOP_CHAT_MULTI_AI),
+            fn () => app(LoopMultiAiOrchestrator::class)->runOne(
+                $this->loop,
+                $user,
+                $question,
+                $assistantKey,
+                AiExecutionPath::LOOP_CHAT_MULTI_AI,
+                // Meme borne que le tour initial : un reessai lit la
+                // conversation telle qu'elle etait AU MOMENT DE LA QUESTION,
+                // pas telle qu'elle est devenue depuis — sans quoi le role
+                // reessaye redirait la reponse de son voisin.
+                $this->multiAiQuestionMessageId,
+            ),
             $user,
             $question,
-            $publierLaQuestion,
+            publierLaQuestion: false,
         );
     }
 
@@ -1158,8 +1184,14 @@ class LoopChat extends Component
 
         // Les echecs, et EUX SEULS, restent a l'ecran. Une reussite efface son
         // ancien avertissement : le reessai a abouti, il n'y a plus rien a dire.
+        //
+        // TASK-1621 — une reponse ECOURTEE compte ici comme publiee, pas comme
+        // echouee. Elle est entree dans le fil et porte son propre badge
+        // « Reponse ecourtee » ; y ajouter un encart jaune ferait DEUX
+        // signalements pour un seul defaut, dont un qui dit « n'a pas pu
+        // repondre » alors que la bulle est juste au-dessus.
         foreach ($run->outcomes as $outcome) {
-            if ($outcome->succeeded()) {
+            if ($outcome->isPublishable()) {
                 unset($this->multiAiStates[$outcome->assistantKey]);
 
                 continue;

@@ -648,9 +648,32 @@ return [
     | d'etre gratuit ne doit pas pouvoir depenser sans plafond pour autant.
     */
     'multi_ai' => [
-        'max_tokens' => (int) env('AI_MULTI_AI_MAX_TOKENS', 900),
+        // TASK-1621 — 900 -> 2400, sur MESURE et non sur estimation.
+        //
+        // A 900, 13 des 14 reponses « vides » s'arretaient EXACTEMENT au
+        // plafond (900 x12, 899 x1), et 12 des reponses publiees comme
+        // reussies l'atteignaient aussi — donc coupees en plein mot. Les
+        // modeles reasoning depensent ce budget en jetons de RAISONNEMENT et
+        // n'ont plus de place pour ecrire.
+        //
+        // Ce budget sert au raisonnement, PAS a rallonger la reponse : les
+        // instructions de role gardent « 3 a 5 arguments ». Si la recette
+        // montre des reponses qui terminent en `stop` bien avant 2400, la
+        // valeur redescend — la mesure decide.
+        'max_tokens' => (int) env('AI_MULTI_AI_MAX_TOKENS', 2400),
         'temperature' => (float) env('AI_MULTI_AI_TEMPERATURE', 0.3),
         'max_answer_chars' => (int) env('AI_MULTI_AI_MAX_ANSWER_CHARS', 3000),
+
+        // TASK-1621 — la fenetre conversationnelle de « Pour / Contre », plus
+        // etroite que le plafond global de `loop.messages` (30). Elle sert a
+        // comprendre le sujet en cours et a ne pas redire ce qui vient d'etre
+        // dit ; l'elargir transformerait le module en mini-RAG, ce qu'il a
+        // justement cesse d'etre.
+        'context_messages' => (int) env('AI_MULTI_AI_CONTEXT_MESSAGES', 10),
+
+        // La seconde borne du meme contexte, en caracteres : dix messages dont
+        // un tres long rempliraient le prompt a eux seuls.
+        'max_context_chars' => (int) env('AI_MULTI_AI_MAX_CONTEXT_CHARS', 4000),
         'economic_guard' => [
             'monthly_budget_usd' => (float) env('AI_MULTI_AI_MONTHLY_BUDGET_USD', 2.00),
             'monthly_unknown_limit' => (int) env('AI_MULTI_AI_MONTHLY_UNKNOWN_LIMIT', 10),

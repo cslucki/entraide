@@ -1456,14 +1456,13 @@ return [
     'plugins_loop_unavailable' => "Ce plugin n'est pas autorisé pour cette Organization.",
     'plugins_loop_not_enabled' => 'Les 3 assistants IA ne sont pas activés dans cette Boucle.',
     'plugins_multi_ai_ask_all' => 'Pour / Contre',
-    'plugins_multi_ai_armed' => 'Pour / Contre activé',
-    'plugins_multi_ai_working' => 'Les assistants préparent leurs arguments…',
-    'plugins_multi_ai_modal_title' => 'Pour ou contre ?',
-    'plugins_multi_ai_modal_promise' => 'Recevez le pour et le contre sur une question donnée.',
-    'plugins_multi_ai_modal_explain' => 'Votre question sera envoyée à deux assistants IA indépendants. Dans cette version, ils répondent à partir de leurs connaissances générales et ne consultent pas les Dossiers de la Boucle.',
-    'plugins_multi_ai_modal_cancel' => 'Annuler',
-    'plugins_multi_ai_modal_activate' => 'Activer Pour / Contre',
+
+    // TASK-1621 : la modale a disparu. Ce qu'elle expliquait tient dans une
+    // infobulle non bloquante, portee par le bouton lui-meme — un ecran a
+    // confirmer coutait un geste a chaque envoi pour la meme phrase.
+    'plugins_multi_ai_hint' => 'Deux IA présentent les arguments pour et contre. Elles tiennent compte de la discussion récente mais ne consultent pas les Dossiers.',
     'plugins_multi_ai_disable' => 'Désactiver Pour / Contre',
+    'plugins_multi_ai_truncated' => 'Réponse écourtée',
     'plugins_multi_ai_preparing' => 'Préparation des arguments « :assistant »…',
     'plugins_multi_ai_discover' => 'Configurer Pour / Contre',
 

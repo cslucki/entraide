@@ -104,6 +104,12 @@ final class AiResponseExplanationService
             'organization_name' => (string) ($loop->organization?->name ?? ''),
             'loop_name' => (string) $loop->name,
             'ai_mode' => is_string($metadata['ai_mode'] ?? null) ? $metadata['ai_mode'] : null,
+            // TASK-1621 — le modele qui a REELLEMENT repondu, et le role qui
+            // l'a porte. Lus dans la metadata ecrite par le producteur du
+            // message, jamais reconstruits : le panneau explique un tour
+            // passe, et un modele administrable a pu changer depuis.
+            'assistant_key' => is_string($metadata['assistant_key'] ?? null) ? $metadata['assistant_key'] : null,
+            'model' => is_string($metadata['model'] ?? null) ? $metadata['model'] : null,
             'question' => is_string($metadata['question'] ?? null) ? $metadata['question'] : null,
             'requested_by_name' => $this->requesterName($loop, $metadata),
             'generated_at' => $message->created_at?->diffForHumans(),
