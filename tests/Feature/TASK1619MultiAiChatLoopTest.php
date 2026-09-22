@@ -32,6 +32,13 @@ use Tests\TestCase;
 /**
  * TASK-1619 / SLICE E — les 3 assistants IA dans ChatLoop.
  *
+ * MIGRE PAR TASK-1620 : le declencheur n'est plus un bouton par assistant mais
+ * l'ENVOI du composeur, mode « Demander aux 3 IA » arme. Les comportements
+ * mesures ici n'ont pas change d'un iota — reponses partielles, libelles
+ * produit, follow-ups, synthese, etat ephemere — seule la porte d'entree a
+ * bouge. Les tests d'INTERFACE des anciens boutons vivent desormais dans
+ * `TASK1620MultiAiComposerModeTest`.
+ *
  * SLICE D a pose le moteur ; ici le membre s'en sert. Ce fichier mesure les
  * quatre choses dont MASTER a fait des regles, et dont aucune n'est cosmetique :
  *
@@ -135,55 +142,51 @@ class TASK1619MultiAiChatLoopTest extends TestCase
         $this->catalogueEtModeles();
     }
 
-    // ── A. Les boutons et leur disponibilite ────────────────────────────────
+    // ── A. Disponibilite du mode ────────────────────────────────────────────
+    //
+    // TASK-1620 — les tests des QUATRE boutons ont ete retires : il n'y en a
+    // plus qu'un, et son interface est mesuree dans
+    // `TASK1620MultiAiComposerModeTest`. Ce qui reste ici est ce que la
+    // DISPONIBILITE commande, independamment de la forme du bouton.
 
-    public function test_les_quatre_boutons_apparaissent_quand_le_plugin_est_actif(): void
-    {
-        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop]);
-
-        foreach (['aperio', 'traverse', 'limen'] as $cle) {
-            $composant->assertSeeHtml('data-multi-ai-ask="'.$cle.'"');
-        }
-
-        $composant->assertSeeHtml('data-multi-ai-ask-all');
-    }
-
-    public function test_aucun_bouton_si_le_plugin_est_eteint_dans_la_boucle(): void
+    public function test_le_mode_n_est_pas_disponible_sans_plugin_actif(): void
     {
         app(LoopPluginActivation::class)->setEnabled(self::PLUGIN, $this->loop, false, $this->owner);
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertDontSeeHtml('data-multi-ai-ask-all');
+            ->assertDontSeeHtml('data-multi-ai-mode');
     }
 
-    public function test_retirer_la_disponibilite_de_l_organization_eteint_tous_les_boutons(): void
+    public function test_retirer_la_disponibilite_de_l_organization_eteint_le_mode(): void
     {
         app(LoopPluginAvailabilityService::class)
             ->setAvailability(self::PLUGIN, $this->organization, false, $this->superAdmin);
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertDontSeeHtml('data-multi-ai-ask-all');
+            ->assertDontSeeHtml('data-multi-ai-mode');
     }
 
-    public function test_un_assistant_eteint_n_a_pas_de_bouton(): void
+    public function test_un_assistant_eteint_ne_participe_pas_au_tour(): void
     {
         app(LoopAiAssistants::class)->save($this->loop, ['limen' => ['enabled' => false]], $this->owner);
+        $this->fakeTroisReponses();
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertSeeHtml('data-multi-ai-ask="aperio"')
-            ->assertDontSeeHtml('data-multi-ai-ask="limen"');
+            ->set('body', 'Quel est le budget ?')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage');
+
+        $this->assertEqualsCanonicalizing(['aperio', 'traverse'],
+            LoopMessage::where('loop_id', $this->loop->id)->where('type', 'ai')->get()
+                ->map(fn (LoopMessage $m): string => $m->metadata['assistant_key'])->all());
     }
 
-    public function test_le_lien_de_configuration_est_la_dette_ux_enfin_fermee(): void
+    public function test_un_non_membre_ne_voit_pas_le_mode(): void
     {
-        // UX_DEBT_SLICE_E de TASK-1616 : le facilitator DETENAIT le droit et la
-        // route existait, mais rien n'y menait pour lui.
-        Livewire::actingAs($this->owner)->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertSeeHtml('data-multi-ai-configure');
-        Livewire::actingAs($this->facilitator)->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertSeeHtml('data-multi-ai-configure');
-        Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
-            ->assertDontSeeHtml('data-multi-ai-configure');
+        $etranger = User::factory()->create(['organization_id' => $this->organization->id]);
+
+        Livewire::actingAs($etranger)->test(LoopChat::class, ['loop' => $this->loop])
+            ->assertDontSeeHtml('data-multi-ai-mode');
     }
 
     // ── B. Les reponses partielles ──────────────────────────────────────────
@@ -194,7 +197,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants');
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage');
 
         $bulles = LoopMessage::where('loop_id', $this->loop->id)->where('type', 'ai')->get();
 
@@ -211,7 +215,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants');
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage');
 
         $this->assertSame(0, LoopMessage::where('loop_id', $this->loop->id)
             ->where('type', 'ai')
@@ -226,7 +231,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage')
             ->assertSeeHtml('data-multi-ai-state="traverse"')
             ->assertSeeHtml('data-multi-ai-status="rate_limited"');
     }
@@ -237,7 +243,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants');
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage');
 
         $this->assertSame(1, LoopMessage::where('loop_id', $this->loop->id)
             ->where('type', 'user')
@@ -245,19 +252,33 @@ class TASK1619MultiAiChatLoopTest extends TestCase
             ->count(), 'le membre a demande une fois : le fil ne doit pas laisser croire qu\'il a demande trois fois');
     }
 
-    public function test_aucune_question_orpheline_si_les_trois_echouent(): void
+    public function test_le_message_humain_reste_meme_si_les_trois_echouent(): void
     {
+        // TASK-1620 a INVERSE cette regle, et c'est voulu.
+        //
+        // Avant, les trois assistants etaient declenches sans submit : publier
+        // une question que personne n'avait honoree aurait laisse une
+        // interpellation sans suite dans le fil, et le membre n'avait rien
+        // envoye. Desormais il APPUIE SUR ENVOYER : son message est un message
+        // humain, il lui appartient, et il reste — que l'IA ait repondu ou non.
+        //
+        // Ce qui n'entre toujours pas dans le fil, c'est l'ECHEC : aucune
+        // bulle d'assistant, seulement un etat ephemere chez le demandeur.
         LoopMultiAiAgent::fake(function (string $prompt, $attachments, $provider, string $model) {
             throw new RateLimitedException('sature');
         });
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Une question sans reponse ?')
-            ->call('askAllAssistants');
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage');
 
-        $this->assertSame(0, LoopMessage::where('loop_id', $this->loop->id)
-            ->where('body', 'Une question sans reponse ?')
-            ->count(), 'une interpellation que personne n\'a honoree ne reste pas dans le fil');
+        $this->assertSame(1, LoopMessage::where('loop_id', $this->loop->id)
+            ->where('type', 'user')->where('body', 'Une question sans reponse ?')->count(),
+            'le membre a envoye son message : il lui appartient');
+
+        $this->assertSame(0, LoopMessage::where('loop_id', $this->loop->id)->where('type', 'ai')->count(),
+            'aucun echec n\'entre dans la conversation de tout le monde');
     }
 
     // ── C. La traduction produit ────────────────────────────────────────────
@@ -268,7 +289,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage')
             ->assertSee(__('loops.plugins_multi_ai_rate_limited_title', ['assistant' => 'Traverse']))
             ->assertSee(__('loops.plugins_multi_ai_rate_limited_body', ['assistant' => 'Traverse']));
     }
@@ -279,7 +301,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         $rendu = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage')
             ->html();
 
         foreach (['PROVIDER_CALL_FAILED', 'RATE_LIMITED', 'upstream_provider_shared_pool', 'HTTP 429', 'RateLimitedException'] as $fuite) {
@@ -294,7 +317,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage')
             ->assertSeeHtml('data-multi-ai-retry="traverse"');
     }
 
@@ -305,21 +329,17 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage')
             ->assertSeeHtml('data-multi-ai-status="refused"')
             ->assertDontSeeHtml('data-multi-ai-retry="traverse"');
     }
 
-    public function test_demander_a_une_autre_ia_est_propose(): void
-    {
-        $this->fakeAvecSaturation('traverse');
-
-        Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
-            ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants')
-            ->assertSeeHtml('data-multi-ai-ask-other="aperio"')
-            ->assertSeeHtml('data-multi-ai-ask-other="limen"');
-    }
+    // TASK-1620 — `test_demander_a_une_autre_ia_est_propose` a ete RETIRE avec
+    // la fonctionnalite. Dans le flux « Demander aux 3 IA », les deux autres
+    // assistants ONT DEJA repondu quand l'un echoue : proposer de leur demander
+    // etait devenu une action sans objet, et c'etait un declencheur direct de
+    // plus — exactement la famille de defaut que cette TASK corrige.
 
     // ── D. Le reessai, HUMAIN ───────────────────────────────────────────────
 
@@ -329,7 +349,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants');
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage');
 
         $this->fakeTroisReponses();
         $composant->call('retryAssistant', 'traverse');
@@ -344,7 +365,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage')
             ->assertSeeHtml('data-multi-ai-state="traverse"');
 
         $this->fakeTroisReponses();
@@ -363,7 +385,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants');
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage');
 
         // Trois assistants sollicites = trois appels emis, pas un de plus.
         // Un reessai automatique en ajouterait un quatrieme, sature lui aussi,
@@ -376,11 +399,19 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
     public function test_les_follow_ups_sortent_du_meme_appel_que_la_reponse(): void
     {
+        // Un seul assistant actif : le mode lance les assistants ACTIFS, et
+        // c'est ainsi qu'on isole une generation unique sans inventer un
+        // second declencheur.
+        app(LoopAiAssistants::class)->save($this->loop, [
+            'traverse' => ['enabled' => false], 'limen' => ['enabled' => false],
+        ], $this->owner);
+
         $this->fakeAvecFollowUps();
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAssistant', 'aperio');
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage');
 
         $this->assertSame(1, AiProviderInvocation::query()->count(),
             'une question suggeree ne vaut pas une generation de plus');
@@ -401,7 +432,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAssistant', 'aperio');
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage');
 
         $bulle = LoopMessage::where('loop_id', $this->loop->id)->where('type', 'ai')->first();
 
@@ -425,7 +457,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAssistant', 'aperio');
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage');
 
         $bulle = LoopMessage::where('loop_id', $this->loop->id)->where('type', 'ai')->first();
 
@@ -447,7 +480,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage')
             ->assertSeeHtml('data-multi-ai-synthesise');
     }
 
@@ -462,7 +496,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants');
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage');
 
         $this->assertCount(3, $vus);
 
@@ -478,7 +513,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants');
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage');
 
         $vus = [];
         LoopMultiAiAgent::fake(function (string $prompt, $attachments, $provider, string $model) use (&$vus) {
@@ -503,7 +539,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage')
             ->assertSeeHtml('data-multi-ai-state="traverse"');
 
         // Un nouveau montage = un rechargement. L'avertissement a disparu, les
@@ -524,7 +561,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
         // c'est donc le badge qui doit les nommer.
         $html = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage')
             ->html();
 
         foreach (['Aperio', 'Traverse', 'Limen'] as $nom) {
@@ -542,7 +580,8 @@ class TASK1619MultiAiChatLoopTest extends TestCase
 
         $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
             ->set('body', 'Quel est le budget ?')
-            ->call('askAllAssistants');
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage');
 
         $bulle = LoopMessage::where('loop_id', $this->loop->id)->where('type', 'ai')->first();
 

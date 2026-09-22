@@ -32,29 +32,48 @@ const PASSWORD = 'password';
 const DESKTOP = { width: 1280, height: 800 };
 const MOBILE = { width: 390, height: 844 };
 
-test.describe('TASK-1619 — 3 assistants IA, BUREAU', () => {
+test.describe('TASK-1620 — 3 assistants IA, BUREAU', () => {
     test.use({ viewport: DESKTOP, locale: 'fr-FR' });
 
-    test('les quatre boutons sont visibles sans ouvrir de menu', async ({ page }) => {
+    test('un seul interrupteur, et il n\'arme rien tant qu\'on ne clique pas', async ({ page }) => {
         await login(page, OWNER, PASSWORD);
         await page.goto(LOOP_URL);
         await page.waitForLoadState('networkidle');
 
-        for (const cle of ['aperio', 'traverse', 'limen']) {
-            await expect(page.locator(`[data-multi-ai-ask="${cle}"]`).first()).toBeVisible();
-        }
-
-        await expect(page.locator('[data-multi-ai-ask-all]').first()).toBeVisible();
+        // TASK-1620 — UN bouton, pas quatre. Les actions par assistant ont
+        // disparu : elles generaient sans submit.
+        await expect(page.locator('[data-multi-ai-mode]:visible')).toHaveCount(1);
+        await expect(page.locator('[data-multi-ai-ask]')).toHaveCount(0);
+        await expect(page.locator('[data-multi-ai-armed]')).toHaveCount(0);
     });
 
-    test('le lien de configuration est atteignable depuis ChatLoop', async ({ page }) => {
+    test('armer le mode ne fait apparaitre aucun indicateur de generation', async ({ page }) => {
         await login(page, OWNER, PASSWORD);
         await page.goto(LOOP_URL);
         await page.waitForLoadState('networkidle');
 
-        // La dette UX_DEBT_SLICE_E : le droit existait, la route aussi, mais
-        // rien n'y menait depuis la surface ou le plugin sert.
-        await expect(page.locator('[data-multi-ai-configure]').first()).toBeVisible();
+        await page.locator('[data-multi-ai-mode]:visible').click();
+        await expect(page.locator('[data-multi-ai-armed]')).toBeVisible();
+
+        // Le defaut constate par Cyril : « reflechit… » avant tout envoi.
+        await page.waitForTimeout(1200);
+        await expect(page.locator('[data-multi-ai-pending]')).toBeHidden();
+    });
+
+    test('la configuration vit dans « Gerer la Boucle », pas dans le composeur', async ({ page }) => {
+        await login(page, OWNER, PASSWORD);
+        await page.goto(LOOP_URL);
+        await page.waitForLoadState('networkidle');
+
+        // TASK-1620 — configurer n'est pas un geste de conversation. Le lien
+        // existe (la dette UX_DEBT_SLICE_E reste fermee), mais il a rejoint
+        // Outils et Modifier.
+        const lien = page.locator('[data-multi-ai-configure]');
+        await expect(lien).toHaveCount(1);
+        await expect(lien).toBeHidden();
+
+        await page.getByRole('button', { name: /gérer|manage/i }).first().click();
+        await expect(lien).toBeVisible();
     });
 
     test('aucun code technique ne fuit dans la page', async ({ page }) => {
@@ -70,7 +89,7 @@ test.describe('TASK-1619 — 3 assistants IA, BUREAU', () => {
     });
 });
 
-test.describe('TASK-1619 — 3 assistants IA, MOBILE', () => {
+test.describe('TASK-1620 — 3 assistants IA, MOBILE', () => {
     test.use({ viewport: MOBILE, locale: 'fr-FR' });
 
     test('le viewport est REELLEMENT mobile', async ({ page }) => {
@@ -97,8 +116,7 @@ test.describe('TASK-1619 — 3 assistants IA, MOBILE', () => {
         // `.first()` prendrait la copie BUREAU, presente dans le DOM mais
         // masquee par `hidden md:flex` : le test mesurerait alors l'inverse de
         // son intention. On exige ce qui est REELLEMENT visible.
-        await expect(page.locator('[data-multi-ai-ask-all]:visible')).toHaveCount(1);
-        await expect(page.locator('[data-multi-ai-ask="aperio"]:visible')).toHaveCount(1);
+        await expect(page.locator('[data-multi-ai-mode]:visible')).toHaveCount(1);
     });
 
     test('rien ne deborde horizontalement', async ({ page }) => {

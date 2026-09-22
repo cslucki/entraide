@@ -1440,6 +1440,8 @@ return [
     'plugins_multi_ai_ask_one' => 'Ask :assistant',
     'plugins_multi_ai_ask_all' => 'Ask all 3',
     'plugins_multi_ai_pending' => ':assistant is thinking…',
+    'plugins_multi_ai_working' => 'The 3 assistants are analysing your request…',
+    'plugins_multi_ai_armed' => '3 AI enabled for this message',
     'plugins_multi_ai_rate_limited_title' => ':assistant is momentarily unavailable.',
     'plugins_multi_ai_rate_limited_body' => 'The free model used by :assistant cannot answer right now.',
     'plugins_multi_ai_failed_title' => ':assistant could not answer.',
@@ -1478,7 +1480,10 @@ return [
     'plugins_models_rejected' => ':model is not verified free: it was not saved.',
     'plugins_models_free_verified' => 'FREE verified on :date',
     'plugins_models_context' => ':tokens context tokens',
-    'plugins_models_status_ok' => 'Operational',
+    // TASK-1620 — « Operational » promised what this badge cannot know: it
+    // measures model set + still in the free catalogue + fresh free proof,
+    // never whether the provider answers right now.
+    'plugins_models_status_ok' => 'Free verified',
     'plugins_models_status_stale' => 'Proof expired — needs re-checking',
     'plugins_models_status_gone' => 'Unavailable or no longer free',
     'plugins_models_status_unset' => 'No model configured',

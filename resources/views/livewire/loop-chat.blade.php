@@ -553,11 +553,18 @@
         // boutons apparaissent a deux endroits (rangee bureau + feuille
         // mobile) et deux calculs auraient pu diverger.
         $multiAiAssistants = $this->multiAiAssistants();
-        $multiAiConfigureUrl = $this->multiAiConfigureUrl();
+        // TASK-1620 — le mode ARME, pas une action. Le lien de configuration a
+        // quitte cette zone : il vit desormais dans « Gerer la Boucle », avec
+        // Outils et Modifier. Configurer n'est pas un geste de conversation.
+        $multiAiModeActive = $this->multiAiModeActive();
         $multiAiCanSynthesise = $this->canSynthesiseAssistants();
     @endphp
 
-    @if($isMember && $canContribute && ($multiAiAssistants !== [] || $multiAiStates !== []))
+    {{-- TASK-1620 — le panneau doit etre dans le DOM AVANT le submit, sinon
+         `wire:loading` n'a rien a montrer : Livewire n'ajoute pas un element
+         pendant la requete qu'il est cense accompagner. Des que le mode est
+         arme, le conteneur existe. --}}
+    @if($isMember && $canContribute && ($multiAiModeActive || $multiAiStates !== [] || $multiAiCanSynthesise))
         {{-- TASK-1619 — l'etat des assistants, AU-DESSUS du composeur et sur
              TOUS les formats. Ce bloc n'est pas dans la rangee `hidden md:flex`
              : un membre sur telephone doit lire « Traverse est momentanement
@@ -630,9 +637,19 @@
                  partielle. --}}
             @include('livewire.partials.loop-chat-multi-ai-actions', [
                 'assistants' => $multiAiAssistants,
-                'configureUrl' => $multiAiConfigureUrl,
+                'modeActive' => $multiAiModeActive,
                 'variant' => 'pills',
             ])
+
+            {{-- TASK-1620 — l'etat ARME se lit. Sans cela, un membre ne saurait
+                 pas que son prochain envoi coutera trois generations. --}}
+            @if($multiAiModeActive)
+                <span data-multi-ai-armed
+                      class="inline-flex items-center gap-1.5 rounded-full border border-teal-300 bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white dark:border-teal-500">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                    {{ __('loops.plugins_multi_ai_armed') }}
+                </span>
+            @endif
 
             <button
                 type="button"
@@ -829,7 +846,7 @@
                                          partielle. --}}
                                     @include('livewire.partials.loop-chat-multi-ai-actions', [
                                         'assistants' => $multiAiAssistants,
-                                        'configureUrl' => $multiAiConfigureUrl,
+                                        'modeActive' => $multiAiModeActive,
                                         'variant' => 'tiles',
                                     ])
                                     <button type="button" wire:click="setComposerMode('ia_dossiers')" x-on:click="sheetOpen = false"

@@ -1453,6 +1453,8 @@ return [
     'plugins_multi_ai_ask_one' => 'Demander à :assistant',
     'plugins_multi_ai_ask_all' => 'Demander aux 3',
     'plugins_multi_ai_pending' => ':assistant réfléchit…',
+    'plugins_multi_ai_working' => 'Les 3 assistants analysent votre demande…',
+    'plugins_multi_ai_armed' => '3 IA activées pour ce message',
     'plugins_multi_ai_rate_limited_title' => ':assistant est momentanément indisponible.',
     'plugins_multi_ai_rate_limited_body' => 'Le modèle gratuit utilisé par :assistant ne peut pas répondre pour le moment.',
     'plugins_multi_ai_failed_title' => ":assistant n'a pas pu répondre.",
@@ -1491,7 +1493,13 @@ return [
     'plugins_models_rejected' => ":model n'est pas vérifié gratuit : il n'a pas été enregistré.",
     'plugins_models_free_verified' => 'FREE vérifié le :date',
     'plugins_models_context' => ':tokens tokens de contexte',
-    'plugins_models_status_ok' => 'Opérationnel',
+    // TASK-1620 — « Opérationnel » PROMETTAIT ce que ce badge ne sait pas.
+    // Il mesure : modèle choisi + encore au catalogue gratuit + preuve de
+    // gratuité fraîche. Il ne dit RIEN de la disponibilité du provider à
+    // l'instant — les recettes de TASK-1618 et 1619 l'ont montré, badge vert
+    // pendant que chaque appel rendait 429. Le libellé dit désormais ce qui
+    // est réellement vérifié. Aucun health-check réseau n'est ajouté.
+    'plugins_models_status_ok' => 'Gratuit vérifié',
     'plugins_models_status_stale' => 'Preuve expirée — à revérifier',
     'plugins_models_status_gone' => 'Indisponible ou plus gratuit',
     'plugins_models_status_unset' => 'Aucun modèle configuré',
