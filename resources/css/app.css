@@ -347,3 +347,35 @@
 .bp-org-sidebar .bp-sb-group { color: rgba(255, 255, 255, 0.74); }
 .bp-org-sidebar .bp-sb-group:hover { color: var(--bp-sidebar-text, #FFFFFF); }
 .bp-org-sidebar .bp-sb-group-active { color: var(--bp-sidebar-accent, #A5B4FC); }
+
+/* TASK-1621 — les listes Markdown d'une bulle de conversation.
+
+   Le conteneur de bulle est en `whitespace-pre-wrap` (les reponses IA
+   melangent texte brut et Markdown) : les sauts de ligne que CommonMark
+   emet ENTRE les balises <li> devenaient des lignes vides, et le preflight
+   Tailwind retire `list-style` — trois puces se lisaient donc comme des
+   paragraphes espaces sans marqueurs. On rend aux listes leurs puces et un
+   interligne compact ; `white-space: normal` neutralise le pre-wrap pour
+   les seuls blocs de liste. */
+.bp-bulle-markdown ul,
+.bp-bulle-markdown ol {
+    margin: 0;
+    padding-left: 1.1rem;
+    white-space: normal;
+}
+
+.bp-bulle-markdown ul {
+    list-style: disc;
+}
+
+.bp-bulle-markdown ol {
+    list-style: decimal;
+}
+
+.bp-bulle-markdown li {
+    margin: 0.15rem 0;
+}
+
+.bp-bulle-markdown li p {
+    margin: 0;
+}

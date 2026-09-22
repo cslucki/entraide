@@ -400,7 +400,14 @@ $renderableBody = preg_replace_callback(
         </button>
         @endif
 
-        <div x-ref="copyContent" class="min-w-0 max-w-full cursor-default overflow-hidden whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]" style="caret-color: transparent; word-break: break-word;">{!! markdown($renderableBody) !!}</div>
+        {{-- TASK-1621 — `bp-bulle-markdown` : les listes Markdown d'une bulle.
+             CommonMark emet `<ul>\n<li>...` ; `whitespace-pre-wrap` rendait
+             chaque saut de ligne SOURCE en ligne vide, et le preflight
+             Tailwind retire `list-style` — trois puces s'affichaient donc en
+             paragraphes espaces SANS marqueurs (capture Cyril, 22/09). La
+             regle vit dans app.css et redonne aux listes leurs puces et un
+             interligne compact, sans toucher au reste du texte. --}}
+        <div x-ref="copyContent" class="bp-bulle-markdown min-w-0 max-w-full cursor-default overflow-hidden whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]" style="caret-color: transparent; word-break: break-word;">{!! markdown($renderableBody) !!}</div>
 
         @if($urlPreview)
             <x-conversation.url-preview-card :preview="$urlPreview" :is-sent="$isSent" />

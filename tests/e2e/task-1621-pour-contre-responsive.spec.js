@@ -76,6 +76,24 @@ test.describe('mobile 390 px', () => {
         const deborde = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
         expect(deborde).toBe(false);
     });
+
+    test('pas de tableau sur telephone : la carte est masquee, les bulles restent', async ({ page }) => {
+        // Decision Cyril 22/09 : la carte de debat est une projection Desktop.
+        expect(await page.evaluate(() => window.innerWidth)).toBeLessThan(768);
+        await ouvrirLaBoucle(page);
+
+        // Non-vacuite : la Boucle de recette porte des debats.
+        const cartes = page.locator('[data-pour-contre-debat]');
+        expect(await cartes.count(), 'des cartes de debat doivent exister dans le DOM').toBeGreaterThan(0);
+
+        // Toutes rendues, aucune AFFICHEE : `hidden md:block`.
+        for (let i = 0; i < await cartes.count(); i++) {
+            await expect(cartes.nth(i)).toBeHidden();
+        }
+
+        // Les bulles classiques du fil, elles, se voient — c'est l'UX mobile.
+        expect(await page.locator('[data-ai-mode="multi_ai"]:visible').count()).toBeGreaterThan(0);
+    });
 });
 
 test.describe('bureau 1440 px', () => {
@@ -90,5 +108,36 @@ test.describe('bureau 1440 px', () => {
 
         const deborde = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
         expect(deborde).toBe(false);
+    });
+
+    test('la carte porte le debat : deux colonnes, bulles de fil masquees, gestes uniques', async ({ page }) => {
+        expect(await page.evaluate(() => window.innerWidth)).toBeGreaterThan(1024);
+        await ouvrirLaBoucle(page);
+
+        const cartes = page.locator('[data-pour-contre-debat]');
+        expect(await cartes.count(), 'des cartes de debat doivent exister').toBeGreaterThan(0);
+        const carte = cartes.last();
+        await expect(carte).toBeVisible();
+
+        // La grille fait DEUX colonnes des md:.
+        const pistes = await carte
+            .locator('[data-pour-contre-colonne]')
+            .first()
+            .evaluate((el) => getComputedStyle(el.parentElement).gridTemplateColumns.split(' ').length);
+        expect(pistes).toBe(2);
+
+        // Les bulles de fil regroupees sont masquees : la carte est la seule
+        // projection du debat sur ordinateur (une surface par viewport).
+        expect(await page.locator('[data-ai-mode="multi_ai"]:visible').count()).toBe(0);
+
+        // Aucune mire de bandeau visible ici — au repos comme en generation,
+        // elle porte md:hidden et vit dans la colonne de la carte.
+        expect(await page.locator('[data-multi-ai-pending]:visible').count()).toBe(0);
+
+        // Les gestes du debat, UNIQUES : plus de Repondre, un Copier, un
+        // Ajouter au Dossier (visible car les debats de recette sont complets).
+        await expect(carte.locator('[data-pour-contre-repondre]')).toHaveCount(0);
+        await expect(carte.locator('[data-pour-contre-copier]')).toHaveCount(1);
+        await expect(carte.locator('[data-pour-contre-capitaliser]')).toHaveCount(1);
     });
 });
