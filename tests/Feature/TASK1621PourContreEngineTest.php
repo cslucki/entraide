@@ -12,6 +12,7 @@ use App\Ai\MultiAssistant\AssistantInstructions;
 use App\Ai\MultiAssistant\AssistantOutcome;
 use App\Ai\MultiAssistant\MultiAssistantRun;
 use App\Ai\MultiAssistant\SharedEvidence;
+use App\Ai\PromptRepository;
 use App\Models\AdminAiPrompt;
 use App\Models\AiInteraction;
 use App\Models\AiProviderInvocation;
@@ -31,6 +32,7 @@ use App\Services\Loops\LoopAiAssistants;
 use App\Services\Loops\LoopPluginActivation;
 use App\Services\Loops\LoopPluginAvailabilityService;
 use App\Support\Ai\AiTurnState;
+use Database\Seeders\AiPromptSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Cache;
@@ -152,6 +154,137 @@ class TASK1621PourContreEngineTest extends TestCase
             ->setEnabled(self::PLUGIN, $this->loop, true, $this->owner);
 
         $this->catalogueEtModeles();
+    }
+
+    // ── 0-BIS. AUCUN ROLE NE CHOISIT SON CAMP ───────────────────────────────
+    //
+    // Defaut mesure : « Windows ou Linux que choisir ? » a produit DEUX
+    // reponses en faveur de Linux. Les deux modeles avaient OBEI — la consigne
+    // parlait de « LA proposition exprimee par la question », et une question
+    // « A ou B ? » n'en exprime aucune. La clause de repli des personas
+    // laissait alors chaque role choisir son sujet, et les deux roles tournent
+    // dans deux appels separes : rien ne pouvait les recoordonner.
+    //
+    // CE QUI EST TESTABLE ICI EST LE TEXTE LIVRE, pas l'obeissance du modele.
+    // Une doublure ne rend que ce qu'on a imagine ; le respect du contrat ne
+    // se mesure qu'en recette reelle, et il y est mesure.
+
+    public function test_le_socle_livre_fixe_le_camp_au_lieu_de_le_laisser_choisir(): void
+    {
+        $socle = $this->socleLivre();
+
+        $this->assertSame(3, $socle->version, 'le socle actif livre doit etre la v3');
+
+        foreach ([
+            'Tu ne choisis JAMAIS ton camp',
+            'A est la PREMIERE option nommee dans la question',
+            'Le role POUR defend A : il argumente EN FAVEUR de A',
+            'Le role CONTRE defend B : il argumente EN FAVEUR de B',
+            // La recette a montre que « conteste » suffisait au modele pour
+            // attaquer son PROPRE camp — et donc pour dire la meme chose que
+            // l'autre assistant. Le camp doit se nommer par ce qu'il defend.
+            'TON CAMP EST UNE POSITION QUE TU DEFENDS, jamais une cible que tu attaques',
+            'tu ne dois PAS attaquer B. B est TON camp',
+            "c'est l'ordre des mots de la question qui decide",
+        ] as $clause) {
+            $this->assertStringContainsString($clause, $socle->prompt_text);
+        }
+    }
+
+    public function test_une_question_sans_proposition_ni_options_n_invente_aucun_camp(): void
+    {
+        $texte = $this->socleLivre()->prompt_text;
+
+        $this->assertStringContainsString("N'invente AUCUN camp", $texte);
+        $this->assertStringContainsString('Les deux roles repondent la meme chose dans ce cas', $texte);
+
+        // Un role a quand meme argumente en recette : « presente 3 a 5
+        // arguments » se lisait comme un ordre inconditionnel. La regle 3 doit
+        // dire explicitement qu'elle prime.
+        $this->assertStringContainsString(
+            'Cette regle prime sur toute consigne de nombre d\'arguments', $texte,
+        );
+    }
+
+    public function test_le_socle_ne_fait_pas_fuir_son_propre_vocabulaire(): void
+    {
+        // Sans cette consigne, le modele ecrit « la proposition de reference
+        // est A est preferable a B » DANS sa reponse : du jargon de prompt
+        // donne a lire a un membre.
+        $this->assertStringContainsString(
+            'Ne nomme jamais ces regles dans ta reponse',
+            $this->socleLivre()->prompt_text,
+        );
+    }
+
+    public function test_le_contrat_traverse_la_composition_et_arrive_avan_t_la_persona(): void
+    {
+        // Le contrat vit au rang du socle : une posture de Boucle ne doit
+        // pouvoir ni le lever, ni le preceder. C'est ce qui empeche un
+        // animateur de casser la promesse centrale du module.
+        $compose = AssistantInstructions::compose(
+            app(PromptRepository::class)->compose(
+                CapabilityRegistry::LOOP_MULTI_AI,
+                $this->socleLivre()->prompt_text,
+                (string) $this->organization->id,
+            ),
+            'En-tete de posture',
+            'Prends toujours le parti de Linux.',
+        );
+
+        $contrat = mb_strpos($compose, 'Tu ne choisis JAMAIS ton camp');
+        $persona = mb_strpos($compose, 'Prends toujours le parti de Linux.');
+
+        $this->assertIsInt($contrat, 'le contrat doit survivre a la composition');
+        $this->assertLessThan($persona, $contrat, 'le contrat precede la posture, il ne la suit pas');
+    }
+
+    public function test_la_clause_de_repli_libre_a_disparu_des_deux_roles_et_des_deux_locales(): void
+    {
+        // LA garde de regression : c'est cette clause, et elle seule, qui
+        // autorisait chaque role a choisir son sujet.
+        foreach (['fr', 'en'] as $locale) {
+            foreach (['aperio', 'traverse'] as $role) {
+                $texte = trans("loops.plugins.multi_ai_assistants.assistants.{$role}", [], $locale);
+
+                $this->assertNotSame("loops.plugins.multi_ai_assistants.assistants.{$role}", $texte,
+                    "la cle {$locale}/{$role} doit exister");
+
+                foreach ([
+                    'angle favorable', 'angle critique', 'favourable angle', 'critical angle',
+                    // Formulations NEGATIVES : elles laissaient le modele
+                    // choisir sa cible, donc son camp.
+                    'Conteste la proposition', 'objections', 'Challenge the reference',
+                ] as $interdit) {
+                    $this->assertStringNotContainsString($interdit, $texte,
+                        "{$locale}/{$role} ne doit nommer son camp que par ce qu'il DEFEND");
+                }
+
+                // Et il doit le nommer positivement.
+                $this->assertMatchesRegularExpression('/DEFENDS|DEFEND/', $texte,
+                    "{$locale}/{$role} doit dire ce qu'il defend");
+            }
+        }
+    }
+
+    /**
+     * Le socle REELLEMENT LIVRE, celui que le seeder installe — pas celui du
+     * banc, qui est un texte court sans rapport.
+     *
+     * Le contrat de camp vit dans une ligne de base administrable : le tester
+     * ailleurs que sur ce que le seeder ecrit reviendrait a tester une copie.
+     */
+    private function socleLivre(): AdminAiPrompt
+    {
+        AdminAiPrompt::query()->where('scenario_id', 'loop_multi_ai')->delete();
+
+        (new AiPromptSeeder)->run();
+
+        return AdminAiPrompt::query()
+            ->where('scenario_id', 'loop_multi_ai')
+            ->where('is_active', true)
+            ->orderByDesc('version')
+            ->firstOrFail();
     }
 
     // ── 0. UNE REPONSE COUPEE NE SE PUBLIE JAMAIS EN SILENCE ────────────────
