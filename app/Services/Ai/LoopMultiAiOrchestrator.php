@@ -704,15 +704,28 @@ final class LoopMultiAiOrchestrator
             // il est paye. `failed` le compterait comme une panne dans toutes
             // les sommes de fiabilite.
             //
-            // TASK-1622 — `success`, pas `completed` : la constante du ledger
-            // est `AiProviderInvocation::STATUS_SUCCESS = 'success'`, et tous
-            // les autres writers l'emploient. Les lignes `completed` de ce
-            // moteur n'entraient dans AUCUN filtre `status = success` — quota
-            // des couts inconnus, releves SuperAdmin byUser : invisibles.
-            // Tolerable tant que tout etait gratuit (cout 0) ; avec un modele
-            // PAYANT, ce serait de la depense hors releve. Les lignes
-            // historiques `completed` restent telles quelles : toutes
-            // gratuites, cout connu 0, aucune somme n'en change.
+            // TASK-1622 — `success`, pas `completed`.
+            //
+            // `AiProviderInvocation::STATUS_SUCCESS = 'success'` est le
+            // domaine declare par la migration CREATRICE du ledger
+            // (`// success | failed`, TASK-1220, 17/08) — un mois avant que ce
+            // moteur n'existe. 17 sites d'appel sur 18 l'emploient ; celui-ci
+            // etait le seul a ecrire `completed`, un mot emprunte a l'AUTRE
+            // table qu'il remplit dans la meme methode (`ai_interactions`).
+            // La colonne est un `varchar(10)` sans enum : rien ne l'a arrete.
+            //
+            // Ce que cela cassait : les lignes de ce moteur n'entraient dans
+            // AUCUN filtre `status = success` — quota des couts INCONNUS
+            // (`AiEconomicGuard`) et compteur de la console. Le budget USD,
+            // lui, n'a jamais filtre sur le statut : il etait juste.
+            //
+            // Les 132 lignes historiques `completed` restent telles quelles.
+            // Mesure, pas supposition : 103 sont a cout CONNU 0 (aucune somme
+            // n'en change) et 29 a cout INCONNU — dont 10 appels payants du
+            // banc A/B de TASK-1621, qui n'ont donc jamais consomme le quota
+            // des inconnus. Les admettre retroactivement AJOUTERAIT 3
+            // operations au quota du mois en cours : ne rien reecrire est ici
+            // le choix conservateur, pas l'inverse.
             status: ($answer === '' && ! $horsSujet) ? 'failed' : AiProviderInvocation::STATUS_SUCCESS,
             correlationId: $evidence->correlationId,
             sdkInvocationId: $response->invocationId,
@@ -734,7 +747,7 @@ final class LoopMultiAiOrchestrator
                 AiTurnReason::TERMINAL_NO_DEBATABLE_PROPOSITION, ['assistant_key' => $key]);
 
             $this->recordGenerativeTurn($loop, $requester, $evidence, $definition, $resolved, $turnId, $key,
-                $prompt, null, $usage, $cost->traceAttributes(), AiProviderInvocation::STATUS_SUCCESS, $startedAt, $response->invocationId,
+                $prompt, null, $usage, $cost->traceAttributes(), 'completed', $startedAt, $response->invocationId,
                 null, AiTurnReason::TERMINAL_NO_DEBATABLE_PROPOSITION, $doctrineVersion);
 
             return AssistantOutcome::notApplicable($key, $turnId, $resolved->model);

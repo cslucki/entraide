@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Ai\Agents\LoopMultiAiAgent;
 use App\Models\AdminAiPrompt;
+use App\Models\AiInteraction;
 use App\Models\AiProviderInvocation;
 use App\Models\Loop;
 use App\Models\LoopMember;
@@ -337,6 +338,106 @@ class TASK1622PaidModelApprovalTest extends TestCase
         $this->assertSame('refused', $run->outcomes[0]->status);
         $this->assertSame(0, AiProviderInvocation::query()->count(),
             'un refus avant provider ne facture rien');
+    }
+
+    // ── 3bis. LE STATUT DU LEDGER — audit MASTER ────────────────────────────
+
+    public function test_le_ledger_ecrit_le_domaine_canonique_jamais_completed(): void
+    {
+        // Le domaine est declare par la migration CREATRICE du ledger
+        // (`// success | failed`, TASK-1220) — un mois avant ce moteur. La
+        // colonne est un varchar(10) sans enum : rien n'empeche d'y ecrire
+        // autre chose, et c'est precisement ce qui est arrive.
+        app(LoopPluginAiModels::class)->assignPaid('aperio', self::PAYE, $this->superAdmin);
+
+        LoopMultiAiAgent::fake(fn (string $prompt, $attachments, $provider, string $model) => new TextResponse(
+            'Reponse de '.$model, new Usage(1_000, 500), new Meta('openrouter', $model),
+        ));
+
+        app(LoopMultiAiOrchestrator::class)->runOne(
+            $this->loop, $this->membre, 'Faut-il tout automatiser ?', LoopMultiAiOrchestrator::ROLE_POUR,
+        );
+
+        $statuts = AiProviderInvocation::query()->pluck('status')->unique()->values()->all();
+
+        $this->assertSame([AiProviderInvocation::STATUS_SUCCESS], $statuts);
+        $this->assertNotContains('completed', $statuts,
+            'un statut hors domaine echappe a TOUT filtre `status = success` : quota des couts inconnus, releves');
+    }
+
+    public function test_la_table_des_traces_garde_son_propre_vocabulaire(): void
+    {
+        // Garde de NON-CONTAMINATION : `ai_interactions.metadata.status` est
+        // un AUTRE champ, dans une AUTRE table, avec son propre vocabulaire.
+        // Le correctif du ledger ne doit pas s'y propager en collateral — un
+        // seul des trois chemins de sortie avait ete change, ce qui laissait
+        // deux vocabulaires dans la meme methode (mesure du 23/09).
+        app(LoopPluginAiModels::class)->assignPaid('aperio', self::PAYE, $this->superAdmin);
+
+        LoopMultiAiAgent::fake(fn (string $prompt, $attachments, $provider, string $model) => new TextResponse(
+            'Reponse de '.$model, new Usage(1_000, 500), new Meta('openrouter', $model),
+        ));
+
+        app(LoopMultiAiOrchestrator::class)->runOne(
+            $this->loop, $this->membre, 'Faut-il tout automatiser ?', LoopMultiAiOrchestrator::ROLE_POUR,
+        );
+
+        // Et le chemin HORS SUJET — c'est LUI qui avait ete contamine, et un
+        // test qui ne visait que le succes normal restait vert sous sabotage
+        // (mesure du 23/09). Les TROIS sorties de la methode doivent parler
+        // la meme langue.
+        LoopMultiAiAgent::fake(fn (string $prompt, $attachments, $provider, string $model) => new TextResponse(
+            LoopMultiAiOrchestrator::MARQUEUR_HORS_SUJET, new Usage(1_000, 5), new Meta('openrouter', $model),
+        ));
+
+        app(LoopMultiAiOrchestrator::class)->runOne(
+            $this->loop, $this->membre, 'Quel CMS choisir ?', LoopMultiAiOrchestrator::ROLE_POUR,
+        );
+
+        $vocabulaires = AiInteraction::query()->get()
+            ->map(fn (AiInteraction $t): ?string => $t->metadata['status'] ?? null)
+            ->unique()->values()->all();
+
+        $this->assertSame(['completed'], $vocabulaires,
+            'la table des traces n\'est pas le ledger : son vocabulaire ne change pas ici, sur AUCUNE sortie');
+    }
+
+    public function test_un_tour_hors_sujet_est_paye_et_compte_comme_tel(): void
+    {
+        // NOT_APPLICABLE au LEDGER : l'appel est REELLEMENT parti et il est
+        // facture — `success` est donc juste du point de vue du PROVIDER.
+        app(LoopPluginAiModels::class)->assignPaid('aperio', self::PAYE, $this->superAdmin);
+
+        LoopMultiAiAgent::fake(fn (string $prompt, $attachments, $provider, string $model) => new TextResponse(
+            LoopMultiAiOrchestrator::MARQUEUR_HORS_SUJET, new Usage(1_000_000, 0), new Meta('openrouter', $model),
+        ));
+
+        $run = app(LoopMultiAiOrchestrator::class)->runOne(
+            $this->loop, $this->membre, 'Quel CMS choisir ?', LoopMultiAiOrchestrator::ROLE_POUR,
+        );
+
+        $this->assertTrue($run->outcomes[0]->isNotApplicable());
+
+        $ligne = AiProviderInvocation::query()->latest('created_at')->firstOrFail();
+        $this->assertSame(AiProviderInvocation::STATUS_SUCCESS, $ligne->status);
+        $this->assertNull($ligne->failure_reason, 'ce n\'est pas une panne : la question n\'avait pas de camps');
+        $this->assertEqualsWithDelta(0.10, (float) $ligne->provider_cost, 0.000001,
+            'un tour hors sujet coute ce qu\'il a coute — l\'appel est parti');
+    }
+
+    public function test_pour_contre_n_est_pas_un_process_creditable(): void
+    {
+        // GARDE POUR TASK-1624 (mandat MASTER) : au ledger, un tour
+        // NOT_APPLICABLE est indistinguable d'un debat reussi — meme statut,
+        // aucun marqueur, `failure_reason` nul. La SEULE chose qui empeche
+        // aujourd'hui une abstention d'etre comptee comme une utilisation
+        // creditable, c'est que `loop_multi_ai` n'est pas un process
+        // creditable. Ajouter ce process a la liste SANS discriminer
+        // l'abstention ferait payer au membre une question a laquelle
+        // personne n'a repondu. Ce test rougira ce jour-la.
+        $this->assertNotContains('loop_multi_ai',
+            \App\Services\Ai\OrganizationAiEconomicUsage::CREDITABLE_PROCESSES,
+            'si ce process devient creditable, il faut D\'ABORD distinguer NOT_APPLICABLE au ledger');
     }
 
     // ── 4. LA ROUTE ET L'ECRAN ──────────────────────────────────────────────
