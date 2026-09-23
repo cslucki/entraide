@@ -279,7 +279,7 @@ class TASK1621PourContreEngineTest extends TestCase
 
         // TASK-1622 — socle commun v4 : les INVARIANTS de camp survivent a la
         // reecriture, seule leur formulation a bouge.
-        $this->assertSame(7, $socle->version, 'le socle actif livre doit etre la v7');
+        $this->assertSame(8, $socle->version, 'le socle actif livre doit etre la v8');
 
         foreach ([
             // TASK-1622 v6 — la detection A/B PRECEDE l'abstention.
@@ -288,6 +288,10 @@ class TASK1621PourContreEngineTest extends TestCase
             // Le cadre du membre prime sur le jugement du modele : c'est la
             // clause qui reparle « PC ou Mac » (recette du 23/09).
             'meme si les deux alternatives se chevauchent techniquement',
+            // TASK-1622 v8 — deux noms ne suffisent PAS : il faut AUSSI une
+            // intention de choix. C'est ce qui ecarte « Quelle est la
+            // difference entre PC et Mac ? » (cas E, recette du 23/09).
+            'LA SEULE PRESENCE DE DEUX NOMS NE SUFFIT PAS',
             // La recette a montre que « conteste » suffisait au modele pour
             // attaquer son PROPRE camp — et donc pour dire la meme chose que
             // l'autre assistant. Le camp doit se nommer par ce qu'il defend.
@@ -345,6 +349,71 @@ class TASK1621PourContreEngineTest extends TestCase
         $this->assertStringContainsString(
             'Cette regle prime sur toute consigne de nombre d\'arguments', $texte,
         );
+    }
+
+    // ── TASK-1622 v8 — DEUX NOMS NE SONT PAS DEUX CAMPS ─────────────────────
+    //
+    // Defaut mesure (recette Ling du 23/09, cas E) : « Quelle est la
+    // difference entre PC et Mac ? » declenchait un debat. L'etape 2 de v6/v7
+    // ne posait qu'UNE question — deux alternatives sont-elles nommees ? — et
+    // deux noms suffisaient donc a fabriquer deux camps.
+    //
+    // Ce qui est testable ici est LE TEXTE LIVRE, pas l'obeissance du modele :
+    // une doublure ne rend que ce qu'on a imagine. Le respect du contrat se
+    // mesure en recette reelle, et il y est mesure.
+
+    public function test_deux_alternatives_nommees_ne_suffisent_pas_sans_intention_de_choix(): void
+    {
+        $texte = $this->socleLivre()->prompt_text;
+
+        // La condition qui manquait, et sans laquelle « PC ou Mac que
+        // choisir ? » et « la difference entre PC et Mac » se ressemblent.
+        $this->assertStringContainsString('DEUX conditions doivent etre reunies EN MEME TEMPS', $texte);
+        $this->assertStringContainsString('la question nomme deux alternatives', $texte);
+        $this->assertStringContainsString('les OPPOSER ou les DEPARTAGER', $texte);
+        $this->assertStringContainsString('LA SEULE PRESENCE DE DEUX NOMS NE SUFFIT PAS', $texte);
+
+        // Les formes informatives sont nommees, sans quoi la regle reste
+        // abstraite. Elles ne nomment AUCUN produit : socle commun.
+        foreach ([
+            '« Quelle est la difference entre A et B ? »',
+            '« Quels sont les points communs entre A et B ? »',
+            '« Comment faire communiquer un A et un B ? »',
+        ] as $contreExemple) {
+            $this->assertStringContainsString($contreExemple, $texte);
+        }
+        $this->assertStringNotContainsStringIgnoringCase('PC ou Mac', $texte, 'la regle est generale, elle ne nomme aucun produit');
+
+        // Et la regle vit bien DANS l'etape 2 : un contre-exemple place apres
+        // l'assignation des camps arriverait trop tard.
+        $etape2 = mb_strpos($texte, "ETAPE 2 — CHERCHER D'ABORD UNE COMPARAISON");
+        $etape3 = mb_strpos($texte, 'ETAPE 3 — SINON');
+        $regle = mb_strpos($texte, 'LA SEULE PRESENCE DE DEUX NOMS NE SUFFIT PAS');
+        $this->assertGreaterThan($etape2, $regle);
+        $this->assertLessThan($etape3, $regle);
+    }
+
+    public function test_une_comparaison_informative_se_reformule_en_question_de_choix(): void
+    {
+        $texte = $this->socleLivre()->prompt_text;
+
+        // Le cas ecarte de l'etape 2 ne tombe pas dans le vide : l'etape 4
+        // sait qu'une comparaison se reformule en CHOIX entre les deux memes
+        // noms — et que ces noms viennent du membre, donc rien n'est invente.
+        $this->assertStringContainsString('dans l\'ordre exact ou le membre les a nommees', $texte);
+        $this->assertStringContainsString('A ou B, lequel choisir ?', $texte);
+        $this->assertStringContainsString("Tu n'inventes rien — les deux noms viennent de lui", $texte);
+
+        // Garde soeur : une question qui veut FAIRE COEXISTER les deux ne doit
+        // pas se voir proposer de les departager. Le membre possede deja les
+        // deux : lui proposer de choisir trahirait sa demande.
+        $this->assertStringContainsString('FAIRE COEXISTER', $texte);
+        $this->assertStringContainsString('Ne propose PAS ce choix', $texte);
+
+        // Cette consigne vit apres le marqueur d'abstention : elle ne concerne
+        // que le tour qui s'abstient.
+        $abstention = mb_strpos($texte, LoopMultiAiOrchestrator::MARQUEUR_HORS_SUJET);
+        $this->assertLessThan(mb_strpos($texte, 'A ou B, lequel choisir ?'), $abstention);
     }
 
     public function test_le_socle_ne_fait_pas_fuir_son_propre_vocabulaire(): void
