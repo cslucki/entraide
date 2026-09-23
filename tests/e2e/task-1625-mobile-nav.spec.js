@@ -84,7 +84,9 @@ for (const largeur of LARGEURS) {
         test('le menu Avatar passe DEVANT les boutons flottants et la barre basse', async ({ page }) => {
             await ouvrir(page);
 
-            await page.locator('[aria-label]').filter({ has: page.locator('img') }).first().click();
+            // Le bouton avatar, vise par son role ET son aria-label : un
+            // `[aria-label]` nu attrapait aussi le groupe de langue.
+            await page.locator('header button[aria-label]').filter({ has: page.locator('img') }).first().click();
 
             const menu = page.locator('header [x-show="open"]').first();
             await expect(menu).toBeVisible();
@@ -105,6 +107,9 @@ for (const largeur of LARGEURS) {
                     basVisible: Math.round(r.bottom) <= window.innerHeight + 1,
                     defileEnInterne: el.scrollHeight > el.clientHeight + 1,
                     hauteur: Math.round(r.height),
+                    // `window` n'existe QUE dans la page : le ramener evite de
+                    // le lire cote Node, ou il est indefini.
+                    vh: window.innerHeight,
                 };
             });
 
@@ -112,7 +117,7 @@ for (const largeur of LARGEURS) {
             expect(auPremierPlan.basVisible).toBe(true);
             // S'il est plus grand que la place disponible, il defile LUI-MEME,
             // sinon ses dernieres entrees sont inatteignables.
-            if (auPremierPlan.hauteur >= window.innerHeight - 80) {
+            if (auPremierPlan.hauteur >= auPremierPlan.vh - 80) {
                 expect(auPremierPlan.defileEnInterne).toBe(true);
             }
         });
@@ -123,8 +128,11 @@ for (const largeur of LARGEURS) {
             const cloche = page.locator('[data-mobile-topbar-notifications]');
             await expect(cloche).toBeVisible();
 
+            // Mesure du 23/09 : a 320 px la rangee comprimait les boutons ronds
+            // a 26,9 px. `shrink-0` les tient a 36.
             const boite = await cloche.boundingBox();
-            expect(Math.min(boite.width, boite.height)).toBeGreaterThanOrEqual(34);
+            expect(Math.round(boite.width)).toBe(36);
+            expect(Math.round(boite.height)).toBe(36);
 
             await cloche.click();
             await page.waitForLoadState('domcontentloaded');
@@ -137,7 +145,11 @@ test.describe('sombre a 390 px', () => {
     test.use({ viewport: { width: 390, height: 844 }, colorScheme: 'dark' });
 
     test('la barre et le header restent lisibles en mode sombre', async ({ page }) => {
+        // `/dashboard` n'est l'onglet d'AUCUNE entree de la barre : la mesure
+        // de l'etat actif y serait vide. On se place sur une page qui en a un.
         await ouvrir(page);
+        await page.goto('/loops');
+        await page.waitForLoadState('networkidle');
 
         await page.evaluate(() => document.documentElement.classList.add('dark'));
 

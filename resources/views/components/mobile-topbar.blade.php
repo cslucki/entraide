@@ -185,7 +185,7 @@
         </div>
         <div class="flex items-center gap-2.5">
              @auth
-             <div class="flex items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-gray-200 dark:ring-gray-700" aria-label="{{ __('navigation.language_switcher') }}">
+             <div class="flex shrink-0 items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-gray-200 dark:ring-gray-700" aria-label="{{ __('navigation.language_switcher') }}">
                  @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
                       <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" onsubmit="this.redirect_to.value = window.location.href">
                           @csrf
@@ -198,7 +198,7 @@
                      </form>
                  @endforeach
              </div>
-             <button type="button" @click="$store.darkMode.toggle()" class="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('navigation.toggle_display_mode') }}">
+             <button type="button" @click="$store.darkMode.toggle()" class="w-9 h-9 shrink-0 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('navigation.toggle_display_mode') }}">
                 <svg class="block w-5 h-5 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
                 <svg class="hidden w-5 h-5 dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
             </button>
@@ -212,7 +212,7 @@
                  Aucun backend n'est ajoute. --}}
             <a href="{{ $organizationRouteParam && Route::has('organization.notifications.index') ? route('organization.notifications.index', ['organization' => $organizationRouteParam]) : route('notifications.index') }}"
                data-mobile-topbar-notifications
-               class="relative w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 transition-colors hover:text-gray-900 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
+               class="relative w-9 h-9 shrink-0 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 transition-colors hover:text-gray-900 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
                aria-label="{{ __('navigation.notifications') }}"
                title="{{ __('navigation.notifications') }}">
                 <svg class="block w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">
@@ -292,7 +292,7 @@
                 </x-slot>
             </x-dropdown>
              @else
-             <div class="flex items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-gray-200 dark:ring-gray-700" aria-label="{{ __('navigation.language_switcher') }}">
+             <div class="flex shrink-0 items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-gray-200 dark:ring-gray-700" aria-label="{{ __('navigation.language_switcher') }}">
                  @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
                       <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" onsubmit="this.redirect_to.value = window.location.href">
                           @csrf
@@ -305,7 +305,7 @@
                      </form>
                  @endforeach
              </div>
-             <button @click="$store.darkMode.toggle()" class="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('navigation.toggle_display_mode') }}">
+             <button @click="$store.darkMode.toggle()" class="w-9 h-9 shrink-0 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('navigation.toggle_display_mode') }}">
                 <svg class="block w-5 h-5 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
                 <svg class="hidden w-5 h-5 dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
             </button>
