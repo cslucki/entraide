@@ -279,18 +279,21 @@ class TASK1621PourContreEngineTest extends TestCase
 
         // TASK-1622 — socle commun v4 : les INVARIANTS de camp survivent a la
         // reecriture, seule leur formulation a bouge.
-        $this->assertSame(4, $socle->version, 'le socle actif livre doit etre la v4');
+        $this->assertSame(6, $socle->version, 'le socle actif livre doit etre la v6');
 
         foreach ([
-            "Tu ne le choisis JAMAIS et tu n'en changes jamais",
-            'A est la PREMIERE option nommee dans la question',
-            'le role POUR defend A ; le role CONTRE defend B',
+            // TASK-1622 v6 — la detection A/B PRECEDE l'abstention.
+            'A est la PREMIERE alternative nommee',
+            'Le role POUR defend A. Le role CONTRE defend B.',
+            // Le cadre du membre prime sur le jugement du modele : c'est la
+            // clause qui reparle « PC ou Mac » (recette du 23/09).
+            'meme si les deux alternatives se chevauchent techniquement',
             // La recette a montre que « conteste » suffisait au modele pour
             // attaquer son PROPRE camp — et donc pour dire la meme chose que
             // l'autre assistant. Le camp doit se nommer par ce qu'il defend.
             'TON CAMP EST UNE POSITION QUE TU DEFENDS, jamais une cible que tu attaques',
             'Attaquer B quand B est ton camp',
-            "C'est l'ORDRE DES MOTS de la question qui decide",
+            "L'ordre des mots de la question fixe les camps",
         ] as $clause) {
             $this->assertStringContainsString($clause, $socle->prompt_text);
         }
@@ -306,21 +309,26 @@ class TASK1621PourContreEngineTest extends TestCase
         $texte = $this->socleLivre()->prompt_text;
 
         $comprendre = mb_strpos($texte, 'ETAPE 1 — COMPRENDRE LA QUESTION');
-        $abstention = mb_strpos($texte, 'ETAPE 3');
-        $assignation = mb_strpos($texte, 'ETAPE 4');
+        $comparaison = mb_strpos($texte, 'ETAPE 2 — CHERCHER D\'ABORD UNE COMPARAISON');
+        $proposition = mb_strpos($texte, 'ETAPE 3 — SINON');
+        $abstention = mb_strpos($texte, 'ETAPE 4 — DERNIER RECOURS');
         $verification = mb_strpos($texte, 'ETAPE 5');
 
         $this->assertNotFalse($comprendre, 'la comprehension est une etape nommee');
-        $this->assertLessThan($abstention, $comprendre, 'comprendre precede la decision de s\'abstenir');
-        $this->assertLessThan($assignation, $abstention, 's\'abstenir precede l\'assignation du camp');
-        $this->assertLessThan($verification, $assignation, 'l\'assignation precede la verification');
+        $this->assertLessThan($comparaison, $comprendre, 'comprendre precede la recherche A/B');
+        // LE point de la v6 : l'abstention est le DERNIER recours. Une
+        // comparaison A/B explicite doit etre reconnue AVANT elle — sans quoi
+        // « PC ou Mac que choisir ? » s'abstient (recette du 23/09, 3/3).
+        $this->assertLessThan($proposition, $comparaison, 'la comparaison A/B precede la recherche de proposition');
+        $this->assertLessThan($abstention, $proposition, 'la proposition precede l\'abstention');
+        $this->assertLessThan($verification, $abstention, 'l\'abstention precede la redaction');
     }
 
     public function test_une_question_sans_proposition_ni_options_n_invente_aucun_camp(): void
     {
         $texte = $this->socleLivre()->prompt_text;
 
-        $this->assertStringContainsString("N'invente AUCUN camp", $texte);
+        $this->assertStringContainsString("N'invente alors AUCUN camp", $texte);
 
         // TASK-1621 — le modele annonce le verdict par un MARQUEUR exact, et
         // l'application prend le relais. Reconnaitre l'intention dans une
@@ -362,7 +370,7 @@ class TASK1621PourContreEngineTest extends TestCase
             'Prends toujours le parti de Linux.',
         );
 
-        $contrat = mb_strpos($compose, "Tu ne le choisis JAMAIS et tu n'en changes jamais");
+        $contrat = mb_strpos($compose, 'Le role POUR defend A. Le role CONTRE defend B.');
         $persona = mb_strpos($compose, 'Prends toujours le parti de Linux.');
 
         $this->assertIsInt($contrat, 'le contrat doit survivre a la composition');
