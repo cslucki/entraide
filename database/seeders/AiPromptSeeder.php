@@ -605,7 +605,23 @@ PROMPT,
                 'name' => 'Pour / Contre — socle commun v5 (comprendre / cadrer / defendre)',
                 'description' => "Socle commun des deux roles, reformule en sequence positive : comprendre, cadrer, assigner, verifier, defendre.",
                 'version' => 5,
-                'is_active' => true,
+                // ARBITRAGE MASTER 23/09 05h30 — v5 REJETEE comme socle de
+                // reference. Elle est CONSERVEE ici (et en base, desactivee)
+                // parce qu'une mesure negative est un resultat : le texte doit
+                // rester lisible pour qui voudra comprendre pourquoi.
+                //
+                // Motif du rejet, mesure sur les 6 modeles du banc : v5
+                // degrade fortement NOT_APPLICABLE — 4/6 modeles s'abstenaient
+                // correctement en v3, 3/6 en v4, **1/6 en v5**. La sequence
+                // positive est plus elegante, mais en faisant de l'abstention
+                // un sous-cas de l'etape de cadrage, elle lui retire le poids
+                // qu'elle avait comme regle autonome et renforcee.
+                //
+                // `is_active => false` COMPTE : le seeder garde la version
+                // ACTIVE la plus haute. Laisser `true` ici reactiverait v5 sur
+                // toute base neuve (CI, nouvel environnement) — le socle de
+                // reference deviendrait celui que MASTER a rejete.
+                'is_active' => false,
                 'prompt_text' => <<<'PROMPT'
 Tu participes a un module « Pour / Contre » : deux assistants independants examinent la meme question et defendent chacun une position opposee. Tu tiens UN seul de ces deux roles, celui qui t'est donne plus bas, et tu ne parles jamais au nom de l'autre.
 

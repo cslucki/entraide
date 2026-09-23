@@ -166,7 +166,7 @@ class TASK1621PourContreEngineTest extends TestCase
         $texte = $this->socleLivre()->prompt_text;
 
         foreach ([
-            'AU PLUS TROIS puces. Jamais quatre',
+            'AU PLUS TROIS puces. Jamais quatre, jamais cinq.',
             'UNE SEULE PHRASE par puce',
             // Le sous-titre en gras des puces faisait a lui seul la moitie de
             // la longueur, et contredisait la regle « une seule phrase en
@@ -279,22 +279,18 @@ class TASK1621PourContreEngineTest extends TestCase
 
         // TASK-1622 — socle commun v4 : les INVARIANTS de camp survivent a la
         // reecriture, seule leur formulation a bouge.
-        // TASK-1622 — socle commun v5 : les INVARIANTS de camp survivent a la
-        // reformulation en sequence positive. Ce qui a disparu, ce sont les
-        // garde-fous defensifs accumules (« piege a eviter »,
-        // « recommence ») — pas les regles.
-        $this->assertSame(5, $socle->version, 'le socle actif livre doit etre la v5');
+        $this->assertSame(4, $socle->version, 'le socle actif livre doit etre la v4');
 
         foreach ([
-            // Le camp n'est pas choisi : il vient de la question et du role.
-            'Ton camp vient de la question et de ton role. Tu ne le choisis pas.',
-            // Le referent A/B, qui a coute deux recettes a fixer (T1621).
-            'POUR defend la PREMIERE option nommee. CONTRE defend la SECONDE option nommee.',
-            "L'ordre des mots de la question fixe les camps",
-            // Le role DEFEND, il ne se contente pas d'attaquer : c'est la
-            // lecon T1621 (« conteste » suffisait au modele pour attaquer
-            // son PROPRE camp), tenue ici en formulation positive.
-            "l'essentiel de ta reponse etablit la tienne",
+            "Tu ne le choisis JAMAIS et tu n'en changes jamais",
+            'A est la PREMIERE option nommee dans la question',
+            'le role POUR defend A ; le role CONTRE defend B',
+            // La recette a montre que « conteste » suffisait au modele pour
+            // attaquer son PROPRE camp — et donc pour dire la meme chose que
+            // l'autre assistant. Le camp doit se nommer par ce qu'il defend.
+            'TON CAMP EST UNE POSITION QUE TU DEFENDS, jamais une cible que tu attaques',
+            'Attaquer B quand B est ton camp',
+            "C'est l'ORDRE DES MOTS de la question qui decide",
         ] as $clause) {
             $this->assertStringContainsString($clause, $socle->prompt_text);
         }
@@ -309,29 +305,22 @@ class TASK1621PourContreEngineTest extends TestCase
         // qu'il n'a pas encore comprise (banc du 22/09).
         $texte = $this->socleLivre()->prompt_text;
 
-        $comprendre = mb_strpos($texte, 'ETAPE 1 — COMPRENDRE');
-        $cadrer = mb_strpos($texte, 'ETAPE 2 — CADRER');
-        $assigner = mb_strpos($texte, 'ETAPE 3 — ASSIGNER');
-        $verifier = mb_strpos($texte, 'ETAPE 4 — VERIFIER');
-        $defendre = mb_strpos($texte, 'ETAPE 5 — DEFENDRE');
+        $comprendre = mb_strpos($texte, 'ETAPE 1 — COMPRENDRE LA QUESTION');
+        $abstention = mb_strpos($texte, 'ETAPE 3');
+        $assignation = mb_strpos($texte, 'ETAPE 4');
+        $verification = mb_strpos($texte, 'ETAPE 5');
 
         $this->assertNotFalse($comprendre, 'la comprehension est une etape nommee');
-        $this->assertLessThan($cadrer, $comprendre, 'comprendre precede le cadrage');
-        $this->assertLessThan($assigner, $cadrer, 'cadrer precede l\'assignation du camp');
-        $this->assertLessThan($verifier, $assigner, 'assigner precede la verification');
-        $this->assertLessThan($defendre, $verifier, 'verifier precede la redaction');
+        $this->assertLessThan($abstention, $comprendre, 'comprendre precede la decision de s\'abstenir');
+        $this->assertLessThan($assignation, $abstention, 's\'abstenir precede l\'assignation du camp');
+        $this->assertLessThan($verification, $assignation, 'l\'assignation precede la verification');
     }
 
     public function test_une_question_sans_proposition_ni_options_n_invente_aucun_camp(): void
     {
         $texte = $this->socleLivre()->prompt_text;
 
-        // v5 formule la meme regle POSITIVEMENT : le cadrage decide s'il
-        // existe deux positions, et le marqueur est la seule sortie quand il
-        // n'y en a pas.
-        $this->assertStringContainsString(
-            'Determine si la question permet raisonnablement DEUX positions opposees', $texte,
-        );
+        $this->assertStringContainsString("N'invente AUCUN camp", $texte);
 
         // TASK-1621 — le modele annonce le verdict par un MARQUEUR exact, et
         // l'application prend le relais. Reconnaitre l'intention dans une
@@ -343,7 +332,7 @@ class TASK1621PourContreEngineTest extends TestCase
         // arguments » se lisait comme un ordre inconditionnel. La regle 3 doit
         // dire explicitement qu'elle prime.
         $this->assertStringContainsString(
-            'tu n\'argumentes pas, tu ne listes rien, tu ne compares rien', $texte,
+            'Cette regle prime sur toute consigne de nombre d\'arguments', $texte,
         );
     }
 
@@ -353,7 +342,7 @@ class TASK1621PourContreEngineTest extends TestCase
         // est A est preferable a B » DANS sa reponse : du jargon de prompt
         // donne a lire a un membre.
         $this->assertStringContainsString(
-            'Ne nomme jamais ces etapes ni ces regles dans ta reponse',
+            'Ne nomme jamais ces regles ni ces etapes dans ta reponse',
             $this->socleLivre()->prompt_text,
         );
     }
@@ -373,7 +362,7 @@ class TASK1621PourContreEngineTest extends TestCase
             'Prends toujours le parti de Linux.',
         );
 
-        $contrat = mb_strpos($compose, 'Ton camp vient de la question et de ton role.');
+        $contrat = mb_strpos($compose, "Tu ne le choisis JAMAIS et tu n'en changes jamais");
         $persona = mb_strpos($compose, 'Prends toujours le parti de Linux.');
 
         $this->assertIsInt($contrat, 'le contrat doit survivre a la composition');
