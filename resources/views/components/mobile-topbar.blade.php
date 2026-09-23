@@ -139,7 +139,28 @@
     }
 @endphp
 
-<header x-data class="md:hidden fixed top-0 inset-x-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 pt-[env(safe-area-inset-top)]">
+{{-- TASK-1625 — CAUSE RACINE du menu Avatar masque.
+
+     Le panneau du menu est `absolute z-50` (`components/dropdown.blade.php`),
+     mais ce `<header>` est `fixed` AVEC un `z-index` : il ouvre donc un
+     CONTEXTE D'EMPILEMENT, et le 50 du panneau ne vaut plus qu'entre freres
+     du header. Face au reste de la page, tout le menu peint a la couche du
+     header. Passaient donc AU-DESSUS de lui : le FAB « + » (z-50), le FAB IA,
+     les toasts (z-50), et meme la barre basse — a z-40 egal, elle est montee
+     APRES dans le DOM (`layouts/app.blade.php:198` puis `:199`).
+
+     Monter un z-index enorme sur le panneau n'y aurait rien change : un
+     enfant ne sort pas du contexte de son parent. Ce qui doit monter, c'est
+     LE HEADER.
+
+     Mais pas en permanence : a `z-[60]` fixe, il passerait aussi devant les
+     vraies modales `fixed inset-0 z-50`. Il ne monte donc QUE pendant que son
+     menu est ouvert, et redescend a la fermeture. Il reste sous les dialogues
+     `z-[70]` du depot, comme demande. --}}
+<header x-data="{ menuOuvert: false }"
+        @dropdown-open-changed="menuOuvert = $event.detail.open"
+        :class="menuOuvert ? 'z-[60]' : 'z-40'"
+        class="md:hidden fixed top-0 inset-x-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 pt-[env(safe-area-inset-top)]">
     <div class="flex items-center justify-between h-14 px-4 gap-3">
         <div class="flex min-w-0 items-center gap-3">
             @if(request()->routeIs('login', 'organization.login'))
@@ -181,6 +202,29 @@
                 <svg class="block w-5 h-5 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
                 <svg class="hidden w-5 h-5 dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
             </button>
+
+            {{-- TASK-1625 — les Notifications passent au premier rang.
+
+                 Elles etaient a DEUX taps, derriere l'avatar. La route et le
+                 compteur existent deja tous les deux : `$mobileUnreadNotifications`
+                 est calcule en tete de ce fichier depuis TASK-1374, avec la
+                 MEME expression d'Organization que le rail et le controleur.
+                 Aucun backend n'est ajoute. --}}
+            <a href="{{ $organizationRouteParam && Route::has('organization.notifications.index') ? route('organization.notifications.index', ['organization' => $organizationRouteParam]) : route('notifications.index') }}"
+               data-mobile-topbar-notifications
+               class="relative w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 transition-colors hover:text-gray-900 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
+               aria-label="{{ __('navigation.notifications') }}"
+               title="{{ __('navigation.notifications') }}">
+                <svg class="block w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                @if($mobileUnreadNotifications > 0)
+                <span data-mobile-topbar-notifications-unread="{{ $mobileUnreadNotifications }}"
+                      class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-white dark:ring-gray-900">
+                    {{ $mobileUnreadNotifications > 9 ? '9+' : $mobileUnreadNotifications }}
+                </span>
+                @endif
+            </a>
 
             <x-dropdown align="right" width="w-72" contentClasses="py-2 bg-white dark:bg-gray-800">
                 <x-slot name="trigger">
