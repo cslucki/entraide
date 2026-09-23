@@ -279,7 +279,7 @@ class TASK1621PourContreEngineTest extends TestCase
 
         // TASK-1622 — socle commun v4 : les INVARIANTS de camp survivent a la
         // reecriture, seule leur formulation a bouge.
-        $this->assertSame(6, $socle->version, 'le socle actif livre doit etre la v6');
+        $this->assertSame(7, $socle->version, 'le socle actif livre doit etre la v7');
 
         foreach ([
             // TASK-1622 v6 — la detection A/B PRECEDE l'abstention.
@@ -334,7 +334,10 @@ class TASK1621PourContreEngineTest extends TestCase
         // l'application prend le relais. Reconnaitre l'intention dans une
         // phrase libre aurait demande un parser.
         $this->assertStringContainsString(LoopMultiAiOrchestrator::MARQUEUR_HORS_SUJET, $texte);
-        $this->assertStringContainsString('pas un mot avant, pas un mot apres', $texte);
+        // v7 — le marqueur reste EXACT et en tete, mais il peut desormais
+        // etre suivi d'une ligne de suggestion : « rien d'autre » a laisse la
+        // place a « seul sur sa ligne, sans rien avant lui ».
+        $this->assertStringContainsString('seul sur sa ligne, sans rien avant lui', $texte);
 
         // Un role a quand meme argumente en recette : « presente 3 a 5
         // arguments » se lisait comme un ordre inconditionnel. La regle 3 doit

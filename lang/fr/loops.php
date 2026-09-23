@@ -1468,7 +1468,7 @@ return [
     'plugins_multi_ai_disable' => 'Désactiver Pour / Contre',
     'plugins_multi_ai_queued' => 'En attente…',
     'plugins_multi_ai_model_hint' => 'Réponse préparée par :model',
-    'plugins_multi_ai_not_applicable' => "Pour / Contre n'a pas identifié de proposition à débattre ni deux choix explicites à comparer. Reformulez par exemple : « WordPress ou Drupal ? » ou « Faut-il choisir WordPress ? »",
+    'plugins_multi_ai_not_applicable' => "Pour / Contre n'a pas identifié de proposition à débattre ni deux choix explicites à comparer.",
     'plugins_multi_ai_truncated' => 'Réponse écourtée',
     'plugins_multi_ai_preparing' => 'Préparation des arguments « :assistant »…',
     'plugins_multi_ai_discover' => 'Configurer Pour / Contre',
@@ -1483,6 +1483,15 @@ return [
     'plugins_multi_ai_refused_title' => ":assistant n'est pas disponible.",
     'plugins_multi_ai_refused_body' => "Aucun modèle n'est configuré pour :assistant. Un administrateur peut en choisir un.",
     'plugins_multi_ai_retry' => 'Réessayer',
+    // TASK-1622 — la notice se dedouble : avec suggestion, le texte
+    // n'enonce plus d'exemples en dur (ils feraient doublon avec la
+    // proposition reelle) ; sans suggestion, on demande une precision
+    // plutot que d'inventer une opposition.
+    'plugins_multi_ai_not_applicable_lead' => "Votre question ne contient pas encore une proposition directement exploitable par Pour / Contre. Vous pouvez essayer :",
+    'plugins_multi_ai_suggestion_use' => 'Utiliser cette question',
+    'plugins_multi_ai_suggestion_replace' => 'Remplacer le texte en cours',
+    'plugins_multi_ai_suggestion_confirm' => "Le composeur contient déjà du texte. Cliquez à nouveau pour le remplacer.",
+    'plugins_multi_ai_not_applicable_precision' => "Pour comparer deux positions, indiquez les deux options que vous souhaitez mettre en regard.",
     'plugins_multi_ai_dismiss' => 'Masquer',
     'plugins_multi_ai_synthesis_question' => 'Compare les réponses obtenues à : :question',
     'plugins_multi_ai_none_enabled' => "Aucun assistant n'est actif dans cette Boucle.",

@@ -125,6 +125,20 @@ final class LoopMultiAiOrchestrator
      */
     public const MARQUEUR_HORS_SUJET = '[[PAS_DE_PROPOSITION]]';
 
+    /**
+     * TASK-1622 — le marqueur qui INTRODUIT une reformulation proposee, dans
+     * la meme reponse que l'abstention.
+     *
+     * Meme idiome que le marqueur ci-dessus, et c'est deliberE : c'est le
+     * SEUL idiome de contrat de prompt du depot (la rubrique `## titre` de
+     * `DossierInsightsService` est traduite, donc elle ferait dependre une
+     * branche de code d'une langue). Surtout, l'extension est
+     * RETRO-COMPATIBLE : `str_contains` sur le marqueur d'abstention reste
+     * vrai, donc les socles v3 a v6 — qui ne connaissent pas celui-ci —
+     * continuent de s'abstenir exactement comme avant, sans suggestion.
+     */
+    public const MARQUEUR_SUGGESTION = '[[SUGGESTION]]';
+
     public function __construct(
         private CapabilityRegistry $capabilities,
         private ProviderResolver $providers,
@@ -750,7 +764,7 @@ final class LoopMultiAiOrchestrator
                 $prompt, null, $usage, $cost->traceAttributes(), 'completed', $startedAt, $response->invocationId,
                 null, AiTurnReason::TERMINAL_NO_DEBATABLE_PROPOSITION, $doctrineVersion);
 
-            return AssistantOutcome::notApplicable($key, $turnId, $resolved->model);
+            return AssistantOutcome::notApplicable($key, $turnId, $resolved->model, $this->suggestionDeReformulation($brut));
         }
 
         if ($answer === '') {
@@ -847,6 +861,41 @@ final class LoopMultiAiOrchestrator
      *
      * @param  array<string, mixed>  $costAttributes
      */
+    /**
+     * TASK-1622 — la reformulation proposee, extraite du texte BRUT.
+     *
+     * DETERMINISTE, comme le marqueur d'abstention : on coupe apres un jeton
+     * EXACT, on ne lit aucune intention. Pas de marqueur, ou rien de lisible
+     * derriere : `null`, et l'ecran demandera une precision. Ne jamais
+     * fabriquer une suggestion a partir d'une phrase libre — ce serait le
+     * parser que TASK-1621 a refuse pour l'abstention elle-meme.
+     *
+     * La sortie tient sur UNE ligne : c'est une question a reposer, pas un
+     * paragraphe. Tout autre jeton `[[...]]` est retire — un modele qui
+     * refermerait sa balise ne doit pas polluer le composeur.
+     */
+    private function suggestionDeReformulation(string $brut): ?string
+    {
+        $position = mb_strpos($brut, self::MARQUEUR_SUGGESTION);
+
+        if ($position === false) {
+            return null;
+        }
+
+        $texte = mb_substr($brut, $position + mb_strlen(self::MARQUEUR_SUGGESTION));
+        $texte = (string) preg_replace('/\[\[[^\]]*\]\]/u', ' ', $texte);
+        $texte = trim((string) preg_replace('/\s+/u', ' ', $texte));
+        $texte = trim($texte, "-*_ \t\n\r");
+
+        if ($texte === '') {
+            return null;
+        }
+
+        // Une borne, pas une coupe esthetique : ce texte part dans le
+        // composeur du membre, et `body` est plafonne a 5 000 caracteres.
+        return mb_substr($texte, 0, 300);
+    }
+
     private function recordGenerativeTurn(
         Loop $loop,
         User $requester,

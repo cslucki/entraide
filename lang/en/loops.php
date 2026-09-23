@@ -1443,7 +1443,7 @@ return [
     'plugins_multi_ai_disable' => 'Disable For / Against',
     'plugins_multi_ai_queued' => 'Waiting…',
     'plugins_multi_ai_model_hint' => 'Answer prepared by :model',
-    'plugins_multi_ai_not_applicable' => 'For / Against found neither a proposition to debate nor two explicit choices to compare. Try rephrasing, for example: « WordPress or Drupal? » or « Should we choose WordPress? »',
+    'plugins_multi_ai_not_applicable' => 'For / Against found neither a proposition to debate nor two explicit choices to compare.',
     'plugins_multi_ai_truncated' => 'Answer cut short',
     'plugins_multi_ai_preparing' => 'Preparing the « :assistant » arguments…',
     'plugins_multi_ai_discover' => 'Configure For / Against',
@@ -1458,6 +1458,14 @@ return [
     'plugins_multi_ai_refused_title' => ':assistant is not available.',
     'plugins_multi_ai_refused_body' => 'No model is configured for :assistant. An administrator can pick one.',
     'plugins_multi_ai_retry' => 'Retry',
+    // TASK-1622 — the notice splits in two: with a suggestion, no hard-coded
+    // examples (they would duplicate the real proposal); without one, ask for
+    // precision rather than inventing an opposition.
+    'plugins_multi_ai_not_applicable_lead' => 'Your question does not yet contain a proposition For / Against can work with. You could try:',
+    'plugins_multi_ai_suggestion_use' => 'Use this question',
+    'plugins_multi_ai_suggestion_replace' => 'Replace the current text',
+    'plugins_multi_ai_suggestion_confirm' => 'The composer already contains text. Click again to replace it.',
+    'plugins_multi_ai_not_applicable_precision' => 'To compare two positions, name the two options you would like to weigh against each other.',
     'plugins_multi_ai_dismiss' => 'Dismiss',
     'plugins_multi_ai_synthesis_question' => 'Compare the answers given to: :question',
     'plugins_multi_ai_none_enabled' => 'No assistant is active in this Loop.',
