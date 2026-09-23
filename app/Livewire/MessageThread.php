@@ -254,7 +254,8 @@ class MessageThread extends Component
 
     private function storeImage($file): string
     {
-        $img = Image::decode($file);
+        // TASK-1623 — le CONTENU, jamais le chemin (cf. LoopChat::storeImage).
+        $img = Image::decode($file->get());
         $img->scaleDown(1200, 800);
 
         $filename = Str::uuid()->toString().'.webp';

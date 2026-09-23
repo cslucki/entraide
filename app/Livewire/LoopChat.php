@@ -2366,7 +2366,11 @@ class LoopChat extends Component
 
     private function storeImage($file, string $subdirectory): string
     {
-        $img = Image::decode($file);
+        // TASK-1623 — le CONTENU, jamais le chemin. Sur un stockage
+        // temporaire distant, TemporaryUploadedFile::getPathname() rend un
+        // chemin relatif (« livewire-tmp/x.png ») qui n'existe localement
+        // nulle part. Idiome du depot, deja utilise par GenerateServiceThumbnail.
+        $img = Image::decode($file->get());
         $img->scaleDown(1200, 800);
 
         $filename = Str::uuid()->toString().'.webp';

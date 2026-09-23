@@ -52,6 +52,8 @@ class TASK1623RemoteUploadTest extends TestCase
 {
     private const DISQUE_DISTANT = 'task1623-distant';
 
+    private const DISQUE_LOCAL = 'task1623-local';
+
     private string $racineSimulee;
 
     protected function setUp(): void
@@ -101,6 +103,23 @@ class TASK1623RemoteUploadTest extends TestCase
         Storage::disk(self::DISQUE_DISTANT)->put('livewire-tmp/'.$nom, $octets);
 
         return new TemporaryUploadedFile($nom, self::DISQUE_DISTANT);
+    }
+
+    /**
+     * Le meme objet, mais sur un disque local — la configuration par defaut.
+     */
+    private function fichierTemporaireLocal(string $nom = 'locale.png'): TemporaryUploadedFile
+    {
+        Storage::fake(self::DISQUE_LOCAL);
+
+        $vraiPng = UploadedFile::fake()->image($nom, 40, 30);
+
+        Storage::disk(self::DISQUE_LOCAL)->put(
+            'livewire-tmp/'.$nom,
+            file_get_contents($vraiPng->getPathname()),
+        );
+
+        return new TemporaryUploadedFile($nom, self::DISQUE_LOCAL);
     }
 
     // ── 1. LA PREMISSE, MESUREE ─────────────────────────────────────────────
@@ -178,8 +197,12 @@ class TASK1623RemoteUploadTest extends TestCase
 
     public function test_le_cas_local_continue_de_fonctionner(): void
     {
-        // Le disque temporaire par defaut du harnais : local, comme avant.
-        $fichier = UploadedFile::fake()->image('locale.png', 40, 30);
+        // Meme objet de production, mais sur un disque LOCAL : la racine est
+        // absolue, donc getPathname() rend un chemin qui existe. C'est la
+        // configuration par defaut, et elle ne doit rien perdre.
+        $fichier = $this->fichierTemporaireLocal();
+
+        $this->assertTrue(is_dir(dirname($fichier->getPathname())), 'le cas local a bien un chemin utilisable');
 
         foreach (['chatloop', 'thread', 'creation-annonce', 'edition-annonce'] as $surface) {
             $chemin = $this->appelerStoreImage($surface, $fichier);
@@ -191,7 +214,7 @@ class TASK1623RemoteUploadTest extends TestCase
     /**
      * Invoque le storeImage() reel du composant demande.
      */
-    private function appelerStoreImage(string $surface, UploadedFile $fichier): string
+    private function appelerStoreImage(string $surface, TemporaryUploadedFile $fichier): string
     {
         $organizationId = '01a09a4b-403c-71f1-b804-000000000001';
 
