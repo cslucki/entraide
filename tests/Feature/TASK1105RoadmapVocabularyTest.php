@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\LoopRoadmapCard;
 use App\Models\Loop;
 use App\Models\LoopCard;
 use App\Models\LoopRoadmapItem;
@@ -11,6 +12,7 @@ use App\Services\LoopService;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -85,7 +87,7 @@ class TASK1105RoadmapVocabularyTest extends TestCase
     public function test_no_second_table_is_created(): void
     {
         foreach (['loop_commitments', 'loop_engagements', 'coaching_followups'] as $interdite) {
-            $this->assertFalse(\Illuminate\Support\Facades\Schema::hasTable($interdite));
+            $this->assertFalse(Schema::hasTable($interdite));
         }
     }
 
@@ -212,7 +214,7 @@ class TASK1105RoadmapVocabularyTest extends TestCase
         }
 
         $html = Livewire::actingAs($this->auteur)
-            ->test(\App\Livewire\LoopRoadmapCard::class, ['loop' => $loop])
+            ->test(LoopRoadmapCard::class, ['loop' => $loop])
             ->html();
 
         // Une cle de traduction est en minuscules avec des tirets bas. Tout
@@ -371,7 +373,7 @@ class TASK1105RoadmapVocabularyTest extends TestCase
         ] as $fichier) {
             $source = file_get_contents($fichier);
 
-            foreach (["\$loop->type ===", "\$loop->type =="] as $condition) {
+            foreach (['$loop->type ===', '$loop->type =='] as $condition) {
                 $this->assertStringNotContainsString($condition, $source, basename($fichier));
             }
         }

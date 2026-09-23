@@ -5,6 +5,7 @@ namespace Tests\Feature\Dossiers;
 use App\Ai\Agents\LoopConversationKnowledgeAgent;
 use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Ai\Context\DossierAccessScope;
+use App\Ai\ProviderResolver;
 use App\Models\BlogPost;
 use App\Models\DerivedKnowledgeNote;
 use App\Models\Dossier;
@@ -599,7 +600,7 @@ class PgvectorTASK1534DerivedKnowledgeRetrievalTest extends TestCase
 
     private function embeddingInstance(): string
     {
-        return app(\App\Ai\ProviderResolver::class)
+        return app(ProviderResolver::class)
             ->resolveEmbeddingInstance((string) $this->organization->id);
     }
 

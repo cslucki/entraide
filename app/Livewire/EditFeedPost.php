@@ -124,7 +124,8 @@ class EditFeedPost extends Component
 
     private function storeImage(string $organizationId): string
     {
-        $img = Image::decode($this->image);
+        // TASK-1623 — le CONTENU, jamais le chemin (cf. LoopChat::storeImage).
+        $img = Image::decode($this->image->get());
         $img->scaleDown(1400, 1000);
 
         $filename = Str::uuid()->toString().'.webp';

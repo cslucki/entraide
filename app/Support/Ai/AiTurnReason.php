@@ -199,6 +199,9 @@ final class AiTurnReason
 
     public const DEGRADED_PARTIAL_FAILURE = AiTurnState::DEGRADED_PARTIAL_FAILURE;
 
+    /** TASK-1621 — reponse publiee mais COUPEE. Le tour a repondu a moitie. */
+    public const DEGRADED_OUTPUT_TRUNCATED = AiTurnState::DEGRADED_OUTPUT_TRUNCATED;
+
     public const DEGRADED_SOURCE_DENIED = AiTurnState::DEGRADED_SOURCE_DENIED;
 
     public const DEGRADED_TENANT_SCOPE = AiTurnState::DEGRADED_TENANT_SCOPE;
@@ -279,8 +282,38 @@ final class AiTurnReason
     /** `abstained` — mode Dossiers, aucune provenance : le modele n'est pas appele. */
     public const TERMINAL_NO_SOURCES_FOUND = 'NO_SOURCES_FOUND';
 
+    /**
+     * `abstained` — « Pour / Contre » n'a rien a debattre. (TASK-1621)
+     *
+     * La question n'exprime ni proposition nette, ni deux options explicites :
+     * il n'y a aucun camp a distribuer. Ce n'est NI une reussite, NI une
+     * panne, NI un refus economique — c'est un tour qui s'abstient, et le dire
+     * autrement ferait afficher « n'a pas pu repondre » la ou le produit n'a
+     * simplement pas de prise.
+     *
+     * Le modele l'annonce par un marqueur exact ; l'application prend le
+     * relais et parle au membre. Aucun parser.
+     */
+    public const TERMINAL_NO_DEBATABLE_PROPOSITION = 'NO_DEBATABLE_PROPOSITION';
+
     /** `failed` — le provider a repondu, le texte est vide apres nettoyage ; l'appel a ete paye. */
     public const TERMINAL_EMPTY_MODEL_ANSWER = 'EMPTY_MODEL_ANSWER';
+
+    /**
+     * `failed` — le modele a BRULE tout son budget de sortie sans ecrire un
+     * mot. (TASK-1621)
+     *
+     * Distinct de `EMPTY_MODEL_ANSWER`, et la distinction n'est pas
+     * cosmetique : « le modele s'est tu » et « le modele n'avait plus de
+     * place » demandent deux remedes opposes. A 900 jetons, 13 des 14 tours
+     * vides du module s'etaient arretes EXACTEMENT au plafond — un modele
+     * reasoning depense son budget a raisonner. Nommer cela
+     * `EMPTY_MODEL_ANSWER` envoyait chercher du cote du provider.
+     *
+     * N'est emis que si le SDK l'a MESURE (`finish_reason: length`). Sans
+     * mesure, `EMPTY_MODEL_ANSWER` reste la reponse honnete.
+     */
+    public const TERMINAL_OUTPUT_BUDGET_EXHAUSTED = 'OUTPUT_BUDGET_EXHAUSTED';
 
     /**
      * `failed` — le provider a ete APPELE et a leve (timeout, HTTP, SDK). La
@@ -354,6 +387,7 @@ final class AiTurnReason
                 self::DEGRADED_PROVIDER_UNAVAILABLE,
                 self::DEGRADED_REQUEST_PREPARATION_UNAVAILABLE,
                 self::DEGRADED_PARTIAL_FAILURE,
+                self::DEGRADED_OUTPUT_TRUNCATED,
                 self::DEGRADED_SOURCE_DENIED,
                 self::DEGRADED_TENANT_SCOPE,
                 self::DEGRADED_LOOP_SCOPE,
@@ -365,7 +399,9 @@ final class AiTurnReason
             'fallthrough' => self::fallthroughVocabulary(),
             'terminal' => [
                 self::TERMINAL_NO_SOURCES_FOUND,
+                self::TERMINAL_NO_DEBATABLE_PROPOSITION,
                 self::TERMINAL_EMPTY_MODEL_ANSWER,
+                self::TERMINAL_OUTPUT_BUDGET_EXHAUSTED,
                 self::TERMINAL_PROVIDER_CALL_FAILED,
             ],
             'fallback' => [

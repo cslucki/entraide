@@ -1387,4 +1387,128 @@ return [
     'catch_up_kind_roadmap_in_progress' => 'Action in progress',
     'catch_up_decision_from_message' => 'Came from a Loop message',
     'catch_up_no_ai' => 'This catch-up reads the Loop\'s objects directly. No AI model is called, nothing is summarised or interpreted.',
+
+    // TASK-1614 — Loop plugin catalogue (super-admin).
+    'plugins_admin_title' => 'Loop plugins',
+    'plugins_admin_intro' => 'The optional capabilities of a Loop, and the Organizations where they are allowed. Allowing a plugin here activates nothing in any Loop: it grants an Organization the right to use it.',
+    'plugins_admin_status_experimental' => 'Experimental',
+    'plugins_admin_status_stable' => 'Stable',
+    'plugins_admin_organizations' => 'Organizations',
+    'plugins_admin_enabled_count' => ':count of :total',
+    'plugins_admin_available' => 'Allowed',
+    'plugins_admin_unavailable' => 'Not allowed',
+    'plugins_admin_enable' => 'Allow',
+    'plugins_admin_disable' => 'Remove',
+    'plugins_admin_enabled' => ':plugin is now allowed for :organization.',
+    'plugins_admin_disabled' => ':plugin has been removed from :organization.',
+    'plugins_admin_no_organizations' => 'No Organization.',
+    'plugins_admin_last_decision' => 'Changed on :date by :author',
+    'plugins_admin_last_decision_anonymous' => 'Changed on :date',
+    'plugins_admin_experimental_notice' => 'Experimental capability: it can be withdrawn at any time, and is off by default wherever nobody allowed it.',
+
+    'plugins' => [
+        'multi_ai_assistants' => [
+            // TASK-1621: the module is called « For / Against » everywhere a
+            // human reads it. Technical keys stay put.
+            'label' => 'For / Against',
+            'description' => 'Ask a question once and get the case for and the case against: two independent assistants each defend one side, and nobody decides for you.',
+
+            // TASK-1616 — default postures of the three assistants (spec §4).
+            'assistants' => [
+                'aperio' => 'You DEFEND the side the base prompt assigns you: the proposition the question puts forward, or the first option it names. Give AT MOST 3 arguments IN ITS FAVOUR, one sentence each. You may show where the other side is weaker, but your answer defends yours — it never merely attacks. You never pick your side and you never switch. If the base prompt says the question does not lend itself to a for / against, follow it and do not argue. Invent no facts, and do not manufacture artificial balance against an established fact.',
+                'traverse' => 'You DEFEND the side the base prompt assigns you: the opposite of the proposition the question puts forward, or the second option it names. Give AT MOST 3 arguments IN ITS FAVOUR, one sentence each. You may show where the other side is weaker, but your answer defends yours — it never merely attacks, and it NEVER attacks your own side. You never pick your side and you never switch. If the base prompt says the question does not lend itself to a for / against, follow it and do not argue. Invent no facts, and do not manufacture artificial balance against an established fact.',
+                'limen' => 'Compare the positions, separate agreements from disagreements and offer possible compromises or options without deciding for the group.',
+            ],
+        ],
+    ],
+
+    // TASK-1616 — the plugin inside a Loop.
+    'plugins_loop_title' => 'ChatLoop actions',
+    'plugins_loop_hint' => "The capabilities this Loop's conversation can draw on.",
+    'plugins_loop_active' => 'Enabled',
+    'plugins_loop_inactive' => 'Disabled',
+    'plugins_loop_enable' => 'Enable',
+    'plugins_loop_disable' => 'Disable',
+    'plugins_loop_configure' => 'Configure',
+    'plugins_loop_enabled_flash' => ':plugin is now enabled in this Loop.',
+    'plugins_loop_disabled_flash' => ':plugin is now disabled in this Loop.',
+    'plugins_loop_saved' => 'The assistants of :plugin have been saved.',
+    'plugins_loop_unavailable' => 'This plugin is not allowed for this Organization.',
+    'plugins_loop_not_enabled' => 'The 3 AI assistants are not enabled in this Loop.',
+    'plugins_multi_ai_ask_all' => 'For / Against',
+
+    // TASK-1621: the modal is gone. What it explained fits in a non-blocking
+    // tooltip carried by the button itself.
+    'plugins_multi_ai_hint' => 'Two AIs lay out the arguments for and against. They take the recent discussion into account but do not read the Files.',
+    'plugins_multi_ai_disable' => 'Disable For / Against',
+    'plugins_multi_ai_queued' => 'Waiting…',
+    'plugins_multi_ai_model_hint' => 'Answer prepared by :model',
+    'plugins_multi_ai_not_applicable' => 'For / Against found neither a proposition to debate nor two explicit choices to compare.',
+    'plugins_multi_ai_truncated' => 'Answer cut short',
+    'plugins_multi_ai_preparing' => 'Preparing the « :assistant » arguments…',
+    'plugins_multi_ai_discover' => 'Configure For / Against',
+
+    // TASK-1619 / SLICE E — what the member reads. No technical code appears
+    // here: `PROVIDER_CALL_FAILED`, `429` and `upstream_provider_shared_pool`
+    // stay in the SuperAdmin traces. MASTER arbitration, 21/09.
+    'plugins_multi_ai_rate_limited_title' => ':assistant is momentarily unavailable.',
+    'plugins_multi_ai_rate_limited_body' => 'The free model used by :assistant cannot answer right now.',
+    'plugins_multi_ai_failed_title' => ':assistant could not answer.',
+    'plugins_multi_ai_failed_body' => 'You can retry, or ask another assistant.',
+    'plugins_multi_ai_refused_title' => ':assistant is not available.',
+    'plugins_multi_ai_refused_body' => 'No model is configured for :assistant. An administrator can pick one.',
+    'plugins_multi_ai_retry' => 'Retry',
+    // TASK-1622 — the notice splits in two: with a suggestion, no hard-coded
+    // examples (they would duplicate the real proposal); without one, ask for
+    // precision rather than inventing an opposition.
+    'plugins_multi_ai_not_applicable_lead' => 'Your question does not yet contain a proposition For / Against can work with. You could try:',
+    'plugins_multi_ai_suggestion_use' => 'Use this question',
+    'plugins_multi_ai_suggestion_replace' => 'Replace the current text',
+    'plugins_multi_ai_suggestion_confirm' => 'The composer already contains text. Click again to replace it.',
+    'plugins_multi_ai_not_applicable_precision' => 'To compare two positions, name the two options you would like to weigh against each other.',
+    'plugins_multi_ai_dismiss' => 'Dismiss',
+    'plugins_multi_ai_synthesis_question' => 'Compare the answers given to: :question',
+    'plugins_multi_ai_none_enabled' => 'No assistant is active in this Loop.',
+    'plugins_loop_last_change' => 'Changed on :date by :author',
+    'plugins_loop_last_change_anonymous' => 'Changed on :date',
+    'plugins_assistants_title' => 'The two assistants',
+    'plugins_assistants_intro' => 'Each assistant defends one side, and never picks it itself: the question decides. You can rewrite its posture for this Loop; you cannot rename them or add any. A local instruction never bypasses the Constitution or the Organization doctrine: it adds to them.',
+    'plugins_assistants_instruction' => 'Posture',
+    'plugins_assistants_enabled' => 'Active',
+    'plugins_assistants_reset_hint' => 'Clearing the field restores the default posture.',
+    'plugins_assistants_save' => 'Save',
+    'plugins_assistants_inactive_notice' => 'The plugin is disabled in this Loop: the postures stay saved, but nobody can use them.',
+
+    // TASK-1617 — platform AI configuration of the plugin.
+    'plugins_models_title' => 'OpenRouter models',
+    'plugins_models_intro' => 'Each assistant calls its own model. Only models verified as free are offered, and the check is made on the pricing published by OpenRouter — never on the model name.',
+    'plugins_models_catalog_ok' => ':count verified free models · last checked :date',
+    'plugins_models_catalog_never' => 'Catalogue never fetched.',
+    'plugins_models_catalog_failed' => 'OpenRouter catalogue unavailable (:reason). No model is offered until a fetch succeeds.',
+    'plugins_models_refresh' => 'Refresh OpenRouter models',
+    'plugins_models_refreshed' => 'OpenRouter catalogue refreshed: :count free models verified, :renewed proof(s) renewed.',
+    'plugins_models_refresh_failed' => 'The OpenRouter fetch failed (:reason). Nothing was changed.',
+    'plugins_models_none' => 'No model',
+    'plugins_models_choose' => '— choose a model —',
+    'plugins_models_assigned' => ':assistant now uses :model.',
+    'plugins_models_rejected' => ':model is not verified free: it was not saved.',
+    'plugins_models_free_verified' => 'FREE verified on :date',
+    'plugins_models_context' => ':tokens context tokens',
+    // TASK-1620 — « Operational » promised what this badge cannot know: it
+    // measures model set + still in the free catalogue + fresh free proof,
+    // never whether the provider answers right now.
+    'plugins_models_status_ok' => 'Free verified',
+    'plugins_models_status_stale' => 'Proof expired — needs re-checking',
+    'plugins_models_status_gone' => 'Unavailable or no longer free',
+    'plugins_models_status_unset' => 'No model configured',
+    // TASK-1622 — the PAID APPROVED contract, next to verified free.
+    'plugins_models_status_paid' => 'Paid approved',
+    'plugins_models_status_paid_invalid' => 'Paid rejected — missing approval or rate',
+    'plugins_models_paid_approved' => 'PAID approved on :date by :name',
+    'plugins_models_rate' => ':in $ / :out $ per million tokens (input / output)',
+    'plugins_models_rate_missing' => 'rate not recorded — cannot be enabled',
+    'plugins_models_type_free' => 'Verified free',
+    'plugins_models_type_paid' => 'Approved paid',
+    'plugins_models_paid_rejected' => ':model cannot be approved: not on the shortlist, rate not recorded, or unknown to the catalog. Nothing was saved.',
+    'plugins_models_fail_closed' => 'Until an assistant has a verified free model, it generates nothing. There is no automatic fallback to another model.',
 ];

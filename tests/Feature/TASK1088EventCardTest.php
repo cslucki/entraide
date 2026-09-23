@@ -19,7 +19,9 @@ use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopEventPresenter;
 use App\Support\Loops\LoopTypeRegistry;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -89,7 +91,7 @@ class TASK1088EventCardTest extends TestCase
         $loop = Loop::create([
             'organization_id' => $org->id,
             'name' => $name,
-            'slug' => \Illuminate\Support\Str::slug($name).'-'.uniqid(),
+            'slug' => Str::slug($name).'-'.uniqid(),
             'type' => 'general',
             'status' => 'active',
             'visibility' => $visibility,
@@ -192,7 +194,7 @@ class TASK1088EventCardTest extends TestCase
             'user_id' => $this->member->id, 'response' => LoopEventResponse::GOING,
         ]);
 
-        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+        $this->expectException(UniqueConstraintViolationException::class);
 
         LoopEventResponse::create([
             'organization_id' => $this->org->id, 'event_id' => $event->id,

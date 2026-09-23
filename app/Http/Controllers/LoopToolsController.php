@@ -36,10 +36,24 @@ class LoopToolsController extends Controller
         abort_if($loop->isArchived(), 403);
         abort_unless($configurator->canConfigure($request->user(), $loop), 403);
 
+        // TASK-1616 — la zone « Actions de ChatLoop ». Elle n'existait pas ici :
+        // cet ecran ne rendait que les outils (primary + secondary). Un plugin
+        // n'est ni l'un ni l'autre, et ne compte donc jamais parmi les trois
+        // mis en avant.
+        $activation = app(\App\Services\Loops\LoopPluginActivation::class);
+
         return view('loops.tools', [
             'loop' => $loop,
             'composition' => $configurator->describe($loop),
             'organizationRouteParam' => $request->route('organization'),
+            'plugins' => $activation->describeFor($loop),
+            // Blade RESERVE `$loop` : la premiere `@foreach` de la vue y ecrit
+            // `$__env->getLastLoop()`, donc `null` hors boucle. La Boucle est
+            // donc aussi servie sous un nom que Blade ne touche pas — sinon le
+            // partial recevrait `null` (lecon TASK-1585).
+            'pluginLoop' => $loop,
+            'pluginActivation' => $activation,
+            'pluginAdminScope' => false,
         ]);
     }
 

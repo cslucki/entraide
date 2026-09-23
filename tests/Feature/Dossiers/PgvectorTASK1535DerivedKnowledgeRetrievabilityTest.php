@@ -4,6 +4,8 @@ namespace Tests\Feature\Dossiers;
 
 use App\Ai\Agents\LoopConversationKnowledgeAgent;
 use App\Ai\Agents\LoopKnowledgeAgent;
+use App\Ai\Context\DossierAccessScope;
+use App\Ai\ProviderResolver;
 use App\Models\BlogPost;
 use App\Models\DerivedKnowledgeNote;
 use App\Models\Dossier;
@@ -17,6 +19,9 @@ use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Ai\AiShellResponder;
+use App\Services\Dossiers\DerivedChunkEligibility;
+use App\Services\Dossiers\DossierInsightsService;
+use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Services\Knowledge\LoopConversationKnowledgeDeriver;
 use App\Services\Loops\LoopRootDocumentService;
 use App\Support\Ai\AiShellPageContext;
@@ -252,7 +257,7 @@ class PgvectorTASK1535DerivedKnowledgeRetrievabilityTest extends TestCase
         $this->conversation();
         $this->derive();
 
-        $service = app(\App\Services\Dossiers\DossierInsightsService::class);
+        $service = app(DossierInsightsService::class);
         $dossier = $this->rootDossier->fresh();
 
         // PREMISSE : la note est bien indexee dans CE Dossier, et Alice, qui
@@ -387,8 +392,8 @@ class PgvectorTASK1535DerivedKnowledgeRetrievabilityTest extends TestCase
     private function derive(): ?DerivedKnowledgeNote
     {
         LoopConversationKnowledgeAgent::fake(fn (): TextResponse => new TextResponse(
-            "L entreprise retenue pour la toiture du chantier Belleville est ".self::FAIT_RARE
-                .", avec une pose prevue en fevrier 2027. Alice Renard a annonce ce choix.",
+            'L entreprise retenue pour la toiture du chantier Belleville est '.self::FAIT_RARE
+                .', avec une pose prevue en fevrier 2027. Alice Renard a annonce ce choix.',
             new Usage(50, 20), new Meta('openrouter', 'openai/gpt-4o-mini'),
         ));
 
@@ -398,24 +403,24 @@ class PgvectorTASK1535DerivedKnowledgeRetrievabilityTest extends TestCase
     /** @return list<array<string, mixed>> */
     private function cherche(User $user, string $question): array
     {
-        $dossierIds = app(\App\Ai\Context\DossierAccessScope::class)
+        $dossierIds = app(DossierAccessScope::class)
             ->accessibleDossierIds((string) $this->organization->id, $user, null);
 
         if ($dossierIds === []) {
             return [];
         }
 
-        return app(\App\Services\Dossiers\DossierSemanticSearchService::class)->searchAcrossDossiers(
+        return app(DossierSemanticSearchService::class)->searchAcrossDossiers(
             (string) $this->organization->id,
             $dossierIds,
             $question,
-            (string) app(\App\Ai\ProviderResolver::class)
+            (string) app(ProviderResolver::class)
                 ->resolveEmbeddingInstance((string) $this->organization->id),
             5,
             [],
             20,
             null,
-            app(\App\Services\Dossiers\DerivedChunkEligibility::class)
+            app(DerivedChunkEligibility::class)
                 ->authorizedLoopIds((string) $this->organization->id, $user),
         );
     }

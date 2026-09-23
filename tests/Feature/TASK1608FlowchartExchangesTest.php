@@ -10,6 +10,7 @@ use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Support\Flowchart\FlowchartExchanges;
 use App\Support\Flowchart\FlowchartGraph;
+use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -278,7 +279,7 @@ class TASK1608FlowchartExchangesTest extends TestCase
 
         $this->assertNotNull($noeud, 'La Boucle publique et ouverte doit etre sur la carte.');
 
-        $typeAttendu = app(\App\Support\Loops\LoopTypeRegistry::class)
+        $typeAttendu = app(LoopTypeRegistry::class)
             ->label('project', $this->organisation);
 
         $this->assertSame($typeAttendu, $noeud['data']['type_label']);

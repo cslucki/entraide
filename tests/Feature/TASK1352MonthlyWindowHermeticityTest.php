@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
+use App\Services\Ai\OrganizationDoctrineSandbox;
 use App\Support\Ai\AiEconomicGuard;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -171,7 +172,7 @@ class TASK1352MonthlyWindowHermeticityTest extends TestCase
             (string) $this->organization->id,
             (string) $this->member->id,
             'loop_knowledge.answer',
-            \App\Services\Ai\OrganizationDoctrineSandbox::FEATURE,
+            OrganizationDoctrineSandbox::FEATURE,
             0.30,
         );
 

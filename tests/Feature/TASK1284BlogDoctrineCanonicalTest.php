@@ -381,8 +381,12 @@ class TASK1284BlogDoctrineCanonicalTest extends TestCase
         // TASK-1534 : + `loop_conversation_knowledge` (cote WRITE : compiler ce
         // que des humains se sont dit en connaissance durable) = 14.
         // TASK-1540 : + `loop_claim_patch` (le protocole de patch de la memoire) = 15.
-        $this->assertSame(15, $coverage->coveredCount());
-        $this->assertSame(19, $coverage->totalCount());
+        // TASK-1617 : + `loop_multi_ai` (les 3 assistants du plugin, UNE capability
+        // pour les trois : meme contrat de reponse, la sous-identite se lit dans
+        // la `feature` de la trace) = 16.
+        $this->assertSame(16, $coverage->coveredCount());
+        // 16 canoniques + 3 heritees. TASK-1617 : +1 canonique.
+        $this->assertSame(20, $coverage->totalCount());
     }
 
     public function test_the_constitution_is_actually_the_head_of_the_composed_prompt(): void

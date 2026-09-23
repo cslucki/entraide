@@ -1399,4 +1399,145 @@ return [
     'catch_up_kind_roadmap_in_progress' => 'Action en cours',
     'catch_up_decision_from_message' => 'Issue d\'un message de la Boucle',
     'catch_up_no_ai' => 'Ce rattrapage est une lecture directe des objets de la Boucle. Aucun modèle d\'IA n\'est appelé, rien n\'est résumé ni interprété.',
+
+    // TASK-1614 — catalogue des plugins de Boucle (SuperAdmin).
+    'plugins_admin_title' => 'Plugins de Boucles',
+    'plugins_admin_intro' => "Les capacités optionnelles d'une Boucle, et les Organizations où elles sont autorisées. Autoriser un plugin ici n'active rien dans aucune Boucle : cela donne à une Organization le droit de s'en servir.",
+    'plugins_admin_status_experimental' => 'Expérimental',
+    'plugins_admin_status_stable' => 'Stable',
+    'plugins_admin_organizations' => 'Organizations',
+    'plugins_admin_enabled_count' => ':count sur :total',
+    'plugins_admin_available' => 'Autorisé',
+    'plugins_admin_unavailable' => 'Non autorisé',
+    'plugins_admin_enable' => 'Autoriser',
+    'plugins_admin_disable' => 'Retirer',
+    'plugins_admin_enabled' => ':plugin est maintenant autorisé pour :organization.',
+    'plugins_admin_disabled' => ':plugin a été retiré de :organization.',
+    'plugins_admin_no_organizations' => 'Aucune Organization.',
+    'plugins_admin_last_decision' => 'Modifié le :date par :author',
+    'plugins_admin_last_decision_anonymous' => 'Modifié le :date',
+    'plugins_admin_experimental_notice' => "Capacité expérimentale : elle peut être retirée à tout moment, et l'est par défaut partout où personne ne l'a autorisée.",
+
+    'plugins' => [
+        'multi_ai_assistants' => [
+            // TASK-1621 — le module s'appelle « Pour / Contre » partout ou
+            // un humain le lit. Les cles techniques (`multi_ai_assistants`,
+            // `aperio`, `traverse`) ne bougent pas : renommer aurait casse
+            // les lignes deja ecrites pour un changement d'affichage.
+            'label' => 'Pour / Contre',
+            'description' => 'Poser une question une fois et recevoir le pour et le contre : deux assistants indépendants défendent chacun un camp, et personne ne tranche à votre place.',
+
+            // TASK-1616 — postures PAR DEFAUT des trois assistants (CDC §4).
+            // Une Boucle peut les réécrire ; elle ne peut pas les renommer.
+            'assistants' => [
+                // TASK-1621 — des ROLES, pas des tons.
+                //
+                // TASK-1620 a mesure l'echec de la formulation precedente :
+                // meme modele, memes preuves, meme question -> deux reponses
+                // quasi identiques, ouvrant par la meme phrase. Une posture
+                // enoncee comme un tone (« explorer », « rechercher ») ne
+                // suffit pas a deplacer un modele qui, par defaut, equilibre.
+                //
+                // L'instruction dit donc ce qu'il faut PRODUIRE, et combien.
+                'aperio' => "Tu DEFENDS le camp que le socle t'assigne : la proposition posee par la question, ou la premiere option qu'elle nomme. Presente AU PLUS 3 arguments EN SA FAVEUR, une phrase chacun. Tu peux montrer en quoi l'autre camp est plus faible, mais ta reponse defend le tien — elle ne se contente jamais d'attaquer. Tu ne choisis pas ton camp et tu n'en changes pas. Si le socle indique que la question ne se prete pas a un pour / contre, suis le socle et n'argumente pas. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
+                'traverse' => "Tu DEFENDS le camp que le socle t'assigne : la position inverse de la proposition posee par la question, ou la seconde option qu'elle nomme. Presente AU PLUS 3 arguments EN SA FAVEUR, une phrase chacun. Tu peux montrer en quoi l'autre camp est plus faible, mais ta reponse defend le tien — elle ne se contente jamais d'attaquer, et elle n'attaque JAMAIS ton propre camp. Tu ne choisis pas ton camp et tu n'en changes pas. Si le socle indique que la question ne se prete pas a un pour / contre, suis le socle et n'argumente pas. Ne fabrique aucun fait, et ne fabrique pas un equilibre artificiel face a un fait etabli.",
+                'limen' => 'Comparer les positions, distinguer accords et desaccords et proposer des compromis ou options possibles sans decider a la place du groupe.',
+            ],
+        ],
+    ],
+
+    // TASK-1616 — le plugin dans une Boucle.
+    'plugins_loop_title' => 'Actions de ChatLoop',
+    'plugins_loop_hint' => 'Les capacités que la conversation de cette Boucle peut mobiliser.',
+    'plugins_loop_active' => 'Activé',
+    'plugins_loop_inactive' => 'Désactivé',
+    'plugins_loop_enable' => 'Activer',
+    'plugins_loop_disable' => 'Désactiver',
+    'plugins_loop_configure' => 'Configurer',
+    'plugins_loop_enabled_flash' => ':plugin est activé dans cette Boucle.',
+    'plugins_loop_disabled_flash' => ':plugin est désactivé dans cette Boucle.',
+    'plugins_loop_saved' => 'Les assistants de :plugin ont été enregistrés.',
+    'plugins_loop_unavailable' => "Ce plugin n'est pas autorisé pour cette Organization.",
+    'plugins_loop_not_enabled' => 'Les 3 assistants IA ne sont pas activés dans cette Boucle.',
+    'plugins_multi_ai_ask_all' => 'Pour / Contre',
+
+    // TASK-1621 : la modale a disparu. Ce qu'elle expliquait tient dans une
+    // infobulle non bloquante, portee par le bouton lui-meme — un ecran a
+    // confirmer coutait un geste a chaque envoi pour la meme phrase.
+    'plugins_multi_ai_hint' => 'Deux IA présentent les arguments pour et contre. Elles tiennent compte de la discussion récente mais ne consultent pas les Dossiers.',
+    'plugins_multi_ai_disable' => 'Désactiver Pour / Contre',
+    'plugins_multi_ai_queued' => 'En attente…',
+    'plugins_multi_ai_model_hint' => 'Réponse préparée par :model',
+    'plugins_multi_ai_not_applicable' => "Pour / Contre n'a pas identifié de proposition à débattre ni deux choix explicites à comparer.",
+    'plugins_multi_ai_truncated' => 'Réponse écourtée',
+    'plugins_multi_ai_preparing' => 'Préparation des arguments « :assistant »…',
+    'plugins_multi_ai_discover' => 'Configurer Pour / Contre',
+
+    // TASK-1619 / SLICE E — ce que le membre lit. Aucun code technique n'y
+    // figure : `PROVIDER_CALL_FAILED`, `429` et `upstream_provider_shared_pool`
+    // restent dans les traces SuperAdmin. Arbitrage MASTER du 21/09.
+    'plugins_multi_ai_rate_limited_title' => ':assistant est momentanément indisponible.',
+    'plugins_multi_ai_rate_limited_body' => 'Le modèle gratuit utilisé par :assistant ne peut pas répondre pour le moment.',
+    'plugins_multi_ai_failed_title' => ":assistant n'a pas pu répondre.",
+    'plugins_multi_ai_failed_body' => 'Vous pouvez réessayer ou demander à un autre assistant.',
+    'plugins_multi_ai_refused_title' => ":assistant n'est pas disponible.",
+    'plugins_multi_ai_refused_body' => "Aucun modèle n'est configuré pour :assistant. Un administrateur peut en choisir un.",
+    'plugins_multi_ai_retry' => 'Réessayer',
+    // TASK-1622 — la notice se dedouble : avec suggestion, le texte
+    // n'enonce plus d'exemples en dur (ils feraient doublon avec la
+    // proposition reelle) ; sans suggestion, on demande une precision
+    // plutot que d'inventer une opposition.
+    'plugins_multi_ai_not_applicable_lead' => "Votre question ne contient pas encore une proposition directement exploitable par Pour / Contre. Vous pouvez essayer :",
+    'plugins_multi_ai_suggestion_use' => 'Utiliser cette question',
+    'plugins_multi_ai_suggestion_replace' => 'Remplacer le texte en cours',
+    'plugins_multi_ai_suggestion_confirm' => "Le composeur contient déjà du texte. Cliquez à nouveau pour le remplacer.",
+    'plugins_multi_ai_not_applicable_precision' => "Pour comparer deux positions, indiquez les deux options que vous souhaitez mettre en regard.",
+    'plugins_multi_ai_dismiss' => 'Masquer',
+    'plugins_multi_ai_synthesis_question' => 'Compare les réponses obtenues à : :question',
+    'plugins_multi_ai_none_enabled' => "Aucun assistant n'est actif dans cette Boucle.",
+    'plugins_loop_last_change' => 'Modifié le :date par :author',
+    'plugins_loop_last_change_anonymous' => 'Modifié le :date',
+    'plugins_assistants_title' => 'Les deux assistants',
+    'plugins_assistants_intro' => "Chaque assistant défend un camp, et ne le choisit jamais lui-même : il est déterminé par la question. Vous pouvez réécrire sa posture pour cette Boucle ; vous ne pouvez ni les renommer, ni en ajouter. Une instruction locale ne contourne jamais la Constitution ni la doctrine de l'Organization : elle s'y ajoute.",
+    'plugins_assistants_instruction' => 'Posture',
+    'plugins_assistants_enabled' => 'Actif',
+    'plugins_assistants_reset_hint' => 'Vider le champ rétablit la posture par défaut.',
+    'plugins_assistants_save' => 'Enregistrer',
+    'plugins_assistants_inactive_notice' => "Le plugin est désactivé dans cette Boucle : les postures restent enregistrées, mais personne ne peut s'en servir.",
+
+    // TASK-1617 — configuration IA plateforme du plugin.
+    'plugins_models_title' => 'Modèles OpenRouter',
+    'plugins_models_intro' => 'Chaque assistant appelle son propre modèle. Seuls les modèles vérifiés gratuits sont proposés, et la vérification porte sur les tarifs publiés par OpenRouter — jamais sur le nom du modèle.',
+    'plugins_models_catalog_ok' => ':count modèles gratuits vérifiés · dernière vérification :date',
+    'plugins_models_catalog_never' => 'Catalogue jamais relevé.',
+    'plugins_models_catalog_failed' => "Catalogue OpenRouter indisponible (:reason). Aucun modèle n'est proposé tant que le relevé n'a pas abouti.",
+    'plugins_models_refresh' => 'Actualiser les modèles OpenRouter',
+    'plugins_models_refreshed' => 'Catalogue OpenRouter actualisé : :count modèles gratuits vérifiés, :renewed preuve(s) renouvelée(s).',
+    'plugins_models_refresh_failed' => "Le relevé OpenRouter a échoué (:reason). Rien n'a été modifié.",
+    'plugins_models_none' => 'Aucun modèle',
+    'plugins_models_choose' => '— choisir un modèle —',
+    'plugins_models_assigned' => ':assistant utilise désormais :model.',
+    'plugins_models_rejected' => ":model n'est pas vérifié gratuit : il n'a pas été enregistré.",
+    'plugins_models_free_verified' => 'FREE vérifié le :date',
+    'plugins_models_context' => ':tokens tokens de contexte',
+    // TASK-1620 — « Opérationnel » PROMETTAIT ce que ce badge ne sait pas.
+    // Il mesure : modèle choisi + encore au catalogue gratuit + preuve de
+    // gratuité fraîche. Il ne dit RIEN de la disponibilité du provider à
+    // l'instant — les recettes de TASK-1618 et 1619 l'ont montré, badge vert
+    // pendant que chaque appel rendait 429. Le libellé dit désormais ce qui
+    // est réellement vérifié. Aucun health-check réseau n'est ajouté.
+    'plugins_models_status_ok' => 'Gratuit vérifié',
+    'plugins_models_status_stale' => 'Preuve expirée — à revérifier',
+    'plugins_models_status_gone' => 'Indisponible ou plus gratuit',
+    'plugins_models_status_unset' => 'Aucun modèle configuré',
+    // TASK-1622 — le contrat PAYANT APPROUVE, a cote du gratuit verifie.
+    'plugins_models_status_paid' => 'Payant approuvé',
+    'plugins_models_status_paid_invalid' => 'Payant refusé — approbation ou tarif manquant',
+    'plugins_models_paid_approved' => 'PAYANT approuvé le :date par :name',
+    'plugins_models_rate' => ':in $ / :out $ par million de tokens (entrée / sortie)',
+    'plugins_models_rate_missing' => 'tarif non relevé — inactivable',
+    'plugins_models_type_free' => 'Gratuit vérifié',
+    'plugins_models_type_paid' => 'Payant approuvé',
+    'plugins_models_paid_rejected' => ":model n'est pas approuvable : hors liste, tarif non relevé ou modèle inconnu du catalogue. Rien n'a été enregistré.",
+    'plugins_models_fail_closed' => "Tant qu'un assistant n'a pas de modèle vérifié gratuit, il ne génère rien. Aucun repli automatique vers un autre modèle n'existe.",
 ];

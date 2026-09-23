@@ -9,10 +9,14 @@ use App\Models\LoopPoll;
 use App\Models\LoopTypeSetting;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Loops\LoopCardCompositionService;
 use App\Services\Loops\LoopPresetConfigurator;
 use App\Services\LoopService;
 use App\Services\LoopTypeSettingsService;
+use App\Support\Loops\LoopCardRegistry;
+use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -80,7 +84,7 @@ class TASK1123LoopCardAdministrationTest extends TestCase
         return $poll;
     }
 
-    private function basculer(User $acteur, string $cle, bool $active): \Illuminate\Testing\TestResponse
+    private function basculer(User $acteur, string $cle, bool $active): TestResponse
     {
         return $this->actingAs($acteur)->put(route('admin.loops.cards.update', $this->boucle), [
             'card_key' => $cle, 'enabled' => $active,
@@ -162,7 +166,7 @@ class TASK1123LoopCardAdministrationTest extends TestCase
         $poll = $this->sondage();
 
         // 1. La Card est dans le socle `general`, donc active.
-        $this->assertContains('core.polls', app(\App\Support\Loops\LoopTypeRegistry::class)->activeCardsFor($this->boucle->fresh()));
+        $this->assertContains('core.polls', app(LoopTypeRegistry::class)->activeCardsFor($this->boucle->fresh()));
 
         // 2. Desactivation par l'admin.
         $this->basculer($this->superAdmin, 'core.polls', false)->assertSessionMissing('error');
@@ -170,7 +174,7 @@ class TASK1123LoopCardAdministrationTest extends TestCase
         $boucle = $this->boucle->fresh();
 
         // 3. La Card a quitte le workspace…
-        $this->assertNotContains('core.polls', app(\App\Support\Loops\LoopTypeRegistry::class)->activeCardsFor($boucle));
+        $this->assertNotContains('core.polls', app(LoopTypeRegistry::class)->activeCardsFor($boucle));
 
         // 4. …mais la donnee metier est intacte : rien n'a purge la table.
         $this->assertDatabaseHas('loop_polls', ['id' => $poll->id, 'question' => 'Question de recette 1123 ?']);
@@ -178,7 +182,7 @@ class TASK1123LoopCardAdministrationTest extends TestCase
         // 5. Reactivation : la MEME donnee est retrouvee.
         $this->basculer($this->superAdmin, 'core.polls', true)->assertSessionMissing('error');
 
-        $this->assertContains('core.polls', app(\App\Support\Loops\LoopTypeRegistry::class)->activeCardsFor($this->boucle->fresh()));
+        $this->assertContains('core.polls', app(LoopTypeRegistry::class)->activeCardsFor($this->boucle->fresh()));
         $this->assertSame($poll->id, LoopPoll::where('loop_id', $this->boucle->id)->value('id'));
     }
 
@@ -224,7 +228,7 @@ class TASK1123LoopCardAdministrationTest extends TestCase
         $this->assertSame($typeAvant, $this->boucle->fresh()->type);
         $this->assertSame($reglagesAvant, LoopTypeSetting::query()->count(),
             'Composer une Boucle ne doit ecrire aucun reglage de type.');
-        $this->assertContains('core.polls', app(\App\Support\Loops\LoopTypeRegistry::class)->activeCardsFor($autre->fresh()));
+        $this->assertContains('core.polls', app(LoopTypeRegistry::class)->activeCardsFor($autre->fresh()));
         $this->assertContains('core.polls', app(LoopTypeSettingsService::class)->cardsFor('general', $this->orgA));
     }
 
@@ -243,7 +247,7 @@ class TASK1123LoopCardAdministrationTest extends TestCase
             'action' => 'disable', 'card_key' => 'core.polls',
         ])->assertSessionHas('error');
 
-        $this->assertContains('core.polls', app(\App\Support\Loops\LoopTypeRegistry::class)->activeCardsFor($this->boucle->fresh()));
+        $this->assertContains('core.polls', app(LoopTypeRegistry::class)->activeCardsFor($this->boucle->fresh()));
     }
 
     // ── Tenant ──────────────────────────────────────────────────────────────
@@ -279,7 +283,7 @@ class TASK1123LoopCardAdministrationTest extends TestCase
         // affichee doit suivre l'Organization, pas la Plateforme.
         app(LoopTypeSettingsService::class)->save('general', ['core.manifesto', 'core.members'], true, $this->orgA);
 
-        $composition = collect(app(\App\Services\Loops\LoopCardCompositionService::class)->compositionFor($this->boucle->fresh()))
+        $composition = collect(app(LoopCardCompositionService::class)->compositionFor($this->boucle->fresh()))
             ->keyBy('key');
 
         $this->assertFalse($composition['core.polls']['in_preset'],
@@ -295,8 +299,8 @@ class TASK1123LoopCardAdministrationTest extends TestCase
         // outil actif. TASK-1124 supprime cette hypothese — le maximum de
         // trois ne vaut plus que pour les outils **mis en avant**.
         $configurator = app(LoopPresetConfigurator::class);
-        $composition = app(\App\Services\Loops\LoopCardCompositionService::class);
-        $registry = app(\App\Support\Loops\LoopCardRegistry::class);
+        $composition = app(LoopCardCompositionService::class);
+        $registry = app(LoopCardRegistry::class);
 
         $actifsAvant = $registry->activeGridKeysFor($this->boucle->fresh());
 
@@ -325,7 +329,7 @@ class TASK1123LoopCardAdministrationTest extends TestCase
 
         // Le plafond des principaux, lui, tient.
         $this->assertLessThanOrEqual(
-            \App\Services\Loops\LoopCardCompositionService::MAX_PRIMARY,
+            LoopCardCompositionService::MAX_PRIMARY,
             count($composition->primaryKeysFor($this->boucle->fresh())),
         );
     }

@@ -83,7 +83,23 @@
         $peutOutils = ($canCustomiseTools ?? false) && ($_org ?? null);
         $peutModifier = auth()->user()?->can('update', $currentLoop) ?? false;
         $peutArchiver = $canArchiveLoop ?? false;
-        $aQuelqueChose = $membresCard || $peutOutils || $peutModifier || $peutArchiver;
+        // TASK-1620 — la configuration des 3 assistants IA quitte le composeur.
+        //
+        // Elle y avait ete posee par TASK-1619 pour fermer UX_DEBT_SLICE_E, et
+        // la dette est bien fermee — mais configurer n'est pas un geste de
+        // conversation : sa place est avec « Outils », « Modifier » et
+        // « Membres », pas parmi les actions d'envoi. Le droit et la route ne
+        // changent pas d'un caractere (`loop_plugins.configure`, SLICE B).
+        $_multiAiConfig = ($_org ?? null)
+            && app(\App\Services\Loops\LoopPluginActivation::class)
+                ->canConfigure(auth()->user(), \App\Services\Loops\LoopAiAssistants::PLUGIN, $currentLoop)
+            ? route('organization.loops.plugins.configure', [
+                'organization' => $_org,
+                'loop' => $currentLoop->id,
+                'plugin' => \App\Services\Loops\LoopAiAssistants::PLUGIN,
+            ])
+            : null;
+        $aQuelqueChose = $membresCard || $peutOutils || $peutModifier || $peutArchiver || $_multiAiConfig;
     @endphp
 
     @if($aQuelqueChose)
@@ -114,6 +130,14 @@
                        class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left text-sm font-semibold text-[var(--bp-text)] transition hover:bg-[var(--bp-primary)]/10">
                         <svg class="h-4 w-4 shrink-0 text-[var(--bp-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z"/></svg>
                         {{ __('loops.owner_tools_action') }}
+                    </a>
+                @endif
+
+                @if($_multiAiConfig)
+                    <a href="{{ $_multiAiConfig }}" data-multi-ai-configure
+                       class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left text-sm font-semibold text-[var(--bp-text)] transition hover:bg-[var(--bp-primary)]/10">
+                        <svg class="h-4 w-4 shrink-0 text-[var(--bp-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0m3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0m3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0M21 12c0 4.556-4.03 8.25-9 8.25a9.8 9.8 0 0 1-2.555-.337A5.97 5.97 0 0 1 5.41 20.97a6 6 0 0 1-.474-.065 4.5 4.5 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25"/></svg>
+                        {{ __('loops.plugins_multi_ai_discover') }}
                     </a>
                 @endif
 

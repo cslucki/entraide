@@ -300,7 +300,19 @@ final class LoopClaimCompiler
             ->where('organization_id', $loop->organization_id)
             ->where('type', 'user')
             ->whereNull('deleted_at')
+            // TASK-1615 — l'ordre doit etre TOTAL, et `created_at` ne suffit
+            // pas : la colonne est un `timestamp` de precision 0, donc la
+            // seconde pleine. Des messages ecrits dans la meme requete portent
+            // la MEME valeur, et a egalite PostgreSQL rend un ordre indefini,
+            // libre de varier entre deux requetes identiques selon l'etat du
+            // tas. Comme `empreinteSource()` hache l'ORDRE, deux lectures
+            // d'une source INCHANGEE rendaient alors deux empreintes, la garde
+            // de cout juste en dessous cedait, et le balayeur automatique
+            // refacturait une conversation endormie toutes les dix minutes.
+            // `(created_at, id)` est l'ordre canonique du depot —
+            // ClaimResurrectionGuard, GuestConversation.
             ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->limit(self::MAX_SOURCE_MESSAGES)
             ->get()
             ->filter(static fn (LoopMessage $m): bool => mb_strlen(trim((string) $m->body)) >= LoopConversationKnowledgeDeriver::MIN_MESSAGE_CHARS)

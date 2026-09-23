@@ -28,6 +28,8 @@ use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
 use App\Http\Controllers\Admin\AdminLoopPermissionController;
+use App\Http\Controllers\Admin\AdminLoopPluginController;
+use App\Http\Controllers\LoopPluginController;
 use App\Http\Controllers\Admin\AdminLoopTypeController;
 use App\Http\Controllers\Admin\AdminMemberAiProfileController;
 use App\Http\Controllers\Admin\AdminMessageController;
@@ -691,6 +693,19 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::delete('/loop-types/custom/{customLoopType}', [AdminLoopTypeController::class, 'destroy'])->name('loop-types.destroy');
     Route::put('/loop-types/{type}', [AdminLoopTypeController::class, 'update'])->name('loop-types.update');
     Route::delete('/loop-types/{type}', [AdminLoopTypeController::class, 'reset'])->name('loop-types.reset');
+    // TASK-1614 — ou chaque plugin de Boucle est DISPONIBLE, Organization par
+    // Organization. Surface PLATEFORME : le controleur verifie lui-meme
+    // `is_admin`, le groupe admin ne suffit pas. Elle ne sert aucune donnee
+    // metier d'une Organization — seulement son nom et son identifiant.
+    Route::get('/loop-plugins', [AdminLoopPluginController::class, 'index'])->name('loop-plugins');
+    Route::put('/loop-plugins/{plugin}', [AdminLoopPluginController::class, 'update'])->name('loop-plugins.update');
+    // TASK-1617 — la configuration IA PLATEFORME du plugin : quel modele
+    // OpenRouter sert quel assistant. `refresh` est le SEUL chemin de cette
+    // TASK qui sort sur le reseau, et il part d'un geste explicite.
+    Route::put('/loop-plugins/{plugin}/models', [AdminLoopPluginController::class, 'updateModel'])->name('loop-plugins.models.update');
+    Route::post('/loop-plugins/{plugin}/models/refresh', [AdminLoopPluginController::class, 'refreshModels'])
+        ->middleware('throttle:10,1')->name('loop-plugins.models.refresh');
+
     Route::get('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'index'])->name('system-email-templates');
     Route::get('/system-email-templates/{systemEmailTemplate}/edit', [AdminSystemEmailTemplatesController::class, 'edit'])->name('system-email-templates.edit');
     Route::put('/system-email-templates/{systemEmailTemplate}', [AdminSystemEmailTemplatesController::class, 'update'])->name('system-email-templates.update');
@@ -838,6 +853,18 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/loops/{loop}/configure', [AdminLoopController::class, 'configure'])->name('loops.configure');
     Route::post('/loops/{loop}/compose', [AdminLoopController::class, 'composeCards'])->name('loops.compose');
     Route::post('/loops/{loop}/preset', [AdminLoopController::class, 'applyPreset'])->name('loops.preset.apply');
+
+    // TASK-1616 — les PLUGINS d'une Boucle, a cote des Cards mais jamais
+    // confondus avec elles. Le controleur est partage avec la surface
+    // `/org` : `adminScope` ne change QUE la portee (un SuperAdmin agit hors
+    // de son Organization), jamais l'autorisation — celle-ci est
+    // `loop_plugins.configure`, plus le gate de disponibilite Organization.
+    Route::put('/loops/{loop}/plugins/{plugin}', [LoopPluginController::class, 'update'])
+        ->defaults('adminScope', true)->name('loops.plugins.update');
+    Route::get('/loops/{loop}/plugins/{plugin}/configurer', [LoopPluginController::class, 'configure'])
+        ->defaults('adminScope', true)->name('loops.plugins.configure');
+    Route::put('/loops/{loop}/plugins/{plugin}/configurer', [LoopPluginController::class, 'saveConfiguration'])
+        ->defaults('adminScope', true)->name('loops.plugins.configure.update');
     Route::delete('/loops/{loop}', [AdminLoopController::class, 'destroy'])->name('loops.destroy');
 
     // Outils
@@ -1090,6 +1117,16 @@ Route::prefix('/org/{organization}')
                 // demande dans le controleur : aucune seconde autorite ici.
                 Route::get('/loops/{loop}/rattrapage', LoopCatchUpController::class)->name('loops.catch-up');
                 Route::post('/loops/{loop}/outils', [LoopToolsController::class, 'update'])->middleware('throttle:30,1')->name('loops.tools.update');
+
+                // TASK-1616 — le meme controleur que la surface `/admin`, et
+                // c'est le point : une seule porte a garder. Ici la portee
+                // exige que l'Organization courante soit celle de la Boucle.
+                Route::put('/loops/{loop}/plugins/{plugin}', [LoopPluginController::class, 'update'])
+                    ->defaults('adminScope', false)->middleware('throttle:30,1')->name('loops.plugins.update');
+                Route::get('/loops/{loop}/plugins/{plugin}/configurer', [LoopPluginController::class, 'configure'])
+                    ->defaults('adminScope', false)->name('loops.plugins.configure');
+                Route::put('/loops/{loop}/plugins/{plugin}/configurer', [LoopPluginController::class, 'saveConfiguration'])
+                    ->defaults('adminScope', false)->middleware('throttle:30,1')->name('loops.plugins.configure.update');
             });
 
             Route::middleware('verified')->group(function () {

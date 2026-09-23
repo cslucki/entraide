@@ -359,5 +359,4 @@ class TASK1108UnavailableLoopTypesTest extends TestCase
 
         $this->assertSame($this->types()->default(), $boucle->fresh()->type);
     }
-
 }

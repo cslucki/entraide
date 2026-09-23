@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
@@ -278,7 +279,7 @@ class TASK1478ShellOneClickTest extends TestCase
 
     public function test_no_global_shell_comes_back_on_a_loop(): void
     {
-        $loop = \App\Models\Loop::factory()->create(['organization_id' => $this->organization->id]);
+        $loop = Loop::factory()->create(['organization_id' => $this->organization->id]);
 
         $this->actingAs($this->member)
             ->get(route('organization.loops.show', ['organization' => $this->organization->slug, 'loop' => $loop->id]))

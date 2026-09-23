@@ -5,8 +5,11 @@ namespace Tests\Feature;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopPermissionSettingsService;
+use App\Services\Loops\LoopTypeCreationService;
+use App\Services\LoopService;
 use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -80,7 +83,7 @@ class TASK1118ScopedPermissionsScreenTest extends TestCase
     }
 
     /** Poste une cellule dans une portee donnee. */
-    private function poste(?Organization $scope, string $etat): \Illuminate\Testing\TestResponse
+    private function poste(?Organization $scope, string $etat): TestResponse
     {
         return $this->actingAs($this->superAdmin)->put(route('admin.loop-permissions.update'), [
             'type' => 'general',
@@ -282,7 +285,7 @@ class TASK1118ScopedPermissionsScreenTest extends TestCase
     {
         $auteurB = User::factory()->create(['organization_id' => $this->orgB->id]);
         app()->instance('current_organization', $this->orgB);
-        (new \App\Services\LoopService)->createLoop($auteurB, 'Chez B');
+        (new LoopService)->createLoop($auteurB, 'Chez B');
 
         $chezA = $this->actingAs($this->superAdmin)
             ->get(route('admin.loop-permissions', ['scope' => $this->orgA->id, 'type' => 'general']))
@@ -302,7 +305,7 @@ class TASK1118ScopedPermissionsScreenTest extends TestCase
     {
         // Le critere d'arret du mandat : un type cree doit etre immediatement
         // disponible dans l'ecran des permissions.
-        $type = app(\App\Services\Loops\LoopTypeCreationService::class)
+        $type = app(LoopTypeCreationService::class)
             ->create($this->orgA, 'Parcours', null, 'training');
 
         $chezA = $this->actingAs($this->superAdmin)
@@ -321,7 +324,7 @@ class TASK1118ScopedPermissionsScreenTest extends TestCase
     {
         // `exists()` connait tous les types crees, portee comprise : sans garde,
         // le SuperAdmin reglerait depuis orgB un type qui n'appartient qu'a orgA.
-        $type = app(\App\Services\Loops\LoopTypeCreationService::class)
+        $type = app(LoopTypeCreationService::class)
             ->create($this->orgA, 'Parcours', null, 'training');
 
         $vu = $this->actingAs($this->superAdmin)
@@ -336,7 +339,7 @@ class TASK1118ScopedPermissionsScreenTest extends TestCase
     {
         // Un type cree n'a pas de cle de traduction : le selecteur lisait
         // `label_key` en direct et cassait des qu'un tel type existait.
-        $type = app(\App\Services\Loops\LoopTypeCreationService::class)
+        $type = app(LoopTypeCreationService::class)
             ->create($this->orgA, 'Parcours', null, 'training');
 
         $this->actingAs($this->superAdmin)

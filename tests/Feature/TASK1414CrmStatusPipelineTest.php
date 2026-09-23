@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\CrmContact;
 use App\Models\CrmContactEvent;
 use App\Models\CrmStatus;
 use App\Models\Organization;

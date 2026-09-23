@@ -12,6 +12,7 @@ use App\Services\GuestShell\GuestConversationService;
 use App\Services\GuestShell\GuestShellGate;
 use App\Services\GuestShell\GuestShellPolicyService;
 use App\Services\GuestShell\GuestShellResponder;
+use App\Services\GuestShell\GuestShellSurface;
 use App\Services\GuestShell\GuestVisitorResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -337,7 +338,7 @@ class TASK1499GuestShellConversationParityTest extends TestCase
         GuestShellAgent::fake([$this->reply($assistantBody)]);
         $this->respond('Une question.');
 
-        $surface = app(\App\Services\GuestShell\GuestShellSurface::class);
+        $surface = app(GuestShellSurface::class);
         $read = $surface->read($this->org->fresh(), Request::create('/', 'GET', cookies: [
             GuestVisitorResolver::COOKIE => $this->visitorKey,
         ]));

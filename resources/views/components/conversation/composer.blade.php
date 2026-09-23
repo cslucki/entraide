@@ -133,6 +133,15 @@
                 x-init="resize(); hasText = $el.value.trim().length > 0"
                 x-on:input="resize(); hasText = $el.value.trim().length > 0"
                 x-on:message-sent.window="$nextTick(() => { resize(); hasText = $el.value.trim().length > 0 })"
+                {{-- TASK-1622 — une ecriture SERVEUR de la valeur (une
+                     reformulation posee dans le composeur) ne declenche ni
+                     `input` ni `message-sent`. Sans cet ecouteur, la hauteur
+                     ne s'ajuste pas et surtout `hasText` reste faux : le
+                     bouton d'envoi resterait desactive devant un texte
+                     pourtant visible. On rend aussi le focus, curseur en fin
+                     de texte, pour que le membre puisse modifier tout de
+                     suite. --}}
+                x-on:composer-filled.window="$nextTick(() => { resize(); hasText = $el.value.trim().length > 0; $el.focus(); $el.setSelectionRange($el.value.length, $el.value.length) })"
                 wire:model="{{ $model }}"
                 rows="{{ $rows }}"
                 @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }"

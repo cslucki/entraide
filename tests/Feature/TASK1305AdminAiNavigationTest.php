@@ -6,6 +6,7 @@ use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -156,7 +157,7 @@ class TASK1305AdminAiNavigationTest extends TestCase
         $this->assertStringNotContainsString(self::KEY, $html);
         $this->assertStringNotContainsString('sk-or-', $html);
 
-        foreach (\Illuminate\Support\Facades\DB::table('organization_ai_settings')->pluck('api_key') as $cipher) {
+        foreach (DB::table('organization_ai_settings')->pluck('api_key') as $cipher) {
             $this->assertStringNotContainsString((string) $cipher, $html);
         }
 

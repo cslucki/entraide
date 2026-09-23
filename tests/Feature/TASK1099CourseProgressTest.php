@@ -2,19 +2,27 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\LoopProgressionCard;
 use App\Models\CourseModule;
 use App\Models\CourseSequence;
+use App\Models\CourseSequenceProgress;
 use App\Models\CourseSequenceProgress as P;
 use App\Models\CourseSetting;
 use App\Models\Loop;
+use App\Models\LoopCard;
+use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Loops\CourseMaterialService;
 use App\Services\Loops\CourseProgressService;
 use App\Services\LoopService;
+use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
@@ -58,7 +66,7 @@ class TASK1099CourseProgressTest extends TestCase
     {
         $loop = $this->loops->createLoop($this->formateur, 'Formation');
         $loop->forceFill(['type' => 'training'])->save();
-        \App\Models\LoopCard::where('loop_id', $loop->id)->delete();
+        LoopCard::where('loop_id', $loop->id)->delete();
         app(LoopTypeRegistry::class)->applyPreset($loop->fresh());
 
         return $loop->fresh();
@@ -102,7 +110,7 @@ class TASK1099CourseProgressTest extends TestCase
         // L'etat d'un Module se **calcule** depuis ses Sequences. Le stocker
         // obligerait a le tenir a jour a chaque mouvement, et deux verites
         // finiraient par diverger au pire moment.
-        $colonnes = \Illuminate\Support\Facades\Schema::getColumnListing('course_modules');
+        $colonnes = Schema::getColumnListing('course_modules');
 
         foreach (['status', 'state', 'completed_at', 'progress'] as $interdite) {
             $this->assertNotContains($interdite, $colonnes);
@@ -112,7 +120,7 @@ class TASK1099CourseProgressTest extends TestCase
     public function test_membership_remains_the_only_enrolment(): void
     {
         foreach (['training_enrollments', 'course_enrollments', 'course_students'] as $table) {
-            $this->assertFalse(\Illuminate\Support\Facades\Schema::hasTable($table));
+            $this->assertFalse(Schema::hasTable($table));
         }
 
         $this->assertDatabaseHas('loop_members', [
@@ -306,7 +314,7 @@ class TASK1099CourseProgressTest extends TestCase
         $this->progress()->markCompleted($this->stagiaire, $a);
         $this->progress()->validate($this->formateur, $this->stagiaire, $a);
 
-        $ligne = \App\Models\CourseSequenceProgress::where('course_sequence_id', $a->id)->firstOrFail();
+        $ligne = CourseSequenceProgress::where('course_sequence_id', $a->id)->firstOrFail();
 
         // Le nom de qui a valide est ecrit : une validation sans auteur ne
         // serait pas une validation.
@@ -421,7 +429,7 @@ class TASK1099CourseProgressTest extends TestCase
 
         $this->progress()->markCompleted($this->stagiaire, $a);
         $this->loops->removeMember(
-            \App\Models\LoopMember::where('loop_id', $this->loop->id)
+            LoopMember::where('loop_id', $this->loop->id)
                 ->where('user_id', $this->stagiaire->id)
                 ->firstOrFail()
         );
@@ -470,12 +478,11 @@ class TASK1099CourseProgressTest extends TestCase
         $this->assertSame(0, $this->progress()->matrixFor($this->loop, collect([$this->stagiaire]))[0]['awaiting']);
     }
 
-
     // ── La Card : une seule, deux visages ───────────────────────────────────
 
     public function test_the_progression_is_one_card_with_two_faces(): void
     {
-        $registre = app(\App\Support\Loops\LoopCardRegistry::class);
+        $registre = app(LoopCardRegistry::class);
 
         $this->assertTrue($registre->exists('training.progression'));
 
@@ -492,7 +499,7 @@ class TASK1099CourseProgressTest extends TestCase
         // dependance est declaree, pas laissee a la discipline.
         $this->assertContains(
             'training.course_material',
-            app(\App\Support\Loops\LoopCardRegistry::class)->get('training.progression')['requires']
+            app(LoopCardRegistry::class)->get('training.progression')['requires']
         );
     }
 
@@ -501,8 +508,8 @@ class TASK1099CourseProgressTest extends TestCase
         $m = $this->module('M1');
         $this->sequence($m, 'A');
 
-        $composant = \Livewire\Livewire::actingAs($this->stagiaire)
-            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop]);
+        $composant = Livewire::actingAs($this->stagiaire)
+            ->test(LoopProgressionCard::class, ['loop' => $this->loop]);
 
         $composant->assertSee(__('loops.cards.progression.status_available'), false)
             // Pas d'onglet : il n'y a qu'un visage a lui montrer.
@@ -518,8 +525,8 @@ class TASK1099CourseProgressTest extends TestCase
         $m = $this->module('M1');
         $this->sequence($m, 'A');
 
-        \Livewire\Livewire::actingAs($this->formateur)
-            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+        Livewire::actingAs($this->formateur)
+            ->test(LoopProgressionCard::class, ['loop' => $this->loop])
             ->assertSee(__('loops.cards.progression.my_progress'), false)
             ->assertSee(__('loops.cards.progression.everyone'), false)
             ->set('face', 'everyone')
@@ -540,8 +547,8 @@ class TASK1099CourseProgressTest extends TestCase
             ['unlockFor', [$a->id, $this->stagiaire->id]],
             ['setPathMode', [CourseSetting::PATH_FREE]],
         ] as [$methode, $arguments]) {
-            \Livewire\Livewire::actingAs($this->stagiaire)
-                ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+            Livewire::actingAs($this->stagiaire)
+                ->test(LoopProgressionCard::class, ['loop' => $this->loop])
                 ->call($methode, ...$arguments)
                 ->assertForbidden();
         }
@@ -558,8 +565,8 @@ class TASK1099CourseProgressTest extends TestCase
 
         // L'identifiant est reel et l'Animateur a tous les droits chez lui :
         // c'est l'appartenance a la Boucle qui refuse, pas le droit.
-        \Livewire\Livewire::actingAs($this->formateur)
-            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+        Livewire::actingAs($this->formateur)
+            ->test(LoopProgressionCard::class, ['loop' => $this->loop])
             ->call('validateFor', $a->id, $dehors->id)
             ->assertNotFound();
 
@@ -572,8 +579,8 @@ class TASK1099CourseProgressTest extends TestCase
         $moduleVoisin = $this->material()->createModule($autre, $this->formateur, 'Chez le voisin');
         $sequenceVoisine = $this->material()->addSequence($moduleVoisin, $this->formateur, 'S');
 
-        \Livewire\Livewire::actingAs($this->formateur)
-            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+        Livewire::actingAs($this->formateur)
+            ->test(LoopProgressionCard::class, ['loop' => $this->loop])
             ->call('unlockFor', $sequenceVoisine->id, $this->stagiaire->id)
             ->assertNotFound();
     }
@@ -584,8 +591,8 @@ class TASK1099CourseProgressTest extends TestCase
         $this->sequence($m, 'Sequence confidentielle');
         $etranger = User::factory()->create(['organization_id' => $this->org->id]);
 
-        \Livewire\Livewire::actingAs($etranger)
-            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+        Livewire::actingAs($etranger)
+            ->test(LoopProgressionCard::class, ['loop' => $this->loop])
             ->assertDontSee('Sequence confidentielle')
             ->assertSee(e(__('loops.cards.progression.no_access')), false);
     }
@@ -598,12 +605,11 @@ class TASK1099CourseProgressTest extends TestCase
 
         // Toute la structure reste visible : une etape verrouillee se voit
         // venir, avec la raison de son verrou.
-        \Livewire\Livewire::actingAs($this->stagiaire)
-            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+        Livewire::actingAs($this->stagiaire)
+            ->test(LoopProgressionCard::class, ['loop' => $this->loop])
             ->assertSee('B')
             ->assertSee(e(__('loops.cards.progression.locked_reason')), false);
     }
-
 
     // ── Ce que la revue a trouve ────────────────────────────────────────────
 
@@ -656,21 +662,21 @@ class TASK1099CourseProgressTest extends TestCase
         // garde, elle renvoyait la Sequence dans la file « a relire » — en
         // laissant `validated_at` renseigne, donc une ligne qui se contredit —
         // et refermait l'etape suivante.
-        \Livewire\Livewire::actingAs($this->stagiaire)
-            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+        Livewire::actingAs($this->stagiaire)
+            ->test(LoopProgressionCard::class, ['loop' => $this->loop])
             ->call('markDone', $a->id);
 
         $this->assertSame(P::STATUS_VALIDATED, $this->etat($a));
         $this->assertSame(P::STATUS_AVAILABLE, $this->etat($b));
 
-        $ligne = \App\Models\CourseSequenceProgress::where('course_sequence_id', $a->id)->firstOrFail();
+        $ligne = CourseSequenceProgress::where('course_sequence_id', $a->id)->firstOrFail();
         $this->assertSame($this->formateur->id, $ligne->validated_by);
     }
 
     public function test_a_pending_member_is_not_a_trainee(): void
     {
         $candidat = User::factory()->create(['organization_id' => $this->org->id]);
-        \App\Models\LoopMember::create([
+        LoopMember::create([
             'organization_id' => $this->org->id,
             'loop_id' => $this->loop->id,
             'user_id' => $candidat->id,
@@ -685,8 +691,8 @@ class TASK1099CourseProgressTest extends TestCase
         // apparaissait dans la matrice et l'Animateur pouvait la valider, alors
         // que le resolveur lui refuse tout acces. Deux ecrans qui ne disaient
         // pas la meme chose.
-        \Livewire\Livewire::actingAs($this->formateur)
-            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+        Livewire::actingAs($this->formateur)
+            ->test(LoopProgressionCard::class, ['loop' => $this->loop])
             ->set('face', 'everyone')
             ->call('validateFor', $a->id, $candidat->id)
             ->assertNotFound();
@@ -712,10 +718,10 @@ class TASK1099CourseProgressTest extends TestCase
         $service = app(CourseProgressService::class);
         $service->warmUp($this->loop, collect([$this->stagiaire]));
 
-        \Illuminate\Support\Facades\DB::enableQueryLog();
+        DB::enableQueryLog();
         $service->overviewFor($this->stagiaire, $this->loop);
-        $requetes = count(\Illuminate\Support\Facades\DB::getQueryLog());
-        \Illuminate\Support\Facades\DB::disableQueryLog();
+        $requetes = count(DB::getQueryLog());
+        DB::disableQueryLog();
 
         // Le seuil n'est pas une mesure fine : il fixe un ordre de grandeur.
         // Avant correction, ce meme parcours en demandait plus de six cents.
@@ -731,8 +737,8 @@ class TASK1099CourseProgressTest extends TestCase
         // Les trois gestes existaient dans le composant et n'etaient
         // atteignables depuis aucun ecran : la matrice donne l'etat par Module,
         // mais valider se fait sur une Sequence.
-        \Livewire\Livewire::actingAs($this->formateur)
-            ->test(\App\Livewire\LoopProgressionCard::class, ['loop' => $this->loop])
+        Livewire::actingAs($this->formateur)
+            ->test(LoopProgressionCard::class, ['loop' => $this->loop])
             ->set('face', 'everyone')
             ->call('toggleCell', $m->id, $this->stagiaire->id)
             ->assertSee('Un travail')
@@ -743,8 +749,6 @@ class TASK1099CourseProgressTest extends TestCase
     }
 
     // ── Cloisonnement ───────────────────────────────────────────────────────
-
-
 
     public function test_every_progress_row_carries_its_organization(): void
     {

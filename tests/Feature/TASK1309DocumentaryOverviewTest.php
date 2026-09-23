@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Ai\Agents\LoopKnowledgeAgent;
 use App\Ai\CapabilityRegistry;
 use App\Ai\Context\ContextBuilder;
+use App\Ai\Context\ContexteBorne;
 use App\Ai\Context\DocumentaryQuestionShape;
 use App\Ai\Context\DossierManifestSource;
 use App\Ai\Context\DossierRetrievalSource;
@@ -14,13 +15,17 @@ use App\Models\Dossier;
 use App\Models\DossierChunk;
 use App\Models\DossierFile;
 use App\Models\Loop;
+use App\Models\LoopMessage;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
+use App\Services\Dossiers\DossierChunkEmbeddingService;
+use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
 use App\Services\LoopService;
 use App\Support\Ai\AiCorrelation;
+use App\Support\Ai\AiEconomicGuard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -414,7 +419,7 @@ class TASK1309DocumentaryOverviewTest extends TestCase
         $this->assertSame([], $answer->sources, 'aucune source n\'a soutenu d\'affirmation : aucune n\'est presentee comme utilisee');
         $this->assertNotEmpty($answer->consulted, 'ce qui a ete consulte reste disponible, sous son vrai nom');
 
-        $message = \App\Models\LoopMessage::query()->where('type', 'ai')->sole();
+        $message = LoopMessage::query()->where('type', 'ai')->sole();
         $this->assertSame([], $message->metadata['sources']);
     }
 
@@ -433,7 +438,7 @@ class TASK1309DocumentaryOverviewTest extends TestCase
 
         app(LoopKnowledgeAnswerService::class)->answer($this->loop, $this->member, 'Que dit le manifeste sur le role de l IA ?');
 
-        $message = \App\Models\LoopMessage::query()->where('type', 'ai')->sole();
+        $message = LoopMessage::query()->where('type', 'ai')->sole();
         $this->assertSame([], $message->metadata['sources'], 'rien n\'est cite : rien n\'est « utilise »');
         $this->assertNotEmpty($message->metadata['consulted'], 'ce qui a ete LU reste verifiable');
 
@@ -467,7 +472,7 @@ class TASK1309DocumentaryOverviewTest extends TestCase
 
         app(LoopKnowledgeAnswerService::class)->answer($this->loop, $this->member, 'Que dit le manifeste sur le role de l IA ?');
 
-        $message = \App\Models\LoopMessage::query()->where('type', 'ai')->sole();
+        $message = LoopMessage::query()->where('type', 'ai')->sole();
         $this->assertSame(['S1'], array_column($message->metadata['sources'], 'ref'));
         $this->assertArrayNotHasKey('consulted', $message->metadata);
 
@@ -544,9 +549,9 @@ class TASK1309DocumentaryOverviewTest extends TestCase
     public function test_representative_chunks_are_the_opening_of_each_document_and_stay_deterministic(): void
     {
         $service = new DossierSemanticSearchService(
-            app(\App\Services\Dossiers\DossierSemanticSearchGate::class),
-            app(\App\Services\Dossiers\DossierChunkEmbeddingService::class),
-            app(\App\Support\Ai\AiEconomicGuard::class),
+            app(DossierSemanticSearchGate::class),
+            app(DossierChunkEmbeddingService::class),
+            app(AiEconomicGuard::class),
         );
 
         $first = $service->representativeChunksAcrossDossiers($this->organization->id, [$this->dossier->id], 6);
@@ -569,9 +574,9 @@ class TASK1309DocumentaryOverviewTest extends TestCase
         $this->indexDocument('secret-org', 'SECRET-T1309-OTHER-ORG.md', 'SECRET-T1309-OTHER-ORG', $foreignDossier, $this->otherOrganization, $this->stranger);
 
         $service = new DossierSemanticSearchService(
-            app(\App\Services\Dossiers\DossierSemanticSearchGate::class),
-            app(\App\Services\Dossiers\DossierChunkEmbeddingService::class),
-            app(\App\Support\Ai\AiEconomicGuard::class),
+            app(DossierSemanticSearchGate::class),
+            app(DossierChunkEmbeddingService::class),
+            app(AiEconomicGuard::class),
         );
 
         // Meme en PASSANT l'identifiant du Dossier etranger, le tenant de la
@@ -640,7 +645,7 @@ class TASK1309DocumentaryOverviewTest extends TestCase
         );
     }
 
-    private function retrievalBorne(string $question): \App\Ai\Context\ContexteBorne
+    private function retrievalBorne(string $question): ContexteBorne
     {
         return app(ContextBuilder::class)->build(
             $this->contexte($question),
@@ -655,7 +660,7 @@ class TASK1309DocumentaryOverviewTest extends TestCase
     }
 
     /** @return list<array<string, mixed>> */
-    private function retrievalOnly(\App\Ai\Context\ContexteBorne $borne): array
+    private function retrievalOnly(ContexteBorne $borne): array
     {
         return $borne->provenanceFor(DossierRetrievalSource::NAME);
     }

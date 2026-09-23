@@ -13,8 +13,8 @@ use App\Services\Loops\LoopJournalService;
 use App\Services\LoopService;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
@@ -362,7 +362,6 @@ class TASK1104LoopJournalTest extends TestCase
             ->assertSee(e(__('loops.cards.journal.no_access')), false);
     }
 
-
     // ── Ce que la revue hostile a trouve ────────────────────────────────────
 
     public function test_a_member_cannot_rewrite_someone_elses_entry_through_editing_id(): void
@@ -418,7 +417,7 @@ class TASK1104LoopJournalTest extends TestCase
     {
         // L'ecran disait « pas d'acces » et la base enregistrait quand meme :
         // `authorizeWrite()` ne consultait que `canWrite()`.
-        \App\Models\LoopCard::where('loop_id', $this->loop->id)
+        LoopCard::where('loop_id', $this->loop->id)
             ->where('card_key', 'core.journal')
             ->update(['enabled' => false]);
 
@@ -463,7 +462,7 @@ class TASK1104LoopJournalTest extends TestCase
 
         // La garde du service est un verrou sur une ligne **inexistante** :
         // elle ne serialise rien. C'est la base qui tient l'invariant.
-        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+        $this->expectException(UniqueConstraintViolationException::class);
 
         LoopJournalEntry::create([
             'organization_id' => $this->org->id,
@@ -481,7 +480,7 @@ class TASK1104LoopJournalTest extends TestCase
         // Sans ce controle, le Journal devenait une porte laterale sur la
         // conversation. La matrice etant administrable, la fuite est un reglage
         // de distance.
-        \App\Models\LoopCard::where('loop_id', $this->loop->id)
+        LoopCard::where('loop_id', $this->loop->id)
             ->where('card_key', 'core.ai_summary')
             ->delete();
 
@@ -493,7 +492,6 @@ class TASK1104LoopJournalTest extends TestCase
     }
 
     // ── Cloisonnement ───────────────────────────────────────────────────────
-
 
     public function test_an_entry_of_another_loop_is_never_reachable(): void
     {

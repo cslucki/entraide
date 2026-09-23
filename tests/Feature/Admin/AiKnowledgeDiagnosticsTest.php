@@ -7,7 +7,6 @@ use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierBlogPost;
 use App\Models\DossierChunk;
-use App\Models\DossierFile;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\Organization;

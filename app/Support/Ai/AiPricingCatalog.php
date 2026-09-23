@@ -2,13 +2,21 @@
 
 namespace App\Support\Ai;
 
+use App\Support\Ai\Pricing\DynamicPricingSource;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Lecture du catalogue tarifaire IA (TASK-1132 / IA P1-2).
  *
- * Source unique : `config/ai_pricing.php`, configuration versionnee. Aucune
- * table metier, aucun quatrieme registre, aucun appel reseau.
+ * Source principale : `config/ai_pricing.php`, configuration versionnee.
+ * Aucun quatrieme registre, aucun appel reseau depuis ce lecteur.
+ *
+ * TASK-1617 : une source RESOLUE A L'APPEL (`DynamicPricingSource`) peut etre
+ * liee au conteneur, et n'est consultee que la ou la configuration versionnee
+ * n'a rien dit. Elle sert les modeles gratuits d'OpenRouter, dont la gratuite
+ * peut cesser sans redeploiement. Elle ne calcule aucun cout : elle propose
+ * une entree, que ce lecteur valide comme toutes les autres. Ce catalogue
+ * reste donc l'autorite UNIQUE de tarification.
  *
  * Garantie principale : ce lecteur ne renvoie JAMAIS 0 silencieusement. Un
  * couple provider + modele absent, mal declare, ou dont l'usage n'a pas ete
@@ -78,6 +86,40 @@ final class AiPricingCatalog
     }
 
     /**
+     * Taux du catalogue STATIQUE seul (`config/ai_pricing.php`), sans
+     * consulter ni la source dynamique ni les overrides. (TASK-1622)
+     *
+     * C'est le contrat du mode « Payant approuve » : un modele payant n'est
+     * autorisable que si son tarif figure au releve statique, verifie par un
+     * humain. La source dynamique porte des preuves de GRATUITE — la laisser
+     * repondre ici permettrait a un slug partage entre une ligne gratuite et
+     * une ligne payante de se faire chiffrer 0.
+     *
+     * @return array{input_per_1m: float, output_per_1m: float, free: bool}|null
+     */
+    public static function staticRateFor(?string $provider, ?string $model): ?array
+    {
+        $providerKey = self::normalizeKey($provider);
+
+        if ($providerKey === null) {
+            return null;
+        }
+
+        $models = config('ai_pricing.models.'.$providerKey);
+        $modelKey = self::normalizeKey($model);
+
+        // Correspondance EXACTE uniquement — jamais le wildcard `*` : un
+        // tarif generique de provider ne vaut pas approbation d'UN modele.
+        // Et absent n'est pas invalide : ne pas faire logguer une
+        // « coquille » a `validate()` pour un slug simplement inconnu.
+        if (! is_array($models) || $modelKey === null || ! array_key_exists($modelKey, $models)) {
+            return null;
+        }
+
+        return self::validate($models[$modelKey], $providerKey, $model);
+    }
+
+    /**
      * Résout le tarif ET la raison d'un échec, afin qu'un diagnostic distingue
      * « personne n'a déclaré ce modèle » de « l'entrée est inexploitable ».
      * Les deux mènent au même verdict prudent, mais pas au même correctif.
@@ -101,6 +143,29 @@ final class AiPricingCatalog
         $entry = self::entryFor($providerKey, self::normalizeKey($model));
 
         if ($entry === null) {
+            // TASK-1617 — la source RESOLUE A L'APPEL, consultee seulement
+            // quand la configuration versionnee n'a rien dit. Cet ordre est la
+            // regle : un tarif releve et commite prime toujours sur une source
+            // dynamique, qui ne peut donc jamais ecraser une decision de revue.
+            //
+            // Elle sert les modeles gratuits d'OpenRouter, choisis depuis un
+            // ecran et dont la gratuite peut cesser sans redeploiement. Rien
+            // n'est lu au boot : voir DynamicPricingSource pour pourquoi une
+            // fusion de configuration serait figee par `config:cache`.
+            $dynamic = self::dynamicEntryFor($providerKey, self::normalizeKey($model));
+
+            if ($dynamic !== null) {
+                $rate = self::validate($dynamic, $providerKey, $model);
+
+                // Meme validation que pour le catalogue : une source dynamique
+                // ne beneficie d'aucune indulgence. Un 0/0 sans `free`, un
+                // `free` avec un taux non nul, un taux non numerique — rejetes
+                // ici comme ailleurs.
+                return $rate === null
+                    ? ['rate' => null, 'reason' => self::REASON_INVALID_CATALOG_ENTRY]
+                    : ['rate' => $rate, 'reason' => null];
+            }
+
             $override = self::overrideFor($providerKey);
 
             if ($override !== null) {
@@ -146,6 +211,41 @@ final class AiPricingCatalog
             + ($usage->outputTokensOrZero() / 1_000_000) * $rate['output_per_1m'];
 
         return AiCost::known(round($cost, 10), AiCost::SOURCE_CATALOG_ESTIMATED);
+    }
+
+    /**
+     * Interroge la source dynamique, si une est liee au conteneur.
+     *
+     * FERME PAR DEFAUT a chaque etage : aucune source liee, une source qui
+     * leve (base injoignable, table absente pendant une migration), ou une
+     * source qui ne sait pas -> `null`, donc cout INCONNU. Jamais 0.
+     *
+     * Le `Throwable` est avale DELIBEREMENT : `cost()` est appele sur le
+     * chemin d'un appel provider deja effectue, et faire echouer la
+     * comptabilisation parce qu'une table de configuration est momentanement
+     * illisible perdrait la trace au lieu de la degrader. Un cout inconnu est
+     * une degradation HONNETE — c'est precisement ce que ce catalogue rend
+     * quand il ne sait pas.
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function dynamicEntryFor(string $providerKey, ?string $modelKey): ?array
+    {
+        if (! app()->bound(DynamicPricingSource::class)) {
+            return null;
+        }
+
+        try {
+            return app(DynamicPricingSource::class)->entryFor($providerKey, $modelKey);
+        } catch (\Throwable $e) {
+            Log::warning('ai_pricing.dynamic_source_failed', [
+                'provider' => $providerKey,
+                'model' => $modelKey,
+                'exception' => $e::class,
+            ]);
+
+            return null;
+        }
     }
 
     /**

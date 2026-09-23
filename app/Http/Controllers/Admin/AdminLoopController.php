@@ -201,9 +201,23 @@ class AdminLoopController extends Controller
 
         abort_unless($configurator->canConfigure($request->user(), $loop), 403);
 
+        // TASK-1616 — les PLUGINS, a cote des Cards et jamais confondus avec
+        // elles. `describeFor()` rend un tableau VIDE si l'Organization de la
+        // Boucle n'a pas la disponibilite : le plugin est alors absent de
+        // l'ecran, il n'y figure pas eteint.
+        $activation = app(\App\Services\Loops\LoopPluginActivation::class);
+
         return view('admin.loops.configure', [
             'loop' => $loop,
             'composition' => $configurator->describe($loop),
+            'plugins' => $activation->describeFor($loop),
+            // Blade RESERVE `$loop` : la premiere `@foreach` de la vue y ecrit
+            // `$__env->getLastLoop()`, donc `null` hors boucle. La Boucle est
+            // donc aussi servie sous un nom que Blade ne touche pas — sinon le
+            // partial recevrait `null` (lecon TASK-1585).
+            'pluginLoop' => $loop,
+            'pluginActivation' => $activation,
+            'pluginAdminScope' => true,
             // Dans la portee de la Boucle : elle seule dit quels types existent
             // ici, et sous quel mot.
             'types' => app(LoopTypeRegistry::class)->selectableFor($loop->type, $loop->organization),

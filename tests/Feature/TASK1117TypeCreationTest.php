@@ -2,9 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\CustomLoopType;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Loops\LoopTypeCreationService;
+use App\Services\LoopService;
 use App\Services\LoopTypeSettingsService;
+use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -49,9 +53,9 @@ class TASK1117TypeCreationTest extends TestCase
         return app(LoopTypeSettingsService::class);
     }
 
-    private function creation(): \App\Services\Loops\LoopTypeCreationService
+    private function creation(): LoopTypeCreationService
     {
-        return app(\App\Services\Loops\LoopTypeCreationService::class);
+        return app(LoopTypeCreationService::class);
     }
 
     private function types(): LoopTypeRegistry
@@ -248,7 +252,7 @@ class TASK1117TypeCreationTest extends TestCase
     {
         $type = $this->creation()->create($this->org, 'Parcours', null, 'training');
 
-        $loop = (new \App\Services\LoopService)->createLoop($this->membre, 'Une Boucle')->fresh();
+        $loop = (new LoopService)->createLoop($this->membre, 'Une Boucle')->fresh();
         $loop->forceFill(['type' => $type->key])->save();
 
         try {
@@ -319,7 +323,7 @@ class TASK1117TypeCreationTest extends TestCase
         // les types disponibles, et « Journal » figure deja dans le socle d'un
         // autre type : un `assertSee` serait satisfait par la pastille du
         // voisin et passerait sans rien prouver.
-        $mot = app(\App\Support\Loops\LoopCardRegistry::class)->label('core.journal');
+        $mot = app(LoopCardRegistry::class)->label('core.journal');
 
         $page = fn (): string => $this->actingAs($this->membre)
             ->get(route('organization.loops.create', ['organization' => $this->org->slug]))
@@ -344,7 +348,7 @@ class TASK1117TypeCreationTest extends TestCase
             ->post(route('admin.loop-types.store'), ['label' => 'Detourne'])
             ->assertForbidden();
 
-        $this->assertSame(0, \App\Models\CustomLoopType::query()->count());
+        $this->assertSame(0, CustomLoopType::query()->count());
     }
 
     public function test_the_screen_creates_a_type_in_the_displayed_scope(): void
@@ -359,7 +363,7 @@ class TASK1117TypeCreationTest extends TestCase
             ])
             ->assertRedirect();
 
-        $type = \App\Models\CustomLoopType::query()->firstOrFail();
+        $type = CustomLoopType::query()->firstOrFail();
 
         $this->assertSame($this->org->id, $type->organization_id);
         $this->assertSame('Parcours', $type->label);
@@ -378,7 +382,7 @@ class TASK1117TypeCreationTest extends TestCase
             ->get(route('admin.loop-types', ['scope' => $this->org->id]))
             ->viewData('types');
 
-        $cle = \App\Models\CustomLoopType::query()->value('key');
+        $cle = CustomLoopType::query()->value('key');
 
         $this->assertArrayHasKey($cle, $vue, 'le type cree n’apparait pas la ou il a ete cree');
         $this->assertSame('Parcours', $vue[$cle]['label']);
@@ -392,7 +396,7 @@ class TASK1117TypeCreationTest extends TestCase
             'label' => 'Parcours', 'based_on' => 'training', 'scope' => $this->org->id,
         ]);
 
-        $cle = \App\Models\CustomLoopType::query()->value('key');
+        $cle = CustomLoopType::query()->value('key');
 
         $this->assertArrayNotHasKey(
             $cle,
@@ -405,7 +409,7 @@ class TASK1117TypeCreationTest extends TestCase
         $admin = User::factory()->create(['is_admin' => true, 'organization_id' => $this->org->id]);
         $type = $this->creation()->create($this->org, 'Parcours', null, 'training');
 
-        $loop = (new \App\Services\LoopService)->createLoop($this->membre, 'Une Boucle')->fresh();
+        $loop = (new LoopService)->createLoop($this->membre, 'Une Boucle')->fresh();
         $loop->forceFill(['type' => $type->key])->save();
 
         $this->actingAs($admin)

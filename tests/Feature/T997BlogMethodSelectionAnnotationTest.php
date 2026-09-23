@@ -9,6 +9,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
 class T997BlogMethodSelectionAnnotationTest extends TestCase
@@ -211,7 +212,7 @@ class T997BlogMethodSelectionAnnotationTest extends TestCase
     // Deja rouge sur `develop` avant TASK-1112. Exclue du gate GitHub pour
     // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
     // n'est pas un endroit ou ranger un test qui gene.
-    #[\PHPUnit\Framework\Attributes\Group('ci-known-red')]
+    #[Group('ci-known-red')]
     public function test_edit_page_contains_selection_tool_and_source_filters_without_deferred_scope(): void
     {
         $response = $this->actingAs($this->owner)->get(route('blog.edit', $this->post));

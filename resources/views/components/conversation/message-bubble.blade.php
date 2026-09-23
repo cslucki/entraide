@@ -30,6 +30,35 @@
     // d'une couleur, d'une classe CSS ou du texte de la bulle. `null` sur toute
     // bulle humaine — il n'y a pas de badge « Humain ».
     'aiMode' => null,
+    // TASK-1619 — un libelle de badge EXPLICITE, quand le mode seul ne suffit
+    // pas a le nommer. Les « 3 assistants IA » partagent un mode (`multi_ai`)
+    // et se distinguent par leur assistant : la carte fermee ci-dessous ne
+    // peut pas le savoir, et l'elargir aurait demande d'y faire entrer une
+    // notion qui n'est pas un mode.
+    'aiModeLabel' => null,
+    // TASK-1621 — la CLE technique du role « Pour / Contre » (`aperio` /
+    // `traverse`), lue dans `metadata['assistant_key']`. Elle donne sa couleur
+    // a la bulle. Jamais deduite du libelle : celui-ci est traduit, il change
+    // de langue, et une couleur ne doit pas dependre d'une locale.
+    'aiAssistantKey' => null,
+    // TASK-1621 — le modele qui a reellement repondu (`metadata['model']`),
+    // affiche DISCRETEMENT a cote du badge. Un slug entier serait du jargon :
+    // seule la famille est rendue, sans le fournisseur ni le suffixe de
+    // palier. `null` sur toute bulle qui n'en porte pas.
+    'aiModel' => null,
+    // TASK-1621 — la reponse a-t-elle ete COUPEE ? Vient de
+    // `metadata['partial']`, ecrit par le publisher quand le modele a ete
+    // arrete par son budget de sortie ou par notre plafond de caracteres.
+    // Ne JAMAIS le deduire de la longueur du texte ou d'un point final
+    // manquant : une bulle ne doit pas diagnostiquer sa propre troncature.
+    'aiTruncated' => false,
+    // TASK-1621 — la largeur du conteneur, surchargeable.
+    //
+    // Par defaut, une bulle plafonne pour ne pas s'etaler sur tout le fil.
+    // Dans la carte de debat « Pour / Contre », elle occupe au contraire une
+    // COLONNE de grille : le plafond la raboterait a l'interieur d'un espace
+    // deja borne. Une prop, pas un refactor.
+    'widthClass' => 'max-w-[90%] sm:max-w-md md:max-w-lg',
     // TASK-1316 : l'humain qui a demande cette reponse IA — ['id' => ..., 'name' => ...],
     // lu depuis `metadata.requested_by`, JAMAIS reconstruit en analysant un texte.
     // `null` sur toute bulle qui n'est pas une reponse IA a une demande nommee.
@@ -48,17 +77,51 @@ $containerClasses = $isSent
     ? 'flex justify-end'
     : 'flex justify-start';
 
+// TASK-1621 — les bulles « Pour / Contre » ont LEUR couleur.
+//
+// Demande de recette : elles se confondaient avec les autres bulles IA, toutes
+// violettes. Le module a son identite (le teal du selecteur et du badge), et
+// ses bulles la portent : un debat se repere d'un coup d'oeil dans un fil.
+//
+// Et les DEUX roles ne partagent PAS la meme : « Pour » tire vers le vert,
+// « Contre » vers le rouge (arbitrage produit). La teinte porte donc le sens
+// du role, et le badge le nomme — l'un n'est pas la couleur de l'autre.
+//
+// La cle TECHNIQUE decide, jamais le libelle : celui-ci est traduit.
+$isPourContre = $isAi && $aiMode === 'multi_ai';
+$roleContre = $isPourContre && $aiAssistantKey === 'traverse';
+$rolePour = $isPourContre && ! $roleContre;
+
+$pourContreBubble = $roleContre
+    ? 'bg-rose-50 dark:bg-rose-950 ring-1 ring-rose-200 dark:ring-rose-800 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-sm'
+    : 'bg-emerald-50 dark:bg-emerald-950 ring-1 ring-emerald-200 dark:ring-emerald-800 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-sm';
+
 $bubbleClasses = $isSent
     ? 'bg-indigo-600 text-white rounded-2xl rounded-br-sm'
-    : ($isAi
-        ? 'bg-violet-50 dark:bg-violet-900 ring-1 ring-violet-200 dark:ring-violet-800 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-sm'
-        : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-sm');
+    : ($isPourContre
+        ? $pourContreBubble
+        : ($isAi
+            ? 'bg-violet-50 dark:bg-violet-900 ring-1 ring-violet-200 dark:ring-violet-800 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-sm'
+            : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-sm'));
 
 $nameClasses = $isSent
     ? 'text-xs font-medium text-indigo-200'
-    : ($isAi
-        ? 'text-xs font-medium text-violet-600 dark:text-violet-300'
-        : 'text-xs font-medium text-gray-500 dark:text-gray-400');
+    : ($isPourContre
+        ? ($roleContre
+            ? 'text-xs font-medium text-rose-700 dark:text-rose-300'
+            : 'text-xs font-medium text-emerald-700 dark:text-emerald-300')
+        : ($isAi
+            ? 'text-xs font-medium text-violet-600 dark:text-violet-300'
+            : 'text-xs font-medium text-gray-500 dark:text-gray-400'));
+
+// Le modele, reduit a ce qui se lit. `inclusionai/ling-3.0-flash-vl:free`
+// devient `ling-3.0-flash-vl` : le fournisseur et le palier tarifaire sont du
+// jargon d'administration, pas une information pour un membre.
+$aiModelLabel = null;
+if ($isPourContre && is_string($aiModel) && trim($aiModel) !== '') {
+    $aiModelLabel = trim(explode(':', basename(trim($aiModel)))[0]);
+    $aiModelLabel = $aiModelLabel === '' ? null : $aiModelLabel;
+}
 
 $timeClasses = $isSent
     ? 'text-indigo-200'
@@ -77,7 +140,11 @@ $aiModeLabels = [
     'rag' => __('loops.dossiers_mode_label'),
     'llm_rag' => __('loops.hybrid_mode_label'),
 ];
-$aiModeBadge = ($isAi && is_string($aiMode)) ? ($aiModeLabels[$aiMode] ?? null) : null;
+$aiModeBadge = $isAi
+    ? (is_string($aiModeLabel) && trim($aiModeLabel) !== ''
+        ? $aiModeLabel
+        : (is_string($aiMode) ? ($aiModeLabels[$aiMode] ?? null) : null))
+    : null;
 
 // Badge « mode demande » sur la bulle HUMAINE. Memes libelles que le badge de
 // la bulle IA (ia_mode_label / dossiers_mode_label / hybrid_mode_label) — le
@@ -109,9 +176,13 @@ $requestedModeBadgeClasses = $isSent
 $bottomModeBadge = $isAi ? $aiModeBadge : $requestedModeBadge;
 $bottomModeBadgeAttr = $isAi ? 'data-ai-mode' : 'data-requested-mode';
 $bottomModeBadgeAttrValue = $isAi ? $aiMode : $requestedMode;
-$bottomModeBadgeClasses = $isAi
-    ? 'bg-violet-100 text-violet-700 ring-1 ring-violet-200 dark:bg-violet-800/60 dark:text-violet-100 dark:ring-violet-700'
-    : $requestedModeBadgeClasses;
+$bottomModeBadgeClasses = $isPourContre
+    ? ($roleContre
+        ? 'bg-rose-100 text-rose-800 ring-1 ring-rose-200 dark:bg-rose-800/60 dark:text-rose-100 dark:ring-rose-700'
+        : 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-800/60 dark:text-emerald-100 dark:ring-emerald-700')
+    : ($isAi
+        ? 'bg-violet-100 text-violet-700 ring-1 ring-violet-200 dark:bg-violet-800/60 dark:text-violet-100 dark:ring-violet-700'
+        : $requestedModeBadgeClasses);
 
 $escapePlainMarkdown = static function (string $text): string {
     $text = str_replace('\\', '\\\\', $text);
@@ -205,7 +276,7 @@ $renderableBody = preg_replace_callback(
          sur deux lignes (constate en recette mobile). Ici, le pourcentage se
          resout contre le fil (pleine largeur) : une bulle courte garde sa
          ligne, une longue plafonne a 90% / md / lg. --}}
-    <div class="relative min-w-0 max-w-[90%] sm:max-w-md md:max-w-lg">
+    <div class="relative min-w-0 {{ $widthClass }}">
     <div
         class="{{ $bubbleClasses }} px-3 py-2"
         @if($showReactions && $messageId)
@@ -329,7 +400,14 @@ $renderableBody = preg_replace_callback(
         </button>
         @endif
 
-        <div x-ref="copyContent" class="min-w-0 max-w-full cursor-default overflow-hidden whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]" style="caret-color: transparent; word-break: break-word;">{!! markdown($renderableBody) !!}</div>
+        {{-- TASK-1621 — `bp-bulle-markdown` : les listes Markdown d'une bulle.
+             CommonMark emet `<ul>\n<li>...` ; `whitespace-pre-wrap` rendait
+             chaque saut de ligne SOURCE en ligne vide, et le preflight
+             Tailwind retire `list-style` — trois puces s'affichaient donc en
+             paragraphes espaces SANS marqueurs (capture Cyril, 22/09). La
+             regle vit dans app.css et redonne aux listes leurs puces et un
+             interligne compact, sans toucher au reste du texte. --}}
+        <div x-ref="copyContent" class="bp-bulle-markdown min-w-0 max-w-full cursor-default overflow-hidden whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]" style="caret-color: transparent; word-break: break-word;">{!! markdown($renderableBody) !!}</div>
 
         @if($urlPreview)
             <x-conversation.url-preview-card :preview="$urlPreview" :is-sent="$isSent" />
@@ -460,7 +538,11 @@ $renderableBody = preg_replace_callback(
             @if($bottomModeBadge)
             <span {{ $bottomModeBadgeAttr }}="{{ $bottomModeBadgeAttrValue }}"
                   @if($isAi && $subtitle) title="{{ $subtitle }}" @endif
-                  class="mr-auto inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide {{ $bottomModeBadgeClasses }}">
+                  {{-- `mr-auto` cale le groupe a gauche. Il doit etre porte par
+                       le DERNIER element du groupe : sur le badge alors qu'un
+                       modele le suit, il repousserait ce modele a droite,
+                       contre les actions. --}}
+                  class="{{ ($aiModelLabel || $aiTruncated) ? '' : 'mr-auto ' }}inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide {{ $bottomModeBadgeClasses }}">
                 <svg class="h-2.5 w-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.091-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.091L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.091 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.091ZM18.25 8.25 18 9.25l-.25-1a2.5 2.5 0 0 0-1.75-1.75L15 6.25l1-.25a2.5 2.5 0 0 0 1.75-1.75l.25-1 .25 1A2.5 2.5 0 0 0 20 6l1 .25-1 .25a2.5 2.5 0 0 0-1.75 1.75Z"/>
                 </svg>
@@ -470,6 +552,26 @@ $renderableBody = preg_replace_callback(
                      est la SEULE occurrence, il reste annonce. --}}
                 <span @if($isAi) aria-hidden="true" @endif>{{ $bottomModeBadge }}</span>
             </span>
+            @endif
+            @if($aiTruncated)
+            {{-- TASK-1621 — une reponse coupee ne se publie jamais en
+                 silence. Le badge est ambre, la famille d'avertissement deja
+                 employee par les encarts d'echec du module : le membre lit
+                 « il manque la fin », pas « quelque chose a casse ». Le bouton
+                 « Reessayer » vit dans le panneau d'etat, deja present. --}}
+            <span data-ai-truncated
+                  class="{{ $aiModelLabel ? '' : 'mr-auto ' }}inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 ring-1 ring-amber-200 dark:bg-amber-800/60 dark:text-amber-100 dark:ring-amber-700">
+                <svg class="h-2.5 w-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+                {{ __('loops.plugins_multi_ai_truncated') }}
+            </span>
+            @endif
+            @if($aiModelLabel)
+            {{-- TASK-1621 — le modele qui a repondu, a DROITE du badge.
+                 Discret a dessein : casse normale, gris, pas de fond, pas de
+                 majuscules. Il donne une garantie (ce n'est pas « une IA »
+                 anonyme) sans devenir une information technique de plus. --}}
+            <span data-ai-model="{{ $aiModel }}"
+                  class="-ml-0.5 mr-auto min-w-0 truncate text-[9px] font-normal normal-case tracking-normal text-gray-400 dark:text-gray-500">{{ $aiModelLabel }}</span>
             @endif
             @if($messageId && ($showReplyButton || $showPinButton || $showCopyButton || $showEditButton || $showDeleteButton))
             <div class="ml-auto flex items-center gap-1">

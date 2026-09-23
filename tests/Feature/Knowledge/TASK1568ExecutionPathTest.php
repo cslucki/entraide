@@ -167,11 +167,11 @@ class TASK1568ExecutionPathTest extends TestCase
 
     // ────────────────────────────── A. le vocabulaire gele
 
-    public function test_a1_dix_huit_chemins_uniques_et_bien_formes(): void
+    public function test_a1_dix_neuf_chemins_uniques_et_bien_formes(): void
     {
         $chemins = AiExecutionPath::all();
 
-        $this->assertCount(18, $chemins);
+        $this->assertCount(19, $chemins);
         $this->assertSame($chemins, array_values(array_unique($chemins)), 'deux constantes portent la meme valeur');
 
         foreach ($chemins as $chemin) {
@@ -186,13 +186,13 @@ class TASK1568ExecutionPathTest extends TestCase
         $this->assertTrue(AiExecutionPath::isKnown(AiExecutionPath::AI_SHELL_PEOPLE_SELF));
     }
 
-    public function test_a2_quatre_chemins_sont_reserves_et_quatorze_ecrits(): void
+    public function test_a2_quatre_chemins_sont_reserves_et_quinze_ecrits(): void
     {
         $reserves = AiExecutionPath::reservedForShellZeroProvider();
         $ecrits = AiExecutionPath::writtenByInteractionWriters();
 
         $this->assertCount(4, $reserves);
-        $this->assertCount(14, $ecrits);
+        $this->assertCount(15, $ecrits);
         $this->assertSame([], array_intersect($reserves, $ecrits));
         $this->assertEqualsCanonicalizing(AiExecutionPath::all(), [...$reserves, ...$ecrits]);
 
@@ -257,6 +257,11 @@ class TASK1568ExecutionPathTest extends TestCase
         AiExecutionPath::LOOP_CHAT_LEGACY_ASK => 'executed',
         AiExecutionPath::LOOP_CHAT_LEGACY_ANSWER => 'executed',
         AiExecutionPath::LOOP_CONTROLLER_KNOWLEDGE_JSON => 'executed',
+        // TASK-1621 — le module « Pour / Contre » a REMPLACE les 3 assistants
+        // et ne lit plus rien de la Boucle : il repond depuis les
+        // connaissances generales du modele. Le Context Builder est donc
+        // BYPASSE, avec le meme code que le mode `ia` du composeur.
+        AiExecutionPath::LOOP_CHAT_MULTI_AI => 'executed',
         AiExecutionPath::AI_SHELL_SELF_KNOWLEDGE => 'not_applicable',
         AiExecutionPath::AI_SHELL_DOSSIER => 'bypassed',
         AiExecutionPath::AI_SHELL_ARTICLE => 'bypassed',
@@ -283,6 +288,11 @@ class TASK1568ExecutionPathTest extends TestCase
         AiExecutionPath::LOOP_CHAT_LEGACY_ASK => 'not_applicable',
         AiExecutionPath::LOOP_CHAT_LEGACY_ANSWER => 'not_applicable',
         AiExecutionPath::LOOP_CONTROLLER_KNOWLEDGE_JSON => 'executed',
+        // TASK-1619 — ce chemin n'a AUCUN etage d'historique : la conversation
+        // lui parvient par `loop.messages`, en contexte, et il n'y a pas de
+        // chaine de reply a remonter. `not_applicable` est une mesure, pas un
+        // oubli — et TASK-1621 ne l'a pas changee.
+        AiExecutionPath::LOOP_CHAT_MULTI_AI => 'not_applicable',
         AiExecutionPath::AI_SHELL_DOSSIER => 'executed',
         AiExecutionPath::AI_SHELL_ARTICLE => 'executed',
         AiExecutionPath::AI_SHELL_CONTINUATION => 'executed',
@@ -293,13 +303,17 @@ class TASK1568ExecutionPathTest extends TestCase
         AiExecutionPath::DOSSIER_PAGE_INSIGHTS => 'not_applicable',
     ];
 
-    public function test_a4_le_contrat_context_builder_couvre_les_18_chemins_en_6_8_4(): void
+    public function test_a4_le_contrat_context_builder_couvre_les_19_chemins_en_7_8_4(): void
     {
         $this->assertEqualsCanonicalizing(AiExecutionPath::all(), array_keys(self::CONTEXT_BUILDER_CONTRACT));
 
         $cardinalites = array_count_values(self::CONTEXT_BUILDER_CONTRACT);
 
-        $this->assertSame(['bypassed' => 8, 'executed' => 6, 'not_applicable' => 4], [
+        // TASK-1621 — 6/9/4 -> 7/8/4 : « Pour / Contre » collecte desormais
+        // un contexte conversationnel court. Ce n'est pas un retour au RAG (la
+        // capability ne declare toujours que `loop.messages`), mais le
+        // `ContextBuilder` tourne, et le recensement doit le dire.
+        $this->assertSame(['bypassed' => 8, 'executed' => 7, 'not_applicable' => 4], [
             'bypassed' => $cardinalites['bypassed'],
             'executed' => $cardinalites['executed'],
             'not_applicable' => $cardinalites['not_applicable'],

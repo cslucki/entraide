@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Ai\MultiAssistant\AssistantOutcome;
 use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopMember;
@@ -11,18 +12,24 @@ use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\Ai\LoopKnowledgeAnswerService;
+use App\Services\Ai\LoopMultiAiOrchestrator;
+use App\Services\Ai\LoopPluginAiModels;
 use App\Services\ChatLoop\AiResponseExplanationService;
 use App\Services\ChatLoop\ChatLoopAiService;
 use App\Services\Knowledge\ClaimPatch;
 use App\Services\Knowledge\HumanClaimCorrection;
 use App\Services\Knowledge\LoopMemoryDigest;
 use App\Services\LoopMessageService;
+use App\Services\Loops\LoopAiAssistants;
 use App\Services\Loops\LoopAnswerCapitalizationService;
 use App\Services\Loops\LoopDossierAnswerService;
 use App\Services\Loops\LoopLifecycleService;
+use App\Services\Loops\LoopMultiAiPublisher;
+use App\Services\Loops\LoopPluginActivation;
 use App\Services\UrlPreviewService;
 use App\Support\Ai\AiExecutionPath;
 use App\Support\Ai\AiTurnLock;
+use App\Support\Ai\AiTurnReason;
 use App\Support\Ai\LoopAiTurnSignal;
 use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Support\Collection;
@@ -76,6 +83,64 @@ class LoopChat extends Component
      * message. Ce n'est pas un troisieme bouton : c'est les deux boutons
      * existants actifs en meme temps (voir `toggleComposerEngine()`).
      */
+    /**
+     * TASK-1619 / SLICE E — l'etat des assistants du tour EN COURS.
+     *
+     * EPHEMERE, et c'est un arbitrage produit, pas une facilite technique
+     * (MASTER, 21/09). Les reponses reussies deviennent des bulles permanentes
+     * du fil ; ce qui vit ici est ce que le fil ne doit PAS garder — « Traverse
+     * est momentanement indisponible », son bouton « Reessayer », et rien
+     * d'autre. Visible du SEUL demandeur, perdu au rechargement.
+     *
+     * Le fil est lu par tout le cercle et pour toujours. Un incident de trente
+     * secondes y resterait des mois, pour des gens qui n'ont pas pose la
+     * question.
+     *
+     * @var array<string, array{status: string, label: string, retryable: bool}>
+     */
+    public array $multiAiStates = [];
+
+    /**
+     * TASK-1622 — le membre a-t-il deja confirme qu'il accepte d'ecraser le
+     * texte en cours par la reformulation proposee ?
+     *
+     * Remis a `false` a chaque nouvelle abstention : une confirmation vaut
+     * pour CE geste, jamais pour le suivant.
+     */
+    public bool $suggestionEcrasementConfirme = false;
+
+    /**
+     * La question du tour, conservee pour « Reessayer ». Sans elle, un reessai
+     * reposerait une question vide ou obligerait le membre a la retaper.
+     */
+    public string $multiAiQuestion = '';
+
+    /**
+     * Les roles qui RESTENT a lancer pour le tour en cours. (TASK-1621)
+     *
+     * C'est le decouplage demande par MASTER : `sendMessage()` publie le
+     * message humain, remplit cette file et REND LA MAIN. Le membre voit son
+     * message tout de suite. Le blade insere alors un `wire:init` qui declenche
+     * une SECONDE requete, laquelle lance le premier role, publie sa reponse,
+     * et laisse la file plus courte — ce qui insere un nouveau `wire:init`
+     * pour le suivant.
+     *
+     * Precedent du depot : `loop-ai-summary-card.blade.php`, meme mecanisme et
+     * meme garde (« une tentative au plus, jamais de boucle »). Ici la garde
+     * est la file elle-meme : la cle est CONSOMMEE avant le moindre appel, si
+     * bien qu'un `wire:init` qui partirait deux fois ne trouve plus rien.
+     *
+     * @var list<string>
+     */
+    public array $pourContreQueue = [];
+
+    /**
+     * La bulle QUESTION deja publiee. Un reessai s'y raccroche au lieu d'en
+     * publier une seconde : le membre a demande une fois, le fil ne doit pas
+     * laisser croire qu'il a demande trois fois.
+     */
+    public ?string $multiAiQuestionMessageId = null;
+
     public string $composerMode = 'normal';
 
     /**
@@ -84,7 +149,23 @@ class LoopChat extends Component
      *
      * @var list<string>
      */
-    private const COMPOSER_MODES = ['normal', 'ia', 'dossiers', 'ia_dossiers'];
+    /**
+     * TASK-1620 — `multi_ai` rejoint les modes du composeur, et c'est la
+     * correction de fond.
+     *
+     * TASK-1619 avait fait des assistants des ACTIONS : cliquer « Demander a
+     * Aperio » lisait le composeur et generait AUSSITOT, sans que le message
+     * humain ait ete soumis. Le declencheur n'etait donc pas le meme que celui
+     * de tous les autres moteurs du composeur, et un membre pouvait voir « 3
+     * assistants IA reflechit… » sur un texte qu'il n'avait pas envoye.
+     *
+     * Le mode retablit la regle unique du composeur : on CHOISIT un moteur, on
+     * ENVOIE, et c'est l'envoi qui declenche. Rien d'autre.
+     */
+    private const COMPOSER_MODES = ['normal', 'ia', 'dossiers', 'ia_dossiers', self::MODE_MULTI_AI];
+
+    /** Le mode « Demander aux 3 IA ». EXCLUSIF : il ne se combine avec aucun autre. */
+    public const MODE_MULTI_AI = 'multi_ai';
 
     /**
      * TASK-1549 : les deux gestes de correction, et le seul endroit où cette
@@ -518,6 +599,11 @@ class LoopChat extends Component
         return match ($this->resolvedAiMode($parent)) {
             'rag' => 'dossiers',
             'llm_rag' => 'ia_dossiers',
+            // TASK-1619 — repondre a un assistant ne preselectionne AUCUN
+            // moteur du composeur : le plugin n'en est pas un, et heriter
+            // `ia` ferait partir la reponse chez un autre moteur que celui a
+            // qui le membre croit parler.
+            LoopMultiAiPublisher::AI_MODE => 'normal',
             default => 'ia',
         };
     }
@@ -537,7 +623,10 @@ class LoopChat extends Component
     {
         $mode = $message->metadata['ai_mode'] ?? null;
 
-        if (in_array($mode, ['llm', 'rag', 'llm_rag'], true)) {
+        // TASK-1619 — `multi_ai` rejoint le vocabulaire. Comme `llm_rag` en
+        // son temps, aucun message anterieur ne peut le porter : il n'a donc
+        // aucune derivation historique a prevoir.
+        if (in_array($mode, ['llm', 'rag', 'llm_rag', LoopMultiAiPublisher::AI_MODE], true)) {
             return $mode;
         }
 
@@ -550,8 +639,53 @@ class LoopChat extends Component
      * TASK-1308 : identite tenant-generique d'une bulle IA — jamais
      * « Facilitateur IA », jamais un nom d'Organization code en dur.
      */
+    /**
+     * L'identite de bulle, exposee a la VUE. (TASK-1619)
+     *
+     * Publique parce que le blade la reclame : il en portait une copie, et une
+     * copie est un correctif qui n'arrive pas a destination.
+     */
+    public function bubbleLabelFor(LoopMessage $message): string
+    {
+        return $this->aiBubbleLabel($message);
+    }
+
+    /**
+     * Le LIBELLE DU BADGE d'une bulle IA, ou `null` pour laisser la carte
+     * fermee du composant decider. (TASK-1619)
+     *
+     * Ne rend quelque chose que pour les assistants : partout ailleurs, le
+     * badge reste ce qu'il etait, et un mode inconnu continue de ne produire
+     * aucun badge plutot qu'un badge menteur (doctrine T1312).
+     */
+    public function bubbleBadgeFor(LoopMessage $message): ?string
+    {
+        $assistant = $message->metadata['assistant_key'] ?? null;
+
+        if ($message->type !== 'ai' || ! is_string($assistant)) {
+            return null;
+        }
+
+        return $this->resolvedAiMode($message) === LoopMultiAiPublisher::AI_MODE
+            ? app(LoopAiAssistants::class)->label($assistant)
+            : null;
+    }
+
     private function aiBubbleLabel(LoopMessage $message): string
     {
+        // TASK-1619 — trois assistants dans un meme fil ne se distinguent que
+        // par leur NOM. « Organization · IA » sur les trois donnerait a lire
+        // trois bulles identiques qui se contredisent poliment. L'Organization
+        // reste le locuteur — la doctrine T1308 tient, elle est seulement
+        // precisee d'un cran.
+        $assistant = $message->metadata['assistant_key'] ?? null;
+
+        if ($this->resolvedAiMode($message) === LoopMultiAiPublisher::AI_MODE && is_string($assistant)) {
+            $orgName = $this->loop->organization?->name ?? config('app.name', 'BouclePro');
+
+            return $orgName.' · '.app(LoopAiAssistants::class)->label($assistant);
+        }
+
         return $this->aiIdentity($this->resolvedAiMode($message));
     }
 
@@ -678,12 +812,28 @@ class LoopChat extends Component
                     // « IA + Dossiers » n'est pas « IA puis Dossiers », ce serait
                     // deux reponses et deux depenses.
                     'ia_dossiers' => $this->respondWithHybrid($message, $question, $user),
+                    // TASK-1620 — les 3 assistants partent d'ICI, et de nulle
+                    // part ailleurs : apres que le message humain a ete publie,
+                    // sous le meme verrou, au meme rang que les autres moteurs.
+                    self::MODE_MULTI_AI => $this->respondWithMultiAi($message, $question, $user),
                     default => null,
                 };
             }
 
             return true;
         };
+
+        // TASK-1620 — le mode 3 IA est ONE-SHOT, contrairement aux autres.
+        //
+        // IA et Dossiers restent armes d'un message a l'autre : c'est leur
+        // comportement depuis T1308 et on n'y touche pas. Trois generations
+        // par envoi, elles, ne doivent PAS se reconduire en silence — un
+        // membre qui a demande trois regards une fois n'a pas demande a en
+        // payer trois a chaque phrase. Le desarmement a lieu AVANT le tour :
+        // meme si la generation echoue, le mode ne reste pas arme.
+        if ($mode === self::MODE_MULTI_AI) {
+            $this->composerMode = 'normal';
+        }
 
         if ($mode === 'normal') {
             // Aucun moteur, aucune depense : rien a verrouiller. Un tour NORMAL
@@ -792,6 +942,411 @@ class LoopChat extends Component
         }
     }
 
+    // ────────────────────────────────────────────────────────────────────────
+    // TASK-1619 / SLICE E — les 3 assistants IA dans ChatLoop
+    // ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Le plugin est-il utilisable ICI ?
+     *
+     * `isEnabled()` reconfronte la disponibilite de l'Organization a CHAQUE
+     * lecture (garde TASK-1616) : retirer l'autorisation eteint toutes les
+     * Boucles d'un coup, sans qu'aucune vue ait a le savoir.
+     */
+    public function multiAiAvailable(): bool
+    {
+        return $this->isMember
+            && app(LoopPluginActivation::class)->isEnabled(LoopAiAssistants::PLUGIN, $this->loop);
+    }
+
+    /**
+     * Les assistants ACTIFS de cette Boucle, dans l'ordre du catalogue.
+     *
+     * Un assistant eteint n'a pas de bouton : c'est un reglage de la Boucle, et
+     * l'interface doit le refleter plutot que de proposer une action qui
+     * n'aboutira pas.
+     *
+     * @return list<array{key: string, label: string}>
+     */
+    /**
+     * Le modele qui repondra, par role. (TASK-1621)
+     *
+     * Sert la mire d'attente : « Préparation des arguments "pour"… » ne disait
+     * pas QUI prépare, et deux IA differentes se lisaient comme une seule.
+     *
+     * Le slug est reduit a sa famille — le fournisseur et le palier tarifaire
+     * sont du jargon d'administration, pas une information pour un membre.
+     * C'est le MEME abregement que dans la bulle, pour que le membre
+     * reconnaisse le meme nom d'un bout a l'autre du tour.
+     *
+     * @return array<string, string>
+     */
+    public function multiAiModelLabels(): array
+    {
+        if (! $this->multiAiAvailable()) {
+            return [];
+        }
+
+        $sortie = [];
+
+        foreach (app(LoopPluginAiModels::class)->describe() as $ligne) {
+            $slug = $ligne['model_slug'] ?? null;
+
+            if (! is_string($slug) || trim($slug) === '') {
+                continue;
+            }
+
+            $famille = trim(explode(':', basename(trim($slug)))[0]);
+
+            if ($famille !== '') {
+                $sortie[(string) $ligne['assistant_key']] = $famille;
+            }
+        }
+
+        return $sortie;
+    }
+
+    public function multiAiAssistants(): array
+    {
+        if (! $this->multiAiAvailable()) {
+            return [];
+        }
+
+        return array_values(array_map(
+            static fn (array $a): array => ['key' => (string) $a['key'], 'label' => (string) $a['label']],
+            array_filter(
+                app(LoopAiAssistants::class)->describeFor($this->loop),
+                static fn (array $a): bool => (bool) ($a['enabled'] ?? true),
+            ),
+        ));
+    }
+
+    // TASK-1620 — `canConfigureMultiAi()` et `multiAiConfigureUrl()` ont ete
+    // RETIREES d'ici. Le lien de configuration a quitte le composeur pour le
+    // menu « Gerer la Boucle » (`loops/partials/header-actions`), qui
+    // interroge directement `LoopPluginActivation::canConfigure()`. Les
+    // laisser aurait laisse deux autorites pour une meme question.
+
+    // TASK-1621 — `canSynthesiseAssistants()`, `multiAiSynthesiserLabel()` et
+    // `synthesiseAssistants()` ont ete RETIREES avec la fonctionnalite. Le
+    // module « Pour / Contre » rend deux regards ; c'est l'humain qui tranche,
+    // et plus aucune IA n'en relit une autre.
+
+    /**
+     * APRES publication du message humain : on ARME la file, on ne genere pas.
+     * (TASK-1621)
+     *
+     * C'est ici que le decouplage se joue. TASK-1620 lancait les generations
+     * dans la MEME requete que la publication : le membre ne voyait donc son
+     * propre message qu'a la fin du tour, des dizaines de secondes plus tard.
+     * On se contente desormais de noter QUOI lancer, et la requete rend la
+     * main immediatement.
+     */
+    private function respondWithMultiAi(LoopMessage $message, string $question, User $user): void
+    {
+        $this->multiAiQuestionMessageId = (string) $message->id;
+        $this->multiAiQuestion = $question;
+        $this->multiAiStates = [];
+
+        // Seuls les roles ACTIFS de cette Boucle. Un role eteint n'entre pas
+        // dans la file : une action ne contourne pas un reglage.
+        $actifs = array_column($this->multiAiAssistants(), 'key');
+
+        $this->pourContreQueue = array_values(array_filter(
+            LoopMultiAiOrchestrator::ROLES,
+            static fn (string $role): bool => in_array($role, $actifs, true),
+        ));
+    }
+
+    /**
+     * UN role de la file, sur la requete differee declenchee par le blade.
+     *
+     * La cle est retiree AVANT tout appel. Ce qui est TESTE, c'est qu'un appel
+     * de trop ne regenere rien (la file est vide, on sort). L'ordre lui-meme
+     * est une DEFENSE : si l'appel levait sans etre rattrape, la cle resterait
+     * en file et le `wire:init` suivant la relancerait — indefiniment, en
+     * facturant a chaque tour.
+     *
+     * Je n'ai pas su ecrire de test qui distingue cet ordre : `executer()`
+     * rattrape les `RuntimeException`, et fabriquer un `Throwable` qui lui
+     * echappe aurait demande de tordre le code pour le mesurer. La defense
+     * reste, sa raison est ecrite ici, et elle n'est pas comptee comme
+     * couverte.
+     */
+    public function runNextPourContre(): void
+    {
+        $role = array_shift($this->pourContreQueue);
+
+        if ($role === null) {
+            return;
+        }
+
+        $user = auth()->user();
+        $question = trim($this->multiAiQuestion);
+
+        if (! $this->canContribute($user) || ! $this->multiAiAvailable() || $question === '') {
+            $this->pourContreQueue = [];
+
+            return;
+        }
+
+        $this->executer(
+            fn () => app(LoopMultiAiOrchestrator::class)
+                ->runOne(
+                    $this->loop,
+                    $user,
+                    $question,
+                    $role,
+                    AiExecutionPath::LOOP_CHAT_MULTI_AI,
+                    // La borne haute du contexte : le message qui a declenche
+                    // le tour. POUR et CONTRE tournent dans deux requetes
+                    // differees distinctes ; en transmettant le MEME
+                    // declencheur, les deux lisent le meme instantane de la
+                    // conversation — et aucun ne relit la question, ni la
+                    // reponse de l'autre.
+                    $this->multiAiQuestionMessageId !== '' ? $this->multiAiQuestionMessageId : null,
+                ),
+            $user,
+            $question,
+            publierLaQuestion: false,
+        );
+    }
+
+    /**
+     * L'interrupteur « Pour / Contre ». (TASK-1620, renomme TASK-1621)
+     *
+     * Il ne declenche RIEN. Il choisit le moteur du PROCHAIN envoi, exactement
+     * comme les interrupteurs IA et Dossiers — aucun appel provider, aucune
+     * interaction, aucune invocation, aucun message, aucun indicateur
+     * d'attente ne doit naitre d'un clic ici.
+     *
+     * EXCLUSIF a dessein : l'activer eteint IA et Dossiers. Deux regards EN
+     * PLUS d'un moteur documentaire seraient trois generations pour un envoi,
+     * et personne ne l'a demande.
+     */
+    public function toggleMultiAiMode(): void
+    {
+        if (! $this->multiAiAvailable()) {
+            return;
+        }
+
+        $this->composerMode = $this->composerMode === self::MODE_MULTI_AI
+            ? 'normal'
+            : self::MODE_MULTI_AI;
+    }
+
+    /** Le mode est-il arme pour le prochain envoi ? */
+    public function multiAiModeActive(): bool
+    {
+        return $this->composerMode === self::MODE_MULTI_AI && $this->multiAiAvailable();
+    }
+
+    /**
+     * « Reessayer », sur clic HUMAIN.
+     *
+     * Aucun reessai automatique, jamais : un modele sature qu'on rappelle tout
+     * seul reste sature et consomme le quota de tout le monde. C'est une
+     * personne qui decide que ca vaut la peine de redemander.
+     *
+     * La question n'est pas republiee — elle est deja dans le fil.
+     */
+    public function retryAssistant(string $assistantKey): void
+    {
+        $this->lancerLesAssistants($this->multiAiQuestion, $assistantKey);
+    }
+
+    /**
+     * TASK-1622 — poser la reformulation proposee DANS LE COMPOSEUR.
+     *
+     * Ce que ce geste ne fait PAS, et c'est tout le contrat : il n'envoie
+     * rien, il ne publie rien, il ne relance aucun tour et il n'appelle aucun
+     * provider. Il prepare un texte que le membre relit, modifie s'il veut,
+     * et envoie LUI-MEME. L'IA propose, l'humain garde le dernier geste.
+     *
+     * RIEN NE VOYAGE DEPUIS LE CLIENT : aucun parametre. Le serveur relit sa
+     * propre suggestion dans l'etat du tour. C'est plus strict que la
+     * doctrine « l'index voyage, jamais le texte » (TASK-1595), puisqu'ici
+     * meme l'index reste au serveur — et il n'existe aucune bulle persistee
+     * ou relire le texte, l'abstention ne publiant rien.
+     *
+     * Le composeur deja rempli n'est jamais ecrase en silence : le premier
+     * clic demande confirmation, le second remplace.
+     */
+    public function useSuggestion(): void
+    {
+        $suggestion = $this->multiAiStates['_hors_sujet']['suggestion'] ?? null;
+
+        if (! is_string($suggestion) || trim($suggestion) === '') {
+            return;
+        }
+
+        if (trim($this->body) !== '' && ! $this->suggestionEcrasementConfirme) {
+            $this->suggestionEcrasementConfirme = true;
+
+            return;
+        }
+
+        // Un reply en cours capturerait l'envoi : la reformulation est une
+        // nouvelle question du fil. Meme ordre que `askFollowUp()`, et il
+        // n'est pas cosmetique — `cancelReply()` remet le mode a `normal`.
+        $this->cancelReply();
+        $this->composerMode = self::MODE_MULTI_AI;
+        $this->body = trim($suggestion);
+        $this->suggestionEcrasementConfirme = false;
+
+        // Le composeur est en `wire:model` DIFFERE : une ecriture serveur ne
+        // declenche ni `input` ni `message-sent`, donc ni le redimensionnement
+        // ni `hasText` — et `hasText` pilote le bouton d'envoi. Sans cet
+        // evenement, le membre lirait sa question sans pouvoir l'envoyer.
+        $this->dispatch('composer-filled');
+    }
+
+    /** Masquer un avertissement qu'on a lu. */
+    public function dismissAssistantState(string $assistantKey): void
+    {
+        unset($this->multiAiStates[$assistantKey]);
+    }
+
+    /**
+     * Le corps du reessai : UN role, jamais la file entiere.
+     *
+     * TASK-1621 — cette methode portait une branche « tous les assistants »
+     * qui appelait un `run()` disparu avec le pivot. Aucun appelant ne la
+     * prenait : elle etait morte, et elle aurait fatal-error le jour ou
+     * quelqu'un l'aurait reveillee. Le reessai est un geste humain, sur un
+     * role nomme.
+     */
+    private function lancerLesAssistants(string $question, string $assistantKey): void
+    {
+        $user = auth()->user();
+
+        if (! $this->canContribute($user) || ! $this->multiAiAvailable()) {
+            return;
+        }
+
+        if (trim($question) === '') {
+            $this->addError('body', __('loops.knowledge_question_required'));
+
+            return;
+        }
+
+        $this->executer(
+            fn () => app(LoopMultiAiOrchestrator::class)->runOne(
+                $this->loop,
+                $user,
+                $question,
+                $assistantKey,
+                AiExecutionPath::LOOP_CHAT_MULTI_AI,
+                // Meme borne que le tour initial : un reessai lit la
+                // conversation telle qu'elle etait AU MOMENT DE LA QUESTION,
+                // pas telle qu'elle est devenue depuis — sans quoi le role
+                // reessaye redirait la reponse de son voisin.
+                $this->multiAiQuestionMessageId,
+            ),
+            $user,
+            $question,
+            publierLaQuestion: false,
+        );
+    }
+
+    /**
+     * Executer un tour, publier ce qui a reussi, retenir ce qui a echoue.
+     *
+     * L'ordre compte : on PUBLIE d'abord. Un membre doit voir les reponses
+     * obtenues meme si une autre a echoue — « Demander aux 3 » n'est jamais une
+     * transaction atomique ou « une IA echoue donc tout a echoue » (MASTER).
+     */
+    private function executer(callable $tour, User $user, string $question, bool $publierLaQuestion): void
+    {
+        try {
+            $run = $tour();
+        } catch (\RuntimeException $exception) {
+            $this->addError('body', $exception->getMessage());
+
+            return;
+        }
+
+        $dejaPubliee = $publierLaQuestion ? null : $this->messageQuestion();
+
+        $publie = app(LoopMultiAiPublisher::class)
+            ->publish($this->loop, $user, $question, $run, $dejaPubliee);
+
+        if ($publie['question'] !== null) {
+            $this->multiAiQuestionMessageId = (string) $publie['question']->id;
+        }
+
+        $this->multiAiQuestion = $question;
+
+        // Les echecs, et EUX SEULS, restent a l'ecran. Une reussite efface son
+        // ancien avertissement : le reessai a abouti, il n'y a plus rien a dire.
+        //
+        // TASK-1621 — une reponse ECOURTEE compte ici comme publiee, pas comme
+        // echouee. Elle est entree dans le fil et porte son propre badge
+        // « Reponse ecourtee » ; y ajouter un encart jaune ferait DEUX
+        // signalements pour un seul defaut, dont un qui dit « n'a pas pu
+        // repondre » alors que la bulle est juste au-dessus.
+        foreach ($run->outcomes as $outcome) {
+            if ($outcome->isPublishable()) {
+                unset($this->multiAiStates[$outcome->assistantKey]);
+
+                continue;
+            }
+
+            // TASK-1621 — la question ne se prete pas a un pour / contre.
+            //
+            // POUR s'execute AVANT CONTRE : des que le premier s'abstient, le
+            // second n'a rien a faire. Vider la file evite un appel provider
+            // qui rendrait exactement le meme verdict, et un second encart qui
+            // repeterait le premier.
+            //
+            // La notice est NEUTRE et unique — elle n'est attachee a aucun
+            // role : ce n'est pas l'assistant qui a echoue, c'est la question
+            // qui n'a pas de camps.
+            if ($outcome->isNotApplicable()) {
+                $this->pourContreQueue = [];
+                $this->multiAiStates = ['_hors_sujet' => [
+                    'status' => 'not_applicable',
+                    'label' => '',
+                    'retryable' => false,
+                    // TASK-1622 — la reformulation proposee par le MEME appel.
+                    // `null` quand le modele n'a rien propose de fidele :
+                    // l'ecran demande alors une precision plutot que
+                    // d'inventer une opposition.
+                    'suggestion' => $outcome->suggestion,
+                ]];
+                $this->suggestionEcrasementConfirme = false;
+
+                continue;
+            }
+
+            $this->multiAiStates[$outcome->assistantKey] = [
+                'status' => $outcome->status === AssistantOutcome::STATUS_REFUSED
+                    ? 'refused'
+                    : ($outcome->isRetryable() ? 'rate_limited' : 'failed'),
+                'label' => app(LoopAiAssistants::class)->label($outcome->assistantKey),
+                'retryable' => $outcome->isRetryable(),
+            ];
+        }
+
+        if ($publie['bubbles'] !== []) {
+            $this->body = '';
+            $this->resetErrorBag('body');
+            $this->loadInitialMessages();
+        }
+    }
+
+    /** La bulle question du tour courant, relue DANS cette Boucle. */
+    private function messageQuestion(): ?LoopMessage
+    {
+        if ($this->multiAiQuestionMessageId === null) {
+            return null;
+        }
+
+        return LoopMessage::where('id', $this->multiAiQuestionMessageId)
+            ->where('loop_id', $this->loop->id)
+            ->first();
+    }
+
     /**
      * TASK-1595 : une question d'approfondissement devient un tour Dossiers.
      *
@@ -879,6 +1434,93 @@ class LoopChat extends Component
         $this->capitalizeDossierId = (string) $dossier->id;
         $this->capitalizeTitle = $service->suggestedTitle($message);
         $this->capitalizeContent = (string) $message->body;
+    }
+
+    /**
+     * TASK-1621 : ouvre le brouillon « Ajouter au Dossier » pour un DEBAT
+     * « Pour / Contre » entier — les deux camps dans un seul brouillon, titre
+     * derive de la question (decision Cyril 22/09).
+     *
+     * GARDE MASTER : jamais un demi-debat capitalise en silence. Si l'une des
+     * deux bulles manque — role encore en generation, echec, verdict
+     * NOT_APPLICABLE — la methode ne fait RIEN : l'UI masque le bouton dans
+     * ces etats, et une requete forgee qui l'atteindrait quand meme s'arrete
+     * ici. Une reponse ECOURTEE (PARTIAL) reste capitalisable, mais son etat
+     * est ecrit EN TOUTES LETTRES dans le brouillon : le document ne se
+     * presente jamais comme un debat complet qu'il n'est pas.
+     *
+     * Le flux existant est reutilise tel quel : memes proprietes de brouillon,
+     * meme `saveCapitalization()`, memes gardes du service — l'ancre du
+     * brouillon est la bulle POUR (une bulle IA eligible, revalidee au save).
+     * Les bulles sont relues DANS cette Boucle par `reply_to_id` : un
+     * identifiant venu du front n'assemble jamais un debat d'ailleurs.
+     */
+    public function startDebateCapitalization(string $questionMessageId, LoopAnswerCapitalizationService $service): void
+    {
+        $user = auth()->user();
+
+        if (! $this->canContribute($user)) {
+            return;
+        }
+
+        $bulles = LoopMessage::where('loop_id', $this->loop->id)
+            ->where('reply_to_id', $questionMessageId)
+            ->where('type', 'ai')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (LoopMessage $bulle): bool => ($bulle->metadata['ai_mode'] ?? null) === LoopMultiAiPublisher::AI_MODE
+                && is_string($bulle->metadata['assistant_key'] ?? null))
+            ->keyBy(fn (LoopMessage $bulle): string => $bulle->metadata['assistant_key']);
+
+        $pour = $bulles->get(LoopMultiAiOrchestrator::ROLE_POUR);
+        $contre = $bulles->get(LoopMultiAiOrchestrator::ROLE_CONTRE);
+
+        if ($pour === null || $contre === null
+            || ! $service->isCapitalizable($this->loop, $pour)
+            || ! $service->isCapitalizable($this->loop, $contre)) {
+            return;
+        }
+
+        $dossier = $service->defaultDossier($this->loop, $user);
+
+        if ($dossier === null) {
+            $this->addError('capitalizeDossierId', __('loops.capitalize_no_dossier'));
+
+            return;
+        }
+
+        $this->resetErrorBag();
+        $this->capitalizeFlash = '';
+        $this->capitalizingMessageId = $pour->id;
+        $this->capitalizeDossierId = (string) $dossier->id;
+        // `suggestedTitle()` lit `metadata['question']` en premier : sur une
+        // bulle « Pour / Contre », c'est exactement la question du debat.
+        $this->capitalizeTitle = $service->suggestedTitle($pour);
+        $this->capitalizeContent = $this->contenuDuDebat($pour, $contre);
+    }
+
+    /**
+     * Le contenu pre-rempli du brouillon de debat : POUR puis CONTRE, chaque
+     * camp sous son intitule. Un camp ecourte l'annonce dans son intitule —
+     * l'information « Reponse ecourtee » que porte le badge de la bulle ne
+     * doit pas se perdre dans le document (garde MASTER).
+     */
+    private function contenuDuDebat(LoopMessage $pour, LoopMessage $contre): string
+    {
+        $assistants = app(LoopAiAssistants::class);
+
+        $section = function (LoopMessage $bulle) use ($assistants): string {
+            $titre = mb_strtoupper($assistants->label((string) $bulle->metadata['assistant_key']));
+
+            if (($bulle->metadata['partial'] ?? null) === AiTurnReason::DEGRADED_OUTPUT_TRUNCATED) {
+                $titre .= ' — '.__('loops.plugins_multi_ai_truncated');
+            }
+
+            return $titre."\n\n".trim((string) $bulle->body);
+        };
+
+        return $section($pour)."\n\n".$section($contre);
     }
 
     /**
@@ -1724,7 +2366,11 @@ class LoopChat extends Component
 
     private function storeImage($file, string $subdirectory): string
     {
-        $img = Image::decode($file);
+        // TASK-1623 — le CONTENU, jamais le chemin. Sur un stockage
+        // temporaire distant, TemporaryUploadedFile::getPathname() rend un
+        // chemin relatif (« livewire-tmp/x.png ») qui n'existe localement
+        // nulle part. Idiome du depot, deja utilise par GenerateServiceThumbnail.
+        $img = Image::decode($file->get());
         $img->scaleDown(1200, 800);
 
         $filename = Str::uuid()->toString().'.webp';

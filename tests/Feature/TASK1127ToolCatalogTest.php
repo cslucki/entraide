@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Loop;
 use App\Models\LoopMember;
+use App\Models\LoopPoll;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Loops\LoopPresetConfigurator;
@@ -207,7 +208,7 @@ class TASK1127ToolCatalogTest extends TestCase
         $configurator = app(LoopPresetConfigurator::class);
         $configurator->enable($this->owner, $this->loop, 'core.polls');
 
-        $poll = \App\Models\LoopPoll::create([
+        $poll = LoopPoll::create([
             'loop_id' => $this->loop->id,
             'created_by' => $this->owner->id,
             'question' => 'Le contenu qui attend',

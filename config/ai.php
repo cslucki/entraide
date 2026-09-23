@@ -631,4 +631,75 @@ return [
     'usage_reference' => [
         'max_chars' => (int) env('AI_USAGE_REFERENCE_MAX_CHARS', 4000),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | ChatLoop — 3 assistants IA (TASK-1618, SLICE D)
+    |--------------------------------------------------------------------------
+    | Bornes de l'orchestration sequentielle Aperio -> Traverse -> Limen.
+    |
+    | Le MODELE n'est PAS ici, et c'est delibere : il est choisi a l'ecran
+    | /admin/loop-plugins, prouve gratuit par `LoopPluginAiModels` (TASK-1617)
+    | et sa fraicheur a une peremption. Une cle de configuration figerait ce
+    | que `config:cache` ne sait pas rafraichir.
+    |
+    | La garde economique reste celle de la plateforme : les modeles sont
+    | gratuits, donc le cout connu vaut 0.0 — mais un modele qui cesserait
+    | d'etre gratuit ne doit pas pouvoir depenser sans plafond pour autant.
+    */
+    'multi_ai' => [
+        // TASK-1621 — 900 -> 2400, sur MESURE et non sur estimation.
+        //
+        // A 900, 13 des 14 reponses « vides » s'arretaient EXACTEMENT au
+        // plafond (900 x12, 899 x1), et 12 des reponses publiees comme
+        // reussies l'atteignaient aussi — donc coupees en plein mot. Les
+        // modeles reasoning depensent ce budget en jetons de RAISONNEMENT et
+        // n'ont plus de place pour ecrire.
+        //
+        // Ce budget sert au raisonnement, PAS a rallonger la reponse : les
+        // instructions de role gardent « 3 a 5 arguments ». Si la recette
+        // montre des reponses qui terminent en `stop` bien avant 2400, la
+        // valeur redescend — la mesure decide.
+        'max_tokens' => (int) env('AI_MULTI_AI_MAX_TOKENS', 2400),
+        'temperature' => (float) env('AI_MULTI_AI_TEMPERATURE', 0.3),
+        'max_answer_chars' => (int) env('AI_MULTI_AI_MAX_ANSWER_CHARS', 3000),
+
+        // TASK-1621 — la fenetre conversationnelle de « Pour / Contre », plus
+        // etroite que le plafond global de `loop.messages` (30). Elle sert a
+        // comprendre le sujet en cours et a ne pas redire ce qui vient d'etre
+        // dit ; l'elargir transformerait le module en mini-RAG, ce qu'il a
+        // justement cesse d'etre.
+        'context_messages' => (int) env('AI_MULTI_AI_CONTEXT_MESSAGES', 10),
+
+        // La seconde borne du meme contexte, en caracteres : dix messages dont
+        // un tres long rempliraient le prompt a eux seuls.
+        'max_context_chars' => (int) env('AI_MULTI_AI_MAX_CONTEXT_CHARS', 4000),
+        'economic_guard' => [
+            'monthly_budget_usd' => (float) env('AI_MULTI_AI_MONTHLY_BUDGET_USD', 2.00),
+            'monthly_unknown_limit' => (int) env('AI_MULTI_AI_MONTHLY_UNKNOWN_LIMIT', 10),
+        ],
+
+        // TASK-1622 — la SHORTLIST des modeles PAYANTS approuvables pour
+        // « Pour / Contre » : slug OpenRouter => libelle d'ecran.
+        //
+        // PETITE ET EXPLICITE, c'est le mandat : proposer un payant est une
+        // decision de CODE (auditee ici, avec son tarif au releve
+        // `config/ai_pricing.php` — les deux vont ensemble, un slug sans
+        // tarif statique est refuse par `assignPaid()` et par la garde) ;
+        // l'APPROUVER pour un role reste une decision de SuperAdmin, tracee
+        // (`approved_at` / `approved_by`).
+        //
+        // Selection issue de l'audit du catalogue OpenRouter du 22/09/2026
+        // (TASK-1622, journal) : tres faible cout, non-reasoning — la
+        // pathologie T1621 etait un budget brule en jetons de raisonnement —
+        // bon francais attendu, profil « 3 arguments courts ». AUCUN n'est
+        // un choix par defaut : le benchmark informe, MASTER tranche.
+        'paid_model_shortlist' => [
+            'openai/gpt-4.1-nano' => 'GPT-4.1 nano (OpenAI)',
+            'mistralai/mistral-nemo' => 'Mistral Nemo 12B',
+            'mistralai/ministral-8b-2512' => 'Ministral 3 8B (12/2025)',
+            'amazon/nova-micro-v1' => 'Amazon Nova Micro',
+            'qwen/qwen3-30b-a3b-instruct-2507' => 'Qwen3 30B-A3B Instruct',
+        ],
+    ],
 ];

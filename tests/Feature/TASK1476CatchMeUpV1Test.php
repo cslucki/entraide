@@ -11,6 +11,7 @@ use App\Models\LoopMessage;
 use App\Models\LoopRoadmapItem;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\Ai\AiFabContext;
 use App\Support\Loops\LoopCatchUpDigest;
 use App\Support\Loops\LoopCatchUpWindow;
 use Carbon\CarbonImmutable;
@@ -479,7 +480,7 @@ class TASK1476CatchMeUpV1Test extends TestCase
      */
     public function test_the_catch_up_page_does_not_bring_the_global_shell_back(): void
     {
-        $this->assertContains('organization.loops.catch-up', \App\Support\Ai\AiFabContext::LOOP_SURFACE_ROUTES);
+        $this->assertContains('organization.loops.catch-up', AiFabContext::LOOP_SURFACE_ROUTES);
 
         $this->actingAs($this->member)->get($this->url())
             ->assertOk()

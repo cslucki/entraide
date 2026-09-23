@@ -95,7 +95,7 @@ class TASK1511SchedulerIndexingTest extends TestCase
         $command = (string) $this->indexingEvent()->command;
 
         $this->assertStringContainsString('--stop-when-empty', $command, 'le worker doit sortir des que la file est vide');
-        $this->assertStringNotContainsString('--stop-when-empty=', $command, "Symfony refuse une valeur sur ce drapeau : la commande echouerait chaque minute, en silence");
+        $this->assertStringNotContainsString('--stop-when-empty=', $command, 'Symfony refuse une valeur sur ce drapeau : la commande echouerait chaque minute, en silence');
         $this->assertSame(1, preg_match('/--max-time=(\d+)/', $command, $m), 'une borne dure de temps est exigee');
         $this->assertGreaterThan(0, (int) $m[1]);
         $this->assertLessThanOrEqual(60, (int) $m[1], 'la borne doit tenir dans la minute du cron');

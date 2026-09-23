@@ -57,10 +57,15 @@
              gabarit de carte, meme route composeCards(), memes regles
              (blockers, protection) que la grille juste en dessous — aucune
              deuxieme logique metier, aucun cas particulier "Resume IA". --}}
-        @if($composition['chat_actions'] !== [])
+        @if($composition['chat_actions'] !== [] || ($plugins ?? []) !== [])
             <section class="mb-6 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
                 <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('loops.preset_chat_title') }}</p>
                 <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('loops.preset_chat_hint') }}</p>
+
+                {{-- TASK-1616 — les PLUGINS, dans la meme section que « Resume IA »
+                     mais jamais dans la meme grille : ce ne sont pas des Cards, ils
+                     ne viennent d'aucun socle et ne se composent pas. --}}
+                @include('loops.partials.plugin-actions', ['orgParam' => null])
 
                 <div class="mt-3 grid gap-3 sm:grid-cols-3">
                     @foreach($composition['chat_actions'] as $card)

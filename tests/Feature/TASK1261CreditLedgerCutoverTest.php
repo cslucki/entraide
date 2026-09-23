@@ -84,10 +84,19 @@ class TASK1261CreditLedgerCutoverTest extends TestCase
         // plafond plateforme) mais n'est PAS creditable : un visiteur n'a pas
         // de User, donc pas de credit personnel (cadre Cyril 07/09 : jamais de
         // faux User). 15 pour la garde, 14 pour le credit.
+        // TASK-1617 (SLICE C) : DEUXIEME re-divergence, meme forme et meme
+        // raison de fond — `loop_multi_ai` (plugin « 3 assistants IA ») nait
+        // sous l'autorite du ledger, mais n'est PAS creditable : arbitrage
+        // produit du 21/09, les generations sont integralement tracees et ne
+        // consomment aucun credit membre PENDANT L'EXPERIMENTATION. Une regle
+        // future (« Demander aux 3 = 1 credit ») sera une TASK distincte.
+        // 16 pour la garde, 14 pour le credit.
         $guardProcesses = AiEconomicGuard::ledgerAuthorityProcesses();
-        $this->assertCount(15, $guardProcesses);
+        $this->assertCount(16, $guardProcesses);
         $this->assertContains('guest_shell', $guardProcesses);
         $this->assertNotContains('guest_shell', OrganizationAiEconomicUsage::CREDITABLE_PROCESSES);
+        $this->assertContains('loop_multi_ai', $guardProcesses);
+        $this->assertNotContains('loop_multi_ai', OrganizationAiEconomicUsage::CREDITABLE_PROCESSES);
         $this->assertContains('member_profile.loop_agent_reply', $guardProcesses);
         $this->assertContains('member_profile.agent_visitor_chat', $guardProcesses);
         // Entres au mapping par T1291 (garde d'appartenance fail-closed,

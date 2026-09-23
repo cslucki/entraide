@@ -31,6 +31,15 @@ class AiTurnWritersWriteATurnTest extends TestCase
         'app/Services/Dossiers/DossierInsightsService.php',
         'app/Services/Ai/ShellGeneralAnswerService.php',
         'app/Services/Ai/ClarifyUserHelpRequestService.php',
+        // TASK-1618 / SLICE D — l'orchestration « 3 assistants IA ». Classe
+        // P0 et non « hors P0 » bien que le plugin soit experimental : c'est
+        // un chemin GENERATIF sur une surface ChatLoop (ses tours s'ecrivent
+        // `surface => loop_chat`), et l'inspection doit pouvoir expliquer
+        // chacun de ses trois tours comme elle explique les autres. Le ranger
+        // hors P0 aurait fait de son statut experimental une dispense de
+        // tracabilite — or c'est l'inverse : une capacite experimentale est
+        // celle qu'on a le plus besoin de pouvoir relire.
+        'app/Services/Ai/LoopMultiAiOrchestrator.php',
     ];
 
     /**
