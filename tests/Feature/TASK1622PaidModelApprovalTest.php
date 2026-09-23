@@ -440,6 +440,45 @@ class TASK1622PaidModelApprovalTest extends TestCase
             'si ce process devient creditable, il faut D\'ABORD distinguer NOT_APPLICABLE au ledger');
     }
 
+    public function test_aucune_sortie_du_moteur_n_ecrit_hors_du_domaine(): void
+    {
+        // PIN DE SEMANTIQUE (arbitrage MASTER, 23/09). Le domaine du ledger
+        // est FERME : `success | failed`, declare par la migration creatrice
+        // (TASK-1220). La colonne etant un `varchar(10)` sans enum, rien ne
+        // l'impose structurellement — ce test est la seule barriere.
+        //
+        // Il exerce les TROIS sorties qui ecrivent une ligne, car pinner la
+        // seule sortie « succes normal » laissait passer la regression
+        // (mesure du 23/09, deux fois).
+        app(LoopPluginAiModels::class)->assignPaid('aperio', self::PAYE, $this->superAdmin);
+
+        $sorties = [
+            // succes plein
+            fn () => new TextResponse('Reponse complete', new Usage(1_000, 500), new Meta('openrouter', self::PAYE)),
+            // abstention : l'appel est parti et il est paye
+            fn () => new TextResponse(LoopMultiAiOrchestrator::MARQUEUR_HORS_SUJET, new Usage(1_000, 5), new Meta('openrouter', self::PAYE)),
+            // reponse vide : le seul cas `failed` qui passe par ce chemin
+            fn () => new TextResponse('', new Usage(1_000, 0), new Meta('openrouter', self::PAYE)),
+        ];
+
+        foreach ($sorties as $reponse) {
+            LoopMultiAiAgent::fake(fn (string $prompt, $attachments, $provider, string $model) => $reponse());
+
+            app(LoopMultiAiOrchestrator::class)->runOne(
+                $this->loop, $this->membre, 'Faut-il tout automatiser ?', LoopMultiAiOrchestrator::ROLE_POUR,
+            );
+        }
+
+        $ecrits = AiProviderInvocation::query()->pluck('status')->unique()->sort()->values()->all();
+
+        $this->assertSame(3, AiProviderInvocation::query()->count(), 'les trois sorties ont bien ecrit');
+        $this->assertSame(
+            [AiProviderInvocation::STATUS_FAILED, AiProviderInvocation::STATUS_SUCCESS],
+            $ecrits,
+            'le domaine du ledger est ferme : success | failed, jamais un troisieme mot',
+        );
+    }
+
     // ── 4. LA ROUTE ET L'ECRAN ──────────────────────────────────────────────
 
     public function test_le_superadmin_approuve_un_payant_par_la_route(): void
