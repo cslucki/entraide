@@ -60,6 +60,52 @@
             </div>
         @endif
 
+        @if($shellIsConcerned)
+            {{-- TASK-1628 — quand la racine aboutit au Shell Welcome, l'ecran le
+                 DIT, et renvoie a l'ecran qui en a la responsabilite.
+
+                 Volontairement synthetique : etat, mode d'affichage, un lien.
+                 Ni modele, ni provider, ni budget, ni retention, ni statistiques
+                 de cout — `/admin/homepage` reste un cockpit, et dupliquer
+                 `shell-welcome-config` ici creerait un second endroit ou lire
+                 une verite qui n'y vit pas.
+
+                 Les libelles de mode sont ceux de `shell-welcome-config`
+                 (`guest_shell_display_mode_*`), reutilises et non recopies. --}}
+            @php
+                $shellModeLabels = [
+                    \App\Support\GuestShell\GuestShellDisplayMode::OVERLAY => __('admin.guest_shell_display_mode_overlay'),
+                    \App\Support\GuestShell\GuestShellDisplayMode::SHELL_FIRST => __('admin.guest_shell_display_mode_shell_first'),
+                    \App\Support\GuestShell\GuestShellDisplayMode::SHELL_FIRST_RAIL => __('admin.guest_shell_display_mode_shell_first_rail'),
+                ];
+            @endphp
+            <div class="mb-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-5 py-4" data-root-destination-shell>
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">{{ __('admin.root_destination_shell_title') }}</p>
+                        <p class="mt-1 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            @if($shellEnabled)
+                                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-200" data-root-destination-shell-state="active">{{ __('admin.root_destination_shell_active') }}</span>
+                            @else
+                                <span class="inline-flex items-center gap-1 rounded-full bg-gray-200 dark:bg-gray-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-600 dark:text-gray-300" data-root-destination-shell-state="inactive">{{ __('admin.root_destination_shell_inactive') }}</span>
+                            @endif
+                        </p>
+                        @if($shellEnabled && isset($shellModeLabels[$shellDisplayMode]))
+                            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400" data-root-destination-shell-mode="{{ $shellDisplayMode }}">
+                                {{ __('admin.root_destination_shell_mode_label') }} : {{ $shellModeLabels[$shellDisplayMode] }}
+                            </p>
+                        @endif
+                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('admin.root_destination_shell_hint') }}</p>
+                    </div>
+                    <a href="{{ route('admin.shell-welcome-config') }}"
+                       class="inline-flex items-center gap-2 min-h-[40px] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                       data-root-destination-shell-configure>
+                        {{ __('admin.root_destination_shell_configure') }}
+                    </a>
+                </div>
+            </div>
+        @endif
+
         <form method="POST" action="{{ route('admin.homepage.update') }}" data-root-destination-form>
             @csrf
             @method('PUT')
@@ -68,7 +114,15 @@
                 @foreach($modes as $mode)
                     @php
                         $meta = $labels[$mode];
-                        $isCurrent = $current === $mode;
+                        // TASK-1628 — deux notions distinctes, et c'est le fond
+                        // du defaut corrige : `$isSelected` coche la case (le
+                        // choix STOCKE), `$isServed` pose le badge
+                        // « Actuellement servi » (ce que `GET /` rend VRAIMENT,
+                        // repli historique compris). Les confondre faisait
+                        // annoncer « Accueil traditionnel » a un ecran dont la
+                        // racine servait le Shell.
+                        $isSelected = $current === $mode;
+                        $isServed = $served === $mode;
                         $needsAuth = \App\Support\Homepage\RootDestination::requiresAuthentication($mode);
                     @endphp
                     {{-- TASK-1508 — l'etat COCHE doit se voir. La selection etait
@@ -87,8 +141,8 @@
                                   border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600
                                   has-[:checked]:border-indigo-600 dark:has-[:checked]:border-indigo-500
                                   has-[:checked]:bg-indigo-50 dark:has-[:checked]:bg-indigo-900/20 has-[:checked]:shadow-sm"
-                           data-root-destination-option="{{ $mode }}" @if($isCurrent) data-current="true" @endif>
-                        <input type="radio" name="root_destination" value="{{ $mode }}" class="sr-only peer" @checked($isCurrent)>
+                           data-root-destination-option="{{ $mode }}"@if($isServed) data-current="true"@endif @if($isSelected) data-selected="true"@endif>
+                        <input type="radio" name="root_destination" value="{{ $mode }}" class="sr-only peer" @checked($isSelected)>
 
                         <div class="flex items-start justify-between gap-2">
                             <svg class="w-5 h-5 flex-shrink-0 text-gray-400 dark:text-gray-500 group-has-[:checked]:text-indigo-600 dark:group-has-[:checked]:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -99,7 +153,7 @@
                                      ce que la racine sert VRAIMENT, tant que rien n'est
                                      enregistre. Les deux ne disent pas la meme chose. --}}
                                 <span class="hidden group-has-[:checked]:inline-flex rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white" data-root-destination-selected>{{ __('admin.root_destination_selected') }}</span>
-                                @if($isCurrent)
+                                @if($isServed)
                                     <span class="rounded-full bg-gray-200 dark:bg-gray-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-700 dark:text-gray-200" data-root-destination-current>{{ __('admin.root_destination_current') }}</span>
                                 @endif
                             </div>
