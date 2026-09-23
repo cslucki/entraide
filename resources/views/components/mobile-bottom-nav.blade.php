@@ -18,6 +18,20 @@
      (`bottom-20`) et le FAB IA (`bottom-36`). Elle ne change pas. --}}
 <nav data-bp-mobile-nav
      x-data="{
+         indice: false,
+         minuteur: null,
+         resteADroite() {
+             const piste = this.$refs.piste;
+             return piste ? (piste.scrollWidth - piste.clientWidth - piste.scrollLeft) > 4 : false;
+         },
+         montrerIndice() {
+             {{-- Au bout de la bande il n'y a plus rien a montrer : une fleche
+                  qui pointe vers du vide est un mensonge poli. --}}
+             if (! this.resteADroite()) { this.indice = false; return; }
+             this.indice = true;
+             clearTimeout(this.minuteur);
+             this.minuteur = setTimeout(() => { this.indice = false; }, 1400);
+         },
          centrerActif() {
              const actif = this.$refs.piste?.querySelector('[data-bp-nav-active=\'true\']');
              if (! actif) { return; }
@@ -35,6 +49,8 @@
          clic et un navigateur qui l'ignore rend simplement une bande nette. --}}
     <div x-ref="piste"
          data-bp-mobile-nav-track
+         @pointerdown="montrerIndice()"
+         @scroll.passive="montrerIndice()"
          class="flex items-center h-16 px-2 gap-1 overflow-x-auto overscroll-x-contain snap-x snap-proximity scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,transparent,black_1.25rem,black_calc(100%-1.25rem),transparent)]">
         @php
             $currentRoute = request()->route()?->getName() ?? '';
@@ -51,26 +67,27 @@
                 return route($rootRoute);
             };
 
-            // TASK-1625 — l'icone de « Boucles ».
+            // TASK-1625 — l'icone de « Boucles » EST le logo.
             //
-            // Elle montrait une FEUILLE DE PAPIER (document-text), qui ne dit
+            // Elle montrait une feuille de papier (document-text), qui ne dit
             // ni le groupe, ni le cercle, ni la collaboration. Le rail desktop,
             // lui, montre une bulle de chat ronde — indiscernable de
             // « Messagerie » a 24 px.
             //
-            // Trois noeuds relies en anneau ferme : le cercle et le collectif
-            // se lisent d'un coup, et la forme ne ressemble a aucune autre de
-            // la barre (ni bulle, ni barres, ni dossier). C'est l'idiome du
-            // depot — `loops/card-icon.blade.php` dessine sa Roadmap
-            // exactement ainsi, en points relies — et aucune bibliotheque
-            // n'est ajoutee pour autant.
-            $iconeBoucles = 'M12 3.75a1.75 1.75 0 1 1 0 3.5 1.75 1.75 0 0 1 0-3.5Z'
-                .' M5.25 15.5a1.75 1.75 0 1 1 0 3.5 1.75 1.75 0 0 1 0-3.5Z'
-                .' M18.75 15.5a1.75 1.75 0 1 1 0 3.5 1.75 1.75 0 0 1 0-3.5Z'
-                .' M10.7 6.6 6.6 14.1 M13.3 6.6l4.1 7.5 M7.5 17.25h9';
+            // La marque BouclePro est une ROSETTE : huit petits cercles poses
+            // en anneau, presque tangents, autour d'un vide central. C'est
+            // exactement ce trace, reduit a 24 px — pas une evocation, la
+            // forme elle-meme. Huit cercles de rayon 2,55 sur un anneau de
+            // rayon 7,15, generes par leurs coordonnees plutot qu'a l'oeil.
+            //
+            // Le trait descend a 1,1 POUR CETTE ICONE SEULE : a 1,8 — la
+            // valeur des autres — les huit cercles se rejoignent en bouillie,
+            // et la rosette redevient un disque. C'est la seule raison pour
+            // laquelle un onglet peut porter sa propre epaisseur.
+            $iconeBoucles = 'M9.45 4.85a2.55 2.55 0 1 0 5.10 0a2.55 2.55 0 1 0 -5.10 0M14.51 6.94a2.55 2.55 0 1 0 5.10 0a2.55 2.55 0 1 0 -5.10 0M16.60 12.00a2.55 2.55 0 1 0 5.10 0a2.55 2.55 0 1 0 -5.10 0M14.51 17.06a2.55 2.55 0 1 0 5.10 0a2.55 2.55 0 1 0 -5.10 0M9.45 19.15a2.55 2.55 0 1 0 5.10 0a2.55 2.55 0 1 0 -5.10 0M4.39 17.06a2.55 2.55 0 1 0 5.10 0a2.55 2.55 0 1 0 -5.10 0M2.30 12.00a2.55 2.55 0 1 0 5.10 0a2.55 2.55 0 1 0 -5.10 0M4.39 6.94a2.55 2.55 0 1 0 5.10 0a2.55 2.55 0 1 0 -5.10 0';
 
             $tabs = auth()->check() ? [
-                ['key' => 'loops', 'url' => $tabUrl('loops.index', 'organization.loops.index'), 'active' => 'loops', 'label' => __('navigation.loops'), 'icon' => $iconeBoucles, 'visible' => $loopsEnabled],
+                ['key' => 'loops', 'url' => $tabUrl('loops.index', 'organization.loops.index'), 'active' => 'loops', 'label' => __('navigation.loops'), 'icon' => $iconeBoucles, 'stroke' => '1.1', 'visible' => $loopsEnabled],
                 ['key' => 'flux', 'url' => $organizationRouteParam && Route::has('organization.flux') ? route('organization.flux', ['organization' => $organizationRouteParam]) : route('dashboard'), 'active' => 'flux', 'label' => __('navigation.feed'), 'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h7l2 2h5a2 2 0 012 2v10a2 2 0 01-2 2z', 'visible' => $canSeeFlux],
                 ['key' => 'exchanges', 'url' => $tabUrl('explorer', 'organization.explorer'), 'active' => 'explorer', 'label' => __('navigation.exchanges'), 'icon' => 'M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4'],
                 ['key' => 'messages', 'url' => $tabUrl('messages.index', 'organization.messages.index'), 'active' => 'messages', 'label' => __('navigation.messaging'), 'icon' => 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z'],
@@ -85,7 +102,7 @@
                 ['key' => 'dossiers', 'url' => $organizationRouteParam && Route::has('organization.dossiers.index') ? route('organization.dossiers.index', ['organization' => $organizationRouteParam]) : '#', 'active' => 'organization.dossiers', 'label' => __('navigation.my_dossiers'), 'icon' => 'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z', 'visible' => (bool) $organizationRouteParam && Route::has('organization.dossiers.index')],
                 ['key' => 'blog', 'url' => $tabUrl('blog.index', 'organization.blog.index'), 'active' => 'blog', 'label' => __('navigation.blog'), 'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2M7 8h6M7 12h6M7 16h4'],
             ] : [
-                ['key' => 'loops', 'url' => $tabUrl('boucles.index', 'organization.boucles.index'), 'active' => 'boucles', 'label' => __('navigation.loops'), 'icon' => $iconeBoucles],
+                ['key' => 'loops', 'url' => $tabUrl('boucles.index', 'organization.boucles.index'), 'active' => 'boucles', 'label' => __('navigation.loops'), 'icon' => $iconeBoucles, 'stroke' => '1.1'],
                 ['key' => 'exchanges', 'url' => $tabUrl('explorer', 'organization.explorer'), 'active' => 'explorer', 'label' => __('navigation.exchanges'), 'icon' => 'M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4'],
                 ['key' => 'members', 'url' => $tabUrl('members.index', 'organization.members.index'), 'active' => 'members', 'label' => __('navigation.directory'), 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
                 ['key' => 'blog', 'url' => $tabUrl('blog.index', 'organization.blog.index'), 'active' => 'blog', 'label' => __('navigation.blog'), 'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z'],
@@ -118,7 +135,7 @@
            data-bp-nav-active="{{ $isActive ? 'true' : 'false' }}"
            @if($isActive) aria-current="page" @endif
            class="group flex shrink-0 snap-start flex-col items-center justify-center gap-1 min-w-[4.5rem] h-14 rounded-xl px-2 transition-colors duration-150 {{ $isActive ? 'bg-indigo-50 dark:bg-indigo-500/10' : 'hover:bg-gray-50 dark:hover:bg-gray-800/60' }}">
-            <svg class="block w-6 h-6 shrink-0 {{ $isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500' }}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+            <svg class="block w-6 h-6 shrink-0 {{ $isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500' }}" fill="none" stroke="currentColor" stroke-width="{{ $tab['stroke'] ?? '1.8' }}" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="{{ $tab['icon'] }}" />
             </svg>
             <span class="text-[10px] leading-none whitespace-nowrap {{ $isActive ? 'text-indigo-600 dark:text-indigo-400 font-semibold' : 'text-gray-500 dark:text-gray-400 font-medium' }}">{{ $tab['label'] }}</span>
@@ -130,4 +147,27 @@
         </a>
         @endforeach
     </div>
+
+    {{-- TASK-1625 — l'indice de defilement.
+
+         Le masque de bord suggere que la bande continue ; cette fleche le DIT,
+         brievement, au moment ou le doigt se pose. Elle ne se montre que s'il
+         reste vraiment quelque chose a droite, s'efface au bout de 1,4 s, et
+         ne capte aucun clic (`pointer-events-none`) : elle flotte au-dessus
+         d'un onglet sans jamais le voler. --}}
+    <span x-show="indice"
+          x-cloak
+          x-transition:enter="transition ease-out duration-150"
+          x-transition:enter-start="opacity-0 translate-x-1"
+          x-transition:enter-end="opacity-100 translate-x-0"
+          x-transition:leave="transition ease-in duration-300"
+          x-transition:leave-start="opacity-100"
+          x-transition:leave-end="opacity-0"
+          data-bp-nav-scroll-hint
+          aria-hidden="true"
+          class="pointer-events-none absolute right-1 top-8 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-gray-900/75 text-white shadow-sm backdrop-blur-sm dark:bg-white/20">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <path d="M5 12h13m0 0-5-5m5 5-5 5" />
+        </svg>
+    </span>
 </nav>

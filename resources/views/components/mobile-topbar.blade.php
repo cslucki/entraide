@@ -238,18 +238,19 @@
 
                 <x-slot name="content">
                     <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                        {{-- TASK-1625 — le solde de points a ete retire d'ici :
+                             il menait a la MEME page que « Mes points », trois
+                             lignes plus bas. Deux chemins vers une seule
+                             destination font hesiter au lieu d'aider. --}}
                         <div class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{{ auth()->user()->full_name }}</div>
-                        <a href="{{ $routeUrl('points.index', 'organization.points.index') }}" class="mt-1 inline-flex text-xs font-medium text-indigo-600 dark:text-indigo-400">{{ auth()->user()->points_balance }} pts</a>
                     </div>
 
                     <a href="{{ $routeUrl('dashboard', 'organization.dashboard') }}" class="block w-full px-4 py-2 text-start text-sm font-semibold leading-5 text-sky-700 transition duration-150 ease-in-out hover:bg-sky-50 focus:bg-sky-50 focus:outline-none dark:text-sky-300 dark:hover:bg-sky-950/40 dark:focus:bg-sky-950/40">
                         {{ __('navigation.dashboard') }}
                     </a>
-                    @if($canSeeFlux && $organizationRouteParam)
-                        <a href="{{ route('organization.flux', ['organization' => $organizationRouteParam]) }}" class="block w-full px-4 py-2 text-start text-sm font-semibold leading-5 text-emerald-700 transition duration-150 ease-in-out hover:bg-emerald-50 focus:bg-emerald-50 focus:outline-none dark:text-emerald-300 dark:hover:bg-emerald-950/40 dark:focus:bg-emerald-950/40">
-                            {{ __('navigation.feed') }}
-                        </a>
-                    @endif
+                    {{-- TASK-1625 — Flux a quitte ce menu : il a son onglet dans la
+                         barre basse, sous le pouce. Le garder ici doublait une
+                         destination deja permanente a l'ecran. --}}
                     <form method="POST" action="{{ $routeUrl('profile.availability', 'organization.profile.availability') }}">
                         @csrf
                         @method('PATCH')
@@ -263,19 +264,11 @@
                     <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
                     @endif
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                    <x-dropdown-link :href="$routeUrl('notifications.index', 'organization.notifications.index')">
-                        <span class="flex items-center justify-between gap-2">
-                            <span>{{ __('navigation.notifications') }}</span>
-                            @if($mobileUnreadNotifications > 0)
-                                {{-- La valeur BRUTE dans l'attribut, le texte plafonne a l'ecran :
-                                     asserter « 9+ » reviendrait a tester le plafond, pas le compte. --}}
-                                <span data-mobile-notifications-unread="{{ $mobileUnreadNotifications }}"
-                                      class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold leading-none text-white">
-                                    {{ $mobileUnreadNotifications > 9 ? '9+' : $mobileUnreadNotifications }}
-                                </span>
-                            @endif
-                        </span>
-                    </x-dropdown-link>
+                    {{-- TASK-1625 — Notifications a quitte ce menu : la cloche du
+                         header, avec son badge, la rend accessible en UN tap au
+                         lieu de deux. Le compteur `$mobileUnreadNotifications`
+                         reste calcule en tete de fichier, il sert maintenant la
+                         cloche. --}}
                     <x-dropdown-link :href="$routeUrl('points.index', 'organization.points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
                     <x-dropdown-link :href="$routeUrl('invitations.index', 'organization.invitations.index')">{{ __('navigation.invitations') }}</x-dropdown-link>
                     <x-dropdown-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-dropdown-link>

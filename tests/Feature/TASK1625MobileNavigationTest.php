@@ -141,9 +141,14 @@ class TASK1625MobileNavigationTest extends TestCase
         // ni collaboration.
         $this->assertStringNotContainsString('M9 12h6m-6 4h6m2 5H7a2 2', $onglet);
 
-        // Le nouveau : trois noeuds relies en anneau ferme.
-        $this->assertStringContainsString('M12 3.75a1.75 1.75 0 1 1 0 3.5', $onglet);
-        $this->assertStringContainsString('M7.5 17.25h9', $onglet);
+        // Le nouveau trace EST le logo : huit cercles en anneau. On epingle
+        // leur NOMBRE, pas leurs coordonnees — un ajustement de rayon reste
+        // libre, passer de huit a autre chose ne l'est pas.
+        $this->assertSame(8, substr_count($this->tracee($onglet), 'a2.55 2.55 0 1 0') / 2);
+
+        // Le trait est plus fin POUR CET ONGLET : a 1.8 les huit cercles se
+        // rejoignent et la rosette redevient un disque.
+        $this->assertStringContainsString('stroke-width="1.1"', $onglet);
     }
 
     public function test_l_icone_de_boucles_ne_se_confond_avec_aucune_voisine(): void
