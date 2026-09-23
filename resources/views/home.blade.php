@@ -29,22 +29,40 @@
                             {{ __('home.description') }}
                         </p>
 
+                        {{-- TASK-1628 — les CTA de l'Accueil traditionnel menent aux BOUCLES.
+                             Cette page n'etait quasiment jamais servie avant que le choix
+                             « Accueil traditionnel » redevienne souverain ; ses CTA
+                             renvoyaient vers l'inscription et une liste publique, pas vers
+                             ce que la plateforme fait.
+
+                             Les liens pointent DANS l'Organization par defaut plutot que sur
+                             les routes globales : c'est la lecon de TASK-1608 sur la landing
+                             d'Organization — un CTA global sort le visiteur du contexte que
+                             la racine vient de resoudre.
+
+                             Invite comme connecte recoivent les deux MEMES CTA. Les deux
+                             routes sont derriere `Authenticate` : un invite rencontre la
+                             connexion puis revient, flux deja gere, non contourne ici.
+
+                             `$defaultOrganization` peut etre NULL (aucune Organization par
+                             defaut) : on retombe alors sur les routes globales, qui portent
+                             exactement les memes middlewares. Sans ce repli, `route()`
+                             leverait sur une page d'accueil. --}}
+                        @php
+                            $ctaLoopsIndex = $defaultOrganization
+                                ? route('organization.loops.index', $defaultOrganization)
+                                : route('loops.index');
+                            $ctaLoopsCreate = $defaultOrganization
+                                ? route('organization.loops.create', $defaultOrganization)
+                                : route('loops.create');
+                        @endphp
                         <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-                            @guest
-                                <a href="{{ route('register') }}" class="inline-flex items-center justify-center rounded-full bg-[var(--bp-primary)] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--bp-primary-deep)]">
-                                    {{ __('navigation.create_account') }}
-                                </a>
-                                <a href="{{ route('boucles.index') }}" class="inline-flex items-center justify-center rounded-full border border-[var(--bp-border)] px-6 py-3 text-sm font-semibold text-[var(--bp-muted)] transition hover:bg-[var(--bp-panel)] hover:text-[var(--bp-text)]">
-                                    {{ __('navigation.discover_loops') }}
-                                </a>
-                            @else
-                                <a href="{{ route('loops.index') }}" class="inline-flex items-center justify-center rounded-full bg-[var(--bp-primary)] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--bp-primary-deep)]">
-                                    {{ __('navigation.join_loop') }}
-                                </a>
-                                <a href="{{ route('explorer') }}" class="inline-flex items-center justify-center rounded-full border border-[var(--bp-border)] px-6 py-3 text-sm font-semibold text-[var(--bp-muted)] transition hover:bg-[var(--bp-panel)] hover:text-[var(--bp-text)]">
-                                    {{ __('navigation.see_exchanges') }}
-                                </a>
-                            @endguest
+                            <a href="{{ $ctaLoopsIndex }}" class="inline-flex items-center justify-center rounded-full bg-[var(--bp-primary)] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--bp-primary-deep)]" data-home-cta="loops-index">
+                                {{ __('navigation.join_loops') }}
+                            </a>
+                            <a href="{{ $ctaLoopsCreate }}" class="inline-flex items-center justify-center rounded-full border border-[var(--bp-border)] px-6 py-3 text-sm font-semibold text-[var(--bp-muted)] transition hover:bg-[var(--bp-panel)] hover:text-[var(--bp-text)]" data-home-cta="loops-create">
+                                {{ __('navigation.create_your_loops') }}
+                            </a>
                         </div>
                     </div>
                 </div>

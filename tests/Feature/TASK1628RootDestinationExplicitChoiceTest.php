@@ -446,6 +446,139 @@ class TASK1628RootDestinationExplicitChoiceTest extends TestCase
     }
 
     /**
+     * §4 — les CTA de l'Accueil traditionnel menent aux BOUCLES.
+     *
+     * Cette page n'etait quasiment jamais servie avant que le choix redevienne
+     * souverain : ses CTA renvoyaient vers l'inscription et une liste publique,
+     * pas vers ce que la plateforme fait.
+     *
+     * Les liens pointent DANS l'Organization par defaut (lecon TASK-1608 : un
+     * CTA global sort le visiteur du contexte que la racine vient de resoudre).
+     */
+    public function test_the_classic_home_cta_point_at_the_loops_of_the_default_organization(): void
+    {
+        $organization = $this->defaultOrganization(RootDestination::HOMEPAGE);
+
+        $body = $this->get('/')->assertOk()->assertViewIs('home')->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '/href="'.preg_quote(route('organization.loops.index', $organization), '/').'"[^>]*data-home-cta="loops-index"/',
+            $body,
+            'Le CTA « Rejoignez les boucles » ne pointe pas sur les boucles de l Organization par defaut.'
+        );
+        $this->assertMatchesRegularExpression(
+            '/href="'.preg_quote(route('organization.loops.create', $organization), '/').'"[^>]*data-home-cta="loops-create"/',
+            $body,
+            'Le CTA « Creez vos boucles » ne pointe pas sur la creation de boucle.'
+        );
+    }
+
+    /**
+     * Invite et connecte recoivent les deux MEMES CTA : la page ne se dedouble
+     * plus en un parcours d'acquisition et un parcours membre.
+     */
+    public function test_both_cta_are_identical_for_a_guest_and_a_signed_in_member(): void
+    {
+        $organization = $this->defaultOrganization(RootDestination::HOMEPAGE);
+        $member = User::factory()->create(['organization_id' => $organization->id]);
+
+        $guestBody = $this->get('/')->assertOk()->getContent();
+        $memberBody = $this->actingAs($member)->get('/')->assertOk()->getContent();
+
+        foreach ([$guestBody, $memberBody] as $body) {
+            $this->assertStringContainsString('data-home-cta="loops-index"', $body);
+            $this->assertStringContainsString('data-home-cta="loops-create"', $body);
+            $this->assertSame(2, substr_count($body, 'data-home-cta="'), 'L Accueil traditionnel doit porter exactement deux CTA.');
+        }
+    }
+
+    /**
+     * Les ANCIENS CTA ne doivent plus etre des CTA. Mesure sur le bloc lui-meme
+     * (les marqueurs `data-home-cta`) et sur les libelles : `boucles.index`
+     * reste legitimement present ailleurs dans la page, dans la grille des
+     * fonctionnalites — l'y chercher produirait un rouge qui ne dit rien.
+     */
+    public function test_the_previous_cta_are_gone(): void
+    {
+        $this->defaultOrganization(RootDestination::HOMEPAGE);
+
+        $body = $this->get('/')->assertOk()->getContent();
+
+        preg_match_all('/<a[^>]*data-home-cta="[^"]*"[^>]*>/', $body, $matches);
+        $ctaTags = implode(' ', $matches[0]);
+
+        foreach ([route('register'), route('explorer'), route('boucles.index')] as $goneTarget) {
+            $this->assertStringNotContainsString('href="'.$goneTarget.'"', $ctaTags, $goneTarget.' est encore une cible de CTA.');
+        }
+
+        $this->assertStringNotContainsString(__('navigation.join_loop'), $body, 'L ancien libelle « Rejoindre la Boucle » est encore rendu.');
+    }
+
+    /**
+     * §4, la verification demandee : que vit un INVITE qui clique « Creez vos
+     * boucles » ?
+     *
+     * Les deux routes sont derriere `Authenticate` : il rencontre la connexion
+     * puis revient. Flux propre, deja gere — ni 403 ni 404 brut, donc rien a
+     * contourner. Ce test l'ECRIT, pour qu'un changement de garde doive le dire.
+     */
+    public function test_a_guest_clicking_the_cta_meets_the_login_screen_not_a_raw_refusal(): void
+    {
+        $organization = $this->defaultOrganization(RootDestination::HOMEPAGE);
+
+        foreach (['organization.loops.index', 'organization.loops.create'] as $route) {
+            $response = $this->get(route($route, $organization));
+
+            // Et c'est le login DE L'ORGANIZATION, pas le login global : le
+            // visiteur ne sort pas du contexte que la racine vient de resoudre.
+            $response->assertRedirect(route('organization.login', ['organization' => $organization->slug]));
+            $this->assertNotContains($response->getStatusCode(), [403, 404], $route.' refuse un invite au lieu de l envoyer se connecter.');
+        }
+
+        // Et l'ecran de connexion repond bien, plutot qu'une boucle ou un mur.
+        $this->get(route('organization.login', ['organization' => $organization->slug]))->assertOk();
+    }
+
+    /**
+     * Sans Organization par defaut, `home.blade.php` recoit NULL : les CTA
+     * retombent sur les routes globales, qui portent exactement les memes
+     * middlewares. Sans ce repli, `route()` leverait sur la page d'accueil.
+     */
+    public function test_the_cta_fall_back_to_the_global_routes_without_a_default_organization(): void
+    {
+        // Aucune Organization par defaut, et aucune `main` active : le
+        // controleur resout NULL.
+        Organization::factory()->create(['slug' => 'sans-defaut-1628', 'is_default' => false, 'is_active' => true]);
+
+        $body = $this->get('/')->assertOk()->assertViewIs('home')->getContent();
+
+        $this->assertStringContainsString('href="'.route('loops.index').'"', $body);
+        $this->assertStringContainsString('href="'.route('loops.create').'"', $body);
+    }
+
+    /** Les deux libelles existent dans les DEUX locales, et disent deux choses. */
+    public function test_the_two_cta_labels_exist_in_both_locales(): void
+    {
+        foreach (['fr', 'en'] as $locale) {
+            $navigation = require base_path('lang/'.$locale.'/navigation.php');
+
+            foreach (['join_loops', 'create_your_loops'] as $key) {
+                $this->assertArrayHasKey($key, $navigation, $key.' manque en '.$locale);
+                $this->assertNotSame('', trim((string) $navigation[$key]));
+            }
+
+            $this->assertNotSame(
+                $navigation['join_loops'],
+                $navigation['create_your_loops'],
+                'Deux CTA differents doivent porter deux libelles differents ('.$locale.')'
+            );
+        }
+
+        $fr = require base_path('lang/fr/navigation.php');
+        $this->assertStringContainsString('é', $fr['create_your_loops'], 'accent manquant : « Créez vos boucles »');
+    }
+
+    /**
      * Le predicat lui-meme, a la maille de l'unite : il distingue un choix
      * d'une absence de choix, et ne prend pas un residu pour une decision.
      */

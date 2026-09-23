@@ -34,6 +34,9 @@ return [
     'make_request' => 'Ask for help',
     'discover_loops' => 'Discover loops',
     'join_loop' => 'Join the Loop',
+    // TASK-1628 — see the French file: distinct keys, existing ones untouched.
+    'join_loops' => 'Join the loops',
+    'create_your_loops' => 'Create your loops',
     'see_exchanges' => 'See exchanges',
     'home' => 'Home',
     'about' => 'About',
