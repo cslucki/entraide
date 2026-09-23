@@ -67,45 +67,35 @@
                 return route($rootRoute);
             };
 
-            // TASK-1625 — l'icone de « Boucles » EST le logo.
+            // TASK-1626 — les icones viennent desormais de `config/navigation_icons.php`.
             //
-            // Elle montrait une feuille de papier (document-text), qui ne dit
-            // ni le groupe, ni le cercle, ni la collaboration. Le rail desktop,
-            // lui, montre une bulle de chat ronde — indiscernable de
-            // « Messagerie » a 24 px.
-            //
-            // La marque BouclePro est une ROSETTE : huit petits cercles poses
-            // en anneau, presque tangents, autour d'un vide central. C'est
-            // exactement ce trace, reduit a 24 px — pas une evocation, la
-            // forme elle-meme. Huit cercles de rayon 2,55 sur un anneau de
-            // rayon 7,15, generes par leurs coordonnees plutot qu'a l'oeil.
-            //
-            // Le trait descend a 1,1 POUR CETTE ICONE SEULE : a 1,8 — la
-            // valeur des autres — les huit cercles se rejoignent en bouillie,
-            // et la rosette redevient un disque. C'est la seule raison pour
-            // laquelle un onglet peut porter sa propre epaisseur.
-            $iconeBoucles = 'M9.45 4.85a2.55 2.55 0 1 0 5.10 0a2.55 2.55 0 1 0 -5.10 0M14.51 6.94a2.55 2.55 0 1 0 5.10 0a2.55 2.55 0 1 0 -5.10 0M16.60 12.00a2.55 2.55 0 1 0 5.10 0a2.55 2.55 0 1 0 -5.10 0M14.51 17.06a2.55 2.55 0 1 0 5.10 0a2.55 2.55 0 1 0 -5.10 0M9.45 19.15a2.55 2.55 0 1 0 5.10 0a2.55 2.55 0 1 0 -5.10 0M4.39 17.06a2.55 2.55 0 1 0 5.10 0a2.55 2.55 0 1 0 -5.10 0M2.30 12.00a2.55 2.55 0 1 0 5.10 0a2.55 2.55 0 1 0 -5.10 0M4.39 6.94a2.55 2.55 0 1 0 5.10 0a2.55 2.55 0 1 0 -5.10 0';
+            // La rosette du logo, posee ici par TASK-1625, est ABANDONNEE
+            // volontairement : le rail desktop rend en 16 px, et la mesure y a
+            // montre qu'elle s'effondre en tache — aucune simplification
+            // testee (6 cercles, 5 cercles, anneau a noeuds) n'a retrouve la
+            // nettete de la bulle. L'harmonisation prime, et elle se fait sur
+            // le trace qui tient aux DEUX tailles.
 
             $tabs = auth()->check() ? [
-                ['key' => 'loops', 'url' => $tabUrl('loops.index', 'organization.loops.index'), 'active' => 'loops', 'label' => __('navigation.loops'), 'icon' => $iconeBoucles, 'stroke' => '1.1', 'visible' => $loopsEnabled],
-                ['key' => 'flux', 'url' => $organizationRouteParam && Route::has('organization.flux') ? route('organization.flux', ['organization' => $organizationRouteParam]) : route('dashboard'), 'active' => 'flux', 'label' => __('navigation.feed'), 'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h7l2 2h5a2 2 0 012 2v10a2 2 0 01-2 2z', 'visible' => $canSeeFlux],
-                ['key' => 'exchanges', 'url' => $tabUrl('explorer', 'organization.explorer'), 'active' => 'explorer', 'label' => __('navigation.exchanges'), 'icon' => 'M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4'],
-                ['key' => 'messages', 'url' => $tabUrl('messages.index', 'organization.messages.index'), 'active' => 'messages', 'label' => __('navigation.messaging'), 'icon' => 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z'],
+                ['key' => 'loops', 'url' => $tabUrl('loops.index', 'organization.loops.index'), 'active' => 'loops', 'label' => __('navigation.loops'), 'icon' => config('navigation_icons.loops'), 'visible' => $loopsEnabled],
+                ['key' => 'flux', 'url' => $organizationRouteParam && Route::has('organization.flux') ? route('organization.flux', ['organization' => $organizationRouteParam]) : route('dashboard'), 'active' => 'flux', 'label' => __('navigation.feed'), 'icon' => config('navigation_icons.feed'), 'visible' => $canSeeFlux],
+                ['key' => 'exchanges', 'url' => $tabUrl('explorer', 'organization.explorer'), 'active' => 'explorer', 'label' => __('navigation.exchanges'), 'icon' => config('navigation_icons.exchanges')],
+                ['key' => 'messages', 'url' => $tabUrl('messages.index', 'organization.messages.index'), 'active' => 'messages', 'label' => __('navigation.messaging'), 'icon' => config('navigation_icons.messaging')],
                 // TASK-1625 — les trois destinations que la barre fixe ne
                 // pouvait pas porter. Route, libelle, icone et garde de
                 // visibilite sont repris TELS QUELS du rail desktop
                 // (`app-side-nav.blade.php`) : aucune route n'est creee, aucune
                 // architecture d'information n'est inventee. Ce sont les memes
                 // destinations, enfin atteignables sur telephone.
-                ['key' => 'agenda', 'url' => $tabUrl('events.agenda', 'organization.events.agenda'), 'active' => 'events.agenda', 'label' => __('navigation.agenda'), 'icon' => 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0V11.25A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5', 'visible' => $loopsEnabled],
-                ['key' => 'members', 'url' => $tabUrl('members.index', 'organization.members.index'), 'active' => 'members', 'label' => __('navigation.directory'), 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
-                ['key' => 'dossiers', 'url' => $organizationRouteParam && Route::has('organization.dossiers.index') ? route('organization.dossiers.index', ['organization' => $organizationRouteParam]) : '#', 'active' => 'organization.dossiers', 'label' => __('navigation.my_dossiers'), 'icon' => 'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z', 'visible' => (bool) $organizationRouteParam && Route::has('organization.dossiers.index')],
-                ['key' => 'blog', 'url' => $tabUrl('blog.index', 'organization.blog.index'), 'active' => 'blog', 'label' => __('navigation.blog'), 'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2M7 8h6M7 12h6M7 16h4'],
+                ['key' => 'agenda', 'url' => $tabUrl('events.agenda', 'organization.events.agenda'), 'active' => 'events.agenda', 'label' => __('navigation.agenda'), 'icon' => config('navigation_icons.agenda'), 'visible' => $loopsEnabled],
+                ['key' => 'members', 'url' => $tabUrl('members.index', 'organization.members.index'), 'active' => 'members', 'label' => __('navigation.directory'), 'icon' => config('navigation_icons.directory')],
+                ['key' => 'dossiers', 'url' => $organizationRouteParam && Route::has('organization.dossiers.index') ? route('organization.dossiers.index', ['organization' => $organizationRouteParam]) : '#', 'active' => 'organization.dossiers', 'label' => __('navigation.my_dossiers'), 'icon' => config('navigation_icons.my_dossiers'), 'visible' => (bool) $organizationRouteParam && Route::has('organization.dossiers.index')],
+                ['key' => 'blog', 'url' => $tabUrl('blog.index', 'organization.blog.index'), 'active' => 'blog', 'label' => __('navigation.blog'), 'icon' => config('navigation_icons.blog')],
             ] : [
-                ['key' => 'loops', 'url' => $tabUrl('boucles.index', 'organization.boucles.index'), 'active' => 'boucles', 'label' => __('navigation.loops'), 'icon' => $iconeBoucles, 'stroke' => '1.1'],
-                ['key' => 'exchanges', 'url' => $tabUrl('explorer', 'organization.explorer'), 'active' => 'explorer', 'label' => __('navigation.exchanges'), 'icon' => 'M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4'],
-                ['key' => 'members', 'url' => $tabUrl('members.index', 'organization.members.index'), 'active' => 'members', 'label' => __('navigation.directory'), 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
-                ['key' => 'blog', 'url' => $tabUrl('blog.index', 'organization.blog.index'), 'active' => 'blog', 'label' => __('navigation.blog'), 'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z'],
+                ['key' => 'loops', 'url' => $tabUrl('boucles.index', 'organization.boucles.index'), 'active' => 'boucles', 'label' => __('navigation.loops'), 'icon' => config('navigation_icons.loops')],
+                ['key' => 'exchanges', 'url' => $tabUrl('explorer', 'organization.explorer'), 'active' => 'explorer', 'label' => __('navigation.exchanges'), 'icon' => config('navigation_icons.exchanges')],
+                ['key' => 'members', 'url' => $tabUrl('members.index', 'organization.members.index'), 'active' => 'members', 'label' => __('navigation.directory'), 'icon' => config('navigation_icons.directory')],
+                ['key' => 'blog', 'url' => $tabUrl('blog.index', 'organization.blog.index'), 'active' => 'blog', 'label' => __('navigation.blog'), 'icon' => config('navigation_icons.blog')],
             ];
             $tabs = array_values(array_filter($tabs, fn (array $tab): bool => $tab['visible'] ?? true));
         @endphp
@@ -135,7 +125,7 @@
            data-bp-nav-active="{{ $isActive ? 'true' : 'false' }}"
            @if($isActive) aria-current="page" @endif
            class="group flex shrink-0 snap-start flex-col items-center justify-center gap-1 min-w-[4.5rem] h-14 rounded-xl px-2 transition-colors duration-150 {{ $isActive ? 'bg-indigo-50 dark:bg-indigo-500/10' : 'hover:bg-gray-50 dark:hover:bg-gray-800/60' }}">
-            <svg class="block w-6 h-6 shrink-0 {{ $isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500' }}" fill="none" stroke="currentColor" stroke-width="{{ $tab['stroke'] ?? '1.8' }}" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+            <svg class="block w-6 h-6 shrink-0 {{ $isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500' }}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="{{ $tab['icon'] }}" />
             </svg>
             <span class="text-[10px] leading-none whitespace-nowrap {{ $isActive ? 'text-indigo-600 dark:text-indigo-400 font-semibold' : 'text-gray-500 dark:text-gray-400 font-medium' }}">{{ $tab['label'] }}</span>

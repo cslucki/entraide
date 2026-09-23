@@ -100,7 +100,7 @@
             'active' => ['flux', 'organization.flux'],
             'label' => __('navigation.feed'),
             'hint' => __('navigation.announcements'),
-            'icon' => 'M4 5h16M4 12h10M4 19h16M18 9l3 3-3 3',
+            'icon' => config('navigation_icons.feed'),
             // Arbitrage Cyril 10/09 : l'entree se montre TOUJOURS, connecte ou non.
             // C'est la page qui applique les droits (policy `create FeedPost`),
             // pas le rail — un rail qui cache ce qu'on n'a pas le droit de faire
@@ -113,7 +113,7 @@
             'active' => ['loops', 'organization.loops'],
             'label' => __('navigation.loops'),
             'hint' => 'ChatLoop',
-            'icon' => 'M8 10h8M8 14h5m8-2a9 9 0 11-18 0 9 9 0 0118 0z',
+            'icon' => config('navigation_icons.loops'),
             'visible' => $loopsEnabled,
         ],
         [
@@ -124,7 +124,7 @@
             'active' => ['events.agenda', 'organization.events.agenda'],
             'label' => __('navigation.agenda'),
             'hint' => __('navigation.agenda_hint'),
-            'icon' => 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0V11.25A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5',
+            'icon' => config('navigation_icons.agenda'),
             'visible' => $loopsEnabled,
         ],
         [
@@ -132,14 +132,14 @@
             'active' => ['explorer', 'organization.explorer'],
             'label' => __('navigation.exchanges'),
             'hint' => __('navigation.services'),
-            'icon' => 'M7 16V4m0 0L3 8m4-4 4 4m6 0v12m0 0l4-4m-4 4l-4-4',
+            'icon' => config('navigation_icons.exchanges'),
         ],
         [
             'url' => $routeUrl('messages.index', 'organization.messages.index'),
             'active' => ['messages'],
             'label' => __('navigation.messaging'),
             'hint' => __('navigation.messages'),
-            'icon' => 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z',
+            'icon' => config('navigation_icons.messaging'),
             'badge' => $unreadMessagesCount,
         ],
         [
@@ -147,21 +147,21 @@
             'active' => ['members', 'organization.members', 'profile.show'],
             'label' => __('navigation.directory'),
             'hint' => __('navigation.members'),
-            'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm6 0V9a2 2 0 00-2-2h-2a2 2 0 00-2 2v10m6 0h2a2 2 0 002-2V5a2 2 0 00-2-2h-2a2 2 0 00-2 2v14z',
+            'icon' => config('navigation_icons.directory'),
         ],
         [
             'url' => $routeUrl('blog.index', 'organization.blog.index'),
             'active' => ['blog', 'organization.blog'],
             'label' => __('navigation.blog'),
             'hint' => __('navigation.articles'),
-            'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2M7 8h6M7 12h6M7 16h4',
+            'icon' => config('navigation_icons.blog'),
         ],
         [
             'url' => $organizationRouteParam && Route::has('organization.dossiers.index') ? route('organization.dossiers.index', ['organization' => $organizationRouteParam]) : '#',
             'active' => ['organization.dossiers'],
             'label' => __('navigation.my_dossiers'),
             'hint' => __('navigation.my_dossiers'),
-            'icon' => 'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z',
+            'icon' => config('navigation_icons.my_dossiers'),
             'visible' => (bool) $organizationRouteParam && Route::has('organization.dossiers.index'),
         ],
     ];
@@ -334,7 +334,7 @@
                    @if($notificationsActive) aria-current="page" @endif>
                     <span class="relative flex h-8 w-8 items-center justify-center rounded-lg transition {{ $notificationsActive ? 'bg-[color-mix(in_srgb,var(--bp-primary)_14%,transparent)] text-[var(--bp-primary)] shadow-sm' : 'bg-transparent group-hover:bg-[var(--bp-panel)] group-hover:shadow-sm' }}">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                            <path d="{{ config('navigation_icons.notifications') }}" />
                         </svg>
                         @if($unreadNotificationsCount > 0)
                             <span data-nav-badge-notifications="{{ $unreadNotificationsCount }}"
