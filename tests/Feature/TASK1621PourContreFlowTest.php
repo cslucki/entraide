@@ -824,6 +824,110 @@ class TASK1621PourContreFlowTest extends TestCase
             'seul le camp reellement ecourte porte la mention');
     }
 
+    // ── 8. LA REFORMULATION PROPOSEE (TASK-1622) ────────────────────────────
+
+    public function test_l_abstention_propose_une_reformulation_sans_second_appel(): void
+    {
+        $this->fakeHorsSujetAvecSuggestion('Utiliser un CMS est-il un bon choix pour creer un site web ?');
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
+            ->set('body', 'Quel CMS choisir ?')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage')
+            ->call('runNextPourContre');
+
+        // UN SEUL appel : la suggestion sort du tour qui s'est abstenu.
+        $this->assertSame(1, AiProviderInvocation::query()->count());
+        $composant->assertSet('pourContreQueue', [], 'CONTRE n\'est pas lance');
+
+        $composant->assertSeeHtml('data-multi-ai-suggestion')
+            ->assertSee('Utiliser un CMS est-il un bon choix pour creer un site web ?')
+            ->assertSee(__('loops.plugins_multi_ai_suggestion_use'));
+    }
+
+    public function test_le_clic_remplit_le_composeur_sans_rien_envoyer(): void
+    {
+        $this->fakeHorsSujetAvecSuggestion('Faut-il utiliser un CMS ?');
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
+            ->set('body', 'Quel CMS choisir ?')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage')
+            ->call('runNextPourContre');
+
+        $messagesAvant = LoopMessage::where('loop_id', $this->loop->id)->count();
+
+        $composant->call('useSuggestion');
+
+        // Le texte est DANS le composeur, le mode reste arme, et RIEN n'a ete
+        // envoye : ni message, ni appel provider.
+        $composant->assertSet('body', 'Faut-il utiliser un CMS ?')
+            ->assertSet('composerMode', LoopChat::MODE_MULTI_AI);
+
+        $this->assertSame($messagesAvant, LoopMessage::where('loop_id', $this->loop->id)->count(),
+            'aucun message publie : l\'humain garde le dernier geste');
+        $this->assertSame(1, AiProviderInvocation::query()->count(),
+            'aucun nouvel appel provider');
+    }
+
+    public function test_un_composeur_occupe_n_est_jamais_ecrase_en_silence(): void
+    {
+        $this->fakeHorsSujetAvecSuggestion('Faut-il utiliser un CMS ?');
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
+            ->set('body', 'Quel CMS choisir ?')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage')
+            ->call('runNextPourContre');
+
+        // Le membre a retape quelque chose pendant l'attente.
+        $composant->set('body', 'un texte que je suis en train d\'ecrire');
+
+        $composant->call('useSuggestion');
+        $composant->assertSet('body', 'un texte que je suis en train d\'ecrire',
+            'premier clic : on demande, on n\'ecrase pas')
+            ->assertSet('suggestionEcrasementConfirme', true)
+            ->assertSeeHtml('data-multi-ai-suggestion-confirm');
+
+        $composant->call('useSuggestion');
+        $composant->assertSet('body', 'Faut-il utiliser un CMS ?', 'second clic : remplace')
+            ->assertSet('suggestionEcrasementConfirme', false);
+    }
+
+    public function test_sans_suggestion_fidele_aucune_n_est_inventee(): void
+    {
+        // Le modele s'abstient SANS proposer : l'ecran ne doit fabriquer
+        // aucune opposition, et le bouton ne doit pas exister.
+        $this->fakeHorsSujet();
+
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop])
+            ->set('body', 'Quel outil choisir ?')
+            ->call('toggleMultiAiMode')
+            ->call('sendMessage')
+            ->call('runNextPourContre');
+
+        $composant->assertSeeHtml('data-multi-ai-not-applicable')
+            ->assertDontSeeHtml('data-multi-ai-suggestion')
+            // Mandat §5 : pas de reformulation fidele -> on DEMANDE UNE
+            // PRECISION. Souffler un exemple en dur reviendrait a inventer a
+            // la place du modele qui vient de ne pas pouvoir le faire.
+            ->assertSeeHtml('data-multi-ai-precision')
+            ->assertSee(__('loops.plugins_multi_ai_not_applicable_precision'));
+
+        // Et le geste force ne fabrique rien non plus.
+        $composant->call('useSuggestion')->assertSet('body', '');
+    }
+
+    public function test_une_suggestion_forgee_ne_peut_pas_etre_injectee(): void
+    {
+        // RIEN ne voyage depuis le client : `useSuggestion()` ne prend aucun
+        // parametre et relit l'etat du serveur. Un etat falsifie ne peut donc
+        // poser que ce que le serveur y a mis — et ici il n'y a rien.
+        $composant = Livewire::actingAs($this->membre)->test(LoopChat::class, ['loop' => $this->loop]);
+
+        $composant->call('useSuggestion')->assertSet('body', '');
+    }
+
     // ── Outils du flux ──────────────────────────────────────────────────────
 
     /** Un tour complet : publication puis les deux requetes differees. */
@@ -909,6 +1013,17 @@ class TASK1621PourContreFlowTest extends TestCase
 
             return new TextResponse('Argument de '.$model, new Usage(20, 10), new Meta('openrouter', $model));
         });
+    }
+
+    /** Abstention PLUS une reformulation proposee, dans la meme reponse. */
+    private function fakeHorsSujetAvecSuggestion(string $suggestion): void
+    {
+        $texte = LoopMultiAiOrchestrator::MARQUEUR_HORS_SUJET."\n"
+            .LoopMultiAiOrchestrator::MARQUEUR_SUGGESTION.' '.$suggestion;
+
+        LoopMultiAiAgent::fake(fn (string $prompt, $attachments, $provider, string $model) => new TextResponse(
+            $texte, new Usage(20, 12), new Meta('openrouter', $model),
+        ));
     }
 
     /** Le modele annonce que la question n'a pas de camps a distribuer. */

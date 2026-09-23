@@ -83,6 +83,21 @@ final class AssistantOutcome
          * @var list<string>
          */
         public readonly array $followUps = [],
+        /**
+         * TASK-1622 — la reformulation proposee quand la question n'ouvre
+         * aucun debat. Produite par le MEME appel provider que l'abstention :
+         * il n'y a pas de second appel, et il ne doit pas y en avoir.
+         *
+         * Un canal DEDIE, et pas `$followUps` : une question
+         * d'approfondissement prolonge une reponse, une reformulation
+         * REMPLACE la question. Les ranger ensemble aurait fait porter deux
+         * intentions au meme champ, et le premier lecteur distrait aurait
+         * affiche l'une pour l'autre.
+         *
+         * `null` quand le modele n'a rien propose de fidele — l'ecran demande
+         * alors une precision au lieu d'inventer une opposition.
+         */
+        public readonly ?string $suggestion = null,
     ) {}
 
     /**
@@ -105,9 +120,9 @@ final class AssistantOutcome
      * L'appel EST parti — il a sa ligne au ledger. Ce qui n'existe pas, c'est
      * un camp a defendre.
      */
-    public static function notApplicable(string $key, string $turnId, string $model): self
+    public static function notApplicable(string $key, string $turnId, string $model, ?string $suggestion = null): self
     {
-        return new self($key, self::STATUS_NOT_APPLICABLE, null, AiTurnReason::TERMINAL_NO_DEBATABLE_PROPOSITION, [], $turnId, $model);
+        return new self($key, self::STATUS_NOT_APPLICABLE, null, AiTurnReason::TERMINAL_NO_DEBATABLE_PROPOSITION, [], $turnId, $model, [], $suggestion);
     }
 
     /**
@@ -204,6 +219,7 @@ final class AssistantOutcome
             'turn_id' => $this->turnId,
             'model' => $this->model,
             'follow_ups' => $this->followUps,
+            'suggestion' => $this->suggestion,
         ];
     }
 }

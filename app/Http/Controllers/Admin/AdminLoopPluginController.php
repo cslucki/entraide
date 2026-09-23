@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\LoopPluginAiModel;
 use App\Models\Organization;
 use App\Services\Ai\LoopPluginAiModels;
 use App\Services\Ai\OpenRouterModelCatalog;
@@ -89,6 +90,17 @@ class AdminLoopPluginController extends Controller
             'organizations' => $organizations,
             'assistantModels' => $this->models->describe(),
             'freeModels' => $this->catalogue->verifiedFreeModels(),
+            // TASK-1622 — la shortlist payante, avec le tarif statique de
+            // chaque slug. Un slug de shortlist SANS tarif est projete avec
+            // `rate = null` : l'ecran le montre desactive plutot que de le
+            // cacher — un SuperAdmin doit voir qu'une entree attend son
+            // releve, pas croire que la shortlist a retreci.
+            'paidModels' => collect($this->models->paidShortlist())
+                ->map(fn (string $label, string $slug): array => [
+                    'slug' => $slug,
+                    'label' => $label,
+                    'rate' => $this->models->paidRateFor($slug),
+                ])->all(),
             'catalogState' => [
                 'ok' => $releve['ok'],
                 'fetched_at' => $releve['fetched_at'],
@@ -98,12 +110,16 @@ class AdminLoopPluginController extends Controller
     }
 
     /**
-     * Affecter un modele a un assistant.
+     * Affecter un modele a un assistant — gratuit verifie OU payant approuve
+     * (TASK-1622).
      *
-     * Le service refuse tout slug qui n'est pas VERIFIE GRATUIT au moment du
-     * geste : l'ecran ne propose que des modeles eligibles, mais un POST forge
-     * ne doit pas pouvoir en enregistrer un autre. Le refus est un message,
-     * pas une exception qui fuit.
+     * Le service refuse tout slug hors contrat au moment du geste — non
+     * verifie gratuit pour le type `free_verified`, hors shortlist ou sans
+     * tarif statique pour `paid_approved` : l'ecran ne propose que des
+     * modeles eligibles, mais un POST forge ne doit pas pouvoir en
+     * enregistrer un autre. Le refus est un message, pas une exception qui
+     * fuit. Le type par DEFAUT est le gratuit : un formulaire d'avant
+     * TASK-1622 qui ne poste pas `model_type` garde exactement son sens.
      */
     public function updateModel(Request $request, string $plugin): RedirectResponse
     {
@@ -113,12 +129,18 @@ class AdminLoopPluginController extends Controller
         $data = $request->validate([
             'assistant_key' => 'required|string',
             'model_slug' => 'required|string|max:200',
+            'model_type' => 'sometimes|string|in:'.LoopPluginAiModel::TYPE_FREE_VERIFIED.','.LoopPluginAiModel::TYPE_PAID_APPROVED,
         ]);
 
+        $paye = ($data['model_type'] ?? LoopPluginAiModel::TYPE_FREE_VERIFIED)
+            === LoopPluginAiModel::TYPE_PAID_APPROVED;
+
         try {
-            $this->models->assign($data['assistant_key'], $data['model_slug'], $request->user());
+            $paye
+                ? $this->models->assignPaid($data['assistant_key'], $data['model_slug'], $request->user())
+                : $this->models->assign($data['assistant_key'], $data['model_slug'], $request->user());
         } catch (\InvalidArgumentException) {
-            return back()->with('error', __('loops.plugins_models_rejected', [
+            return back()->with('error', __($paye ? 'loops.plugins_models_paid_rejected' : 'loops.plugins_models_rejected', [
                 'model' => $data['model_slug'],
             ]));
         }

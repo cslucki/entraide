@@ -91,6 +91,24 @@ class LoopPluginModelGuard
 
         $slug = (string) $ligne->model_slug;
 
+        // TASK-1622 — contrat PAYANT APPROUVE : un autre chemin, pas une
+        // exception au chemin FREE. Ni preuve de gratuite ni catalogue des
+        // gratuits ici — les trois marches sont : approbation posee (auteur
+        // et date), shortlist, tarif STATIQUE present et non-free. Un tarif
+        // absent du releve refuse AVANT l'appel : jamais un payant a cout
+        // inconnu. Aucun repli — ni vers le FREE, ni vers un autre payant.
+        if ($ligne->isPaidApproved()) {
+            if ($ligne->approved_at === null
+                || ! array_key_exists($slug, $this->models->paidShortlist())
+                || $this->models->paidRateFor($slug) === null) {
+                $reason = LoopPluginAiModels::REASON_PAID_REJECTED;
+
+                return null;
+            }
+
+            return $slug;
+        }
+
         // Preuve perimee : UN releve, force. S'il echoue — reseau, cle,
         // catalogue malforme — `verifiedFreeModels()` rend un tableau vide et
         // la verification echoue. Fail closed, sans cas particulier.

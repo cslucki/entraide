@@ -172,6 +172,35 @@ class OpenRouterModelCatalog
         return array_key_exists($slug, $this->verifiedFreeModels($forceRefresh));
     }
 
+    /**
+     * Ce slug EXISTE-t-il au catalogue OpenRouter, quel que soit son tarif ?
+     * (TASK-1622 — le mode « Payant approuve » exige un slug CONNU, pas un
+     * slug gratuit.)
+     *
+     * Meme fermeture par defaut que le reste : catalogue illisible = slug
+     * inconnu, et un routeur n'est jamais un choix de modele.
+     */
+    public function isSlugKnown(string $slug, bool $forceRefresh = false): bool
+    {
+        if ($slug === '' || $this->isRouter($slug)) {
+            return false;
+        }
+
+        $catalogue = $this->catalogue($forceRefresh);
+
+        if (! $catalogue['ok']) {
+            return false;
+        }
+
+        foreach ($catalogue['models'] as $model) {
+            if (($model['id'] ?? null) === $slug) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // ── La preuve ───────────────────────────────────────────────────────────
 
     /**

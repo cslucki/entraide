@@ -101,6 +101,15 @@ class LoopChat extends Component
     public array $multiAiStates = [];
 
     /**
+     * TASK-1622 — le membre a-t-il deja confirme qu'il accepte d'ecraser le
+     * texte en cours par la reformulation proposee ?
+     *
+     * Remis a `false` a chaque nouvelle abstention : une confirmation vaut
+     * pour CE geste, jamais pour le suivant.
+     */
+    public bool $suggestionEcrasementConfirme = false;
+
+    /**
      * La question du tour, conservee pour « Reessayer ». Sans elle, un reessai
      * reposerait une question vide ou obligerait le membre a la retaper.
      */
@@ -1146,6 +1155,52 @@ class LoopChat extends Component
         $this->lancerLesAssistants($this->multiAiQuestion, $assistantKey);
     }
 
+    /**
+     * TASK-1622 — poser la reformulation proposee DANS LE COMPOSEUR.
+     *
+     * Ce que ce geste ne fait PAS, et c'est tout le contrat : il n'envoie
+     * rien, il ne publie rien, il ne relance aucun tour et il n'appelle aucun
+     * provider. Il prepare un texte que le membre relit, modifie s'il veut,
+     * et envoie LUI-MEME. L'IA propose, l'humain garde le dernier geste.
+     *
+     * RIEN NE VOYAGE DEPUIS LE CLIENT : aucun parametre. Le serveur relit sa
+     * propre suggestion dans l'etat du tour. C'est plus strict que la
+     * doctrine « l'index voyage, jamais le texte » (TASK-1595), puisqu'ici
+     * meme l'index reste au serveur — et il n'existe aucune bulle persistee
+     * ou relire le texte, l'abstention ne publiant rien.
+     *
+     * Le composeur deja rempli n'est jamais ecrase en silence : le premier
+     * clic demande confirmation, le second remplace.
+     */
+    public function useSuggestion(): void
+    {
+        $suggestion = $this->multiAiStates['_hors_sujet']['suggestion'] ?? null;
+
+        if (! is_string($suggestion) || trim($suggestion) === '') {
+            return;
+        }
+
+        if (trim($this->body) !== '' && ! $this->suggestionEcrasementConfirme) {
+            $this->suggestionEcrasementConfirme = true;
+
+            return;
+        }
+
+        // Un reply en cours capturerait l'envoi : la reformulation est une
+        // nouvelle question du fil. Meme ordre que `askFollowUp()`, et il
+        // n'est pas cosmetique — `cancelReply()` remet le mode a `normal`.
+        $this->cancelReply();
+        $this->composerMode = self::MODE_MULTI_AI;
+        $this->body = trim($suggestion);
+        $this->suggestionEcrasementConfirme = false;
+
+        // Le composeur est en `wire:model` DIFFERE : une ecriture serveur ne
+        // declenche ni `input` ni `message-sent`, donc ni le redimensionnement
+        // ni `hasText` — et `hasText` pilote le bouton d'envoi. Sans cet
+        // evenement, le membre lirait sa question sans pouvoir l'envoyer.
+        $this->dispatch('composer-filled');
+    }
+
     /** Masquer un avertissement qu'on a lu. */
     public function dismissAssistantState(string $assistantKey): void
     {
@@ -1253,7 +1308,13 @@ class LoopChat extends Component
                     'status' => 'not_applicable',
                     'label' => '',
                     'retryable' => false,
+                    // TASK-1622 — la reformulation proposee par le MEME appel.
+                    // `null` quand le modele n'a rien propose de fidele :
+                    // l'ecran demande alors une precision plutot que
+                    // d'inventer une opposition.
+                    'suggestion' => $outcome->suggestion,
                 ]];
+                $this->suggestionEcrasementConfirme = false;
 
                 continue;
             }

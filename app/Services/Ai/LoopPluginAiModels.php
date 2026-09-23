@@ -46,6 +46,14 @@ class LoopPluginAiModels implements DynamicPricingSource
 
     public const REASON_UNAVAILABLE = 'MODEL_UNAVAILABLE_OR_NOT_FREE';
 
+    /**
+     * TASK-1622 — refus du contrat PAYANT : pas d'approbation, hors
+     * shortlist, slug inconnu du catalogue, ou tarif absent du releve
+     * statique. Un seul code : quelle que soit la marche manquante, le
+     * verdict est le meme — cet appel ne part pas.
+     */
+    public const REASON_PAID_REJECTED = 'MODEL_NOT_APPROVED_OR_PRICE_UNKNOWN';
+
     public function __construct(
         private OpenRouterModelCatalog $catalogue,
         private LoopAiAssistants $assistants,
@@ -64,7 +72,7 @@ class LoopPluginAiModels implements DynamicPricingSource
         $libres = $this->catalogue->verifiedFreeModels($forceRefresh);
         $lignes = LoopPluginAiModel::query()
             ->where('plugin_key', self::PLUGIN)
-            ->with('updatedBy:id,name')
+            ->with(['updatedBy:id,name', 'approvedBy:id,name'])
             ->get()
             ->keyBy('assistant_key');
 
@@ -75,23 +83,34 @@ class LoopPluginAiModels implements DynamicPricingSource
         foreach ($this->assistants->catalogueVivant() as $key => $definition) {
             $ligne = $lignes[$key] ?? null;
             $slug = $ligne?->model_slug;
+            $paye = $ligne?->isPaidApproved() ?? false;
+            // TASK-1622 — le tarif statique du payant, une seule regle
+            // (la meme que `assignPaid()` et que la garde d'execution).
+            $tarif = ($paye && $slug !== null) ? $this->paidRateFor($slug) : null;
 
             $sortie[] = [
                 'assistant_key' => $key,
                 'label' => $this->assistants->label($key),
                 'model_slug' => $slug,
                 'provider' => $ligne?->provider ?? self::PROVIDER,
+                'model_type' => $ligne?->model_type ?? LoopPluginAiModel::TYPE_FREE_VERIFIED,
                 'verified_free_at' => $ligne?->verified_free_at,
+                'approved_at' => $ligne?->approved_at,
+                'approved_by' => $ligne?->approvedBy?->name,
+                'paid_rate' => $tarif,
                 'proof_fresh' => $this->proofIsFresh($ligne),
                 // Le slug est-il ENCORE au catalogue des gratuits ?
                 'still_free' => $slug !== null && array_key_exists($slug, $libres),
                 'known_model' => $slug !== null && array_key_exists($slug, $libres),
-                // Eligible = preuve fraiche ET slug encore au catalogue.
-                // C'est la MEME regle que la garde, mais evaluee ici sur le
-                // catalogue DEJA releve pour cet ecran — pas un second releve.
-                'eligible' => $this->proofIsFresh($ligne)
-                    && $slug !== null
-                    && array_key_exists($slug, $libres),
+                // Eligible = la MEME regle que la garde, evaluee par contrat :
+                //  - FREE : preuve fraiche ET slug encore au catalogue des
+                //    gratuits DEJA releve pour cet ecran — pas un second releve ;
+                //  - PAYANT : approbation posee ET tarif statique present.
+                'eligible' => $paye
+                    ? ($ligne?->approved_at !== null && $tarif !== null)
+                    : ($this->proofIsFresh($ligne)
+                        && $slug !== null
+                        && array_key_exists($slug, $libres)),
                 'catalog_entry' => $slug !== null ? ($libres[$slug] ?? null) : null,
                 'updated_by' => $ligne?->updatedBy?->name,
                 'updated_at' => $ligne?->updated_at,
@@ -164,10 +183,94 @@ class LoopPluginAiModels implements DynamicPricingSource
             [
                 'provider' => self::PROVIDER,
                 'model_slug' => $slug,
+                'model_type' => LoopPluginAiModel::TYPE_FREE_VERIFIED,
                 'verified_free_at' => Carbon::now(),
+                // Revenir au gratuit EFFACE l'approbation payante : une ligne
+                // ne porte qu'un contrat a la fois, jamais les deux.
+                'approved_at' => null,
+                'approved_by' => null,
                 'updated_by' => $actor?->id,
             ],
         );
+    }
+
+    /**
+     * TASK-1622 — approuver et affecter un modele PAYANT a un assistant.
+     *
+     * Quatre marches, toutes fermees par defaut, et l'ordre est celui du
+     * moins cher a verifier :
+     *
+     *  1. l'assistant existe au catalogue des roles ;
+     *  2. le slug figure a la SHORTLIST (`ai.multi_ai.paid_model_shortlist`)
+     *     — un payant ne s'approuve pas en texte libre : la shortlist est
+     *     petite, explicite, et versionnee avec le code ;
+     *  3. son tarif figure au releve STATIQUE (`config/ai_pricing.php`),
+     *     entree EXACTE, non-free — jamais `cost_status = unknown` pour un
+     *     payant autorise, c'est le mandat ;
+     *  4. le slug est CONNU du catalogue OpenRouter (peu importe son prix).
+     *     Catalogue illisible = slug inconnu = refus.
+     *
+     * L'acteur est OBLIGATOIRE : une approbation sans auteur ne serait pas
+     * une approbation (idiome `reviewed_by` du depot). `approved_at` /
+     * `approved_by` sont l'audit trail ; `verified_free_at` est efface —
+     * cette ligne ne porte plus une preuve de gratuite.
+     */
+    public function assignPaid(string $assistantKey, string $slug, User $actor): LoopPluginAiModel
+    {
+        if (! $this->assistants->exists($assistantKey)) {
+            throw new \InvalidArgumentException("Assistant inconnu au catalogue : {$assistantKey}");
+        }
+
+        if (! array_key_exists($slug, $this->paidShortlist())
+            || $this->paidRateFor($slug) === null
+            || ! $this->catalogue->isSlugKnown($slug)) {
+            throw new \InvalidArgumentException(self::REASON_PAID_REJECTED.' : '.$slug);
+        }
+
+        return LoopPluginAiModel::query()->updateOrCreate(
+            ['plugin_key' => self::PLUGIN, 'assistant_key' => $assistantKey],
+            [
+                'provider' => self::PROVIDER,
+                'model_slug' => $slug,
+                'model_type' => LoopPluginAiModel::TYPE_PAID_APPROVED,
+                'verified_free_at' => null,
+                'approved_at' => Carbon::now(),
+                'approved_by' => $actor->id,
+                'updated_by' => $actor->id,
+            ],
+        );
+    }
+
+    /**
+     * La shortlist payante : slug => libelle. Petite et explicite — elle
+     * vit dans `config/ai.php`, pas en base : la proposer est une decision
+     * de code, l'approuver reste une decision de SuperAdmin.
+     *
+     * @return array<string, string>
+     */
+    public function paidShortlist(): array
+    {
+        $shortlist = config('ai.multi_ai.paid_model_shortlist', []);
+
+        return is_array($shortlist) ? $shortlist : [];
+    }
+
+    /**
+     * Le tarif STATIQUE d'un slug payant — entree exacte, non-free — ou
+     * `null`. C'est la meme question que se posent `assignPaid()`, la garde
+     * d'execution et l'ecran : UNE regle, trois lecteurs.
+     *
+     * @return array{input_per_1m: float, output_per_1m: float}|null
+     */
+    public function paidRateFor(string $slug): ?array
+    {
+        $rate = \App\Support\Ai\AiPricingCatalog::staticRateFor(self::PROVIDER, $slug);
+
+        if ($rate === null || $rate['free']) {
+            return null;
+        }
+
+        return ['input_per_1m' => $rate['input_per_1m'], 'output_per_1m' => $rate['output_per_1m']];
     }
 
     // ── DynamicPricingSource ────────────────────────────────────────────────
@@ -205,8 +308,15 @@ class LoopPluginAiModels implements DynamicPricingSource
 
         // `first()` sur la preuve la plus recente : deux assistants peuvent
         // partager le slug, et c'est le meme tarif pour les deux.
+        //
+        // TASK-1622 — les lignes FREE seules : une ligne « payant approuve »
+        // ne porte AUCUNE preuve de gratuite, et la laisser repondre ici
+        // ferait chiffrer un modele payant a 0 au ledger. Son tarif vit au
+        // releve statique, que `AiPricingCatalog` consulte AVANT cette
+        // source — ici, elle n'a rien a dire.
         $ligne = LoopPluginAiModel::query()
             ->where('plugin_key', self::PLUGIN)
+            ->where('model_type', LoopPluginAiModel::TYPE_FREE_VERIFIED)
             ->where('model_slug', $model)
             ->orderByDesc('verified_free_at')
             ->first();

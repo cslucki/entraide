@@ -19,14 +19,39 @@ class LoopPluginAiModel extends Model
 {
     use HasUuids;
 
-    protected $fillable = ['plugin_key', 'assistant_key', 'provider', 'model_slug', 'verified_free_at', 'updated_by'];
+    /**
+     * TASK-1622 — le TYPE d'une ligne.
+     *
+     * `free_verified` : preuve de gratuite (`verified_free_at`), contrat
+     * TASK-1617 inchange. `paid_approved` : modele payant explicitement
+     * approuve (`approved_at` / `approved_by`), tarife au catalogue statique.
+     */
+    public const TYPE_FREE_VERIFIED = 'free_verified';
+
+    public const TYPE_PAID_APPROVED = 'paid_approved';
+
+    protected $fillable = [
+        'plugin_key', 'assistant_key', 'provider', 'model_slug',
+        'model_type', 'verified_free_at', 'approved_at', 'approved_by', 'updated_by',
+    ];
 
     protected $casts = [
         'verified_free_at' => 'datetime',
+        'approved_at' => 'datetime',
     ];
+
+    public function isPaidApproved(): bool
+    {
+        return $this->model_type === self::TYPE_PAID_APPROVED;
+    }
 
     public function updatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 }

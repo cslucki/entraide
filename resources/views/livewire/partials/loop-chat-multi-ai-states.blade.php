@@ -77,9 +77,60 @@
                  non plus — ce n'est pas un role qui a echoue. Aucun bouton
                  « Reessayer » : la meme question rendrait le meme verdict,
                  c'est la reformulation qui debloque. --}}
+            @php
+                // TASK-1622 — la reformulation proposee par le MEME appel qui
+                // s'est abstenu. Absente quand le modele n'a rien propose de
+                // fidele : on demande alors une precision, on n'invente pas
+                // une opposition pour eviter l'abstention.
+                $suggestion = is_string($state['suggestion'] ?? null) && trim($state['suggestion']) !== ''
+                    ? trim($state['suggestion'])
+                    : null;
+            @endphp
+
             <div data-multi-ai-not-applicable
                  class="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-200">
+                {{-- Trois textes, trois situations. Avec suggestion : on
+                     annonce la proposition. Sans suggestion : on DEMANDE UNE
+                     PRECISION (mandat §5) plutot que de reciter des exemples
+                     en dur — le modele vient justement de ne pas pouvoir
+                     reformuler fidelement, lui souffler « WordPress ou
+                     Drupal ? » reviendrait a inventer a sa place. --}}
                 <p class="leading-5">{{ __('loops.plugins_multi_ai_not_applicable') }}</p>
+                @if($suggestion)
+                    <p class="mt-1.5 leading-5">{{ __('loops.plugins_multi_ai_not_applicable_lead') }}</p>
+                @else
+                    <p class="mt-1.5 leading-5" data-multi-ai-precision>{{ __('loops.plugins_multi_ai_not_applicable_precision') }}</p>
+                @endif
+
+                @if($suggestion)
+                    {{-- TOUTE la zone est l'action — pas un petit bouton a
+                         viser. Un `<button>` natif, donc : curseur, survol,
+                         focus clavier et Entree/Espace viennent avec, sans
+                         qu'on reimplemente une semantique d'interaction. --}}
+                    <button type="button"
+                            wire:click="useSuggestion"
+                            wire:loading.attr="disabled"
+                            wire:target="useSuggestion"
+                            data-multi-ai-suggestion
+                            class="group mt-2 flex w-full items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-left transition hover:border-indigo-300 hover:bg-indigo-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 disabled:opacity-50 dark:border-indigo-800 dark:bg-gray-900 dark:hover:border-indigo-700 dark:hover:bg-indigo-950/40">
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-xs leading-5 text-gray-800 dark:text-gray-100">{{ $suggestion }}</span>
+                            <span class="mt-0.5 block text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
+                                {{ $suggestionEcrasementConfirme ? __('loops.plugins_multi_ai_suggestion_replace') : __('loops.plugins_multi_ai_suggestion_use') }}
+                                <span aria-hidden="true">→</span>
+                            </span>
+                        </span>
+                    </button>
+
+                    @if($suggestionEcrasementConfirme)
+                        {{-- Le composeur contenait deja du texte. On ne
+                             l'ecrase pas en silence : un second clic le
+                             remplace, et c'est dit. --}}
+                        <p data-multi-ai-suggestion-confirm class="mt-1.5 text-[11px] text-amber-700 dark:text-amber-300">
+                            {{ __('loops.plugins_multi_ai_suggestion_confirm') }}
+                        </p>
+                    @endif
+                @endif
 
                 <div class="mt-2 flex">
                     <button type="button"
