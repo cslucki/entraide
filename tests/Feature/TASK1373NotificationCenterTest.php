@@ -600,8 +600,14 @@ class TASK1373NotificationCenterTest extends TestCase
 
         $html = $this->actingAs($this->alice)->get(route('notifications.index'))->assertOk()->getContent();
 
-        // Le topbar mobile est monte sur toutes les pages membres.
-        $this->assertStringContainsString('data-mobile-notifications-unread="1"', $html);
+        // TASK-1625 — l'ancre a change de SURFACE, pas de garantie.
+        //
+        // Le compteur vivait dans le menu Avatar : le Centre etait donc a DEUX
+        // taps. Il est desormais porte par une cloche dans le header mobile,
+        // a UN seul tap. La garantie de ce test — « atteignable sur mobile,
+        // avec son compte » — est tenue par une surface meilleure, pas
+        // affaiblie.
+        $this->assertStringContainsString('data-mobile-topbar-notifications-unread="1"', $html);
         $this->assertGreaterThanOrEqual(
             2,
             substr_count($html, 'href="'.route('notifications.index').'"'),
