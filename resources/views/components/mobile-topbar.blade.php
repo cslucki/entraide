@@ -139,7 +139,28 @@
     }
 @endphp
 
-<header x-data class="md:hidden fixed top-0 inset-x-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 pt-[env(safe-area-inset-top)]">
+{{-- TASK-1625 — CAUSE RACINE du menu Avatar masque.
+
+     Le panneau du menu est `absolute z-50` (`components/dropdown.blade.php`),
+     mais ce `<header>` est `fixed` AVEC un `z-index` : il ouvre donc un
+     CONTEXTE D'EMPILEMENT, et le 50 du panneau ne vaut plus qu'entre freres
+     du header. Face au reste de la page, tout le menu peint a la couche du
+     header. Passaient donc AU-DESSUS de lui : le FAB « + » (z-50), le FAB IA,
+     les toasts (z-50), et meme la barre basse — a z-40 egal, elle est montee
+     APRES dans le DOM (`layouts/app.blade.php:198` puis `:199`).
+
+     Monter un z-index enorme sur le panneau n'y aurait rien change : un
+     enfant ne sort pas du contexte de son parent. Ce qui doit monter, c'est
+     LE HEADER.
+
+     Mais pas en permanence : a `z-[60]` fixe, il passerait aussi devant les
+     vraies modales `fixed inset-0 z-50`. Il ne monte donc QUE pendant que son
+     menu est ouvert, et redescend a la fermeture. Il reste sous les dialogues
+     `z-[70]` du depot, comme demande. --}}
+<header x-data="{ menuOuvert: false }"
+        @dropdown-open-changed="menuOuvert = $event.detail.open"
+        :class="menuOuvert ? 'z-[60]' : 'z-40'"
+        class="md:hidden fixed top-0 inset-x-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 pt-[env(safe-area-inset-top)]">
     <div class="flex items-center justify-between h-14 px-4 gap-3">
         <div class="flex min-w-0 items-center gap-3">
             @if(request()->routeIs('login', 'organization.login'))
@@ -164,7 +185,7 @@
         </div>
         <div class="flex items-center gap-2.5">
              @auth
-             <div class="flex items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-gray-200 dark:ring-gray-700" aria-label="{{ __('navigation.language_switcher') }}">
+             <div class="flex shrink-0 items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-gray-200 dark:ring-gray-700" aria-label="{{ __('navigation.language_switcher') }}">
                  @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
                       <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" onsubmit="this.redirect_to.value = window.location.href">
                           @csrf
@@ -177,10 +198,33 @@
                      </form>
                  @endforeach
              </div>
-             <button type="button" @click="$store.darkMode.toggle()" class="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('navigation.toggle_display_mode') }}">
+             <button type="button" @click="$store.darkMode.toggle()" class="w-9 h-9 shrink-0 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('navigation.toggle_display_mode') }}">
                 <svg class="block w-5 h-5 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
                 <svg class="hidden w-5 h-5 dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
             </button>
+
+            {{-- TASK-1625 — les Notifications passent au premier rang.
+
+                 Elles etaient a DEUX taps, derriere l'avatar. La route et le
+                 compteur existent deja tous les deux : `$mobileUnreadNotifications`
+                 est calcule en tete de ce fichier depuis TASK-1374, avec la
+                 MEME expression d'Organization que le rail et le controleur.
+                 Aucun backend n'est ajoute. --}}
+            <a href="{{ $organizationRouteParam && Route::has('organization.notifications.index') ? route('organization.notifications.index', ['organization' => $organizationRouteParam]) : route('notifications.index') }}"
+               data-mobile-topbar-notifications
+               class="relative w-9 h-9 shrink-0 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 transition-colors hover:text-gray-900 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
+               aria-label="{{ __('navigation.notifications') }}"
+               title="{{ __('navigation.notifications') }}">
+                <svg class="block w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                @if($mobileUnreadNotifications > 0)
+                <span data-mobile-topbar-notifications-unread="{{ $mobileUnreadNotifications }}"
+                      class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-white dark:ring-gray-900">
+                    {{ $mobileUnreadNotifications > 9 ? '9+' : $mobileUnreadNotifications }}
+                </span>
+                @endif
+            </a>
 
             <x-dropdown align="right" width="w-72" contentClasses="py-2 bg-white dark:bg-gray-800">
                 <x-slot name="trigger">
@@ -194,18 +238,19 @@
 
                 <x-slot name="content">
                     <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                        {{-- TASK-1625 — le solde de points a ete retire d'ici :
+                             il menait a la MEME page que « Mes points », trois
+                             lignes plus bas. Deux chemins vers une seule
+                             destination font hesiter au lieu d'aider. --}}
                         <div class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{{ auth()->user()->full_name }}</div>
-                        <a href="{{ $routeUrl('points.index', 'organization.points.index') }}" class="mt-1 inline-flex text-xs font-medium text-indigo-600 dark:text-indigo-400">{{ auth()->user()->points_balance }} pts</a>
                     </div>
 
                     <a href="{{ $routeUrl('dashboard', 'organization.dashboard') }}" class="block w-full px-4 py-2 text-start text-sm font-semibold leading-5 text-sky-700 transition duration-150 ease-in-out hover:bg-sky-50 focus:bg-sky-50 focus:outline-none dark:text-sky-300 dark:hover:bg-sky-950/40 dark:focus:bg-sky-950/40">
                         {{ __('navigation.dashboard') }}
                     </a>
-                    @if($canSeeFlux && $organizationRouteParam)
-                        <a href="{{ route('organization.flux', ['organization' => $organizationRouteParam]) }}" class="block w-full px-4 py-2 text-start text-sm font-semibold leading-5 text-emerald-700 transition duration-150 ease-in-out hover:bg-emerald-50 focus:bg-emerald-50 focus:outline-none dark:text-emerald-300 dark:hover:bg-emerald-950/40 dark:focus:bg-emerald-950/40">
-                            {{ __('navigation.feed') }}
-                        </a>
-                    @endif
+                    {{-- TASK-1625 — Flux a quitte ce menu : il a son onglet dans la
+                         barre basse, sous le pouce. Le garder ici doublait une
+                         destination deja permanente a l'ecran. --}}
                     <form method="POST" action="{{ $routeUrl('profile.availability', 'organization.profile.availability') }}">
                         @csrf
                         @method('PATCH')
@@ -219,19 +264,11 @@
                     <x-dropdown-link :href="route('agent-ia.wizard')">{{ __('navigation.ai_profile') }}</x-dropdown-link>
                     @endif
                     <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-                    <x-dropdown-link :href="$routeUrl('notifications.index', 'organization.notifications.index')">
-                        <span class="flex items-center justify-between gap-2">
-                            <span>{{ __('navigation.notifications') }}</span>
-                            @if($mobileUnreadNotifications > 0)
-                                {{-- La valeur BRUTE dans l'attribut, le texte plafonne a l'ecran :
-                                     asserter « 9+ » reviendrait a tester le plafond, pas le compte. --}}
-                                <span data-mobile-notifications-unread="{{ $mobileUnreadNotifications }}"
-                                      class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold leading-none text-white">
-                                    {{ $mobileUnreadNotifications > 9 ? '9+' : $mobileUnreadNotifications }}
-                                </span>
-                            @endif
-                        </span>
-                    </x-dropdown-link>
+                    {{-- TASK-1625 — Notifications a quitte ce menu : la cloche du
+                         header, avec son badge, la rend accessible en UN tap au
+                         lieu de deux. Le compteur `$mobileUnreadNotifications`
+                         reste calcule en tete de fichier, il sert maintenant la
+                         cloche. --}}
                     <x-dropdown-link :href="$routeUrl('points.index', 'organization.points.index')">{{ __('navigation.points_history') }}</x-dropdown-link>
                     <x-dropdown-link :href="$routeUrl('invitations.index', 'organization.invitations.index')">{{ __('navigation.invitations') }}</x-dropdown-link>
                     <x-dropdown-link :href="route('favorites.index')">{{ __('navigation.favorites') }}</x-dropdown-link>
@@ -255,7 +292,7 @@
                 </x-slot>
             </x-dropdown>
              @else
-             <div class="flex items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-gray-200 dark:ring-gray-700" aria-label="{{ __('navigation.language_switcher') }}">
+             <div class="flex shrink-0 items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ring-1 ring-gray-200 dark:ring-gray-700" aria-label="{{ __('navigation.language_switcher') }}">
                  @foreach(['en' => 'EN', 'fr' => 'FR'] as $locale => $label)
                       <form method="POST" action="{{ route('locale.switch', ['locale' => $locale]) }}" onsubmit="this.redirect_to.value = window.location.href">
                           @csrf
@@ -268,7 +305,7 @@
                      </form>
                  @endforeach
              </div>
-             <button @click="$store.darkMode.toggle()" class="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('navigation.toggle_display_mode') }}">
+             <button @click="$store.darkMode.toggle()" class="w-9 h-9 shrink-0 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" aria-label="{{ __('navigation.toggle_display_mode') }}">
                 <svg class="block w-5 h-5 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
                 <svg class="hidden w-5 h-5 dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
             </button>
