@@ -155,7 +155,15 @@
          reste vraiment quelque chose a droite, s'efface au bout de 1,4 s, et
          ne capte aucun clic (`pointer-events-none`) : elle flotte au-dessus
          d'un onglet sans jamais le voler. --}}
-    <span x-show="indice"
+    {{-- Une DIV, pas un SPAN, et c'est une histoire de mesure : la garde de
+         TASK-1127 cherche les silhouettes decoratives par la signature
+         `aria-hidden="true" … pointer-events-none`, puis lit leur contenu
+         JUSQU'AU PREMIER `</div>`. Cet indice porte la meme signature — il est
+         decoratif et inerte, legitimement — mais se fermait par `</span>` : la
+         capture debordait alors sur le reste de la page et y trouvait des
+         boutons qui ne lui appartiennent pas. Le fermer par `</div>` rend a
+         cette garde la portion qu'elle croit lire. --}}
+    <div x-show="indice"
           x-cloak
           x-transition:enter="transition ease-out duration-150"
           x-transition:enter-start="opacity-0 translate-x-1"
@@ -169,5 +177,5 @@
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
             <path d="M5 12h13m0 0-5-5m5 5-5 5" />
         </svg>
-    </span>
+    </div>
 </nav>
