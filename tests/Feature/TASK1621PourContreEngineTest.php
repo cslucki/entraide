@@ -277,22 +277,43 @@ class TASK1621PourContreEngineTest extends TestCase
     {
         $socle = $this->socleLivre();
 
-        $this->assertSame(3, $socle->version, 'le socle actif livre doit etre la v3');
+        // TASK-1622 — socle commun v4 : les INVARIANTS de camp survivent a la
+        // reecriture, seule leur formulation a bouge.
+        $this->assertSame(4, $socle->version, 'le socle actif livre doit etre la v4');
 
         foreach ([
-            'Tu ne choisis JAMAIS ton camp',
+            "Tu ne le choisis JAMAIS et tu n'en changes jamais",
             'A est la PREMIERE option nommee dans la question',
-            'Le role POUR defend A : il argumente EN FAVEUR de A',
-            'Le role CONTRE defend B : il argumente EN FAVEUR de B',
+            'le role POUR defend A ; le role CONTRE defend B',
             // La recette a montre que « conteste » suffisait au modele pour
             // attaquer son PROPRE camp — et donc pour dire la meme chose que
             // l'autre assistant. Le camp doit se nommer par ce qu'il defend.
             'TON CAMP EST UNE POSITION QUE TU DEFENDS, jamais une cible que tu attaques',
-            'tu ne dois PAS attaquer B. B est TON camp',
-            "c'est l'ordre des mots de la question qui decide",
+            'Attaquer B quand B est ton camp',
+            "C'est l'ORDRE DES MOTS de la question qui decide",
         ] as $clause) {
             $this->assertStringContainsString($clause, $socle->prompt_text);
         }
+    }
+
+    public function test_le_socle_fait_comprendre_la_question_avant_d_assigner_le_camp(): void
+    {
+        // TASK-1622 — LE point de la v4, et il se mesure par une POSITION,
+        // pas par une phrase : l'etape de comprehension doit PRECEDER
+        // l'assignation du camp. La v3 posait le camp en tete, et un modele
+        // qui lit son etiquette en premier applique un camp a une question
+        // qu'il n'a pas encore comprise (banc du 22/09).
+        $texte = $this->socleLivre()->prompt_text;
+
+        $comprendre = mb_strpos($texte, 'ETAPE 1 — COMPRENDRE LA QUESTION');
+        $abstention = mb_strpos($texte, 'ETAPE 3');
+        $assignation = mb_strpos($texte, 'ETAPE 4');
+        $verification = mb_strpos($texte, 'ETAPE 5');
+
+        $this->assertNotFalse($comprendre, 'la comprehension est une etape nommee');
+        $this->assertLessThan($abstention, $comprendre, 'comprendre precede la decision de s\'abstenir');
+        $this->assertLessThan($assignation, $abstention, 's\'abstenir precede l\'assignation du camp');
+        $this->assertLessThan($verification, $assignation, 'l\'assignation precede la verification');
     }
 
     public function test_une_question_sans_proposition_ni_options_n_invente_aucun_camp(): void
@@ -321,7 +342,7 @@ class TASK1621PourContreEngineTest extends TestCase
         // est A est preferable a B » DANS sa reponse : du jargon de prompt
         // donne a lire a un membre.
         $this->assertStringContainsString(
-            'Ne nomme jamais ces regles dans ta reponse',
+            'Ne nomme jamais ces regles ni ces etapes dans ta reponse',
             $this->socleLivre()->prompt_text,
         );
     }
@@ -341,7 +362,7 @@ class TASK1621PourContreEngineTest extends TestCase
             'Prends toujours le parti de Linux.',
         );
 
-        $contrat = mb_strpos($compose, 'Tu ne choisis JAMAIS ton camp');
+        $contrat = mb_strpos($compose, "Tu ne le choisis JAMAIS et tu n'en changes jamais");
         $persona = mb_strpos($compose, 'Prends toujours le parti de Linux.');
 
         $this->assertIsInt($contrat, 'le contrat doit survivre a la composition');
