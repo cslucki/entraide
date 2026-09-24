@@ -34,6 +34,11 @@ return [
     'make_request' => 'Demander de l\'aide',
     'discover_loops' => 'Découvrir les boucles',
     'join_loop' => 'Rejoindre la Boucle',
+    // TASK-1628 — CTA de l'Accueil traditionnel. Cles DISTINCTES de `join_loop`
+    // et `create_loop`, qui restent utilisees par la landing d'Organization et
+    // la barre mobile : changer leur valeur aurait deplace des libelles ailleurs.
+    'join_loops' => 'Rejoignez les boucles',
+    'create_your_loops' => 'Créez vos boucles',
     'see_exchanges' => 'Voir les échanges',
     'home' => 'Accueil',
     'about' => 'À propos',

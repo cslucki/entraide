@@ -1955,38 +1955,11 @@
                 </div>
                 @endif
 
-        {{-- Nouveau dossier — un vrai enfant (parent_id), dans n'importe quel
-             Dossier : Boucle ou prive, racine ou deja imbrique (TASK-1130
-             passe 4). Poste sur le store() existant ; creer un enfant est un
-             geste d'ecriture sur CE dossier, meme regle que d'y attacher un
-             fichier ou un article. --}}
-        @can('update', $dossier)
-            <div x-data="{ open: false }" @open-new-folder.window="open = true" x-on:keydown.escape.window="open = false">
-                <template x-if="open">
-                    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="open = false" role="dialog" aria-modal="true" aria-labelledby="new-folder-title">
-                        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800">
-                            {{-- TASK-1130 passe 4 : ce modal s'affichait aussi
-                                 dans un Dossier prive en parlant d'une Boucle
-                                 absente — un langage Drive unique n'impose pas
-                                 un seul texte partout ou la realite differe. --}}
-                            <h3 id="new-folder-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ __($governingDossier->isLoopDossier() ? 'dossiers.drive_new_folder_title' : 'dossiers.drive_new_folder_title_private') }}</h3>
-                            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ $governingDossier->isLoopDossier() ? __('dossiers.drive_new_folder_desc') : __('dossiers.drive_new_folder_desc_private', ['name' => $dossier->name]) }}</p>
-                            <form method="POST" action="{{ route('organization.dossiers.store', ['organization' => $orgParam]) }}" class="mt-4">
-                                @csrf
-                                <input type="hidden" name="parent_id" value="{{ $dossier->getKey() }}">
-                                <label for="new-folder-name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">{{ __('dossiers.drive_new_folder_name') }}</label>
-                                <input id="new-folder-name" name="name" type="text" required maxlength="120"
-                                       class="mt-1.5 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
-                                <div class="mt-5 flex justify-end gap-2">
-                                    <button type="button" @click="open = false" class="inline-flex min-h-11 items-center rounded-xl border border-gray-300 px-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">{{ __('dossiers.drive_cancel') }}</button>
-                                    <button type="submit" class="inline-flex min-h-11 items-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700">{{ __('dossiers.drive_new_folder_submit') }}</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </template>
-            </div>
-        @endcan
+        {{-- TASK-1629 : la modale « Nouveau dossier » (un enfant reel via
+             `parent_id`, poste sur `dossiers.store`) est retiree avec la route
+             qui la recevait. Les sous-dossiers legacy deja en base restent
+             listes, ouvrables et navigables juste au-dessus — c'est leur
+             CREATION qui s'arrete, pas leur lecture. --}}
 
         {{-- La gouvernance (proprietaire/regime) vient de governingDossier(),
              mais le partage reste projete depuis le Dossier ouvert : acces

@@ -36,6 +36,9 @@ use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminNotificationCockpitController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
+use App\Http\Controllers\Admin\AdminAssignDataController;
+use App\Http\Controllers\Admin\AdminDataIntegrityController;
+use App\Http\Controllers\Admin\AdminDossierCleanupController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminRootDestinationController;
@@ -249,8 +252,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'updatePlan'])->name('blog.plan.update');
 
     // Blog dossier classification endpoints
+    // TASK-1629 : `blog.dossiers.store` (creation rapide depuis la carte
+    // Dossier de l'editeur) supprimee — classer un article reste possible,
+    // fabriquer le dossier ne l'est plus.
     Route::get('/blog/dossiers', [BlogDossierApiController::class, 'listDossiers'])->name('blog.dossiers.index');
-    Route::post('/blog/dossiers', [BlogDossierApiController::class, 'quickCreate'])->name('blog.dossiers.store');
     Route::get('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'currentDossier'])->name('blog.dossier.current');
     Route::post('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'attach'])->name('blog.dossier.attach');
     Route::delete('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'detach'])->name('blog.dossier.detach');
@@ -868,11 +873,31 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::delete('/loops/{loop}', [AdminLoopController::class, 'destroy'])->name('loops.destroy');
 
     // Outils
-    Route::get('/outils/assign-data', [AdminOutilsController::class, 'assignData'])->name('outils.assign-data');
-    Route::post('/outils/assign-data', [AdminOutilsController::class, 'doAssignData'])->name('outils.assign-data.do');
-    Route::get('/outils/assign-data/detail', [AdminOutilsController::class, 'assignDataDetail'])->name('outils.assign-data.detail');
+    // TASK-1631 — assign-data reconstruit sur `DatasetRegistry`. Le detail a
+    // une route CANONIQUE par dataset (`{dataset}`) : les compteurs du
+    // tableau sont desormais de vrais liens, pas un `window.open` fabrique en
+    // JavaScript — ce qui les rend testables cote serveur. Les deux etapes
+    // qui engagent quelque chose (preview, assign) sont en POST.
+    Route::get('/outils/assign-data', [AdminAssignDataController::class, 'index'])->name('outils.assign-data');
+    Route::get('/outils/assign-data/{dataset}', [AdminAssignDataController::class, 'detail'])->name('outils.assign-data.detail');
+    Route::post('/outils/assign-data/preview', [AdminAssignDataController::class, 'preview'])->name('outils.assign-data.preview');
+    Route::post('/outils/assign-data/assign', [AdminAssignDataController::class, 'assign'])->name('outils.assign-data.assign');
     Route::get('/outils/fix-categories', [AdminOutilsController::class, 'fixCategories'])->name('outils.fix-categories');
     Route::post('/outils/fix-categories', [AdminOutilsController::class, 'doFixCategories'])->name('outils.fix-categories.do');
+
+    // TASK-1630 — « Nettoyage des Dossiers » : diagnostiquer et purger les
+    // arborescences legacy. Trois temps, et les deux qui engagent quelque
+    // chose sont en POST : la previsualisation porte une selection et ne doit
+    // pas etre rejouable depuis un historique, la purge est irreversible.
+    // TASK-1632 — cockpit « Integrite des donnees ». DEUX routes, toutes
+    // deux en GET : cet outil ne mute rien. Rattacher se fait dans
+    // assign-data, purger dans le nettoyage des Dossiers.
+    Route::get('/outils/integrite-donnees', [AdminDataIntegrityController::class, 'index'])->name('outils.integrite');
+    Route::get('/outils/integrite-donnees/{check}', [AdminDataIntegrityController::class, 'detail'])->name('outils.integrite.detail');
+
+    Route::get('/outils/dossiers', [AdminDossierCleanupController::class, 'index'])->name('outils.dossiers');
+    Route::post('/outils/dossiers/preview', [AdminDossierCleanupController::class, 'preview'])->name('outils.dossiers.preview');
+    Route::post('/outils/dossiers/purge', [AdminDossierCleanupController::class, 'purge'])->name('outils.dossiers.purge');
 
     // Stats
     Route::get('/stats/login-history', [AdminController::class, 'loginHistory'])->name('stats.login-history');
@@ -1133,9 +1158,16 @@ Route::prefix('/org/{organization}')
                 Route::post('/likes/toggle', [LikeController::class, 'toggle'])->name('likes.toggle');
 
                 // Dossiers (org-scoped, private foundation)
+                //
+                // TASK-1629 — BouclePro n'est pas un Drive : l'utilisateur ne
+                // batit plus d'arborescence. `dossiers.create` (formulaire) et
+                // `dossiers.store` (racine ET sous-dossier `parent_id`) sont
+                // SUPPRIMEES, pas neutralisees : elles n'avaient aucun appelant
+                // interne, un POST direct rend donc 404 et non 403 — il n'y a
+                // plus d'endpoint a proteger. Le provisioning automatique des
+                // racines (`LoopRootDocumentService`, `PersonalDocumentsRoot`)
+                // n'a jamais traverse ces routes et reste intact.
                 Route::get('/dossiers', [DossierController::class, 'index'])->name('dossiers.index');
-                Route::get('/dossiers/create', [DossierController::class, 'create'])->name('dossiers.create');
-                Route::post('/dossiers', [DossierController::class, 'store'])->name('dossiers.store');
                 Route::get('/dossiers/{dossier}', [DossierController::class, 'show'])->name('dossiers.show');
                 Route::get('/dossiers/{dossier}/semantic-search', DossierSemanticSearchController::class)->name('dossiers.semantic-search');
                 Route::post('/dossiers/{dossier}/insights', DossierInsightsController::class)->middleware('throttle:5,1')->name('dossiers.insights');
@@ -1247,7 +1279,6 @@ Route::prefix('/org/{organization}')
 
                 // Blog dossier classification endpoints (org-scoped)
                 Route::get('/blog/dossiers', [BlogDossierApiController::class, 'orgListDossiers'])->name('blog.dossiers.index');
-                Route::post('/blog/dossiers', [BlogDossierApiController::class, 'orgQuickCreate'])->name('blog.dossiers.store');
                 Route::get('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'orgCurrentDossier'])->name('blog.dossier.current');
                 Route::post('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'orgAttach'])->name('blog.dossier.attach');
                 Route::delete('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'orgDetach'])->name('blog.dossier.detach');

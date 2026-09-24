@@ -21,14 +21,29 @@ class HomeController extends Controller
             ?? Organization::where('slug', 'main')->where('is_active', true)->first();
 
         // TASK-1506 — le superadmin choisit ce que sert la racine
-        // (`/admin/homepage`). NULL, ou une valeur inconnue laissee en base,
-        // vaut le comportement historique : cette branche ne s'ouvre que sur
-        // un choix explicite et valide.
-        $destination = RootDestination::normalize($defaultOrganization?->root_destination);
+        // (`/admin/homepage`).
+        //
+        // TASK-1628 — et ce choix est SOUVERAIN.
+        //
+        // `RootDestination::effective()` porte desormais seule la resolution :
+        // choix explicite s'il y en a un, sinon le repli historique (gabarit
+        // hero -> landing de l'Organization). Elle etait ecrite ici en clair,
+        // et l'ecran d'administration, lui, lisait `normalize()` — les deux
+        // divergeaient donc par construction. Une seule fonction, deux
+        // appelants : l'ecran ne peut plus annoncer autre chose que ce que
+        // cette methode sert.
+        //
+        // Le defaut mesure par Cyril tenait a cette divergence : « Accueil
+        // traditionnel » enregistre et confirme a l'ecran, et le visiteur
+        // arrive sur le Shell, parce que `normalize()` rabat NULL sur
+        // `HOMEPAGE` et rendait « jamais choisi » indiscernable de « choisi ».
+        $stored = $defaultOrganization?->root_destination;
+        $destination = RootDestination::effective($stored, $defaultOrganization?->homepage_template);
 
         if ($destination === RootDestination::SHELL_WELCOME && $defaultOrganization !== null) {
             // La landing de l'Organization ; le mode d'affichage du Guest
-            // Shell (TASK-1500) decide seul de sa forme.
+            // Shell (TASK-1500) decide seul de sa forme. C'est aussi la sortie
+            // du repli historique : un gabarit hero sans choix explicite.
             return redirect()->route('organization.home', $defaultOrganization);
         }
 
@@ -36,10 +51,6 @@ class HomeController extends Controller
             // `members.index` est derriere `auth` depuis TASK-1479 (P0
             // privacy) : un anonyme y rencontre la connexion, puis revient.
             return redirect()->route($route);
-        }
-
-        if ($defaultOrganization?->homepage_template === 'bouclepro_hero_v2' || $defaultOrganization?->homepage_template === 'artscilab_hero') {
-            return redirect()->route('organization.home', $defaultOrganization);
         }
 
         $stats = [

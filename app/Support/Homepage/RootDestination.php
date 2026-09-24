@@ -80,6 +80,62 @@ final class RootDestination
         return is_string($mode) && in_array($mode, self::MODES, true);
     }
 
+    /**
+     * TASK-1628 — le SuperAdmin a-t-il VRAIMENT choisi, ou la colonne n'a-t-elle
+     * jamais ete ecrite ?
+     *
+     * `normalize()` repond « quelle destination servir » et rabat donc NULL sur
+     * `HOMEPAGE` : apres lui, « jamais choisi » et « choisi Accueil
+     * traditionnel » sont le MEME mot. C'est cet aplatissement qui laissait la
+     * surcouche `homepage_template` hero annuler un choix explicite.
+     *
+     * La distinction est FACTUELLE, pas devinee : la migration TASK-1506 a
+     * ajoute la colonne `nullable()`, sans defaut ni backfill, et le SEUL
+     * ecrivain du depot est `AdminRootDestinationController::update()`, qui
+     * valide contre `MODES` — aucune factory, aucun seeder ne l'ecrit. Une
+     * valeur presente et valide ne peut donc venir que de `/admin/homepage`.
+     *
+     * Une valeur inconnue restee en base (import, retrait d'une modalite) n'est
+     * PAS un choix : elle retombe en historique, comme `normalize()`.
+     */
+    public static function isExplicitChoice(mixed $stored): bool
+    {
+        return self::isValid($stored);
+    }
+
+    /**
+     * TASK-1628 — ce que la racine sert REELLEMENT, en une seule autorite.
+     *
+     * `normalize()` dit ce qui est STOCKE ; celle-ci dit ce qui est SERVI, en
+     * appliquant le repli historique. Les deux different sur un seul cas, et
+     * c'est precisement celui qui faisait mentir l'ecran d'administration :
+     * sans choix explicite, un gabarit hero envoie sur la landing de
+     * l'Organization — donc sur le Shell quand il est en shell-first — alors
+     * que `normalize()` repond « Accueil traditionnel ».
+     *
+     * `SHELL_WELCOME` est la bonne reponse pour ce repli, et pas un a-peu-pres :
+     * cette modalite est definie comme « la landing de l'Organization, ou le
+     * mode d'affichage du Shell Welcome decide seul de la forme ». Elle couvre
+     * donc aussi bien le Shell que le gabarit hero rendu sans Shell.
+     *
+     * Volontairement PURE : deux scalaires, aucun modele, aucune lecture de
+     * `GuestShellPolicy`. `HomeController` et `AdminRootDestinationController`
+     * appellent la meme fonction — c'est ce qui garantit que l'ecran ne peut
+     * plus diverger de `GET /`.
+     */
+    public static function effective(mixed $stored, ?string $homepageTemplate): string
+    {
+        if (self::isExplicitChoice($stored)) {
+            return $stored;
+        }
+
+        if ($homepageTemplate === 'bouclepro_hero_v2' || $homepageTemplate === 'artscilab_hero') {
+            return self::SHELL_WELCOME;
+        }
+
+        return self::DEFAULT;
+    }
+
     public static function normalize(mixed $mode): string
     {
         return self::isValid($mode) ? $mode : self::DEFAULT;

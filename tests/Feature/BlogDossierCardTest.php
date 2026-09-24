@@ -239,28 +239,13 @@ class BlogDossierCardTest extends TestCase
         $this->assertDatabaseHas('dossier_blog_posts', ['blog_post_id' => $post->id]);
     }
 
-    // ─── quickCreate ───
-
-    public function test_author_quick_creates_dossier(): void
-    {
-        $this->actingAs($this->authorA)
-            ->postJson(route('blog.dossiers.store'), ['name' => 'Quick Folder'])
-            ->assertCreated()
-            ->assertJsonPath('dossier.name', 'Quick Folder');
-
-        $this->assertDatabaseHas('dossiers', [
-            'name' => 'Quick Folder',
-            'owner_id' => $this->authorA->id,
-            'organization_id' => $this->orgA->id,
-        ]);
-    }
-
-    public function test_quick_create_empty_name_fails(): void
-    {
-        $this->actingAs($this->authorA)
-            ->postJson(route('blog.dossiers.store'), ['name' => ''])
-            ->assertStatus(422);
-    }
+    // ─── quickCreate : supprimee (TASK-1629) ───
+    //
+    // Les deux tests qui vivaient ici postaient sur `blog.dossiers.store` pour
+    // fabriquer un Dossier depuis la carte de l'editeur. La route est partie ;
+    // son absence — globale ET org-scoped — est gardee par
+    // `TASK1629NoManualDossierCreationTest`. Classer, deplacer et detacher un
+    // Article restent mesures au-dessus.
 
     // ─── org-scoped variants ───
 
@@ -284,14 +269,6 @@ class BlogDossierCardTest extends TestCase
             ->assertOk();
 
         $this->assertDatabaseHas('dossier_blog_posts', ['blog_post_id' => $post->id]);
-    }
-
-    public function test_org_scoped_quick_create(): void
-    {
-        $this->actingAs($this->authorA)
-            ->postJson(route('organization.blog.dossiers.store', ['organization' => $this->orgA]), ['name' => 'Org Quick'])
-            ->assertCreated()
-            ->assertJsonPath('dossier.name', 'Org Quick');
     }
 
     // ─── helpers ───

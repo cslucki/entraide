@@ -11,14 +11,15 @@ use App\Models\DossierMember;
 use App\Models\Loop;
 use App\Services\Dossiers\DossierInsightsService;
 use App\Services\Dossiers\DossierSemanticSearchGate;
+use App\Services\Dossiers\DossierTreePurger;
 use App\Services\Dossiers\PersonalDocumentsRoot;
 use App\Support\Loops\LoopRoleRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -182,14 +183,6 @@ class DossierController extends Controller
             'loopDossiers' => $dossiersDeBoucle,
             'organizationRouteParam' => $request->route('organization'),
         ]);
-    }
-
-    public function create(): View
-    {
-        $this->currentOrganizationOrFail();
-        $this->authorize('create', Dossier::class);
-
-        return view('dossiers.create');
     }
 
     public function show(Request $request, DossierSemanticSearchGate $semanticSearchGate, DossierInsightsService $insights): View|Response
@@ -501,105 +494,22 @@ class DossierController extends Controller
         ];
     }
 
-    public function store(Request $request): RedirectResponse
-    {
-        $organization = $this->currentOrganizationOrFail();
-
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:120'],
-            'owner_id' => ['prohibited'],
-            // TASK-1130 : le Drive d'une Boucle cree des dossiers partages avec
-            // elle. La regle est **celle d'update()**, a l'identique — pas un
-            // second chemin de partage.
-            'visibility' => ['nullable', Rule::in([Dossier::VISIBILITY_PRIVATE, Dossier::VISIBILITY_LOOP])],
-            'shared_with_loop_id' => ['nullable', 'string'],
-            // TASK-1130 passe 4 : un vrai sous-dossier. Present -> le nouveau
-            // Dossier devient un enfant reel (parent_id), pas une racine.
-            'parent_id' => ['nullable', 'string'],
-        ]);
-
-        // ── Un vrai sous-dossier, dans n'importe quel Dossier (Boucle ou
-        //    prive) ─────────────────────────────────────────────────────────
-        if (filled($data['parent_id'] ?? null)) {
-            $parent = Dossier::where('id', $data['parent_id'])
-                ->where('organization_id', $organization->id)
-                ->first();
-
-            if (! $parent) {
-                abort(404);
-            }
-
-            // Creer un enfant est un geste d'ecriture sur le parent : memes
-            // droits que d'y attacher un fichier ou un article.
-            $this->authorize('update', $parent);
-
-            $enfant = new Dossier([
-                'organization_id' => $organization->id,
-                'owner_id' => null,
-                'loop_id' => null,
-                'parent_id' => $parent->id,
-                'name' => $data['name'],
-                // Un enfant n'a pas d'audience propre (governingDossier() la
-                // tranche) ; la colonne reste NOT NULL, elle recopie celle du
-                // parent sans lui donner de sens metier ici.
-                'visibility' => $parent->visibility,
-            ]);
-            $enfant->assertValidParent($parent);
-            $enfant->save();
-
-            return redirect()
-                ->route('organization.dossiers.show', ['organization' => $organization, 'dossier' => $parent->getKey()])
-                ->with('success', __('dossiers.created'));
-        }
-
-        // ── Chemin historique : une racine, privee ou partagee avec une
-        //    Boucle (shared_with_loop_id, conserve tel quel) ────────────────
-        $this->authorize('create', Dossier::class);
-
-        $visibility = $data['visibility'] ?? Dossier::VISIBILITY_PRIVATE;
-        $sharedLoopId = null;
-
-        if ($visibility === Dossier::VISIBILITY_LOOP) {
-            // Sharing with a Loop requires a Loop, and it must belong to the
-            // same Organization — a Dossier never reaches across a tenant.
-            // Same guard as update(), same error, same phrasing.
-            $loop = Loop::where('id', $data['shared_with_loop_id'] ?? null)
-                ->where('organization_id', $organization->id)
-                ->first();
-
-            if (! $loop) {
-                return back()->withErrors(['shared_with_loop_id' => __('dossiers.visibility_loop_required')]);
-            }
-
-            $sharedLoopId = $loop->id;
-        }
-
-        $dossier = Dossier::create([
-            'organization_id' => $organization->id,
-            'owner_id' => $request->user()->id,
-            'name' => $data['name'],
-            'visibility' => $visibility,
-            'shared_with_loop_id' => $sharedLoopId,
-        ]);
-
-        // Cree depuis le Drive d'une Boucle, on y retourne : c'est la que le
-        // dossier vient d'apparaitre.
-        if ($sharedLoopId !== null && $request->input('return_to_dossier')) {
-            $retour = Dossier::where('id', $request->input('return_to_dossier'))
-                ->where('organization_id', $organization->id)
-                ->first();
-
-            if ($retour) {
-                return redirect()
-                    ->route('organization.dossiers.show', ['organization' => $organization, 'dossier' => $retour->getKey()])
-                    ->with('success', __('dossiers.created'));
-            }
-        }
-
-        return redirect()
-            ->route('organization.dossiers.index', ['organization' => $organization])
-            ->with('success', __('dossiers.created'));
-    }
+    // TASK-1629 — `create()` et `store()` supprimees.
+    //
+    // Elles portaient les DEUX seuls chemins de creation manuelle : une racine
+    // (privee ou partagee avec une Boucle) et, via `parent_id`, un vrai
+    // sous-dossier. BouclePro n'est pas un Drive : l'utilisateur ne batit plus
+    // d'arborescence, il depose des fichiers et des Articles dans les racines
+    // que le produit provisionne lui-meme.
+    //
+    // Rien d'interne ne les appelait — aucun service, aucune commande, aucun
+    // job — donc les routes partent avec, et un POST direct rend 404. Les
+    // racines continuent de naitre par `LoopRootDocumentService` et
+    // `PersonalDocumentsRoot`, qui ecrivent le modele sans passer ici.
+    //
+    // `update()`, `unshare()` et `destroy()` restent : renommer, cesser de
+    // partager et supprimer portent sur un Dossier qui existe deja, y compris
+    // les arborescences legacy que TASK-1630 traitera.
 
     public function edit(Request $request): View
     {
@@ -730,14 +640,14 @@ class DossierController extends Controller
      * La racine d'une Boucle et « Mes documents » restent hors de portee :
      * la policy `delete` les refuse avant meme d'arriver ici.
      */
-    public function destroy(Request $request): RedirectResponse|JsonResponse
+    public function destroy(Request $request, DossierTreePurger $purger): RedirectResponse|JsonResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $organization = $this->currentOrganizationOrFail();
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('delete', $dossier);
 
-        DB::transaction(function () use ($dossier) {
+        DB::transaction(function () use ($dossier, $purger) {
             // Verrou sur la ligne visee : `dossier_files.dossier_id`,
             // `dossier_blog_posts.dossier_id` et `dossiers.parent_id` la
             // referencent tous par FK, donc PostgreSQL prend deja un verrou
@@ -745,7 +655,13 @@ class DossierController extends Controller
             // fenetre entre le recensement et la suppression.
             $verrouille = Dossier::whereKey($dossier->getKey())->lockForUpdate()->firstOrFail();
 
-            foreach ($this->brancheDe($verrouille) as $noeud) {
+            // TASK-1630 : le parcours de branche vit desormais dans
+            // `DossierTreePurger` — le meme que l'outil SuperAdmin et que la
+            // suppression d'une Boucle. Un algorithme recopie a trois
+            // endroits aurait diverge au premier correctif. Ici la
+            // suppression reste DOUCE : c'est l'ordre du parcours qui est
+            // partage, pas la destruction physique.
+            foreach ($purger->branch($verrouille) as $noeud) {
                 $seriesIds = $noeud->articleSeries()->pluck('id');
                 ArticleSeriesItem::whereIn('article_series_id', $seriesIds)->delete();
                 ArticleSeries::whereIn('id', $seriesIds)->delete();
@@ -767,36 +683,6 @@ class DossierController extends Controller
             ->with('success', __('dossiers.deleted'));
     }
 
-    /**
-     * Le Dossier et toute sa descendance, les feuilles d'abord.
-     *
-     * L'ordre compte : un enfant se supprime avant son parent, sinon la
-     * contrainte `dossiers_holder_xor` verrait passer des lignes orphelines.
-     * La profondeur est bornee par `Dossier::MAX_DEPTH`, comme partout
-     * ailleurs ou l'on remonte ou descend l'arbre.
-     *
-     * @return Collection<int, Dossier>
-     */
-    private function brancheDe(Dossier $racine): Collection
-    {
-        $noeuds = collect([$racine]);
-        $frontiere = collect([$racine]);
-        $profondeur = 0;
-
-        while ($frontiere->isNotEmpty() && $profondeur < Dossier::MAX_DEPTH) {
-            $frontiere = Dossier::query()
-                ->whereIn('parent_id', $frontiere->pluck('id'))
-                ->lockForUpdate()
-                ->get();
-
-            $noeuds = $noeuds->concat($frontiere);
-            $profondeur++;
-        }
-
-        // Les feuilles d'abord : on remonte la liste construite en descendant.
-        return $noeuds->reverse()->values();
-    }
-
     private function currentOrganizationOrFail()
     {
         $organization = currentOrganization();
@@ -812,6 +698,22 @@ class DossierController extends Controller
     {
         if ($dossier instanceof Dossier) {
             return $dossier;
+        }
+
+        // Un segment qui n'est pas un UUID n'est pas un Dossier : 404, tout
+        // de suite (TASK-1629).
+        //
+        // `/dossiers/create` a servi de formulaire de creation jusqu'a cette
+        // TASK. La route supprimee, l'URL retombe sur `/dossiers/{dossier}` —
+        // et `whereKey('create')` comparait un mot a une colonne `uuid`.
+        // SQLite l'accepte et ne rend rien (404 fortuit) ; PostgreSQL REFUSE
+        // la comparaison et leve `22P02`, donc 500. Un ancien marque-page
+        // rendait une erreur serveur en production, jamais en local.
+        //
+        // La forme est verifiee avant la requete : c'est la seule maniere de
+        // rendre le meme 404 sur les deux moteurs.
+        if (! is_string($dossier) || ! Str::isUuid($dossier)) {
+            abort(404);
         }
 
         return Dossier::query()->whereKey($dossier)->firstOrFail();

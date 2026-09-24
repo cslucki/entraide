@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
 use App\Models\LoopMember;
 use App\Models\LoopRoadmapItem;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Dossiers\DossierTreePurger;
 use App\Services\LoopGovernanceService;
 use App\Services\LoopManifestoService;
 use App\Services\Loops\LoopCardCompositionService;
@@ -675,11 +677,40 @@ class AdminLoopController extends Controller
         return view('admin.loops.files', compact('loop', 'messages'));
     }
 
-    public function destroy(Loop $loop): RedirectResponse
+    /**
+     * Supprimer une Boucle — et la branche de Dossiers qu'elle traine encore.
+     *
+     * `Loop` n'a pas de SoftDeletes : la ligne part pour de bon, et
+     * `dossiers.loop_id` est en CASCADE — la racine documentaire suit. Mais
+     * `dossiers.parent_id` est en **SET NULL** : les eventuels sous-dossiers
+     * de cette racine n'etaient pas detruits, ils etaient ORPHELINES. Chacun
+     * se retrouvait alors avec `parent_id`, `owner_id` et `loop_id` tous les
+     * trois vides — la seule combinaison que `dossiers_holder_xor` refuse —
+     * et PostgreSQL rendait `SQLSTATE[23514]`. Le SuperAdmin recevait un 500,
+     * et la Boucle restait la.
+     *
+     * Le cas est LEGACY : depuis TASK-1629 plus personne ne cree de
+     * sous-dossier. Il reste vrai pour tout ce qui existe deja, donc la
+     * branche est purgee AVANT que la Boucle ne parte, par le meme service
+     * que l'outil SuperAdmin — une seule logique, pas deux qui divergent.
+     *
+     * Aucune promotion d'enfant en racine, aucun `parent_id` mis a NULL a la
+     * main, aucune branche orpheline conservee : la branche s'en va avec sa
+     * Boucle.
+     */
+    public function destroy(Loop $loop, DossierTreePurger $purger): RedirectResponse
     {
         $this->assertOrgAccess($loop);
 
         $loop->messages()->delete();
+
+        // `withTrashed()` : une racine deja soft-deletee garde sa ligne, donc
+        // garde ses enfants, donc garde le crash intact.
+        $racine = Dossier::withTrashed()->where('loop_id', $loop->getKey())->first();
+
+        if ($racine !== null) {
+            $purger->purge([$racine]);
+        }
 
         $loop->delete();
 

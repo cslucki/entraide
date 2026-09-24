@@ -119,12 +119,34 @@ class TASK1587AiLabPackLifecycleTest extends TestCase
             $dossier = Dossier::query()->withoutGlobalScopes()->where('loop_id', $loop->id)->firstOrFail();
             $this->assertEqualsCanonicalizing($files, DossierFile::query()->where('dossier_id', $dossier->id)->pluck('original_name')->all(), "corpus de {$loopKey}");
         }
+        // TASK-1628 — `pluck()` sur une requete SANS `ORDER BY` : PostgreSQL rend
+        // les lignes dans l'ordre du tas, qui depend de ce qui s'est passe avant
+        // dans la meme base. `assertSame` compare AUSSI l'ordre des clefs : la
+        // reussite tenait donc a une coincidence, pas a un invariant.
+        //
+        // Mesure : ce test est passe du shard 5 au shard 2 quand un fichier de
+        // test a ete ajoute a `tests/Feature` (la decoupe est deterministe mais
+        // repartie tout l'ensemble), il a change de voisins, et l'ordre du tas
+        // avec eux — `equipes.docx` est arrive en derniere position. Rouge en CI,
+        // vert en local, sur le meme code.
+        //
+        // `ksort()` rend la mesure deterministe sans l'affaiblir : `assertSame`
+        // continue de verifier exactement les quatre paires nom => MIME.
+        // Trois lignes plus haut, la meme precaution est deja prise avec
+        // `assertEqualsCanonicalizing`.
+        $mimeTypes = DossierFile::query()
+            ->where('organization_id', $organization->id)
+            ->whereIn('original_name', ['equipes.docx', 'charte.pdf', 'budget.xlsx', 'notes-structurees.md'])
+            ->pluck('mime_type', 'original_name')
+            ->all();
+        ksort($mimeTypes);
+
         $this->assertSame([
-            'equipes.docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'charte.pdf' => 'application/pdf',
             'budget.xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'charte.pdf' => 'application/pdf',
+            'equipes.docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'notes-structurees.md' => 'text/markdown',
-        ], DossierFile::query()->where('organization_id', $organization->id)->whereIn('original_name', ['equipes.docx', 'charte.pdf', 'budget.xlsx', 'notes-structurees.md'])->pluck('mime_type', 'original_name')->all(), 'MIME lus du contenu, repli extension pour le texte');
+        ], $mimeTypes, 'MIME lus du contenu, repli extension pour le texte');
         // Le corpus ne fait jamais 200 Ko.
         $this->assertLessThan(200 * 1024, (int) DossierFile::query()->where('organization_id', $organization->id)->sum('size_bytes'));
     }

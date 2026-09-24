@@ -345,32 +345,13 @@ class BlogDossierApiController extends Controller
         return response()->json(['message' => __('dossiers.article_detached')]);
     }
 
-    public function quickCreate(Request $request): JsonResponse
-    {
-        $organization = currentOrganization();
-        if (! $organization) {
-            abort(404);
-        }
-
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-        ]);
-
-        $dossier = Dossier::create([
-            'organization_id' => $organization->id,
-            'owner_id' => $request->user()->id,
-            'name' => $validated['name'],
-            'visibility' => Dossier::VISIBILITY_PRIVATE,
-        ]);
-
-        return response()->json([
-            'message' => __('dossiers.created'),
-            'dossier' => [
-                'id' => $dossier->id,
-                'name' => $dossier->name,
-            ],
-        ], 201);
-    }
+    // TASK-1629 — `quickCreate()` / `orgQuickCreate()` supprimees.
+    //
+    // La carte Dossier de l'editeur fabriquait une racine privee a la volee,
+    // sous un simple champ de nom : c'etait la seconde porte de creation
+    // manuelle, a cote de `DossierController::store()`. Classer un article
+    // dans un Dossier existant (`attach`, `detach`, `listDossiers`) n'a pas
+    // bouge — seule la fabrication du contenant disparait.
 
     public function orgCurrentDossier(string $org, BlogPost $post): JsonResponse
     {
@@ -392,8 +373,4 @@ class BlogDossierApiController extends Controller
         return $this->detach($request, $post, $indexing);
     }
 
-    public function orgQuickCreate(Request $request, string $org): JsonResponse
-    {
-        return $this->quickCreate($request);
-    }
 }

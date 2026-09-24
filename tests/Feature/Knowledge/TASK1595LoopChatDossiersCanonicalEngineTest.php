@@ -280,7 +280,18 @@ class TASK1595LoopChatDossiersCanonicalEngineTest extends TestCase
 
         // La question est partie comme un message HUMAIN du fil, telle que le
         // serveur l'avait proposee.
-        $humains = LoopMessage::query()->where('type', 'user')->orderBy('created_at')->get();
+        // `orderBy('created_at')` SEUL n'est pas un ordre total : la colonne
+        // est un `timestamp` de precision SECONDE (mesure :
+        // `datetime_precision = 0`), et les deux messages de ce test naissent
+        // dans la meme seconde — ils sont donc a egalite. PostgreSQL rend
+        // alors l'ordre du TAS, qui depend de la charge : le test passait
+        // toujours seul et tombait une fois sur deux dans un shard complet.
+        // `id` departage (UUID ordonne, donc chronologique) et l'ordre
+        // redevient deterministe sur les deux moteurs.
+        $humains = LoopMessage::query()->where('type', 'user')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
         $this->assertCount(2, $humains);
         $this->assertSame('Et les partenaires ?', $humains[1]->body);
         $this->assertSame('dossiers', $humains[1]->metadata['requested_mode'],
