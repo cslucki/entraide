@@ -282,6 +282,8 @@
                         $outilsItems = [
                             ['route' => 'admin.outils.assign-data', 'label' => 'Affecter données', 'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'],
                             ['route' => 'admin.outils.fix-categories', 'label' => 'Fix catégories', 'icon' => 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'],
+                            // TASK-1630 — diagnostic et purge des arborescences legacy.
+                            ['route' => 'admin.outils.dossiers', 'label' => __('admin.dossiers_cleanup.nav_label'), 'icon' => 'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z'],
                         ];
                         $outilsGroupActive = $isGroupActive($outilsItems);
                     @endphp
