@@ -26,18 +26,18 @@ namespace App\Support\Integrity;
  * facturee reste facturee ; son UUID d'Organization disparue est une trace,
  * pas un defaut.
  *
- * `referrals` et `referral_rewards` sont autre chose. Leurs migrations
- * (`2026_05_13_000001` et `_000002`) declarent
- * `$table->uuid('organization_id')->nullable()->index()` — un UUID indexe,
- * sans `foreign()` — alors que les colonnes voisines de la MEME migration
- * (`referrer_user_id`, `referred_user_id`) portent bien leur contrainte.
- * Aucun commentaire, aucune migration ne l'explique : c'est une omission, pas
- * une decision. Ce sont donc les deux seuls endroits du produit ou supprimer
- * une Organization peut laisser une reference pointant dans le vide sans que
- * rien ne le signale.
+ * `referrals` et `referral_rewards` l'ont ete jusqu'a TASK-1633. Leur
+ * migration de creation omettait la contrainte, et celle qui la posait etait
+ * conditionnee a une colonne LEGACY (`community_id`) : la PROD l'avait, une
+ * installation fraiche non. `2026_09_24_190000_converge_referral_organization_foreign_keys`
+ * a ferme cette divergence — elles sortent donc de cette liste.
  *
- * L'outil le DIT. Il ne corrige rien : ajouter une FK serait un changement de
- * schema, et la decision appartient a MASTER.
+ * Il reste qu'en **SQLite** la contrainte ne peut pas etre ajoutee apres coup
+ * (le moteur refuse `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY`, mesure).
+ * Sur ce moteur seulement, les deux tables restent sans cle etrangere. C'est
+ * une limite d'outillage, pas une decision produit : d'ou une liste SEPAREE,
+ * `enginePendingTables()`, et surtout pas un retour dans les exceptions
+ * volontaires.
  */
 class UnprotectedReferenceRegistry
 {
@@ -61,8 +61,6 @@ class UnprotectedReferenceRegistry
         return [
             'organization_id' => [
                 'ai_provider_invocations' => self::PROTECTED_HISTORY,
-                'referrals' => self::UNGUARDED,
-                'referral_rewards' => self::UNGUARDED,
             ],
             // Aucune : les 24 tables a `loop_id` et les 6 a `dossier_id` sont
             // integralement couvertes par des FK. Les cles restent declarees
@@ -71,6 +69,31 @@ class UnprotectedReferenceRegistry
             'loop_id' => [],
             'dossier_id' => [],
         ];
+    }
+
+    /**
+     * Les tables dont la cle etrangere existe en PostgreSQL mais que SQLite
+     * ne peut pas porter.
+     *
+     * TASK-1633 a pose les deux contraintes manquantes sur `referrals` et
+     * `referral_rewards`. SQLite refuse `ALTER TABLE ... ADD CONSTRAINT ...
+     * FOREIGN KEY` : il n'accepte une cle etrangere qu'a la creation de la
+     * table. Sur ce moteur, ces deux-la restent donc sans contrainte.
+     *
+     * Cette liste est volontairement SEPAREE des exceptions volontaires : ce
+     * n'est pas une decision produit, c'est une limite d'outillage, et elle
+     * doit disparaitre le jour ou ces tables seraient recreees. Elle est aussi
+     * volontairement NOMMEE plutot que deduite : une troisieme table sans
+     * contrainte apparaitrait dans la garde, sur les deux moteurs.
+     *
+     * @return list<string>
+     */
+    public function enginePendingTables(string $column): array
+    {
+        return match ($column) {
+            'organization_id' => ['referral_rewards', 'referrals'],
+            default => [],
+        };
     }
 
     /**
