@@ -98,13 +98,29 @@ class UserDataLifecycleRegistry
             ['key' => 'feed_posts', 'type' => 'sql', 'table' => 'feed_posts', 'column' => 'user_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Existing dry-run considered feed posts transferable.'],
             ['key' => 'likes', 'type' => 'sql', 'table' => 'likes', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'justification' => 'Likes are user-specific signals.'],
             ['key' => 'login_logs', 'type' => 'sql', 'table' => 'login_logs', 'column' => 'user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'justification' => 'Login history is security audit data.'],
-            ['key' => 'loop_memberships', 'type' => 'sql', 'table' => 'loop_members', 'column' => 'user_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Loop membership can be detached.'],
+            // TASK-1635 : DETACH -> DELETE. « Detacher » une adhesion voudrait dire
+            // garder une ligne `loop_members` sans membre : une Boucle compterait un
+            // participant que personne n'incarne. Le schema le disait deja —
+            // `user_id` NOT NULL + ON DELETE CASCADE + unique(loop_id, user_id) — et
+            // il reste inchange : c'est le registre qui avait tort.
+            // Le cas « dernier owner/facilitator d'une Boucle » est une precondition
+            // APPLICATIVE de TASK-1636, pas une contrainte de base : aucun trigger.
+            ['key' => 'loop_memberships', 'type' => 'sql', 'table' => 'loop_members', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'through_loop', 'justification' => 'A membership without a member is meaningless: the row goes with the user.'],
             ['key' => 'loop_messages_pinned_by_id', 'type' => 'sql', 'table' => 'loop_messages', 'column' => 'pinned_by_id', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Pin attribution can be detached.'],
             ['key' => 'loop_messages_sent', 'type' => 'sql', 'table' => 'loop_messages', 'column' => 'sender_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'Conversation sender can be anonymized.'],
             ['key' => 'loops_created', 'type' => 'sql', 'table' => 'loops', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'direct', 'justification' => 'Loop creator attribution can be detached.'],
             ['key' => 'member_ai_profile_interactions_owner', 'type' => 'sql', 'table' => 'member_ai_profile_interactions', 'column' => 'profile_owner_user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'AI profile interaction content may include personal data.'],
             ['key' => 'member_ai_profile_interactions_visitor', 'type' => 'sql', 'table' => 'member_ai_profile_interactions', 'column' => 'visitor_user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'Visitor AI profile interaction content may include personal data.'],
-            ['key' => 'member_ai_profile', 'type' => 'sql', 'table' => 'member_ai_profiles', 'column' => 'user_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'direct', 'justification' => 'Structured personal profile needs explicit product decision.'],
+            // TASK-1635 : BLOCK -> DELETE (decision MASTER du 24/09).
+            // L'ancienne justification disait « needs explicit product decision » :
+            // c'etait un BLOCK d'ATTENTE, pas un BLOCK de principe. La decision est
+            // desormais prise — un profil IA structure est une donnee PERSONNELLE
+            // propre au membre, qui n'a aucun sens sans lui et que personne d'autre
+            // ne peut reprendre : elle part avec lui.
+            // Sa FK reste volontairement `ON DELETE CASCADE` — filet coherent avec
+            // DELETE — et n'est PAS convertie en RESTRICT par la migration M2.
+            // TASK-1636 la supprimera explicitement, pour pouvoir la compter.
+            ['key' => 'member_ai_profile', 'type' => 'sql', 'table' => 'member_ai_profiles', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'direct', 'justification' => 'A structured AI profile is personal data belonging to the member: nobody else can take it over, so it goes with them.'],
             // TASK-1372 — les deux FK de `member_notifications`. Le registre dit
             // ce que le schema FAIT, et les deux colonnes ne font pas la meme
             // chose :
@@ -164,8 +180,18 @@ class UserDataLifecycleRegistry
             ['key' => 'reviews_given', 'type' => 'sql', 'table' => 'reviews', 'column' => 'reviewer_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'user_organization', 'justification' => 'Reviews may need retained content with anonymized author.'],
             ['key' => 'service_requests', 'type' => 'sql', 'table' => 'service_requests', 'column' => 'user_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Existing dry-run considered service requests transferable.'],
             ['key' => 'services', 'type' => 'sql', 'table' => 'services', 'column' => 'user_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Existing dry-run considered services transferable.'],
-            ['key' => 'transactions_as_buyer', 'type' => 'sql', 'table' => 'transactions', 'column' => 'buyer_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Existing dry-run grouped buyer transactions as owned data.'],
-            ['key' => 'transactions_as_seller', 'type' => 'sql', 'table' => 'transactions', 'column' => 'seller_id', 'policy' => self::POLICY_TRANSFER, 'org_scope' => 'direct', 'justification' => 'Existing dry-run grouped seller transactions as owned data.'],
+            // TASK-1635 : TRANSFER -> BLOCK, sur les deux cotes.
+            // Une transaction n'est pas un bien que l'on possede : c'est l'archive
+            // d'un echange BILATERAL entre deux personnes nommees. Reattribuer
+            // `buyer_id` ou `seller_id` a un autre User ne transfere rien — cela
+            // reecrit qui a achete a qui, et falsifie l'historique economique des
+            // DEUX parties, dont celle qui n'a rien demande.
+            // L'ancienne justification (« l'ancien dry-run les groupait comme des
+            // donnees possedees ») etait circulaire : elle decrivait un comportement
+            // existant au lieu de le fonder. Le schema porte desormais RESTRICT
+            // (migration M2) : la base refuse la suppression au lieu de la subir.
+            ['key' => 'transactions_as_buyer', 'type' => 'sql', 'table' => 'transactions', 'column' => 'buyer_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'direct', 'justification' => 'A transaction is a bilateral economic record; reattributing a side would rewrite both parties history.'],
+            ['key' => 'transactions_as_seller', 'type' => 'sql', 'table' => 'transactions', 'column' => 'seller_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'direct', 'justification' => 'A transaction is a bilateral economic record; reattributing a side would rewrite both parties history.'],
             ['key' => 'translation_overrides_created_by', 'type' => 'sql', 'table' => 'translation_overrides', 'column' => 'created_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'justification' => 'Translation admin audit is retained.'],
             ['key' => 'translation_overrides_updated_by', 'type' => 'sql', 'table' => 'translation_overrides', 'column' => 'updated_by', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'direct', 'justification' => 'Translation admin audit is retained.'],
             ['key' => 'sessions', 'type' => 'non_sql', 'surface' => 'sessions.user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'user_organization', 'count' => ['table' => 'sessions', 'column' => 'user_id'], 'justification' => 'Sessions are active user runtime state and have no FK.'],

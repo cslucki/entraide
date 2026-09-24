@@ -58,6 +58,23 @@ use LogicException;
  *    du chargement peut arriver ici — une ligne `reused` (historique
  *    anterieur du persona) n'est jamais supprimee, jamais realignee.
  *
+ *  - `User` (TASK-1635) : avant de supprimer un persona, l'Organization du
+ *    chargement est detachee de lui si elle l'avait pour responsable
+ *    (`organizations.admin_id`). Les packs `AiLabPack` et
+ *    `ArtSciLabEnglishPack` font `$organization->update(['admin_id' => ...])`
+ *    au chargement, en nommant un persona qu'ils CREENT responsable d'une
+ *    Organization HOTE, preexistante. Ils doivent donc defaire ce qu'ils ont
+ *    fait avant de detruire ce persona.
+ *    Jusqu'a TASK-1635, le schema portait `ON DELETE SET NULL` sur cette
+ *    colonne et absorbait l'oubli en SILENCE : l'Organization se retrouvait
+ *    sans responsable et personne ne le voyait. La colonne est desormais en
+ *    `ON DELETE RESTRICT` — le defaut ne peut plus passer inapercu, et le
+ *    retrait doit etre explicite. Exception BORNEE, comme celle du ledger
+ *    ci-dessus : seule l'Organization du chargement est touchee, jamais une
+ *    autre, et uniquement quand elle pointe vers le persona detruit.
+ *    Ce detachement n'est PAS un executeur de suppression d'utilisateur
+ *    (TASK-1636) : c'est le pack qui annule sa propre ecriture.
+ *
  * Avant TASK-1245, `remove()` faisait `->delete()` : soft delete pour les
  * modeles SoftDeletes, dont 4 sur 5 disparaissaient ensuite physiquement
  * par ACCIDENT (cascade `cascadeOnDelete` sur `user_id`/`loop_id` depuis
@@ -98,6 +115,10 @@ class ScenarioPackEntityPurger
             ? $this->pointLedgerUserId($entity, $organization)
             : null;
 
+        if ($modelClass === User::class) {
+            $this->releaseOrganizationAdmin($entity->entity_id, $organization);
+        }
+
         $modelClass::query()
             ->withoutGlobalScopes()
             ->whereKey($entity->entity_id)
@@ -107,6 +128,24 @@ class ScenarioPackEntityPurger
         if ($ledgerUserId !== null) {
             $this->realignPointsBalance($ledgerUserId, $organization);
         }
+    }
+
+    /**
+     * TASK-1635 — l'Organization du chargement cesse d'avoir ce persona pour
+     * responsable, avant qu'il ne soit detruit.
+     *
+     * Bornee a DEUX conditions cumulatives : l'Organization du chargement, et
+     * le fait qu'elle designe precisement ce persona. Aucune autre
+     * Organization n'est jamais touchee, et une Organization qui a deja un
+     * autre responsable est laissee telle quelle.
+     */
+    private function releaseOrganizationAdmin(string $userId, Organization $organization): void
+    {
+        Organization::query()
+            ->withoutGlobalScopes()
+            ->whereKey($organization->id)
+            ->where('admin_id', $userId)
+            ->update(['admin_id' => null]);
     }
 
     /**

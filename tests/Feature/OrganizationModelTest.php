@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Organization;
 use App\Models\User;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class OrganizationModelTest extends TestCase
@@ -40,15 +42,40 @@ class OrganizationModelTest extends TestCase
         $this->assertEquals($admin->id, $organization->admin->id);
     }
 
-    public function test_organization_admin_null_when_deleted(): void
+    /**
+     * TASK-1635 — ce test disait l'inverse jusqu'ici.
+     *
+     * Il affirmait que supprimer le responsable d'une Organization mettait
+     * simplement `admin_id` a NULL. `UserDataLifecycleRegistry` classe pourtant
+     * `orgs_as_admin` en BLOCK, avec pour justification « must be reassigned
+     * before deletion » : le responsable doit etre REMPLACE, pas efface.
+     *
+     * Le schema portait `ON DELETE SET NULL` et faisait donc le contraire, en
+     * silence : l'Organization se retrouvait **sans aucun responsable** et
+     * personne ne le voyait. La migration M2 pose `ON DELETE RESTRICT` — la
+     * base refuse desormais, et c'est a TASK-1636 de reassigner explicitement.
+     */
+    public function test_un_responsable_ne_peut_pas_disparaitre_sans_etre_remplace(): void
     {
         $admin = User::factory()->create();
         $organization = Organization::factory()->create(['admin_id' => $admin->id]);
 
-        $admin->delete();
-        $organization->refresh();
+        // Transaction imbriquee = SAVEPOINT : PostgreSQL avorte toute la
+        // transaction des la premiere erreur, et les assertions qui suivent
+        // n'asserteraient plus rien. Le rollback au savepoint rend la
+        // connexion saine.
+        try {
+            DB::transaction(function () use ($admin): void {
+                $admin->delete();
+            });
 
-        $this->assertNull($organization->admin_id);
+            $this->fail("Le responsable d'une Organization ne doit pas pouvoir etre supprime sans reassignation.");
+        } catch (QueryException) {
+            // Attendu : RESTRICT refuse.
+        }
+
+        $this->assertDatabaseHas('users', ['id' => $admin->id]);
+        $this->assertDatabaseHas('organizations', ['id' => $organization->id, 'admin_id' => $admin->id]);
     }
 
     public function test_find_by_slug_returns_active_organization(): void
