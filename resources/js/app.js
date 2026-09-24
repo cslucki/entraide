@@ -1654,20 +1654,16 @@ function registerBlogDossierCard() {
         open: false,
         loading: false,
         saving: false,
-        creating: false,
         error: '',
         success: '',
         currentDossier: null,
         dossiers: [],
         selectedDossierId: '',
-        showQuickCreate: false,
-        newDossierName: '',
 
         currentDossierUrl: config.currentDossierUrl,
         dossiersUrl: config.dossiersUrl,
         attachUrl: config.attachUrl,
         detachUrl: config.detachUrl,
-        quickCreateUrl: config.quickCreateUrl,
         i18n: config.i18n || {},
 
         toggle() {
@@ -1791,35 +1787,8 @@ function registerBlogDossierCard() {
                 .finally(() => { this.saving = false; });
         },
 
-        quickCreate() {
-            const name = this.newDossierName.trim();
-            if (!name || this.creating) return;
-            this.creating = true;
-            this.error = '';
-            this.success = '';
-            fetch(this.quickCreateUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.i18n.csrfToken || '' },
-                body: JSON.stringify({ name }),
-            })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
-                    if (!ok) {
-                        this.error = data.message || this.i18n.createError;
-                        return;
-                    }
-                    this.dossiers.push(data.dossier);
-                    this.selectedDossierId = data.dossier.id;
-                    this.newDossierName = '';
-                    this.showQuickCreate = false;
-                    this.success = data.message || this.i18n.created;
-                    setTimeout(() => { this.success = ''; }, 3000);
-                })
-                .catch(() => {
-                    this.error = this.i18n.createError;
-                })
-                .finally(() => { this.creating = false; });
-        },
+        // TASK-1629 : `quickCreate()` retiree — la carte classe un Article
+        // dans un Dossier qui existe deja, elle n'en fabrique plus.
     }));
 }
 

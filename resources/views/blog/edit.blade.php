@@ -510,7 +510,6 @@
                         dossiersUrl: @js($_blogRoute('dossiers.index')),
                         attachUrl: @js($_blogRoute('dossier.attach', ['post' => $post])),
                         detachUrl: @js($_blogRoute('dossier.detach', ['post' => $post])),
-                        quickCreateUrl: @js($_blogRoute('dossiers.store')),
                         i18n: {
                             sidebar: @js(__('blog.sidebar_dossier')),
                             notClassified: @js(__('blog.dossier_not_classified')),
@@ -527,10 +526,6 @@
                             classified: @js(__('blog.dossier_classified')),
                             moved: @js(__('blog.dossier_moved')),
                             detached: @js(__('blog.dossier_detached')),
-                            quickCreate: @js(__('blog.dossier_quick_create')),
-                            quickCreatePlaceholder: @js(__('blog.dossier_quick_create_placeholder')),
-                            quickCreateBtn: @js(__('blog.dossier_quick_create_btn')),
-                            created: @js(__('blog.dossier_quick_create_created')),
                             loadError: @js(__('blog.dossier_load_error')),
                             classifyError: @js(__('blog.dossier_classify_error')),
                             detachError: @js(__('blog.dossier_detach_error')),
@@ -693,32 +688,10 @@
                             </div>
                         </template>
 
-                        <div class="border-t border-gray-100 dark:border-gray-700 pt-3">
-                            <template x-if="!showQuickCreate">
-                                <button type="button" @click="showQuickCreate = true"
-                                    class="text-[10px] font-semibold text-amber-600 dark:text-amber-400 hover:underline">
-                                    <span x-text="i18n.quickCreate"></span>
-                                </button>
-                            </template>
-                            <template x-if="showQuickCreate">
-                                <div class="flex gap-1.5">
-                                    <input type="text" x-model="newDossierName"
-                                        :placeholder="i18n.quickCreatePlaceholder"
-                                        @keydown.enter="quickCreate()"
-                                        class="flex-1 min-w-0 px-2 py-1 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
-                                    >
-                                    <button type="button" @click="quickCreate()"
-                                        :disabled="creating || !newDossierName.trim()"
-                                        class="shrink-0 px-2 py-1 text-[10px] font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition">
-                                        <span x-text="creating ? '…' : i18n.quickCreateBtn"></span>
-                                    </button>
-                                    <button type="button" @click="showQuickCreate = false; newDossierName = ''"
-                                        class="shrink-0 px-2 py-1 text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">
-                                        ✕
-                                    </button>
-                                </div>
-                            </template>
-                        </div>
+                        {{-- TASK-1629 : la creation rapide de Dossier quitte la
+                             carte. Classer l'article dans un Dossier existant
+                             reste la fonction de ce panneau ; fabriquer le
+                             contenant n'en fait plus partie. --}}
                     </div>
                 </div>
                 {{-- /Dossier card --}}

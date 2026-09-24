@@ -114,9 +114,23 @@ class DossierPolicy
         return $this->update($user, $dossier);
     }
 
+    /**
+     * Creer un Dossier a la main : plus personne (TASK-1629).
+     *
+     * BouclePro n'est pas un Drive. Les routes qui appelaient cette capacite
+     * — le formulaire, le POST de creation et la creation rapide de l'editeur
+     * — ont ete supprimees ; ce `false` est la garde de fond : si une route de
+     * creation etait reintroduite un jour sans repasser par cette decision,
+     * elle serait refusee au lieu d'etre autorisee par oubli.
+     *
+     * Le provisioning des racines (`LoopRootDocumentService`,
+     * `PersonalDocumentsRoot`) n'interroge aucune policy : il ecrit le modele
+     * pour le compte du produit, pas d'un utilisateur. Il n'est donc pas
+     * concerne, et les tests le prouvent.
+     */
     public function create(User $user): bool
     {
-        return $this->viewAny($user);
+        return false;
     }
 
     public function update(User $user, Dossier $dossier): bool

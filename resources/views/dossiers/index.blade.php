@@ -99,14 +99,12 @@
                 <h1 class="text-2xl font-bold text-gray-900 sm:text-3xl dark:text-gray-100">{{ __('dossiers.documents_title') }}</h1>
                 <p class="mt-2 hidden max-w-2xl text-sm text-gray-600 sm:block dark:text-gray-300">{{ __('dossiers.index_subtitle') }}</p>
             </div>
-            {{-- Un seul CTA de creation : sur mobile il remplace le FAB global,
-                 neutralise sur ce module (voir components/mobile-fab). --}}
-            <a href="{{ route('organization.dossiers.create', ['organization' => $organizationRouteParam]) }}"
-               x-show="portee === 'miens'"
-               class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-                {{ __('dossiers.create') }}
-            </a>
+            {{-- TASK-1629 : le CTA « Creer un dossier » est retire — la route
+                 `dossiers.create` n'existe plus, et `route()` sur un nom
+                 disparu leve. Cette vue n'est plus rendue par aucun
+                 controleur (l'index sert `dossiers.show` ou
+                 `dossiers.espaces`) ; le CTA part quand meme, pour qu'elle ne
+                 reintroduise pas l'action si elle revenait au service. --}}
         </div>
 
         @if(session('success'))

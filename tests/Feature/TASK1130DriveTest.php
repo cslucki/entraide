@@ -130,63 +130,15 @@ class TASK1130DriveTest extends TestCase
         $this->assertStringContainsString('aria-current="page"', $html);
     }
 
-    // ── Creer un dossier depuis le Drive ────────────────────────────────────
-
-    public function test_creating_a_folder_from_the_drive_shares_it_with_the_loop(): void
-    {
-        $reponse = $this->actingAs($this->owner)->post(
-            route('organization.dossiers.store', ['organization' => $this->org->slug]),
-            [
-                'name' => 'Communication',
-                'visibility' => 'loop',
-                'shared_with_loop_id' => $this->loop->id,
-                'return_to_dossier' => $this->racine->getKey(),
-            ],
-        );
-
-        // Retour au Drive, la ou le dossier vient d'apparaitre.
-        $reponse->assertRedirect(
-            route('organization.dossiers.show', ['organization' => $this->org->slug, 'dossier' => $this->racine->getKey()]),
-        );
-
-        $this->assertDatabaseHas('dossiers', [
-            'name' => 'Communication',
-            'visibility' => Dossier::VISIBILITY_LOOP,
-            'shared_with_loop_id' => $this->loop->id,
-            'organization_id' => $this->org->id,
-        ]);
-    }
-
-    public function test_sharing_with_a_loop_of_another_organization_is_refused(): void
-    {
-        // La meme garde qu'update() : une Boucle d'un autre tenant n'existe pas.
-        $autreOrg = Organization::factory()->create(['is_active' => true, 'loops_enabled' => true]);
-        $loopAilleurs = Loop::factory()->create([
-            'organization_id' => $autreOrg->id, 'status' => 'active', 'type' => 'general',
-        ]);
-
-        $this->actingAs($this->owner)->post(
-            route('organization.dossiers.store', ['organization' => $this->org->slug]),
-            ['name' => 'Intrusion', 'visibility' => 'loop', 'shared_with_loop_id' => $loopAilleurs->id],
-        )->assertSessionHasErrors('shared_with_loop_id');
-
-        $this->assertDatabaseMissing('dossiers', ['name' => 'Intrusion']);
-    }
-
-    public function test_a_plain_private_dossier_still_works_as_before(): void
-    {
-        // Le chemin historique de store() n'a pas bouge : prive par defaut.
-        $this->actingAs($this->owner)->post(
-            route('organization.dossiers.store', ['organization' => $this->org->slug]),
-            ['name' => 'Mon dossier prive'],
-        )->assertRedirect(route('organization.dossiers.index', ['organization' => $this->org->slug]));
-
-        $this->assertDatabaseHas('dossiers', [
-            'name' => 'Mon dossier prive',
-            'visibility' => Dossier::VISIBILITY_PRIVATE,
-            'shared_with_loop_id' => null,
-        ]);
-    }
+    // ── Creer un dossier depuis le Drive : plus jamais (TASK-1629) ─────────
+    //
+    // Les trois tests qui vivaient ici postaient sur `dossiers.store` — un
+    // dossier partage avec la Boucle, une Boucle d'un autre tenant refusee, un
+    // dossier prive par defaut. La route est supprimee : leur objet a disparu.
+    // Ce que le Drive continue de faire — lister les dossiers partages,
+    // remonter le fil, ecarter ceux d'une autre Boucle — est mesure au-dessus,
+    // et l'impossibilite de creer l'est par
+    // `TASK1629NoManualDossierCreationTest`.
 
     // ── Les Articles dans le Drive ──────────────────────────────────────────
 

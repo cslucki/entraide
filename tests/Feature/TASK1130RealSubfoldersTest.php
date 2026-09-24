@@ -9,7 +9,6 @@ use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -20,8 +19,6 @@ use Tests\TestCase;
  * `owner_id` ni `loop_id` ni `dossier_members` a lui — sa gouvernance se
  * demande a la racine via `governingDossier()`. Ces tests gardent :
  *
- * - un enfant cree depuis le Drive (Boucle ou prive) est un vrai `parent_id`,
- *   sans second holder ;
  * - un enfant herite du role affiche, des droits d'ecriture et du panneau
  *   Partager de sa racine, a n'importe quelle profondeur ;
  * - ajouter un membre depuis le Partager d'un enfant ecrit sur la racine, pas
@@ -29,6 +26,13 @@ use Tests\TestCase;
  * - la garde anti-cycle et la garde tenant refusent avant tout ecrit ;
  * - un Dossier d'avant cette passe (`parent_id` NULL) reste une racine
  *   parfaitement valide.
+ *
+ * TASK-1629 : la CREATION d'un enfant depuis le Drive a disparu avec la route
+ * `dossiers.store` — les quatre tests qui la mesuraient partent avec elle, et
+ * `TASK1629NoManualDossierCreationTest` garde desormais son absence. Ce qui
+ * reste ici est exactement ce que la decision produit preserve : les
+ * arborescences deja en base se lisent, se parcourent et gardent leur
+ * gouvernance, a n'importe quelle profondeur.
  */
 class TASK1130RealSubfoldersTest extends TestCase
 {
@@ -90,78 +94,6 @@ class TASK1130RealSubfoldersTest extends TestCase
         ]);
 
         app()->instance('current_organization', $this->org);
-    }
-
-    private function creerEnfant(Dossier $parent, string $nom, ?User $acteur = null): TestResponse
-    {
-        return $this->actingAs($acteur ?? $this->owner)->post(
-            route('organization.dossiers.store', ['organization' => $this->org->slug]),
-            ['name' => $nom, 'parent_id' => $parent->getKey()],
-        );
-    }
-
-    // ── Creation d'un vrai enfant ────────────────────────────────────────────
-
-    public function test_a_child_created_under_the_loop_root_has_no_second_holder(): void
-    {
-        $this->creerEnfant($this->racineBoucle, 'Communication')
-            ->assertRedirect(route('organization.dossiers.show', [
-                'organization' => $this->org->slug, 'dossier' => $this->racineBoucle->getKey(),
-            ]));
-
-        $this->assertDatabaseHas('dossiers', [
-            'name' => 'Communication',
-            'parent_id' => $this->racineBoucle->getKey(),
-            'owner_id' => null,
-            'loop_id' => null,
-        ]);
-    }
-
-    public function test_a_child_created_under_a_private_dossier_has_no_second_holder(): void
-    {
-        $racinePrivee = Dossier::create([
-            'organization_id' => $this->org->id,
-            'owner_id' => $this->owner->id,
-            'name' => 'Mon espace',
-            'visibility' => Dossier::VISIBILITY_PRIVATE,
-        ]);
-
-        $this->creerEnfant($racinePrivee, 'Brouillons')
-            ->assertRedirect(route('organization.dossiers.show', [
-                'organization' => $this->org->slug, 'dossier' => $racinePrivee->getKey(),
-            ]));
-
-        $this->assertDatabaseHas('dossiers', [
-            'name' => 'Brouillons',
-            'parent_id' => $racinePrivee->getKey(),
-            'owner_id' => null,
-            'loop_id' => null,
-        ]);
-    }
-
-    public function test_creating_a_child_requires_update_on_the_parent(): void
-    {
-        $etranger = User::factory()->create(['organization_id' => $this->org->id]);
-
-        $this->creerEnfant($this->racineBoucle, 'Intrus', $etranger)->assertForbidden();
-
-        $this->assertDatabaseMissing('dossiers', ['name' => 'Intrus']);
-    }
-
-    public function test_a_parent_from_another_organization_is_refused(): void
-    {
-        $autreOrg = Organization::factory()->create(['is_active' => true, 'loops_enabled' => true]);
-        $parentAilleurs = Dossier::create([
-            'organization_id' => $autreOrg->id,
-            'owner_id' => User::factory()->create(['organization_id' => $autreOrg->id])->id,
-            'name' => 'Ailleurs',
-            'visibility' => Dossier::VISIBILITY_PRIVATE,
-        ]);
-
-        // Le parent n'existe pas dans le tenant courant : 404, pas une fuite.
-        $this->creerEnfant($parentAilleurs, 'Intrusion')->assertNotFound();
-
-        $this->assertDatabaseMissing('dossiers', ['name' => 'Intrusion']);
     }
 
     // ── Gouvernance a deux niveaux de profondeur ────────────────────────────

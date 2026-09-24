@@ -56,12 +56,11 @@
 
         {{-- Section: Creer --}}
         <div class="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ __('dossiers.fab_section_create') }}</div>
-        @can('update', $dossier)
-            <button @click="showImportMenu = false; window.dispatchEvent(new CustomEvent('open-new-folder'))" type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
-                <svg class="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
-                {{ __('dossiers.drive_new_folder') }}
-            </button>
-        @endcan
+        {{-- TASK-1629 : « Nouveau dossier » a quitte cette section. BouclePro
+             n'est pas un Drive — on depose des contenus dans les Dossiers que
+             le produit provisionne, on n'en fabrique plus l'arborescence.
+             L'entree DISPARAIT plutot que de s'afficher grisee : une action
+             absente ne demande pas d'explication. --}}
         <button @click="showImportMenu = false; openArticleModal()" type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700">
             <svg class="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             {{ __('dossiers.fab_new_article') }}

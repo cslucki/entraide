@@ -249,8 +249,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/blog/{post:slug}/plan', [BlogController::class, 'updatePlan'])->name('blog.plan.update');
 
     // Blog dossier classification endpoints
+    // TASK-1629 : `blog.dossiers.store` (creation rapide depuis la carte
+    // Dossier de l'editeur) supprimee — classer un article reste possible,
+    // fabriquer le dossier ne l'est plus.
     Route::get('/blog/dossiers', [BlogDossierApiController::class, 'listDossiers'])->name('blog.dossiers.index');
-    Route::post('/blog/dossiers', [BlogDossierApiController::class, 'quickCreate'])->name('blog.dossiers.store');
     Route::get('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'currentDossier'])->name('blog.dossier.current');
     Route::post('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'attach'])->name('blog.dossier.attach');
     Route::delete('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'detach'])->name('blog.dossier.detach');
@@ -1133,9 +1135,16 @@ Route::prefix('/org/{organization}')
                 Route::post('/likes/toggle', [LikeController::class, 'toggle'])->name('likes.toggle');
 
                 // Dossiers (org-scoped, private foundation)
+                //
+                // TASK-1629 — BouclePro n'est pas un Drive : l'utilisateur ne
+                // batit plus d'arborescence. `dossiers.create` (formulaire) et
+                // `dossiers.store` (racine ET sous-dossier `parent_id`) sont
+                // SUPPRIMEES, pas neutralisees : elles n'avaient aucun appelant
+                // interne, un POST direct rend donc 404 et non 403 — il n'y a
+                // plus d'endpoint a proteger. Le provisioning automatique des
+                // racines (`LoopRootDocumentService`, `PersonalDocumentsRoot`)
+                // n'a jamais traverse ces routes et reste intact.
                 Route::get('/dossiers', [DossierController::class, 'index'])->name('dossiers.index');
-                Route::get('/dossiers/create', [DossierController::class, 'create'])->name('dossiers.create');
-                Route::post('/dossiers', [DossierController::class, 'store'])->name('dossiers.store');
                 Route::get('/dossiers/{dossier}', [DossierController::class, 'show'])->name('dossiers.show');
                 Route::get('/dossiers/{dossier}/semantic-search', DossierSemanticSearchController::class)->name('dossiers.semantic-search');
                 Route::post('/dossiers/{dossier}/insights', DossierInsightsController::class)->middleware('throttle:5,1')->name('dossiers.insights');
@@ -1247,7 +1256,6 @@ Route::prefix('/org/{organization}')
 
                 // Blog dossier classification endpoints (org-scoped)
                 Route::get('/blog/dossiers', [BlogDossierApiController::class, 'orgListDossiers'])->name('blog.dossiers.index');
-                Route::post('/blog/dossiers', [BlogDossierApiController::class, 'orgQuickCreate'])->name('blog.dossiers.store');
                 Route::get('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'orgCurrentDossier'])->name('blog.dossier.current');
                 Route::post('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'orgAttach'])->name('blog.dossier.attach');
                 Route::delete('/blog/{post:slug}/dossier', [BlogDossierApiController::class, 'orgDetach'])->name('blog.dossier.detach');
