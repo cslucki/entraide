@@ -89,35 +89,11 @@ class DossiersPrivateFoundationTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_creation_uses_current_organization_and_authenticated_owner(): void
-    {
-        $this->actingAs($this->userA)
-            ->post(route('organization.dossiers.store', $this->orgA), [
-                'name' => 'Nouveau dossier',
-            ])
-            ->assertRedirect(route('organization.dossiers.index', $this->orgA));
-
-        $this->assertDatabaseHas('dossiers', [
-            'organization_id' => $this->orgA->id,
-            'owner_id' => $this->userA->id,
-            'name' => 'Nouveau dossier',
-            'visibility' => Dossier::VISIBILITY_PRIVATE,
-        ]);
-    }
-
-    public function test_cross_organization_owner_input_is_rejected(): void
-    {
-        $this->actingAs($this->userA)
-            ->post(route('organization.dossiers.store', $this->orgA), [
-                'name' => 'Tentative invalide',
-                'owner_id' => $this->userB->id,
-            ])
-            ->assertSessionHasErrors('owner_id');
-
-        $this->assertDatabaseMissing('dossiers', [
-            'name' => 'Tentative invalide',
-        ]);
-    }
+    // TASK-1629 : `test_creation_uses_current_organization_and_authenticated_owner`
+    // et `test_cross_organization_owner_input_is_rejected` mesuraient le POST
+    // de creation manuelle. La route n'existe plus ; son absence est gardee
+    // par `TASK1629NoManualDossierCreationTest`, et ce fichier garde ce qui
+    // subsiste : lister, renommer, supprimer, l'etancheite entre tenants.
 
     public function test_owner_can_rename_dossier(): void
     {

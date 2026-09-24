@@ -248,24 +248,10 @@ class TASK1130MesDocumentsTest extends TestCase
 
     // ── Ce que la racine accepte : son contenu est ordinaire ────────────────
 
-    public function test_a_subfolder_can_be_created_inside_my_documents(): void
-    {
-        $racine = $this->racine();
-
-        $this->actingAs($this->user)
-            ->post(route('organization.dossiers.store', ['organization' => $this->org->slug]), [
-                'name' => 'Presse',
-                'parent_id' => $racine->getKey(),
-            ])
-            ->assertRedirect();
-
-        $enfant = Dossier::where('parent_id', $racine->getKey())->first();
-        $this->assertNotNull($enfant);
-        $this->assertSame('Presse', $enfant->name);
-        // Un enfant n'est pas un holder : la contrainte XOR reste satisfaite.
-        $this->assertNull($enfant->owner_id);
-        $this->assertNull($enfant->loop_id);
-    }
+    // TASK-1629 : `test_a_subfolder_can_be_created_inside_my_documents` postait
+    // sur `dossiers.store`. Creer un sous-dossier dans « Mes documents » n'est
+    // plus une action offerte ; ce que la racine accepte — un fichier, un
+    // Article, une Serie — est mesure juste en dessous, inchange.
 
     public function test_a_file_lives_directly_in_my_documents(): void
     {
