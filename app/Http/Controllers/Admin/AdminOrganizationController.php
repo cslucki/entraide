@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Ai\AiRerankSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -327,14 +328,28 @@ class AdminOrganizationController extends Controller
             && parse_url($url, PHP_URL_SCHEME) === 'https';
     }
 
+    /**
+     * TASK-1634 — detacher puis supprimer est UNE seule operation.
+     *
+     * Les quatre UPDATE ne sont pas redondants avec le `ON DELETE SET NULL`
+     * du schema : ces contraintes sont ajoutees par `Schema::table()` sur des
+     * tables existantes, ce que SQLite n'applique pas. Ils restent donc le
+     * seul mecanisme de detachement sur ce moteur.
+     *
+     * Hors transaction, ces cinq ecritures etaient cinq autocommits : une
+     * panne avant le DELETE laissait l'Organization en place avec ses donnees
+     * deja detachees. La transaction ferme cette fenetre.
+     */
     public function destroy(Organization $organization): RedirectResponse
     {
-        $organization->users()->update(['organization_id' => null]);
-        $organization->services()->update(['organization_id' => null]);
-        $organization->serviceRequests()->update(['organization_id' => null]);
-        $organization->transactions()->update(['organization_id' => null]);
+        DB::transaction(function () use ($organization) {
+            $organization->users()->update(['organization_id' => null]);
+            $organization->services()->update(['organization_id' => null]);
+            $organization->serviceRequests()->update(['organization_id' => null]);
+            $organization->transactions()->update(['organization_id' => null]);
 
-        $organization->forceDelete();
+            $organization->forceDelete();
+        });
 
         return back()->with('success', "Organisation « {$organization->name} » supprimée définitivement.");
     }
