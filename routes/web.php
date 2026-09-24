@@ -36,6 +36,7 @@ use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\AdminNotificationCockpitController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
+use App\Http\Controllers\Admin\AdminAssignDataController;
 use App\Http\Controllers\Admin\AdminDossierCleanupController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
@@ -871,9 +872,15 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::delete('/loops/{loop}', [AdminLoopController::class, 'destroy'])->name('loops.destroy');
 
     // Outils
-    Route::get('/outils/assign-data', [AdminOutilsController::class, 'assignData'])->name('outils.assign-data');
-    Route::post('/outils/assign-data', [AdminOutilsController::class, 'doAssignData'])->name('outils.assign-data.do');
-    Route::get('/outils/assign-data/detail', [AdminOutilsController::class, 'assignDataDetail'])->name('outils.assign-data.detail');
+    // TASK-1631 — assign-data reconstruit sur `DatasetRegistry`. Le detail a
+    // une route CANONIQUE par dataset (`{dataset}`) : les compteurs du
+    // tableau sont desormais de vrais liens, pas un `window.open` fabrique en
+    // JavaScript — ce qui les rend testables cote serveur. Les deux etapes
+    // qui engagent quelque chose (preview, assign) sont en POST.
+    Route::get('/outils/assign-data', [AdminAssignDataController::class, 'index'])->name('outils.assign-data');
+    Route::get('/outils/assign-data/{dataset}', [AdminAssignDataController::class, 'detail'])->name('outils.assign-data.detail');
+    Route::post('/outils/assign-data/preview', [AdminAssignDataController::class, 'preview'])->name('outils.assign-data.preview');
+    Route::post('/outils/assign-data/assign', [AdminAssignDataController::class, 'assign'])->name('outils.assign-data.assign');
     Route::get('/outils/fix-categories', [AdminOutilsController::class, 'fixCategories'])->name('outils.fix-categories');
     Route::post('/outils/fix-categories', [AdminOutilsController::class, 'doFixCategories'])->name('outils.fix-categories.do');
 
