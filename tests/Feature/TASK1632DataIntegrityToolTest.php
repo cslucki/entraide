@@ -14,6 +14,7 @@ use App\Services\Dossiers\DossierTreePurger;
 use App\Services\Integrity\DataIntegrityService;
 use App\Support\Integrity\IntegrityCheck;
 use App\Support\Integrity\IntegrityStatus;
+use App\Support\Integrity\SchemaReferenceInspector;
 use App\Support\Integrity\UnprotectedReferenceRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -124,16 +125,25 @@ class TASK1632DataIntegrityToolTest extends TestCase
     }
 
     /**
-     * Le cas que seule l'absence de cle etrangere rend possible.
+     * Depuis TASK-1633, plus AUCUNE table n'est classee `UNGUARDED` : la
+     * derniere divergence (`referrals` / `referral_rewards`) a recu sa cle
+     * etrangere, et `ai_provider_invocations` est une trace volontaire.
      *
-     * `referrals.organization_id` est un UUID indexe SANS `foreign()` — une
-     * omission de sa migration, pas une decision. On y ecrit donc l'UUID
-     * d'une Organization qui n'existe pas : aucune contrainte ne s'y oppose,
-     * et c'est precisement ce que le cockpit doit reveler.
+     * C'est un progres — il n'y a plus rien a surveiller — mais la CAPACITE
+     * de detection doit rester prouvee, sinon elle se degraderait sans que
+     * personne ne le voie. On declare donc, le temps du test, une table
+     * reellement sans contrainte (`ai_provider_invocations`, sans FK sur les
+     * deux moteurs) comme `UNGUARDED`.
+     *
+     * Seule la CLASSIFICATION change : la table, la donnee et le chemin de
+     * code sont les vrais. C'est d'ailleurs la seconde chose que ce test
+     * prouve — que c'est bien la classification, et elle seule, qui decide
+     * entre « action requise » et « trace historique ».
      */
     public function test_a_reference_to_a_vanished_organization_is_action_required(): void
     {
-        $this->referralPointantUneOrganisationAbsente();
+        $this->invocationPointantUneOrganisationAbsente();
+        $this->declareUnguarded('ai_provider_invocations');
 
         $check = app(DataIntegrityService::class)->organizationReferences();
 
@@ -141,9 +151,35 @@ class TASK1632DataIntegrityToolTest extends TestCase
         $this->assertSame(1, $check->count);
     }
 
+    /**
+     * Et sans cette declaration, la MEME ligne reste une trace historique.
+     */
+    public function test_the_same_row_is_only_history_when_it_is_classified_as_such(): void
+    {
+        $this->invocationPointantUneOrganisationAbsente();
+
+        $service = app(DataIntegrityService::class);
+
+        $this->assertSame(IntegrityStatus::Ok, $service->organizationReferences()->status);
+        $this->assertSame(IntegrityStatus::Information, $service->providerLedgerHistory()->status);
+    }
+
+    /**
+     * TASK-1633 : l'etat sain attendu du produit — aucune table sans cle
+     * etrangere hors exception volontaire, donc rien a surveiller.
+     */
+    public function test_no_table_is_unguarded_anymore(): void
+    {
+        $registry = app(UnprotectedReferenceRegistry::class);
+
+        $this->assertSame([], $registry->unguardedTables('organization_id'));
+        $this->assertSame(['ai_provider_invocations'], $registry->protectedHistoryTables('organization_id'));
+    }
+
     public function test_the_cockpit_surfaces_the_broken_reference_in_its_summary(): void
     {
-        $this->referralPointantUneOrganisationAbsente();
+        $this->invocationPointantUneOrganisationAbsente();
+        $this->declareUnguarded('ai_provider_invocations');
 
         $service = app(DataIntegrityService::class);
 
@@ -187,15 +223,32 @@ class TASK1632DataIntegrityToolTest extends TestCase
         $this->assertGreaterThan(0, $avant->replacements['legitimate']);
     }
 
+    /**
+     * TASK-1633 : l'assertion est devenue STRUCTURELLE.
+     *
+     * Elle chiffrait « 110 tables, 3 sans contrainte, 107 protegees ». Ces
+     * nombres bougent des qu'une table apparait — et ils ont bouge : la
+     * migration de convergence en a retire deux de la colonne « sans
+     * contrainte ». Ce qui doit rester vrai n'est pas un compte mais un
+     * contrat : le nombre annonce est le total moins les tables sans
+     * contrainte, et la couverture reste massive.
+     */
     public function test_the_schema_coverage_check_reports_what_the_database_guarantees(): void
     {
         $check = app(DataIntegrityService::class)->organizationForeignKeyCoverage();
+        $inspector = app(SchemaReferenceInspector::class);
+
+        $total = count($inspector->tablesWithColumn('organization_id'));
+        $sans = count($inspector->tablesWithoutForeignKey('organization_id'));
 
         $this->assertSame(IntegrityStatus::Information, $check->status);
-        // 110 tables, 3 sans contrainte : 107 protegees.
-        $this->assertSame(3, $check->replacements['without']);
-        $this->assertSame(110, $check->replacements['total']);
-        $this->assertSame(107, $check->count);
+        $this->assertSame($total, $check->replacements['total']);
+        $this->assertSame($sans, $check->replacements['without']);
+        $this->assertSame($total - $sans, $check->count);
+
+        // Et la mesure garde un sens : la protection est massive, pas
+        // anecdotique.
+        $this->assertGreaterThan(100, $check->count);
     }
 
     // ── C. Le ledger : historique PROTEGE, jamais une action ──────────────
@@ -553,22 +606,27 @@ class TASK1632DataIntegrityToolTest extends TestCase
     }
 
     /**
-     * Aucune FK ne protege `referrals.organization_id` : on peut donc y
-     * ecrire l'UUID d'une Organization absente sans contourner quoi que ce
-     * soit. C'est exactement le defaut que le cockpit doit voir.
+     * Declare une table comme `UNGUARDED` le temps d'un test.
+     *
+     * La doublure ne remplace QUE la liste d'entree : le service garde sa
+     * vraie requete, sur la vraie table, avec la vraie donnee. C'est la
+     * difference entre eprouver un chemin de code et simuler son resultat.
      */
-    private function referralPointantUneOrganisationAbsente(): void
+    private function declareUnguarded(string $table): void
     {
-        DB::table('referrals')->insert([
-            'id' => (string) Str::uuid(),
-            'organization_id' => (string) Str::uuid(),
-            'referrer_user_id' => $this->membre->id,
-            'referred_user_id' => $this->superAdmin->id,
-            'depth' => 1,
-            'status' => 'pending',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        app()->instance(UnprotectedReferenceRegistry::class, new class($table) extends UnprotectedReferenceRegistry
+        {
+            public function __construct(private readonly string $table) {}
+
+            public function all(): array
+            {
+                return [
+                    'organization_id' => [$this->table => self::UNGUARDED],
+                    'loop_id' => [],
+                    'dossier_id' => [],
+                ];
+            }
+        });
     }
 
     private function invocationPointantUneOrganisationAbsente(): void
