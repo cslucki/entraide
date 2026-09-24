@@ -11,13 +11,13 @@ use App\Models\DossierMember;
 use App\Models\Loop;
 use App\Services\Dossiers\DossierInsightsService;
 use App\Services\Dossiers\DossierSemanticSearchGate;
+use App\Services\Dossiers\DossierTreePurger;
 use App\Services\Dossiers\PersonalDocumentsRoot;
 use App\Support\Loops\LoopRoleRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -640,14 +640,14 @@ class DossierController extends Controller
      * La racine d'une Boucle et « Mes documents » restent hors de portee :
      * la policy `delete` les refuse avant meme d'arriver ici.
      */
-    public function destroy(Request $request): RedirectResponse|JsonResponse
+    public function destroy(Request $request, DossierTreePurger $purger): RedirectResponse|JsonResponse
     {
         $dossier = $this->resolveDossier($request->route('dossier'));
         $organization = $this->currentOrganizationOrFail();
         $this->ensureDossierBelongsToCurrentOrganization($dossier);
         $this->authorize('delete', $dossier);
 
-        DB::transaction(function () use ($dossier) {
+        DB::transaction(function () use ($dossier, $purger) {
             // Verrou sur la ligne visee : `dossier_files.dossier_id`,
             // `dossier_blog_posts.dossier_id` et `dossiers.parent_id` la
             // referencent tous par FK, donc PostgreSQL prend deja un verrou
@@ -655,7 +655,13 @@ class DossierController extends Controller
             // fenetre entre le recensement et la suppression.
             $verrouille = Dossier::whereKey($dossier->getKey())->lockForUpdate()->firstOrFail();
 
-            foreach ($this->brancheDe($verrouille) as $noeud) {
+            // TASK-1630 : le parcours de branche vit desormais dans
+            // `DossierTreePurger` — le meme que l'outil SuperAdmin et que la
+            // suppression d'une Boucle. Un algorithme recopie a trois
+            // endroits aurait diverge au premier correctif. Ici la
+            // suppression reste DOUCE : c'est l'ordre du parcours qui est
+            // partage, pas la destruction physique.
+            foreach ($purger->branch($verrouille) as $noeud) {
                 $seriesIds = $noeud->articleSeries()->pluck('id');
                 ArticleSeriesItem::whereIn('article_series_id', $seriesIds)->delete();
                 ArticleSeries::whereIn('id', $seriesIds)->delete();
@@ -675,36 +681,6 @@ class DossierController extends Controller
         return redirect()
             ->route('organization.dossiers.index', ['organization' => $organization])
             ->with('success', __('dossiers.deleted'));
-    }
-
-    /**
-     * Le Dossier et toute sa descendance, les feuilles d'abord.
-     *
-     * L'ordre compte : un enfant se supprime avant son parent, sinon la
-     * contrainte `dossiers_holder_xor` verrait passer des lignes orphelines.
-     * La profondeur est bornee par `Dossier::MAX_DEPTH`, comme partout
-     * ailleurs ou l'on remonte ou descend l'arbre.
-     *
-     * @return Collection<int, Dossier>
-     */
-    private function brancheDe(Dossier $racine): Collection
-    {
-        $noeuds = collect([$racine]);
-        $frontiere = collect([$racine]);
-        $profondeur = 0;
-
-        while ($frontiere->isNotEmpty() && $profondeur < Dossier::MAX_DEPTH) {
-            $frontiere = Dossier::query()
-                ->whereIn('parent_id', $frontiere->pluck('id'))
-                ->lockForUpdate()
-                ->get();
-
-            $noeuds = $noeuds->concat($frontiere);
-            $profondeur++;
-        }
-
-        // Les feuilles d'abord : on remonte la liste construite en descendant.
-        return $noeuds->reverse()->values();
     }
 
     private function currentOrganizationOrFail()
