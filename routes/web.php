@@ -37,6 +37,7 @@ use App\Http\Controllers\Admin\AdminNotificationCockpitController;
 use App\Http\Controllers\Admin\AdminOrganizationController;
 use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminAssignDataController;
+use App\Http\Controllers\Admin\AdminDataIntegrityController;
 use App\Http\Controllers\Admin\AdminDossierCleanupController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
@@ -888,6 +889,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // arborescences legacy. Trois temps, et les deux qui engagent quelque
     // chose sont en POST : la previsualisation porte une selection et ne doit
     // pas etre rejouable depuis un historique, la purge est irreversible.
+    // TASK-1632 — cockpit « Integrite des donnees ». DEUX routes, toutes
+    // deux en GET : cet outil ne mute rien. Rattacher se fait dans
+    // assign-data, purger dans le nettoyage des Dossiers.
+    Route::get('/outils/integrite-donnees', [AdminDataIntegrityController::class, 'index'])->name('outils.integrite');
+    Route::get('/outils/integrite-donnees/{check}', [AdminDataIntegrityController::class, 'detail'])->name('outils.integrite.detail');
+
     Route::get('/outils/dossiers', [AdminDossierCleanupController::class, 'index'])->name('outils.dossiers');
     Route::post('/outils/dossiers/preview', [AdminDossierCleanupController::class, 'preview'])->name('outils.dossiers.preview');
     Route::post('/outils/dossiers/purge', [AdminDossierCleanupController::class, 'purge'])->name('outils.dossiers.purge');
