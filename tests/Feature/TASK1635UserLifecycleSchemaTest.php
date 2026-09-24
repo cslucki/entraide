@@ -95,35 +95,25 @@ class TASK1635UserLifecycleSchemaTest extends TestCase
     }
 
     // =====================================================================
-    // GROUPE B — 4 proprietes TRANSFER : la suppression est REFUSEE
+    // GROUPE B — 4 proprietes TRANSFER : REPORTE a TASK-1636
     // =====================================================================
-
-    /**
-     * @return array<string, array{0: string, 1: string}>
-     */
-    public static function transferRestrictColumns(): array
-    {
-        return [
-            'blog_posts.user_id' => ['blog_posts', 'user_id'],
-            'feed_posts.user_id' => ['feed_posts', 'user_id'],
-            'services.user_id' => ['services', 'user_id'],
-            'service_requests.user_id' => ['service_requests', 'user_id'],
-        ];
-    }
-
-    #[DataProvider('transferRestrictColumns')]
-    public function test_une_propriete_non_transferee_empeche_la_suppression(string $table, string $column): void
-    {
-        $rowId = $this->insertDependentRow($table, $column);
-
-        $this->assertDeletionIsRefused($table, $column);
-
-        // Ni le bien, ni son proprietaire n'ont bouge.
-        $row = DB::table($table)->where('id', $rowId)->first();
-        $this->assertNotNull($row, "{$table} : la propriete a disparu malgre le refus.");
-        $this->assertSame($this->user->id, $row->{$column}, "{$table}.{$column} : le proprietaire a change.");
-        $this->assertDatabaseHas('users', ['id' => $this->user->id]);
-    }
+    //
+    // `blog_posts`, `feed_posts`, `services` et `service_requests` gardent leur
+    // policy TRANSFER au registre (verifiee plus bas) et restent `ON DELETE
+    // CASCADE` dans le schema : la migration M3 qui devait les passer en
+    // RESTRICT est REPORTEE a TASK-1636, sur arbitrage du 24/09.
+    //
+    // La raison est mesuree, pas theorique : `LoopRootDocumentService` cree un
+    // article racine par Boucle, attribue au membre qui la cree et jamais
+    // declare au registre des ScenarioPacks. Sous CASCADE il disparaissait avec
+    // son auteur ; sous RESTRICT il interdit toute suppression — y compris
+    // celle, legitime, du retrait d'un pack.
+    //
+    // Un RESTRICT sur une colonne TRANSFER ne protege vraiment que si un
+    // executeur sait transferer. Tant que TASK-1636 ne l'a pas ecrit, il
+    // n'empeche pas une perte de donnees : il empeche toute suppression.
+    // TASK-1636 posera donc ce RESTRICT en meme temps qu'elle apprendra a
+    // transferer, et traitera ce provisioning automatique.
 
     // =====================================================================
     // GROUPE C — 8 relations BLOCK : la suppression est REFUSEE
