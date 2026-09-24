@@ -56,6 +56,22 @@ class DerivedKnowledgeStaysBehindItsAuthorityTest extends TestCase
         // pour ce membre. Elle ne liste pas, ne cherche pas, n'elargit rien,
         // et ne rend PAS l'id de la note. Un lecteur admin, tenant-bound.
         'app/Support/Ai/AiTurnProjection.php',
+        // TASK-1632 (cockpit d'integrite, decision en revue) : le service
+        // COMPTE les notes encore rattachees a un Dossier mis a la corbeille,
+        // pour signaler un etat a arbitrer. Il ne sert AUCUN contenu : ni le
+        // texte d'une note, ni son id, ni son sujet — seulement un nombre par
+        // Dossier, plus l'Organization et la date de suppression de ce
+        // Dossier. Il n'y a donc rien a autoriser au sens de
+        // `DerivedChunkEligibility`, dont la clause protege ce qu'un LECTEUR
+        // recoit, et rien n'est servi ici. Lecteur admin plateforme, en
+        // lecture seule.
+        //
+        // Le contournement aurait ete de passer par le modele
+        // `DerivedKnowledgeNote` : la garde cherche une chaine, et l'appel
+        // serait passe inapercu tout en accedant aux memes lignes. C'est
+        // exactement ce que cette liste existe pour empecher — d'ou une
+        // declaration explicite plutot qu'une astuce.
+        'app/Services/Integrity/DataIntegrityService.php',
     ];
 
     public function test_aucun_service_ne_court_circuite_l_autorite_d_eligibilite(): void
