@@ -7,8 +7,10 @@ use App\Models\Organization;
 use App\Models\PointLedger;
 use App\Models\ScenarioPackEntity;
 use App\Models\User;
+use App\Services\Users\UserDeletionExecutor;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use LogicException;
 
@@ -75,6 +77,21 @@ use LogicException;
  *    Ce detachement n'est PAS un executeur de suppression d'utilisateur
  *    (TASK-1636) : c'est le pack qui annule sa propre ecriture.
  *
+ *  - `User` (TASK-1636) : les biens TRANSFERABLES encore attribues a un
+ *    persona — article, publication, service, demande — sont detruits avant
+ *    lui. Le provisioning du produit en cree sans que le pack les declare :
+ *    `LoopRootDocumentService` pose un article racine par Boucle, attribue au
+ *    membre qui la cree. Sous `ON DELETE CASCADE` ils disparaissaient avec leur
+ *    auteur ; depuis la migration M3 de TASK-1636 ils portent
+ *    `ON DELETE RESTRICT` et interdisent le retrait du pack.
+ *    Ce n'est pas une destruction arbitraire : un bien dont l'AUTEUR a ete cree
+ *    par le pack ne peut pas lui preexister. Et les biens que le pack declare
+ *    au registre sont deja partis a ce stade — les entites sont purgees par
+ *    `sequence` decroissante, donc apres leur auteur dans l'ordre de creation.
+ *    La liste des tables n'est pas redeclaree ici : elle est lue sur
+ *    `UserDeletionExecutor::TRANSFERABLE`, qui la tient du registre.
+ *    Borne a l'Organization du chargement, comme tout le reste.
+ *
  * Avant TASK-1245, `remove()` faisait `->delete()` : soft delete pour les
  * modeles SoftDeletes, dont 4 sur 5 disparaissaient ensuite physiquement
  * par ACCIDENT (cascade `cascadeOnDelete` sur `user_id`/`loop_id` depuis
@@ -117,6 +134,7 @@ class ScenarioPackEntityPurger
 
         if ($modelClass === User::class) {
             $this->releaseOrganizationAdmin($entity->entity_id, $organization);
+            $this->releaseTransferableProperties($entity->entity_id, $organization);
         }
 
         $modelClass::query()
@@ -127,6 +145,31 @@ class ScenarioPackEntityPurger
 
         if ($ledgerUserId !== null) {
             $this->realignPointsBalance($ledgerUserId, $organization);
+        }
+    }
+
+    /**
+     * TASK-1636 — les biens encore attribues a ce persona partent avec lui.
+     *
+     * Voir le bloc `User` en tete de fichier : il s'agit du provisioning que le
+     * produit cree sans que le pack le declare. Les tables viennent de
+     * `UserDeletionExecutor::TRANSFERABLE` — donc du registre — et jamais d'une
+     * liste recopiee ici.
+     */
+    private function releaseTransferableProperties(string $userId, Organization $organization): void
+    {
+        foreach (UserDeletionExecutor::TRANSFERABLE as $spec) {
+            if (! Schema::hasTable($spec['table'])) {
+                continue;
+            }
+
+            $query = DB::table($spec['table'])->where($spec['column'], $userId);
+
+            if (Schema::hasColumn($spec['table'], 'organization_id')) {
+                $query->where('organization_id', $organization->id);
+            }
+
+            $query->delete();
         }
     }
 

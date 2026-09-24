@@ -1148,4 +1148,34 @@ return [
         'detail_title_provider_ledger_history' => 'Deleted organizations in the ledger',
         'detail_title_dossier_soft_deleted_rag_residues' => 'Trashed folders still carrying excerpts',
     ],
+
+    // TASK-1636 — why an account deletion is refused, and what the operator
+    // must settle first. Every message names the DATA, never the SQL constraint.
+    'user_delete' => [
+        'block' => [
+            'user_missing' => 'This account no longer exists: it was deleted between the simulation and the confirmation.',
+            'transfer_required' => 'This member owns content that must belong to someone. Pick a member to receive it.',
+            'orgs_as_admin' => 'This member runs :count organisation(s). Appoint another lead before deleting the account.',
+            'point_ledger' => 'This member has :count point ledger entries. Accounting history is not deleted.',
+            'transactions_as_buyer' => 'This member is the buyer in :count exchange(s). An exchange binds two people and cannot be reassigned.',
+            'transactions_as_seller' => 'This member is the seller in :count exchange(s). An exchange binds two people and cannot be reassigned.',
+            'loop_poll_votes_user_id' => 'This member cast :count vote(s). A vote is never transferred nor rewritten.',
+            'course_submissions_user_id' => 'This member handed in :count assignment(s). That work belongs to its author.',
+            'course_quiz_attempts_user_id' => 'This member has :count recorded quiz attempt(s). Those results belong to their author.',
+            'loop_last_owner' => 'This member is the last active lead of :count Loop(s). Appoint another lead before deleting the account.',
+            'transfer_target_missing' => 'The member chosen to receive the content does not exist.',
+            'transfer_target_self' => 'Content cannot be transferred to the member you are deleting.',
+            'transfer_target_banned' => 'The chosen member is banned and cannot receive content.',
+            'transfer_target_cross_tenant' => 'The chosen member belongs to another organisation. Content never crosses that boundary.',
+        ],
+        'stale' => 'This account changed since your simulation. Run it again to see the current state before confirming.',
+        'done' => "Account of :name permanently deleted.",
+        'done_transferred' => ':count item(s) transferred to :target.',
+        'done_dossiers' => ':count folder(s) purged.',
+        'done_deleted' => ':count personal record(s) deleted.',
+        'confirm_button' => 'Delete permanently',
+    ],
+    'user_delete_blocked_title' => "What still prevents deletion",
+    'user_delete_final_title' => "Permanent deletion",
+    'user_delete_final_hint' => "This cannot be undone. The account and its personal data are destroyed; collaborative content stays, without an author.",
 ];

@@ -18,7 +18,10 @@ use App\Models\Skill;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\Admin\PlatformDashboardMetrics;
 use App\Services\UserDataLifecycleRegistry;
+use App\Services\Users\Exceptions\UserDeletionBlockedException;
+use App\Services\Users\UserDeletionExecutor;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -41,7 +44,7 @@ class AdminController extends Controller
      * plus, interactions IA) viennent d'un service unique, miroir plateforme
      * de `OrganizationDashboardMetrics` (TASK-1504).
      */
-    public function dashboard(\App\Services\Admin\PlatformDashboardMetrics $metrics): View
+    public function dashboard(PlatformDashboardMetrics $metrics): View
     {
         $recentUsers = User::with('organization')->latest()->limit(5)->get();
         $pendingReports = Report::with('reporter')->where('status', 'pending')->latest('created_at')->limit(10)->get();
@@ -862,7 +865,105 @@ class AdminController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('admin.users.delete-preview', compact('user', 'counts', 'sameOrgUsers'));
+        // TASK-1636 : ce que l'executeur refuserait, dit AVANT de proposer le
+        // bouton definitif.
+        $precheck = app(UserDeletionExecutor::class)->precheck($user);
+        $previewFingerprint = $this->deletePreviewFingerprint($precheck);
+
+        return view('admin.users.delete-preview', compact(
+            'user', 'counts', 'sameOrgUsers', 'precheck', 'previewFingerprint'
+        ));
+    }
+
+    /**
+     * TASK-1636 — la suppression REELLE. SuperAdmin uniquement.
+     *
+     * Tout est revalide ici : le compte, la confirmation par le nom, la cible
+     * de transfert, et les refus. L'executeur recontrole ensuite lui-meme sous
+     * verrou — ce controleur ne lui fait pas gagner un raccourci.
+     */
+    public function destroyUser(Request $request, User $user): RedirectResponse
+    {
+        $data = $request->validate([
+            'confirmation' => 'required|string',
+            'preview_fingerprint' => 'required|string',
+            'transfer_to' => [
+                'nullable',
+                'uuid',
+                Rule::exists('users', 'id')
+                    ->where('organization_id', $user->organization_id)
+                    ->whereNull('banned_at'),
+            ],
+        ]);
+
+        // Meme valeur que celle demandee a l'ecran — cf. `deleteUser()`.
+        if ($data['confirmation'] !== $user->fullName) {
+            return back()->withErrors(['confirmation' => __('admin.user_delete.block.user_missing')]);
+        }
+
+        $executor = app(UserDeletionExecutor::class);
+
+        // Fraicheur : on ne lit AUCUN compteur venu du navigateur. On recalcule
+        // l'etat et on compare deux empreintes. Si la situation a bouge depuis
+        // l'ecran, l'admin doit revoir ce qu'il signe.
+        if ($this->deletePreviewFingerprint($executor->precheck($user)) !== $data['preview_fingerprint']) {
+            return redirect()
+                ->route('admin.users.delete-preview', $user)
+                ->with('error', __('admin.user_delete.stale'));
+        }
+
+        $name = $user->fullName;
+
+        try {
+            $report = $executor->execute($user, $data['transfer_to'] ?? null);
+        } catch (UserDeletionBlockedException $blocked) {
+            return redirect()
+                ->route('admin.users.delete-preview', $user)
+                ->with('error', implode(' ', array_column($blocked->blocks, 'message')));
+        }
+
+        $message = [__('admin.user_delete.done', ['name' => $name])];
+
+        if (($transferred = array_sum($report['transferred'])) > 0) {
+            $target = User::find($data['transfer_to']);
+            $message[] = __('admin.user_delete.done_transferred', [
+                'count' => $transferred,
+                'target' => $target?->name ?? '',
+            ]);
+        }
+
+        if (($purged = $report['dossiers']['dossiers'] ?? 0) > 0) {
+            $message[] = __('admin.user_delete.done_dossiers', ['count' => $purged]);
+        }
+
+        if (($deleted = array_sum($report['deleted'])) > 0) {
+            $message[] = __('admin.user_delete.done_deleted', ['count' => $deleted]);
+        }
+
+        return redirect()->route('admin.users')->with('success', implode(' ', $message));
+    }
+
+    /**
+     * Empreinte de l'etat presente a l'admin.
+     *
+     * Elle ne transporte aucun compteur : le navigateur la rend telle quelle et
+     * le serveur la RECALCULE pour comparer. Un simple hash suffit — il n'y a
+     * rien a signer, puisque rien de ce qui revient n'est cru sur parole.
+     *
+     * @param  array{blocks: list<array{key: string, count: int, message: string}>, transferable: array<string, int>, requires_transfer: bool}  $precheck
+     */
+    private function deletePreviewFingerprint(array $precheck): string
+    {
+        $blocks = collect($precheck['blocks'])
+            ->map(fn (array $block) => $block['key'].':'.$block['count'])
+            ->sort()
+            ->values()
+            ->all();
+
+        $transferable = $precheck['transferable'];
+        ksort($transferable);
+
+        return hash('sha256', json_encode(['blocks' => $blocks, 'transferable' => $transferable]));
     }
 
     public function deleteUser(Request $request, User $user): View
@@ -878,7 +979,10 @@ class AdminController extends Controller
             ],
         ]);
 
-        if ($data['confirmation'] !== $user->name) {
+        // La vue demande le nom COMPLET (`fullName`) : comparer a `name` seul
+        // rendait tout compte portant un prenom impossible a confirmer en
+        // suivant l'instruction affichee.
+        if ($data['confirmation'] !== $user->fullName) {
             return $this->deletePreview($user);
         }
 
@@ -896,7 +1000,15 @@ class AdminController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('admin.users.delete-preview', compact('user', 'counts', 'sameOrgUsers'));
+        // TASK-1636 : la simulation prepare l'etape definitive — ce qui
+        // bloquerait, et l'empreinte de l'etat sur lequel l'admin se prononce.
+        $precheck = app(UserDeletionExecutor::class)->precheck($user);
+        $previewFingerprint = $this->deletePreviewFingerprint($precheck);
+        $transferTo = $data['transfer_to'] ?? null;
+
+        return view('admin.users.delete-preview', compact(
+            'user', 'counts', 'sameOrgUsers', 'precheck', 'previewFingerprint', 'transferTo'
+        ));
     }
 
     private function countUserRelations(User $user): array

@@ -1156,4 +1156,35 @@ return [
         'detail_title_provider_ledger_history' => 'Organisations disparues au ledger',
         'detail_title_dossier_soft_deleted_rag_residues' => 'Dossiers en corbeille portant encore des extraits',
     ],
+
+    // TASK-1636 — pourquoi une suppression de compte est refusee, et ce que
+    // l'operateur doit regler avant de reessayer. Chaque message nomme la
+    // DONNEE, jamais la contrainte SQL.
+    'user_delete' => [
+        'block' => [
+            'user_missing' => "Ce compte n'existe plus : il a ete supprime entre la simulation et la confirmation.",
+            'transfer_required' => 'Ce membre possede du contenu qui doit revenir a quelqu\'un. Choisissez un membre a qui le transferer.',
+            'orgs_as_admin' => 'Ce membre est responsable de :count organisation(s). Designez un autre responsable avant de supprimer son compte.',
+            'point_ledger' => 'Ce membre a :count ecriture(s) au grand livre des points. Un historique comptable ne se supprime pas.',
+            'transactions_as_buyer' => 'Ce membre est acheteur dans :count echange(s). Un echange engage deux personnes et ne peut pas etre reattribue.',
+            'transactions_as_seller' => 'Ce membre est vendeur dans :count echange(s). Un echange engage deux personnes et ne peut pas etre reattribue.',
+            'loop_poll_votes_user_id' => 'Ce membre a exprime :count vote(s). Un vote ne se transfere pas et ne se reecrit pas.',
+            'course_submissions_user_id' => 'Ce membre a rendu :count devoir(s). Ces copies appartiennent a leur auteur.',
+            'course_quiz_attempts_user_id' => 'Ce membre a :count tentative(s) de quiz enregistree(s). Ces resultats appartiennent a leur auteur.',
+            'loop_last_owner' => 'Ce membre est le dernier responsable actif de :count Boucle(s). Nommez un autre responsable avant de supprimer son compte.',
+            'transfer_target_missing' => "Le membre choisi pour recevoir le contenu n'existe pas.",
+            'transfer_target_self' => 'Le contenu ne peut pas etre transfere au membre que vous supprimez.',
+            'transfer_target_banned' => 'Le membre choisi est banni : il ne peut pas recevoir de contenu.',
+            'transfer_target_cross_tenant' => "Le membre choisi appartient a une autre organisation. Le contenu ne franchit jamais cette frontiere.",
+        ],
+        'stale' => 'La situation de ce compte a change depuis votre simulation. Relancez-la pour voir l\'etat actuel avant de confirmer.',
+        'done' => 'Compte de :name supprime definitivement.',
+        'done_transferred' => ':count element(s) transfere(s) a :target.',
+        'done_dossiers' => ':count dossier(s) purge(s).',
+        'done_deleted' => ':count donnee(s) personnelle(s) supprimee(s).',
+        'confirm_button' => 'Supprimer definitivement',
+    ],
+    'user_delete_blocked_title' => "Ce qui empeche encore la suppression",
+    'user_delete_final_title' => "Suppression definitive",
+    'user_delete_final_hint' => "Cette action est irreversible. Le compte et ses donnees personnelles seront detruits ; le contenu collaboratif reste, sans auteur.",
 ];

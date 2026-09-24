@@ -540,6 +540,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/users/{user}/login-as', [AdminController::class, 'loginAsUser'])->name('users.login-as');
     Route::get('/users/{user}/delete-preview', [AdminController::class, 'deletePreview'])->name('users.delete-preview');
     Route::post('/users/{user}/delete', [AdminController::class, 'deleteUser'])->name('users.delete');
+    // TASK-1636 — la suppression REELLE, et elle seule. La route ci-dessus
+    // reste une simulation : la detourner aurait transforme un clic d'analyse
+    // deja dans les habitudes en destruction definitive. SuperAdmin uniquement ;
+    // aucun equivalent OrgAdmin n'existe.
+    Route::delete('/users/{user}/destroy', [AdminController::class, 'destroyUser'])->name('users.destroy');
 
     // Services
     Route::get('/services', [AdminController::class, 'services'])->name('services');
