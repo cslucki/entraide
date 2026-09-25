@@ -168,14 +168,10 @@
                 </div>
                 @endif
 
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        {{ __('admin.user_delete_confirmation_label', ['name' => $user->fullName]) }}
-                    </label>
-                    <input type="text" name="confirmation" required autocomplete="off" placeholder="{{ __('admin.user_delete_confirmation_placeholder') }}"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-red-500">
-                </div>
-
+                {{-- TASK-1640 — la recopie du nom a ete RETIREE de ce formulaire.
+                     `destroyUser()` ne l'exige plus : le champ n'est pas cache, il
+                     n'existe plus. La garde reelle reste l'empreinte ci-dessus, le
+                     recontrole sous verrou et l'authentification SuperAdmin. --}}
                 <button type="submit" class="w-full px-6 py-3 bg-red-700 hover:bg-red-800 text-white text-sm font-bold rounded-lg shadow-sm transition">
                     {{ __('admin.user_delete.confirm_button') }}
                 </button>

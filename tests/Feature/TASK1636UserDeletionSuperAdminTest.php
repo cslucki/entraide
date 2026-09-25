@@ -54,9 +54,9 @@ class TASK1636UserDeletionSuperAdminTest extends TestCase
 
     public function test_le_superadmin_supprime_definitivement_un_compte(): void
     {
+        // TASK-1640 : plus aucune recopie de nom. L'empreinte suffit.
         $this->actingAs($this->superAdmin)
             ->delete(route('admin.users.destroy', $this->target), [
-                'confirmation' => $this->target->fullName,
                 'preview_fingerprint' => $this->fingerprintFor($this->target),
             ])
             ->assertRedirect(route('admin.users'));
@@ -76,13 +76,37 @@ class TASK1636UserDeletionSuperAdminTest extends TestCase
         $this->assertDatabaseHas('users', ['id' => $this->target->id]);
     }
 
-    public function test_une_confirmation_qui_ne_correspond_pas_ne_supprime_rien(): void
+    /**
+     * TASK-1640 — la recopie du nom n'est PLUS une garde sur ce chemin.
+     *
+     * Ce test disait l'inverse avant : une confirmation erronee bloquait. La
+     * regle a ete retiree du controleur, donc le test doit dire ce que le produit
+     * fait maintenant — un champ `confirmation` envoye par un vieux formulaire est
+     * simplement ignore, il ne fait ni passer ni echouer la suppression.
+     */
+    public function test_un_champ_de_confirmation_residuel_n_a_plus_aucun_effet(): void
     {
         $this->actingAs($this->superAdmin)
             ->delete(route('admin.users.destroy', $this->target), [
                 'confirmation' => 'Pas le bon nom',
                 'preview_fingerprint' => $this->fingerprintFor($this->target),
-            ]);
+            ])
+            ->assertRedirect(route('admin.users'));
+
+        $this->assertDatabaseMissing('users', ['id' => $this->target->id]);
+    }
+
+    /**
+     * En revanche l'empreinte, elle, reste OBLIGATOIRE.
+     *
+     * C'est la garde qui a remplace la recopie : sans elle, la suppression ne
+     * part pas du tout.
+     */
+    public function test_sans_empreinte_la_suppression_est_refusee(): void
+    {
+        $this->actingAs($this->superAdmin)
+            ->delete(route('admin.users.destroy', $this->target), [])
+            ->assertSessionHasErrors('preview_fingerprint');
 
         $this->assertDatabaseHas('users', ['id' => $this->target->id]);
     }
@@ -101,7 +125,6 @@ class TASK1636UserDeletionSuperAdminTest extends TestCase
 
         $this->actingAs($this->superAdmin)
             ->delete(route('admin.users.destroy', $this->target), [
-                'confirmation' => $this->target->fullName,
                 'preview_fingerprint' => $fingerprint,
             ])
             ->assertRedirect(route('admin.users.delete-preview', $this->target))
@@ -118,7 +141,6 @@ class TASK1636UserDeletionSuperAdminTest extends TestCase
     {
         $this->actingAs($this->superAdmin)
             ->delete(route('admin.users.destroy', $this->target), [
-                'confirmation' => $this->target->fullName,
                 'preview_fingerprint' => hash('sha256', 'ce que je veux'),
             ])
             ->assertRedirect(route('admin.users.delete-preview', $this->target))
@@ -133,7 +155,6 @@ class TASK1636UserDeletionSuperAdminTest extends TestCase
 
         $this->actingAs($this->superAdmin)
             ->delete(route('admin.users.destroy', $this->target), [
-                'confirmation' => $this->target->fullName,
                 'preview_fingerprint' => $this->fingerprintFor($this->target),
             ])
             ->assertRedirect(route('admin.users.delete-preview', $this->target))
@@ -209,28 +230,26 @@ class TASK1636UserDeletionSuperAdminTest extends TestCase
             ->assertDontSee(__('admin.user_delete_final_title'));
     }
 
-    public function test_la_suppression_reelle_accepte_le_nom_complet_et_refuse_le_nom_seul(): void
+    /**
+     * TASK-1640 — la suppression reelle ne depend plus du nom, ni complet ni seul.
+     *
+     * Le test precedent mesurait « nom complet accepte, nom seul refuse » sur ce
+     * chemin. Cette distinction n'existe plus : le nom n'entre pas dans la
+     * decision. Ce qui reste verifie, c'est que l'ECRAN de simulation continue de
+     * demander le nom complet (test ci-dessus), et que le chemin destructif, lui,
+     * ne le regarde pas.
+     */
+    public function test_la_suppression_reelle_ne_depend_plus_du_nom(): void
     {
         $user = User::factory()->for($this->organization)->create([
             'first_name' => 'Jean',
             'name' => 'Dupont',
         ]);
 
-        $demande = $this->confirmationDemandeeParLEcran($user);
-
-        // Le nom seul est refuse, et rien n'est detruit.
+        // Meme le nom partiel — qui etait REFUSE avant — ne change plus rien.
         $this->actingAs($this->superAdmin)
             ->delete(route('admin.users.destroy', $user), [
                 'confirmation' => $user->name,
-                'preview_fingerprint' => $this->fingerprintFor($user),
-            ]);
-
-        $this->assertDatabaseHas('users', ['id' => $user->id]);
-
-        // Le nom complet, lui, va au bout.
-        $this->actingAs($this->superAdmin)
-            ->delete(route('admin.users.destroy', $user), [
-                'confirmation' => $demande,
                 'preview_fingerprint' => $this->fingerprintFor($user),
             ])
             ->assertRedirect(route('admin.users'));
