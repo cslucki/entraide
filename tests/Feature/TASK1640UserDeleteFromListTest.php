@@ -465,6 +465,17 @@ class TASK1640UserDeleteFromListTest extends TestCase
             $html,
             "Le conteneur du tableau doit defiler horizontalement, pas couper."
         );
+
+        // La largeur minimale n'est pas cosmetique : sans elle, la colonne Actions
+        // est ecrasee a ~130 px sur telephone et empile ses dix liens
+        // verticalement. Mesure a 375 px : les lignes passent de 101 px a ~350 px,
+        // soit une ligne par ecran. La retirer casserait la page sans rien casser
+        // d'autre — d'ou cette garde.
+        $this->assertStringContainsString(
+            'min-w-[46rem]',
+            $html,
+            "Le tableau doit garder un plancher de largeur, sinon la colonne Actions etire les lignes."
+        );
     }
 
     /**

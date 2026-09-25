@@ -1177,6 +1177,7 @@ return [
         'confirm_button' => 'Delete permanently',
     ],
     // TASK-1640 — compteurs et fiche membre de la liste SuperAdmin.
+    'user_delete_modal_irreversible' => 'This action is permanent and cannot be undone.',
     'users_profile_ai_profile_label' => 'Public AI profile',
     'users_status_label' => 'Status',
     'users_stat_total' => 'Accounts',

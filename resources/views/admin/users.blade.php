@@ -70,7 +70,13 @@
          pas seulement serrees. Le defilement horizontal est borne a ce conteneur,
          donc le corps de page ne defile jamais lateralement. --}}
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-x-auto">
-        <table class="w-full text-sm">
+        {{-- `min-w-[46rem]` n'est pas cosmetique : sans largeur minimale, la colonne
+             Actions est ecrasee a ~130 px sur telephone et empile ses dix liens
+             verticalement, ce qui porte chaque ligne a ~350 px — une ligne par
+             ecran. Mesure a 375 px. Avec ce plancher, la colonne retrouve la place
+             de disposer ses actions et les lignes reviennent a une hauteur normale ;
+             le defilement horizontal, lui, est deja borne au conteneur. --}}
+        <table class="w-full min-w-[46rem] text-sm">
             <thead class="bg-gray-50 dark:bg-gray-700">
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
@@ -525,7 +531,16 @@
                     @method('DELETE')
                     <input type="hidden" name="preview_fingerprint" :value="fingerprint">
 
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">{{ __('admin.user_delete_modal_body') }}</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">{{ __('admin.user_delete_modal_body') }}</p>
+
+                    {{-- Le caractere DEFINITIF est dit a part et mis en avant : noye
+                         dans le paragraphe precedent, il se lit comme une precision
+                         alors que c'est la seule information qu'on ne peut pas
+                         rattraper apres coup. --}}
+                    <p class="flex items-start gap-2 text-sm font-medium text-red-600 dark:text-red-400 mb-4">
+                        <span aria-hidden="true">&#9888;</span>
+                        <span>{{ __('admin.user_delete_modal_irreversible') }}</span>
+                    </p>
 
                     {{-- B : transfert necessaire. UNIQUEMENT le choix du repreneur :
                          aucune mention de table, de contrainte ni d'organisation technique. --}}
