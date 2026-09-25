@@ -47,6 +47,29 @@ class ScenarioManifestValidatorTest extends TestCase
         $this->assertIsString($result->digest());
     }
 
+    /**
+     * Garde anti-derive : la fixture versionnee EST l'exemple de la spec.
+     *
+     * `TODO/` est gitignore, donc la spec n'existe pas en CI et la fixture doit
+     * etre commitee pour que la suite tourne. Ce test empeche la consequence
+     * naturelle de cette copie — une spec modifiee sans que la fixture suive —
+     * et s'execute la ou cette derive peut naitre : sur un poste qui a la spec.
+     */
+    public function test_the_committed_fixture_is_byte_identical_to_the_example_in_the_specification(): void
+    {
+        $specJson = AmtReferenceManifest::specJson();
+
+        if ($specJson === null) {
+            $this->markTestSkipped('The specification is not distributed with the repository; there is no copy to compare against here.');
+        }
+
+        $this->assertSame(
+            $specJson,
+            AmtReferenceManifest::json(),
+            'The committed AMT fixture has drifted from section 16 of the specification.',
+        );
+    }
+
     public function test_the_reference_manifest_reports_every_counter_the_preview_needs(): void
     {
         $counters = $this->validator->validate(AmtReferenceManifest::json())->counters();

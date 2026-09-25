@@ -3,53 +3,73 @@
 namespace Tests\Support\ScenarioManifest;
 
 /**
- * TASK-1641 — l'exemple AMT est lu DANS la spec, jamais recopie.
+ * TASK-1641 — l'exemple AMT de la section 16 de la spec, base de TOUTES les
+ * mutations.
  *
- * La spec dit : "elle accepte l'exemple AMT ci-dessus" (critere d'acceptation
- * 1). Une copie du JSON dans `tests/Fixtures` repondrait a une question
- * differente — "le Validator accepte-t-il cette copie" — et resterait verte le
- * jour ou la spec et la copie divergeraient. C'est le document normatif
- * lui-meme qui sert d'entree ; si quelqu'un modifie l'exemple de la spec sans
- * bouger le Validator, le test le dit.
+ * L'exemple est livre comme fixture VERSIONNEE, et non lu dans la spec, pour
+ * une raison operationnelle : `TODO/` est gitignore. La spec est un document
+ * de travail local, absent du depot et donc absent de la CI ; un test qui la
+ * lirait serait vert sur un poste et rouge sur chaque runner.
+ *
+ * L'objection reste juste pour autant : une copie peut diverger de l'original.
+ * La reponse n'est pas de renoncer a la copie mais de la SURVEILLER —
+ * `specJson()` rend le bloc de la spec quand elle est presente, et
+ * `ScenarioManifestValidatorTest` compare les deux octet par octet. La garde
+ * s'execute donc exactement la ou la derive peut naitre : sur un poste qui a
+ * la spec et peut la modifier. En CI, ou la spec n'existe pas, il n'y a rien a
+ * surveiller et le test le dit au lieu de rougir.
  *
  * Les mutations partent toutes du meme document decode : un test de mutation
  * ne prouve quelque chose que si sa BASE est exactement la reference verte.
  */
 final class AmtReferenceManifest
 {
+    private const FIXTURE = 'tests/Fixtures/ScenarioManifest/amt-formation-ia.json';
+
     private const SPEC = 'TODO/SPECS/260920-11h10-CDC-scenario-manifest.md';
 
     private const SECTION = '## 16. Example AMT manifest';
 
     public static function json(): string
     {
-        $specPath = dirname(__DIR__, 3).'/'.self::SPEC;
+        $path = self::basePath().'/'.self::FIXTURE;
 
-        if (! is_file($specPath)) {
-            throw new \RuntimeException('Scenario Manifest specification not found; the reference example cannot be read.');
+        if (! is_file($path)) {
+            throw new \RuntimeException('The AMT reference fixture is missing from the repository.');
         }
 
-        $markdown = (string) file_get_contents($specPath);
+        return (string) file_get_contents($path);
+    }
+
+    /**
+     * Le bloc JSON de la section 16 de la spec, ou `null` quand la spec n'est
+     * pas distribuee (CI, clone frais).
+     */
+    public static function specJson(): ?string
+    {
+        $path = self::basePath().'/'.self::SPEC;
+
+        if (! is_file($path)) {
+            return null;
+        }
+
+        $markdown = (string) file_get_contents($path);
         $section = strpos($markdown, self::SECTION);
 
         if ($section === false) {
-            throw new \RuntimeException('Section 16 of the specification not found.');
+            return null;
         }
 
         $open = strpos($markdown, '```json', $section);
 
         if ($open === false) {
-            throw new \RuntimeException('The AMT example fence was not found in section 16.');
+            return null;
         }
 
         $start = $open + strlen("```json\n");
         $close = strpos($markdown, "\n```", $start);
 
-        if ($close === false) {
-            throw new \RuntimeException('The AMT example fence is not closed.');
-        }
-
-        return substr($markdown, $start, $close - $start);
+        return $close === false ? null : substr($markdown, $start, $close - $start);
     }
 
     /**
@@ -74,5 +94,10 @@ final class AmtReferenceManifest
         $mutation($manifest);
 
         return json_encode($manifest, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    }
+
+    private static function basePath(): string
+    {
+        return dirname(__DIR__, 3);
     }
 }

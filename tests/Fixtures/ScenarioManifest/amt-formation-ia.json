@@ -1,0 +1,155 @@
+{
+  "schema_version": "1.0",
+  "id": "amt-formation-ia",
+  "version": "1.0.0",
+  "name": "AMT — Formation IA",
+  "description": "Communauté fictive de formateurs et stagiaires découvrant les usages responsables de l'IA.",
+  "purpose": "Démontrer une formation, son entraide et son historique avant validation humaine.",
+  "locale": "fr",
+  "assets": { "avatar_bank": "fictional-avatars-v1" },
+  "organization": {
+    "name": "AMT — Formation IA",
+    "proposed_slug": "amt-formation-ia",
+    "description": "Sandbox fictive AMT pour démonstration et recette.",
+    "locale": "fr"
+  },
+  "users": [
+    { "key": "trainer-1", "first_name": "Nora", "name": "Martin", "email": "nora.martin@amt-demo.test", "bio": "Formatrice en pédagogie numérique.", "available": true, "location": "Lyon", "avatar": "female-03", "organization_role": "admin", "member_ai_profile": { "status": "published", "summary": "Accompagne les équipes dans l'adoption responsable de l'IA.", "service_scope": "Pédagogie et cadrage des usages.", "experience_context": "Formation professionnelle fictive.", "target_audience": ["formateurs", "équipes pédagogiques"], "problems_helped": ["concevoir une séquence IA"], "skills": ["pédagogie", "IA responsable"], "help_types": ["atelier", "relecture"], "boundaries": ["pas de conseil juridique"], "preferred_contact_action": "message", "tone": "pedagogical" } },
+    { "key": "trainer-2", "first_name": "Samir", "name": "Diallo", "email": "samir.diallo@amt-demo.test", "bio": "Formateur technique.", "available": true, "location": "Paris", "avatar": "male-02", "organization_role": "member", "member_ai_profile": { "status": "published", "summary": "Aide à prototyper et à vérifier des assistants IA.", "service_scope": "Prototypage et évaluation.", "experience_context": "Ateliers techniques fictifs.", "target_audience": ["stagiaires"], "problems_helped": ["évaluer une réponse IA"], "skills": ["prompting", "évaluation"], "help_types": ["coaching"], "boundaries": ["aucune donnée sensible"], "preferred_contact_action": "service_request", "tone": "direct" } },
+    { "key": "student-01", "first_name": "Alice", "name": "Bernard", "email": "student-01@amt-demo.test", "bio": "Responsable de formation.", "available": true, "location": "Grenoble", "avatar": "female-01", "organization_role": "member", "member_ai_profile": { "status": "published", "summary": "Partage des pratiques de conception pédagogique.", "service_scope": null, "experience_context": null, "target_audience": ["formateurs"], "problems_helped": ["structurer un atelier"], "skills": ["ingénierie pédagogique"], "help_types": ["pair review"], "boundaries": [], "preferred_contact_action": "message", "tone": "warm" } },
+    { "key": "student-02", "first_name": "Benoît", "name": "Caron", "email": "student-02@amt-demo.test", "bio": "Chef de projet.", "available": true, "location": "Nantes", "avatar": "male-01", "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-03", "first_name": "Chloé", "name": "Durand", "email": "student-03@amt-demo.test", "bio": "Conceptrice pédagogique.", "available": false, "location": "Lille", "avatar": "female-02", "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-04", "first_name": "David", "name": "Etienne", "email": "student-04@amt-demo.test", "bio": "Facilitateur.", "available": true, "location": null, "avatar": null, "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-05", "first_name": "Emma", "name": "Faure", "email": "student-05@amt-demo.test", "bio": "Chargée de mission.", "available": true, "location": "Dijon", "avatar": null, "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-06", "first_name": "Farid", "name": "Giraud", "email": "student-06@amt-demo.test", "bio": "Consultant.", "available": true, "location": "Tours", "avatar": null, "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-07", "first_name": "Gaëlle", "name": "Henry", "email": "student-07@amt-demo.test", "bio": "Tutrice.", "available": false, "location": null, "avatar": null, "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-08", "first_name": "Hugo", "name": "Imbert", "email": "student-08@amt-demo.test", "bio": "Coordinateur.", "available": true, "location": "Rennes", "avatar": null, "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-09", "first_name": "Inès", "name": "Jacob", "email": "student-09@amt-demo.test", "bio": "Médiatrice.", "available": true, "location": "Rouen", "avatar": null, "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-10", "first_name": "Jules", "name": "Klein", "email": "student-10@amt-demo.test", "bio": "Enseignant.", "available": true, "location": "Metz", "avatar": null, "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-11", "first_name": "Kenza", "name": "Lopez", "email": "student-11@amt-demo.test", "bio": "Formatrice.", "available": true, "location": "Montpellier", "avatar": null, "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-12", "first_name": "Léo", "name": "Moreau", "email": "student-12@amt-demo.test", "bio": "Designer pédagogique.", "available": false, "location": "Bordeaux", "avatar": null, "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-13", "first_name": "Maya", "name": "Nguyen", "email": "student-13@amt-demo.test", "bio": "Responsable RH.", "available": true, "location": null, "avatar": null, "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-14", "first_name": "Noé", "name": "Olivier", "email": "student-14@amt-demo.test", "bio": "Animateur.", "available": true, "location": "Caen", "avatar": null, "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-15", "first_name": "Olivia", "name": "Petit", "email": "student-15@amt-demo.test", "bio": "Référente numérique.", "available": true, "location": "Amiens", "avatar": null, "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-16", "first_name": "Paul", "name": "Quentin", "email": "student-16@amt-demo.test", "bio": "Chef d'équipe.", "available": false, "location": null, "avatar": null, "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-17", "first_name": "Rania", "name": "Roux", "email": "student-17@amt-demo.test", "bio": "Documentaliste.", "available": true, "location": "Orléans", "avatar": null, "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-18", "first_name": "Sacha", "name": "Simon", "email": "student-18@amt-demo.test", "bio": "Accompagnateur.", "available": true, "location": "Nancy", "avatar": null, "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-19", "first_name": "Tania", "name": "Thomas", "email": "student-19@amt-demo.test", "bio": "Chargée de formation.", "available": true, "location": "Reims", "avatar": null, "organization_role": "member", "member_ai_profile": null },
+    { "key": "student-20", "first_name": "Victor", "name": "Urbain", "email": "student-20@amt-demo.test", "bio": "Responsable qualité.", "available": true, "location": "Poitiers", "avatar": null, "organization_role": "member", "member_ai_profile": null }
+  ],
+  "loops": [
+    { "key": "training-main", "name": "Formation IA — promotion septembre", "description": "Parcours principal de la promotion.", "type": "training", "owner": "trainer-1", "visibility": "private", "access_mode": "invitation", "root_dossier": "training-docs" },
+    { "key": "help-general", "name": "Entraide AMT", "description": "Questions, offres et retours entre participants.", "type": "general", "owner": "trainer-2", "visibility": "private", "access_mode": "invitation", "root_dossier": "help-docs" }
+  ],
+  "memberships": [
+    { "loop": "training-main", "user": "trainer-1", "role": "owner" },
+    { "loop": "training-main", "user": "trainer-2", "role": "facilitator" },
+    { "loop": "help-general", "user": "trainer-2", "role": "owner" },
+    { "loop": "help-general", "user": "trainer-1", "role": "facilitator" },
+    { "loop": "training-main", "user": "student-01", "role": "member" },
+    { "loop": "training-main", "user": "student-02", "role": "member" },
+    { "loop": "training-main", "user": "student-03", "role": "member" },
+    { "loop": "training-main", "user": "student-04", "role": "member" },
+    { "loop": "training-main", "user": "student-05", "role": "member" },
+    { "loop": "training-main", "user": "student-06", "role": "member" },
+    { "loop": "training-main", "user": "student-07", "role": "member" },
+    { "loop": "training-main", "user": "student-08", "role": "member" },
+    { "loop": "training-main", "user": "student-09", "role": "member" },
+    { "loop": "training-main", "user": "student-10", "role": "member" },
+    { "loop": "training-main", "user": "student-11", "role": "member" },
+    { "loop": "training-main", "user": "student-12", "role": "member" },
+    { "loop": "training-main", "user": "student-13", "role": "member" },
+    { "loop": "training-main", "user": "student-14", "role": "member" },
+    { "loop": "training-main", "user": "student-15", "role": "member" },
+    { "loop": "training-main", "user": "student-16", "role": "member" },
+    { "loop": "training-main", "user": "student-17", "role": "member" },
+    { "loop": "training-main", "user": "student-18", "role": "member" },
+    { "loop": "training-main", "user": "student-19", "role": "member" },
+    { "loop": "training-main", "user": "student-20", "role": "member" },
+    { "loop": "help-general", "user": "student-01", "role": "member" },
+    { "loop": "help-general", "user": "student-02", "role": "member" },
+    { "loop": "help-general", "user": "student-03", "role": "member" },
+    { "loop": "help-general", "user": "student-04", "role": "member" },
+    { "loop": "help-general", "user": "student-05", "role": "member" },
+    { "loop": "help-general", "user": "student-06", "role": "member" },
+    { "loop": "help-general", "user": "student-07", "role": "member" },
+    { "loop": "help-general", "user": "student-08", "role": "member" },
+    { "loop": "help-general", "user": "student-09", "role": "member" },
+    { "loop": "help-general", "user": "student-10", "role": "member" },
+    { "loop": "help-general", "user": "student-11", "role": "member" },
+    { "loop": "help-general", "user": "student-12", "role": "member" },
+    { "loop": "help-general", "user": "student-13", "role": "member" },
+    { "loop": "help-general", "user": "student-14", "role": "member" },
+    { "loop": "help-general", "user": "student-15", "role": "member" },
+    { "loop": "help-general", "user": "student-16", "role": "member" },
+    { "loop": "help-general", "user": "student-17", "role": "member" },
+    { "loop": "help-general", "user": "student-18", "role": "member" },
+    { "loop": "help-general", "user": "student-19", "role": "member" },
+    { "loop": "help-general", "user": "student-20", "role": "member" }
+  ],
+  "dossiers": [
+    { "key": "training-docs", "name": "Supports de formation", "owner": "trainer-1", "loop": "training-main", "parent": null, "visibility": "loop", "root_document": { "title": "Manifeste de la formation", "author": "trainer-1", "format": "markdown", "content": "# Notre cadre\n\nNous expérimentons, vérifions et gardons un humain responsable." } },
+    { "key": "help-docs", "name": "Ressources d'entraide", "owner": "trainer-2", "loop": "help-general", "parent": null, "visibility": "loop", "root_document": { "title": "Charte d'entraide", "author": "trainer-2", "format": "markdown", "content": "# Entraide\n\nDécrire le contexte, ce qui a été essayé et la limite rencontrée." } }
+  ],
+  "articles": [
+    { "key": "article-charte-ia", "dossier": "training-docs", "author": "trainer-1", "title": "Charte d'usage responsable", "summary": "Les règles de travail de la promotion.", "status": "published", "audience": "loop", "format": "html", "content": "<h2>Règles</h2><ul><li>Vérifier les faits.</li><li>Ne pas exposer de données sensibles.</li></ul>", "published_offset_minutes": -20160 }
+  ],
+  "files": [
+    { "key": "file-guide-prompt", "dossier": "training-docs", "uploaded_by": "trainer-2", "name": "guide-prompt.md", "media_type": "text/markdown", "content": "# Guide\n\nUn bon prompt donne le contexte, la tâche et les critères." },
+    { "key": "file-cas-pratique", "dossier": "training-docs", "uploaded_by": "trainer-1", "name": "cas-pratique.html", "media_type": "text/html", "content": "<h2>Cas pratique</h2><p>Comparer deux réponses et documenter les écarts.</p>" }
+  ],
+  "messages": [
+    { "key": "welcome", "type": "loop_message", "loop": "training-main", "author": "trainer-1", "body": "Bienvenue. Commencez par la charte puis présentez votre cas d'usage.", "format": "plain", "order": 0, "offset_minutes": -10080, "reply_to": null },
+    { "key": "student-question", "type": "loop_message", "loop": "training-main", "author": "student-01", "body": "Comment vérifier une réponse qui cite une source inconnue ?", "format": "plain", "order": 1, "offset_minutes": -8640, "reply_to": "welcome" },
+    { "key": "trainer-answer", "type": "loop_message", "loop": "training-main", "author": "trainer-2", "body": "Ouvre la source, vérifie l'auteur et la date, puis distingue le fait de l'interprétation.", "format": "plain", "order": 2, "offset_minutes": -8580, "reply_to": "student-question" },
+    { "key": "help-intro", "type": "loop_message", "loop": "help-general", "author": "trainer-2", "body": "Utilisez cette Boucle pour demander ou proposer une aide concrète.", "format": "plain", "order": 0, "offset_minutes": -7200, "reply_to": null }
+  ],
+  "categories": [
+    { "key": "ai-practice", "name": "Pratiques IA", "color": "#4F46E5" }
+  ],
+  "skills": [
+    { "key": "prompt-review", "category": "ai-practice", "name": "Relecture de prompts" },
+    { "key": "source-check", "category": "ai-practice", "name": "Vérification de sources" }
+  ],
+  "service_requests": [
+    { "key": "request-source-check", "author": "student-01", "title": "Relire ma méthode de vérification", "description": "Je cherche un regard sur ma grille de vérification des sources.", "category": "ai-practice", "delivery_mode": "remote", "budget_min": 10, "budget_max": 20, "deadline_day_offset": 14, "status": "open", "highlight_in_loop": "help-general" }
+  ],
+  "services": [
+    { "key": "offer-prompt-clinic", "author": "trainer-2", "title": "Clinique de prompt", "description": "Une session courte pour relire un prompt et son protocole d'évaluation.", "category": "ai-practice", "skills": ["prompt-review", "source-check"], "delivery_mode": "remote", "points_cost": 15, "status": "active", "highlight_in_loop": "help-general" }
+  ],
+  "polls": [
+    { "key": "poll-next-workshop", "loop": "training-main", "author": "trainer-1", "question": "Quel thème approfondir au prochain atelier ?", "description": null, "selection_type": "single", "status": "open", "options": [{ "key": "sources", "label": "Vérifier les sources" }, { "key": "prompts", "label": "Écrire de meilleurs prompts" }], "votes": [{ "user": "student-01", "options": ["sources"] }, { "user": "student-02", "options": ["prompts"] }] }
+  ],
+  "events": [
+    { "key": "event-workshop-2", "loop": "training-main", "author": "trainer-1", "title": "Atelier 2 — Évaluer une réponse", "description": "Mise en pratique en petits groupes.", "format": "online", "starts_offset_minutes": 10080, "duration_minutes": 120, "timezone": "Europe/Paris", "location": null, "meeting_url": "https://meet.example.test/amt-workshop-2", "visibility": "loop", "status": "scheduled", "responses": [{ "user": "student-01", "response": "going" }, { "user": "student-03", "response": "maybe" }] }
+  ],
+  "decisions": [
+    { "key": "decision-human-review", "loop": "training-main", "author": "trainer-1", "title": "Toute production partagée sera relue par un humain", "rationale": "La promotion veut distinguer assistance et délégation de responsabilité.", "decided_day_offset": -7, "message": "trainer-answer", "supersedes": null }
+  ],
+  "roadmap_items": [
+    { "key": "roadmap-source-grid", "loop": "training-main", "created_by": "trainer-1", "title": "Publier la grille de vérification", "description": "Version relue pendant l'atelier 2.", "status": "in_progress", "position": 0, "assignees": ["trainer-2", "student-01"], "due_day_offset": 10, "decision": "decision-human-review" }
+  ],
+  "training": {
+    "modules": [
+      { "key": "module-foundations", "loop": "training-main", "title": "Fondations", "summary": "Comprendre les limites et formuler une demande.", "position": 0, "created_by": "trainer-1" },
+      { "key": "module-evaluation", "loop": "training-main", "title": "Évaluation", "summary": "Vérifier faits, sources et utilité.", "position": 1, "created_by": "trainer-2" }
+    ],
+    "sequences": [
+      { "key": "sequence-charter", "module": "module-foundations", "title": "Lire la charte", "position": 0, "requires_validation": false, "created_by": "trainer-1", "content": { "type": "article", "article": "article-charte-ia" } },
+      { "key": "sequence-prompt", "module": "module-foundations", "title": "Structurer un prompt", "position": 1, "requires_validation": false, "created_by": "trainer-2", "content": { "type": "file", "file": "file-guide-prompt" } },
+      { "key": "sequence-evaluate", "module": "module-evaluation", "title": "Évaluer une réponse", "position": 0, "requires_validation": true, "created_by": "trainer-2", "content": { "type": "text", "body": "Comparez la réponse aux sources et notez les incertitudes." } }
+    ],
+    "progress": [
+      { "sequence": "sequence-charter", "user": "student-01", "status": "completed", "started_offset_minutes": -7200, "completed_offset_minutes": -7100, "validated_by": null, "validated_offset_minutes": null, "unlocked_by": null, "unlocked_offset_minutes": null },
+      { "sequence": "sequence-evaluate", "user": "student-01", "status": "validated", "started_offset_minutes": -3000, "completed_offset_minutes": -2500, "validated_by": "trainer-2", "validated_offset_minutes": -2400, "unlocked_by": "trainer-1", "unlocked_offset_minutes": -3100 },
+      { "sequence": "sequence-prompt", "user": "student-02", "status": "in_progress", "started_offset_minutes": -1440, "completed_offset_minutes": null, "validated_by": null, "validated_offset_minutes": null, "unlocked_by": null, "unlocked_offset_minutes": null }
+    ],
+    "assignments": [
+      { "key": "assignment-source-review", "loop": "training-main", "sequence": "sequence-evaluate", "title": "Analyser une réponse IA", "brief": "Rendre une analyse courte avec deux sources vérifiées.", "due_offset_minutes": 20160, "position": 0, "created_by": "trainer-2" }
+    ],
+    "submissions": [
+      { "assignment": "assignment-source-review", "user": "student-01", "body": "J'ai distingué trois affirmations et vérifié deux sources.", "file": null, "status": "validated", "submitted_offset_minutes": -2200, "feedback": "Analyse claire ; conserver cette méthode.", "reviewed_by": "trainer-2", "reviewed_offset_minutes": -2000 },
+      { "assignment": "assignment-source-review", "user": "student-02", "body": "Brouillon de la grille d'analyse.", "file": null, "status": "draft", "submitted_offset_minutes": null, "feedback": null, "reviewed_by": null, "reviewed_offset_minutes": null }
+    ]
+  }
+}
