@@ -1163,6 +1163,7 @@ return [
             'course_submissions_user_id' => 'This member handed in :count assignment(s). That work belongs to its author.',
             'course_quiz_attempts_user_id' => 'This member has :count recorded quiz attempt(s). Those results belong to their author.',
             'loop_last_owner' => 'This member is the last active lead of :count Loop(s). Appoint another lead before deleting the account.',
+            'cross_tenant_transfer' => 'Some of this member content belongs to another organisation (:count). It must be reassigned before this account can be deleted.',
             'transfer_target_missing' => 'The member chosen to receive the content does not exist.',
             'transfer_target_self' => 'Content cannot be transferred to the member you are deleting.',
             'transfer_target_banned' => 'The chosen member is banned and cannot receive content.',
