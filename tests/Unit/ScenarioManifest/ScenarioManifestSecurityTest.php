@@ -207,6 +207,93 @@ class ScenarioManifestSecurityTest extends TestCase
         }
     }
 
+    /**
+     * Regression TASK-1641 (revue Sonnet sur e8f48562) : les images Markdown
+     * ne s'ecrivent pas seulement `![alt](url)`.
+     *
+     * Les trois formes de REFERENCE tirent leur URL d'une definition `[ref]:
+     * <url>` qui peut se trouver n'importe ou dans le document. La version
+     * precedente ne cherchait que la forme inline et laissait donc passer
+     * trois images sur quatre : la definition ressemble a un lien legitime, et
+     * c'est le `!` seul qui transforme la reference en requete sortante depuis
+     * le navigateur d'un membre.
+     */
+    public function test_every_commonmark_image_syntax_is_refused(): void
+    {
+        $images = [
+            'inline' => '![alt](https://evil.test/track.png)',
+            'full reference' => "![alt][pixel]\n\n[pixel]: https://evil.test/track.png",
+            'collapsed reference' => "![alt][]\n\n[alt]: https://evil.test/track.png",
+            'shortcut reference' => "![alt]\n\n[alt]: https://evil.test/track.png",
+        ];
+
+        foreach ($images as $label => $payload) {
+            $result = $this->validator->validate(AmtReferenceManifest::mutate(
+                static function (\stdClass $manifest) use ($payload): void {
+                    $manifest->messages[0]->format = 'markdown';
+                    $manifest->messages[0]->body = $payload;
+                },
+            ));
+
+            $this->assertSame(ManifestValidationResult::INVALID, $result->verdict(), $label);
+            $this->assertSame(['UNSAFE_CONTENT'], $result->errorCodes(), $label);
+            $this->assertSame('/messages/0/body', $result->errors()[0]->path, $label);
+        }
+    }
+
+    /**
+     * La regle vit dans la primitive de contenu PARTAGEE : elle doit donc
+     * valoir sur chaque surface Markdown du langage, pas seulement sur celle
+     * qu'un test a choisie. Une regle de securite qui ne tiendrait que sur
+     * `messages` laisserait un article ou un fichier de cours porter la meme
+     * image.
+     */
+    public function test_a_reference_image_is_refused_on_every_markdown_surface(): void
+    {
+        $payload = "![alt][pixel]\n\n[pixel]: https://evil.test/track.png";
+
+        $surfaces = [
+            '/articles/0/content' => static function (\stdClass $manifest) use ($payload): void {
+                $manifest->articles[0]->format = 'markdown';
+                $manifest->articles[0]->content = $payload;
+            },
+            '/files/0/content' => static function (\stdClass $manifest) use ($payload): void {
+                $manifest->files[0]->content = $payload;
+            },
+            '/dossiers/0/root_document/content' => static function (\stdClass $manifest) use ($payload): void {
+                $manifest->dossiers[0]->root_document->content = $payload;
+            },
+            '/training/submissions/0/body' => static function (\stdClass $manifest) use ($payload): void {
+                $manifest->training->submissions[0]->body = $payload;
+            },
+        ];
+
+        foreach ($surfaces as $path => $mutation) {
+            $result = $this->validator->validate(AmtReferenceManifest::mutate($mutation));
+
+            $this->assertSame(ManifestValidationResult::INVALID, $result->verdict(), $path);
+            $this->assertSame(['UNSAFE_CONTENT'], $result->errorCodes(), $path);
+            $this->assertSame($path, $result->errors()[0]->path, $path);
+        }
+    }
+
+    /**
+     * Contrepartie indispensable : un lien de REFERENCE est legitime et doit
+     * rester vert. Sans ce test, refuser tout `[` serait une facon triviale de
+     * rendre le test precedent vert.
+     */
+    public function test_reference_style_links_remain_valid(): void
+    {
+        $result = $this->validator->validate(AmtReferenceManifest::mutate(
+            static function (\stdClass $manifest): void {
+                $manifest->messages[0]->format = 'markdown';
+                $manifest->messages[0]->body = "Voir [le guide][guide] et [la charte][charte].\n\n[guide]: https://example.test/guide\n[charte]: https://example.test/charte";
+            },
+        ));
+
+        $this->assertSame(ManifestValidationResult::VALID, $result->verdict());
+    }
+
     public function test_safe_markdown_links_remain_valid(): void
     {
         // La contrepartie du test precedent : la garde ne doit pas refuser du

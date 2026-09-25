@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\ScenarioManifest;
 
+use App\Support\ScenarioManifest\JsonPointer;
 use App\Support\ScenarioManifest\ManifestValidationResult;
 use App\Support\ScenarioManifest\ScenarioManifestValidator;
 use PHPUnit\Framework\TestCase;
@@ -103,6 +104,32 @@ class ScenarioManifestValidatorTest extends TestCase
 
         $this->assertGreaterThan(0, $counters['declared_objects']);
         $this->assertGreaterThan(0, $counters['content_bytes']);
+    }
+
+    /**
+     * La limite de 1 MiB porte sur la SOMME des contenus root/article/file/
+     * message (spec 9.2), pas sur chacun : aucun champ pris isolement ne peut
+     * l'atteindre, puisqu'un contenu plafonne a 100 000 caracteres. Seul un
+     * compteur global peut donc la faire respecter, et c'est exactement ce que
+     * ce test exerce — onze articles individuellement legaux qui, ensemble,
+     * depassent la limite.
+     */
+    public function test_contents_totalling_more_than_one_mebibyte_are_refused(): void
+    {
+        $result = $this->validator->validate(AmtReferenceManifest::mutate(static function (\stdClass $manifest): void {
+            for ($index = 0; $index < 11; $index++) {
+                $article = clone $manifest->articles[0];
+                $article->key = 'filler-'.$index;
+                $article->format = 'markdown';
+                $article->content = str_repeat('a', 100000);
+                $manifest->articles[] = $article;
+            }
+        }));
+
+        $this->assertSame(ManifestValidationResult::INVALID, $result->verdict());
+        $this->assertSame(['LIMIT_EXCEEDED'], $result->errorCodes());
+        $this->assertSame(JsonPointer::ROOT, $result->errors()[0]->path);
+        $this->assertGreaterThan(1048576, $result->counters()['content_bytes']);
     }
 
     public function test_two_validations_of_the_same_document_agree_on_verdict_digest_and_errors(): void

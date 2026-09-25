@@ -71,7 +71,7 @@ final class ManifestContentPolicy
 
     private static function checkMarkdown(string $content, string $path, ManifestErrorBag $errors): void
     {
-        if (preg_match('/!\[[^\]]*\]\(/', $content) === 1) {
+        if (self::containsMarkdownImage($content)) {
             self::reject($path, $errors, 'Markdown images are not allowed.');
         }
 
@@ -101,6 +101,44 @@ final class ManifestContentPolicy
                 self::reject($path, $errors, 'Only https:// and mailto: links are allowed.');
             }
         }
+    }
+
+    /**
+     * "Les images Markdown sont rejetees" (spec 9.3) — TOUTES, pas seulement
+     * la forme inline.
+     *
+     * CommonMark connait quatre facons d'ecrire une image, et elles partagent
+     * exactement une chose : le prefixe `![`.
+     *
+     *     ![alt](https://x.test/a.png)   inline
+     *     ![alt][ref]                    reference complete
+     *     ![alt][]                       reference repliee
+     *     ![alt]                         reference raccourcie
+     *
+     * Les trois dernieres tirent leur URL d'une definition `[ref]: <url>` qui
+     * peut vivre n'importe ou dans le document, y compris tres loin du `![`.
+     * Ne chercher que `![...](` — ce que faisait la version precedente —
+     * laissait donc passer trois images sur quatre : la definition ressemble a
+     * un lien parfaitement legitime, et c'est le `!` qui, seul, transforme la
+     * reference en requete sortante depuis le navigateur d'un membre.
+     *
+     * La regle retenue est donc PLATE : tout `![` non echappe est refuse. Elle
+     * sur-refuse un `![texte]` litteral sans definition correspondante, qui ne
+     * serait pas une image ; c'est assume. Une regle que le producteur peut
+     * enoncer depuis la seule spec — "pas de `![` dans un manifeste" — vaut
+     * mieux qu'une regle exacte dont la correction depend de la resolution des
+     * definitions de reference, c'est-a-dire de l'endroit precis ou le defaut
+     * corrige ici etait ne.
+     *
+     * Un `!` echappe (`\\![texte](url)`) n'ouvre pas une image mais un lien :
+     * les sequences d'echappement sont retirees avant la recherche, pour ne
+     * pas refuser ce lien-la.
+     */
+    private static function containsMarkdownImage(string $content): bool
+    {
+        $unescaped = (string) preg_replace('/\\\\./su', '', $content);
+
+        return str_contains($unescaped, '![');
     }
 
     private static function checkHtml(string $content, string $path, ManifestErrorBag $errors): void
