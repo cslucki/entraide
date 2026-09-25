@@ -147,7 +147,30 @@ class UserDataLifecycleRegistry
             ['key' => 'messages_sent', 'type' => 'sql', 'table' => 'messages', 'column' => 'sender_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_transaction', 'justification' => 'Conversation sender can be anonymized.'],
             ['key' => 'organization_requests', 'type' => 'sql', 'table' => 'organization_requests', 'column' => 'user_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Organization request history is retained.'],
             ['key' => 'orgs_as_admin', 'type' => 'sql', 'table' => 'organizations', 'column' => 'admin_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'self', 'justification' => 'Organization admin ownership must be reassigned before deletion.'],
-            ['key' => 'point_ledger', 'type' => 'sql', 'table' => 'point_ledger', 'column' => 'user_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'direct', 'justification' => 'Point ledger is historical accounting data and blocks deletion until a dedicated decision exists.'],
+            /**
+             * TASK-1638 — le ledger reste BLOCK, mais UN sous-cas se resout.
+             *
+             * `point_ledger` est un historique comptable, et TASK-1254 avait
+             * deja tranche que sa durabilite ne se sacrifie pas : la policy
+             * NE CHANGE PAS. Ce qui change, c'est qu'on nomme le seul type de
+             * ligne qui ne documente AUCUN echange entre deux membres.
+             *
+             * Le bonus de bienvenue est ecrit par la plateforme a l'inscription,
+             * sans `transaction_id`. Mesure du 25/09/2026 sur un jumeau de la
+             * PROD reelle : 46 lignes `point_ledger` pour 46 comptes, **toutes**
+             * `welcome_bonus`, chacune posee dans les 5 s de la creation du
+             * compte. Consequence : sous 1.636, un compte devenait non
+             * supprimable des la seconde de son inscription, avant toute action
+             * de son proprietaire.
+             *
+             * `resolvable_rows` declare ce sous-cas **une seule fois**. Le
+             * comptage (`countEntry()`) l'exclut, et `UserDeletionExecutor` le
+             * purge dans la transaction de suppression en lisant CETTE
+             * declaration — jamais une seconde copie de la regle. Toute autre
+             * raison (`adjustment`, `referral_reward`, `exchange_earned`,
+             * `exchange_spent`) continue de bloquer franchement.
+             */
+            ['key' => 'point_ledger', 'type' => 'sql', 'table' => 'point_ledger', 'column' => 'user_id', 'policy' => self::POLICY_BLOCK, 'org_scope' => 'direct', 'resolvable_rows' => ['column' => 'reason', 'value' => 'welcome_bonus'], 'justification' => 'Point ledger is historical accounting data and keeps blocking deletion. The single exception is the platform-written signup bonus (reason welcome_bonus, no transaction_id): it documents no exchange between two members, so it is purged with the account instead of blocking it (TASK-1638).'],
             ['key' => 'profile_agent_conversations_owner', 'type' => 'sql', 'table' => 'profile_agent_conversations', 'column' => 'profile_owner_user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'Profile agent conversation content may include personal data.'],
             ['key' => 'profile_agent_conversations_visitor', 'type' => 'sql', 'table' => 'profile_agent_conversations', 'column' => 'visitor_user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'direct', 'justification' => 'Visitor profile agent content may include personal data.'],
             // TASK-1433 — SW-3 : le visiteur pseudonyme du Shell Welcome ; la liaison au compte (SW-11) se detache, la ligne suit sa propre retention.
@@ -327,6 +350,55 @@ class UserDataLifecycleRegistry
             ->all();
     }
 
+    /**
+     * TASK-1638 — les lignes d'une entree BLOCK que la suppression sait RESOUDRE.
+     *
+     * Declarees UNE SEULE FOIS, au registre. `countEntry()` les retire du
+     * comptage et `UserDeletionExecutor` les purge : les deux lisent CETTE
+     * methode, aucun service ne reecrit la valeur.
+     *
+     * @return array{column: string, value: string}|null
+     */
+    public static function resolvableRows(string $key): ?array
+    {
+        foreach (self::entries() as $entry) {
+            if ($entry['key'] === $key) {
+                return $entry['resolvable_rows'] ?? null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Retire du comptage les lignes resolvables d'une entree.
+     *
+     * La regle est un TOUT OU RIEN par compte : ce qui reste apres exclusion
+     * est le nombre de lignes qui bloquent VRAIMENT. Zero => plus de blocage ;
+     * une seule ligne d'une autre raison => l'entree bloque, avec ce compte.
+     */
+    public static function excludeResolvableRows(Builder $query, array $entry, ?string $table = null): void
+    {
+        $resolvable = $entry['resolvable_rows'] ?? null;
+
+        if ($resolvable === null) {
+            return;
+        }
+
+        $table ??= $entry['table'] ?? null;
+
+        // Colonne declaree mais absente du schema : on n'exclut RIEN, donc
+        // l'entree continue de bloquer. Le defaut se voit (garde de coherence),
+        // il ne se traduit jamais par une suppression qu'on n'avait pas voulue.
+        if ($table === null || ! Schema::hasColumn($table, $resolvable['column'])) {
+            return;
+        }
+
+        // `point_ledger.reason` est NOT NULL : `!=` couvre donc toutes les
+        // lignes qui ne sont pas exactement la raison declaree.
+        $query->where($table.'.'.$resolvable['column'], '!=', $resolvable['value']);
+    }
+
     public function preview(User $user, ?Organization $organization = null): array
     {
         $counts = [
@@ -408,6 +480,12 @@ class UserDataLifecycleRegistry
         }
 
         $this->applyOrganizationScope($query, $table, $entry['org_scope'] ?? 'none', $organization);
+
+        // TASK-1638 — ce que la suppression sait resoudre ne compte pas comme un
+        // blocage. `preview()` (SuperAdmin ET OrgAdmin) et le precheck de
+        // l'executor passent tous les deux par ici : la regle ne peut pas
+        // diverger entre l'ecran et l'execution.
+        self::excludeResolvableRows($query, $entry, $table);
 
         return $query->count();
     }
