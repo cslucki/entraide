@@ -23,12 +23,15 @@ use App\Services\UserDataLifecycleRegistry;
 use App\Services\Users\Exceptions\UserDeletionBlockedException;
 use App\Services\Users\UserDeletionExecutor;
 use App\Support\Tenancy\DefaultOrganizationResolver;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -106,7 +109,50 @@ class AdminController extends Controller
         $users = $query->paginate(20)->withQueryString();
         $organizations = Organization::where('is_active', true)->orderBy('name')->get();
 
-        return view('admin.users', compact('users', 'organizations'));
+        return view('admin.users', compact('users', 'organizations') + [
+            'stats' => $this->userListStats(),
+        ]);
+    }
+
+    /**
+     * TASK-1640 — les compteurs du bandeau de la liste, en UNE requete.
+     *
+     * Des agregats conditionnels plutot que cinq `count()` : la page est un
+     * cockpit, pas un rapport, et le test de cout de `/admin/users` mesure
+     * justement que cette page ne grandit pas en requetes quand le nombre de
+     * comptes augmente.
+     *
+     * Les compteurs portent sur la POPULATION ENTIERE, pas sur le filtre courant.
+     * Un compteur qui bougerait avec les filtres ne dirait plus « combien de
+     * comptes bannis existe-t-il » mais « combien en vois-je », ce qui n'est pas
+     * la question posee par un cockpit. Le total filtre, lui, est rendu par le
+     * paginateur a cote du tableau.
+     *
+     * @return array<string, int>
+     */
+    private function userListStats(): array
+    {
+        // Deux pieges de moteur evites ici, tous deux deja payes sur ce depot :
+        //  - `count(*) FILTER (...)` est du PostgreSQL pur ;
+        //  - `is_admin = 1` passe en SQLite (entier) et ECHOUE en PostgreSQL, ou
+        //    la colonne est un vrai `boolean`.
+        // Le predicat NU (`case when is_admin then ...`) est valide dans les deux.
+        $row = User::query()->toBase()->selectRaw(
+            'count(*) as total,'
+            .' sum(case when banned_at is null and is_available then 1 else 0 end) as disponibles,'
+            .' sum(case when banned_at is not null then 1 else 0 end) as bannis,'
+            .' sum(case when is_admin then 1 else 0 end) as admins,'
+            .' sum(case when created_at >= ? then 1 else 0 end) as nouveaux',
+            [now()->startOfMonth()]
+        )->first();
+
+        return [
+            'total' => (int) $row->total,
+            'disponibles' => (int) $row->disponibles,
+            'bannis' => (int) $row->bannis,
+            'admins' => (int) $row->admins,
+            'nouveaux' => (int) $row->nouveaux,
+        ];
     }
 
     public function editUser(User $user): View
@@ -878,14 +924,30 @@ class AdminController extends Controller
     /**
      * TASK-1636 — la suppression REELLE. SuperAdmin uniquement.
      *
-     * Tout est revalide ici : le compte, la confirmation par le nom, la cible
-     * de transfert, et les refus. L'executeur recontrole ensuite lui-meme sous
-     * verrou — ce controleur ne lui fait pas gagner un raccourci.
+     * Tout est revalide ici : le compte, la cible de transfert, et les refus.
+     * L'executeur recontrole ensuite lui-meme sous verrou — ce controleur ne lui
+     * fait pas gagner un raccourci.
+     *
+     * ## TASK-1640 — la recopie du nom a ete RETIREE
+     *
+     * Elle donnait l'illusion d'une garde : elle ne prouvait ni l'identite de
+     * l'admin, ni la fraicheur de ce qu'il avait lu, ni que l'etat du compte
+     * permettait la suppression. Elle coutait une frappe et ne protegeait rien
+     * que les quatre gardes reelles ne couvrent deja :
+     *
+     *  1. l'authentification SuperAdmin (`AdminMiddleware`) ;
+     *  2. une modal de confirmation explicite ;
+     *  3. `preview_fingerprint`, qui refuse une decision prise sur un etat perime ;
+     *  4. le recontrole autoritatif sous `lockForUpdate()` dans l'executeur.
+     *
+     * Le champ n'est pas seulement cache a l'ecran : l'exigence est retiree de la
+     * validation. Cacher le champ en laissant la regle cote serveur aurait produit
+     * un formulaire que le serveur refuse — le defaut symetrique de celui mesure
+     * en TASK-1636, ou l'ecran demandait `fullName` et le serveur comparait `name`.
      */
     public function destroyUser(Request $request, User $user): RedirectResponse
     {
         $data = $request->validate([
-            'confirmation' => 'required|string',
             'preview_fingerprint' => 'required|string',
             'transfer_to' => [
                 'nullable',
@@ -895,11 +957,6 @@ class AdminController extends Controller
                     ->whereNull('banned_at'),
             ],
         ]);
-
-        // Meme valeur que celle demandee a l'ecran — cf. `deleteUser()`.
-        if ($data['confirmation'] !== $user->fullName) {
-            return back()->withErrors(['confirmation' => __('admin.user_delete.block.user_missing')]);
-        }
 
         $executor = app(UserDeletionExecutor::class);
 
@@ -952,6 +1009,127 @@ class AdminController extends Controller
      *
      * @param  array{blocks: list<array{key: string, count: int, message: string}>, transferable: array<string, int>, requires_transfer: bool}  $precheck
      */
+    /**
+     * TASK-1640 — la fiche complete d'un membre, demandee AU CLIC.
+     *
+     * Lecture seule, bornee a UN compte, et volontairement composee de comptages
+     * plutot que de listes : la question posee par cet ecran est « qu'est-ce que
+     * cette personne FAIT sur la plateforme », pas « donne-moi ses contenus ».
+     * Rendre les lignes elles-memes aurait fait passer du contenu personnel
+     * (messages, prompts IA) dans une reponse d'administration.
+     *
+     * Les tables absentes du schema sont ignorees plutot que de faire echouer la
+     * fiche : ce depot a des tables qui apparaissent par TASK, et une fiche qui
+     * jette parce qu'une table n'existe pas encore serait un faux defaut.
+     */
+    public function userProfileSummary(User $user): JsonResponse
+    {
+        $compte = function (string $table, string $column) use ($user): int {
+            if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
+                return 0;
+            }
+
+            return DB::table($table)->where($column, $user->id)->count();
+        };
+
+        $ledgerIA = Schema::hasTable('ai_provider_invocations')
+            ? DB::table('ai_provider_invocations')->where('user_id', $user->id)->selectRaw(
+                'count(*) as appels, coalesce(sum(total_tokens), 0) as tokens, coalesce(sum(provider_cost), 0) as cout'
+            )->first()
+            : null;
+
+        $derniereConnexion = Schema::hasTable('login_logs')
+            ? DB::table('login_logs')->where('user_id', $user->id)->max('created_at')
+            : null;
+
+        return response()->json([
+            'identite' => [
+                'name' => $user->fullName,
+                'email' => $user->email,
+                'organization' => $user->organization?->name,
+                'statut' => $user->banned_at !== null
+                    ? __('admin.users_status_banned')
+                    : ($user->is_available ? __('admin.users_status_available') : __('admin.users_status_unavailable')),
+                'is_admin' => (bool) $user->is_admin,
+                'points' => (int) $user->points_balance,
+                'inscrit_le' => $user->created_at?->format('d/m/Y'),
+                'derniere_connexion' => $derniereConnexion ? Carbon::parse($derniereConnexion)->format('d/m/Y H:i') : null,
+                'note' => $user->rating ? number_format((float) $user->rating, 1).'/5' : null,
+            ],
+            'contributions' => [
+                __('admin.users_profile_services') => $compte('services', 'user_id'),
+                __('admin.users_profile_requests') => $compte('service_requests', 'user_id'),
+                __('admin.users_profile_articles') => $compte('blog_posts', 'user_id'),
+                __('admin.users_profile_feed') => $compte('feed_posts', 'user_id'),
+                __('admin.users_profile_loops_created') => $compte('loops', 'created_by'),
+                __('admin.users_profile_loop_messages') => $compte('loop_messages', 'sender_id'),
+            ],
+            'interactions' => [
+                __('admin.users_profile_purchases') => $compte('transactions', 'buyer_id'),
+                __('admin.users_profile_sales') => $compte('transactions', 'seller_id'),
+                __('admin.users_profile_reviews_given') => $compte('reviews', 'reviewer_id'),
+                __('admin.users_profile_reviews_received') => $compte('reviews', 'reviewed_id'),
+                __('admin.users_profile_comments') => $compte('blog_comments', 'user_id') + $compte('feed_post_comments', 'user_id'),
+                __('admin.users_profile_memberships') => $compte('loop_members', 'user_id'),
+                __('admin.users_profile_votes') => $compte('loop_poll_votes', 'user_id'),
+            ],
+            'ia' => [
+                'appels' => (int) ($ledgerIA->appels ?? 0),
+                'tokens' => (int) ($ledgerIA->tokens ?? 0),
+                // Le cout est un fait economique : on le rend tel quel, arrondi a
+                // 4 decimales, sans le transformer en jugement.
+                'cout' => round((float) ($ledgerIA->cout ?? 0), 4),
+                'interactions' => $compte('ai_interactions', 'user_id'),
+                'shell' => $compte('ai_shell_messages', 'user_id'),
+                'retours' => $compte('ai_interaction_feedbacks', 'user_id'),
+                'profil_ia' => $compte('member_ai_profiles', 'user_id') > 0,
+            ],
+        ]);
+    }
+
+    /**
+     * TASK-1640 — ce que la modal de `/admin/users` demande AU CLIC.
+     *
+     * Lecture seule et bornee a UN compte. Rien n'est recalcule ici : ce sont
+     * `UserDeletionExecutor::precheck()` et `deletePreviewFingerprint()`, deja
+     * l'autorite, qui repondent. Aucune regle metier ne vit dans cette methode.
+     *
+     * Pourquoi une route dediee plutot que la liste : `precheck()` fait une
+     * quinzaine de comptages par compte. Les calculer pour les 20 lignes d'une
+     * page aurait ajoute ~300 requetes au rendu de `/admin/users` pour un clic
+     * qui n'aura lieu qu'une fois.
+     */
+    public function userDeletePrecheck(User $user): JsonResponse
+    {
+        $precheck = app(UserDeletionExecutor::class)->precheck($user);
+
+        // Les repreneurs possibles, dans la MEME Organization : c'est la borne
+        // que `destroyUser()` revalide de son cote. L'ecran ne propose donc
+        // jamais un choix que le serveur refusera.
+        $candidats = User::query()
+            ->where('organization_id', $user->organization_id)
+            ->assignable()
+            ->whereKeyNot($user->id)
+            ->orderBy('first_name')
+            ->orderBy('name')
+            ->get(['id', 'first_name', 'name'])
+            ->map(fn (User $candidat) => ['id' => $candidat->id, 'name' => $candidat->fullName])
+            ->values();
+
+        return response()->json([
+            'user' => ['id' => $user->id, 'name' => $user->fullName],
+            // Seuls le libelle et le compte sortent : la cle technique du blocage
+            // reste cote serveur, l'ecran n'a rien a en faire.
+            'blocks' => collect($precheck['blocks'])
+                ->map(fn (array $block) => ['message' => $block['message'], 'count' => $block['count']])
+                ->values(),
+            'requires_transfer' => $precheck['requires_transfer'],
+            'transfer_total' => array_sum($precheck['transferable']),
+            'transfer_candidates' => $candidats,
+            'preview_fingerprint' => $this->deletePreviewFingerprint($precheck),
+        ]);
+    }
+
     private function deletePreviewFingerprint(array $precheck): string
     {
         $blocks = collect($precheck['blocks'])

@@ -540,7 +540,18 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/users/{user}/login-as', [AdminController::class, 'loginAsUser'])->name('users.login-as');
     Route::get('/users/{user}/delete-preview', [AdminController::class, 'deletePreview'])->name('users.delete-preview');
     Route::post('/users/{user}/delete', [AdminController::class, 'deleteUser'])->name('users.delete');
-    // TASK-1636 — la suppression REELLE, et elle seule. La route ci-dessus
+    // TASK-1640 — ce que la modal de la liste demande au serveur, et rien de plus.
+    //
+    // En GET, en lecture seule, pour UN SEUL compte : celui sur lequel l'admin
+    // vient de cliquer. La route de simulation juste au-dessus n'a pas ete
+    // detournee pour cet usage — elle est en POST, elle EXIGE la recopie du nom
+    // (que cette TASK supprime), et elle calcule `registry->preview()`, soit les
+    // 134 entrees du registre la ou la modal n'a besoin que du `precheck()`.
+    Route::get('/users/{user}/delete-precheck', [AdminController::class, 'userDeletePrecheck'])->name('users.delete-precheck');
+    // TASK-1640 — la fiche complete d'un membre, pour le pop-up de la liste.
+    // Lecture seule, un seul compte, des COMPTAGES et jamais le contenu lui-meme.
+    Route::get('/users/{user}/profile-summary', [AdminController::class, 'userProfileSummary'])->name('users.profile-summary');
+    // TASK-1636 — la suppression REELLE, et elle seule. La route de simulation
     // reste une simulation : la detourner aurait transforme un clic d'analyse
     // deja dans les habitudes en destruction definitive. SuperAdmin uniquement ;
     // aucun equivalent OrgAdmin n'existe.
