@@ -42,6 +42,12 @@ use Illuminate\Support\Facades\Schema;
  *  - **gouvernance** — le dernier OWNER actif d'une Boucle bloque ; un
  *    facilitator seul ne bloque pas. Cette regle ne vient pas du schema mais de
  *    `LoopGovernanceService`, seule autorite sur le sujet.
+ *  - **propriete hors-tenant (TASK-1639)** — une propriete TRANSFER rattachee a
+ *    une autre Organization que son proprietaire. Elle ne peut ni rester (le
+ *    RESTRICT l'interdit) ni partir vers le repreneur, qui est un AUTEUR visible
+ *    dans le produit : ce serait une fausse paternite. Le refus est donc la seule
+ *    issue juste, et il est rendu comme un refus metier — pas comme l'erreur SQL
+ *    que le clone PROD produisait avant cette TASK.
  *
  * ## Pourquoi `execute()` recontrole tout
  *
@@ -217,6 +223,25 @@ class UserDeletionExecutor
             ];
         }
 
+        // TASK-1639 — une propriete rattachee a une autre Organization.
+        //
+        // Elle ne peut ni rester (le RESTRICT l'interdit) ni etre transferee : le
+        // repreneur est un AUTEUR visible dans le produit, et lui attribuer un
+        // contenu d'une autre organisation fabriquerait une fausse paternite.
+        // Le seul geste juste est donc de REFUSER, en le disant. Ce refus est
+        // detecte ici, c'est-a-dire a la fois par `precheck()` (l'ecran) et par
+        // le recontrole sous verrou (l'autorite) — jamais par une QueryException
+        // arrivee trop tard.
+        $crossTenant = $this->crossTenantTransferables($user);
+
+        if ($crossTenant > 0) {
+            $blocks[] = [
+                'key' => 'cross_tenant_transfer',
+                'count' => $crossTenant,
+                'message' => __('admin.user_delete.block.cross_tenant_transfer', ['count' => $crossTenant]),
+            ];
+        }
+
         return $blocks;
     }
 
@@ -283,6 +308,63 @@ class UserDeletionExecutor
     }
 
     /**
+     * TASK-1639 — les proprietes que le transfert NE deplacerait PAS.
+     *
+     * Ce compte n'est pas defini par une regle qui lui est propre : c'est le
+     * **complement exact** de ce que `transfer()` deplace, obtenu en reutilisant
+     * son predicat (`transferQuery()`). Une propriete hors-tenant serait donc
+     * comptee comme « a transferer », jamais deplacee, et le `forceDelete()`
+     * heurterait le RESTRICT — c'est le defaut mesure sur le clone PROD au
+     * scenario B de TASK-1638.
+     *
+     * Le definir comme un complement, et non comme « organization_id differe »,
+     * est deliberé : si le predicat de `transfer()` change un jour, ce compte
+     * suit automatiquement. Les deux ne peuvent plus diverger.
+     */
+    private function crossTenantTransferables(User $user): int
+    {
+        $bloquantes = 0;
+
+        foreach (self::TRANSFERABLE as $spec) {
+            if (! Schema::hasTable($spec['table'])) {
+                continue;
+            }
+
+            $possedees = DB::table($spec['table'])->where($spec['column'], $user->id)->count();
+            $deplacables = $this->transferQuery($user, $spec)->count();
+
+            $bloquantes += $possedees - $deplacables;
+        }
+
+        return $bloquantes;
+    }
+
+    /**
+     * Le predicat UNIQUE des proprietes qu'un transfert deplace.
+     *
+     * Detenu a un seul endroit, lu par `transfer()` (qui met a jour) et par
+     * `crossTenantTransferables()` (qui compte ce qui reste). Le contenu ne
+     * franchit jamais la frontiere d'une Organization : c'est cette borne-la que
+     * le filtre exprime, et non une optimisation.
+     *
+     * @param  array{table: string, column: string}  $spec
+     */
+    private function transferQuery(User $user, array $spec): \Illuminate\Database\Query\Builder
+    {
+        $query = DB::table($spec['table'])->where($spec['column'], $user->id);
+
+        if (Schema::hasColumn($spec['table'], 'organization_id')) {
+            // `whereRaw` avec `IS NOT DISTINCT FROM` serait plus juste sur le
+            // papier, mais `where('organization_id', $x)` est ce que le produit
+            // fait depuis TASK-1636 : on garde EXACTEMENT ce comportement et on
+            // compte ce qu'il laisse derriere, plutot que de le changer ici.
+            $query->where('organization_id', $user->organization_id);
+        }
+
+        return $query;
+    }
+
+    /**
      * La cible d'un transfert, validee sous verrou.
      *
      * Les quatre refus sont distincts et le restent : « inexistante »,
@@ -341,13 +423,10 @@ class UserDeletionExecutor
                 continue;
             }
 
-            $query = DB::table($spec['table'])->where($spec['column'], $user->id);
-
-            if (Schema::hasColumn($spec['table'], 'organization_id')) {
-                $query->where('organization_id', $user->organization_id);
-            }
-
-            $transferred[$key] = $query->update([$spec['column'] => $target->id]);
+            // MEME predicat que celui qui compte les proprietes hors-tenant :
+            // les deux ne peuvent plus decrire des ensembles differents.
+            $transferred[$key] = $this->transferQuery($user, $spec)
+                ->update([$spec['column'] => $target->id]);
         }
 
         return $transferred;

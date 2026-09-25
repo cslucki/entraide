@@ -1172,6 +1172,7 @@ return [
             'course_submissions_user_id' => 'Ce membre a rendu :count devoir(s). Ces copies appartiennent a leur auteur.',
             'course_quiz_attempts_user_id' => 'Ce membre a :count tentative(s) de quiz enregistree(s). Ces resultats appartiennent a leur auteur.',
             'loop_last_owner' => 'Ce membre est le dernier responsable actif de :count Boucle(s). Nommez un autre responsable avant de supprimer son compte.',
+            'cross_tenant_transfer' => 'Certains contenus de ce membre appartiennent a une autre organisation (:count). Ils doivent etre reattribues avant de pouvoir supprimer ce compte.',
             'transfer_target_missing' => "Le membre choisi pour recevoir le contenu n'existe pas.",
             'transfer_target_self' => 'Le contenu ne peut pas etre transfere au membre que vous supprimez.',
             'transfer_target_banned' => 'Le membre choisi est banni : il ne peut pas recevoir de contenu.',
