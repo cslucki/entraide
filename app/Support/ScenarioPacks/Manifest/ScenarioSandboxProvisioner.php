@@ -48,7 +48,11 @@ class ScenarioSandboxProvisioner
     {
         $declared = $manifest->organization();
 
-        $organization = Organization::create([
+        $organization = new Organization;
+
+        // `fill()` respecte `$fillable` : ces champs-la sont des reglages
+        // PRODUIT ordinaires.
+        $organization->fill([
             'name' => (string) $declared->name,
             'slug' => $this->reserveAvailableSlug($manifest->proposedSlug()),
             'description' => (string) $declared->description,
@@ -63,8 +67,28 @@ class ScenarioSandboxProvisioner
             'loop_mode' => 'multi',
         ]);
 
-        // Provenance server-side, sur la ligne qui vient d'etre creee.
-        $organization->forceFill(['scenario_sandbox_created_at' => now()])->save();
+        // Provenance server-side, posee AVANT le premier `save()`.
+        //
+        // TASK-1642 (revue) : la version precedente inserait la ligne puis
+        // ecrivait la provenance par un UPDATE separe. Ces deux ecritures
+        // n'etaient pas atomiques : un echec entre les deux laissait une
+        // Organization ORPHELINE, `scenario_sandbox_created_at` a NULL —
+        // c'est-a-dire une Organization que le garde ne reconnait pas comme
+        // sandbox, que rien ne relie a un chargement, et que plus rien ne sait
+        // supprimer.
+        //
+        // La correction n'est pas d'ouvrir une transaction autour des deux :
+        // c'est de n'en faire qu'UNE SEULE ecriture. Un INSERT est atomique
+        // par nature, sans dependre d'une transaction que l'appelant pourrait
+        // oublier d'ouvrir ou qu'un `save()` imbrique pourrait compliquer.
+        //
+        // `forceFill()` parce que la colonne n'est deliberement pas
+        // `fillable` : ce qui empeche un mass assignment de l'atteindre doit
+        // aussi m'empecher de la poser par inadvertance depuis un tableau de
+        // donnees.
+        $organization->forceFill(['scenario_sandbox_created_at' => now()]);
+
+        $organization->save();
 
         return $organization;
     }

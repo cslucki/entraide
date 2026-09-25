@@ -31,6 +31,16 @@ class ScenarioPackLoad extends Model
         'organization_created_by_pack',
     ];
 
+    /**
+     * TASK-1642 — identite d'idempotence d'un chargement de manifeste.
+     *
+     * DELIBEREMENT absente de `$fillable` : c'est le digest APPROUVE par un
+     * humain, ecrit par le seul service qui charge un manifeste. Un mass
+     * assignment qui pourrait le poser permettrait de faire passer un
+     * chargement pour un autre.
+     */
+    public const MANIFEST_DIGEST = 'manifest_digest';
+
     protected function casts(): array
     {
         return [

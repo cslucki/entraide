@@ -18,6 +18,12 @@ final class ManifestSandboxLoadResult
         public readonly ScenarioManifest $manifest,
         public readonly Organization $organization,
         public readonly ScenarioPackLoadResult $packLoad,
+        /**
+         * Ce resultat vient-il d'un REJEU (spec 5.2) plutot que d'un
+         * chargement neuf ? Un rejeu n'a ecrit rigoureusement RIEN : il rend
+         * la sandbox et le chargement deja en place.
+         */
+        public readonly bool $wasReplay = false,
     ) {}
 
     /**

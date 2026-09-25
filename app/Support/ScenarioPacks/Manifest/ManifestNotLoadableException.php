@@ -44,6 +44,18 @@ class ManifestNotLoadableException extends RuntimeException
     }
 
     /**
+     * Course perdue ET gagnant introuvable : etat qui ne devrait pas exister,
+     * signale plutot que masque par un chargement silencieux.
+     */
+    public static function concurrentLoadLost(string $digest): self
+    {
+        return new self(sprintf(
+            'A concurrent load of the same approved manifest (%s) won the race but could not be read back; nothing was kept.',
+            substr($digest, 0, 12),
+        ));
+    }
+
+    /**
      * Le cas que la spec redoute : un document modifie ENTRE l'approbation
      * humaine et le chargement. Le digest approuve ne correspond plus, et le
      * Load s'arrete avant d'avoir cree quoi que ce soit.

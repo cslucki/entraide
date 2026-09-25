@@ -24,6 +24,7 @@ use App\Support\ScenarioPacks\ScenarioPackEntityRegistrar;
 use App\Support\ScenarioPacks\ScenarioPackLoader;
 use App\Support\ScenarioPacks\ScenarioPackRemover;
 use App\Support\ScenarioPacks\ScenarioPackResetter;
+use Illuminate\Events\Dispatcher;
 use Tests\TestCase;
 
 /**
@@ -52,6 +53,25 @@ class ManifestSandboxLoadTest extends TestCase
     private function load(): ManifestSandboxLoadResult
     {
         return app(ManifestSandboxLoadService::class)->load($this->manifestJson(), $this->approvedDigest());
+    }
+
+    /**
+     * Une variante REELLEMENT distincte du manifeste : son digest differe,
+     * donc ce n'est jamais un rejeu.
+     *
+     * @param  callable(\stdClass): void  $mutation
+     * @return array{0: string, 1: string} [json, digest]
+     */
+    private function variant(callable $mutation): array
+    {
+        $document = json_decode($this->manifestJson(), false, 512, JSON_THROW_ON_ERROR);
+        $mutation($document);
+        $json = json_encode($document, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+
+        $result = (new ScenarioManifestValidator)->validate($json);
+        $this->assertTrue($result->isValid(), 'The variant used by this test must itself be a VALID manifest.');
+
+        return [$json, (string) $result->digest()];
     }
 
     // =====================================================================
@@ -219,22 +239,122 @@ class ManifestSandboxLoadTest extends TestCase
     // TENANT — jamais une Organization existante
     // =====================================================================
 
-    public function test_a_slug_collision_creates_another_sandbox_and_never_adopts_the_existing_one(): void
+    /**
+     * Collision de slug != rejeu.
+     *
+     * Ce test utilisait deux fois EXACTEMENT le meme JSON, ce qui est depuis
+     * la correction de revue un rejeu — donc precisement ce qui ne doit PAS
+     * creer une seconde sandbox. Il prouve desormais ce qu'il devait prouver :
+     * deux manifestes REELLEMENT distincts qui proposent le meme slug donnent
+     * deux sandboxes sures, et jamais l'adoption de la premiere.
+     */
+    public function test_two_distinct_manifests_proposing_the_same_slug_get_two_safe_sandboxes(): void
     {
         $first = $this->load();
-        $second = $this->load();
+
+        [$otherJson, $otherDigest] = $this->variant(static function (\stdClass $document): void {
+            $document->id = 'amt-formation-ia-promo-2';
+            $document->name = 'AMT — Formation IA, promotion 2';
+            // Le slug PROPOSE reste le meme : c'est tout l'interet du cas.
+        });
+
+        $second = app(ManifestSandboxLoadService::class)->load($otherJson, $otherDigest);
 
         $this->assertSame('amt-formation-ia', $first->sandboxSlug());
         $this->assertNotSame($first->sandboxSlug(), $second->sandboxSlug());
         $this->assertTrue($second->proposedSlugWasTaken());
         $this->assertNotSame($first->organization->id, $second->organization->id);
+        $this->assertFalse($second->wasReplay);
 
-        // Chacune porte son monde COMPLET : la seconde n'a rien emprunte a la
-        // premiere.
         foreach ([$first, $second] as $result) {
             $this->assertSame(22, User::withoutGlobalScopes()->where('organization_id', $result->organization->id)->count());
             $this->assertSame(2, Loop::withoutGlobalScopes()->where('organization_id', $result->organization->id)->count());
         }
+    }
+
+    // =====================================================================
+    // REJEU — spec 5.2 : meme manifeste + meme digest = chargement existant
+    // =====================================================================
+
+    public function test_an_exact_replay_returns_the_existing_sandbox_and_writes_nothing(): void
+    {
+        $first = $this->load();
+
+        $organizations = Organization::withoutGlobalScopes()->count();
+        $users = User::withoutGlobalScopes()->count();
+        $loops = Loop::withoutGlobalScopes()->count();
+        $loads = ScenarioPackLoad::query()->count();
+        $entities = ScenarioPackEntity::query()->count();
+
+        // Le double clic / rejeu reseau.
+        $second = $this->load();
+
+        $this->assertTrue($second->wasReplay);
+        $this->assertSame($first->organization->id, $second->organization->id);
+        $this->assertSame($first->packLoad->load->id, $second->packLoad->load->id);
+        $this->assertSame($first->digest(), $second->digest());
+
+        $this->assertSame($organizations, Organization::withoutGlobalScopes()->count());
+        $this->assertSame($users, User::withoutGlobalScopes()->count());
+        $this->assertSame($loops, Loop::withoutGlobalScopes()->count());
+        $this->assertSame($loads, ScenarioPackLoad::query()->count());
+        $this->assertSame($entities, ScenarioPackEntity::query()->count());
+    }
+
+    public function test_an_exact_replay_keeps_the_very_same_personas_and_emails(): void
+    {
+        $first = $this->load();
+        $before = User::withoutGlobalScopes()
+            ->where('organization_id', $first->organization->id)
+            ->orderBy('email')
+            ->pluck('email')
+            ->all();
+
+        $second = $this->load();
+        $after = User::withoutGlobalScopes()
+            ->where('organization_id', $second->organization->id)
+            ->orderBy('email')
+            ->pluck('email')
+            ->all();
+
+        // La derivation d'adresse par slug reel ne doit plus produire de
+        // NOUVELLES identites sur un simple rejeu : meme sandbox, memes users.
+        $this->assertSame($before, $after);
+        $this->assertCount(22, $after);
+    }
+
+    public function test_the_same_pack_id_with_a_different_digest_is_not_a_replay(): void
+    {
+        $first = $this->load();
+
+        [$changedJson, $changedDigest] = $this->variant(static function (\stdClass $document): void {
+            // Meme `id`, donc meme pack_id : seul le CONTENU change.
+            $document->description = 'Une autre description, donc un autre monde approuve.';
+        });
+
+        $second = app(ManifestSandboxLoadService::class)->load($changedJson, $changedDigest);
+
+        $this->assertFalse($second->wasReplay, 'A different approved content must never silently return the previous load.');
+        $this->assertNotSame($first->organization->id, $second->organization->id);
+        $this->assertNotSame($first->digest(), $second->digest());
+        $this->assertSame(2, ScenarioPackLoad::query()->count());
+    }
+
+    public function test_a_replay_after_a_reset_does_not_create_a_second_sandbox(): void
+    {
+        $first = $this->load();
+
+        $manifest = ScenarioManifest::fromApprovedJson($this->manifestJson(), $this->approvedDigest());
+        app(ScenarioPackResetter::class)->reset(new ManifestScenarioPack($manifest), $first->organization);
+
+        $organizations = Organization::withoutGlobalScopes()->count();
+
+        $replay = $this->load();
+
+        $this->assertTrue($replay->wasReplay);
+        $this->assertSame($first->organization->id, $replay->organization->id);
+        $this->assertSame($organizations, Organization::withoutGlobalScopes()->count());
+        $this->assertSame(1, ScenarioPackLoad::query()->count());
     }
 
     public function test_an_existing_client_organization_is_never_touched_by_a_manifest_load(): void
@@ -323,6 +443,126 @@ class ManifestSandboxLoadTest extends TestCase
         $this->assertSame(0, ScenarioPackEntity::query()->count());
         $this->assertSame(0, User::withoutGlobalScopes()->where('email', 'like', '%amt-demo.test')->count());
         $this->assertSame(0, Loop::withoutGlobalScopes()->count());
+    }
+
+    /**
+     * ATOMICITE DU PROVISIONING (finding de revue).
+     *
+     * La version precedente inserait l'Organization, PUIS ecrivait sa
+     * provenance par un UPDATE separe. Un echec entre les deux laissait une
+     * Organization orpheline a `scenario_sandbox_created_at` NULL : une ligne
+     * que le garde ne reconnait pas comme sandbox, que rien ne relie a un
+     * chargement, et que plus rien ne sait supprimer.
+     *
+     * Le test injecte une panne sur TOUT UPDATE d'Organization pendant le
+     * provisioning, et verifie l'invariant qui compte : il n'existe jamais une
+     * Organization creee par le provisioner sans sa provenance.
+     *
+     * Avec l'ancien code (INSERT puis UPDATE) il ROUGIT : l'UPDATE leve et
+     * l'INSERT, deja commite, laisse l'orpheline. Avec la correction il n'y a
+     * qu'une seule ecriture, donc aucun entre-deux ou echouer.
+     */
+    public function test_a_failure_while_writing_the_provenance_leaves_no_orphan_organization(): void
+    {
+        $before = Organization::withoutGlobalScopes()->count();
+
+        // Dispatcher DEDIE, restaure ensuite : `flushEventListeners()`
+        // retirerait tous les listeners du modele pour le reste du processus
+        // de test, et le prix se paierait dans une autre suite, loin d'ici.
+        $originalDispatcher = Organization::getEventDispatcher();
+        Organization::setEventDispatcher(new Dispatcher);
+
+        Organization::updating(static function (): void {
+            throw new \RuntimeException('provenance write failed');
+        });
+
+        try {
+            $manifest = ScenarioManifest::fromApprovedJson($this->manifestJson(), $this->approvedDigest());
+            app(ScenarioSandboxProvisioner::class)->provision($manifest);
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('provenance write failed', $exception->getMessage());
+        } finally {
+            Organization::setEventDispatcher($originalDispatcher);
+        }
+
+        $orphans = Organization::withoutGlobalScopes()
+            ->whereNull('scenario_sandbox_created_at')
+            ->count() - $before;
+
+        $this->assertSame(0, $orphans, 'Provisioning must never leave an Organization without its sandbox provenance.');
+    }
+
+    /**
+     * CONCURRENCE — deux appels simultanes sur le meme monde approuve.
+     *
+     * Les deux peuvent passer la recherche de rejeu sans rien trouver. Seule
+     * la contrainte unique `(pack_id, manifest_digest)` tranche : le perdant
+     * defait ce qu'il a cree et rend le chargement gagnant. Jamais deux
+     * sandboxes durables, jamais une erreur remontee a l'appelant.
+     *
+     * Le concurrent est simule a l'interieur meme de `apply()` : c'est le seul
+     * endroit ou l'on est certain d'etre APRES la recherche de rejeu et AVANT
+     * l'inscription du digest, c'est-a-dire exactement dans la fenetre de
+     * course.
+     */
+    public function test_a_concurrent_load_of_the_same_manifest_never_leaves_two_sandboxes(): void
+    {
+        $json = $this->manifestJson();
+        $digest = $this->approvedDigest();
+
+        $service = new class(app(ScenarioSandboxProvisioner::class), app(ScenarioPackLoader::class)) extends ManifestSandboxLoadService
+        {
+            public ?string $winnerOrganizationId = null;
+
+            protected function makePack(ScenarioManifest $manifest): ScenarioPackDefinition
+            {
+                $test = $this;
+
+                return new class($manifest, $test) extends ManifestScenarioPack
+                {
+                    public function __construct(ScenarioManifest $manifest, private readonly object $service)
+                    {
+                        parent::__construct($manifest);
+                    }
+
+                    public function apply(Organization $organization, ScenarioPackEntityRegistrar $registrar): void
+                    {
+                        parent::apply($organization, $registrar);
+
+                        // L'autre requete finit AVANT nous et inscrit son
+                        // digest : a partir d'ici, notre propre inscription
+                        // violera la contrainte unique.
+                        $winner = app(ScenarioSandboxProvisioner::class)
+                            ->provision($this->manifest());
+
+                        $load = ScenarioPackLoad::query()->create([
+                            'pack_id' => $this->packId(),
+                            'pack_version' => $this->packVersion(),
+                            'organization_id' => $winner->id,
+                            'loaded_at' => now(),
+                        ]);
+
+                        $load->forceFill([
+                            'manifest_digest' => $this->manifest()->digest(),
+                            'organization_created_by_pack' => true,
+                        ])->save();
+
+                        $this->service->winnerOrganizationId = $winner->id;
+                    }
+                };
+            }
+        };
+
+        $result = $service->load($json, $digest);
+
+        // Un resultat est rendu, pas une erreur : le rejeu gagne la course.
+        $this->assertTrue($result->wasReplay);
+        $this->assertSame($service->winnerOrganizationId, $result->organization->id);
+
+        // Une seule ligne de chargement porte ce digest, et une seule sandbox
+        // survit : celle du gagnant.
+        $this->assertSame(1, ScenarioPackLoad::query()->where('manifest_digest', $digest)->count());
+        $this->assertSame(1, Organization::withoutGlobalScopes()->whereNotNull('scenario_sandbox_created_at')->count());
     }
 
     public function test_replaying_the_same_load_in_the_same_sandbox_duplicates_nothing(): void
