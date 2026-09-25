@@ -131,9 +131,60 @@
             </div>
         </form>
         @else
+        {{-- TASK-1636 : la simulation est faite. Ici, et seulement ici, la
+             suppression definitive devient possible — apres avoir dit ce qui
+             l'empeche encore, s'il reste quelque chose. --}}
+        @if(! empty($precheck['blocks']))
+        <div class="mt-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-6">
+            <h2 class="text-sm font-semibold text-amber-800 dark:text-amber-200 uppercase tracking-wide">
+                {{ __('admin.user_delete_blocked_title') }}
+            </h2>
+            <ul class="mt-3 space-y-2 text-sm text-amber-900 dark:text-amber-100 list-disc list-inside">
+                @foreach($precheck['blocks'] as $block)
+                <li>{{ $block['message'] }}</li>
+                @endforeach
+            </ul>
+        </div>
+        @else
+        <form method="POST" action="{{ route('admin.users.destroy', $user) }}" class="mt-6">
+            @csrf
+            @method('DELETE')
+            <input type="hidden" name="preview_fingerprint" value="{{ $previewFingerprint }}">
+
+            <div class="bg-white dark:bg-gray-800 rounded-2xl border-2 border-red-300 dark:border-red-800 shadow-sm p-6 space-y-4">
+                <h2 class="text-sm font-semibold text-red-600 dark:text-red-400 uppercase tracking-wide">
+                    {{ __('admin.user_delete_final_title') }}
+                </h2>
+                <p class="text-sm text-gray-600 dark:text-gray-300">{{ __('admin.user_delete_final_hint') }}</p>
+
+                @if($precheck['requires_transfer'])
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.user_delete_transfer_simulation_label') }}</label>
+                    <select name="transfer_to" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
+                        @foreach($sameOrgUsers as $target)
+                        <option value="{{ $target->id }}" @selected(($transferTo ?? null) === $target->id)>{{ $target->name }} ({{ $target->email }})</option>
+                        @endforeach
+                    </select>
+                </div>
+                @endif
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ __('admin.user_delete_confirmation_label', ['name' => $user->fullName]) }}
+                    </label>
+                    <input type="text" name="confirmation" required autocomplete="off" placeholder="{{ __('admin.user_delete_confirmation_placeholder') }}"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-red-500">
+                </div>
+
+                <button type="submit" class="w-full px-6 py-3 bg-red-700 hover:bg-red-800 text-white text-sm font-bold rounded-lg shadow-sm transition">
+                    {{ __('admin.user_delete.confirm_button') }}
+                </button>
+            </div>
+        </form>
+        @endif
+
         <div class="mt-6 text-center">
-            <p class="text-sm text-gray-400">{{ __('admin.user_delete_dry_run_footer') }}</p>
-            <a href="{{ route('admin.users.edit', $user) }}" class="mt-2 inline-block text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+            <a href="{{ route('admin.users.edit', $user) }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
                 {{ __('admin.user_delete_back_to_edit') }}
             </a>
         </div>
