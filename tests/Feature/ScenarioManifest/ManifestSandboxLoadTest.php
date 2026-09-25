@@ -24,6 +24,7 @@ use App\Support\ScenarioPacks\ScenarioPackEntityRegistrar;
 use App\Support\ScenarioPacks\ScenarioPackLoader;
 use App\Support\ScenarioPacks\ScenarioPackRemover;
 use App\Support\ScenarioPacks\ScenarioPackResetter;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Events\Dispatcher;
 use Tests\TestCase;
 
@@ -563,6 +564,146 @@ class ManifestSandboxLoadTest extends TestCase
         // survit : celle du gagnant.
         $this->assertSame(1, ScenarioPackLoad::query()->where('manifest_digest', $digest)->count());
         $this->assertSame(1, Organization::withoutGlobalScopes()->whereNotNull('scenario_sandbox_created_at')->count());
+    }
+
+    /**
+     * Une violation d'unicite METIER, levee depuis `apply()`, ne doit jamais
+     * etre confondue avec une course sur le digest.
+     *
+     * `apply()` ecrit des objets metier, et ces ecritures ont leurs propres
+     * contraintes d'unicite — une adresse e-mail, un slug de Boucle. Si le
+     * traitement de course les englobait, un defaut metier serait nettoye puis
+     * masque derriere un faux rejeu, et personne ne le verrait jamais.
+     *
+     * Cas A : aucun gagnant n'existe.
+     */
+    public function test_a_business_unique_violation_in_apply_surfaces_as_itself_and_cleans_its_sandbox(): void
+    {
+        $before = Organization::withoutGlobalScopes()->count();
+
+        $service = $this->serviceFailingInApplyWith(static function (Organization $organization): void {
+            // Une seconde persona avec l'adresse de la premiere : violation
+            // d'unicite ORDINAIRE, sans rapport avec le digest.
+            $taken = User::withoutGlobalScopes()->where('organization_id', $organization->id)->value('email');
+
+            User::query()->create([
+                'organization_id' => $organization->id,
+                'first_name' => 'Doublon',
+                'name' => 'Doublon',
+                'email' => $taken,
+                'password' => 'x',
+            ]);
+        });
+
+        try {
+            $service->load($this->manifestJson(), $this->approvedDigest());
+            $this->fail('The business unique violation should have surfaced.');
+        } catch (ManifestNotLoadableException $exception) {
+            $this->fail('A business unique violation must never be reported as a manifest load problem: '.$exception->getMessage());
+        } catch (UniqueConstraintViolationException $exception) {
+            $this->assertStringContainsStringIgnoringCase('users', $exception->getMessage());
+        }
+
+        $this->assertSame($before, Organization::withoutGlobalScopes()->count(), 'The sandbox of this invocation must be cleaned up.');
+        $this->assertSame(0, ScenarioPackLoad::query()->count());
+    }
+
+    /**
+     * Cas B : un gagnant EXISTE au moment ou `apply()` echoue.
+     *
+     * C'est le cas dangereux. Si le traitement de course englobait `apply()`,
+     * le service nettoierait la sandbox puis rendrait le gagnant — un FAUX
+     * SUCCES, alors que le chargement demande a reellement echoue.
+     */
+    public function test_a_business_unique_violation_in_apply_never_returns_an_existing_winner_as_a_false_success(): void
+    {
+        // Le gagnant est cree AVANT l'appel, donc durable ; la recherche de
+        // rejeu est neutralisee au premier passage pour reproduire la fenetre
+        // "il est apparu apres l'etape 2".
+        $winner = $this->load();
+        $winnerUsers = User::withoutGlobalScopes()->where('organization_id', $winner->organization->id)->count();
+
+        $service = $this->serviceFailingInApplyWith(static function (Organization $organization): void {
+            $taken = User::withoutGlobalScopes()->where('organization_id', $organization->id)->value('email');
+
+            User::query()->create([
+                'organization_id' => $organization->id,
+                'first_name' => 'Doublon',
+                'name' => 'Doublon',
+                'email' => $taken,
+                'password' => 'x',
+            ]);
+        }, skipFirstReplayLookup: true);
+
+        $organizations = Organization::withoutGlobalScopes()->count();
+
+        try {
+            $service->load($this->manifestJson(), $this->approvedDigest());
+            $this->fail('The business unique violation should have surfaced instead of returning the winner.');
+        } catch (UniqueConstraintViolationException) {
+            // Attendu : l'exception d'origine, pas un resultat.
+        }
+
+        // Le gagnant est INTACT.
+        $this->assertNotNull(Organization::withoutGlobalScopes()->find($winner->organization->id));
+        $this->assertSame($winnerUsers, User::withoutGlobalScopes()->where('organization_id', $winner->organization->id)->count());
+        $this->assertSame(1, ScenarioPackLoad::query()->count());
+
+        // Le perdant est nettoye : on revient au compte d'avant l'appel.
+        $this->assertSame($organizations, Organization::withoutGlobalScopes()->count());
+    }
+
+    /**
+     * Un service dont le pack echoue DANS `apply()`, apres avoir ecrit.
+     *
+     * @param  callable(Organization): void  $failure
+     */
+    private function serviceFailingInApplyWith(callable $failure, bool $skipFirstReplayLookup = false): ManifestSandboxLoadService
+    {
+        return new class(app(ScenarioSandboxProvisioner::class), app(ScenarioPackLoader::class), $failure, $skipFirstReplayLookup) extends ManifestSandboxLoadService
+        {
+            private bool $replayLookupSkipped = false;
+
+            public function __construct(
+                ScenarioSandboxProvisioner $provisioner,
+                ScenarioPackLoader $loader,
+                private $failure,
+                private readonly bool $skipFirstReplayLookup,
+            ) {
+                parent::__construct($provisioner, $loader);
+            }
+
+            protected function findExistingLoad(ScenarioPackDefinition $pack, ScenarioManifest $manifest): ?ManifestSandboxLoadResult
+            {
+                if ($this->skipFirstReplayLookup && ! $this->replayLookupSkipped) {
+                    $this->replayLookupSkipped = true;
+
+                    return null;
+                }
+
+                return parent::findExistingLoad($pack, $manifest);
+            }
+
+            protected function makePack(ScenarioManifest $manifest): ScenarioPackDefinition
+            {
+                $failure = $this->failure;
+
+                return new class($manifest, $failure) extends ManifestScenarioPack
+                {
+                    public function __construct(ScenarioManifest $manifest, private $failure)
+                    {
+                        parent::__construct($manifest);
+                    }
+
+                    public function apply(Organization $organization, ScenarioPackEntityRegistrar $registrar): void
+                    {
+                        parent::apply($organization, $registrar);
+
+                        ($this->failure)($organization);
+                    }
+                };
+            }
+        };
     }
 
     public function test_replaying_the_same_load_in_the_same_sandbox_duplicates_nothing(): void

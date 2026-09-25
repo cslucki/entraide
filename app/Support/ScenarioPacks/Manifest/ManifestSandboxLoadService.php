@@ -99,25 +99,42 @@ class ManifestSandboxLoadService
         // l'adoption d'une ligne existante.
         $organization = $this->provisioner->provision($manifest);
 
+        // ETAPE 4 — le moteur existant, inchange : garde Organization,
+        // transaction, verrou, registrar, idempotence.
+        //
+        // Ce bloc n'attrape QUE `Throwable`, et il rend TOUJOURS l'exception
+        // d'origine. C'est structurel, pas cosmetique : `apply()` ecrit des
+        // objets metier, et ces ecritures ont leurs propres contraintes
+        // d'unicite — une adresse e-mail, un slug de Boucle. Une violation qui
+        // vient de la n'a rien a voir avec une course sur le digest. L'englober
+        // dans le traitement de course reviendrait a nettoyer la sandbox puis
+        // a rendre un chargement gagnant comme s'il s'agissait d'un succes,
+        // c'est-a-dire a MASQUER un defaut metier derriere un faux rejeu.
         try {
-            // ETAPE 4 — le moteur existant, inchange : garde Organization,
-            // transaction, verrou, registrar, idempotence.
             $result = $this->loader->load($pack, $organization);
+        } catch (Throwable $exception) {
+            // Pas de sandbox orpheline silencieuse.
+            $this->discard($organization);
 
-            // ETAPE 5 — inscription de l'identite approuvee. C'est ICI que la
-            // contrainte unique (pack_id, manifest_digest) tranche une course :
-            // deux appels concurrents ont pu passer l'etape 2 sans rien
-            // trouver, un seul peut ecrire ce couple.
-            //
-            // L'ecriture est enveloppee dans une transaction, et ce n'est pas
-            // un ornement : sous PostgreSQL, une violation de contrainte
-            // AVORTE la transaction en cours, et toute instruction suivante
-            // echoue en `25P02 — current transaction is aborted`. Le nettoyage
-            // du perdant serait alors impossible des qu'un appelant — ou le
-            // harnais de test — a ouvert une transaction autour du
-            // chargement. Imbriquee, `DB::transaction()` pose un SAVEPOINT :
-            // l'echec ne defait que cette ecriture et rend la connexion
-            // utilisable pour defaire le reste. SQLite se comporte de meme.
+            throw $exception;
+        }
+
+        // ETAPE 5 — inscription de l'identite approuvee, ISOLEE dans son
+        // propre bloc. C'est la seule ecriture dont une violation d'unicite
+        // signifie "un autre appel a charge le meme monde approuve pendant que
+        // celui-ci travaillait", parce que c'est la seule qui touche l'index
+        // unique (pack_id, manifest_digest).
+        //
+        // L'ecriture est enveloppee dans une transaction, et ce n'est pas un
+        // ornement : sous PostgreSQL, une violation de contrainte AVORTE la
+        // transaction en cours, et toute instruction suivante echoue en
+        // `25P02 — current transaction is aborted`. Le nettoyage du perdant
+        // serait alors impossible des qu'un appelant — ou le harnais de test —
+        // a ouvert une transaction autour du chargement. Imbriquee,
+        // `DB::transaction()` pose un SAVEPOINT : l'echec ne defait que cette
+        // ecriture et rend la connexion utilisable pour defaire le reste.
+        // SQLite se comporte de meme.
+        try {
             DB::transaction(function () use ($result, $manifest): void {
                 $result->load->forceFill([
                     'manifest_digest' => $manifest->digest(),
@@ -125,10 +142,9 @@ class ManifestSandboxLoadService
                 ])->save();
             });
         } catch (UniqueConstraintViolationException) {
-            // Course perdue : un autre appel a charge le MEME monde approuve
-            // pendant que celui-ci travaillait. On defait exactement ce que
-            // CETTE invocation a cree, puis on rend le chargement gagnant —
-            // le rejeu doit retourner un resultat, pas une erreur.
+            // Course perdue. On defait exactement ce que CETTE invocation a
+            // cree, puis on rend le chargement gagnant — un rejeu doit
+            // retourner un resultat, pas une erreur.
             $this->discard($organization);
 
             $winner = $this->findExistingLoad($pack, $manifest);
@@ -139,7 +155,6 @@ class ManifestSandboxLoadService
 
             throw ManifestNotLoadableException::concurrentLoadLost($manifest->digest());
         } catch (Throwable $exception) {
-            // Pas de sandbox orpheline silencieuse.
             $this->discard($organization);
 
             throw $exception;
@@ -154,8 +169,13 @@ class ManifestSandboxLoadService
      * Rend le resultat SANS rejouer le pack : un rejeu ne doit provoquer
      * aucune ecriture. Les compteurs viennent du registre, qui est la memoire
      * de ce que le chargement d'origine a reellement produit.
+     *
+     * `protected` : un test doit pouvoir simuler l'apparition d'un gagnant
+     * ENTRE la recherche de rejeu et l'echec d'`apply()`. Cette fenetre ne se
+     * reproduit pas autrement — tout ce qu'`apply()` ecrit vit dans la
+     * transaction du loader et disparait avec elle quand il leve.
      */
-    private function findExistingLoad(ScenarioPackDefinition $pack, ScenarioManifest $manifest): ?ManifestSandboxLoadResult
+    protected function findExistingLoad(ScenarioPackDefinition $pack, ScenarioManifest $manifest): ?ManifestSandboxLoadResult
     {
         $load = ScenarioPackLoad::query()
             ->where('pack_id', $pack->packId())
