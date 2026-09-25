@@ -34,6 +34,11 @@ use Illuminate\Support\Facades\Schema;
  *    tentative de quiz, transaction. Sept entrees BLOCK du registre.
  *  - **block resolu** — `dossiers.owner_id` est BLOCK au schema, mais
  *    `DossierTreePurger` le leve pendant l'execution. Huitieme entree BLOCK.
+ *  - **sous-cas resolu (TASK-1638)** — `point_ledger` reste BLOCK, mais le
+ *    registre declare qu'un type de ligne ne bloque pas : le bonus de
+ *    bienvenue, ecrit par la plateforme a l'inscription. C'est un TOUT OU RIEN
+ *    par compte — une seule ligne d'une autre raison et l'entree bloque. Le
+ *    critere est la raison DECLAREE au registre, jamais `transaction_id`.
  *  - **gouvernance** — le dernier OWNER actif d'une Boucle bloque ; un
  *    facilitator seul ne bloque pas. Cette regle ne vient pas du schema mais de
  *    `LoopGovernanceService`, seule autorite sur le sujet.
@@ -110,7 +115,7 @@ class UserDeletionExecutor
     /**
      * Supprime reellement le compte, ou refuse sans rien avoir touche.
      *
-     * @return array{transferred: array<string, int>, deleted: array<string, int>, dossiers: array<string, int>}
+     * @return array{transferred: array<string, int>, deleted: array<string, int>, dossiers: array<string, int>, resolved: array<string, int>}
      *
      * @throws UserDeletionBlockedException
      */
@@ -155,10 +160,19 @@ class UserDeletionExecutor
             // 5. Dossiers personnels : le seul BLOCK que l'on sait resoudre.
             $dossiers = $this->purgePersonalDossiers($locked);
 
-            // 6. Les DELETE explicites du registre.
+            // 6. Les lignes BLOCK que le registre declare resolvables.
+            //
+            //    On n'arrive ici QUE si le recontrole autoritatif (2) n'a rien
+            //    trouve : si une seule ligne d'une autre raison existait,
+            //    `point_ledger` aurait bloque et cette ligne n'aurait jamais
+            //    ete atteinte. La purge est donc, par construction, un tout ou
+            //    rien par compte.
+            $resolved = $this->purgeResolvableRows($locked);
+
+            // 7. Les DELETE explicites du registre.
             $deleted = $this->deleteOwnedRows($locked);
 
-            // 7. La suppression elle-meme. Ce qui reste part en CASCADE, et les
+            // 8. La suppression elle-meme. Ce qui reste part en CASCADE, et les
             //    ANONYMIZE / RETAIN / DETACH deviennent NULL par le schema —
             //    aucun UPDATE applicatif ne double ce travail.
             $locked->forceDelete();
@@ -167,6 +181,7 @@ class UserDeletionExecutor
                 'transferred' => $transferred,
                 'deleted' => $deleted,
                 'dossiers' => $dossiers,
+                'resolved' => $resolved,
             ];
         });
     }
@@ -221,7 +236,15 @@ class UserDeletionExecutor
             return 0;
         }
 
-        return DB::table($entry['table'])->where($entry['column'], $user->id)->count();
+        $query = DB::table($entry['table'])->where($entry['column'], $user->id);
+
+        // TASK-1638 — la MEME regle declarative que `preview()`, lue au registre.
+        // Ecrire ici la raison exclue — meme en commentaire — aurait fabrique
+        // une seconde copie de la politique, libre de deriver de l'ecran sans
+        // que rien ne le dise. Elle ne vit qu'au registre.
+        UserDataLifecycleRegistry::excludeResolvableRows($query, $entry, $entry['table']);
+
+        return $query->count();
     }
 
     /**
@@ -360,6 +383,50 @@ class UserDeletionExecutor
         }
 
         return $this->purger->purge($racines);
+    }
+
+    /**
+     * TASK-1638 — les lignes BLOCK que le registre declare resolvables.
+     *
+     * Une seule requete par entree, bornee a `user_id` ET a la valeur declaree.
+     * Aucune autre ligne de la table n'est touchee : un `adjustment` ou un
+     * `exchange_earned` du meme compte ne peut pas etre emporte ici, puisque le
+     * recontrole aurait deja refuse la suppression.
+     *
+     * @return array<string, int>
+     */
+    private function purgeResolvableRows(User $user): array
+    {
+        $purged = [];
+
+        foreach (self::HARD_BLOCK_KEYS as $key) {
+            $entry = $this->entry($key);
+            $resolvable = UserDataLifecycleRegistry::resolvableRows($key);
+
+            if ($entry === null || $resolvable === null) {
+                continue;
+            }
+
+            $table = $entry['table'] ?? null;
+            $column = $entry['column'] ?? null;
+
+            if ($table === null || $column === null
+                || ! Schema::hasTable($table)
+                || ! Schema::hasColumn($table, $resolvable['column'])) {
+                continue;
+            }
+
+            $count = DB::table($table)
+                ->where($column, $user->id)
+                ->where($resolvable['column'], $resolvable['value'])
+                ->delete();
+
+            if ($count > 0) {
+                $purged[$key] = $count;
+            }
+        }
+
+        return $purged;
     }
 
     /**
