@@ -119,6 +119,22 @@ final class ScenarioManifest
     }
 
     /**
+     * Une collection de la section `training` (spec 12).
+     *
+     * Elle est NICHEE sous `training`, la ou les familles CORE sont au premier
+     * niveau : `collection()` ne peut pas la rendre, et lui passer
+     * `'training.modules'` chercherait une cle litterale qui n'existe pas.
+     *
+     * @return array<int, \stdClass>
+     */
+    public function trainingCollection(string $name): array
+    {
+        $node = ($this->document->training ?? null)?->{$name} ?? null;
+
+        return is_array($node) ? $node : [];
+    }
+
+    /**
      * Le rapport complet, pour un appelant qui veut afficher les compteurs
      * sans revalider.
      */

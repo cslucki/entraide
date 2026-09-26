@@ -44,6 +44,53 @@ class ManifestNotLoadableException extends RuntimeException
     }
 
     /**
+     * TASK-1644 — un objet TRAINING vise une Loop qui n'est pas de type
+     * `training` (spec 12 : « Tous ses objets doivent viser une Loop
+     * `type: "training"` »).
+     *
+     * Le Validator T1641 le refuse deja (`REFERENCE_WRONG_SCOPE`, via
+     * `ManifestTrainingInvariants::assertTrainingLoop()`). Cette garde est
+     * quand meme la, pour la raison donnee sur `unresolvedReference()` : un
+     * applier ne suppose pas que son appelant a valide. Et elle n'est pas
+     * theorique — sans elle, un Module pose sur une Boucle `general`
+     * allumerait un Support de cours sur une Boucle qui n'a pas la Card pour
+     * l'afficher : le contenu existerait, invisible, dans un monde qu'on
+     * croirait charge.
+     */
+    public static function trainingOutsideTrainingLoop(string $collection, string $key, string $loopKey, string $actualType): self
+    {
+        return new self(sprintf(
+            "Manifest training object '%s' in '%s' targets loop '%s' of type '%s'; a training loop is required and nothing more was written.",
+            $key,
+            $collection,
+            $loopKey,
+            $actualType,
+        ));
+    }
+
+    /**
+     * TASK-1644 — un etat individuel TRAINING designe un compte qui
+     * n'appartient pas a la sandbox du chargement.
+     *
+     * Le registrar porte deja une garde cross-tenant, mais elle inspecte
+     * l'`organization_id` de l'ENTITE inscrite. Une progression ou une remise
+     * tient son `organization_id` de sa sequence/de son travail — donc correct
+     * — tout en pointant par `user_id` vers un compte d'une AUTRE
+     * Organization : la ligne passerait la garde du registre en emportant une
+     * identite etrangere dans la sandbox. C'est le seul endroit ou ce
+     * croisement est possible, donc le seul endroit ou il doit etre verifie.
+     */
+    public static function userOutsideSandbox(string $collection, string $key, string $userKey): self
+    {
+        return new self(sprintf(
+            "Manifest training object '%s' in '%s' references user '%s', which does not belong to the sandbox organization; nothing more was written.",
+            $key,
+            $collection,
+            $userKey,
+        ));
+    }
+
+    /**
      * Course perdue ET gagnant introuvable : etat qui ne devrait pas exister,
      * signale plutot que masque par un chargement silencieux.
      */

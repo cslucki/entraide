@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\ScenarioManifest;
 
+use App\Models\CourseQuiz;
 use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopMember;
@@ -164,16 +165,16 @@ class ManifestSandboxLoadTest extends TestCase
     /**
      * Le perimetre EXACT de ce qui est materialise.
      *
-     * Ce test etait, en T1642, la preuve que seul le socle etait charge. T1643
-     * a etendu le perimetre aux familles CORE : il enonce donc desormais la
-     * liste complete, et surtout il continue de prouver ce qui n'est PAS
-     * charge — aucune entite TRAINING, alors que le manifeste AMT en declare
-     * (2 modules, 3 sequences, 3 progressions, 1 travail, 2 remises).
+     * Ce test etait, en T1642, la preuve que seul le socle etait charge ; T1643
+     * l'a etendu aux familles CORE et T1644 aux cinq familles TRAINING. Il
+     * enonce donc la liste complete, et il continue de prouver ce qui n'est PAS
+     * charge — le QCM, seul objet du langage que la spec 12.6 reporte a Manifest
+     * V1.1.
      *
      * Une liste EXACTE, et non un `assertContains` : c'est la seule forme qui
      * rougit quand une famille apparait sans avoir ete decidee.
      */
-    public function test_the_materialised_families_are_exactly_foundation_plus_core(): void
+    public function test_the_materialised_families_are_exactly_foundation_core_and_training(): void
     {
         $organization = $this->load()->organization;
 
@@ -185,37 +186,41 @@ class ManifestSandboxLoadTest extends TestCase
             ->values()
             ->all();
 
+        // Liste triee alphabetiquement (le `sort()` ci-dessus), pas par TASK :
+        // les commentaires disent d'ou vient chaque famille.
         $this->assertSame([
-            // CORE (T1643)
-            'manifest_article',
-            'manifest_article_placement',
-            'manifest_category',
-            'manifest_decision',
-            'manifest_event',
-            'manifest_file',
-            // FOUNDATION (T1642)
-            'manifest_loop',
-            'manifest_member_ai_profile',
-            'manifest_membership',
-            'manifest_message',
-            'manifest_poll',
-            'manifest_roadmap_item',
-            'manifest_root_document',
-            'manifest_root_dossier',
-            'manifest_service',
-            'manifest_service_request',
-            'manifest_skill',
-            'manifest_user',
+            'manifest_article',             // CORE, T1643
+            'manifest_article_placement',   // CORE, T1643
+            'manifest_category',            // CORE, T1643
+            'manifest_course_assignment',   // TRAINING, T1644
+            'manifest_course_module',       // TRAINING, T1644
+            'manifest_course_progress',     // TRAINING, T1644
+            'manifest_course_sequence',     // TRAINING, T1644
+            'manifest_course_submission',   // TRAINING, T1644
+            'manifest_decision',            // CORE, T1643
+            'manifest_event',               // CORE, T1643
+            'manifest_file',                // CORE, T1643
+            'manifest_loop',                // FOUNDATION, T1642
+            'manifest_member_ai_profile',   // FOUNDATION, T1642
+            'manifest_membership',          // FOUNDATION, T1642
+            'manifest_message',             // CORE, T1643
+            'manifest_poll',                // CORE, T1643
+            'manifest_roadmap_item',        // CORE, T1643
+            'manifest_root_document',       // FOUNDATION, T1642
+            'manifest_root_dossier',        // FOUNDATION, T1642
+            'manifest_service',             // CORE, T1643
+            'manifest_service_request',     // CORE, T1643
+            'manifest_skill',               // CORE, T1643
+            'manifest_user',                // FOUNDATION, T1642
         ], $trackedTypes);
 
-        // TRAINING : declare par AMT, deliberement non materialise.
+        // Le QCM reste hors langage V1 (spec 12.6, DECISION). Rien ne
+        // l'inscrit, et aucune de ses tables n'est ecrite.
         foreach ($trackedTypes as $type) {
-            $this->assertStringNotContainsString('module', $type);
-            $this->assertStringNotContainsString('sequence', $type);
-            $this->assertStringNotContainsString('progress', $type);
-            $this->assertStringNotContainsString('assignment', $type);
-            $this->assertStringNotContainsString('submission', $type);
+            $this->assertStringNotContainsString('quiz', $type);
         }
+
+        $this->assertSame(0, CourseQuiz::query()->where('organization_id', $organization->id)->count());
     }
 
     // =====================================================================
