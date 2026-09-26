@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\ScenarioManifest;
 
-use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopMember;
@@ -75,10 +74,15 @@ class ManifestSandboxLoadTest extends TestCase
         return [$json, (string) $result->digest()];
     }
 
-    // =====================================================================
-    // FOUNDATION — ce qui doit exister
-    // =====================================================================
-
+    /**
+     * Le socle, tel que T1642 l'a etabli.
+     *
+     * Ce test — et les deux suivants — avaient DISPARU lors d'une reecriture
+     * de T1643 : une suppression de bloc avait emporte plus que la seule
+     * assertion devenue fausse. Les garanties sont restaurees telles quelles,
+     * parce que ce sont elles qui disent qu'une sandbox est une sandbox et pas
+     * une Organization ordinaire.
+     */
     public function test_loading_the_amt_manifest_creates_a_new_sandbox_with_its_foundation(): void
     {
         $result = $this->load();
@@ -86,73 +90,93 @@ class ManifestSandboxLoadTest extends TestCase
 
         $this->assertNotNull($organization->scenario_sandbox_created_at, 'The sandbox must carry its server-side provenance.');
         $this->assertSame('amt-formation-ia', $result->sandboxSlug());
-        $this->assertFalse($organization->is_public);
-        $this->assertFalse($organization->is_default);
+        $this->assertFalse((bool) $organization->is_public, 'A sandbox is never publicly distributed.');
+        $this->assertFalse((bool) $organization->is_default);
         $this->assertSame('fr', $organization->locale);
 
-        $this->assertSame(22, User::withoutGlobalScopes()->where('organization_id', $organization->id)->count());
-        $this->assertSame(2, Loop::withoutGlobalScopes()->where('organization_id', $organization->id)->count());
-        $this->assertSame(44, LoopMember::where('organization_id', $organization->id)->count());
-
-        // Un Dossier racine par Boucle, cree par la primitive canonique.
-        $this->assertSame(2, Dossier::withoutGlobalScopes()->where('organization_id', $organization->id)->count());
-
-        // Les trois profils IA declares dans AMT (deux formateurs, un stagiaire).
-        $this->assertSame(3, MemberAiProfile::withoutGlobalScopes()->where('organization_id', $organization->id)->count());
+        $this->assertSame(22, User::query()->where('organization_id', $organization->id)->count());
+        $this->assertSame(2, Loop::query()->where('organization_id', $organization->id)->count());
+        $this->assertSame(44, LoopMember::query()->where('organization_id', $organization->id)->count());
+        $this->assertSame(2, Dossier::query()->where('organization_id', $organization->id)->count());
+        $this->assertSame(3, MemberAiProfile::query()->where('organization_id', $organization->id)->count());
     }
 
     public function test_the_declared_roles_and_owners_are_materialised(): void
     {
         $organization = $this->load()->organization;
 
-        $training = Loop::withoutGlobalScopes()
+        $training = Loop::query()
             ->where('organization_id', $organization->id)
             ->where('type', 'training')
             ->firstOrFail();
 
         // AMT : trainer-1 (owner) + trainer-2 (facilitator) + 20 stagiaires.
-        $this->assertSame(22, LoopMember::where('loop_id', $training->id)->count());
-        $this->assertSame(1, LoopMember::where('loop_id', $training->id)->where('role', 'owner')->count());
-        $this->assertSame(1, LoopMember::where('loop_id', $training->id)->where('role', 'facilitator')->count());
+        $this->assertSame(22, LoopMember::query()->where('loop_id', $training->id)->count());
+        $this->assertSame(1, LoopMember::query()->where('loop_id', $training->id)->where('role', 'owner')->count());
+        $this->assertSame(1, LoopMember::query()->where('loop_id', $training->id)->where('role', 'facilitator')->count());
+        $this->assertSame(20, LoopMember::query()->where('loop_id', $training->id)->where('role', 'member')->count());
 
-        $owner = User::withoutGlobalScopes()->find(
-            LoopMember::where('loop_id', $training->id)->where('role', 'owner')->value('user_id')
+        $owner = User::query()->find(
+            LoopMember::query()->where('loop_id', $training->id)->where('role', 'owner')->value('user_id')
         );
 
         $this->assertSame('Nora', $owner->first_name);
         $this->assertTrue((bool) $owner->is_admin, "AMT declares Nora with the organization role 'admin'.");
+
+        // `organization_role: member` ne doit JAMAIS produire un admin.
+        $this->assertSame(1, User::query()->where('organization_id', $organization->id)->where('is_admin', true)->count());
     }
 
     public function test_personas_receive_a_sandbox_scoped_fictional_identity(): void
     {
-        $organization = $this->load()->organization;
+        $first = $this->load();
+        $emails = User::query()->where('organization_id', $first->organization->id)->pluck('email');
 
-        $emails = User::withoutGlobalScopes()->where('organization_id', $organization->id)->pluck('email');
+        $this->assertCount(22, $emails);
 
         foreach ($emails as $email) {
-            // La garde d'adresse fictive survit a la derivation.
+            // La garde d'adresse fictive survit a la derivation...
             $this->assertStringEndsWith('.test', $email);
-            $this->assertStringContainsString($organization->slug, $email);
+            // ...et l'identite est portee par le slug REEL de la sandbox,
+            // celui que BouclePro a choisi, pas par celui que le document
+            // proposait.
+            $this->assertStringContainsString($first->sandboxSlug(), $email);
         }
 
-        // Aucun mot de passe ne vient du JSON : le manifeste n'en porte pas et
-        // n'en recoit pas (spec 7.2).
+        // Aucun mot de passe ne vient du JSON : le manifeste n'en porte pas
+        // (spec 7.2), et chaque persona recoit un secret aleatoire.
         $this->assertStringNotContainsString('password', $this->manifestJson());
+
+        // Aucune identite partagee entre deux sandboxes : un second monde,
+        // issu d'un manifeste distinct, ne reutilise aucune adresse.
+        [$otherJson, $otherDigest] = $this->variant(static function (\stdClass $document): void {
+            $document->id = 'amt-formation-ia-promo-2';
+            $document->name = 'AMT — Formation IA, promotion 2';
+        });
+
+        $second = app(ManifestSandboxLoadService::class)->load($otherJson, $otherDigest);
+        $otherEmails = User::query()->where('organization_id', $second->organization->id)->pluck('email');
+
+        $this->assertCount(22, $otherEmails);
+        $this->assertSame([], array_intersect($emails->all(), $otherEmails->all()), 'Two sandboxes must never share an identity.');
     }
 
-    // =====================================================================
-    // FOUNDATION — ce qui ne doit PAS encore exister
-    // =====================================================================
-
-    public function test_the_families_out_of_scope_for_this_task_are_not_loaded(): void
+    /**
+     * Le perimetre EXACT de ce qui est materialise.
+     *
+     * Ce test etait, en T1642, la preuve que seul le socle etait charge. T1643
+     * a etendu le perimetre aux familles CORE : il enonce donc desormais la
+     * liste complete, et surtout il continue de prouver ce qui n'est PAS
+     * charge — aucune entite TRAINING, alors que le manifeste AMT en declare
+     * (2 modules, 3 sequences, 3 progressions, 1 travail, 2 remises).
+     *
+     * Une liste EXACTE, et non un `assertContains` : c'est la seule forme qui
+     * rougit quand une famille apparait sans avoir ete decidee.
+     */
+    public function test_the_materialised_families_are_exactly_foundation_plus_core(): void
     {
         $organization = $this->load()->organization;
 
-        // AMT declare 1 article, 2 fichiers, 4 messages, 1 sondage, 1
-        // evenement, 1 decision, 1 element de roadmap, 2 modules de formation.
-        // T1642 n'en materialise AUCUN : ces familles appartiennent aux TASKs
-        // suivantes, et une livraison incrementale se prouve autant par ce
-        // qu'elle n'a pas fait.
         $trackedTypes = ScenarioPackEntity::query()
             ->where('organization_id', $organization->id)
             ->distinct()
@@ -162,22 +186,35 @@ class ManifestSandboxLoadTest extends TestCase
             ->all();
 
         $this->assertSame([
+            // CORE (T1643)
+            'manifest_article',
+            'manifest_article_placement',
+            'manifest_category',
+            'manifest_decision',
+            'manifest_event',
+            'manifest_file',
+            // FOUNDATION (T1642)
             'manifest_loop',
             'manifest_member_ai_profile',
             'manifest_membership',
+            'manifest_message',
+            'manifest_poll',
+            'manifest_roadmap_item',
             'manifest_root_document',
             'manifest_root_dossier',
+            'manifest_service',
+            'manifest_service_request',
+            'manifest_skill',
             'manifest_user',
         ], $trackedTypes);
 
-        // Les seuls articles presents sont les documents racines produits par
-        // la primitive canonique — jamais l'article declare par le manifeste.
-        $titles = BlogPost::withoutGlobalScopes()->where('organization_id', $organization->id)->pluck('title');
-
-        $this->assertCount(2, $titles);
-
-        foreach ($titles as $title) {
-            $this->assertStringNotContainsString("Charte d'usage responsable", $title);
+        // TRAINING : declare par AMT, deliberement non materialise.
+        foreach ($trackedTypes as $type) {
+            $this->assertStringNotContainsString('module', $type);
+            $this->assertStringNotContainsString('sequence', $type);
+            $this->assertStringNotContainsString('progress', $type);
+            $this->assertStringNotContainsString('assignment', $type);
+            $this->assertStringNotContainsString('submission', $type);
         }
     }
 
