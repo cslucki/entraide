@@ -1108,6 +1108,46 @@ return [
         'dataset_badge_user_desc' => 'Pivot entre un catalogue global et un utilisateur : l\'affectation n\'a pas de sens clair.',
     ],
 
+    // TASK-1646 - Scenario Manager, fondation administrative. L'entree quitte
+    // « IA » pour « Outils » : un scenario est un outil de simulation, de QA et
+    // de demonstration, pas une sous-fonction de l'IA (CDC Scenario Manager 5.1).
+    'scenario_manager' => [
+        'title' => 'Scenarios',
+        'subtitle' => 'Creer, tester et rejouer des communautes BouclePro fictives.',
+        'nav_label' => 'Scenarios',
+        'legacy_nav_label' => 'Scenario packs (legacy)',
+        'foundation_notice' => "Fondation seule. La persistance administrative des versions existe ; la bibliotheque, la previsualisation, l'edition, le chargement et la capture arrivent dans les taches suivantes.",
+        'read_only' => 'Cet ecran ne modifie rien. Il permet de constater que la fondation est en place.',
+        'empty' => 'Aucune version de scenario enregistree.',
+        'empty_hint' => "La creation, l'import et le collage d'un Manifest arrivent avec l'editeur.",
+        'total_scenarios' => 'Scenarios',
+        'total_versions' => 'Versions',
+        'state_draft' => 'Brouillon',
+        'state_valid' => 'Valide',
+        'state_loaded' => 'Charge',
+        'col_scenario' => 'Scenario',
+        'col_version' => 'Version',
+        'col_usage' => 'Usage',
+        'col_origin' => 'Origine',
+        'col_state' => 'Etat',
+        'col_digest' => 'Digest',
+        'col_sandbox' => 'Sandbox',
+        'col_author' => 'Auteur',
+        'no_digest' => 'aucun',
+        'no_sandbox' => '—',
+        'no_author' => 'auteur detache',
+        'loaded_explained' => "« Charge » n'est pas un etat stocke : il est derive d'une version valide reliee a un chargement vivant. Si la sandbox disparait, le lien se denoue et la version redevient simplement valide.",
+        'usage_qa' => 'QA',
+        'usage_dogfooding' => 'Dogfooding',
+        'usage_demo' => 'Demonstration',
+        'usage_prospect' => 'Prospect',
+        'origin_new' => 'Nouveau',
+        'origin_import' => 'Import',
+        'origin_duplicate' => 'Duplication',
+        'origin_capture' => 'Capture',
+        'origin_template' => 'Modele',
+    ],
+
     // TASK-1632 - cockpit SuperAdmin d'integrite des donnees.
     'integrity' => [
         'title' => 'Integrite des donnees',

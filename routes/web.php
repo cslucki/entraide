@@ -39,6 +39,7 @@ use App\Http\Controllers\Admin\AdminOrganizationRequestController;
 use App\Http\Controllers\Admin\AdminAssignDataController;
 use App\Http\Controllers\Admin\AdminDataIntegrityController;
 use App\Http\Controllers\Admin\AdminDossierCleanupController;
+use App\Http\Controllers\Admin\AdminScenarioManagerController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminRootDestinationController;
@@ -914,6 +915,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/outils/dossiers', [AdminDossierCleanupController::class, 'index'])->name('outils.dossiers');
     Route::post('/outils/dossiers/preview', [AdminDossierCleanupController::class, 'preview'])->name('outils.dossiers.preview');
     Route::post('/outils/dossiers/purge', [AdminDossierCleanupController::class, 'purge'])->name('outils.dossiers.purge');
+
+    // TASK-1646 — Scenario Manager, FONDATION. UNE route, en GET : cet ecran
+    // permet de constater que la persistance administrative des versions
+    // existe, il ne la manipule pas. Le CRUD, le Preview, le Load et la
+    // Capture arrivent en T1648..T1653 ; un test verifie qu'aucune route
+    // `admin.outils.scenarios*` n'accepte autre chose qu'un GET.
+    Route::get('/outils/scenarios', [AdminScenarioManagerController::class, 'index'])->name('outils.scenarios');
 
     // Stats
     Route::get('/stats/login-history', [AdminController::class, 'loginHistory'])->name('stats.login-history');
