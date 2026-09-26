@@ -124,10 +124,16 @@ class ScenarioManagerSurfaceTest extends TestCase
         );
     }
 
-    public function test_l_ecran_annonce_franchement_qu_il_n_est_qu_une_fondation(): void
+    public function test_l_ecran_annonce_franchement_ce_qu_il_ne_sait_pas_encore_faire(): void
     {
         // Mieux vaut un bandeau explicite qu'un ecran qui laisse croire a des
         // actions absentes.
+        //
+        // Ce bandeau se RELIT a chaque fois que l'ecran gagne une capacite :
+        // ecrit en T1646, il annoncait encore en T1648 que « la bibliotheque
+        // et la previsualisation arrivent dans les taches suivantes » — alors
+        // que T1648 venait de les livrer. Aucun test ne peut juger la
+        // VERACITE d'une phrase ; c'est la relecture qui le fait.
         $this->actingAs($this->superAdmin)
             ->get(route('admin.outils.scenarios'))
             ->assertOk()
