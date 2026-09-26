@@ -34,6 +34,20 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // TASK-1649 — le document d'un scenario n'est PAS rogne.
+        //
+        // `TrimStrings` coupe les extremites de toute chaine recue. C'est le
+        // bon reflexe pour un nom ou une cle. C'en est un mauvais pour le
+        // texte d'un Manifest : le CDC 9.2 promet que le document est conserve
+        // TEL QUEL, meme invalide, et le digest se calcule sur ce qui est
+        // stocke. Un octet rogne en silence, et le texte exporte cesse d'etre
+        // celui qui a ete colle.
+        //
+        // Mesure du 27/09/2026 : un document colle se terminant par un espace
+        // etait enregistre sans lui. L'exemption est volontairement NOMMEE et
+        // etroite — `json` seulement, les autres champs restent rognes.
+        $middleware->trimStrings(except: ['json']);
+
         // TASK-1602 — un parcours commence DANS une Organization y reste.
         //
         // Le repli par defaut de Laravel envoie tout invite sur `route('login')`,

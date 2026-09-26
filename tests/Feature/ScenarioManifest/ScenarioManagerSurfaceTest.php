@@ -99,9 +99,19 @@ class ScenarioManagerSurfaceTest extends TestCase
     // Lecture seule
     // =====================================================================
 
-    public function test_aucune_route_scenarios_n_accepte_autre_chose_qu_un_get(): void
+    public function test_la_bibliotheque_et_le_preview_restent_en_lecture(): void
     {
-        $fautives = [];
+        // Cette garantie a change de FORME en T1649, pas de nature.
+        //
+        // T1646 et T1648 pouvaient dire « aucune route ne mute ». T1649 livre
+        // le CRUD, la phrase devient donc fausse — et une garantie qui devient
+        // fausse se REECRIT, elle ne se supprime pas. Ce qui se prouve
+        // desormais : les deux routes de LECTURE ne mutent toujours pas, et
+        // l'ensemble des routes mutantes est EXACTEMENT celui qu'on a declare.
+        //
+        // Une route mutante ajoutee sans y penser rougit donc ici, et son nom
+        // dira laquelle.
+        $mutantes = [];
 
         foreach (Route::getRoutes() as $route) {
             $nom = $route->getName();
@@ -113,15 +123,40 @@ class ScenarioManagerSurfaceTest extends TestCase
             $verbes = array_diff($route->methods(), ['GET', 'HEAD']);
 
             if ($verbes !== []) {
-                $fautives[$nom] = implode(',', $verbes);
+                $mutantes[$nom] = implode(',', $verbes);
             }
         }
 
-        $this->assertSame(
-            [],
-            $fautives,
-            'T1646 livre la fondation, pas le CRUD : aucune route ne doit muter quoi que ce soit.'
-        );
+        ksort($mutantes);
+
+        $this->assertSame([
+            'admin.outils.scenarios.destroy' => 'DELETE',
+            'admin.outils.scenarios.duplicate' => 'POST',
+            'admin.outils.scenarios.store' => 'POST',
+            'admin.outils.scenarios.update' => 'PUT',
+            'admin.outils.scenarios.validate' => 'POST',
+        ], $mutantes, 'T1649 livre le CRUD, et rien de plus que ces cinq ecritures.');
+
+        // Les quatre routes de LECTURE, nommement et positivement.
+        //
+        // Asserter qu'elles ne figurent pas dans l'ensemble ci-dessus serait
+        // une assertion MORTE : si cet ensemble vaut exactement les cinq cles
+        // ecrites plus haut, aucune route de lecture n'en est cle, par
+        // construction. On verifie donc qu'elles EXISTENT et qu'elles
+        // n'acceptent que GET.
+        $lectures = [
+            'admin.outils.scenarios',
+            'admin.outils.scenarios.show',
+            'admin.outils.scenarios.edit',
+            'admin.outils.scenarios.export',
+        ];
+
+        foreach ($lectures as $nom) {
+            $route = Route::getRoutes()->getByName($nom);
+
+            $this->assertNotNull($route, "La route {$nom} doit exister.");
+            $this->assertSame(['GET', 'HEAD'], array_values($route->methods()), "{$nom} doit rester une lecture.");
+        }
     }
 
     public function test_l_ecran_annonce_franchement_ce_qu_il_ne_sait_pas_encore_faire(): void

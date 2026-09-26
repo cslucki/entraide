@@ -916,11 +916,16 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/outils/dossiers/preview', [AdminDossierCleanupController::class, 'preview'])->name('outils.dossiers.preview');
     Route::post('/outils/dossiers/purge', [AdminDossierCleanupController::class, 'purge'])->name('outils.dossiers.purge');
 
-    // TASK-1646 puis TASK-1648 — Scenario Manager. DEUX routes, toutes deux en
-    // GET : la bibliotheque et le Preview LISENT, ils ne manipulent rien. Le
-    // CRUD, le Validate, le Load et la Capture arrivent en T1649..T1653 ; un
-    // test verifie qu'aucune route `admin.outils.scenarios*` n'accepte autre
-    // chose qu'un GET.
+    // TASK-1646, T1648 puis T1649 — Scenario Manager.
+    //
+    // La bibliotheque et le Preview LISENT, et un test le prouve encore. Ce
+    // qui a change en T1649, c'est qu'il existe desormais des routes qui
+    // ECRIVENT : elles sont listees une par une, et le test verifie que
+    // l'ensemble des routes mutantes est EXACTEMENT celui-la. Le Load, le
+    // Reset, le Remove et la Capture arrivent en T1650..T1653.
+    //
+    // `nouveau` est declaree avant `{version}` par lisibilite ; la contrainte
+    // `whereUuid` suffirait a les distinguer.
     Route::get('/outils/scenarios', [AdminScenarioManagerController::class, 'index'])->name('outils.scenarios');
     // Comprendre un scenario AVANT qu'une Organization n'existe (CDC 11.1) ne
     // doit rien ecrire : le Preview lit le document, il ne le charge pas.
@@ -932,9 +937,29 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // a un binding non garde. La contrainte est donc une redondance ASSUMEE —
     // elle rend le refus lisible a l'endroit ou l'URL est declaree, et elle
     // tiendrait encore si le modele perdait `HasUuids`.
+    Route::get('/outils/scenarios/nouveau', [AdminScenarioManagerController::class, 'create'])->name('outils.scenarios.create');
+    Route::post('/outils/scenarios', [AdminScenarioManagerController::class, 'store'])->name('outils.scenarios.store');
     Route::get('/outils/scenarios/{version}', [AdminScenarioManagerController::class, 'show'])
         ->whereUuid('version')
         ->name('outils.scenarios.show');
+    Route::get('/outils/scenarios/{version}/editer', [AdminScenarioManagerController::class, 'edit'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.edit');
+    Route::get('/outils/scenarios/{version}/export', [AdminScenarioManagerController::class, 'export'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.export');
+    Route::put('/outils/scenarios/{version}', [AdminScenarioManagerController::class, 'update'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.update');
+    Route::post('/outils/scenarios/{version}/dupliquer', [AdminScenarioManagerController::class, 'duplicate'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.duplicate');
+    Route::post('/outils/scenarios/{version}/valider', [AdminScenarioManagerController::class, 'validateDocument'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.validate');
+    Route::delete('/outils/scenarios/{version}', [AdminScenarioManagerController::class, 'destroy'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.destroy');
 
     // Stats
     Route::get('/stats/login-history', [AdminController::class, 'loginHistory'])->name('stats.login-history');
