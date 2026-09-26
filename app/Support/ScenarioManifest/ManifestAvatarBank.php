@@ -5,11 +5,17 @@ namespace App\Support\ScenarioManifest;
 /**
  * Index LOCAL des banques d'avatars fictifs (spec 13).
  *
- * Perimetre volontairement reduit : cette TASK ne livre PAS la banque
- * d'avatars — ni image, ni resolution physique, ni ecran. Elle livre le seul
- * element dont le Validator a besoin pour tenir sa promesse : la liste des
- * cles declarees, afin qu'un `avatar` inconnu rende `AVATAR_NOT_FOUND` au lieu
- * de passer et d'echouer plus tard, au Load.
+ * TASK-1641 n'avait livre que l'INDEX : la liste des cles declarees, afin
+ * qu'un `avatar` inconnu rende `AVATAR_NOT_FOUND` au Validator au lieu de
+ * passer et d'echouer plus tard, au Load. Les assets manquaient, et un avatar
+ * declare n'etait donc jamais ecrit.
+ *
+ * TASK-1647 livre les assets eux-memes, a cote de l'index qui les nomme :
+ * `<banque>/<cle>.svg`. Cette classe sait desormais les LIRE ({@see asset()}),
+ * et rien de plus. La publication sur un disque et l'ecriture de
+ * `users.avatar` appartiennent au LOADER : ce namespace n'ecrit rien, ne
+ * connait pas `Storage` et ne depend pas du framework — deux tests
+ * d'architecture le verifient fichier par fichier.
  *
  * L'index est un fichier JSON versionne et auditable ; le manifeste ne connait
  * jamais un chemin physique, il ne cite qu'une cle logique (`female-03`). Le
@@ -30,6 +36,42 @@ final class ManifestAvatarBank
     {
         return in_array($key, self::keys($bank), true);
     }
+
+    /**
+     * Le contenu de l'asset d'une cle, ou `null` si la cle n'est pas de la
+     * banque ou si son fichier manque.
+     *
+     * La cle est verifiee contre l'INDEX avant toute lecture, jamais contre
+     * le systeme de fichiers : c'est ce qui empeche un nom de servir a lire
+     * un chemin arbitraire. `has()` filtre la cle, `keys()` filtre deja le nom
+     * de banque, et le format de cle est fige par {@see KEY_PATTERN}.
+     *
+     * Le loader appelle ceci pour obtenir un CONTENU ; il derive lui-meme le
+     * chemin physique de destination. Le manifeste, lui, ne connait qu'une
+     * cle logique (spec 13).
+     */
+    public static function asset(string $bank, string $key): ?string
+    {
+        if (! self::has($bank, $key)) {
+            return null;
+        }
+
+        $path = dirname(__DIR__, 3).'/'.self::INDEX_DIRECTORY.'/'.$bank.'/'.$key.'.svg';
+
+        if (! is_file($path)) {
+            return null;
+        }
+
+        $content = file_get_contents($path);
+
+        return is_string($content) && $content !== '' ? $content : null;
+    }
+
+    /** Type de media des assets de banque, pour l'entete de stockage. */
+    public const ASSET_MEDIA_TYPE = 'image/svg+xml';
+
+    /** Extension des assets de banque. */
+    public const ASSET_EXTENSION = 'svg';
 
     /**
      * @return list<string>
