@@ -5,10 +5,11 @@
      CDC 6.2 exige — nom, version, etat, usage, date de modification,
      principaux compteurs, presence ou non d'une sandbox, action principale.
 
-     Les boutons « Nouveau », « Importer », « Dupliquer », « Exporter » et
-     « Capturer » que le CDC montre appartiennent a T1649 et au-dela. Ils sont
-     OMIS plutot qu'affiches inertes : un bouton qui ne fait rien ment sur ce
-     que l'ecran sait faire.
+     T1649 livre « Nouveau » : le bouton apparait donc ici, parce qu'il MENE
+     quelque part. « Dupliquer » et « Exporter » vivent sur l'editeur d'une
+     version, la ou ils ont un objet sur quoi porter. « Capturer » appartient
+     a T1652 et reste OMIS : un bouton qui ne fait rien ment sur ce que l'ecran
+     sait faire.
 
      La colonne « Etat » affiche trois valeurs alors que la base n'en stocke
      que DEUX : « Charge » est derive par `isLoaded()`, jamais lu.
@@ -19,11 +20,22 @@
 <x-admin-layout :title="__('admin.scenario_manager.title')">
     <div class="mb-6">
         <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('admin.scenario_manager.subtitle') }}</p>
-        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ __('admin.scenario_manager.read_only') }}</p>
+        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ __('admin.scenario_manager.library_hint') }}</p>
     </div>
 
-    <div class="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
+    @if(session('status'))
+        <div class="mb-6 rounded-xl border border-green-300 bg-green-50 p-4 text-sm text-green-900 dark:border-green-800 dark:bg-green-900/20 dark:text-green-200">
+            {{ session('status') }}
+        </div>
+    @endif
+
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
         <p class="text-sm text-amber-900 dark:text-amber-200">{{ __('admin.scenario_manager.foundation_notice') }}</p>
+
+        <a href="{{ route('admin.outils.scenarios.create') }}"
+           class="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+            {{ __('admin.scenario_manager.new_scenario') }}
+        </a>
     </div>
 
     <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">

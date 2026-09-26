@@ -4,29 +4,39 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ScenarioManifestVersion;
+use App\Support\ScenarioManifest\ManifestSchema;
 use App\Support\ScenarioManager\ScenarioPreview;
+use App\Support\ScenarioManager\ScenarioVersionRefused;
+use App\Support\ScenarioManager\ScenarioVersionWriter;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
  * TASK-1646 puis TASK-1648 — `/admin/outils/scenarios`.
  *
- * ## Deux routes, toutes deux en GET, et c'est le contrat
+ * ## Ce qui LIT et ce qui ECRIT
  *
- * T1648 livre la LECTURE : une bibliotheque et un Preview. Elle ne cree, ne
- * modifie ni ne supprime rien du domaine. Le CRUD, le Validate, le Load et la
- * Capture arrivent en T1649 et au-dela.
+ * T1648 avait livre la lecture seule. T1649 lui donne la main : creer,
+ * importer, coller, dupliquer, editer le JSON, valider techniquement,
+ * exporter, supprimer.
  *
- * Un test verifie qu'aucune route `admin.outils.scenarios*` n'accepte autre
- * chose qu'un GET, et un autre qu'ouvrir ces ecrans ne deplace aucune ligne
- * de `scenario_manifest_versions` ni de `scenario_pack_loads`, ni le nombre de
- * lignes d'aucune autre table.
+ * La bibliotheque et le Preview RESTENT en GET, et un test le prouve encore —
+ * il ne dit plus « aucune route ne mute » mais « ces deux routes-la ne mutent
+ * pas, et l'ensemble des routes mutantes est exactement celui qu'on a
+ * declare ». Une garantie qui devient fausse se reecrit, elle ne se supprime
+ * pas.
  *
- * Ce qu'aucun test ne peut promettre ici : que le SERVEUR n'ecrive rien du
- * tout. En production `SESSION_DRIVER=database`, donc chaque GET touche une
- * ligne de session — le harnais de test, lui, force le pilote `array` et ne
- * peut pas le voir. « Lecture seule » porte sur le DOMAINE, pas sur
- * l'infrastructure.
+ * **Aucune donnee metier n'est creee ici.** Le CRUD ecrit des lignes
+ * administratives, et rien d'autre : ni Organization, ni User, ni Loop. Le
+ * monde d'un scenario ne naitra qu'au Load, en T1650. Un test compare le
+ * nombre de lignes des 68 tables avant et apres chaque geste.
+ *
+ * Toutes les ecritures passent par {@see ScenarioVersionWriter} : c'est ce qui
+ * garde les huit attributs systeme hors de portee d'une requete. Le controleur
+ * n'en touche aucun.
  *
  * ## Le Validator ne tourne JAMAIS au rendu
  *
@@ -217,6 +227,192 @@ class AdminScenarioManagerController extends Controller
                 ? $version->validation_summary['errors']
                 : [],
         ]);
+    }
+
+    /**
+     * Le formulaire de creation (CDC 9.1 a 9.3) : scenario vide, import de
+     * fichier, ou collage de texte. Les trois aboutissent a un DRAFT.
+     */
+    public function create(): View
+    {
+        return view('admin.outils.scenario-nouveau');
+    }
+
+    public function store(Request $request, ScenarioVersionWriter $writer): RedirectResponse
+    {
+        $donnees = $request->validate([
+            'scenario_key' => self::reglesDeCle(),
+            'name' => ['required', 'string', 'max:120'],
+            'locale' => ['required', 'in:fr,en'],
+            'usage' => ['required', Rule::in(ScenarioManifestVersion::USAGES)],
+            'mode' => ['required', 'in:vide,coller,fichier'],
+            // Exiger le texte SELON le mode : sans cela, « coller » sans rien
+            // coller creerait un document vide en se taisant.
+            'json' => ['nullable', 'string', 'required_if:mode,coller'],
+            'fichier' => ['nullable', 'file', 'max:2048', 'required_if:mode,fichier'],
+        ]);
+
+        return $this->enRepondantAuxRefus(function () use ($donnees, $request, $writer) {
+            $auteur = $request->user();
+
+            $version = match ($donnees['mode']) {
+                'vide' => $writer->createBlank($donnees['scenario_key'], $donnees['name'], $donnees['locale'], $auteur, $donnees['usage']),
+                // Import et Paste ont le MEME contrat (CDC 9.3) : seule la
+                // provenance du texte change, pas ce qu'on en fait.
+                'fichier' => $writer->import(
+                    $donnees['scenario_key'],
+                    $donnees['name'],
+                    (string) file_get_contents($request->file('fichier')->getRealPath()),
+                    $auteur,
+                    $donnees['usage']
+                ),
+                'coller' => $writer->import($donnees['scenario_key'], $donnees['name'], (string) ($donnees['json'] ?? ''), $auteur, $donnees['usage']),
+            };
+
+            return redirect()
+                ->route('admin.outils.scenarios.edit', $version)
+                ->with('status', __('admin.scenario_manager.flash_created'));
+        });
+    }
+
+    public function duplicate(Request $request, ScenarioManifestVersion $version, ScenarioVersionWriter $writer): RedirectResponse
+    {
+        $donnees = $request->validate([
+            'scenario_key' => self::reglesDeCle(),
+            'name' => ['required', 'string', 'max:120'],
+        ]);
+
+        return $this->enRepondantAuxRefus(function () use ($donnees, $request, $version, $writer) {
+            $copie = $writer->duplicate($version, $donnees['scenario_key'], $donnees['name'], $request->user());
+
+            return redirect()
+                ->route('admin.outils.scenarios.edit', $copie)
+                ->with('status', __('admin.scenario_manager.flash_duplicated'));
+        });
+    }
+
+    /**
+     * Le mode JSON du CDC 10.10 : edition texte, validation, erreurs
+     * localisees, formatage, copie, export.
+     *
+     * Une version CHARGEE s'ouvre quand meme — en lecture. L'ecran dit
+     * pourquoi elle ne se modifie pas et vers quoi se tourner (CDC 8.6) : un
+     * champ grise sans explication laisserait croire a une panne.
+     */
+    public function edit(ScenarioManifestVersion $version): View
+    {
+        return view('admin.outils.scenario-editeur', [
+            'version' => $version,
+            'modifiable' => ! $version->isLoaded(),
+            'erreurs' => is_array($version->validation_summary['errors'] ?? null)
+                ? $version->validation_summary['errors']
+                : [],
+            'verdict' => $version->validation_summary['verdict'] ?? null,
+            'limite' => self::TAB_LIMIT,
+        ]);
+    }
+
+    public function update(Request $request, ScenarioManifestVersion $version, ScenarioVersionWriter $writer): RedirectResponse
+    {
+        // `json_source` est conserve MEME invalide (CDC 9.2) : la seule borne
+        // est la taille. Valider la syntaxe ici reviendrait a refuser
+        // d'enregistrer un brouillon en cours de correction.
+        $donnees = $request->validate(['json' => ['required', 'string']]);
+
+        return $this->enRepondantAuxRefus(function () use ($donnees, $version, $writer) {
+            $writer->updateDocument($version, $donnees['json']);
+
+            return redirect()
+                ->route('admin.outils.scenarios.edit', $version)
+                ->with('status', __('admin.scenario_manager.flash_saved'));
+        });
+    }
+
+    /**
+     * L'etape TECHNIQUE du CDC 12.1. Elle n'approuve rien : l'approbation
+     * humaine, seule porte vers un Load, arrive en T1650.
+     */
+    public function validateDocument(ScenarioManifestVersion $version, ScenarioVersionWriter $writer): RedirectResponse
+    {
+        return $this->enRepondantAuxRefus(function () use ($version, $writer) {
+            $writer->validate($version);
+
+            return redirect()
+                ->route('admin.outils.scenarios.edit', $version)
+                ->with('status', $version->isValid()
+                    ? __('admin.scenario_manager.flash_valid')
+                    : __('admin.scenario_manager.flash_invalid'));
+        });
+    }
+
+    /**
+     * Export (CDC 10.10) : le document TEL QU'IL EST ENREGISTRE, sans
+     * reformatage ni recalcul. Exporter un texte different de celui qu'on
+     * edite ferait deux verites.
+     */
+    public function export(ScenarioManifestVersion $version): Response
+    {
+        return response($version->json_source, 200, [
+            'Content-Type' => 'application/json; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="'
+                .$version->scenario_key.'-'.$version->version.'.json"',
+        ]);
+    }
+
+    public function destroy(ScenarioManifestVersion $version, ScenarioVersionWriter $writer): RedirectResponse
+    {
+        return $this->enRepondantAuxRefus(function () use ($version, $writer) {
+            $writer->delete($version);
+
+            return redirect()
+                ->route('admin.outils.scenarios')
+                ->with('status', __('admin.scenario_manager.flash_deleted'));
+        });
+    }
+
+    /**
+     * Un refus metier revient a l'ecran comme une PHRASE.
+     *
+     * Sans ce filtre, refuser de modifier une version chargee produirait une
+     * 500 : l'utilisateur verrait une panne la ou le produit a simplement dit
+     * non, et pour une raison qu'il peut comprendre et contourner.
+     */
+    private function enRepondantAuxRefus(\Closure $geste): RedirectResponse
+    {
+        try {
+            return $geste();
+        } catch (ScenarioVersionRefused $refus) {
+            return back()
+                ->withInput()
+                ->withErrors(['scenario' => __($refus->translationKey(), $refus->parametres)]);
+        }
+    }
+
+    /**
+     * Ce qu'une cle de scenario doit etre pour produire un document VALIDABLE.
+     *
+     * `min:3` et les slugs reserves ne sont pas du zele : la cle devient le
+     * `proposed_slug` du document, que le Validator refuse en dessous de trois
+     * caracteres ou s'il vaut `admin`, `main`, `api`... Sans ces regles, le
+     * formulaire fabriquerait des scenarios qui n'atteindront JAMAIS VALID,
+     * sans un mot au moment de la saisie.
+     *
+     * `\z` plutot que `$` : `$` accepte un saut de ligne final, et la cle est
+     * interpolee dans l'en-tete `Content-Disposition` de l'export. Une garde ne
+     * doit pas dependre du fait qu'un autre middleware rogne avant elle.
+     *
+     * @return list<mixed>
+     */
+    private static function reglesDeCle(): array
+    {
+        return [
+            'required',
+            'string',
+            'min:3',
+            'max:64',
+            'regex:/\A[a-z0-9]+(-[a-z0-9]+)*\z/',
+            Rule::notIn(ManifestSchema::RESERVED_SLUGS),
+        ];
     }
 
     /**
