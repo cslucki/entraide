@@ -12,8 +12,11 @@ use App\Models\User;
 use App\Services\Loops\LoopRootDocumentService;
 use App\Services\LoopService;
 use App\Support\ScenarioPacks\Contracts\ScenarioPackDefinition;
+use App\Support\ScenarioManifest\ManifestAvatarBank;
+use App\Support\ScenarioManifest\ManifestSchema;
 use App\Support\ScenarioPacks\ScenarioPackEntityRegistrar;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * TASK-1642 — l'adaptateur de la forme conceptuelle de la spec 4.3 :
@@ -128,6 +131,12 @@ class ManifestScenarioPack implements ScenarioPackDefinition
      *
      * @return array<string, User> stable key du manifeste -> User
      */
+    /** Disque des avatars de banque : celui que `users.avatar` sert deja. */
+    private const AVATAR_DISK = 'public';
+
+    /** Emplacement d'APPLICATION, partage par toutes les sandboxes. */
+    private const AVATAR_DIRECTORY = 'scenario-avatars';
+
     private function applyUsers(Organization $organization, ScenarioPackEntityRegistrar $registrar): array
     {
         $users = [];
@@ -151,6 +160,10 @@ class ManifestScenarioPack implements ScenarioPackDefinition
                     'preferred_locale' => $this->manifest->locale(),
                     'password' => Hash::make(bin2hex(random_bytes(16))),
                     'banned_at' => null,
+                    // TASK-1647 — fidelite : un avatar DECLARE doit etre
+                    // reellement ecrit. `null` reste parfaitement valide et
+                    // laisse le fallback initiales (spec 13).
+                    'avatar' => $this->resolveAvatar($declared->avatar ?? null),
                 ],
             );
 
@@ -177,6 +190,59 @@ class ManifestScenarioPack implements ScenarioPackDefinition
         }
 
         return $users;
+    }
+
+    /**
+     * Resoudre une cle logique d'avatar en un chemin reellement servable.
+     *
+     * ## Pourquoi un asset PARTAGE, et non un fichier par sandbox
+     *
+     * Le purger ne sait nettoyer un fichier que par une entite qui porte des
+     * colonnes `disk` et `path` ; `users.avatar` n'est qu'une colonne de
+     * chemin. Un fichier ecrit A CHAQUE chargement ne serait donc jamais
+     * nettoye au reset ni au remove, et chaque sandbox en laisserait derriere
+     * elle. L'asset est donc publie UNE FOIS, a un emplacement d'application
+     * partage par toutes les sandboxes : l'ensemble des fichiers est ferme
+     * (une par cle de la banque) et ne croit pas avec les chargements. Il n'y
+     * a rien a nettoyer parce qu'il n'y a rien de cree par chargement.
+     *
+     * ## Ce qui ne vient jamais du manifeste
+     *
+     * Le document ne cite qu'une CLE logique. Le nom de banque est la
+     * constante du schema, pas une chaine libre ; le chemin physique est
+     * derive ici. Un manifeste ne peut donc designer aucun fichier.
+     *
+     * Rejeu : l'asset present n'est pas reecrit, et la meme valeur de colonne
+     * est reposee. Cle inconnue ou asset manquant : on rend `null` plutot que
+     * d'echouer — le Validator refuse deja une cle hors index
+     * (`AVATAR_NOT_FOUND`), et un persona sans photo reste utilisable.
+     */
+    private function resolveAvatar(mixed $declared): ?string
+    {
+        if (! is_string($declared) || $declared === '') {
+            return null;
+        }
+
+        $bank = ManifestSchema::AVATAR_BANK;
+        $content = ManifestAvatarBank::asset($bank, $declared);
+
+        if ($content === null) {
+            return null;
+        }
+
+        $path = self::AVATAR_DIRECTORY.'/'.$bank.'/'.$declared.'.'.ManifestAvatarBank::ASSET_EXTENSION;
+        $disk = Storage::disk(self::AVATAR_DISK);
+
+        // `Storage` et non le systeme de fichiers : le disque est S3 en
+        // production et local ailleurs, et les deux doivent se comporter
+        // pareil. Jamais d'ecrasement : l'asset est immuable pour une version
+        // de banque donnee, et le reecrire a chaque chargement serait une
+        // ecriture inutile sur un stockage distant.
+        if (! $disk->exists($path)) {
+            $disk->put($path, $content, ['ContentType' => ManifestAvatarBank::ASSET_MEDIA_TYPE]);
+        }
+
+        return $path;
     }
 
     private function applyMemberAiProfile(

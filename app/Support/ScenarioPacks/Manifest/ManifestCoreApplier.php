@@ -92,7 +92,7 @@ class ManifestCoreApplier
         $dossiers = $this->applyDossiers($organization, $registrar, $users, $loops);
         $articles = $this->applyArticles($organization, $registrar, $users, $dossiers);
         $files = $this->applyFiles($organization, $registrar, $users, $dossiers);
-        $this->applyMessages($organization, $registrar, $users, $loops);
+        $messages = $this->applyMessages($organization, $registrar, $users, $loops);
 
         $categories = $this->applyCategories($organization, $registrar);
         $skills = $this->applySkills($organization, $registrar, $categories);
@@ -101,7 +101,7 @@ class ManifestCoreApplier
 
         $this->applyPolls($organization, $registrar, $users, $loops);
         $this->applyEvents($organization, $registrar, $users, $loops);
-        $decisions = $this->applyDecisions($organization, $registrar, $users, $loops);
+        $decisions = $this->applyDecisions($organization, $registrar, $users, $loops, $messages);
         $this->applyRoadmapItems($organization, $registrar, $users, $loops, $decisions);
 
         // T1644 — les Sequences Training referencent un article ou un fichier
@@ -379,7 +379,7 @@ class ManifestCoreApplier
         ScenarioPackEntityRegistrar $registrar,
         array $users,
         array $loops,
-    ): void {
+    ): array {
         $declaredMessages = $this->manifest->collection('messages');
 
         // `order` porte l'ordre metier, pas la position dans le tableau
@@ -430,6 +430,11 @@ class ManifestCoreApplier
 
             $sent[$key] = $message;
         }
+
+        // TASK-1647 — la carte est desormais RENDUE, pour que `decision.message`
+        // puisse resoudre sa reference. Elle est complete meme au rejeu : la
+        // branche `$existing` ci-dessus y inscrit les messages preexistants.
+        return $sent;
     }
 
     // =====================================================================
@@ -653,6 +658,20 @@ class ManifestCoreApplier
             }
 
             $this->applyPollVotes($service, $poll, $loop, $users, $declared, $optionIdsByKey);
+
+            // TASK-1647 — fidelite : un poll declare `closed` doit etre
+            // REELLEMENT clos. L'ordre n'est pas un detail, la spec l'impose :
+            // « un poll closed est clos par l'auteur lors du chargement APRES
+            // creation des votes ». Clore avant de voter ferait refuser les
+            // votes par le service, et le monde charge ne porterait ni les
+            // voix declarees ni la cloture.
+            //
+            // `close()` pose `status`, `closed_at` et `closed_by` sous
+            // transaction, et ne se plaint pas d'une seconde cloture : le
+            // rejeu du meme manifeste est donc sans effet supplementaire.
+            if ((string) ($declared->status ?? '') === 'closed') {
+                $service->close($author, $poll, $loop);
+            }
         }
     }
 
@@ -750,6 +769,17 @@ class ManifestCoreApplier
                     $service->respond($responder, $event, $loop, (string) $response->response);
                 }
             }
+
+            // TASK-1647 — fidelite : un event declare `cancelled` doit etre
+            // REELLEMENT annule, et la spec impose le meme ordre que pour les
+            // polls : « les reponses sont appliquees AVANT une eventuelle
+            // annulation ». Un evenement annule n'accepte plus de reponse.
+            //
+            // `cancel()` est idempotent : il rend `changed => false` quand
+            // l'evenement est deja annule.
+            if ((string) ($declared->status ?? '') === 'cancelled') {
+                $service->cancel($author, $event, $loop);
+            }
         }
     }
 
@@ -763,6 +793,7 @@ class ManifestCoreApplier
         ScenarioPackEntityRegistrar $registrar,
         array $users,
         array $loops,
+        array $messages,
     ): array {
         $service = app(LoopDecisionService::class);
         $decisions = [];
@@ -780,13 +811,31 @@ class ManifestCoreApplier
 
             $this->ensureCard($loop, 'core.decisions');
 
-            $decisions[$key] = $existing instanceof LoopDecision ? $existing : $service->record(
-                $loop,
-                $author,
-                (string) $declared->title,
-                $declared->rationale,
-                $this->fromDayOffset($declared->decided_day_offset)?->format('Y-m-d'),
-            );
+            if ($existing instanceof LoopDecision) {
+                $decisions[$key] = $existing;
+            } else {
+                $title = (string) $declared->title;
+                $rationale = $declared->rationale;
+                $date = $this->fromDayOffset($declared->decided_day_offset)?->format('Y-m-d');
+
+                // TASK-1647 — fidelite : `decision.message` declare la
+                // CONVERSATION d'ou la decision est sortie. `record()` ne pose
+                // jamais `loop_message_id` : la reference etait perdue, et le
+                // monde charge presentait une decision sans origine.
+                //
+                // `promote()` est la primitive canonique de ce geste. Elle
+                // relie la decision au message DEJA charge — elle n'en cree
+                // aucun second, ce qui inventerait une parole que personne n'a
+                // prononcee — et elle refuse d'elle-meme un message d'une
+                // autre Boucle. La carte vient du passage courant, donc la
+                // resolution reste bornee a la sandbox chargee.
+                $messageKey = is_string($declared->message ?? null) ? $declared->message : null;
+                $message = $messageKey !== null ? ($messages[$messageKey] ?? null) : null;
+
+                $decisions[$key] = $message instanceof LoopMessage
+                    ? $service->promote($loop, $author, $message, $title, $rationale, $date)
+                    : $service->record($loop, $author, $title, $rationale, $date);
+            }
 
             $registrar->track('manifest_decision', $key, $decisions[$key]);
         }
