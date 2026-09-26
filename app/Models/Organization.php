@@ -83,6 +83,11 @@ class Organization extends Model
             'members_can_create_loops' => 'boolean',
             'ai_profiles_enabled' => 'boolean',
             'ai_constitution_public' => 'boolean',
+            // TASK-1642 : provenance sandbox de scenario. DELIBEREMENT absente
+            // de `$fillable` — c'est un fait ecrit par le serveur, jamais une
+            // valeur que l'on assigne en masse depuis une requete, un
+            // formulaire ou un manifeste.
+            'scenario_sandbox_created_at' => 'datetime',
             'subscriptions_enabled' => 'boolean',
             'maintenance_mode' => 'boolean',
             'header_javascript_enabled' => 'boolean',
