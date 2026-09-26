@@ -60,33 +60,35 @@ use Illuminate\Support\Str;
  * ## Le temps
  *
  * La spec 6.3 impose un unique `load_started_at` capture au Load, dont tous
- * les offsets derivent. Il est fixe a la construction et ne bouge plus : deux
- * objets d'un meme chargement ne doivent pas etre ancres sur deux instants.
+ * les offsets derivent. Depuis T1644 il est capture par
+ * `ManifestScenarioPack` et INJECTE ici, parce qu'il appartient au CHARGEMENT
+ * et non a cet applier : deux colleagues (CORE et TRAINING) en derivent des
+ * offsets dans le meme passage. Chacun capturant le sien, une remise declaree
+ * au meme offset qu'un message ne tomberait plus au meme instant que lui, et
+ * la spec 6.3 serait violee en silence.
  */
 class ManifestCoreApplier
 {
     /** Disque des fichiers de Dossier, convention du produit. */
     private const FILE_DISK = 'dossier_files';
 
-    private readonly \DateTimeImmutable $loadStartedAt;
-
     public function __construct(
         private readonly ScenarioManifest $manifest,
         private readonly string $packId,
-    ) {
-        $this->loadStartedAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
-    }
+        private readonly \DateTimeImmutable $loadStartedAt,
+    ) {}
 
     /**
      * @param  array<string, User>  $users
      * @param  array<string, Loop>  $loops
+     * @return array{articles: array<string, BlogPost>, files: array<string, DossierFile>}
      */
     public function apply(
         Organization $organization,
         ScenarioPackEntityRegistrar $registrar,
         array $users,
         array $loops,
-    ): void {
+    ): array {
         $dossiers = $this->applyDossiers($organization, $registrar, $users, $loops);
         $articles = $this->applyArticles($organization, $registrar, $users, $dossiers);
         $files = $this->applyFiles($organization, $registrar, $users, $dossiers);
@@ -102,10 +104,12 @@ class ManifestCoreApplier
         $decisions = $this->applyDecisions($organization, $registrar, $users, $loops);
         $this->applyRoadmapItems($organization, $registrar, $users, $loops, $decisions);
 
-        // `articles` et `files` restent references par les variables ci-dessus
-        // pour que Training (T1644) puisse les resoudre sans reparcourir le
-        // registre ; ici, ils n'ont pas d'autre consommateur.
-        unset($articles, $files);
+        // T1644 — les Sequences Training referencent un article ou un fichier
+        // (spec 12.2). On rend les deux index plutot que de les jeter :
+        // les retrouver par le registre demanderait une requete par reference,
+        // et surtout une SECONDE source d'identite pour des objets que ce
+        // passage vient de produire.
+        return ['articles' => $articles, 'files' => $files];
     }
 
     // =====================================================================

@@ -26,17 +26,19 @@ use Illuminate\Support\Facades\Hash;
  * metier canoniques, exactement comme les quatre packs PHP historiques, dont
  * le contrat n'est pas touche.
  *
- * ## Perimetre FOUNDATION de T1642
+ * ## Perimetre de ce fichier — le socle, et lui seul
  *
- * Seul le squelette du monde est materialise :
+ * Ce que cette classe ecrit elle-meme reste le squelette du monde :
  *
  *     users/personas · MemberAiProfile · Loops · memberships · Dossiers
  *     racines (et leur document racine, cree par la primitive canonique)
  *
- * Les articles, fichiers, messages, entraide, collaboration et Training sont
- * declares dans le manifeste et DELIBEREMENT non charges : ils appartiennent
- * aux TASKs suivantes. Un pack qui en chargerait une partie "puisqu'on y est"
- * serait un Core Loader cache, impossible a reviser.
+ * CORE (T1643) et TRAINING (T1644) sont depuis materialises, chacun par un
+ * applier dedie appele en fin de `apply()` — le decoupage n'est pas cosmetique :
+ * le socle avait ete revu seul, et il doit rester lisible seul.
+ *
+ * `CourseQuiz` reste le seul objet du langage V1 a n'etre pas materialise, par
+ * DECISION de la spec 12.6 qui le reporte a Manifest V1.1.
  *
  * ## Primitives canoniques, jamais les raccourcis de Seeder
  *
@@ -89,16 +91,36 @@ class ManifestScenarioPack implements ScenarioPackDefinition
         $users = $this->applyUsers($organization, $registrar);
         $loops = $this->applyLoops($organization, $registrar, $users);
 
+        // L'ancre de temps du CHARGEMENT (spec 6.3 : un unique
+        // `load_started_at`, dont tous les offsets derivent). Elle est capturee
+        // ICI, une seule fois, et passee aux deux appliers.
+        //
+        // Elle vivait dans le constructeur de `ManifestCoreApplier` tant qu'il
+        // etait seul a deriver des offsets. Avec TRAINING, deux appliers en
+        // derivent dans le meme passage : chacun capturant la sienne, une remise
+        // et un message declares au meme offset ne tomberaient plus au meme
+        // instant, et la spec 6.3 serait violee sans que rien ne le dise.
+        $loadStartedAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+
         // TASK-1643 — les familles CORE non-Training, dans un collaborateur
         // dedie. Le socle ci-dessus etait le contrat de T1642 et ses garanties
         // sont deja revues : on doit pouvoir lire, et retirer, CORE sans
         // relire le socle.
+        ['articles' => $articles, 'files' => $files] = (new ManifestCoreApplier(
+            $this->manifest,
+            $this->packId(),
+            $loadStartedAt,
+        ))->apply($organization, $registrar, $users, $loops);
+
+        // TASK-1644 — les cinq familles TRAINING, meme raison de decoupage.
+        // Elles recoivent les index d'articles et de fichiers que CORE vient de
+        // produire : une Sequence les REFERENCE (spec 12.2), elle n'en recopie
+        // jamais le contenu.
         //
-        // TRAINING reste hors scope : les modules, sequences, progressions,
-        // travaux et remises sont declares par le manifeste et deliberement
-        // non materialises.
-        (new ManifestCoreApplier($this->manifest, $this->packId()))
-            ->apply($organization, $registrar, $users, $loops);
+        // `CourseQuiz` reste hors scope par DECISION de la spec 12.6 (reporte a
+        // Manifest V1.1).
+        (new ManifestTrainingApplier($this->manifest, $this->packId(), $loadStartedAt))
+            ->apply($organization, $registrar, $users, $loops, $articles, $files);
     }
 
     /**
