@@ -916,12 +916,25 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/outils/dossiers/preview', [AdminDossierCleanupController::class, 'preview'])->name('outils.dossiers.preview');
     Route::post('/outils/dossiers/purge', [AdminDossierCleanupController::class, 'purge'])->name('outils.dossiers.purge');
 
-    // TASK-1646 — Scenario Manager, FONDATION. UNE route, en GET : cet ecran
-    // permet de constater que la persistance administrative des versions
-    // existe, il ne la manipule pas. Le CRUD, le Preview, le Load et la
-    // Capture arrivent en T1648..T1653 ; un test verifie qu'aucune route
-    // `admin.outils.scenarios*` n'accepte autre chose qu'un GET.
+    // TASK-1646 puis TASK-1648 — Scenario Manager. DEUX routes, toutes deux en
+    // GET : la bibliotheque et le Preview LISENT, ils ne manipulent rien. Le
+    // CRUD, le Validate, le Load et la Capture arrivent en T1649..T1653 ; un
+    // test verifie qu'aucune route `admin.outils.scenarios*` n'accepte autre
+    // chose qu'un GET.
     Route::get('/outils/scenarios', [AdminScenarioManagerController::class, 'index'])->name('outils.scenarios');
+    // Comprendre un scenario AVANT qu'une Organization n'existe (CDC 11.1) ne
+    // doit rien ecrire : le Preview lit le document, il ne le charge pas.
+    // `whereUuid` dit au ROUTEUR ce que le modele sait deja : `HasUuids`
+    // refuse une valeur non-UUID dans `resolveRouteBindingQuery()` et leve un
+    // `ModelNotFoundException` AVANT toute requete SQL. Mesure faite dans les
+    // deux moteurs : sans cette contrainte, `/scenarios/pas-un-uuid` rend
+    // deja 404, pas le SQLSTATE 22P02 qu'une colonne `uuid` native donnerait
+    // a un binding non garde. La contrainte est donc une redondance ASSUMEE —
+    // elle rend le refus lisible a l'endroit ou l'URL est declaree, et elle
+    // tiendrait encore si le modele perdait `HasUuids`.
+    Route::get('/outils/scenarios/{version}', [AdminScenarioManagerController::class, 'show'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.show');
 
     // Stats
     Route::get('/stats/login-history', [AdminController::class, 'loginHistory'])->name('stats.login-history');
