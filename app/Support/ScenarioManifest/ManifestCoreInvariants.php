@@ -660,6 +660,9 @@ final class ManifestCoreInvariants
     {
         $superseded = [];
 
+        /** @var array<string, string> cle de message -> cle de la decision qui l'a pris */
+        $decisionsByMessage = [];
+
         foreach ($graph->collection('decisions') as $index => $decision) {
             $loop = $decision->loop ?? null;
 
@@ -676,6 +679,27 @@ final class ManifestCoreInvariants
 
                 if ($target !== null && ($target->loop ?? null) !== $loop) {
                     $errors->add(ManifestErrorCode::REFERENCE_WRONG_SCOPE, $this->at($graph, 'decisions', $index, 'message'), 'A decision cites a message of its own loop.');
+                }
+
+                // TASK-1647 — un message ne peut sourcer qu'UNE decision.
+                //
+                // Ce n'est pas une regle inventee ici : la table porte deja
+                // `unique(loop_id, loop_message_id)`. Le langage etait
+                // simplement plus permissif que le produit, et cet ecart se
+                // payait au chargement — la seconde decision ne creait rien,
+                // son titre n'etait ecrit nulle part, et un roadmap item qui
+                // la citait s'accrochait silencieusement a la premiere.
+                //
+                // Le refus arrive donc a la VALIDATION, avec un chemin JSON
+                // precis, plutot qu'en divergence silencieuse au Load.
+                if (array_key_exists($message, $decisionsByMessage)) {
+                    $errors->add(ManifestErrorCode::DUPLICATE_COMPOSITE_KEY, $this->at($graph, 'decisions', $index, 'message'), sprintf(
+                        "Message '%s' is already the source of decision '%s'.",
+                        $message,
+                        $decisionsByMessage[$message],
+                    ));
+                } else {
+                    $decisionsByMessage[$message] = (string) ($decision->key ?? '');
                 }
             }
 

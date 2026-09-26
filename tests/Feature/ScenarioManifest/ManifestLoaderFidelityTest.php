@@ -8,12 +8,16 @@ use App\Models\LoopEventResponse;
 use App\Models\LoopMessage;
 use App\Models\LoopPoll;
 use App\Models\LoopPollVote;
+use App\Models\Organization;
 use App\Models\User;
 use App\Support\ScenarioManifest\ManifestAvatarBank;
 use App\Support\ScenarioManifest\ManifestSchema;
 use App\Support\ScenarioManifest\ScenarioManifestValidator;
 use App\Support\ScenarioPacks\Manifest\ManifestSandboxLoadResult;
 use App\Support\ScenarioPacks\Manifest\ManifestSandboxLoadService;
+use App\Support\ScenarioPacks\Manifest\ManifestScenarioPack;
+use App\Support\ScenarioPacks\Manifest\ScenarioManifest;
+use App\Support\ScenarioPacks\ScenarioPackLoader;
 use Illuminate\Support\Facades\Storage;
 use Tests\Support\ScenarioManifest\AmtReferenceManifest;
 use Tests\TestCase;
@@ -36,6 +40,18 @@ use Tests\TestCase;
  */
 class ManifestLoaderFidelityTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // N2 — sans cela, les tests ecrivent sur le disque REEL et deviennent
+        // auto-satisfaits des la deuxieme execution : l'asset residuel rend
+        // `exists()` vrai, `put()` n'est plus jamais appele, et supprimer
+        // l'ecriture laisserait la suite VERTE. `RefreshDatabase` annule la
+        // base, pas le disque.
+        Storage::fake('public');
+    }
+
     private function digestOf(string $json): string
     {
         return (string) (new ScenarioManifestValidator)->validate($json)->digest();
@@ -60,6 +76,31 @@ class ManifestLoaderFidelityTest extends TestCase
     private function loadWith(callable $mutation): ManifestSandboxLoadResult
     {
         return $this->loadJson(AmtReferenceManifest::mutate($mutation));
+    }
+
+    /**
+     * Le pack, pour rejouer DANS la meme sandbox.
+     *
+     * N1 — `ManifestSandboxLoadService::load()` court-circuite sur le couple
+     * `(pack_id, manifest_digest)` et rend le chargement existant SANS jamais
+     * rappeler `apply()`. Appeler `load()` deux fois ne rejoue donc rien : les
+     * assertions passeraient quel que soit le comportement de l'applier.
+     *
+     * Le vrai rejeu passe par le loader de pack sur l'Organization deja
+     * chargee — c'est le chemin que le resetter emprunte, et le seul qui
+     * exerce reellement `close()`, `cancel()`, `promote()` et l'ecriture
+     * d'asset une seconde fois.
+     */
+    private function packOf(string $json): ManifestScenarioPack
+    {
+        return new ManifestScenarioPack(
+            ScenarioManifest::fromApprovedJson($json, $this->digestOf($json))
+        );
+    }
+
+    private function replayInPlace(string $json, Organization $organization): void
+    {
+        app(ScenarioPackLoader::class)->load($this->packOf($json), $organization);
     }
 
     // =====================================================================
@@ -209,6 +250,65 @@ class ManifestLoaderFidelityTest extends TestCase
         );
     }
 
+    public function test_deux_decisions_ne_peuvent_pas_citer_le_MEME_message(): void
+    {
+        // BLOQUANT trouve en revue, arbitre par le MASTER (option A).
+        //
+        // Le langage permettait ce que la base interdit deja
+        // (`unique(loop_id, loop_message_id)`). Au chargement, la seconde
+        // decision ne creait rien : `promote()` rendait la premiere, son titre
+        // n'etait ecrit nulle part, le registre inscrivait une seconde ligne
+        // « reused » pour une entite pourtant creee, et un roadmap item qui la
+        // citait s'accrochait silencieusement a la premiere.
+        //
+        // Le refus arrive desormais a la VALIDATION, pas au Load.
+        $json = AmtReferenceManifest::mutate(static function (\stdClass $m): void {
+            $premiere = $m->decisions[0];
+
+            $seconde = json_decode(json_encode($premiere), false);
+            $seconde->key = 'decision-doublon';
+            $seconde->title = 'Une autre decision, meme message';
+            $seconde->supersedes = null;
+
+            $m->decisions[] = $seconde;
+        });
+
+        $resultat = (new ScenarioManifestValidator)->validate($json);
+
+        $this->assertFalse($resultat->isValid(), 'Deux decisions sur un meme message doivent etre refusees.');
+        $this->assertContains('DUPLICATE_COMPOSITE_KEY', $resultat->errorCodes());
+
+        // L'adresse de l'erreur compte autant que son code : elle doit
+        // designer le champ fautif de la SECONDE decision.
+        $chemins = array_column(array_map(
+            static fn ($e) => $e->toArray(),
+            $resultat->errors()
+        ), 'path', 'code');
+
+        $this->assertSame('/decisions/1/message', $chemins['DUPLICATE_COMPOSITE_KEY'] ?? null);
+    }
+
+    public function test_deux_decisions_sans_message_restent_permises(): void
+    {
+        // Le cas negatif : `null` n'est pas une collision. La base elle-meme
+        // traite les NULL comme distincts dans un index unique.
+        $json = AmtReferenceManifest::mutate(static function (\stdClass $m): void {
+            $m->decisions[0]->message = null;
+
+            $seconde = json_decode(json_encode($m->decisions[0]), false);
+            $seconde->key = 'decision-sans-message';
+            $seconde->title = 'Une autre decision sans message';
+            $seconde->supersedes = null;
+            $seconde->message = null;
+
+            $m->decisions[] = $seconde;
+        });
+
+        $resultat = (new ScenarioManifestValidator)->validate($json);
+
+        $this->assertTrue($resultat->isValid(), implode(' | ', $resultat->errorCodes()));
+    }
+
     public function test_une_decision_sans_message_declare_reste_sans_message(): void
     {
         $this->loadWith(static function (\stdClass $m): void {
@@ -257,11 +357,15 @@ class ManifestLoaderFidelityTest extends TestCase
             ->pluck('avatar')
             ->all();
 
-        $this->assertGreaterThanOrEqual(5, count($avatars));
+        // Compte EXACT, pas un minimum : la fixture declare 22 personas dont
+        // exactement 5 avec un avatar, et 5 cles distinctes. Un
+        // `assertGreaterThanOrEqual` laisserait passer une correction qui en
+        // donnerait a tout le monde.
+        $this->assertCount(5, $avatars);
         $this->assertSame(
-            count($avatars),
+            5,
             count(array_unique($avatars)),
-            'Deux personas declarant des cles differentes ne doivent pas partager un asset.'
+            'Cinq cles distinctes doivent donner cinq assets distincts.'
         );
 
         foreach ($avatars as $chemin) {
@@ -275,13 +379,16 @@ class ManifestLoaderFidelityTest extends TestCase
         // donnerait une photo a tout le monde serait un defaut.
         $organization = $this->load()->organization;
 
-        $this->assertGreaterThan(
-            0,
+        // 17 des 22 personas de la fixture n'ont pas d'avatar. Un
+        // `assertGreaterThan(0, ...)` resterait vert si 16 d'entre eux en
+        // recevaient un a tort.
+        $this->assertSame(
+            17,
             User::query()
                 ->where('organization_id', $organization->id)
                 ->whereNull('avatar')
                 ->count(),
-            'La fixture declare au moins un persona sans avatar.'
+            'Les 17 personas declares sans avatar doivent le rester.'
         );
     }
 
@@ -313,26 +420,28 @@ class ManifestLoaderFidelityTest extends TestCase
     // 5. Le rejeu ne ment pas
     // =====================================================================
 
-    public function test_un_second_chargement_ne_duplique_ni_message_ni_decision(): void
+    public function test_un_rejeu_EN_PLACE_ne_duplique_ni_message_ni_decision(): void
     {
-        $this->load();
-        $this->load();
+        $organization = $this->load()->organization;
+
+        $this->replayInPlace(AmtReferenceManifest::json(), $organization);
 
         $this->assertSame(4, LoopMessage::query()->count());
         $this->assertSame(1, LoopDecision::query()->count());
         $this->assertNotNull(LoopDecision::query()->firstOrFail()->loop_message_id);
     }
 
-    public function test_un_second_chargement_ne_rejoue_pas_la_cloture(): void
+    public function test_un_rejeu_EN_PLACE_ne_rejoue_pas_la_cloture(): void
     {
-        $mutation = static function (\stdClass $m): void {
+        $json = AmtReferenceManifest::mutate(static function (\stdClass $m): void {
             $m->polls[0]->status = 'closed';
-        };
+        });
 
-        $this->loadWith($mutation);
+        $organization = $this->loadJson($json)->organization;
         $premier = LoopPoll::query()->firstOrFail()->closed_at;
 
-        $this->loadWith($mutation);
+        $this->replayInPlace($json, $organization);
+
         $poll = LoopPoll::query()->firstOrFail();
 
         $this->assertSame(1, LoopPoll::query()->count());
@@ -340,20 +449,21 @@ class ManifestLoaderFidelityTest extends TestCase
         $this->assertEquals(
             $premier,
             $poll->closed_at,
-            'Une seconde cloture ne doit pas deplacer l horodatage de la premiere.'
+            'Un rejeu ne doit pas deplacer l horodatage de la premiere cloture.'
         );
     }
 
-    public function test_un_second_chargement_ne_rejoue_pas_l_annulation(): void
+    public function test_un_rejeu_EN_PLACE_ne_rejoue_pas_l_annulation(): void
     {
-        $mutation = static function (\stdClass $m): void {
+        $json = AmtReferenceManifest::mutate(static function (\stdClass $m): void {
             $m->events[0]->status = 'cancelled';
-        };
+        });
 
-        $this->loadWith($mutation);
+        $organization = $this->loadJson($json)->organization;
         $premier = LoopEvent::query()->firstOrFail()->cancelled_at;
 
-        $this->loadWith($mutation);
+        $this->replayInPlace($json, $organization);
+
         $event = LoopEvent::query()->firstOrFail();
 
         $this->assertSame(1, LoopEvent::query()->count());
@@ -361,21 +471,46 @@ class ManifestLoaderFidelityTest extends TestCase
         $this->assertEquals($premier, $event->cancelled_at);
     }
 
-    public function test_un_second_chargement_ne_reecrit_pas_les_assets(): void
+    /**
+     * La non-reecriture se prouve par le CONTENU, pas par un horodatage.
+     *
+     * N2 — `lastModified()` a une granularite d'UNE SECONDE : une reecriture
+     * dans la meme seconde y serait invisible, et l'assertion ne pourrait donc
+     * pas echouer meme si la garde `exists()` disparaissait. On pose un
+     * contenu sentinelle a la place de l'asset : s'il survit au rejeu, c'est
+     * que le loader n'a pas reecrit.
+     */
+    public function test_un_rejeu_EN_PLACE_ne_reecrit_pas_un_asset_deja_present(): void
     {
-        $this->load();
+        $organization = $this->load()->organization;
 
-        $user = User::query()->whereNotNull('avatar')->firstOrFail();
-        $chemin = $user->avatar;
-        $empreinte = Storage::disk('public')->lastModified($chemin);
+        $chemin = User::query()->whereNotNull('avatar')->firstOrFail()->avatar;
+        Storage::disk('public')->put($chemin, 'SENTINELLE');
 
-        $this->load();
+        $this->replayInPlace(AmtReferenceManifest::json(), $organization);
 
-        $this->assertSame($chemin, User::query()->findOrFail($user->id)->avatar);
         $this->assertSame(
-            $empreinte,
-            Storage::disk('public')->lastModified($chemin),
-            'L asset partage ne doit pas etre reecrit a chaque chargement.'
+            'SENTINELLE',
+            Storage::disk('public')->get($chemin),
+            'Un asset deja present ne doit pas etre reecrit.'
+        );
+    }
+
+    public function test_un_asset_absent_est_bien_ECRIT_au_chargement(): void
+    {
+        // Le controle positif du test precedent : sans lui, une correction qui
+        // n'ecrirait JAMAIS rien passerait aussi.
+        $this->assertSame([], Storage::disk('public')->allFiles());
+
+        $this->load();
+
+        $ecrits = Storage::disk('public')->allFiles('scenario-avatars');
+
+        $this->assertNotEmpty($ecrits, 'Le chargement doit publier les assets declares.');
+        $this->assertSame(
+            ManifestAvatarBank::asset(ManifestSchema::AVATAR_BANK, 'female-03'),
+            Storage::disk('public')->get('scenario-avatars/'.ManifestSchema::AVATAR_BANK.'/female-03.svg'),
+            'L asset publie doit etre exactement celui de la banque versionnee.'
         );
     }
 }

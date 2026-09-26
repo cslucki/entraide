@@ -55,6 +55,16 @@ use Illuminate\Support\Facades\Storage;
  */
 class ManifestScenarioPack implements ScenarioPackDefinition
 {
+    /** Disque des avatars de banque : celui que `users.avatar` sert deja. */
+    private const AVATAR_DISK = 'public';
+
+    /**
+     * Emplacement d'APPLICATION des assets de banque, partage par toutes les
+     * sandboxes — jamais un chemin par sandbox. Voir {@see resolveAvatar()}
+     * pour la raison, qui n'est pas une commodite.
+     */
+    private const AVATAR_DIRECTORY = 'scenario-avatars';
+
     /**
      * Prefixe d'identite du pack. Deux manifestes differents donnent deux
      * `pack_id` differents ; le meme manifeste garde le sien entre deux
@@ -131,12 +141,6 @@ class ManifestScenarioPack implements ScenarioPackDefinition
      *
      * @return array<string, User> stable key du manifeste -> User
      */
-    /** Disque des avatars de banque : celui que `users.avatar` sert deja. */
-    private const AVATAR_DISK = 'public';
-
-    /** Emplacement d'APPLICATION, partage par toutes les sandboxes. */
-    private const AVATAR_DIRECTORY = 'scenario-avatars';
-
     private function applyUsers(Organization $organization, ScenarioPackEntityRegistrar $registrar): array
     {
         $users = [];
@@ -216,6 +220,46 @@ class ManifestScenarioPack implements ScenarioPackDefinition
      * est reposee. Cle inconnue ou asset manquant : on rend `null` plutot que
      * d'echouer — le Validator refuse deja une cle hors index
      * (`AVATAR_NOT_FOUND`), et un persona sans photo reste utilisable.
+     *
+     * ## Concurrence : la surete repose sur l'IMMUABILITE, pas sur un verrou
+     *
+     * Deux chargements simultanes citant la meme cle peuvent tous deux voir le
+     * fichier absent et tous deux l'ecrire : le verrou de ligne Organization
+     * ne les serialise pas, ils visent des Organizations differentes.
+     *
+     * La course est benigne, mais pas parce que l'ecriture serait atomique —
+     * elle ne l'est PAS sur le disque local, ou Flysystem fait un
+     * `file_put_contents(..., LOCK_EX)` en place : `LOCK_EX` serialise les
+     * ECRIVAINS, mais un lecteur ne prend aucun verrou et peut, dans une
+     * fenetre de quelques microsecondes, voir le fichier tronque. Sur S3,
+     * `PutObject` est bien atomique.
+     *
+     * Ce qui rend la course benigne, c'est que le contenu est IMMUABLE et
+     * DETERMINISTE : il vient d'un fichier versionne, donc les deux ecritures
+     * posent exactement les memes octets, et l'etat converge toujours.
+     * **Cette propriete est porteuse.** Si un jour l'asset dependait du
+     * chargement — un filigrane par sandbox, par exemple — deux sandboxes
+     * ecriraient des octets DIFFERENTS sur le meme chemin partage, et toutes
+     * les sandboxes deja chargees changeraient d'apparence en silence, en
+     * travers des tenants. Il faudrait alors un vrai verrou applicatif, ou un
+     * chemin non partage.
+     *
+     * ## Deux limites assumees
+     *
+     * `assertStoragePathAvailable()` est deliberement CONTOURNE : il leverait
+     * une collision des la deuxieme sandbox, puisque le fichier partage
+     * existe justement deja. En contrepartie, le chemin n'entre pas dans les
+     * chemins liberes si `apply()` echoue plus loin — jusqu'a 36 SVG peuvent
+     * alors rester. C'est borne, et ils seront reutilises au chargement
+     * suivant.
+     *
+     * Et `exists()` fait confiance a ce qui se trouve la sans verifier que
+     * c'est bien l'asset de la banque. Aucun chemin de televersement ne peut
+     * viser ce prefixe, mais une restauration partielle ou un artefact d'une
+     * revision anterieure y resterait indefiniment.
+     *
+     * Note : `ContentType` n'est honore que par S3 ; le driver local l'ignore
+     * en silence, et le type servi y vient de l'extension `.svg`.
      */
     private function resolveAvatar(mixed $declared): ?string
     {
