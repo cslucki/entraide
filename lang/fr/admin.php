@@ -1135,6 +1135,7 @@ return [
         'col_author' => 'Auteur',
         'no_digest' => 'aucun',
         'no_sandbox' => '—',
+        'no_author' => 'auteur detache',
         'loaded_explained' => "« Charge » n'est pas un etat stocke : il est derive d'une version valide reliee a un chargement vivant. Si la sandbox disparait, le lien se denoue et la version redevient simplement valide.",
         'usage_qa' => 'QA',
         'usage_dogfooding' => 'Dogfooding',

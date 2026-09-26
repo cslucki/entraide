@@ -51,11 +51,17 @@ class ScenarioManagerFoundationTest extends TestCase
     /**
      * Cree une version, en laissant les defauts utiles pour le cas teste.
      *
+     * Les attributs declares par une personne passent par `create()` ; ceux
+     * que seul le systeme ecrit ({@see ScenarioManifestVersion::SYSTEM_ATTRIBUTES})
+     * passent par `forceFill()`, exactement comme le fera le code de
+     * production. Un helper qui les remplirait en masse cacherait justement
+     * ce que la frontiere protege.
+     *
      * @param  array<string, mixed>  $attributes
      */
     private function version(array $attributes = []): ScenarioManifestVersion
     {
-        return ScenarioManifestVersion::create(array_merge([
+        $tous = array_merge([
             'scenario_key' => 'ofsh',
             'name' => 'OFSH',
             'version' => '1.0.0',
@@ -64,7 +70,15 @@ class ScenarioManagerFoundationTest extends TestCase
             'state' => ScenarioManifestVersion::STATE_DRAFT,
             'json_source' => '{"manifest_version":1}',
             'created_by' => $this->superAdmin->id,
-        ], $attributes));
+        ], $attributes);
+
+        $systeme = array_intersect_key($tous, array_flip(ScenarioManifestVersion::SYSTEM_ATTRIBUTES));
+        $declares = array_diff_key($tous, $systeme);
+
+        $version = new ScenarioManifestVersion($declares);
+        $version->forceFill($systeme)->save();
+
+        return $version;
     }
 
     /**
@@ -375,5 +389,177 @@ class ScenarioManagerFoundationTest extends TestCase
             \App\Support\ScenarioManifest\ManifestJsonParser::MAX_BYTES,
             ScenarioManifestVersion::MAX_JSON_BYTES
         );
+    }
+
+    // =====================================================================
+    // 6. La frontiere entre ce qu'une personne declare et ce que le systeme ecrit
+    // =====================================================================
+
+    public function test_les_attributs_porteurs_de_decision_ne_sont_pas_remplissables_en_masse(): void
+    {
+        // Precedent : `ScenarioPackLoad` exclut `manifest_digest` de son
+        // `$fillable` (T1642). Sans cette frontiere, la premiere route de
+        // mutation ecrite en T1648 laisserait une requete s'auto-approuver.
+        $remplissables = (new ScenarioManifestVersion)->getFillable();
+
+        foreach (ScenarioManifestVersion::SYSTEM_ATTRIBUTES as $attribut) {
+            $this->assertNotContains(
+                $attribut,
+                $remplissables,
+                "{$attribut} est ecrit par le systeme : il ne doit jamais venir d une requete."
+            );
+        }
+    }
+
+    public function test_un_mass_assignment_ne_peut_pas_s_auto_approuver(): void
+    {
+        // Le scenario concret que la frontiere empeche : poser `digest` et
+        // `approved_digest` a la meme valeur rendrait une approbation
+        // « alignee » sur un document jamais valide.
+        $digest = str_repeat('a', 64);
+
+        $version = ScenarioManifestVersion::create([
+            'scenario_key' => 'hostile',
+            'name' => 'Tentative',
+            'version' => '1.0.0',
+            'usage' => ScenarioManifestVersion::USAGE_QA,
+            'origin' => ScenarioManifestVersion::ORIGIN_IMPORT,
+            'json_source' => '{"manifest_version":1}',
+            // Ce que glisserait une requete hostile :
+            'state' => ScenarioManifestVersion::STATE_VALID,
+            'digest' => $digest,
+            'approved_digest' => $digest,
+            'approved_by' => $this->superAdmin->id,
+            'approved_at' => now(),
+            'scenario_pack_load_id' => $this->livingLoad()->id,
+        ]);
+
+        $version->refresh();
+
+        $this->assertTrue($version->isDraft(), 'Une creation en masse reste un BROUILLON.');
+        $this->assertNull($version->digest);
+        $this->assertNull($version->approved_digest);
+        $this->assertNull($version->approved_by);
+        $this->assertNull($version->scenario_pack_load_id);
+        $this->assertFalse($version->approvalMatchesCurrentDigest());
+        $this->assertFalse($version->isLoaded());
+    }
+
+    // =====================================================================
+    // 7. La liste fermee tient sur LES DEUX moteurs
+    // =====================================================================
+
+    /**
+     * La garde applicative, elle, ne se skippe pas : c'est ce qui rend
+     * l'invariant independant du moteur. Sans elle, `state = 'loaded'` se
+     * serait persiste en SQLite et l'ecran l'aurait affiche « Brouillon ».
+     */
+    public function test_le_modele_refuse_un_etat_hors_liste_sur_les_deux_moteurs(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage("state invalide pour une version de scenario : 'loaded'");
+
+        $this->version(['state' => 'loaded']);
+    }
+
+    public function test_le_modele_refuse_un_usage_hors_liste_sur_les_deux_moteurs(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        $this->version(['usage' => 'production']);
+    }
+
+    public function test_le_modele_refuse_une_origine_hors_liste_sur_les_deux_moteurs(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        $this->version(['origin' => 'inconnue']);
+    }
+
+    public function test_la_garde_mord_aussi_sur_une_modification_posterieure(): void
+    {
+        $version = $this->version();
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        $version->forceFill(['state' => 'loaded'])->save();
+    }
+
+    public function test_les_listes_du_modele_et_les_contraintes_de_la_base_ne_peuvent_pas_diverger(): void
+    {
+        if (DB::getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('Les CHECK n existent qu en PostgreSQL.');
+        }
+
+        // Une derive entre les constantes et la migration passerait sinon
+        // inapercue : on lit la definition REELLE des contraintes.
+        $definitions = collect(DB::select(
+            "SELECT conname, pg_get_constraintdef(oid) AS def
+             FROM pg_constraint
+             WHERE conrelid = 'scenario_manifest_versions'::regclass AND contype = 'c'"
+        ))->pluck('def', 'conname');
+
+        foreach ([
+            'scenario_manifest_versions_state_check' => ScenarioManifestVersion::STATES,
+            'scenario_manifest_versions_usage_check' => ScenarioManifestVersion::USAGES,
+            'scenario_manifest_versions_origin_check' => ScenarioManifestVersion::ORIGINS,
+        ] as $contrainte => $valeurs) {
+            $def = $definitions->get($contrainte);
+
+            $this->assertNotNull($def, "La contrainte {$contrainte} doit exister.");
+
+            foreach ($valeurs as $valeur) {
+                $this->assertStringContainsString(
+                    "'{$valeur}'",
+                    $def,
+                    "{$contrainte} doit admettre {$valeur}, qui est dans les constantes du modele."
+                );
+            }
+
+            // Et rien de plus : autant de litteraux que de valeurs admises.
+            $this->assertSame(
+                count($valeurs),
+                preg_match_all("/'[a-z_]+'::character varying/", $def),
+                "{$contrainte} admet un nombre de valeurs different de la constante du modele."
+            );
+        }
+    }
+
+    // =====================================================================
+    // 8. La chaine complete : supprimer l'ORGANIZATION denoue la version
+    // =====================================================================
+
+    public function test_la_suppression_reelle_de_l_organization_denoue_la_version(): void
+    {
+        // C'est LA chaine dont depend toute la derivation, et la seule que
+        // supprimer directement la ligne de chargement n'eprouve pas :
+        // Organization --cascadeOnDelete--> scenario_pack_loads
+        //              --nullOnDelete--> scenario_manifest_versions.
+        $sandbox = Organization::factory()->create();
+        $load = ScenarioPackLoad::create([
+            'pack_id' => 'manifest-ofsh',
+            'pack_version' => '1.0.0',
+            'organization_id' => $sandbox->id,
+            'loaded_at' => now(),
+        ]);
+        $version = $this->version([
+            'state' => ScenarioManifestVersion::STATE_VALID,
+            'scenario_pack_load_id' => $load->id,
+        ]);
+
+        $this->assertTrue($version->isLoaded());
+
+        // `forceDelete` et non `delete` : `Organization` utilise SoftDeletes,
+        // et une cascade SQL ne se declenche que sur une suppression REELLE.
+        // C'est ce que font les trois chemins de production.
+        $sandbox->forceDelete();
+
+        $version->refresh();
+
+        $this->assertDatabaseMissing('scenario_pack_loads', ['id' => $load->id]);
+        $this->assertNull($version->scenario_pack_load_id);
+        $this->assertTrue($version->isValid());
+        $this->assertFalse($version->isLoaded());
+        $this->assertDatabaseHas('scenario_manifest_versions', ['id' => $version->id]);
     }
 }

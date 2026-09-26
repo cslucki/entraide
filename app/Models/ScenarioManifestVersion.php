@@ -88,23 +88,66 @@ class ScenarioManifestVersion extends Model
      */
     public const MAX_JSON_BYTES = 2097152;
 
+    /**
+     * Ce qu'une personne DECLARE en redigeant un scenario.
+     *
+     * Les attributs porteurs de decision en sont volontairement ABSENTS —
+     * voir {@see self::SYSTEM_ATTRIBUTES}. Le precedent est
+     * `ScenarioPackLoad`, qui exclut `manifest_digest` de son `$fillable`
+     * pour la meme raison (TASK-1642) : un mass assignment qui poserait ces
+     * champs ferait passer un document pour un autre.
+     */
     protected $fillable = [
         'scenario_key',
         'name',
         'version',
         'usage',
         'origin',
-        'state',
         'json_source',
+        'parent_id',
+        'created_by',
+    ];
+
+    /**
+     * Ce que seul le SYSTEME ecrit, jamais une requete.
+     *
+     * `state`, `digest` et `validation_summary` sont produits par le
+     * Validator ; `approved_*` par la confirmation humaine, qui est la seule
+     * porte vers un Load (spec 5.2, CDC 12.2) ; `scenario_pack_load_id` par
+     * le moteur de chargement ; `captured_from_organization_id` par la
+     * Capture.
+     *
+     * Les laisser remplissables suffirait a s'auto-approuver : poser `digest`
+     * et `approved_digest` a la meme valeur rend
+     * {@see self::approvalMatchesCurrentDigest()} vrai sur un document jamais
+     * valide. Ces attributs s'ecrivent par `forceFill()` ou par affectation
+     * explicite, jamais par `fill()` / `create()` / `update()` d'une requete.
+     *
+     * @var list<string>
+     */
+    public const SYSTEM_ATTRIBUTES = [
+        'state',
         'digest',
         'validation_summary',
         'approved_digest',
         'approved_by',
         'approved_at',
-        'parent_id',
-        'captured_from_organization_id',
         'scenario_pack_load_id',
-        'created_by',
+        'captured_from_organization_id',
+    ];
+
+    /**
+     * Une version neuve est un BROUILLON (CDC 8.2).
+     *
+     * `state` n'etant pas remplissable en masse, sans ce defaut chaque chemin
+     * de creation devrait penser a le poser par `forceFill()` — et l'oubli se
+     * solderait par un `NOT NULL` en base plutot que par un brouillon. Le
+     * defaut vit ici, au niveau applicatif, comme la garde de la liste fermee.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'state' => self::STATE_DRAFT,
     ];
 
     protected function casts(): array
@@ -113,6 +156,40 @@ class ScenarioManifestVersion extends Model
             'validation_summary' => 'array',
             'approved_at' => 'datetime',
         ];
+    }
+
+    /**
+     * La liste fermee des enumerations, tenue au niveau APPLICATIF.
+     *
+     * Les contraintes CHECK de la migration ne valent qu'en PostgreSQL :
+     * SQLite ne sait pas en ajouter a une table existante. Sans cette garde,
+     * l'invariant central de la tache dependrait du moteur — `state =
+     * 'loaded'` se serait persiste en SQLite, et l'ecran l'aurait affiche
+     * « Brouillon » faute de correspondre a un etat connu. C'est exactement
+     * la seconde verite que le CDC 33.8 interdit.
+     *
+     * La garde mord sur `save()`, donc aussi apres un `forceFill()`.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $version): void {
+            foreach ([
+                'state' => self::STATES,
+                'usage' => self::USAGES,
+                'origin' => self::ORIGINS,
+            ] as $attribut => $valeursAdmises) {
+                $valeur = $version->getAttribute($attribut);
+
+                if (! in_array($valeur, $valeursAdmises, true)) {
+                    throw new \InvalidArgumentException(sprintf(
+                        '%s invalide pour une version de scenario : %s. Valeurs admises : %s.',
+                        $attribut,
+                        var_export($valeur, true),
+                        implode(', ', $valeursAdmises)
+                    ));
+                }
+            }
+        });
     }
 
     public function isDraft(): bool

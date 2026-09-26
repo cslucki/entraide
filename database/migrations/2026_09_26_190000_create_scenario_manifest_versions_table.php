@@ -28,13 +28,28 @@ use Illuminate\Support\Facades\Schema;
  * version est affichee LOADED quand elle est `valid` ET que
  * `scenario_pack_load_id` pointe vers un chargement VIVANT.
  *
- * Cette derivation n'est fiable que parce qu'un chargement est vivant si et
- * seulement si sa ligne existe : `ScenarioPackRemover` supprime la ligne pour
- * de bon (`$load->delete()`), `scenario_pack_loads` n'a ni colonne d'etat, ni
+ * Cette derivation tient parce qu'un chargement est vivant si et seulement si
+ * sa ligne existe : `ScenarioPackRemover` supprime la ligne pour de bon
+ * (`$load->delete()`), `scenario_pack_loads` n'a ni colonne d'etat, ni
  * `removed_at`, ni suppression douce, et `reset_at` n'eteint rien — ce n'est
  * que l'horodatage du dernier reset. Le `nullOnDelete` ci-dessous denoue donc
  * le lien au moment exact ou la sandbox disparait, et la version redevient
  * simplement VALID. Une seconde verite persistee serait immediatement fausse.
+ *
+ * ### La limite exacte de cette garantie
+ *
+ * Elle est portee par la FK `organization_id` de `scenario_pack_loads`, qui
+ * est `cascadeOnDelete` : supprimer l'Organization emporte le chargement, qui
+ * denoue la version. Mais `Organization` utilise `SoftDeletes`, et une
+ * cascade SQL ne se declenche que sur une suppression REELLE. Les trois
+ * chemins qui detruisent une sandbox passent bien par `forceDelete()`
+ * (`AdminOrganizationController`, `ScenarioPackDeleteCommand`,
+ * `ManifestSandboxLoadService::discard()`), et un test le prouve de bout en
+ * bout. Un `$organization->delete()` doux, lui, laisserait le lien en place :
+ * la version se dirait encore chargee alors que la sandbox serait masquee.
+ * Ce chemin n'existe nulle part aujourd'hui ; toute TASK ulterieure qui
+ * supprimerait une sandbox doit donc employer `forceDelete()`, et non
+ * decouvrir cette contrainte apres coup.
  *
  * ## Pourquoi `parent_id` peut se denouer sans rien orpheliner
  *
@@ -50,8 +65,14 @@ use Illuminate\Support\Facades\Schema;
  * `state` n'accepte que `draft` et `valid`. La contrainte CHECK n'est posee
  * qu'en PostgreSQL : SQLite ne sait pas ajouter de CHECK a une table
  * existante, et la doctrine du projet est que l'uniformite entre moteurs
- * s'obtient au niveau applicatif. Le modele porte donc la liste fermee, et
- * les tests la verifient sur les deux moteurs.
+ * s'obtient au niveau applicatif.
+ *
+ * Ces CHECK ne sont donc PAS la garde principale, seulement le dernier
+ * rempart du moteur qui sait les porter. La garde qui vaut sur les deux
+ * moteurs est le `booted()` de `ScenarioManifestVersion`, qui refuse tout
+ * `state`, `usage` ou `origin` hors liste a l'enregistrement. Les deux sont
+ * eprouves : la garde applicative sur les deux moteurs, le CHECK par une
+ * insertion qui contourne le modele, en PostgreSQL seulement.
  */
 return new class extends Migration
 {
@@ -117,7 +138,14 @@ return new class extends Migration
             // Provenance. Auto-reference : une version peut descendre d'une
             // autre par Duplicate ou par Capture.
             $table->foreignUuid('parent_id')->nullable()->constrained('scenario_manifest_versions')->nullOnDelete();
-            $table->foreignUuid('captured_from_organization_id')->nullable()->constrained('organizations')->nullOnDelete();
+            // Nom de contrainte EXPLICITE et court. Le nom genere par Laravel,
+            // `scenario_manifest_versions_captured_from_organization_id_foreign`,
+            // fait 64 octets : PostgreSQL le tronque silencieusement a 63 avec
+            // un simple NOTICE, si bien que le nom reel differe de celui que
+            // Laravel croit avoir pose — et qu'un futur `dropForeign()` par ce
+            // nom echouerait.
+            $table->foreignUuid('captured_from_organization_id')->nullable()
+                ->constrained('organizations', 'id', 'smv_captured_from_org_fk')->nullOnDelete();
 
             // Le pilier de la derivation LOADED. nullOnDelete, jamais cascade :
             // la disparition d'une sandbox ne doit pas emporter la definition
@@ -156,12 +184,12 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (DB::getDriverName() === 'pgsql') {
-            DB::statement('ALTER TABLE scenario_manifest_versions DROP CONSTRAINT IF EXISTS '.self::CONTRAINTE_ORIGINE);
-            DB::statement('ALTER TABLE scenario_manifest_versions DROP CONSTRAINT IF EXISTS '.self::CONTRAINTE_USAGE);
-            DB::statement('ALTER TABLE scenario_manifest_versions DROP CONSTRAINT IF EXISTS '.self::CONTRAINTE_ETAT);
-        }
-
+        // `DROP TABLE` emporte ses propres contraintes CHECK : les retirer une
+        // a une serait redondant, et le ferait au prix d'un mode d'echec de
+        // plus. `ALTER TABLE t DROP CONSTRAINT IF EXISTS c` ne protege que du
+        // manque de la CONTRAINTE, pas de celui de la TABLE : il leve
+        // `relation does not exist` si la table a deja disparu, la ou
+        // `dropIfExists` seul aurait rendu la main sans bruit.
         Schema::dropIfExists('scenario_manifest_versions');
     }
 };

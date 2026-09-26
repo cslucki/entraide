@@ -70,6 +70,12 @@ class ScenarioManagerSurfaceTest extends TestCase
     {
         // Un administrateur d'Organization n'est PAS un SuperAdmin : cet ecran
         // voit toutes les definitions de la plateforme.
+        //
+        // Mecaniquement ce test equivaut au precedent, `AdminMiddleware` ne
+        // lisant que `is_admin`. Il est conserve parce qu'il garde la
+        // PROPRIETE et non le mecanisme : le jour ou quelqu'un ajouterait un
+        // acces OrgAdmin a cet ecran, c'est ce test-ci qui rougirait, et son
+        // nom dirait pourquoi.
         $orgAdmin = User::factory()->create([
             'organization_id' => $this->organization->id,
             'is_admin' => false,
@@ -158,9 +164,18 @@ class ScenarioManagerSurfaceTest extends TestCase
             'created_by' => $this->superAdmin->id,
         ];
 
-        ScenarioManifestVersion::create($commun + ['version' => '1.0.0', 'state' => ScenarioManifestVersion::STATE_VALID, 'scenario_pack_load_id' => $load->id]);
-        ScenarioManifestVersion::create($commun + ['version' => '1.1.0', 'state' => ScenarioManifestVersion::STATE_VALID]);
-        ScenarioManifestVersion::create($commun + ['version' => '1.2.0', 'state' => ScenarioManifestVersion::STATE_DRAFT]);
+        // `state` et `scenario_pack_load_id` sont ecrits par le systeme, jamais
+        // remplis en masse : le test les pose comme le fera la production.
+        $poser = function (array $declares, array $systeme) {
+            $version = new ScenarioManifestVersion($declares);
+            $version->forceFill($systeme)->save();
+
+            return $version;
+        };
+
+        $poser($commun + ['version' => '1.0.0'], ['state' => ScenarioManifestVersion::STATE_VALID, 'scenario_pack_load_id' => $load->id]);
+        $poser($commun + ['version' => '1.1.0'], ['state' => ScenarioManifestVersion::STATE_VALID]);
+        $poser($commun + ['version' => '1.2.0'], ['state' => ScenarioManifestVersion::STATE_DRAFT]);
 
         $html = $this->actingAs($this->superAdmin)
             ->get(route('admin.outils.scenarios'))
@@ -173,7 +188,18 @@ class ScenarioManagerSurfaceTest extends TestCase
 
         // Le compteur derive doit voir exactement une version chargee.
         $this->assertSame(1, ScenarioManifestVersion::query()->loaded()->count());
-        $this->assertStringContainsString(__('admin.scenario_manager.state_loaded'), $html);
+
+        // Le LIBELLE « Charge » ne prouve rien : la tuile de statistiques le
+        // rend inconditionnellement, meme sans aucune ligne. Ce sont les
+        // BADGES de lignes qui attestent de l'etat rendu, et chacun des trois
+        // doit apparaitre exactement une fois.
+        foreach (['loaded' => 1, 'valid' => 1, 'draft' => 1] as $etat => $attendu) {
+            $this->assertSame(
+                $attendu,
+                substr_count($html, 'data-state="'.$etat.'"'),
+                "Exactement {$attendu} ligne doit porter le badge {$etat}."
+            );
+        }
     }
 
     // =====================================================================
@@ -188,8 +214,16 @@ class ScenarioManagerSurfaceTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString(route('admin.outils.scenarios'), $html);
-        $this->assertStringContainsString(__('admin.scenario_manager.nav_label'), $html);
+        // On n'asserte PAS sur le libelle : `nav_label` et `title` valent tous
+        // deux « Scenarios », et `title` est rendu par l'en-tete de page. Une
+        // assertion sur le texte passerait donc meme si l'entree du rail avait
+        // entierement disparu. C'est le LIEN qui prouve la presence de
+        // l'entree, et le rail est le seul endroit qui l'emet.
+        $this->assertStringContainsString(
+            'href="'.route('admin.outils.scenarios').'"',
+            $html,
+            'Le rail doit porter un lien vers l ecran Scenarios.'
+        );
     }
 
     public function test_le_rail_expose_toujours_le_moteur_legacy(): void

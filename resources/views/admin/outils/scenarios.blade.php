@@ -65,12 +65,16 @@
                         <td class="px-3 py-3">
                             {{-- Trois libelles pour deux colonnes : « Charge » vient du
                                  predicat derive, pas de `state`. --}}
+                            {{-- `data-state` est un crochet SEMANTIQUE : il dit l'etat
+                                 rendu, independamment de la couleur qui l'habille. Un
+                                 test qui compterait une classe Tailwind serait faux le
+                                 jour ou le layout emploierait la meme. --}}
                             @if($version->isLoaded())
-                                <span class="inline-flex items-center rounded-full bg-indigo-100 px-2 py-1 text-xs font-semibold text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300">{{ __('admin.scenario_manager.state_loaded') }}</span>
+                                <span data-state="loaded" class="inline-flex items-center rounded-full bg-indigo-100 px-2 py-1 text-xs font-semibold text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300">{{ __('admin.scenario_manager.state_loaded') }}</span>
                             @elseif($version->isValid())
-                                <span class="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-300">{{ __('admin.scenario_manager.state_valid') }}</span>
+                                <span data-state="valid" class="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-300">{{ __('admin.scenario_manager.state_valid') }}</span>
                             @else
-                                <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-300">{{ __('admin.scenario_manager.state_draft') }}</span>
+                                <span data-state="draft" class="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-300">{{ __('admin.scenario_manager.state_draft') }}</span>
                             @endif
                         </td>
                         <td class="px-3 py-3 font-mono text-xs text-gray-500 dark:text-gray-400">
@@ -80,7 +84,7 @@
                             {{ $version->scenarioPackLoad?->organization?->slug ?? __('admin.scenario_manager.no_sandbox') }}
                         </td>
                         <td class="px-3 py-3 text-xs text-gray-500 dark:text-gray-400">
-                            {{ $version->author?->full_name ?? __('admin.scenario_manager.no_sandbox') }}
+                            {{ $version->author?->full_name ?? __('admin.scenario_manager.no_author') }}
                         </td>
                     </tr>
                 @empty

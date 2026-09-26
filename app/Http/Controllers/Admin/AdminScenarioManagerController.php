@@ -42,9 +42,15 @@ class AdminScenarioManagerController extends Controller
         // `scenarioPackLoad` est chargee pour que la vue puisse nommer la
         // sandbox d'une version chargee sans une requete par ligne.
         $versions = ScenarioManifestVersion::query()
-            ->with(['scenarioPackLoad.organization', 'author', 'approver'])
+            ->with(['scenarioPackLoad.organization', 'author'])
             ->orderBy('scenario_key')
             ->orderByDesc('created_at')
+            // `created_at` a une precision d'une SECONDE dans ce projet : un
+            // import qui cree plusieurs versions du meme scenario dans la meme
+            // seconde laisserait leur ordre indetermine, et deux pages
+            // successives pourraient alors montrer deux fois la meme ligne et
+            // en oublier une autre. La cle primaire departage.
+            ->orderBy('id')
             ->paginate(self::PER_PAGE);
 
         return view('admin.outils.scenarios', [

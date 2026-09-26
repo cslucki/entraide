@@ -1125,6 +1125,7 @@ return [
         'col_author' => 'Author',
         'no_digest' => 'none',
         'no_sandbox' => '—',
+        'no_author' => 'author detached',
         'loaded_explained' => '"Loaded" is not a stored state: it is derived from a valid version linked to a living load. If the sandbox disappears, the link is severed and the version is simply valid again.',
         'usage_qa' => 'QA',
         'usage_dogfooding' => 'Dogfooding',
