@@ -183,15 +183,21 @@ class ManifestCoreApplier
     }
 
     /**
-     * La visibilite `organization` du manifeste n'a pas d'equivalent direct :
-     * le produit exprime "visible par l'Organization" par `shared`. Un Dossier
-     * tenu par une Boucle voit de toute facon sa colonne court-circuitee par
-     * `effectiveVisibility()`.
+     * Les trois visibilites du manifeste ont chacune leur equivalent CANONIQUE
+     * dans le produit ; la correspondance est explicite, sans `default`
+     * fourre-tout.
+     *
+     * `shared` n'en fait PAS partie : c'est une valeur historique, marquee
+     * `@deprecated` sur le modele, absente de `Dossier::VISIBILITIES`, et que
+     * la `DossierPolicy` ne reconnait pas. Un Dossier declare `organization`
+     * mais stocke `shared` aurait donc ete invisible pour l'Organization
+     * entiere — un monde charge qui ne montre pas ce que le document a promis.
      */
     private function dossierVisibility(string $declared): string
     {
         return match ($declared) {
-            'organization' => Dossier::VISIBILITY_SHARED,
+            'organization' => Dossier::VISIBILITY_ORGANIZATION,
+            'loop' => Dossier::VISIBILITY_LOOP,
             default => Dossier::VISIBILITY_PRIVATE,
         };
     }

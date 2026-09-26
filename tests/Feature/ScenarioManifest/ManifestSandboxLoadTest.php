@@ -2,8 +2,10 @@
 
 namespace Tests\Feature\ScenarioManifest;
 
+use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopMember;
+use App\Models\MemberAiProfile;
 use App\Models\Organization;
 use App\Models\ScenarioPackEntity;
 use App\Models\ScenarioPackLoad;
@@ -70,6 +72,93 @@ class ManifestSandboxLoadTest extends TestCase
         $this->assertTrue($result->isValid(), 'The variant used by this test must itself be a VALID manifest.');
 
         return [$json, (string) $result->digest()];
+    }
+
+    /**
+     * Le socle, tel que T1642 l'a etabli.
+     *
+     * Ce test — et les deux suivants — avaient DISPARU lors d'une reecriture
+     * de T1643 : une suppression de bloc avait emporte plus que la seule
+     * assertion devenue fausse. Les garanties sont restaurees telles quelles,
+     * parce que ce sont elles qui disent qu'une sandbox est une sandbox et pas
+     * une Organization ordinaire.
+     */
+    public function test_loading_the_amt_manifest_creates_a_new_sandbox_with_its_foundation(): void
+    {
+        $result = $this->load();
+        $organization = $result->organization;
+
+        $this->assertNotNull($organization->scenario_sandbox_created_at, 'The sandbox must carry its server-side provenance.');
+        $this->assertSame('amt-formation-ia', $result->sandboxSlug());
+        $this->assertFalse((bool) $organization->is_public, 'A sandbox is never publicly distributed.');
+        $this->assertFalse((bool) $organization->is_default);
+        $this->assertSame('fr', $organization->locale);
+
+        $this->assertSame(22, User::query()->where('organization_id', $organization->id)->count());
+        $this->assertSame(2, Loop::query()->where('organization_id', $organization->id)->count());
+        $this->assertSame(44, LoopMember::query()->where('organization_id', $organization->id)->count());
+        $this->assertSame(2, Dossier::query()->where('organization_id', $organization->id)->count());
+        $this->assertSame(3, MemberAiProfile::query()->where('organization_id', $organization->id)->count());
+    }
+
+    public function test_the_declared_roles_and_owners_are_materialised(): void
+    {
+        $organization = $this->load()->organization;
+
+        $training = Loop::query()
+            ->where('organization_id', $organization->id)
+            ->where('type', 'training')
+            ->firstOrFail();
+
+        // AMT : trainer-1 (owner) + trainer-2 (facilitator) + 20 stagiaires.
+        $this->assertSame(22, LoopMember::query()->where('loop_id', $training->id)->count());
+        $this->assertSame(1, LoopMember::query()->where('loop_id', $training->id)->where('role', 'owner')->count());
+        $this->assertSame(1, LoopMember::query()->where('loop_id', $training->id)->where('role', 'facilitator')->count());
+        $this->assertSame(20, LoopMember::query()->where('loop_id', $training->id)->where('role', 'member')->count());
+
+        $owner = User::query()->find(
+            LoopMember::query()->where('loop_id', $training->id)->where('role', 'owner')->value('user_id')
+        );
+
+        $this->assertSame('Nora', $owner->first_name);
+        $this->assertTrue((bool) $owner->is_admin, "AMT declares Nora with the organization role 'admin'.");
+
+        // `organization_role: member` ne doit JAMAIS produire un admin.
+        $this->assertSame(1, User::query()->where('organization_id', $organization->id)->where('is_admin', true)->count());
+    }
+
+    public function test_personas_receive_a_sandbox_scoped_fictional_identity(): void
+    {
+        $first = $this->load();
+        $emails = User::query()->where('organization_id', $first->organization->id)->pluck('email');
+
+        $this->assertCount(22, $emails);
+
+        foreach ($emails as $email) {
+            // La garde d'adresse fictive survit a la derivation...
+            $this->assertStringEndsWith('.test', $email);
+            // ...et l'identite est portee par le slug REEL de la sandbox,
+            // celui que BouclePro a choisi, pas par celui que le document
+            // proposait.
+            $this->assertStringContainsString($first->sandboxSlug(), $email);
+        }
+
+        // Aucun mot de passe ne vient du JSON : le manifeste n'en porte pas
+        // (spec 7.2), et chaque persona recoit un secret aleatoire.
+        $this->assertStringNotContainsString('password', $this->manifestJson());
+
+        // Aucune identite partagee entre deux sandboxes : un second monde,
+        // issu d'un manifeste distinct, ne reutilise aucune adresse.
+        [$otherJson, $otherDigest] = $this->variant(static function (\stdClass $document): void {
+            $document->id = 'amt-formation-ia-promo-2';
+            $document->name = 'AMT — Formation IA, promotion 2';
+        });
+
+        $second = app(ManifestSandboxLoadService::class)->load($otherJson, $otherDigest);
+        $otherEmails = User::query()->where('organization_id', $second->organization->id)->pluck('email');
+
+        $this->assertCount(22, $otherEmails);
+        $this->assertSame([], array_intersect($emails->all(), $otherEmails->all()), 'Two sandboxes must never share an identity.');
     }
 
     /**

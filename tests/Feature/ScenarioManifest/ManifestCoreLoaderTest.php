@@ -278,6 +278,108 @@ class ManifestCoreLoaderTest extends TestCase
         $this->assertSame(4, LoopMessage::query()->where('organization_id', $organization->id)->where('type', 'user')->count());
     }
 
+    /**
+     * La visibilite `organization` doit etre stockee CANONIQUEMENT.
+     *
+     * `Dossier::VISIBILITY_SHARED` est une valeur historique, marquee
+     * `@deprecated`, absente de `Dossier::VISIBILITIES`, et que la
+     * `DossierPolicy` ne reconnait pas : un Dossier declare `organization`
+     * mais stocke `shared` serait invisible pour l'Organization entiere. Le
+     * monde charge ne montrerait alors pas ce que le document a promis.
+     *
+     * Le test porte sur un Dossier NON RACINE : un Dossier racine tient sa
+     * visibilite de sa Boucle et court-circuite cette colonne.
+     */
+    public function test_an_organization_wide_dossier_is_stored_with_the_canonical_visibility(): void
+    {
+        [$json, $digest] = $this->variantWithSharedDossier();
+
+        $organization = app(ManifestSandboxLoadService::class)->load($json, $digest)->organization;
+
+        $dossier = Dossier::query()
+            ->where('organization_id', $organization->id)
+            ->where('name', 'Ressources ouvertes')
+            ->firstOrFail();
+
+        $this->assertSame(Dossier::VISIBILITY_ORGANIZATION, $dossier->visibility);
+        $this->assertContains($dossier->visibility, Dossier::VISIBILITIES, 'The stored value must belong to the canonical list.');
+        $this->assertNull($dossier->loop_id, 'This test must exercise a NON-root dossier.');
+    }
+
+    /**
+     * La contrepartie qui compte : la valeur stockee doit reellement OUVRIR
+     * l'acces a l'Organization, et le refuser au-dela. Une constante correcte
+     * qui ne changerait rien pour la Policy ne prouverait rien.
+     */
+    public function test_the_organization_wide_dossier_is_visible_in_its_tenant_and_nowhere_else(): void
+    {
+        [$json, $digest] = $this->variantWithSharedDossier();
+
+        $organization = app(ManifestSandboxLoadService::class)->load($json, $digest)->organization;
+
+        $dossier = Dossier::query()
+            ->where('organization_id', $organization->id)
+            ->where('name', 'Ressources ouvertes')
+            ->firstOrFail();
+
+        // Un membre de la sandbox, qui n'est NI proprietaire du Dossier ni
+        // membre explicite : seule la visibilite `organization` peut lui
+        // ouvrir l'acces.
+        $insider = User::query()
+            ->where('organization_id', $organization->id)
+            ->where('id', '!=', $dossier->owner_id)
+            ->firstOrFail();
+
+        $outsiderOrganization = Organization::create([
+            'name' => 'Autre tenant',
+            'slug' => 'autre-tenant',
+            'is_active' => true,
+            'locale' => 'fr',
+        ]);
+
+        $outsider = User::query()->create([
+            'organization_id' => $outsiderOrganization->id,
+            'first_name' => 'Dehors',
+            'name' => 'Dehors',
+            'email' => 'dehors@autre-tenant.test',
+            'password' => 'x',
+        ]);
+
+        app()->instance('current_organization', $organization);
+
+        $this->assertTrue($insider->can('view', $dossier), 'A member of the same Organization must see an organization-wide dossier.');
+        $this->assertFalse($outsider->can('view', $dossier), 'A user of another Organization must never see it.');
+    }
+
+    /**
+     * Une variante VALIDE d'AMT portant un Dossier NON RACINE declare
+     * `organization`. AMT n'en contient aucun : ses deux Dossiers sont les
+     * racines de ses deux Boucles.
+     *
+     * @return array{0: string, 1: string} [json, digest]
+     */
+    private function variantWithSharedDossier(): array
+    {
+        $document = json_decode($this->manifestJson(), false, 512, JSON_THROW_ON_ERROR);
+
+        $document->dossiers[] = (object) [
+            'key' => 'ressources-ouvertes',
+            'name' => 'Ressources ouvertes',
+            'owner' => 'trainer-1',
+            'loop' => null,
+            'parent' => null,
+            'visibility' => 'organization',
+            'root_document' => null,
+        ];
+
+        $json = json_encode($document, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        $result = (new ScenarioManifestValidator)->validate($json);
+
+        $this->assertTrue($result->isValid(), 'The variant used by this test must itself be a VALID manifest: '.json_encode($result->toArray()['errors']));
+
+        return [$json, (string) $result->digest()];
+    }
+
     // =====================================================================
     // Cycle de vie
     // =====================================================================
