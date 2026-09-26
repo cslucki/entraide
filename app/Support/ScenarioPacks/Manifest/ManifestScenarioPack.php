@@ -87,7 +87,18 @@ class ManifestScenarioPack implements ScenarioPackDefinition
     public function apply(Organization $organization, ScenarioPackEntityRegistrar $registrar): void
     {
         $users = $this->applyUsers($organization, $registrar);
-        $this->applyLoops($organization, $registrar, $users);
+        $loops = $this->applyLoops($organization, $registrar, $users);
+
+        // TASK-1643 — les familles CORE non-Training, dans un collaborateur
+        // dedie. Le socle ci-dessus etait le contrat de T1642 et ses garanties
+        // sont deja revues : on doit pouvoir lire, et retirer, CORE sans
+        // relire le socle.
+        //
+        // TRAINING reste hors scope : les modules, sequences, progressions,
+        // travaux et remises sont declares par le manifeste et deliberement
+        // non materialises.
+        (new ManifestCoreApplier($this->manifest, $this->packId()))
+            ->apply($organization, $registrar, $users, $loops);
     }
 
     /**
@@ -182,9 +193,12 @@ class ManifestScenarioPack implements ScenarioPackDefinition
      * Boucles, memberships et Dossiers racines.
      *
      * @param  array<string, User>  $users
+     * @return array<string, Loop>
      */
-    private function applyLoops(Organization $organization, ScenarioPackEntityRegistrar $registrar, array $users): void
+    private function applyLoops(Organization $organization, ScenarioPackEntityRegistrar $registrar, array $users): array
     {
+        $loops = [];
+
         foreach ($this->manifest->collection('loops') as $declared) {
             $key = (string) $declared->key;
             $owner = $users[(string) $declared->owner] ?? null;
@@ -212,7 +226,11 @@ class ManifestScenarioPack implements ScenarioPackDefinition
             $registrar->track('manifest_loop', $key, $loop);
             $this->trackRootDossier($registrar, $key, $loop);
             $this->applyMemberships($registrar, $key, $loop, $users);
+
+            $loops[$key] = $loop;
         }
+
+        return $loops;
     }
 
     /**
