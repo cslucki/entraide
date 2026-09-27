@@ -916,13 +916,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/outils/dossiers/preview', [AdminDossierCleanupController::class, 'preview'])->name('outils.dossiers.preview');
     Route::post('/outils/dossiers/purge', [AdminDossierCleanupController::class, 'purge'])->name('outils.dossiers.purge');
 
-    // TASK-1646, T1648 puis T1649 — Scenario Manager.
+    // TASK-1646, T1648, T1649 puis T1650 — Scenario Manager.
     //
     // La bibliotheque et le Preview LISENT, et un test le prouve encore. Ce
     // qui a change en T1649, c'est qu'il existe desormais des routes qui
     // ECRIVENT : elles sont listees une par une, et le test verifie que
-    // l'ensemble des routes mutantes est EXACTEMENT celui-la. Le Load, le
-    // Reset, le Remove et la Capture arrivent en T1650..T1653.
+    // l'ensemble des routes mutantes est EXACTEMENT celui-la. T1650 en ajoute
+    // quatre — approbation, chargement, reinitialisation, retrait — et porte
+    // le total a neuf. La Capture arrive plus tard.
     //
     // `nouveau` est declaree avant `{version}` par lisibilite ; la contrainte
     // `whereUuid` suffirait a les distinguer.
@@ -960,6 +961,25 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::delete('/outils/scenarios/{version}', [AdminScenarioManagerController::class, 'destroy'])
         ->whereUuid('version')
         ->name('outils.scenarios.destroy');
+
+    // TASK-1650 — le cycle de vie. `approuver` est l'ETAPE HUMAINE du CDC 12.2,
+    // seule porte vers un Load ; `retirer` detruit une sandbox et non la
+    // definition, ce qui en fait un geste distinct de `destroy` (CDC 14.3).
+    Route::get('/outils/scenarios/{version}/approbation', [AdminScenarioManagerController::class, 'approval'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.approval');
+    Route::post('/outils/scenarios/{version}/approuver', [AdminScenarioManagerController::class, 'approve'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.approve');
+    Route::post('/outils/scenarios/{version}/charger', [AdminScenarioManagerController::class, 'load'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.load');
+    Route::post('/outils/scenarios/{version}/reinitialiser', [AdminScenarioManagerController::class, 'reset'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.reset');
+    Route::post('/outils/scenarios/{version}/retirer', [AdminScenarioManagerController::class, 'removeSandbox'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.remove');
 
     // Stats
     Route::get('/stats/login-history', [AdminController::class, 'loginHistory'])->name('stats.login-history');

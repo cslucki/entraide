@@ -84,6 +84,125 @@
         </p>
     </section>
 
+    @if(session('status'))
+        <div class="mb-6 rounded-xl border border-green-300 bg-green-50 p-4 text-sm text-green-900 dark:border-green-800 dark:bg-green-900/20 dark:text-green-200">
+            {{ session('status') }}
+        </div>
+    @endif
+
+    @if($errors->any())
+        <div class="mb-6 rounded-xl border border-red-300 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+            <ul class="space-y-1 text-sm text-red-900 dark:text-red-200">
+                @foreach($errors->all() as $erreur)
+                    <li>{{ $erreur }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    {{-- Apres Load (CDC 13.5) : l'Organization creee, son slug REEL — qui peut
+         differer du slug propose, et ce n'est pas un incident —, la date, le
+         digest charge, puis les gestes qui s'appliquent a une sandbox vivante.
+
+         Reinitialiser et Retirer vivent ICI et nulle part ailleurs : ce sont
+         des gestes sur un MONDE, pas sur une definition. Supprimer la version
+         reste sur l'editeur, et le CDC 14.3 insiste : ce sont deux gestes
+         distincts. --}}
+    @if($version->isLoaded() && $version->scenarioPackLoad?->organization)
+        @php $sandbox = $version->scenarioPackLoad->organization; @endphp
+
+        <section class="mb-6 rounded-xl border border-indigo-300 bg-indigo-50 p-4 dark:border-indigo-800 dark:bg-indigo-900/20">
+            <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-indigo-800 dark:text-indigo-300">{{ __('admin.scenario_manager.sandbox_title') }}</h2>
+
+            <dl class="grid gap-x-6 gap-y-3 sm:grid-cols-3">
+                <div>
+                    <dt class="text-xs text-indigo-700 dark:text-indigo-400">{{ __('admin.scenario_manager.col_scenario') }}</dt>
+                    <dd data-sandbox-name class="text-sm text-indigo-900 dark:text-indigo-200">{{ $sandbox->name }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-indigo-700 dark:text-indigo-400">{{ __('admin.scenario_manager.sandbox_slug') }}</dt>
+                    <dd data-sandbox-slug class="font-mono text-sm text-indigo-900 dark:text-indigo-200">{{ $sandbox->slug }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-indigo-700 dark:text-indigo-400">{{ __('admin.scenario_manager.sandbox_loaded_at') }}</dt>
+                    <dd data-sandbox-loaded-at class="text-sm text-indigo-900 dark:text-indigo-200">{{ $version->scenarioPackLoad->loaded_at?->format('d/m/Y H:i') ?? '—' }}</dd>
+                </div>
+                @if($version->scenarioPackLoad->reset_at)
+                    <div>
+                        <dt class="text-xs text-indigo-700 dark:text-indigo-400">{{ __('admin.scenario_manager.sandbox_reset_at') }}</dt>
+                        <dd class="text-sm text-indigo-900 dark:text-indigo-200">{{ $version->scenarioPackLoad->reset_at->format('d/m/Y H:i') }}</dd>
+                    </div>
+                @endif
+
+                <div class="sm:col-span-3">
+                    <dt class="text-xs text-indigo-700 dark:text-indigo-400">{{ __('admin.scenario_manager.sandbox_digest') }}</dt>
+                    <dd data-sandbox-digest class="break-all font-mono text-xs text-indigo-800 dark:text-indigo-300">{{ $version->scenarioPackLoad->manifest_digest ?? '—' }}</dd>
+                </div>
+            </dl>
+
+            <div class="mt-4 flex flex-wrap items-start gap-3">
+                {{-- CDC 13.5 : « Apres Load, afficher : Organization creee ;
+                     slug reel ; date ; digest charge ; compteurs ; Open
+                     sandbox ; Reset ; Capture ; Remove. »
+
+                     Trouve en revue : la cle de langue `sandbox_open` existait
+                     dans les deux locales et n'etait referencee NULLE PART.
+                     Une exigence a moitie livree — le mot traduit, le geste
+                     absent — est plus trompeuse qu'une exigence oubliee.
+
+                     Une sandbox en CORBEILLE ne s'ouvre pas : la liaison de
+                     route la refuserait. On dit alors ce qui est, plutot que
+                     de tendre un lien mort. Reset et Remove, eux, restent
+                     disponibles : c'est precisement l'etat ou il faut pouvoir
+                     agir. --}}
+                @if($sandbox->trashed())
+                    <p data-sandbox-trashed class="rounded-lg border border-amber-400 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:text-amber-300">
+                        {{ __('admin.scenario_manager.sandbox_trashed') }}
+                    </p>
+                @else
+                    <a href="{{ route('admin.organizations.edit', $sandbox) }}"
+                       data-sandbox-open
+                       class="rounded-lg border border-indigo-400 px-3 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-600 dark:text-indigo-300 dark:hover:bg-indigo-900/40">
+                        {{ __('admin.scenario_manager.sandbox_open') }}
+                    </a>
+                @endif
+
+                {{-- Reinitialiser rejoue le monde : c'est un geste qui EFFACE
+                     ce qu'on a fait dans la sandbox. Il avait moins de
+                     protection que Retirer, alors qu'il s'emploie bien plus
+                     souvent — la protection etait a l'envers de l'effet. --}}
+                <details class="rounded-lg border border-indigo-400 p-3 dark:border-indigo-600">
+                    <summary class="cursor-pointer text-sm font-semibold text-indigo-800 dark:text-indigo-300">{{ __('admin.scenario_manager.sandbox_reset') }}</summary>
+                    <p class="mt-2 max-w-xs text-xs text-indigo-700 dark:text-indigo-400">{{ __('admin.scenario_manager.sandbox_reset_hint') }}</p>
+                    <form method="POST" action="{{ route('admin.outils.scenarios.reset', $version) }}" class="mt-2">
+                        @csrf
+                        <button type="submit" class="rounded-lg bg-indigo-700 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-800">
+                            {{ __('admin.scenario_manager.sandbox_reset_confirm') }}
+                        </button>
+                    </form>
+                </details>
+
+                <details class="rounded-lg border border-red-300 p-3 dark:border-red-800">
+                    <summary class="cursor-pointer text-sm font-semibold text-red-700 dark:text-red-400">{{ __('admin.scenario_manager.sandbox_remove') }}</summary>
+                    <p class="mt-2 max-w-xs text-xs text-gray-700 dark:text-gray-300">{{ __('admin.scenario_manager.sandbox_remove_hint') }}</p>
+                    <form method="POST" action="{{ route('admin.outils.scenarios.remove', $version) }}" class="mt-2">
+                        @csrf
+                        <button type="submit" class="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700">
+                            {{ __('admin.scenario_manager.sandbox_remove') }}
+                        </button>
+                    </form>
+                </details>
+            </div>
+        </section>
+    @elseif($version->isValid())
+        <div class="mb-6 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+            <a href="{{ route('admin.outils.scenarios.approval', $version) }}"
+               class="inline-flex rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+                {{ __('admin.scenario_manager.approval_title') }}
+            </a>
+        </div>
+    @endif
+
     {{-- Onglets (CDC 11.3). Des LIENS, pas du JavaScript : chaque onglet a son
          URL, donc se partage et se recharge. --}}
     <nav class="mb-4 flex flex-wrap gap-2 border-b border-gray-200 pb-2 dark:border-gray-700">

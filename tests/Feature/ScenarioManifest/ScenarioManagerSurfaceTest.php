@@ -129,15 +129,25 @@ class ScenarioManagerSurfaceTest extends TestCase
 
         ksort($mutantes);
 
+        // Par ordre alphabetique, comme `ksort` les rend : `assertSame`
+        // compare aussi l'ORDRE d'un tableau associatif. Cinq viennent du CRUD
+        // de T1649 ; quatre du cycle de vie de T1650, ou `approve` est l'etape
+        // HUMAINE, seule porte vers un Load, et `remove` detruit une SANDBOX
+        // et non la definition — ce qui en fait un geste distinct de
+        // `destroy` (CDC 14.3).
         $this->assertSame([
+            'admin.outils.scenarios.approve' => 'POST',
             'admin.outils.scenarios.destroy' => 'DELETE',
             'admin.outils.scenarios.duplicate' => 'POST',
+            'admin.outils.scenarios.load' => 'POST',
+            'admin.outils.scenarios.remove' => 'POST',
+            'admin.outils.scenarios.reset' => 'POST',
             'admin.outils.scenarios.store' => 'POST',
             'admin.outils.scenarios.update' => 'PUT',
             'admin.outils.scenarios.validate' => 'POST',
-        ], $mutantes, 'T1649 livre le CRUD, et rien de plus que ces cinq ecritures.');
+        ], $mutantes, 'T1649 et T1650 livrent ces neuf ecritures, et rien de plus.');
 
-        // Les quatre routes de LECTURE, nommement et positivement.
+        // Les routes de LECTURE, nommement et positivement.
         //
         // Asserter qu'elles ne figurent pas dans l'ensemble ci-dessus serait
         // une assertion MORTE : si cet ensemble vaut exactement les cinq cles
@@ -149,6 +159,7 @@ class ScenarioManagerSurfaceTest extends TestCase
             'admin.outils.scenarios.show',
             'admin.outils.scenarios.edit',
             'admin.outils.scenarios.export',
+            'admin.outils.scenarios.approval',
         ];
 
         foreach ($lectures as $nom) {

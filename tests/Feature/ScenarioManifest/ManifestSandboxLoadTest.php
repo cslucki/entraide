@@ -122,10 +122,30 @@ class ManifestSandboxLoadTest extends TestCase
         );
 
         $this->assertSame('Nora', $owner->first_name);
-        $this->assertTrue((bool) $owner->is_admin, "AMT declares Nora with the organization role 'admin'.");
 
-        // `organization_role: member` ne doit JAMAIS produire un admin.
-        $this->assertSame(1, User::query()->where('organization_id', $organization->id)->where('is_admin', true)->count());
+        // TASK-1650 — `organization_role: admin` passe par la primitive
+        // TENANT, JAMAIS par le predicat plateforme.
+        //
+        // Ce test affirmait exactement l'inverse : il exigeait
+        // `is_admin === true` pour Nora, et verrouillait donc une elevation
+        // de privilege. Dans ce depot `is_admin` ouvre tout `/admin` et donne
+        // l'acces transverse a TOUTES les Organizations : un manifeste ne
+        // doit pas pouvoir l'accorder.
+        $this->assertFalse((bool) $owner->is_admin, 'Un persona ne recoit JAMAIS le privilege plateforme.');
+
+        $this->assertSame(
+            $owner->id,
+            $organization->fresh()->admin_id,
+            "AMT declare Nora 'admin' : elle devient responsable de l Organization."
+        );
+
+        // AUCUN persona, quel que soit son role declare, ne porte le predicat
+        // plateforme.
+        $this->assertSame(
+            0,
+            User::query()->where('organization_id', $organization->id)->where('is_admin', true)->count(),
+            'Aucun compte de sandbox ne doit avoir d acces transverse.'
+        );
     }
 
     public function test_personas_receive_a_sandbox_scoped_fictional_identity(): void

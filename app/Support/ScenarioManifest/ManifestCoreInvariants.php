@@ -75,8 +75,13 @@ final class ManifestCoreInvariants
     private function validateUsers(ManifestGraph $graph, ManifestErrorBag $errors): void
     {
         $seenEmails = [];
+        $responsables = [];
 
         foreach ($graph->collection('users') as $index => $user) {
+            if (($user->organization_role ?? null) === 'admin') {
+                $responsables[] = is_string($user->key ?? null) ? $user->key : ('#'.$index);
+            }
+
             $email = $user->email ?? null;
 
             if (is_string($email)) {
@@ -115,6 +120,38 @@ final class ManifestCoreInvariants
                 $errors->add(ManifestErrorCode::MISSING_FIELD, $this->at($graph, 'users', $index, 'member_ai_profile', 'skills'), 'A published member AI profile requires at least one skill or one problem helped.');
             }
         }
+
+        $this->validateResponsableUnique($responsables, $errors);
+    }
+
+    /**
+     * Au plus UN persona responsable (TASK-1650).
+     *
+     * Verdict MASTER du 27/09 : « Manifest V1 accepte 0 ou 1
+     * `organization_role = admin`. A partir de 2, le Manifest est INVALID. »
+     *
+     * La raison est dans le modele, pas dans le gout : la responsabilite d'une
+     * Organization est portee par `organizations.admin_id`, qui est SINGULIER.
+     * Un document qui en declare deux ne decrit pas un monde plus riche, il
+     * decrit un monde IMPOSSIBLE — et laisser le loader trancher reviendrait a
+     * choisir un privilege en silence.
+     *
+     * Zero reste valide : une Organization sans responsable est un etat normal
+     * du produit, et rien n'oblige un scenario a en nommer un.
+     *
+     * @param  list<string>  $responsables
+     */
+    private function validateResponsableUnique(array $responsables, ManifestErrorBag $errors): void
+    {
+        if (count($responsables) <= 1) {
+            return;
+        }
+
+        $errors->add(ManifestErrorCode::LIMIT_EXCEEDED, '/users', sprintf(
+            'At most one user may declare organization_role=admin; %d do: %s.',
+            count($responsables),
+            implode(', ', $responsables),
+        ));
     }
 
     private function validateLoops(ManifestGraph $graph, ManifestErrorBag $errors): void

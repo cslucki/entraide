@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ScenarioManifestVersion;
 use App\Support\ScenarioManifest\ManifestSchema;
+use App\Support\ScenarioManager\ScenarioLifecycleService;
 use App\Support\ScenarioManager\ScenarioPreview;
 use App\Support\ScenarioManager\ScenarioVersionRefused;
 use App\Support\ScenarioManager\ScenarioVersionWriter;
@@ -194,10 +195,10 @@ class AdminScenarioManagerController extends Controller
      * brouillon invalide doit rester consultable — c'est meme a cela que sert
      * le Preview.
      *
-     * Aucune relation n'est prechargee : cet ecran lit le DOCUMENT et les
-     * colonnes administratives, et n'affiche ni auteur, ni approbateur, ni
-     * parent, ni sandbox. Precharger ce qu'on ne rend pas, c'est payer des
-     * requetes pour rien.
+     * Une seule relation est prechargee, et seulement par CET ecran quand la
+     * version est chargee : la sandbox, parce que le CDC 13.5 demande
+     * d'afficher l'Organization creee, son slug REEL, sa date et son digest.
+     * Precharger ce qu'on ne rend pas reste payer des requetes pour rien.
      */
     public function show(Request $request, ScenarioManifestVersion $version): View
     {
@@ -208,6 +209,10 @@ class AdminScenarioManagerController extends Controller
 
         if (! array_key_exists($onglet, $onglets)) {
             $onglet = 'resume';
+        }
+
+        if ($version->isLoaded()) {
+            $version->load('scenarioPackLoad.organization');
         }
 
         return view('admin.outils.scenario-detail', [
@@ -386,6 +391,85 @@ class AdminScenarioManagerController extends Controller
                 ->withInput()
                 ->withErrors(['scenario' => __($refus->translationKey(), $refus->parametres)]);
         }
+    }
+
+    /**
+     * L'ecran d'approbation (CDC 12.2).
+     *
+     * « VALID techniquement ne signifie pas encore autorise a Load. Le
+     * SuperAdmin doit confirmer le contenu EXACT. » L'ecran montre donc ce
+     * qu'il y a DANS le monde — compteurs, digest, zero erreur — et pas
+     * seulement le nom du scenario. On approuve un contenu, pas un titre.
+     */
+    public function approval(ScenarioManifestVersion $version): View
+    {
+        return view('admin.outils.scenario-approbation', [
+            'version' => $version,
+            'compteurs' => is_array($version->validation_summary['counters'] ?? null)
+                ? $version->validation_summary['counters']
+                : [],
+            'verdict' => $version->validation_summary['verdict'] ?? null,
+            'erreurs' => is_array($version->validation_summary['errors'] ?? null)
+                ? $version->validation_summary['errors']
+                : [],
+            'dejaApprouve' => $version->approvalMatchesCurrentDigest(),
+        ]);
+    }
+
+    public function approve(Request $request, ScenarioManifestVersion $version, ScenarioLifecycleService $cycle): RedirectResponse
+    {
+        return $this->enRepondantAuxRefus(function () use ($request, $version, $cycle) {
+            $cycle->approve($version, $request->user());
+
+            return redirect()
+                ->route('admin.outils.scenarios.approval', $version)
+                ->with('status', __('admin.scenario_manager.flash_approved'));
+        });
+    }
+
+    /**
+     * Load (CDC 13.4 et 13.5).
+     *
+     * Le resultat dit s'il s'agit d'un REJEU : meme `(pack_id,
+     * manifest_digest)` rend le chargement existant, et l'ecran doit alors
+     * dire « deja charge », pas une erreur (CDC 13.3).
+     */
+    public function load(ScenarioManifestVersion $version, ScenarioLifecycleService $cycle): RedirectResponse
+    {
+        return $this->enRepondantAuxRefus(function () use ($version, $cycle) {
+            $resultat = $cycle->load($version);
+
+            return redirect()
+                ->route('admin.outils.scenarios.show', $version)
+                ->with('status', __(
+                    $resultat->wasReplay
+                        ? 'admin.scenario_manager.flash_already_loaded'
+                        : 'admin.scenario_manager.flash_loaded',
+                    ['slug' => $resultat->sandboxSlug()]
+                ));
+        });
+    }
+
+    public function reset(ScenarioManifestVersion $version, ScenarioLifecycleService $cycle): RedirectResponse
+    {
+        return $this->enRepondantAuxRefus(function () use ($version, $cycle) {
+            $sandbox = $cycle->reset($version);
+
+            return redirect()
+                ->route('admin.outils.scenarios.show', $version)
+                ->with('status', __('admin.scenario_manager.flash_reset', ['slug' => $sandbox->slug]));
+        });
+    }
+
+    public function removeSandbox(ScenarioManifestVersion $version, ScenarioLifecycleService $cycle): RedirectResponse
+    {
+        return $this->enRepondantAuxRefus(function () use ($version, $cycle) {
+            $cycle->remove($version);
+
+            return redirect()
+                ->route('admin.outils.scenarios.show', $version)
+                ->with('status', __('admin.scenario_manager.flash_removed'));
+        });
     }
 
     /**
