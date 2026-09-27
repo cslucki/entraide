@@ -96,7 +96,7 @@
 
         {{-- ============================ GENERAL ======================== --}}
         <section x-show="onglet === 'general'" data-panel="general">
-            <form method="POST" action="{{ route('admin.outils.scenarios.visual.general', $version) }}" class="space-y-4">
+            <form method="POST" action="{{ route('admin.outils.scenarios.visual.general', $version) }}" data-form="general" class="space-y-4">
                 @csrf
                 @method('PUT')
 
@@ -201,7 +201,7 @@
                 <details class="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
                     <summary class="cursor-pointer text-sm font-semibold text-indigo-700 dark:text-indigo-300">{{ __('admin.scenario_manager.visual_add_person') }}</summary>
 
-                    <form method="POST" action="{{ route('admin.outils.scenarios.visual.person.store', $version) }}" class="mt-4 space-y-4">
+                    <form method="POST" action="{{ route('admin.outils.scenarios.visual.person.store', $version) }}" data-form="person-create" class="mt-4 space-y-4">
                         @csrf
 
                         <div class="grid gap-4 sm:grid-cols-2">
@@ -303,7 +303,7 @@
                     <details class="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
                         <summary class="cursor-pointer text-sm font-semibold text-indigo-700 dark:text-indigo-300">{{ __('admin.scenario_manager.visual_add_loop') }}</summary>
 
-                        <form method="POST" action="{{ route('admin.outils.scenarios.visual.loop.store', $version) }}" class="mt-4 space-y-4">
+                        <form method="POST" action="{{ route('admin.outils.scenarios.visual.loop.store', $version) }}" data-form="loop-create" class="mt-4 space-y-4">
                             @csrf
 
                             <label class="block">
