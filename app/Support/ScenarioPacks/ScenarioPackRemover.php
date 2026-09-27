@@ -34,12 +34,39 @@ class ScenarioPackRemover
 {
     public function __construct(private readonly ScenarioPackEntityPurger $purger = new ScenarioPackEntityPurger) {}
 
+    /**
+     * Verrouille la ligne de l'Organization, y compris en CORBEILLE.
+     *
+     * TASK-1650, trouve en revue : `Organization` est en SoftDeletes, donc
+     * `lockForUpdate()->first()` sous la portee par defaut rend `null` sur une
+     * sandbox mise a la corbeille — AUCUNE ligne n'est verrouillee, et comme
+     * le retour etait jete, rien ne le disait. Deux retraits concurrents sur
+     * une sandbox en corbeille n'etaient serialises par rien.
+     *
+     * Le `null` restant signifie que la ligne n'existe plus du tout : agir
+     * dessus n'aurait aucun sens, on s'arrete.
+     */
+    private static function verrouiller(Organization $organization): void
+    {
+        $verrouillee = Organization::query()
+            ->withTrashed()
+            ->whereKey($organization->id)
+            ->lockForUpdate()
+            ->first();
+
+        if ($verrouillee === null) {
+            throw new \LogicException(
+                'Organization introuvable au moment de verrouiller : '.$organization->id
+            );
+        }
+    }
+
     public function remove(string $packId, Organization $organization): void
     {
         ScenarioPackOrganizationGuard::assertAllowed($organization);
 
         DB::transaction(function () use ($packId, $organization) {
-            Organization::query()->whereKey($organization->id)->lockForUpdate()->first();
+            self::verrouiller($organization);
 
             $load = ScenarioPackLoad::query()
                 ->where('organization_id', $organization->id)

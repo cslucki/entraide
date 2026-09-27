@@ -50,9 +50,23 @@ class ScenarioPackLoad extends Model
         ];
     }
 
+    /**
+     * La sandbox de ce chargement, MEME en corbeille.
+     *
+     * TASK-1650, trouve en revue : `Organization` est en SoftDeletes. Sans
+     * `withTrashed()`, une sandbox mise a la corbeille rendait cette relation
+     * nulle, l'ecran de la version perdait son panneau — donc Reset et Remove
+     * — et proposait « Approuver » a la place. La sandbox et ses comptes
+     * redevenaient irretirables PAR L'ECRAN, ce que cette TASK repare
+     * justement cote service.
+     *
+     * Un chargement designe sa sandbox : que quelqu'un l'ait mise a la
+     * corbeille ne la fait pas cesser d'exister, et c'est precisement l'etat
+     * ou il faut pouvoir agir.
+     */
     public function organization(): BelongsTo
     {
-        return $this->belongsTo(Organization::class);
+        return $this->belongsTo(Organization::class)->withTrashed();
     }
 
     public function entities(): HasMany

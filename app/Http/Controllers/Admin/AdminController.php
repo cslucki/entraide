@@ -181,6 +181,10 @@ class AdminController extends Controller
     {
         $organization = $this->resolveOrganizationFromInput($request->input('organization_id'));
 
+        if ($refus = $this->refuserSiSandboxScenarioManager($user, $organization)) {
+            return $refus;
+        }
+
         $data = $request->validate([
             'first_name' => 'nullable|string|max:255',
             'name' => 'required|string|max:255',
@@ -386,6 +390,10 @@ class AdminController extends Controller
 
         $organization = $this->resolveOrganizationFromInput($data['organization_id'] ?? null);
 
+        if ($refus = $this->refuserSiSandboxScenarioManager($user, $organization)) {
+            return $refus;
+        }
+
         $user->update([
             'organization_id' => $organization->id,
         ]);
@@ -450,6 +458,71 @@ class AdminController extends Controller
         throw ValidationException::withMessages([
             'organization_id' => 'Aucune organisation par défaut active n\'est disponible.',
         ]);
+    }
+
+    /**
+     * TASK-1650 — une sandbox Scenario Manager n'est pas une Organization
+     * comme les autres, et cette surface generique ne doit pas y toucher.
+     *
+     * ## Le sinistre, mesure par deux relecteurs independants
+     *
+     * Rien a forcer, rien a deviner : cet ecran accepte n'importe quelle
+     * Organization. On place un vrai prospect dans une sandbox, il ecrit dans
+     * un ChatLoop, on le remet ensuite dans sa vraie Organization — puis le
+     * Scenario Manager reinitialise ou retire la sandbox, et les Boucles
+     * partent avec `loop_messages` en CASCADE. Ses messages sont detruits, et
+     * plus personne ne sait qu'ils ont existe.
+     *
+     * Le preflight du Scenario Manager DETECTE cette contamination avant de
+     * detruire. Mais detecter n'est pas empecher : verdict MASTER du 27/09,
+     * « tant qu'une surface PROD existante permet d'injecter un vrai
+     * utilisateur dans leur cible, leur securite n'est pas fermee ».
+     *
+     * ## Les deux sens, pas un seul
+     *
+     * Interdire l'entree laisserait la SORTIE ouverte, et c'est exactement le
+     * chemin qui rend le contenu orphelin : la personne s'en va, son contenu
+     * reste dans la sandbox et meurt avec elle. Source OU destination sandbox
+     * : refus.
+     *
+     * ## Ce que ce refus n'est PAS
+     *
+     * Ni un systeme de roles, ni une refonte de cet ecran, ni une migration.
+     * Les personas d'une sandbox appartiennent au Scenario Manager, qui les
+     * cree et les detruit ; les comptes reels appartiennent aux vraies
+     * Organizations. Le refus ne fait que dire ou passe la frontiere.
+     */
+    private function refuserSiSandboxScenarioManager(User $user, Organization $destination): ?RedirectResponse
+    {
+        // Rien ne BOUGE : il n'y a rien a interdire.
+        //
+        // Sans cette sortie, corriger le nom d'un persona depuis sa fiche
+        // devenait impossible — la fiche renvoie l'Organization courante, et
+        // la garde la lisait comme une affectation vers une sandbox. Une
+        // garde qui gele ce qu'elle protege finit par etre retiree.
+        if ($user->organization_id !== null && $destination->getKey() === $user->organization_id) {
+            return null;
+        }
+
+        if ($destination->scenario_sandbox_created_at !== null) {
+            return back()->with('error', sprintf(
+                "« %s » est une sandbox de scenario : on n'y affecte pas de compte depuis cet ecran. Les personas d'une sandbox sont geres par le Scenario Manager.",
+                $destination->name
+            ));
+        }
+
+        $origine = $user->organization_id === null
+            ? null
+            : Organization::withTrashed()->find($user->organization_id);
+
+        if ($origine !== null && $origine->scenario_sandbox_created_at !== null) {
+            return back()->with('error', sprintf(
+                "Ce compte est rattache a la sandbox de scenario « %s » : il ne se deplace pas depuis cet ecran. Son contenu resterait dans la sandbox et serait detruit avec elle.",
+                $origine->name
+            ));
+        }
+
+        return null;
     }
 
     private function adminOrganizations(): Collection

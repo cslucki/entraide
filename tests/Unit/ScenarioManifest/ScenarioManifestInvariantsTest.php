@@ -314,6 +314,47 @@ class ScenarioManifestInvariantsTest extends TestCase
         });
     }
 
+    public function test_two_personas_declaring_the_admin_role_make_the_manifest_invalid(): void
+    {
+        // Verdict MASTER du 27/09 : « Manifest V1 accepte 0 ou 1
+        // organization_role = admin. A partir de 2, le Manifest est INVALID. »
+        //
+        // La raison est dans le modele : la responsabilite d'une Organization
+        // est portee par `organizations.admin_id`, qui est SINGULIER. Deux
+        // responsables ne decrivent pas un monde plus riche, ils decrivent un
+        // monde impossible — et laisser le chargeur trancher reviendrait a
+        // choisir un privilege en silence.
+        $this->assertRefuses('LIMIT_EXCEEDED', '/users', static function (\stdClass $m): void {
+            $seconds = 0;
+
+            foreach ($m->users as $user) {
+                if (($user->organization_role ?? null) !== 'admin') {
+                    $user->organization_role = 'admin';
+                    $seconds++;
+                }
+
+                if ($seconds === 1) {
+                    return;
+                }
+            }
+        });
+    }
+
+    public function test_a_manifest_without_any_admin_persona_stays_valid(): void
+    {
+        // L'AUTRE sens, et il compte autant : zero responsable est un etat
+        // LEGITIME du produit. Une regle posee « au moins un » aurait invalide
+        // des documents parfaitement chargeables, et c'est exactement le genre
+        // de garde trop stricte qu'on finit par desactiver.
+        $manifeste = AmtReferenceManifest::mutate(static function (\stdClass $m): void {
+            foreach ($m->users as $user) {
+                $user->organization_role = 'member';
+            }
+        });
+
+        $this->assertSame(ManifestValidationResult::VALID, $this->validator->validate($manifeste)->verdict());
+    }
+
     public function test_a_string_longer_than_its_limit_is_refused(): void
     {
         $this->assertRefuses('VALUE_TOO_LONG', '/name', static fn (\stdClass $m) => $m->name = str_repeat('a', 121));

@@ -144,9 +144,14 @@ class ManifestScenarioPack implements ScenarioPackDefinition
     private function applyUsers(Organization $organization, ScenarioPackEntityRegistrar $registrar): array
     {
         $users = [];
+        $responsables = [];
 
         foreach ($this->manifest->collection('users') as $declared) {
             $key = (string) $declared->key;
+
+            if ($declared->organization_role === 'admin') {
+                $responsables[] = $key;
+            }
 
             $user = User::updateOrCreate(
                 ['email' => $this->sandboxEmail($organization, (string) $declared->email)],
@@ -157,10 +162,25 @@ class ManifestScenarioPack implements ScenarioPackDefinition
                     'bio' => $declared->bio,
                     'location' => $declared->location,
                     'is_available' => (bool) $declared->available,
-                    // `organization_role` vaut `admin` ou `member`, jamais
-                    // `superadmin` : le Validator le refuse deja, et rien ici
-                    // ne pourrait l'accorder.
-                    'is_admin' => $declared->organization_role === 'admin',
+                    // JAMAIS de privilege PLATEFORME pour un persona.
+                    //
+                    // Ce champ valait `$declared->organization_role === 'admin'`,
+                    // et le commentaire d'a cote affirmait que rien ici ne
+                    // pouvait accorder `superadmin`. C'etait faux : dans ce
+                    // depot `is_admin` n'est pas un role d'Organization, c'est
+                    // le predicat PLATEFORME — il ouvre tout `/admin` et donne
+                    // l'acces transverse a TOUTES les Organizations. Un
+                    // manifeste pouvait donc fabriquer des comptes capables de
+                    // lire tous les tenants ; seul un mot de passe aleatoire
+                    // les en separait.
+                    //
+                    // Verdict MASTER : `ALL_MANIFEST_PERSONAS_IS_ADMIN = FALSE`
+                    // et `MANIFEST_ADMIN_TO_PLATFORM_IS_ADMIN = FORBIDDEN`.
+                    // `organization_role = admin` passe desormais par la
+                    // primitive TENANT qui existe deja — `organizations.admin_id`,
+                    // que les packs historiques emploient et que le purger sait
+                    // deja detacher. Aucun nouveau systeme de permissions.
+                    'is_admin' => false,
                     'preferred_locale' => $this->manifest->locale(),
                     'password' => Hash::make(bin2hex(random_bytes(16))),
                     'banned_at' => null,
@@ -193,7 +213,60 @@ class ManifestScenarioPack implements ScenarioPackDefinition
             $users[$key] = $user;
         }
 
+        $this->appliquerLaResponsabilite($organization, $users, $responsables);
+
         return $users;
+    }
+
+    /**
+     * `organization_role: admin` — par la primitive TENANT, pas par le role
+     * plateforme.
+     *
+     * Le depot possede deja `organizations.admin_id` comme responsabilite
+     * d'Organization ; les packs historiques l'emploient, et le purger sait
+     * deja le detacher avant de supprimer un persona. On s'y branche plutot
+     * que d'inventer un systeme de permissions.
+     *
+     * ## La cardinalite, et pourquoi on REFUSE au lieu de choisir
+     *
+     * `admin_id` est SINGULIER. Or le Validator n'impose aujourd'hui aucune
+     * regle : un manifeste peut declarer zero, un, ou dix `admin` (mesure :
+     * le manifeste de reference en declare exactement un sur 22 personas,
+     * mais rien ne l'y oblige).
+     *
+     * - zero : `admin_id` reste tel quel. Une Organization sans responsable
+     *   est un etat legitime du produit.
+     * - un : il devient responsable.
+     * - plusieurs : on REFUSE, en les NOMMANT. Prendre le premier ou le
+     *   dernier serait un choix silencieux sur une question de privilege —
+     *   exactement ce qu'il ne faut jamais faire. La regle definitive est en
+     *   arbitrage ; ce fail-closed est le comportement sur lequel on ne peut
+     *   pas se tromper en attendant.
+     *
+     * @param  array<string, User>  $users
+     * @param  list<string>  $responsables
+     */
+    private function appliquerLaResponsabilite(Organization $organization, array $users, array $responsables): void
+    {
+        if ($responsables === []) {
+            return;
+        }
+
+        if (count($responsables) > 1) {
+            throw new \LogicException(sprintf(
+                'Le manifeste declare %d personas avec organization_role=admin (%s), or une Organization n a qu un responsable.',
+                count($responsables),
+                implode(', ', $responsables)
+            ));
+        }
+
+        $responsable = $users[$responsables[0]] ?? null;
+
+        if ($responsable === null) {
+            return;
+        }
+
+        $organization->forceFill(['admin_id' => $responsable->id])->save();
     }
 
     /**
