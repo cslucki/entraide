@@ -4,15 +4,16 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ScenarioManifestVersion;
-use App\Support\ScenarioManifest\ManifestSchema;
 use App\Support\ScenarioManager\ScenarioLifecycleService;
 use App\Support\ScenarioManager\ScenarioPreview;
 use App\Support\ScenarioManager\ScenarioVersionRefused;
 use App\Support\ScenarioManager\ScenarioVersionWriter;
 use App\Support\ScenarioManager\ScenarioVisualEditor;
+use App\Support\ScenarioManifest\ManifestSchema;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -515,23 +516,35 @@ class AdminScenarioManagerController extends Controller
 
             $mutation($editeur);
 
-            // La porte d'ecriture unique : elle refuse une version chargee,
-            // repasse en DRAFT et efface l'approbation (CDC 12.3).
-            $writer->updateDocument($version, $editeur->json());
+            // Les DEUX ecritures dans la meme transaction.
+            //
+            // Elles ne sont pas independantes : `updateDocument()` repasse en
+            // DRAFT et efface le verdict, `revalidateAsDraft()` le reecrit. Un
+            // echec entre les deux laissait le document mute avec
+            // `digest = null` et `validation_summary = null` — precisement « un
+            // document sans verdict apres un clic », ce que ce chemin existe
+            // pour eviter. Trouve en relecture adverse.
+            $json = $editeur->json();
 
-            // Le MEME moteur de validation que le mode JSON — mais SANS
-            // promotion.
-            //
-            // Une mutation visuelle n'est pas un clic humain sur « Valider ».
-            // L'etat VALID veut dire « techniquement vert ET confirme par un
-            // humain sur un digest precis » (CDC 12.2), et cette confirmation
-            // appartient a T1650. La premiere version de cet ecran laissait
-            // une suite de modifications reconstituer un VALID que personne
-            // n'avait confirme.
-            //
-            // On rafraichit donc le verdict technique — l'ecran en a besoin
-            // pour dire ce qui manque — et l'etat reste DRAFT.
-            $writer->revalidateAsDraft($version);
+            DB::transaction(function () use ($version, $writer, $json): void {
+                // La porte d'ecriture unique : elle refuse une version chargee,
+                // repasse en DRAFT et efface l'approbation (CDC 12.3).
+                $writer->updateDocument($version, $json);
+
+                // Le MEME moteur de validation que le mode JSON — mais SANS
+                // promotion.
+                //
+                // Une mutation visuelle n'est pas un clic humain sur « Valider ».
+                // L'etat VALID veut dire « techniquement vert ET confirme par un
+                // humain sur un digest precis » (CDC 12.2), et T1650 a pose cette
+                // confirmation. La premiere version de cet ecran laissait une
+                // suite de modifications reconstituer un VALID que personne
+                // n'avait confirme.
+                //
+                // On rafraichit donc le verdict technique — l'ecran en a besoin
+                // pour dire ce qui manque — et l'etat reste DRAFT.
+                $writer->revalidateAsDraft($version);
+            });
 
             return redirect()
                 ->route('admin.outils.scenarios.visual', $version)

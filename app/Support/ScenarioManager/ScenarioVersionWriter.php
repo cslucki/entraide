@@ -210,18 +210,6 @@ class ScenarioVersionWriter
     }
 
     /**
-     * L'etape TECHNIQUE de la validation (CDC 12.1).
-     *
-     * Elle ecrit ce que le Validator a constate — digest, compteurs, erreurs —
-     * et fait passer DRAFT -> VALID sur un verdict VALID. Elle n'APPROUVE
-     * rien : `approved_digest`, `approved_by` et `approved_at` restent la
-     * marque de l'etape HUMAINE (CDC 12.2), qui est la seule porte vers un
-     * Load et qui arrive en T1650.
-     *
-     * Une version chargee n'est pas revalidee : son document ne peut pas avoir
-     * change, puisqu'il ne peut pas etre modifie.
-     */
-    /**
      * TASK-1651 — revalider SANS jamais promouvoir.
      *
      * ## Trois choses distinctes, que le mot « valider » confondait
@@ -229,8 +217,7 @@ class ScenarioVersionWriter
      * - la VALIDATION TECHNIQUE : le Validator dit si le document est bien
      *   forme et coherent. C'est une mesure, pas une decision.
      * - l'APPROBATION HUMAINE : un SuperAdmin confirme un digest PRECIS
-     *   (CDC 12.2). C'est la seule porte vers un Load, et elle appartient a
-     *   T1650.
+     *   (CDC 12.2). C'est la seule porte vers un Load, et T1650 l'a posee.
      * - l'etat VALID : il signifie « techniquement vert ET confirme par un
      *   humain ». Il ne se gagne donc jamais tout seul.
      *
@@ -262,6 +249,21 @@ class ScenarioVersionWriter
         return $version;
     }
 
+    /**
+     * L'etape TECHNIQUE de la validation (CDC 12.1).
+     *
+     * Elle ecrit ce que le Validator a constate — digest, compteurs, erreurs —
+     * et fait passer DRAFT -> VALID sur un verdict VALID. Elle n'APPROUVE
+     * rien : `approved_digest`, `approved_by` et `approved_at` restent la
+     * marque de l'etape HUMAINE (CDC 12.2), posee par T1650, et qui est la
+     * seule porte vers un Load.
+     *
+     * Une version chargee n'est pas revalidee : son document ne peut pas avoir
+     * change, puisqu'il ne peut pas etre modifie.
+     *
+     * {@see revalidateAsDraft()} partage le meme moteur et NE promeut pas :
+     * c'est la porte des mutations qui ne sont pas un clic humain.
+     */
     public function validate(ScenarioManifestVersion $version): ScenarioManifestVersion
     {
         $this->refuserSiChargee($version);

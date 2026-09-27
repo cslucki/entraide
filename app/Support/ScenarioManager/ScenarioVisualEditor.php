@@ -2,6 +2,8 @@
 
 namespace App\Support\ScenarioManager;
 
+use App\Support\ScenarioManifest\ManifestSchema;
+
 /**
  * TASK-1651 — les mutations BORNEES du document, sans jamais quitter
  * `json_source`.
@@ -88,7 +90,13 @@ final class ScenarioVisualEditor
     {
         $document = json_decode($json, true);
 
-        if (! is_array($document)) {
+        // Un manifeste est un OBJET. `is_array()` seul laissait passer une
+        // LISTE — `[1,2,3]` decode en tableau et etait accepte comme document,
+        // alors qu'aucune de ses valeurs n'a de nom. L'ecran visuel s'ouvrait
+        // alors en mode editable sur un document qui n'en est pas un, et la
+        // premiere sauvegarde l'aurait reecrit. Trouve par le test de l'autre
+        // sens, pas par la relecture.
+        if (! is_array($document) || ($document !== [] && array_is_list($document))) {
             throw ScenarioVersionRefused::unparsableSource();
         }
 
@@ -105,10 +113,23 @@ final class ScenarioVisualEditor
 
     public function json(): string
     {
-        return json_encode(
-            $this->document,
-            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-        );
+        try {
+            return json_encode(
+                $this->document,
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+            );
+        } catch (\JsonException) {
+            // Le MEME refus que la porte d'ecriture, pour la meme cause.
+            //
+            // `ScenarioVersionWriter::encoder()` avait ferme ce trou ; l'appeler
+            // ici, en ARGUMENT de `updateDocument()`, le reouvrait : l'exception
+            // partait avant que la garde du writer soit atteinte, et un octet
+            // UTF-8 invalide dans un nom de Boucle rendait 500 au lieu d'un
+            // refus lisible. Aucune regle de validation ne controle l'encodage,
+            // et `TrimStrings` retombe sur `trim()` quand le motif `/u` echoue :
+            // l'octet arrive donc jusqu'ici. Defaut trouve en relecture adverse.
+            throw ScenarioVersionRefused::binaryContent();
+        }
     }
 
     // =====================================================================
@@ -295,6 +316,21 @@ final class ScenarioVisualEditor
         $index = $this->indexDe('loops', $cle);
         $ancienProprietaire = (string) ($this->document['loops'][$index]['owner'] ?? '');
 
+        // Meme garde qu'a la creation. Sans elle, une requete forgee posait
+        // `owner = 'fantome'` : la Boucle, son membership, le Dossier racine ET
+        // l'auteur de son document racine partaient tous vers une personne
+        // inexistante, rendant invalide un document qui etait VALID — et le
+        // mode visuel n'offrait aucun geste pour revenir en arriere. Defaut
+        // trouve en relecture adverse : la creation refusait, la modification
+        // acceptait.
+        $proprietairePropose = $valeurs['owner'] ?? null;
+
+        if ($proprietairePropose !== null
+            && (string) $proprietairePropose !== $ancienProprietaire
+            && $this->chercher('users', (string) $proprietairePropose) === null) {
+            throw ScenarioVersionRefused::noPersona();
+        }
+
         foreach (self::CHAMPS_BOUCLE as $champ) {
             if (array_key_exists($champ, $valeurs)) {
                 $this->document['loops'][$index][$champ] = $valeurs[$champ];
@@ -456,10 +492,33 @@ final class ScenarioVisualEditor
      * Refuse si quoi que ce soit, dans TOUT le document, designe encore cette
      * clef.
      *
-     * Le document est PARCOURU, collection par collection, a toute profondeur.
-     * Aucune liste de champs referents n'est ecrite ici : T1650 a montre
-     * qu'une telle liste se perime en silence, et qu'une collection ajoutee
-     * plus tard au Manifest serait ignoree sans que rien ne le signale.
+     * ## L'autorite est le SCHEMA, jamais la forme du document
+     *
+     * `ManifestSchema` declare chaque reference par
+     * `['type' => 'ref', 'collection' => '...']`. C'est la SEULE chose au
+     * depot qui sache vers quelle collection pointe un champ, et c'est donc la
+     * seule lecture correcte. Deux defauts trouves en relecture adverse
+     * l'imposent, et aucun des deux n'etait visible depuis le code precedent :
+     *
+     * 1. Un parcours par la FORME du document sautait `training` en ENTIER.
+     *    C'est un objet dans l'enveloppe, pas une liste, et le parcours ne
+     *    descendait que dans les listes de premier niveau. Cinq collections
+     *    disparaissaient — `modules`, `sequences`, `progress`, `assignments`,
+     *    `submissions` — dont quatre designent une Boucle ou une personne
+     *    (`modules.loop`, `assignments.loop`, `progress.user`,
+     *    `submissions.user`). Supprimer la Boucle qui porte des modules
+     *    passait sans un mot et laissait `modules[].loop` dans le vide.
+     *
+     * 2. Comparer des CHAINES sans savoir ou pointe le champ fabrique de FAUX
+     *    refus. Une stable key n'est unique QUE dans sa collection : une
+     *    personne « alice » et une Boucle « alice » coexistent legitimement.
+     *    L'ancien parcours refusait alors de supprimer la personne au motif
+     *    que `memberships[].loop` valait « alice » — une reference vers la
+     *    BOUCLE. La personne devenait indelogeable en mode visuel.
+     *
+     * Le parcours par le schema n'a pas ces deux angles morts, et il suit
+     * automatiquement toute collection ou tout champ referent ajoute plus tard
+     * au Manifest.
      *
      * @param  array<string, \Closure(array<string, mixed>): bool>  $exclure
      *                                                                        lignes qui PARTENT avec l'objet supprime, par collection
@@ -468,28 +527,35 @@ final class ScenarioVisualEditor
     {
         $bloquantes = [];
 
-        foreach ($this->document as $nom => $contenu) {
-            if (! is_array($contenu) || ! array_is_list($contenu)) {
-                continue;
+        foreach (ManifestSchema::envelope() as $nom => $spec) {
+            $contenu = $this->document[$nom] ?? null;
+            $compte = 0;
+
+            if (($spec['type'] ?? null) === 'array' && is_array($contenu)) {
+                // Collection de premier niveau : l'objet supprime lui-meme et
+                // ce qui l'accompagne se jugent LIGNE par ligne.
+                foreach ($contenu as $ligne) {
+                    if (! is_array($ligne)) {
+                        continue;
+                    }
+
+                    // L'objet lui-meme n'est pas sa propre reference.
+                    if ($nom === $collection && ($ligne['key'] ?? null) === $cle) {
+                        continue;
+                    }
+
+                    if (isset($exclure[$nom]) && $exclure[$nom]($ligne)) {
+                        continue;
+                    }
+
+                    $compte += $this->compterDesignations($spec['of'] ?? [], $ligne, $collection, $cle);
+                }
+            } else {
+                $compte = $this->compterDesignations($spec, $contenu, $collection, $cle);
             }
 
-            foreach ($contenu as $ligne) {
-                if (! is_array($ligne)) {
-                    continue;
-                }
-
-                // L'objet lui-meme n'est pas sa propre reference.
-                if ($nom === $collection && ($ligne['key'] ?? null) === $cle) {
-                    continue;
-                }
-
-                if (isset($exclure[$nom]) && $exclure[$nom]($ligne)) {
-                    continue;
-                }
-
-                if ($this->designe($ligne, $cle)) {
-                    $bloquantes[$nom] = ($bloquantes[$nom] ?? 0) + 1;
-                }
+            if ($compte > 0) {
+                $bloquantes[$nom] = $compte;
             }
         }
 
@@ -501,33 +567,55 @@ final class ScenarioVisualEditor
     }
 
     /**
-     * Cette valeur designe-t-elle la clef, a n'importe quelle profondeur ?
+     * Combien de fois, sous cette portion de schema, la valeur designe-t-elle
+     * la clef de la collection VISEE ?
      *
-     * On compare des CHAINES a une stable key. Une reference Manifest est
-     * toujours une stable key en clair — jamais un UUID, jamais un index.
+     * Descend a toute profondeur : un objet imbrique (`root_document.author`)
+     * comme une collection imbriquee (`training.modules`). Un champ qui n'est
+     * pas declare `ref` ne designe rien, quelle que soit la chaine qu'il
+     * porte.
+     *
+     * @param  array<string, mixed>  $spec
      */
-    private function designe(mixed $valeur, string $cle): bool
+    private function compterDesignations(array $spec, mixed $valeur, string $collection, string $cle): int
     {
-        if (is_string($valeur)) {
-            return $valeur === $cle;
+        $type = $spec['type'] ?? null;
+
+        if ($type === 'ref') {
+            return ($spec['collection'] ?? null) === $collection && $valeur === $cle ? 1 : 0;
         }
 
-        if (! is_array($valeur)) {
-            return false;
-        }
-
-        foreach ($valeur as $champ => $enfant) {
-            // `key` est l'identite de la ligne, pas une reference vers autrui.
-            if ($champ === 'key') {
-                continue;
+        if ($type === 'object') {
+            if (! is_array($valeur)) {
+                return 0;
             }
 
-            if ($this->designe($enfant, $cle)) {
-                return true;
+            $total = 0;
+
+            foreach ($spec['fields'] ?? [] as $champ => $sousSpec) {
+                if (is_array($sousSpec) && array_key_exists($champ, $valeur)) {
+                    $total += $this->compterDesignations($sousSpec, $valeur[$champ], $collection, $cle);
+                }
             }
+
+            return $total;
         }
 
-        return false;
+        if ($type === 'array') {
+            if (! is_array($valeur)) {
+                return 0;
+            }
+
+            $total = 0;
+
+            foreach ($valeur as $element) {
+                $total += $this->compterDesignations($spec['of'] ?? [], $element, $collection, $cle);
+            }
+
+            return $total;
+        }
+
+        return 0;
     }
 
     /**
@@ -545,7 +633,12 @@ final class ScenarioVisualEditor
         $suffixe = 2;
 
         while ($this->chercher($collection, $cle) !== null) {
-            $cle = mb_substr($base, 0, 60).'-'.$suffixe;
+            $marque = (string) $suffixe;
+
+            // La place du suffixe est RESERVEE, pas supposee : couper a 60 puis
+            // ajouter « -1000 » donnait 65 caracteres, et couper au caractere
+            // pres pouvait laisser « base--2 ». Les deux violent le contrat.
+            $cle = self::borner($base, 64 - 1 - mb_strlen($marque)).'-'.$marque;
             $suffixe++;
         }
 
@@ -564,7 +657,22 @@ final class ScenarioVisualEditor
             $slug = 'k'.($slug === '' ? '' : '-'.$slug);
         }
 
-        return mb_substr($slug, 0, 64);
+        return self::borner($slug, 64);
+    }
+
+    /**
+     * Tronque SANS fabriquer une clef invalide.
+     *
+     * Couper au caractere pres peut laisser un TIRET FINAL, et le contrat
+     * `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$` exige un `[a-z0-9]` derriere chaque
+     * tiret. Un prenom de 65 caracteres — longueur que `max:80` accepte sans
+     * broncher — produisait ainsi une clef que le Validator refusait, sur un
+     * geste ou l'operateur n'avait rien fait d'anormal. Defaut trouve en
+     * relecture adverse, contre un docblock qui affirmait la conformite.
+     */
+    private static function borner(string $slug, int $longueur): string
+    {
+        return rtrim(mb_substr($slug, 0, max(1, $longueur)), '-');
     }
 
     private static function sansAccents(string $valeur): string

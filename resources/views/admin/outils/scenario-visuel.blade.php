@@ -55,6 +55,26 @@
         </div>
     @endunless
 
+    @php
+        // Le NOM d'un persona depuis sa stable key. L'ecran parle en noms ; la
+        // clef reste dans `data-*` pour la recette. Une clef inconnue se rend
+        // telle quelle plutot que de disparaitre : un document en cours de
+        // reparation doit montrer ce qui cloche.
+        $nomDuPersona = function (?string $cle) use ($personnes): string {
+            if ($cle === null || $cle === '') {
+                return '—';
+            }
+
+            foreach ($personnes as $candidat) {
+                if (($candidat['key'] ?? null) === $cle) {
+                    return trim(($candidat['first_name'] ?? '').' '.($candidat['name'] ?? '')) ?: $cle;
+                }
+            }
+
+            return $cle;
+        };
+    @endphp
+
     <div x-data="{ onglet: (window.location.hash || '#general').substring(1) }">
         <nav class="mb-6 flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700">
             @foreach(['general', 'personnes', 'boucles', 'membres'] as $onglet)
@@ -153,17 +173,17 @@
         <section x-show="onglet === 'personnes'" data-panel="personnes" style="display:none">
             <ul class="mb-6 divide-y divide-gray-200 dark:divide-gray-700">
                 @forelse($personnes as $personne)
-                    <li data-person="{{ $personne['key'] }}" class="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <li data-person="{{ $personne['key'] ?? '' }}" class="flex flex-wrap items-center justify-between gap-3 py-3">
                         <div>
-                            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $personne['first_name'] }} {{ $personne['name'] }}</p>
+                            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $personne['first_name'] ?? '' }} {{ $personne['name'] ?? '' }}</p>
                             <p class="text-xs text-gray-500 dark:text-gray-400">
-                                {{ $personne['email'] }} ·
-                                <span data-person-role="{{ $personne['organization_role'] }}">{{ __('admin.scenario_manager.visual_role_'.$personne['organization_role']) }}</span>
+                                {{ $personne['email'] ?? '' }} ·
+                                <span data-person-role="{{ $personne['organization_role'] ?? '' }}">{{ __('admin.scenario_manager.visual_role_'.($personne['organization_role'] ?? 'member')) }}</span>
                             </p>
                         </div>
 
                         @if($modifiable)
-                            <form method="POST" action="{{ route('admin.outils.scenarios.visual.person.destroy', [$version, $personne['key']]) }}">
+                            <form method="POST" action="{{ route('admin.outils.scenarios.visual.person.destroy', [$version, $personne['key'] ?? '-']) }}">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="text-xs font-semibold text-red-700 hover:underline dark:text-red-400">
@@ -240,13 +260,16 @@
         <section x-show="onglet === 'boucles'" data-panel="boucles" style="display:none">
             <ul class="mb-6 divide-y divide-gray-200 dark:divide-gray-700">
                 @forelse($boucles as $boucle)
-                    <li data-loop="{{ $boucle['key'] }}" class="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <li data-loop="{{ $boucle['key'] ?? '' }}" class="flex flex-wrap items-center justify-between gap-3 py-3">
                         <div>
-                            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $boucle['name'] }}</p>
+                            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $boucle['name'] ?? '' }}</p>
                             <p class="text-xs text-gray-500 dark:text-gray-400">
-                                {{ __('admin.scenario_manager.visual_loop_type_'.$boucle['type']) }} ·
+                                {{ __('admin.scenario_manager.visual_loop_type_'.($boucle['type'] ?? 'private')) }} ·
                                 {{ __('admin.scenario_manager.visual_loop_owner') }} :
-                                <span data-loop-owner="{{ $boucle['owner'] }}">{{ $boucle['owner'] }}</span>
+                                {{-- Le NOM du persona, pas sa stable key : cet ecran ne montre
+                                     aucune clef technique. `data-loop-owner` la garde pour la
+                                     recette, qui a besoin d'une identite stable. --}}
+                                <span data-loop-owner="{{ $boucle['owner'] ?? '' }}">{{ $nomDuPersona($boucle['owner'] ?? null) }}</span>
                             </p>
                         </div>
 
@@ -254,7 +277,7 @@
                             <details>
                                 <summary class="cursor-pointer text-xs font-semibold text-red-700 dark:text-red-400">{{ __('admin.scenario_manager.visual_delete') }}</summary>
                                 <p class="mt-2 max-w-xs text-xs text-gray-600 dark:text-gray-400">{{ __('admin.scenario_manager.visual_delete_loop_hint') }}</p>
-                                <form method="POST" action="{{ route('admin.outils.scenarios.visual.loop.destroy', [$version, $boucle['key']]) }}" class="mt-2">
+                                <form method="POST" action="{{ route('admin.outils.scenarios.visual.loop.destroy', [$version, $boucle['key'] ?? '-']) }}" class="mt-2">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700">
@@ -307,7 +330,7 @@
                                     <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('admin.scenario_manager.visual_loop_owner') }}</span>
                                     <select name="owner" class="mt-1 w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700">
                                         @foreach($personnes as $personne)
-                                            <option value="{{ $personne['key'] }}">{{ $personne['first_name'] }} {{ $personne['name'] }}</option>
+                                            <option value="{{ $personne['key'] ?? '' }}">{{ $personne['first_name'] ?? '' }} {{ $personne['name'] ?? '' }}</option>
                                         @endforeach
                                     </select>
                                 </label>
@@ -355,7 +378,7 @@
                 @php
                     $roles = [];
                     foreach ($memberships as $ligne) {
-                        $roles[$ligne['loop'].'|'.$ligne['user']] = $ligne['role'];
+                        $roles[($ligne['loop'] ?? '').'|'.($ligne['user'] ?? '')] = $ligne['role'] ?? '';
                     }
                 @endphp
 
@@ -365,25 +388,25 @@
                             <tr class="border-b border-gray-200 dark:border-gray-700">
                                 <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">{{ __('admin.scenario_manager.visual_tab_personnes') }}</th>
                                 @foreach($boucles as $boucle)
-                                    <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">{{ $boucle['name'] }}</th>
+                                    <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">{{ $boucle['name'] ?? '' }}</th>
                                 @endforeach
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                             @foreach($personnes as $personne)
                                 <tr>
-                                    <td class="px-3 py-2 text-gray-900 dark:text-gray-100">{{ $personne['first_name'] }} {{ $personne['name'] }}</td>
+                                    <td class="px-3 py-2 text-gray-900 dark:text-gray-100">{{ $personne['first_name'] ?? '' }} {{ $personne['name'] ?? '' }}</td>
 
                                     @foreach($boucles as $boucle)
-                                        @php $role = $roles[$boucle['key'].'|'.$personne['key']] ?? ''; @endphp
+                                        @php $role = $roles[($boucle['key'] ?? '').'|'.($personne['key'] ?? '')] ?? ''; @endphp
                                         <td class="px-3 py-2">
                                             <form method="POST" action="{{ route('admin.outils.scenarios.visual.membership', $version) }}">
                                                 @csrf
                                                 @method('PUT')
-                                                <input type="hidden" name="loop" value="{{ $boucle['key'] }}">
-                                                <input type="hidden" name="user" value="{{ $personne['key'] }}">
+                                                <input type="hidden" name="loop" value="{{ $boucle['key'] ?? '' }}">
+                                                <input type="hidden" name="user" value="{{ $personne['key'] ?? '' }}">
                                                 <select name="role"
-                                                        data-membership="{{ $boucle['key'] }}|{{ $personne['key'] }}"
+                                                        data-membership="{{ $boucle['key'] ?? '' }}|{{ $personne['key'] ?? '' }}"
                                                         data-role="{{ $role }}"
                                                         @disabled(! $modifiable)
                                                         onchange="this.form.submit()"

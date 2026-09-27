@@ -12,8 +12,15 @@
      pourquoi et vers quoi se tourner (CDC 8.6). Un champ grise sans
      explication passerait pour une panne. --}}
 <x-admin-layout :title="$version->name">
-    <div class="mb-4">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <a href="{{ route('admin.outils.scenarios.show', $version) }}" class="text-sm text-indigo-600 hover:underline dark:text-indigo-400">&larr; {{ __('admin.scenario_manager.editor_back') }}</a>
+
+        {{-- La reciproque du lien que l'editeur visuel porte deja vers ici :
+             les deux modes editent le MEME document, on doit pouvoir passer de
+             l'un a l'autre dans les deux sens. --}}
+        <a href="{{ route('admin.outils.scenarios.visual', $version) }}"
+           data-open-visual
+           class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">{{ __('admin.scenario_manager.visual_title') }} &rarr;</a>
     </div>
 
     <header class="mb-6 flex flex-wrap items-center gap-3">

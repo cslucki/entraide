@@ -134,9 +134,11 @@ class ScenarioManagerSurfaceTest extends TestCase
         // de T1649 ; quatre du cycle de vie de T1650, ou `approve` est l'etape
         // HUMAINE, seule porte vers un Load, et `remove` detruit une SANDBOX
         // et non la definition — ce qui en fait un geste distinct de
-        // `destroy` (CDC 14.3). Les neuf dernieres sont l'editeur VISUEL de
-        // T1651 : elles editent le MEME `json_source` que `update`, par le
-        // meme `ScenarioVersionWriter`, et n'ouvrent aucune seconde source.
+        // `destroy` (CDC 14.3). Les HUIT dernieres sont l'editeur VISUEL de
+        // T1651 — la neuvieme route de T1651 est un GET, elle est comptee plus
+        // bas avec les lectures. Elles editent le MEME `json_source` que
+        // `update`, par le meme `ScenarioVersionWriter`, et n'ouvrent aucune
+        // seconde source.
         $this->assertSame([
             'admin.outils.scenarios.approve' => 'POST',
             'admin.outils.scenarios.destroy' => 'DELETE',
@@ -170,6 +172,7 @@ class ScenarioManagerSurfaceTest extends TestCase
             'admin.outils.scenarios.edit',
             'admin.outils.scenarios.export',
             'admin.outils.scenarios.approval',
+            'admin.outils.scenarios.visual',
         ];
 
         foreach ($lectures as $nom) {
