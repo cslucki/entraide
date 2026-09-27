@@ -32,6 +32,38 @@
         <p class="mt-1 font-mono text-xs text-gray-400 dark:text-gray-500">{{ $version->scenario_key }} · v{{ $version->version }}</p>
     </header>
 
+    {{-- Les DEUX portes d'edition, et le seul endroit de l'application qui les
+         ouvre.
+
+         Trouve en relecture adverse : `scenarios.visual` comme `scenarios.edit`
+         n'etaient cites par AUCUNE vue. L'editeur JSON etait orphelin depuis
+         T1649, et l'editeur visuel de T1651 heritait du meme sort — un ecran
+         livre, teste, et atteignable seulement en tapant son URL a la main.
+         Aucun test ne pouvait le voir : tous appellent `route()` en direct.
+
+         Une version CHARGEE garde ses liens : les deux ecrans s'ouvrent en
+         lecture et disent eux-memes pourquoi. Les retirer ici ferait croire a
+         une panne. --}}
+    <section class="mb-6 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('admin.scenario_manager.edit_section') }}</h2>
+
+        <div class="flex flex-wrap gap-3">
+            <a href="{{ route('admin.outils.scenarios.visual', $version) }}"
+               data-open-visual
+               class="flex-1 rounded-lg border border-indigo-300 p-3 hover:bg-indigo-50 dark:border-indigo-700 dark:hover:bg-indigo-900/20">
+                <span class="block text-sm font-semibold text-indigo-800 dark:text-indigo-300">{{ __('admin.scenario_manager.visual_open') }}</span>
+                <span class="mt-1 block text-xs text-gray-600 dark:text-gray-400">{{ __('admin.scenario_manager.visual_open_hint') }}</span>
+            </a>
+
+            <a href="{{ route('admin.outils.scenarios.edit', $version) }}"
+               data-open-json
+               class="flex-1 rounded-lg border border-gray-300 p-3 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700">
+                <span class="block text-sm font-semibold text-gray-800 dark:text-gray-200">{{ __('admin.scenario_manager.editor_open') }}</span>
+                <span class="mt-1 block text-xs text-gray-600 dark:text-gray-400">{{ __('admin.scenario_manager.editor_open_hint') }}</span>
+            </a>
+        </div>
+    </section>
+
     @unless($preview->isReadable())
         <div class="mb-6 rounded-xl border border-red-300 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
             <p class="text-sm font-semibold text-red-900 dark:text-red-200">{{ __('admin.scenario_manager.preview_unreadable') }}</p>

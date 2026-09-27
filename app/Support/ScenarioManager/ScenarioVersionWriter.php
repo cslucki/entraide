@@ -210,16 +210,59 @@ class ScenarioVersionWriter
     }
 
     /**
+     * TASK-1651 — revalider SANS jamais promouvoir.
+     *
+     * ## Trois choses distinctes, que le mot « valider » confondait
+     *
+     * - la VALIDATION TECHNIQUE : le Validator dit si le document est bien
+     *   forme et coherent. C'est une mesure, pas une decision.
+     * - l'APPROBATION HUMAINE : un SuperAdmin confirme un digest PRECIS
+     *   (CDC 12.2). C'est la seule porte vers un Load, et T1650 l'a posee.
+     * - l'etat VALID : il signifie « techniquement vert ET confirme par un
+     *   humain ». Il ne se gagne donc jamais tout seul.
+     *
+     * {@see validate()} promeut, parce qu'il est declenche par un CLIC humain
+     * sur « Valider ». Une mutation de l'editeur visuel, elle, n'est pas ce
+     * clic : elle doit rafraichir le verdict technique et laisser l'etat en
+     * DRAFT, meme quand le Validator est vert.
+     *
+     * Sans cette separation, enchainer des modifications visuelles
+     * reconstituait un etat VALID que personne n'avait confirme — et la
+     * premiere version de T1651 le faisait.
+     *
+     * Le MOTEUR est le meme : meme `$this->validator`, meme appel, meme
+     * resultat. Seule la politique d'etat change. Il n'existe pas de second
+     * Validator, et il ne doit jamais en exister.
+     */
+    public function revalidateAsDraft(ScenarioManifestVersion $version): ScenarioManifestVersion
+    {
+        $this->refuserSiChargee($version);
+
+        $resultat = $this->validator->validate($version->json_source);
+
+        $version->forceFill([
+            'digest' => $resultat->digest(),
+            'validation_summary' => $resultat->toArray(),
+            'state' => ScenarioManifestVersion::STATE_DRAFT,
+        ])->save();
+
+        return $version;
+    }
+
+    /**
      * L'etape TECHNIQUE de la validation (CDC 12.1).
      *
      * Elle ecrit ce que le Validator a constate — digest, compteurs, erreurs —
      * et fait passer DRAFT -> VALID sur un verdict VALID. Elle n'APPROUVE
      * rien : `approved_digest`, `approved_by` et `approved_at` restent la
-     * marque de l'etape HUMAINE (CDC 12.2), qui est la seule porte vers un
-     * Load et qui arrive en T1650.
+     * marque de l'etape HUMAINE (CDC 12.2), posee par T1650, et qui est la
+     * seule porte vers un Load.
      *
      * Une version chargee n'est pas revalidee : son document ne peut pas avoir
      * change, puisqu'il ne peut pas etre modifie.
+     *
+     * {@see revalidateAsDraft()} partage le meme moteur et NE promeut pas :
+     * c'est la porte des mutations qui ne sont pas un clic humain.
      */
     public function validate(ScenarioManifestVersion $version): ScenarioManifestVersion
     {

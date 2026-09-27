@@ -965,6 +965,39 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // TASK-1650 — le cycle de vie. `approuver` est l'ETAPE HUMAINE du CDC 12.2,
     // seule porte vers un Load ; `retirer` detruit une sandbox et non la
     // definition, ce qui en fait un geste distinct de `destroy` (CDC 14.3).
+    // TASK-1651 — l'editeur VISUEL borne : General, Personnes, Boucles,
+    // Membres. Neuf gestes, tous passant par le meme chemin d'ecriture du
+    // controleur, donc par `ScenarioVersionWriter` puis par le Validator
+    // complet. Le mode JSON de T1649 reste disponible et edite le MEME
+    // document.
+    Route::get('/outils/scenarios/{version}/visuel', [AdminScenarioManagerController::class, 'visual'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual');
+    Route::put('/outils/scenarios/{version}/visuel/general', [AdminScenarioManagerController::class, 'updateGeneral'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual.general');
+    Route::post('/outils/scenarios/{version}/visuel/personnes', [AdminScenarioManagerController::class, 'storePerson'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual.person.store');
+    Route::put('/outils/scenarios/{version}/visuel/personnes/{cle}', [AdminScenarioManagerController::class, 'updatePerson'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual.person.update');
+    Route::delete('/outils/scenarios/{version}/visuel/personnes/{cle}', [AdminScenarioManagerController::class, 'destroyPerson'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual.person.destroy');
+    Route::post('/outils/scenarios/{version}/visuel/boucles', [AdminScenarioManagerController::class, 'storeLoop'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual.loop.store');
+    Route::put('/outils/scenarios/{version}/visuel/boucles/{cle}', [AdminScenarioManagerController::class, 'updateLoop'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual.loop.update');
+    Route::delete('/outils/scenarios/{version}/visuel/boucles/{cle}', [AdminScenarioManagerController::class, 'destroyLoop'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual.loop.destroy');
+    Route::put('/outils/scenarios/{version}/visuel/membres', [AdminScenarioManagerController::class, 'updateMembership'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.visual.membership');
+
     Route::get('/outils/scenarios/{version}/approbation', [AdminScenarioManagerController::class, 'approval'])
         ->whereUuid('version')
         ->name('outils.scenarios.approval');
