@@ -307,6 +307,14 @@ final class ScenarioVisualEditor
             // `loops[].owner` et le membership `owner` decrivent le MEME fait.
             // Les laisser diverger produirait un document que le Validator
             // refuse, avec une erreur que personne ne relierait a ce geste.
+            //
+            // L'ancien proprietaire est RETROGRADE, pas retire : il peut
+            // posseder un Dossier ou avoir ecrit dans cette Boucle, et les
+            // invariants exigent qu'un proprietaire de Dossier ou un auteur
+            // en soit MEMBRE. Le sortir d'office casserait le document a sa
+            // place.
+            $this->retrograderLeProprietaireSortant($cle, $nouveauProprietaire);
+
             $this->definirRole($cle, $nouveauProprietaire, 'owner');
             $this->reconcilierProprietaireDeLaRacine($cle, $nouveauProprietaire);
         }
@@ -397,6 +405,29 @@ final class ScenarioVisualEditor
     // =====================================================================
     // Outillage
     // =====================================================================
+
+    /**
+     * Rend simple membre celui qui detenait le role `owner` de cette Boucle.
+     *
+     * `validateLoops()` exige UN membership owner, et qu'il designe le meme
+     * utilisateur que `loops[].owner`. Deux owners residuels feraient donc
+     * echouer la validation — mesure faite : c'est exactement ce que la
+     * premiere version de ce transfert produisait.
+     */
+    private function retrograderLeProprietaireSortant(string $boucle, string $nouveauProprietaire): void
+    {
+        foreach ($this->document['memberships'] ?? [] as $index => $ligne) {
+            if (($ligne['loop'] ?? null) !== $boucle || ($ligne['role'] ?? null) !== 'owner') {
+                continue;
+            }
+
+            if (($ligne['user'] ?? null) === $nouveauProprietaire) {
+                continue;
+            }
+
+            $this->document['memberships'][$index]['role'] = 'member';
+        }
+    }
 
     /**
      * Le proprietaire du Dossier racine et l'auteur de son document suivent

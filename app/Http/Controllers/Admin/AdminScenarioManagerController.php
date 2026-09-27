@@ -519,9 +519,19 @@ class AdminScenarioManagerController extends Controller
             // repasse en DRAFT et efface l'approbation (CDC 12.3).
             $writer->updateDocument($version, $editeur->json());
 
-            // Le MEME Validator complet que le mode JSON. Aucun mini-validator
-            // parallele : l'ecran ne juge jamais un document lui-meme.
-            $writer->validate($version);
+            // Le MEME moteur de validation que le mode JSON — mais SANS
+            // promotion.
+            //
+            // Une mutation visuelle n'est pas un clic humain sur « Valider ».
+            // L'etat VALID veut dire « techniquement vert ET confirme par un
+            // humain sur un digest precis » (CDC 12.2), et cette confirmation
+            // appartient a T1650. La premiere version de cet ecran laissait
+            // une suite de modifications reconstituer un VALID que personne
+            // n'avait confirme.
+            //
+            // On rafraichit donc le verdict technique — l'ecran en a besoin
+            // pour dire ce qui manque — et l'etat reste DRAFT.
+            $writer->revalidateAsDraft($version);
 
             return redirect()
                 ->route('admin.outils.scenarios.visual', $version)

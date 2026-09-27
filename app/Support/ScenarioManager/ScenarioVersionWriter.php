@@ -221,6 +221,47 @@ class ScenarioVersionWriter
      * Une version chargee n'est pas revalidee : son document ne peut pas avoir
      * change, puisqu'il ne peut pas etre modifie.
      */
+    /**
+     * TASK-1651 — revalider SANS jamais promouvoir.
+     *
+     * ## Trois choses distinctes, que le mot « valider » confondait
+     *
+     * - la VALIDATION TECHNIQUE : le Validator dit si le document est bien
+     *   forme et coherent. C'est une mesure, pas une decision.
+     * - l'APPROBATION HUMAINE : un SuperAdmin confirme un digest PRECIS
+     *   (CDC 12.2). C'est la seule porte vers un Load, et elle appartient a
+     *   T1650.
+     * - l'etat VALID : il signifie « techniquement vert ET confirme par un
+     *   humain ». Il ne se gagne donc jamais tout seul.
+     *
+     * {@see validate()} promeut, parce qu'il est declenche par un CLIC humain
+     * sur « Valider ». Une mutation de l'editeur visuel, elle, n'est pas ce
+     * clic : elle doit rafraichir le verdict technique et laisser l'etat en
+     * DRAFT, meme quand le Validator est vert.
+     *
+     * Sans cette separation, enchainer des modifications visuelles
+     * reconstituait un etat VALID que personne n'avait confirme — et la
+     * premiere version de T1651 le faisait.
+     *
+     * Le MOTEUR est le meme : meme `$this->validator`, meme appel, meme
+     * resultat. Seule la politique d'etat change. Il n'existe pas de second
+     * Validator, et il ne doit jamais en exister.
+     */
+    public function revalidateAsDraft(ScenarioManifestVersion $version): ScenarioManifestVersion
+    {
+        $this->refuserSiChargee($version);
+
+        $resultat = $this->validator->validate($version->json_source);
+
+        $version->forceFill([
+            'digest' => $resultat->digest(),
+            'validation_summary' => $resultat->toArray(),
+            'state' => ScenarioManifestVersion::STATE_DRAFT,
+        ])->save();
+
+        return $version;
+    }
+
     public function validate(ScenarioManifestVersion $version): ScenarioManifestVersion
     {
         $this->refuserSiChargee($version);

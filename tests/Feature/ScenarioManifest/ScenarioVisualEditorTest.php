@@ -241,6 +241,268 @@ class ScenarioVisualEditorTest extends TestCase
         $this->assertNotNull($this->ligneOuNull($editeur->document(), 'users', $clePersonne));
     }
 
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function famillesQuiReferencentUneBoucle(): array
+    {
+        // La matrice est DECOUVERTE dans le schema, jamais ecrite a la main :
+        // une famille ajoutee demain au Manifest entre d'elle-meme dans ce
+        // test, et une famille retiree le fait rougir.
+        $cas = [];
+
+        foreach (\App\Support\ScenarioManifest\ManifestSchema::envelope() as $collection => $spec) {
+            // Forme reelle d'une collection : `type: array` + `of.fields`.
+            if (($spec['type'] ?? null) !== 'array') {
+                continue;
+            }
+
+            foreach ($spec['of']['fields'] ?? [] as $champ => $regle) {
+                if (($regle['type'] ?? null) === 'ref' && ($regle['collection'] ?? null) === 'loops') {
+                    $cas[$collection.'.'.$champ] = [$collection, $champ];
+                }
+            }
+        }
+
+        return $cas;
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('famillesQuiReferencentUneBoucle')]
+    public function test_chaque_famille_qui_reference_une_Boucle_BLOQUE_sa_suppression(string $collection, string $champ): void
+    {
+        // MASTER : « si certaines familles ne peuvent reellement pas
+        // referencer la Loop, ne fabrique pas de test artificiel ». La liste
+        // vient donc du schema — messages, sondages, evenements, decisions,
+        // feuille de route, modules et devoirs de formation, mises en avant
+        // de services. Toutes sont eprouvees, aucune n'est inventee.
+        $editeur = $this->editeurAvecUnePersonne($clePersonne);
+
+        $cleBoucle = $editeur->ajouterBoucle($this->boucle($clePersonne));
+
+        // `memberships` et le Dossier RACINE accompagnent la Boucle : ils ne
+        // doivent PAS bloquer. Les autres, si.
+        $accompagne = $collection === 'memberships';
+
+        $document = $editeur->document();
+        $document[$collection][] = ['key' => 'temoin-'.$collection, $champ => $cleBoucle];
+        $editeur = ScenarioVisualEditor::pour(json_encode($document));
+
+        $avant = $editeur->json();
+
+        if ($accompagne) {
+            $editeur->supprimerBoucle($cleBoucle);
+            $this->assertNotSame($avant, $editeur->json(), 'Un membership accompagne la Boucle.');
+
+            return;
+        }
+
+        try {
+            $editeur->supprimerBoucle($cleBoucle);
+            $this->fail("Une reference depuis {$collection}.{$champ} aurait du bloquer la suppression.");
+        } catch (ScenarioVersionRefused $refus) {
+            $this->assertSame(ScenarioVersionRefused::STILL_REFERENCED, $refus->reason);
+            // Le message DIT ce qui bloque, il ne dit pas « impossible ».
+            $this->assertStringContainsString($collection, (string) $refus->parametres['inventaire']);
+        }
+
+        $this->assertSame($avant, $editeur->json(), 'Aucune suppression partielle.');
+    }
+
+    public function test_un_Dossier_ENFANT_bloque_la_suppression_de_la_Boucle(): void
+    {
+        // Le Dossier racine accompagne la Boucle ; un sous-Dossier, non. La
+        // distinction se joue sur la clef, pas sur la collection.
+        $editeur = $this->editeurAvecUnePersonne($clePersonne);
+        $cleBoucle = $editeur->ajouterBoucle($this->boucle($clePersonne));
+
+        $document = $editeur->document();
+        $cleRacine = $document['loops'][0]['root_dossier'];
+        $document['dossiers'][] = [
+            'key' => 'sous-dossier',
+            'name' => 'Sous-dossier',
+            'owner' => $clePersonne,
+            'loop' => $cleBoucle,
+            'parent' => $cleRacine,
+            'visibility' => 'loop',
+            'root_document' => null,
+        ];
+        $editeur = ScenarioVisualEditor::pour(json_encode($document));
+
+        $avant = $editeur->json();
+
+        try {
+            $editeur->supprimerBoucle($cleBoucle);
+            $this->fail('Un sous-Dossier aurait du bloquer la suppression.');
+        } catch (ScenarioVersionRefused $refus) {
+            $this->assertSame(ScenarioVersionRefused::STILL_REFERENCED, $refus->reason);
+        }
+
+        $this->assertSame($avant, $editeur->json());
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function famillesQuiReferencentUnDossier(): array
+    {
+        $cas = [];
+
+        foreach (\App\Support\ScenarioManifest\ManifestSchema::envelope() as $collection => $spec) {
+            if (($spec['type'] ?? null) !== 'array') {
+                continue;
+            }
+
+            foreach ($spec['of']['fields'] ?? [] as $champ => $regle) {
+                if (($regle['type'] ?? null) === 'ref' && ($regle['collection'] ?? null) === 'dossiers'
+                    && $collection !== 'loops' && $collection !== 'dossiers') {
+                    $cas[$collection.'.'.$champ] = [$collection, $champ];
+                }
+            }
+        }
+
+        return $cas;
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('famillesQuiReferencentUnDossier')]
+    public function test_un_objet_dans_l_espace_documents_BLOQUE_la_suppression(string $collection, string $champ): void
+    {
+        // Articles et fichiers vivent DANS un Dossier. Supprimer la Boucle
+        // emporterait son espace documents — donc eux aussi, en silence.
+        $editeur = $this->editeurAvecUnePersonne($clePersonne);
+        $cleBoucle = $editeur->ajouterBoucle($this->boucle($clePersonne));
+
+        $document = $editeur->document();
+        $cleRacine = $document['loops'][0]['root_dossier'];
+        $document[$collection][] = ['key' => 'temoin-'.$collection, $champ => $cleRacine];
+        $editeur = ScenarioVisualEditor::pour(json_encode($document));
+
+        $avant = $editeur->json();
+
+        try {
+            $editeur->supprimerBoucle($cleBoucle);
+            $this->fail("Une reference depuis {$collection}.{$champ} aurait du bloquer.");
+        } catch (ScenarioVersionRefused $refus) {
+            $this->assertSame(ScenarioVersionRefused::STILL_REFERENCED, $refus->reason);
+        }
+
+        $this->assertSame($avant, $editeur->json());
+    }
+
+    // =====================================================================
+    // Memberships : un seul proprietaire, et il est le bon
+    // =====================================================================
+
+    public function test_changer_le_proprietaire_d_une_Boucle_ne_laisse_AUCUN_owner_residuel(): void
+    {
+        // `loops[].owner` et le membership `owner` decrivent le MEME fait.
+        // Les laisser diverger produit un document que le Validator refuse,
+        // avec une erreur que personne ne relierait au geste qui l'a causee.
+        $editeur = $this->editeurAvecUnePersonne($premier);
+        $second = $editeur->ajouterPersonne([
+            'first_name' => 'Sonia', 'name' => 'Sonia Meyer', 'email' => 'sonia@atelier.test',
+            'organization_role' => 'member', 'available' => true,
+        ]);
+
+        $cleBoucle = $editeur->ajouterBoucle($this->boucle($premier));
+
+        $editeur->modifierBoucle($cleBoucle, ['owner' => $second]);
+
+        $document = $editeur->document();
+
+        $owners = array_values(array_filter(
+            $document['memberships'],
+            static fn (array $m): bool => $m['loop'] === $cleBoucle && $m['role'] === 'owner'
+        ));
+
+        $this->assertCount(1, $owners, 'Exactement UN membership owner par Boucle.');
+        $this->assertSame($second, $owners[0]['user'], 'Et c est le nouveau proprietaire.');
+        $this->assertSame($second, $this->ligne($document, 'loops', $cleBoucle)['owner']);
+
+        // Le Dossier racine et son document suivent : leur proprietaire doit
+        // etre membre de la Boucle, sinon OWNER_MEMBERSHIP_MISMATCH.
+        $dossier = $this->ligne($document, 'dossiers', (string) $this->ligne($document, 'loops', $cleBoucle)['root_dossier']);
+        $this->assertSame($second, $dossier['owner']);
+        $this->assertSame($second, $dossier['root_document']['author']);
+
+        // Et le Validator est d accord — c est lui qui tranche, pas moi.
+        $this->assertTrue(
+            app(ScenarioManifestValidator::class)->validate($editeur->json())->isValid(),
+            'Le transfert de propriete doit laisser un document valide.'
+        );
+    }
+
+    public function test_supprimer_un_persona_encore_PROPRIETAIRE_est_refuse(): void
+    {
+        $editeur = $this->editeurAvecUnePersonne($clePersonne);
+        $editeur->ajouterBoucle($this->boucle($clePersonne));
+
+        $avant = $editeur->json();
+
+        try {
+            $editeur->supprimerPersonne($clePersonne);
+            $this->fail('Supprimer le proprietaire d une Boucle aurait du etre refuse.');
+        } catch (ScenarioVersionRefused $refus) {
+            $this->assertSame(ScenarioVersionRefused::STILL_REFERENCED, $refus->reason);
+            // Le refus NOMME les dependances : proprietaire de Boucle, membre,
+            // proprietaire du Dossier, auteur du document.
+            $inventaire = (string) $refus->parametres['inventaire'];
+            $this->assertStringContainsString('loops', $inventaire);
+            $this->assertStringContainsString('memberships', $inventaire);
+        }
+
+        $this->assertSame($avant, $editeur->json(), 'Aucune cascade, aucune suppression partielle.');
+    }
+
+    public function test_definir_puis_retirer_un_role_ne_cree_aucun_doublon(): void
+    {
+        $editeur = $this->editeurAvecUnePersonne($proprietaire);
+        $second = $editeur->ajouterPersonne([
+            'first_name' => 'Sonia', 'name' => 'Sonia Meyer', 'email' => 'sonia@atelier.test',
+            'organization_role' => 'member', 'available' => true,
+        ]);
+
+        $cleBoucle = $editeur->ajouterBoucle($this->boucle($proprietaire));
+
+        $editeur->definirRole($cleBoucle, $second, 'member');
+        $editeur->definirRole($cleBoucle, $second, 'facilitator');
+
+        $lignes = array_values(array_filter(
+            $editeur->document()['memberships'],
+            static fn (array $m): bool => $m['loop'] === $cleBoucle && $m['user'] === $second
+        ));
+
+        $this->assertCount(1, $lignes, 'Changer un role MODIFIE la ligne, il n en ajoute pas une seconde.');
+        $this->assertSame('facilitator', $lignes[0]['role']);
+
+        $editeur->definirRole($cleBoucle, $second, null);
+
+        $this->assertCount(0, array_filter(
+            $editeur->document()['memberships'],
+            static fn (array $m): bool => $m['loop'] === $cleBoucle && $m['user'] === $second
+        ), 'Retirer le role supprime la ligne.');
+
+        // Le proprietaire, lui, n a pas bouge.
+        $this->assertCount(1, array_filter(
+            $editeur->document()['memberships'],
+            static fn (array $m): bool => $m['loop'] === $cleBoucle && $m['role'] === 'owner'
+        ));
+    }
+
+    public function test_aucune_mutation_ne_fabrique_un_persona(): void
+    {
+        // Ni la creation de Boucle, ni un membership, ni un transfert : le
+        // SuperAdmin est l auteur de son monde, on n y ajoute personne a sa
+        // place.
+        $editeur = $this->editeurAvecUnePersonne($clePersonne);
+        $avant = count($editeur->document()['users']);
+
+        $cleBoucle = $editeur->ajouterBoucle($this->boucle($clePersonne));
+        $editeur->definirRole($cleBoucle, $clePersonne, 'owner');
+        $editeur->modifierBoucle($cleBoucle, ['name' => 'Atelier renomme']);
+
+        $this->assertCount($avant, $editeur->document()['users'], 'Aucun persona ne nait d une mutation.');
+    }
+
     // =====================================================================
     // Les stable keys
     // =====================================================================
@@ -318,55 +580,89 @@ class ScenarioVisualEditorTest extends TestCase
 
         $version->refresh();
 
+        // LE contrat : le Validator est vert, et l'etat reste DRAFT.
+        //
+        // VALID signifie « techniquement vert ET confirme par un humain sur un
+        // digest precis » (CDC 12.2). Une suite de mutations visuelles ne doit
+        // jamais reconstituer cette confirmation — c'est ce que faisait la
+        // premiere version de cet ecran.
+        $this->assertSame([], $version->validation_summary['errors'] ?? null, 'Le Validator technique est vert.');
+        $this->assertNotNull($version->digest, 'Et le digest est a jour.');
         $this->assertSame(
-            ScenarioManifestVersion::STATE_VALID,
+            ScenarioManifestVersion::STATE_DRAFT,
             $version->state,
-            'Le parcours visuel seul doit suffire a produire un document VALID.'
+            'Validator vert ne vaut PAS confirmation humaine : l etat reste DRAFT.'
         );
     }
 
-    public function test_modifier_une_version_APPROUVEE_efface_son_approbation(): void
+    public function test_une_version_APPROUVEE_modifiee_repasse_DRAFT_et_exige_une_NOUVELLE_confirmation(): void
     {
-        // CE QUE CE TEST PROUVE, ET LA NUANCE QU'IL ASSUME.
-        //
-        // Le CDC demande « toute modification repasse DRAFT ». C'est
-        // exactement ce que fait `updateDocument()`, et l'approbation part
-        // avec. Mais la mutation visuelle REVALIDE ensuite — le CDC l'exige
-        // aussi — donc un document qui reste valide redevient VALID dans le
-        // meme geste. Le passage en DRAFT est reel, il est simplement
-        // TRANSITOIRE.
-        //
-        // L'etat n'est donc pas la bonne grandeur a asserter : il decrirait le
-        // milieu du geste, pas sa garantie. Ce qui protege VRAIMENT, et qui
-        // est durable, c'est que l'APPROBATION est effacee — c'est elle, et
-        // elle seule, qui ouvre la porte du Load (T1650).
         [$superAdmin, $version] = $this->versionValideParLEcran();
 
-        $approbateur = User::factory()->create(['organization_id' => $superAdmin->organization_id, 'is_admin' => true]);
-        app(\App\Support\ScenarioManager\ScenarioLifecycleService::class)->approve($version, $approbateur);
-
+        // On amene la version jusqu'au bout du cycle humain : VALID puis
+        // approuvee. C'est l'etat depuis lequel un Load est possible.
+        app(\App\Support\ScenarioManager\ScenarioVersionWriter::class)->validate($version);
         $version->refresh();
-        $this->assertTrue($version->approvalMatchesCurrentDigest(), 'Point de depart : la version est approuvee.');
+        $this->assertSame(ScenarioManifestVersion::STATE_VALID, $version->state);
 
-        $digestApprouve = $version->approved_digest;
+        app(\App\Support\ScenarioManager\ScenarioLifecycleService::class)->approve($version, $superAdmin);
+        $version->refresh();
+        $this->assertTrue($version->approvalMatchesCurrentDigest(), 'Point de depart : approuvee, donc chargeable.');
 
+        // Une seule modification visuelle.
         $this->actingAs($superAdmin)
             ->post(route('admin.outils.scenarios.visual.person.store', $version), $this->personne('Sonia', 'sonia@atelier.test'))
             ->assertRedirect();
 
         $version->refresh();
 
-        $this->assertNull($version->approved_digest, 'L approbation est effacee par la modification.');
-        $this->assertFalse($version->approvalMatchesCurrentDigest(), 'Et la porte du Load est donc refermee.');
-        $this->assertNotSame($digestApprouve, $version->digest, 'Le document a REELLEMENT change.');
+        $this->assertSame(ScenarioManifestVersion::STATE_DRAFT, $version->state, 'VALID -> DRAFT.');
+        $this->assertNull($version->approved_digest, 'approved_digest efface.');
+        $this->assertNull($version->approved_by, 'approved_by efface.');
+        $this->assertNull($version->approved_at, 'approved_at efface.');
+        $this->assertNotNull($version->validation_summary, 'validation_summary recalcule.');
+        $this->assertFalse($version->approvalMatchesCurrentDigest(), 'La porte du Load est refermee.');
+
+        // Et le document est TOUJOURS techniquement vert : c'est bien la
+        // confirmation humaine qui manque, pas la validite.
+        $this->assertSame([], $version->validation_summary['errors'] ?? null);
+    }
+
+    public function test_corriger_un_DRAFT_invalide_le_laisse_DRAFT_meme_une_fois_vert(): void
+    {
+        // L'autre sens du meme contrat : partir d'invalide et arriver a vert
+        // ne fait pas franchir la porte humaine non plus.
+        [$superAdmin, $version] = $this->versionEditable();
+
+        $this->actingAs($superAdmin)->put(route('admin.outils.scenarios.visual.general', $version), $this->general());
+        $version->refresh();
+
+        $this->assertNotSame([], $version->validation_summary['errors'] ?? [], 'Point de depart : document incomplet.');
+        $this->assertSame(ScenarioManifestVersion::STATE_DRAFT, $version->state);
+
+        // Les mutations correctives qui rendent le document complet.
+        $this->actingAs($superAdmin)->post(route('admin.outils.scenarios.visual.person.store', $version), $this->personne());
+        $cle = $this->premiereCle($version->refresh(), 'users');
+        $this->actingAs($superAdmin)->post(route('admin.outils.scenarios.visual.loop.store', $version), $this->boucle($cle));
+
+        $version->refresh();
+
+        $this->assertSame([], $version->validation_summary['errors'] ?? null, 'Le Validator est desormais vert.');
+        $this->assertSame(ScenarioManifestVersion::STATE_DRAFT, $version->state, 'Et l etat reste DRAFT.');
     }
 
     public function test_une_version_CHARGEE_n_est_pas_editable_visuellement(): void
     {
         [$superAdmin, $version] = $this->versionValideParLEcran();
 
-        // On simule l'etat LOADED sans passer par le moteur : `isLoaded()` est
-        // derive du lien administratif.
+        // L'etat LOADED est DERIVE : `isLoaded()` exige l'etat VALID **et** le
+        // lien administratif. On reproduit donc les deux, par le vrai chemin
+        // humain pour le premier — un load id pose sur un DRAFT ne decrit
+        // aucun etat reel, et le test ne prouverait rien.
+        app(\App\Support\ScenarioManager\ScenarioVersionWriter::class)->validate($version);
+        $version->refresh();
+        $this->assertSame(ScenarioManifestVersion::STATE_VALID, $version->state);
+
         $chargement = \App\Models\ScenarioPackLoad::query()->create([
             'pack_id' => 'manifest:test',
             'pack_version' => '1.0.0',
