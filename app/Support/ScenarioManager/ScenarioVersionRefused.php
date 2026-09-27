@@ -102,6 +102,28 @@ final class ScenarioVersionRefused extends \RuntimeException
      */
     public const LOAD_ALREADY_OWNED = 'load_already_owned';
 
+    /**
+     * TASK-1651 — l'objet est encore DESIGNE par le document.
+     *
+     * On ne repare jamais un graphe en silence : pas de cascade implicite, pas
+     * de suppression partielle. Le refus NOMME ce qui bloque, sinon l'operateur
+     * n'a aucun moyen d'agir.
+     */
+    public const STILL_REFERENCED = 'still_referenced';
+
+    /**
+     * TASK-1651 — une Boucle exige un proprietaire, et le Manifest exige que
+     * ce soit quelqu'un.
+     *
+     * On refuse plutot que de fabriquer un persona au passage : ce serait
+     * creer une personne que le SuperAdmin n'a pas voulue, dans un document
+     * dont il est cense etre l'auteur.
+     */
+    public const NO_PERSONA = 'no_persona';
+
+    /** TASK-1651 — la clef visee n'existe pas dans le document. */
+    public const UNKNOWN_KEY = 'unknown_key';
+
     /** La version a disparu pendant que son monde se chargeait. */
     public const VERSION_GONE = 'version_gone';
 
@@ -245,6 +267,34 @@ final class ScenarioVersionRefused extends \RuntimeException
             self::PROTECTED_DATA,
             'Des donnees protegees empechent la suppression de cette sandbox.'
         );
+    }
+
+    /**
+     * @param  array<string, int>  $bloquantes
+     */
+    public static function stillReferenced(string $cle, array $bloquantes): self
+    {
+        $resume = implode(', ', array_map(
+            static fn (string $collection, int $nombre): string => $nombre.' '.$collection,
+            array_keys($bloquantes),
+            $bloquantes
+        ));
+
+        return new self(
+            self::STILL_REFERENCED,
+            sprintf('« %s » est encore designe par : %s.', $cle, $resume),
+            ['cle' => $cle, 'inventaire' => $resume]
+        );
+    }
+
+    public static function noPersona(): self
+    {
+        return new self(self::NO_PERSONA, 'Une Boucle exige un proprietaire : creez d abord une personne.');
+    }
+
+    public static function unknownKey(string $cle): self
+    {
+        return new self(self::UNKNOWN_KEY, sprintf('La clef « %s » n existe pas dans ce document.', $cle), ['cle' => $cle]);
     }
 
     public static function versionDisparue(): self

@@ -134,7 +134,9 @@ class ScenarioManagerSurfaceTest extends TestCase
         // de T1649 ; quatre du cycle de vie de T1650, ou `approve` est l'etape
         // HUMAINE, seule porte vers un Load, et `remove` detruit une SANDBOX
         // et non la definition — ce qui en fait un geste distinct de
-        // `destroy` (CDC 14.3).
+        // `destroy` (CDC 14.3). Les neuf dernieres sont l'editeur VISUEL de
+        // T1651 : elles editent le MEME `json_source` que `update`, par le
+        // meme `ScenarioVersionWriter`, et n'ouvrent aucune seconde source.
         $this->assertSame([
             'admin.outils.scenarios.approve' => 'POST',
             'admin.outils.scenarios.destroy' => 'DELETE',
@@ -145,7 +147,15 @@ class ScenarioManagerSurfaceTest extends TestCase
             'admin.outils.scenarios.store' => 'POST',
             'admin.outils.scenarios.update' => 'PUT',
             'admin.outils.scenarios.validate' => 'POST',
-        ], $mutantes, 'T1649 et T1650 livrent ces neuf ecritures, et rien de plus.');
+            'admin.outils.scenarios.visual.general' => 'PUT',
+            'admin.outils.scenarios.visual.loop.destroy' => 'DELETE',
+            'admin.outils.scenarios.visual.loop.store' => 'POST',
+            'admin.outils.scenarios.visual.loop.update' => 'PUT',
+            'admin.outils.scenarios.visual.membership' => 'PUT',
+            'admin.outils.scenarios.visual.person.destroy' => 'DELETE',
+            'admin.outils.scenarios.visual.person.store' => 'POST',
+            'admin.outils.scenarios.visual.person.update' => 'PUT',
+        ], $mutantes, 'T1649, T1650 et T1651 livrent ces dix-sept ecritures, et rien de plus.');
 
         // Les routes de LECTURE, nommement et positivement.
         //

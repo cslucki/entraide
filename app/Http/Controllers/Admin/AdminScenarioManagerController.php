@@ -9,6 +9,7 @@ use App\Support\ScenarioManager\ScenarioLifecycleService;
 use App\Support\ScenarioManager\ScenarioPreview;
 use App\Support\ScenarioManager\ScenarioVersionRefused;
 use App\Support\ScenarioManager\ScenarioVersionWriter;
+use App\Support\ScenarioManager\ScenarioVisualEditor;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -382,6 +383,188 @@ class AdminScenarioManagerController extends Controller
      * 500 : l'utilisateur verrait une panne la ou le produit a simplement dit
      * non, et pour une raison qu'il peut comprendre et contourner.
      */
+    // =====================================================================
+    // TASK-1651 — l'editeur visuel borne
+    // =====================================================================
+
+    /**
+     * L'editeur visuel : General, Personnes, Boucles, Membres, JSON avance.
+     *
+     * Le mode visuel se DESACTIVE quand le document n'est pas lisible, au lieu
+     * d'en inventer une representation : un formulaire construit sur un
+     * document casse ferait perdre le texte a la premiere sauvegarde.
+     */
+    public function visual(ScenarioManifestVersion $version): View
+    {
+        try {
+            $document = ScenarioVisualEditor::pour((string) $version->json_source)->document();
+            $lisible = true;
+        } catch (ScenarioVersionRefused) {
+            $document = [];
+            $lisible = false;
+        }
+
+        return view('admin.outils.scenario-visuel', [
+            'version' => $version,
+            'document' => $document,
+            'lisible' => $lisible,
+            'modifiable' => ! $version->isLoaded(),
+            'personnes' => $document['users'] ?? [],
+            'boucles' => $document['loops'] ?? [],
+            'memberships' => $document['memberships'] ?? [],
+            'erreurs' => is_array($version->validation_summary['errors'] ?? null)
+                ? $version->validation_summary['errors']
+                : [],
+            'verdict' => $version->validation_summary['verdict'] ?? null,
+        ]);
+    }
+
+    public function updateGeneral(Request $request, ScenarioManifestVersion $version, ScenarioVersionWriter $writer): RedirectResponse
+    {
+        $donnees = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'version' => ['required', 'string', 'max:32'],
+            'description' => ['required', 'string', 'max:2000'],
+            'purpose' => ['required', 'string', 'max:500'],
+            'locale' => ['required', 'in:fr,en'],
+            'organization_name' => ['required', 'string', 'max:120'],
+            'organization_proposed_slug' => ['required', 'string', 'max:64'],
+            'organization_description' => ['required', 'string', 'max:2000'],
+        ]);
+
+        return $this->enModifiantLeDocument($version, $writer, static fn (ScenarioVisualEditor $editeur) => $editeur->majGeneral($donnees), 'general');
+    }
+
+    public function storePerson(Request $request, ScenarioManifestVersion $version, ScenarioVersionWriter $writer): RedirectResponse
+    {
+        $donnees = $this->reglesDePersonne($request);
+
+        return $this->enModifiantLeDocument($version, $writer, static fn (ScenarioVisualEditor $editeur) => $editeur->ajouterPersonne($donnees), 'personnes');
+    }
+
+    public function updatePerson(Request $request, ScenarioManifestVersion $version, string $cle, ScenarioVersionWriter $writer): RedirectResponse
+    {
+        $donnees = $this->reglesDePersonne($request);
+
+        return $this->enModifiantLeDocument($version, $writer, static fn (ScenarioVisualEditor $editeur) => $editeur->modifierPersonne($cle, $donnees), 'personnes');
+    }
+
+    public function destroyPerson(ScenarioManifestVersion $version, string $cle, ScenarioVersionWriter $writer): RedirectResponse
+    {
+        return $this->enModifiantLeDocument($version, $writer, static fn (ScenarioVisualEditor $editeur) => $editeur->supprimerPersonne($cle), 'personnes');
+    }
+
+    public function storeLoop(Request $request, ScenarioManifestVersion $version, ScenarioVersionWriter $writer): RedirectResponse
+    {
+        $donnees = $this->reglesDeBoucle($request);
+
+        return $this->enModifiantLeDocument($version, $writer, static fn (ScenarioVisualEditor $editeur) => $editeur->ajouterBoucle($donnees), 'boucles');
+    }
+
+    public function updateLoop(Request $request, ScenarioManifestVersion $version, string $cle, ScenarioVersionWriter $writer): RedirectResponse
+    {
+        $donnees = $this->reglesDeBoucle($request);
+
+        return $this->enModifiantLeDocument($version, $writer, static fn (ScenarioVisualEditor $editeur) => $editeur->modifierBoucle($cle, $donnees), 'boucles');
+    }
+
+    public function destroyLoop(ScenarioManifestVersion $version, string $cle, ScenarioVersionWriter $writer): RedirectResponse
+    {
+        return $this->enModifiantLeDocument($version, $writer, static fn (ScenarioVisualEditor $editeur) => $editeur->supprimerBoucle($cle), 'boucles');
+    }
+
+    public function updateMembership(Request $request, ScenarioManifestVersion $version, ScenarioVersionWriter $writer): RedirectResponse
+    {
+        $donnees = $request->validate([
+            'loop' => ['required', 'string', 'max:64'],
+            'user' => ['required', 'string', 'max:64'],
+            'role' => ['nullable', 'in:owner,facilitator,member'],
+        ]);
+
+        $role = $donnees['role'] ?? null;
+
+        return $this->enModifiantLeDocument(
+            $version,
+            $writer,
+            static fn (ScenarioVisualEditor $editeur) => $editeur->definirRole($donnees['loop'], $donnees['user'], $role === '' ? null : $role),
+            'membres'
+        );
+    }
+
+    /**
+     * LE chemin d'ecriture de l'editeur visuel, partage par les neuf gestes.
+     *
+     * Un seul endroit fait la sequence complete : lire le document, le muter,
+     * le repasser par la porte d'ecriture unique, puis le REVALIDER
+     * entierement. Neuf copies de cette sequence auraient fini par diverger —
+     * et c'est precisement la divergence qui fabrique un document que personne
+     * ne sait plus expliquer.
+     *
+     * La revalidation n'est pas cosmetique : `updateDocument()` repasse la
+     * version en DRAFT et efface le resume, donc sans elle l'ecran afficherait
+     * un document sans verdict apres chaque clic.
+     */
+    private function enModifiantLeDocument(
+        ScenarioManifestVersion $version,
+        ScenarioVersionWriter $writer,
+        \Closure $mutation,
+        string $onglet
+    ): RedirectResponse {
+        return $this->enRepondantAuxRefus(function () use ($version, $writer, $mutation, $onglet) {
+            $editeur = ScenarioVisualEditor::pour((string) $version->json_source);
+
+            $mutation($editeur);
+
+            // La porte d'ecriture unique : elle refuse une version chargee,
+            // repasse en DRAFT et efface l'approbation (CDC 12.3).
+            $writer->updateDocument($version, $editeur->json());
+
+            // Le MEME Validator complet que le mode JSON. Aucun mini-validator
+            // parallele : l'ecran ne juge jamais un document lui-meme.
+            $writer->validate($version);
+
+            return redirect()
+                ->route('admin.outils.scenarios.visual', $version)
+                ->withFragment($onglet)
+                ->with('status', __('admin.scenario_manager.flash_visual_saved'));
+        });
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function reglesDePersonne(Request $request): array
+    {
+        $donnees = $request->validate([
+            'first_name' => ['required', 'string', 'max:80'],
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'string', 'max:160'],
+            'organization_role' => ['required', 'in:admin,member'],
+            'bio' => ['nullable', 'string', 'max:2000'],
+            'location' => ['nullable', 'string', 'max:160'],
+            'avatar' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $donnees['available'] = $request->boolean('available');
+
+        return $donnees;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function reglesDeBoucle(Request $request): array
+    {
+        return $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'description' => ['required', 'string', 'max:2000'],
+            'type' => ['required', 'in:general,project,coaching,training'],
+            'owner' => ['required', 'string', 'max:64'],
+            'visibility' => ['required', 'in:private,public'],
+            'access_mode' => ['required', 'in:open,request,invitation'],
+        ]);
+    }
+
     private function enRepondantAuxRefus(\Closure $geste): RedirectResponse
     {
         try {
