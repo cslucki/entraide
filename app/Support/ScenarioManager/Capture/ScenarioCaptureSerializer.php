@@ -980,8 +980,13 @@ final class ScenarioCaptureSerializer
             $entree['ligne']['reply_to'] = $clefParId[$parent] ?? null;
 
             $boucle = $entree['ligne']['loop'];
-            $parBoucle[$boucle] = ($parBoucle[$boucle] ?? 0) + 1;
-            $entree['ligne']['order'] = $parBoucle[$boucle];
+
+            // `order` est 0-BASE : le manifeste de reference declare 0, 1, 2
+            // par Boucle. Numeroter a partir de 1 rendait les quatre messages
+            // « modifies » sur une sandbox ou personne n'avait rien fait —
+            // un faux positif qui aurait pollue chaque Preview.
+            $entree['ligne']['order'] = $parBoucle[$boucle] ?? 0;
+            $parBoucle[$boucle] = $entree['ligne']['order'] + 1;
 
             $sortie[] = $entree['ligne'];
         }
@@ -1167,8 +1172,32 @@ final class ScenarioCaptureSerializer
             $clefParOption = [];
             $declarees = [];
 
-            foreach ($options as $option) {
-                $clefOption = $this->emettre('poll_options', $this->clef('poll_options', (string) $option->id, (string) $option->label));
+            // Les clefs d'options viennent de la SOURCE, par POSITION.
+            //
+            // `applyPolls()` cree les options dans l'ordre declare, en posant
+            // `position` : le rang est donc une correspondance DETERMINISTE
+            // avec le manifeste source, pas une ressemblance de libelle.
+            //
+            // Sans cela, les clefs etaient regenerees depuis le texte —
+            // « sources » devenait « verifier-les-sources » — et chaque
+            // Preview montrait le sondage comme modifie alors que rien n'avait
+            // bouge.
+            $clefsSource = array_column(
+                $this->source('polls', $this->registre->clefConnue('polls', (string) $sondage->id) ?? '')['options'] ?? [],
+                'key'
+            );
+
+            foreach (array_values($options->all()) as $rang => $option) {
+                $clefSource = $clefsSource[$rang] ?? null;
+
+                $clefOption = is_string($clefSource) && $clefSource !== ''
+                    ? $this->registre->clefDe('poll_options', (string) $option->id, $clefSource)
+                    : $this->clef('poll_options', (string) $option->id, (string) $option->label);
+
+                // Une clef amorcee depuis la source doit etre EXACTEMENT
+                // celle-la : si le registre en avait deja fabrique une autre,
+                // on la garde — l'identite ne se reecrit pas.
+                $clefOption = $this->emettre('poll_options', $clefOption);
                 $clefParOption[(string) $option->id] = $clefOption;
                 $declarees[] = ['key' => $clefOption, 'label' => (string) $option->label];
             }

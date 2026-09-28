@@ -48,6 +48,35 @@ final class ScenarioCaptureService
      * Expose pour que l'inspection et les tests puissent mesurer le document
      * et les blockers sans fabriquer de version.
      */
+    /**
+     * Le Diff entre le Manifest SOURCE et l'etat courant de la sandbox.
+     *
+     * Lecture seule stricte : aucune version n'est creee, aucune donnee metier
+     * n'est touchee. Le seul effet possible est l'attribution deterministe
+     * d'une stable key a un objet neuf, dans le registre borne a la sandbox —
+     * et encore, seulement si le serializer en a besoin.
+     */
+    public function comparer(ScenarioManifestVersion $version): ScenarioCaptureDiff
+    {
+        return new ScenarioCaptureDiff(
+            (array) json_decode((string) $version->json_source, true),
+            $this->inspecter($version)->document
+        );
+    }
+
+    /**
+     * Le numero qu'on PROPOSE a l'humain : un bump MINEUR.
+     *
+     * Une Capture reste dans la meme chaine de scenario — meme
+     * `scenario_key` — parce que c'est le meme monde a un autre moment de sa
+     * vie. C'est ce qui la distingue d'un Duplicate, qui part sur une nouvelle
+     * clef en 1.0.0.
+     */
+    public function versionSuggeree(ScenarioManifestVersion $version): string
+    {
+        return $this->prochaineVersion((string) $version->scenario_key, (string) $version->version);
+    }
+
     public function inspecter(ScenarioManifestVersion $version): ScenarioCaptureResult
     {
         [$sandbox, $load] = $this->prouverLaProvenance($version);
@@ -87,7 +116,7 @@ final class ScenarioCaptureService
      * Ce n'est PAS une reparation apres Validator : rien n'est corrige, tout
      * est rapporte.
      */
-    private function constater(ScenarioCaptureResult $resultat, ScenarioManifestVersion $version): ScenarioCaptureResult
+    private function constater(ScenarioCaptureResult $resultat, ScenarioManifestVersion $version, ?string $numero = null): ScenarioCaptureResult
     {
         if ($resultat->estBloquee()) {
             // Un document ampute n'a pas a etre confronte au Validator : ses
@@ -95,7 +124,7 @@ final class ScenarioCaptureService
             return $resultat;
         }
 
-        $json = $this->encoder($resultat->document, $version);
+        $json = $this->encoder($resultat->document, $version, $numero);
 
         if (! is_string($json)) {
             return new ScenarioCaptureResult($resultat->document, [[
@@ -130,7 +159,7 @@ final class ScenarioCaptureService
     /**
      * @param  array<string, mixed>  $document
      */
-    private function encoder(array $document, ScenarioManifestVersion $version): ?string
+    private function encoder(array $document, ScenarioManifestVersion $version, ?string $numero = null): ?string
     {
         // Le document DIT ce qu'il est.
         //
@@ -138,7 +167,7 @@ final class ScenarioCaptureService
         // JSON est l'unique source de verite (CDC 10.1) ». Une capture qui
         // garderait le numero de sa source porterait deux verites, dont une
         // fausse — la colonne dirait 1.1.0 et le document 1.0.0.
-        $document['version'] = $this->prochaineVersion((string) $version->scenario_key, (string) $version->version);
+        $document['version'] = $numero ?? $this->versionSuggeree($version);
 
         $json = json_encode($document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
@@ -151,7 +180,7 @@ final class ScenarioCaptureService
      * @throws ScenarioVersionRefused si la provenance, les bornes, une fidelite
      *                                ou le Validator s'y opposent
      */
-    public function capturer(ScenarioManifestVersion $version, User $auteur): ScenarioManifestVersion
+    public function capturer(ScenarioManifestVersion $version, User $auteur, ?string $numero = null): ScenarioManifestVersion
     {
         [$sandbox, $load] = $this->prouverLaProvenance($version);
 
@@ -160,7 +189,8 @@ final class ScenarioCaptureService
 
         $resultat = $this->constater(
             (new ScenarioCaptureSerializer($sandbox, $load, $registre, (string) $version->json_source))->serialiser(),
-            $version
+            $version,
+            $numero
         );
 
         if ($resultat->estBloquee()) {
@@ -169,7 +199,8 @@ final class ScenarioCaptureService
             throw ScenarioVersionRefused::captureBlocked($resultat->rapport(), count($resultat->blockers));
         }
 
-        $json = $this->encoder($resultat->document, $version);
+        $numero ??= $this->versionSuggeree($version);
+        $json = $this->encoder($resultat->document, $version, $numero);
 
         if (! is_string($json)) {
             throw ScenarioVersionRefused::captureInvalid('Le document capture n a pas pu etre encode.');
@@ -184,7 +215,7 @@ final class ScenarioCaptureService
             throw ScenarioVersionRefused::captureInvalid(json_encode($verdict->toArray()['errors'] ?? []) ?: '');
         }
 
-        return DB::transaction(function () use ($version, $sandbox, $auteur, $json, $verdict, $registre): ScenarioManifestVersion {
+        return DB::transaction(function () use ($version, $sandbox, $auteur, $json, $verdict, $registre, $numero): ScenarioManifestVersion {
             $registre->persister();
 
             $capturee = new ScenarioManifestVersion([
@@ -192,7 +223,7 @@ final class ScenarioCaptureService
                 // scenario, a un autre moment de sa vie.
                 'scenario_key' => (string) $version->scenario_key,
                 'name' => (string) $version->name,
-                'version' => $this->prochaineVersion((string) $version->scenario_key, (string) $version->version),
+                'version' => $numero,
                 'usage' => (string) $version->usage,
                 'origin' => ScenarioManifestVersion::ORIGIN_CAPTURE,
                 'json_source' => $json,
