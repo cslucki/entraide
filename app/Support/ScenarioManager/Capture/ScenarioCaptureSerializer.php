@@ -79,6 +79,12 @@ final class ScenarioCaptureSerializer
     /** @var array<string, string> clef de Boucle => clef de son proprietaire */
     private array $proprietaireDeBoucle = [];
 
+    /** @var array<string, array<string, true>> famille => clefs REELLEMENT emises */
+    private array $emises = [];
+
+    /** @var array<string, string> clef de Boucle => clef de son Dossier racine */
+    private array $racinesParBoucle = [];
+
     public function __construct(
         private readonly Organization $sandbox,
         private readonly ScenarioPackLoad $load,
@@ -201,12 +207,69 @@ final class ScenarioCaptureSerializer
     }
 
     /**
-     * La clef d'un objet DEJA nomme. `null` si l'objet n'est pas capturable :
-     * la reference doit alors se voir, pas s'inventer.
+     * Declare qu'un objet est REELLEMENT entre dans le document.
+     *
+     * C'est ce registre-la, et pas celui des clefs, qui rend une reference
+     * valide : voir {@see ref()}.
+     */
+    private function emettre(string $famille, ?string $clef): ?string
+    {
+        if ($clef !== null) {
+            $this->emises[$famille][$clef] = true;
+        }
+
+        return $clef;
+    }
+
+    /**
+     * La clef d'un objet PRESENT DANS LE DOCUMENT, ou `null`.
+     *
+     * ## Pourquoi le registre des clefs ne suffit PAS
+     *
+     * La premiere version interrogeait {@see ScenarioCaptureKeyRegistry::clefConnue()},
+     * qui repond « cet objet A une clef » — jamais « cet objet EST dans le
+     * document ». Les deux divergent des qu'un filtre de Capture ecarte une
+     * ligne, et le resultat est une reference PENDANTE que le Validator refuse
+     * par `REFERENCE_NOT_FOUND`.
+     *
+     * Trois cas mesures, tous atteignables par un geste produit ordinaire :
+     * une sequence ARCHIVEE dont `CourseMaterialService::deleteSequence()`
+     * conserve volontairement les progressions ; un Dossier en corbeille dont
+     * les liens `dossier_blog_posts` survivent ; un objet ecarte par un filtre.
+     *
+     * Retirer une sequence qu'un apprenant a commencee rendait ainsi TOUTE la
+     * sandbox non capturable. Trouve en relecture adverse.
      */
     private function ref(string $famille, ?string $entityId): ?string
     {
-        return $entityId === null ? null : $this->registre->clefConnue($famille, $entityId);
+        if ($entityId === null) {
+            return null;
+        }
+
+        $clef = $this->registre->clefConnue($famille, $entityId);
+
+        return ($clef !== null && isset($this->emises[$famille][$clef])) ? $clef : null;
+    }
+
+    /**
+     * Une reference OBLIGATOIRE : si elle ne se resout pas, on le DIT.
+     *
+     * Laisser tomber la ligne en silence fabriquerait un monde ampute sans que
+     * personne ne sache pourquoi — exactement ce que la section « bornes »
+     * interdit. Un objet indispensable au graphe et non reconstructible fait
+     * echouer la Capture, avec son nom.
+     */
+    private function refObligatoire(string $famille, ?string $entityId, string $contexte, string $ou): ?string
+    {
+        $clef = $this->ref($famille, $entityId);
+
+        if ($clef === null) {
+            $this->bloquer($ou, 'reference_non_capturable', sprintf(
+                '%s designe un objet de « %s » qui n est pas capturable.', $contexte, $famille
+            ));
+        }
+
+        return $clef;
     }
 
     private function offset(mixed $instant): ?int
@@ -282,32 +345,40 @@ final class ScenarioCaptureSerializer
             $clef = $this->clef('users', (string) $user->id, (string) ($user->first_name ?: $user->name ?: 'persona'));
             $source = $this->source('users', $clef);
 
-            // L'email ne se RECONSTRUIT jamais par manipulation de chaine.
+            // La garde `.test` est evaluee sur l'email RUNTIME, TOUJOURS.
             //
-            // Le Loader ecrit `local@<slug>.<domaine>` : la transformation n'est
-            // pas inversible, puisqu'on ne sait pas ou s'arrete le slug insere,
-            // et le slug d'une Organization peut avoir change depuis. Pour un
-            // persona SOURCE on relit donc l'email declare ; pour un persona
-            // nouveau on n'accepte que ce qui est deja `.test`.
-            $email = $source['email'] ?? null;
+            // La premiere version ne la posait que sur un persona inconnu du
+            // Manifest source : des que la stable key resolvait, l'email reel
+            // n'etait plus regarde du tout. Or `AdminController::updateUser()`
+            // laisse volontairement modifier un compte de sandbox SUR PLACE
+            // tant que son Organization ne change pas — c'est ce qui rend
+            // possible de corriger le nom d'un persona.
+            //
+            // Le chemin etait donc : editer `student-01` en y mettant un vrai
+            // email, un vrai nom, une vraie bio ; puis capturer. Le Manifest
+            // exportait l'identite REELLE sous l'email fictif de la source, et
+            // le Validator passait puisque l'email declare finissait en
+            // `.test`. Trouve en relecture adverse.
+            //
+            // La source ne sert donc qu'a CHOISIR la valeur declarable une fois
+            // le compte prouve fictif — jamais a se dispenser de la preuve.
+            if (! str_ends_with(mb_strtolower((string) $user->email), '.test')) {
+                $this->bloquer('users', 'real_user', sprintf(
+                    'Le compte « %s » porte un email qui n est pas de test : il ne peut pas etre exporte.',
+                    $clef
+                ));
 
-            if (! is_string($email)) {
-                $runtime = (string) $user->email;
-
-                if (! str_ends_with(strtolower($runtime), '.test')) {
-                    $this->bloquer('users', 'real_user', sprintf(
-                        'Le compte « %s » n a pas d email de test et ne vient pas du Manifest source : il ne peut pas etre exporte.',
-                        $clef
-                    ));
-
-                    continue;
-                }
-
-                $email = $runtime;
+                continue;
             }
 
+            // L'email DECLARE ne se reconstruit jamais par manipulation de
+            // chaine : le Loader ecrit `local@<slug>.<domaine>`, et la
+            // transformation n'est pas inversible — on ne sait pas ou s'arrete
+            // le slug insere, et le slug a pu changer depuis.
+            $email = is_string($source['email'] ?? null) ? $source['email'] : (string) $user->email;
+
             $sortie[] = [
-                'key' => $clef,
+                'key' => $this->emettre('users', $clef),
                 'first_name' => (string) $user->first_name,
                 'name' => (string) $user->name,
                 'email' => $email,
@@ -403,7 +474,7 @@ final class ScenarioCaptureSerializer
             $this->proprietaireDeBoucle[$clef] = $proprietaire;
 
             $sortie[] = [
-                'key' => $clef,
+                'key' => $this->emettre('loops', $clef),
                 'name' => (string) $loop->name,
                 'description' => (string) ($loop->description ?? ''),
                 'type' => (string) $loop->type,
@@ -424,6 +495,7 @@ final class ScenarioCaptureSerializer
         $membre = $this->requete(LoopMember::class)
             ->where('loop_id', $loop->id)
             ->where('role', 'owner')
+            ->where('status', 'active')
             ->orderBy('created_at')
             ->first();
 
@@ -437,16 +509,12 @@ final class ScenarioCaptureSerializer
      */
     private function reconcilierLesRacines(array $loops, array $dossiers): array
     {
-        $racineParBoucle = [];
-
-        foreach ($dossiers as $dossier) {
-            if (($dossier['parent'] ?? null) === null && ($dossier['loop'] ?? null) !== null) {
-                $racineParBoucle[$dossier['loop']] ??= $dossier['key'];
-            }
-        }
-
         foreach ($loops as $i => $loop) {
-            $racine = $racineParBoucle[$loop['key']] ?? null;
+            // La carte vient de `dossiers()`, qui connait le discriminant exact
+            // (`root_blog_post_id`). La deduire de `parent === null` elisait
+            // n'importe quel Dossier sans parent — y compris un enfant dont le
+            // parent n'avait pas ete capture.
+            $racine = $this->racinesParBoucle[$loop['key']] ?? null;
 
             if ($racine === null) {
                 $this->bloquer('loops', 'root_dossier_missing', sprintf(
@@ -470,7 +538,14 @@ final class ScenarioCaptureSerializer
         $sortie = [];
 
         // Identite COMPOSEE : aucune stable key fabriquee.
-        foreach ($this->requete(LoopMember::class)->orderBy('created_at')->orderBy('id')->get() as $membre) {
+        //
+        // `status` est filtre, et ce n'est pas cosmetique : `removeMember()` et
+        // `leave()` ne suppriment pas la ligne, ils posent `status = 'left'`.
+        // Sans ce filtre, qui a quitte une Boucle y revenait au re-Load —
+        // `applyMemberships()` reecrivant `status = 'active'`. Pire : un
+        // `owner` retire laissait DEUX memberships `owner` declares, ce que
+        // l'invariant refuse. Trouve en relecture adverse.
+        foreach ($this->requete(LoopMember::class)->where('status', 'active')->orderBy('created_at')->orderBy('id')->get() as $membre) {
             $loop = $this->ref('loops', (string) $membre->loop_id);
             $user = $this->ref('users', (string) $membre->user_id);
 
@@ -494,18 +569,32 @@ final class ScenarioCaptureSerializer
     private function dossiers(): array
     {
         $sortie = [];
+        $racines = [];
+        $parIdentifiant = [];
+        $parentDe = [];
 
         $lignes = $this->requete(Dossier::class)
             // Les Dossiers SYSTEME et personnels ne sont pas declarables.
+            //
+            // En revanche `dossiers[].loop` est NULLABLE en V1 et
+            // `applyDossiers()` materialise bien des Dossiers sans Boucle :
+            // les ecarter faisait disparaitre du monde declarable des objets
+            // parfaitement valides, et rendait pendantes les references de
+            // leurs articles et fichiers. Trouve en relecture adverse.
             ->whereNull('system_role')
-            ->whereNotNull('loop_id')
             ->orderBy('created_at')->orderBy('id')->get();
 
         foreach ($lignes as $dossier) {
             $clef = $this->clef('dossiers', (string) $dossier->id, (string) $dossier->name);
-            $boucle = $this->ref('loops', (string) ($dossier->loop_id ?? ''));
+            $boucle = $dossier->loop_id === null ? null : $this->ref('loops', (string) $dossier->loop_id);
 
-            if ($boucle === null) {
+            if ($dossier->loop_id !== null && $boucle === null) {
+                // La Boucle existe mais n'est pas capturable : on le DIT,
+                // plutot que de laisser tomber le Dossier en silence.
+                $this->bloquer('dossiers', 'reference_non_capturable', sprintf(
+                    'Le Dossier « %s » appartient a une Boucle qui n est pas capturable.', $clef
+                ));
+
                 continue;
             }
 
@@ -521,7 +610,7 @@ final class ScenarioCaptureSerializer
             // Boucle : c'est une reconstruction semantique deterministe, pas
             // un choix par defaut.
             $proprietaire = $this->ref('users', (string) ($dossier->owner_id ?? ''))
-                ?? ($this->proprietaireDeBoucle[$boucle] ?? null);
+                ?? ($boucle === null ? null : ($this->proprietaireDeBoucle[$boucle] ?? null));
 
             if ($proprietaire === null) {
                 $this->bloquer('dossiers', 'owner_unresolved', sprintf(
@@ -532,7 +621,7 @@ final class ScenarioCaptureSerializer
             }
 
             $ligne = [
-                'key' => $clef,
+                'key' => $this->emettre('dossiers', $clef),
                 'name' => (string) $dossier->name,
                 'owner' => $proprietaire,
                 'loop' => $boucle,
@@ -541,14 +630,40 @@ final class ScenarioCaptureSerializer
                 'root_document' => null,
             ];
 
-            if ($dossier->parent_id === null && $dossier->root_blog_post_id !== null) {
+            if ($this->estUneRacine($dossier)) {
                 $ligne['root_document'] = $this->documentRacine($dossier, $clef);
+                $racines[$boucle] = $clef;
             }
 
             $sortie[] = $ligne;
+            $parIdentifiant[(string) $dossier->id] = $clef;
+            $parentDe[$clef] = (string) ($dossier->parent_id ?? '');
         }
 
+        // Seconde passe pour `parent` — comme `applyDossiers()` le fait dans
+        // l'autre sens : le manifeste n'impose aucun ordre topologique, donc
+        // un parent peut etre emis APRES son enfant.
+        foreach ($sortie as $i => $ligne) {
+            $parent = $parentDe[$ligne['key']] ?? '';
+            $sortie[$i]['parent'] = $parent === '' ? null : ($parIdentifiant[$parent] ?? null);
+        }
+
+        $this->racinesParBoucle = $racines;
+
         return $sortie;
+    }
+
+    /**
+     * Le discriminant EXACT d'un espace documents de Boucle.
+     *
+     * `parent_id === null` ne suffit pas : un Dossier d'Organization sans
+     * parent n'est pas une racine de Boucle, et le prendre pour tel ecrasait sa
+     * visibilite declaree et pouvait l'elire racine a la place de la vraie.
+     * `root_blog_post_id` est ce que `ensureRootDossier()` pose.
+     */
+    private function estUneRacine(Dossier $dossier): bool
+    {
+        return $dossier->loop_id !== null && $dossier->root_blog_post_id !== null;
     }
 
     private function visibiliteDeDossier(Dossier $dossier): string
@@ -558,7 +673,7 @@ final class ScenarioCaptureSerializer
         // « A root dossier has the visibility 'loop' ». La colonne runtime peut
         // dire autre chose ; c'est l'invariant qui fait foi, et le reconstruire
         // n'est pas un choix mais la lecture de la visibilite EFFECTIVE.
-        if ($dossier->parent_id === null && $dossier->loop_id !== null) {
+        if ($this->estUneRacine($dossier)) {
             return 'loop';
         }
 
@@ -601,7 +716,19 @@ final class ScenarioCaptureSerializer
         return [
             'title' => (string) $post->title,
             'author' => $auteur,
-            'format' => $this->formatDeBlogPost($source['root_document']['format'] ?? null),
+            // TOUJOURS `html`, et ce n'est pas une entorse a « objet source ->
+            // format source ».
+            //
+            // Mesure : aucun applier n'ecrit jamais `root_document.title`,
+            // `.content`, `.author` ni `.format` — `grep root_document` sur les
+            // trois appliers ne rend que `trackRootDossier()`. Le document
+            // racine est INTEGRALEMENT le gabarit produit, pose par
+            // `LoopRootDocumentService::initialContent()`, qui rend du HTML.
+            //
+            // L'objet relu n'est donc pas l'objet source : c'est un BlogPost
+            // que le produit a fabrique. Lui coller le `format` declare par la
+            // source revenait a etiqueter du HTML en « markdown ».
+            'format' => 'html',
             'content' => (string) $post->content,
         ];
     }
@@ -634,8 +761,13 @@ final class ScenarioCaptureSerializer
         // sandbox. Le document racine n'en est pas un : il est rendu en ligne.
         $racines = $this->requete(Dossier::class)->whereNotNull('root_blog_post_id')->pluck('root_blog_post_id')->all();
 
+        // ORDRE explicite : sans lui, l'ordre des articles — et donc
+        // l'attribution des stable keys a la PREMIERE Capture — depend du
+        // hasard du moteur. Deux articles homonymes pouvaient echanger
+        // `note` et `note-2`.
         $liens = DB::table('dossier_blog_posts')
             ->where('organization_id', $this->sandbox->id)
+            ->orderBy('dossier_id')->orderBy('position')->orderBy('id')
             ->get(['blog_post_id', 'dossier_id']);
 
         foreach ($liens as $lien) {
@@ -650,7 +782,15 @@ final class ScenarioCaptureSerializer
 
             $dossier = $this->ref('dossiers', (string) $lien->dossier_id);
 
-            if (! $post instanceof BlogPost || $dossier === null) {
+            if (! $post instanceof BlogPost) {
+                continue;
+            }
+
+            if ($dossier === null) {
+                $this->bloquer('articles', 'reference_non_capturable', sprintf(
+                    'L article « %s » est place dans un Dossier qui n est pas capturable.', $post->title
+                ));
+
                 continue;
             }
 
@@ -664,7 +804,7 @@ final class ScenarioCaptureSerializer
             $source = $this->source('articles', $clef);
 
             $sortie[] = [
-                'key' => $clef,
+                'key' => $this->emettre('articles', $clef),
                 'dossier' => $dossier,
                 'author' => $auteur,
                 'title' => (string) $post->title,
@@ -721,7 +861,7 @@ final class ScenarioCaptureSerializer
             }
 
             $sortie[] = [
-                'key' => $this->clef('files', (string) $fichier->id, (string) ($fichier->display_name ?: $fichier->original_name)),
+                'key' => $this->emettre('files', $this->clef('files', (string) $fichier->id, (string) ($fichier->display_name ?: $fichier->original_name))),
                 'dossier' => $dossier,
                 'uploaded_by' => $auteur,
                 'name' => (string) ($fichier->display_name ?: $fichier->original_name),
@@ -765,10 +905,25 @@ final class ScenarioCaptureSerializer
             ->orderBy('created_at')->orderBy('id')
             ->get();
 
-        // `order` n'a aucune colonne : il se RECALCULE, par Boucle, parent
-        // avant reponse.
+        // `order` n'a aucune colonne : il se RECALCULE, par Boucle.
+        //
+        // ## Pourquoi CHRONOLOGIQUE, et pas un parcours d'arbre
+        //
+        // La premiere version numerotait en parcours prefixe : une racine, puis
+        // tout son fil de reponses, puis la racine suivante. Cela viole
+        // `ManifestCoreInvariants::assertMessageTimeline()`, qui exige que
+        // trier par `order` rende des `offset_minutes` NON DECROISSANTS dans
+        // une Boucle.
+        //
+        // Deux fils entrelaces dans le temps — le comportement normal de
+        // ChatLoop — suffisaient : A(10h00), B(10h10) racines, C(10h20) reponse
+        // a A donnaient les ordres 1, 2, 3 pour les offsets 0, +20, +10. Le
+        // document devenait invalide, et la sandbox non capturable.
+        //
+        // L'ordre chronologique satisfait les DEUX contraintes a la fois : les
+        // offsets croissent par construction, et un parent precede toujours sa
+        // reponse puisqu'on ne repond pas a un message qui n'existe pas encore.
         $parBoucle = [];
-        $sortie = [];
         $enAttente = [];
 
         foreach ($lignes as $message) {
@@ -779,7 +934,7 @@ final class ScenarioCaptureSerializer
                 continue;
             }
 
-            $clef = $this->clef('messages', (string) $message->id, 'message');
+            $clef = $this->emettre('messages', $this->clef('messages', (string) $message->id, 'message'));
             $source = $this->source('messages', $clef);
 
             $enAttente[] = [
@@ -801,41 +956,25 @@ final class ScenarioCaptureSerializer
             ];
         }
 
-        // Deuxieme passe : les reponses, maintenant que toutes les clefs
-        // existent. Puis l'ordre, parent avant reponse.
+        // Seconde passe : les reponses, maintenant que toutes les clefs
+        // existent.
         $clefParId = [];
 
         foreach ($enAttente as $entree) {
             $clefParId[(string) $entree['modele']->id] = $entree['ligne']['key'];
         }
 
-        $racines = [];
-        $reponses = [];
+        $sortie = [];
 
         foreach ($enAttente as $entree) {
             $parent = (string) ($entree['modele']->reply_to_id ?? '');
             $entree['ligne']['reply_to'] = $clefParId[$parent] ?? null;
 
-            if ($entree['ligne']['reply_to'] === null) {
-                $racines[] = $entree;
-            } else {
-                $reponses[$entree['ligne']['reply_to']][] = $entree;
-            }
-        }
-
-        $poser = function (array $entree) use (&$poser, &$reponses, &$parBoucle, &$sortie): void {
             $boucle = $entree['ligne']['loop'];
             $parBoucle[$boucle] = ($parBoucle[$boucle] ?? 0) + 1;
             $entree['ligne']['order'] = $parBoucle[$boucle];
+
             $sortie[] = $entree['ligne'];
-
-            foreach ($reponses[$entree['ligne']['key']] ?? [] as $enfant) {
-                $poser($enfant);
-            }
-        };
-
-        foreach ($racines as $racine) {
-            $poser($racine);
         }
 
         return $sortie;
@@ -854,7 +993,7 @@ final class ScenarioCaptureSerializer
 
         foreach ($this->requete(Category::class)->orderBy('created_at')->orderBy('id')->get() as $categorie) {
             $sortie[] = [
-                'key' => $this->clef('categories', (string) $categorie->id, (string) $categorie->name_b2c),
+                'key' => $this->emettre('categories', $this->clef('categories', (string) $categorie->id, (string) $categorie->name_b2c)),
                 'name' => (string) $categorie->name_b2c,
                 'color' => (string) $categorie->color,
             ];
@@ -878,7 +1017,7 @@ final class ScenarioCaptureSerializer
             }
 
             $sortie[] = [
-                'key' => $this->clef('skills', (string) $skill->id, (string) $skill->name),
+                'key' => $this->emettre('skills', $this->clef('skills', (string) $skill->id, (string) $skill->name)),
                 'category' => $categorie,
                 'name' => (string) $skill->name,
             ];
@@ -906,7 +1045,7 @@ final class ScenarioCaptureSerializer
             $source = $this->source('service_requests', $clef);
 
             $sortie[] = [
-                'key' => $clef,
+                'key' => $this->emettre('service_requests', $clef),
                 'author' => $auteur,
                 'title' => (string) $demande->title,
                 'description' => (string) $demande->description,
@@ -944,12 +1083,19 @@ final class ScenarioCaptureSerializer
             $source = $this->source('services', $clef);
 
             $sortie[] = [
-                'key' => $clef,
+                'key' => $this->emettre('services', $clef),
                 'author' => $auteur,
                 'title' => (string) $service->title,
                 'description' => (string) $service->description,
                 'category' => $categorie,
-                'skills' => is_array($source['skills'] ?? null) ? $source['skills'] : [],
+                // Le pivot REEL, pas un echo du document source.
+                //
+                // Contrairement a `highlight_in_loop` — qui n'a aucune
+                // materialisation — les competences d'une Offre vivent dans
+                // `service_skill`, et `applyServices()` y ecrit. Relire la
+                // source rendait `skills: []` pour toute Offre creee dans la
+                // sandbox, et figeait les autres.
+                'skills' => $this->competencesDuService($service),
                 'delivery_mode' => (string) $service->delivery_mode,
                 'points_cost' => (int) $service->points_cost,
                 'status' => (string) $service->status,
@@ -958,6 +1104,33 @@ final class ScenarioCaptureSerializer
         }
 
         return $sortie;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function competencesDuService(Service $service): array
+    {
+        $clefs = [];
+
+        // Borne par le SERVICE, qui est lui-meme borne a la sandbox.
+        //
+        // `service_skill` porte bien une colonne `organization_id`, mais
+        // `syncWithoutDetaching()` ne la renseigne pas : filtrer dessus rendait
+        // zero competence pour toutes les Offres. Le parent borne, et `ref()`
+        // reverifie que la competence est bien dans le document.
+        foreach (DB::table('service_skill')
+            ->where('service_id', $service->id)
+            ->orderBy('skill_id')
+            ->get() as $lien) {
+            $clef = $this->ref('skills', (string) $lien->skill_id);
+
+            if ($clef !== null) {
+                $clefs[] = $clef;
+            }
+        }
+
+        return $clefs;
     }
 
     // =====================================================================
@@ -986,13 +1159,13 @@ final class ScenarioCaptureSerializer
             $declarees = [];
 
             foreach ($options as $option) {
-                $clefOption = $this->clef('poll_options', (string) $option->id, (string) $option->label);
+                $clefOption = $this->emettre('poll_options', $this->clef('poll_options', (string) $option->id, (string) $option->label));
                 $clefParOption[(string) $option->id] = $clefOption;
                 $declarees[] = ['key' => $clefOption, 'label' => (string) $option->label];
             }
 
             $sortie[] = [
-                'key' => $this->clef('polls', (string) $sondage->id, (string) $sondage->question),
+                'key' => $this->emettre('polls', $this->clef('polls', (string) $sondage->id, (string) $sondage->question)),
                 'loop' => $boucle,
                 'author' => $auteur,
                 'question' => (string) $sondage->question,
@@ -1023,6 +1196,7 @@ final class ScenarioCaptureSerializer
 
         $choixParVote = DB::table('loop_poll_vote_options')
             ->whereIn('vote_id', $votes->pluck('id'))
+            ->orderBy('option_id')
             ->get()
             ->groupBy('vote_id');
 
@@ -1067,12 +1241,24 @@ final class ScenarioCaptureSerializer
 
             $debut = $evenement->starts_at;
             $fin = $evenement->ends_at;
-            $duree = ($debut && $fin)
-                ? max(1, (int) round((strtotime((string) $fin) - strtotime((string) $debut)) / 60))
-                : 60;
+
+            // `ends_at` est NULLABLE et le produit admet un evenement sans fin.
+            // `duration_minutes` est pourtant obligatoire en V1 : inventer 60
+            // donnerait a l'evenement, au re-Load, une fin qu'il n'avait pas.
+            // On refuse, on ne devine pas.
+            if ($debut === null || $fin === null) {
+                $this->bloquer('events', 'duree_inconnue', sprintf(
+                    'L evenement « %s » n a pas de fin : sa duree ne peut pas etre declaree sans l inventer.',
+                    $evenement->title
+                ));
+
+                continue;
+            }
+
+            $duree = (int) round((strtotime((string) $fin) - strtotime((string) $debut)) / 60);
 
             $sortie[] = [
-                'key' => $this->clef('events', (string) $evenement->id, (string) $evenement->title),
+                'key' => $this->emettre('events', $this->clef('events', (string) $evenement->id, (string) $evenement->title)),
                 'loop' => $boucle,
                 'author' => $auteur,
                 'title' => (string) $evenement->title,
@@ -1148,7 +1334,7 @@ final class ScenarioCaptureSerializer
             }
 
             $sortie[] = [
-                'key' => $this->clef('decisions', (string) $decision->id, (string) $decision->title),
+                'key' => $this->emettre('decisions', $this->clef('decisions', (string) $decision->id, (string) $decision->title)),
                 'loop' => $boucle,
                 'author' => $auteur,
                 'title' => (string) $decision->title,
@@ -1179,7 +1365,9 @@ final class ScenarioCaptureSerializer
 
             $assignes = [];
 
-            foreach (DB::table('loop_roadmap_item_user')->where('loop_roadmap_item_id', $item->id)->get() as $lien) {
+            foreach (DB::table('loop_roadmap_item_user')
+                ->where('loop_roadmap_item_id', $item->id)
+                ->orderBy('user_id')->get() as $lien) {
                 $user = $this->ref('users', (string) $lien->user_id);
 
                 if ($user !== null) {
@@ -1188,7 +1376,7 @@ final class ScenarioCaptureSerializer
             }
 
             $sortie[] = [
-                'key' => $this->clef('roadmap_items', (string) $item->id, (string) $item->title),
+                'key' => $this->emettre('roadmap_items', $this->clef('roadmap_items', (string) $item->id, (string) $item->title)),
                 'loop' => $boucle,
                 'created_by' => $auteur,
                 'title' => (string) $item->title,
@@ -1224,7 +1412,7 @@ final class ScenarioCaptureSerializer
             }
 
             $sortie[] = [
-                'key' => $this->clef('training.modules', (string) $module->id, (string) $module->title),
+                'key' => $this->emettre('training.modules', $this->clef('training.modules', (string) $module->id, (string) $module->title)),
                 'loop' => $boucle,
                 'title' => (string) $module->title,
                 'summary' => $module->summary,
@@ -1244,8 +1432,14 @@ final class ScenarioCaptureSerializer
         $sortie = [];
 
         foreach ($this->requete(CourseSequence::class)->whereNull('archived_at')->orderBy('position')->orderBy('id')->get() as $sequence) {
-            $module = $this->ref('training.modules', (string) $sequence->course_module_id);
-            $auteur = $this->ref('users', (string) ($sequence->created_by ?? ''));
+            $module = $this->refObligatoire(
+                'training.modules', (string) $sequence->course_module_id,
+                sprintf('La sequence « %s »', $sequence->title), 'training.sequences'
+            );
+            $auteur = $this->refObligatoire(
+                'users', (string) ($sequence->created_by ?? ''),
+                sprintf('La sequence « %s »', $sequence->title), 'training.sequences'
+            );
 
             if ($module === null || $auteur === null) {
                 continue;
@@ -1255,7 +1449,7 @@ final class ScenarioCaptureSerializer
             $source = $this->source('training.sequences', $clef);
 
             $sortie[] = [
-                'key' => $clef,
+                'key' => $this->emettre('training.sequences', $clef),
                 'module' => $module,
                 'title' => (string) $sequence->title,
                 'position' => (int) $sequence->position,
@@ -1305,8 +1499,11 @@ final class ScenarioCaptureSerializer
         $sortie = [];
 
         foreach ($this->requete(CourseSequenceProgress::class)->orderBy('created_at')->orderBy('id')->get() as $avancee) {
-            $sequence = $this->ref('training.sequences', (string) $avancee->course_sequence_id);
-            $user = $this->ref('users', (string) $avancee->user_id);
+            $sequence = $this->refObligatoire(
+                'training.sequences', (string) $avancee->course_sequence_id,
+                'Une progression', 'training.progress'
+            );
+            $user = $this->refObligatoire('users', (string) $avancee->user_id, 'Une progression', 'training.progress');
 
             if ($sequence === null || $user === null) {
                 continue;
@@ -1345,7 +1542,7 @@ final class ScenarioCaptureSerializer
             }
 
             $sortie[] = [
-                'key' => $this->clef('training.assignments', (string) $devoir->id, (string) $devoir->title),
+                'key' => $this->emettre('training.assignments', $this->clef('training.assignments', (string) $devoir->id, (string) $devoir->title)),
                 'loop' => $boucle,
                 'sequence' => $this->ref('training.sequences', (string) ($devoir->course_sequence_id ?? '')),
                 'title' => (string) $devoir->title,
@@ -1367,8 +1564,11 @@ final class ScenarioCaptureSerializer
         $sortie = [];
 
         foreach ($this->requete(CourseSubmission::class)->orderBy('created_at')->orderBy('id')->get() as $rendu) {
-            $devoir = $this->ref('training.assignments', (string) $rendu->course_assignment_id);
-            $user = $this->ref('users', (string) $rendu->user_id);
+            $devoir = $this->refObligatoire(
+                'training.assignments', (string) $rendu->course_assignment_id,
+                'Une remise', 'training.submissions'
+            );
+            $user = $this->refObligatoire('users', (string) $rendu->user_id, 'Une remise', 'training.submissions');
 
             if ($devoir === null || $user === null) {
                 continue;

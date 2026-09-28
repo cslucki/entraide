@@ -55,7 +55,94 @@ final class ScenarioCaptureService
         $registre = ScenarioCaptureKeyRegistry::pour($sandbox);
         $registre->amorcerDepuisLeMoteur($load, (array) json_decode((string) $version->json_source, true));
 
-        return (new ScenarioCaptureSerializer($sandbox, $load, $registre, (string) $version->json_source))->serialiser();
+        return $this->constater(
+            (new ScenarioCaptureSerializer($sandbox, $load, $registre, (string) $version->json_source))->serialiser(),
+            $version
+        );
+    }
+
+    /**
+     * Le constat COMPLET : ce que le serializer a vu, plus ce que le Validator
+     * refuse — chaque erreur NOMMEE.
+     *
+     * ## Pourquoi le verdict technique devient un blocker
+     *
+     * La premiere version rendait un `captureInvalid` portant un blob JSON
+     * d'erreurs. Or toute la classe est batie sur la promesse inverse :
+     * « l'inventaire COMPLET de ce qui bloque », avec famille, limite et valeur
+     * reelle.
+     *
+     * L'ecart n'etait pas cosmetique. Le domaine V1 est plus etroit que celui
+     * du produit sur une vingtaine de champs : une Boucle de type `writing`,
+     * une Decision enregistree APRES le chargement (`decided_day_offset` est
+     * plafonne a 0), un evenement de cinq minutes, un article `audience:
+     * public` — autant de gestes ordinaires qui rendaient la sandbox non
+     * capturable avec un message que personne ne pouvait actionner.
+     *
+     * Confronter le document au Validator et traduire chaque erreur en blocker
+     * couvre donc d'un seul geste tous les domaines, toutes les bornes de
+     * longueur et les deux limites GLOBALES (`MAX_OBJECTS`,
+     * `MAX_CONTENT_BYTES`) — qui echappaient au controle par collection.
+     *
+     * Ce n'est PAS une reparation apres Validator : rien n'est corrige, tout
+     * est rapporte.
+     */
+    private function constater(ScenarioCaptureResult $resultat, ScenarioManifestVersion $version): ScenarioCaptureResult
+    {
+        if ($resultat->estBloquee()) {
+            // Un document ampute n'a pas a etre confronte au Validator : ses
+            // erreurs seraient les consequences des blockers, pas des causes.
+            return $resultat;
+        }
+
+        $json = $this->encoder($resultat->document, $version);
+
+        if (! is_string($json)) {
+            return new ScenarioCaptureResult($resultat->document, [[
+                'famille' => 'document',
+                'raison' => 'encodage_impossible',
+                'detail' => 'Le document capture n a pas pu etre encode en JSON.',
+            ]]);
+        }
+
+        $verdict = $this->validator->validate($json);
+
+        if ($verdict->isValid()) {
+            return $resultat;
+        }
+
+        $blockers = [];
+
+        foreach ($verdict->toArray()['errors'] ?? [] as $erreur) {
+            $chemin = (string) ($erreur['path'] ?? '/');
+
+            $blockers[] = [
+                // La famille se lit dans le JSON Pointer : `/decisions/0/...`.
+                'famille' => explode('/', ltrim($chemin, '/'))[0] ?: 'document',
+                'raison' => mb_strtolower((string) ($erreur['code'] ?? 'invalid')),
+                'detail' => sprintf('%s — %s', $chemin, (string) ($erreur['message'] ?? '')),
+            ];
+        }
+
+        return new ScenarioCaptureResult($resultat->document, $blockers);
+    }
+
+    /**
+     * @param  array<string, mixed>  $document
+     */
+    private function encoder(array $document, ScenarioManifestVersion $version): ?string
+    {
+        // Le document DIT ce qu'il est.
+        //
+        // `duplicate()` reecrit `version` pour cette raison exacte : « le texte
+        // JSON est l'unique source de verite (CDC 10.1) ». Une capture qui
+        // garderait le numero de sa source porterait deux verites, dont une
+        // fausse — la colonne dirait 1.1.0 et le document 1.0.0.
+        $document['version'] = $this->prochaineVersion((string) $version->scenario_key, (string) $version->version);
+
+        $json = json_encode($document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        return is_string($json) ? $json : null;
     }
 
     /**
@@ -71,18 +158,18 @@ final class ScenarioCaptureService
         $registre = ScenarioCaptureKeyRegistry::pour($sandbox);
         $registre->amorcerDepuisLeMoteur($load, (array) json_decode((string) $version->json_source, true));
 
-        $resultat = (new ScenarioCaptureSerializer($sandbox, $load, $registre, (string) $version->json_source))->serialiser();
+        $resultat = $this->constater(
+            (new ScenarioCaptureSerializer($sandbox, $load, $registre, (string) $version->json_source))->serialiser(),
+            $version
+        );
 
         if ($resultat->estBloquee()) {
             // Aucune troncature, aucune version partielle : on rend
-            // l'inventaire COMPLET de ce qui bloque.
+            // l'inventaire COMPLET de ce qui bloque, chaque obstacle NOMME.
             throw ScenarioVersionRefused::captureBlocked($resultat->rapport(), count($resultat->blockers));
         }
 
-        $json = json_encode(
-            $resultat->document,
-            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
-        );
+        $json = $this->encoder($resultat->document, $version);
 
         if (! is_string($json)) {
             throw ScenarioVersionRefused::captureInvalid('Le document capture n a pas pu etre encode.');
@@ -153,8 +240,37 @@ final class ScenarioCaptureService
         // `organization_id`, et c'est lui la borne.
         $load = ScenarioPackLoad::query()->find($version->scenario_pack_load_id);
 
-        if (! $load instanceof ScenarioPackLoad || $load->reset_at !== null) {
+        if (! $load instanceof ScenarioPackLoad) {
             throw ScenarioVersionRefused::notLoaded();
+        }
+
+        // `reset_at` n'ETEINT rien.
+        //
+        // Ma premiere version en faisait un predicat de vivacite et rendait
+        // `notLoaded()` — une phrase FAUSSE : la migration de T1646 dit
+        // explicitement que « `reset_at` n'eteint rien, ce n'est que
+        // l'horodatage du dernier reset », et le resolveur canonique
+        // `ScenarioLifecycleService::chargementDeLaVersion()` ne le regarde
+        // pas. Un Reset — geste ordinaire qui CONSERVE la sandbox — rendait
+        // donc la Capture impossible pour toujours, en pretendant qu'il n'y
+        // avait aucun chargement.
+        //
+        // Mais il ne suffit pas de retirer la clause. `ScenarioPackResetter`
+        // ne met PAS `loaded_at` a jour, alors que `ManifestScenarioPack::apply()`
+        // reconstruit le monde avec un instant FRAIS : apres un Reset, l'ancre
+        // du monde courant n'est plus celle du chargement, et capturer
+        // produirait tous les offsets decales du delai entre Load et Reset,
+        // silencieusement.
+        //
+        // On refuse donc, mais avec la VRAIE raison, et en disant quoi faire.
+        // La dette « persister l'ancre du monde courant » est nommee au TASK
+        // file.
+        if ($load->reset_at !== null) {
+            throw ScenarioVersionRefused::captureBlocked(
+                "[sandbox] ancre_inconnue — Cette sandbox a ete reinitialisee : l ancre de temps de son monde courant n est pas conservee, "
+                ."et capturer produirait des offsets decales. Rechargez le scenario avant de capturer.",
+                1
+            );
         }
 
         // Une sandbox en corbeille reste une sandbox : `withTrashed()`, sinon

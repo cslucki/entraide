@@ -61,7 +61,16 @@ class ScenarioCaptureEngineTest extends TestCase
         $this->assertSame(ScenarioManifestVersion::STATE_DRAFT, $capturee->state);
         $this->assertSame(ScenarioManifestVersion::ORIGIN_CAPTURE, $capturee->origin);
         $this->assertSame($version->id, $capturee->parent_id);
-        $this->assertNotNull($capturee->captured_from_organization_id);
+        // `assertNotNull` etait TAUTOLOGIQUE : poser l'Organization du
+        // SuperAdmin — une Organization CLIENTE — l'aurait satisfaite.
+        $this->assertSame($this->sandboxDe($version)->id, $capturee->captured_from_organization_id);
+
+        // Et le document DIT son propre numero : une capture qui garderait
+        // celui de sa source porterait deux verites, dont une fausse.
+        $this->assertSame(
+            $capturee->version,
+            json_decode((string) $capturee->json_source, true)['version']
+        );
 
         // Une Capture est une MESURE, jamais une approbation humaine. Recopier
         // l'approbation rendrait chargeable un monde que personne n'a relu.
@@ -443,6 +452,310 @@ class ScenarioCaptureEngineTest extends TestCase
     }
 
     // =====================================================================
+    // Les defauts trouves par les deux relectures adverses
+    // =====================================================================
+
+    public function test_deux_fils_ENTRELACES_gardent_un_ordre_coherent_avec_le_temps(): void
+    {
+        // L'invariant `assertMessageTimeline` exige que trier par `order` rende
+        // des offsets NON DECROISSANTS. Un parcours d'arbre le violait des que
+        // deux fils s'entrelacaient — le comportement normal de ChatLoop.
+        $version = $this->versionChargee();
+        [$loop, $auteur] = $this->uneBoucleEtUnMembre($version);
+
+        $racineA = $this->message($loop, $auteur, 'Racine A', null, 10);
+        $this->message($loop, $auteur, 'Racine B', null, 20);
+        $this->message($loop, $auteur, 'Reponse a A', $racineA, 30);
+
+        $document = app(ScenarioCaptureService::class)->inspecter($version)->document;
+
+        $parBoucle = [];
+
+        foreach ($document['messages'] as $message) {
+            $parBoucle[$message['loop']][] = $message;
+        }
+
+        foreach ($parBoucle as $boucle => $messages) {
+            usort($messages, static fn (array $a, array $b): int => $a['order'] <=> $b['order']);
+            $precedent = null;
+
+            foreach ($messages as $message) {
+                if ($precedent !== null) {
+                    $this->assertGreaterThanOrEqual(
+                        $precedent, $message['offset_minutes'],
+                        "Dans « {$boucle} », trier par order doit rendre des offsets non decroissants."
+                    );
+                }
+                $precedent = $message['offset_minutes'];
+            }
+        }
+
+        // Et le fil de discussion n'est pas perdu au passage.
+        $reponse = collect($document['messages'])->firstWhere('body', 'Reponse a A');
+        $racine = collect($document['messages'])->firstWhere('body', 'Racine A');
+        $this->assertSame($racine['key'], $reponse['reply_to']);
+    }
+
+    public function test_une_sequence_ARCHIVEE_dont_la_progression_survit_rend_un_blocker_NOMME(): void
+    {
+        // `CourseMaterialService::deleteSequence()` ARCHIVE la sequence et
+        // CONSERVE les progressions quand quelqu un a commence — c est la
+        // regle explicite du produit. La progression designait alors une
+        // sequence absente du document : reference pendante, et toute la
+        // sandbox devenait non capturable avec un message opaque.
+        $version = $this->versionChargee();
+        $sandbox = $this->sandboxDe($version);
+
+        $sequence = \App\Models\CourseSequence::query()->withoutGlobalScopes()
+            ->where('organization_id', $sandbox->id)->firstOrFail();
+        $sequence->forceFill(['archived_at' => now()])->save();
+
+        $resultat = app(ScenarioCaptureService::class)->inspecter($version);
+
+        $this->assertTrue($resultat->estBloquee());
+        $this->assertStringContainsString('reference_non_capturable', $resultat->rapport());
+        // Le rapport NOMME la famille, il ne rend pas un blob d erreurs.
+        $this->assertStringContainsString('training.sequences', $resultat->rapport());
+    }
+
+    public function test_un_domaine_HORS_V1_rend_un_blocker_NOMME_et_non_un_blob(): void
+    {
+        // Le domaine produit est plus large que Manifest V1 : `loop_types`
+        // declare sept types dont `writing`, absent de l enum V1. Creer une
+        // Boucle d ecriture dans la sandbox est UN CLIC, et cela rendait la
+        // Capture impossible avec un message que personne ne pouvait
+        // actionner.
+        $version = $this->versionChargee();
+        $sandbox = $this->sandboxDe($version);
+        [, $auteur] = $this->uneBoucleEtUnMembre($version);
+
+        $boucle = \App\Models\Loop::query()->create([
+            'organization_id' => $sandbox->id,
+            'name' => 'Atelier d ecriture',
+            'slug' => 'ecriture-'.uniqid(),
+            'description' => 'Un type que le produit connait et que V1 ignore.',
+            'type' => 'writing',
+            'visibility' => 'private', 'access_mode' => 'invitation',
+            'created_by' => $auteur->id,
+        ]);
+        \App\Models\LoopMember::query()->create([
+            'organization_id' => $sandbox->id, 'loop_id' => $boucle->id,
+            'user_id' => $auteur->id, 'role' => 'owner', 'status' => 'active',
+        ]);
+        $racine = app(\App\Services\Loops\LoopRootDocumentService::class);
+        $racine->ensureRootDossier($boucle);
+        $racine->ensureRootDocument($boucle, $auteur);
+
+        $resultat = app(ScenarioCaptureService::class)->inspecter($version);
+
+        $this->assertTrue($resultat->estBloquee());
+        // La famille est NOMMEE, et le chemin exact est donne.
+        $this->assertStringContainsString('[loops]', $resultat->rapport());
+        $this->assertStringContainsString('/loops/', $resultat->rapport());
+    }
+
+    public function test_un_Dossier_SANS_Boucle_est_capture(): void
+    {
+        // `dossiers[].loop` est NULLABLE en V1 et `applyDossiers()` materialise
+        // bien des Dossiers sans Boucle. Les ecarter les faisait disparaitre du
+        // monde declarable, en silence.
+        $version = $this->versionChargee();
+        $sandbox = $this->sandboxDe($version);
+        [, $auteur] = $this->uneBoucleEtUnMembre($version);
+
+        \App\Models\Dossier::query()->create([
+            'organization_id' => $sandbox->id,
+            'owner_id' => $auteur->id,
+            'name' => 'Dossier d Organization',
+            'visibility' => 'organization',
+        ]);
+
+        $document = app(ScenarioCaptureService::class)->inspecter($version)->document;
+        $sansBoucle = collect($document['dossiers'])->firstWhere('name', 'Dossier d Organization');
+
+        $this->assertNotNull($sansBoucle, 'Un Dossier sans Boucle doit etre capture.');
+        $this->assertNull($sansBoucle['loop']);
+        // Sa visibilite DECLAREE est conservee : seule une vraie racine est
+        // forcee a `loop`.
+        $this->assertSame('organization', $sansBoucle['visibility']);
+        $this->assertNull($sansBoucle['root_document']);
+    }
+
+    public function test_une_personne_qui_a_QUITTE_une_Boucle_n_y_revient_pas(): void
+    {
+        // `removeMember()` et `leave()` ne suppriment pas la ligne : ils posent
+        // `status = 'left'`. Sans filtre, la personne etait re-declaree membre,
+        // et `applyMemberships()` la reinscrivait `active` au re-Load.
+        $version = $this->versionChargee();
+        $sandbox = $this->sandboxDe($version);
+
+        $membre = \App\Models\LoopMember::query()
+            ->where('organization_id', $sandbox->id)->where('role', 'member')->firstOrFail();
+        $membre->forceFill(['status' => 'left'])->save();
+
+        $document = app(ScenarioCaptureService::class)->inspecter($version)->document;
+
+        // La fixture declare 44 participations ; une seule a ete quittee.
+        $this->assertCount(43, $document['memberships'], 'La participation quittee ne doit plus etre declaree.');
+    }
+
+    public function test_les_competences_d_une_Offre_viennent_du_PIVOT(): void
+    {
+        // Elles vivent dans `service_skill`, et l applier y ecrit. Les relire
+        // depuis le document source rendait `skills: []` pour toute Offre nee
+        // dans la sandbox, et figeait les autres.
+        $version = $this->versionChargee();
+        $sandbox = $this->sandboxDe($version);
+
+        $service = \App\Models\Service::query()->withoutGlobalScope(\App\Models\Scopes\BelongsToOrganizationScope::class)
+            ->where('organization_id', $sandbox->id)->firstOrFail();
+
+        $avant = collect(app(ScenarioCaptureService::class)->inspecter($version)->document['services'])
+            ->firstWhere('title', $service->title)['skills'];
+        $this->assertNotSame([], $avant, 'Le cas ne vaut que si l Offre a deja des competences.');
+
+        // On en RETIRE une au runtime.
+        \Illuminate\Support\Facades\DB::table('service_skill')
+            ->where('service_id', $service->id)->limit(1)->delete();
+
+        $apres = collect(app(ScenarioCaptureService::class)->inspecter($version)->document['services'])
+            ->firstWhere('title', $service->title)['skills'];
+
+        $this->assertCount(count($avant) - 1, $apres, 'La Capture doit suivre le pivot, pas le document source.');
+    }
+
+    public function test_le_document_racine_est_declare_en_html(): void
+    {
+        // Aucun applier n ecrit jamais `root_document` : il est INTEGRALEMENT
+        // le gabarit produit, pose par `initialContent()`, qui rend du HTML.
+        // Lui coller le format declare par la source etiquetait du HTML en
+        // « markdown ».
+        $version = $this->versionChargee();
+        $source = json_decode((string) $version->json_source, true);
+
+        $formatsSource = array_column($source['dossiers'], 'root_document');
+        $this->assertSame('markdown', $formatsSource[0]['format'], 'La fixture doit declarer markdown pour que le cas vaille.');
+
+        $document = app(ScenarioCaptureService::class)->inspecter($version)->document;
+
+        foreach ($document['dossiers'] as $dossier) {
+            if ($dossier['root_document'] !== null) {
+                $this->assertSame('html', $dossier['root_document']['format']);
+                $this->assertStringContainsString('<p>', $dossier['root_document']['content']);
+            }
+        }
+    }
+
+    public function test_une_personne_REELLE_bloque_meme_si_sa_clef_vient_de_la_SOURCE(): void
+    {
+        // Le chemin reel : `AdminController::updateUser()` laisse volontairement
+        // modifier un compte de sandbox SUR PLACE tant que son Organization ne
+        // change pas. Editer `student-01` en y mettant un vrai email, un vrai
+        // nom et une vraie bio, puis capturer, exportait l identite REELLE sous
+        // l email fictif de la source — et le Validator passait.
+        $version = $this->versionChargee();
+        $sandbox = $this->sandboxDe($version);
+
+        $persona = User::query()->where('organization_id', $sandbox->id)
+            ->where('email', 'like', 'student-01@%')->firstOrFail();
+
+        $persona->forceFill([
+            'email' => 'cyril.reel@gmail.com',
+            'name' => 'Nom Reel',
+            'bio' => 'Une biographie reelle.',
+        ])->save();
+
+        $resultat = app(ScenarioCaptureService::class)->inspecter($version);
+
+        $this->assertTrue($resultat->estBloquee(), 'Un persona source dont l email est devenu reel doit bloquer.');
+        $this->assertStringContainsString('real_user', $resultat->rapport());
+
+        // Et rien de l identite reelle ne sort.
+        $json = json_encode($resultat->document, JSON_UNESCAPED_UNICODE);
+        $this->assertStringNotContainsString('Nom Reel', (string) $json);
+        $this->assertStringNotContainsString('Une biographie reelle.', (string) $json);
+    }
+
+    public function test_organization_role_vient_de_admin_id_et_JAMAIS_de_is_admin(): void
+    {
+        // `is_admin` est le predicat PLATEFORME. Le seul test qui le gardait
+        // cherchait la CHAINE « is_admin » dans le JSON : il prouvait l absence
+        // d un nom de clef, pas l absence du FAIT. Substituer `$user->is_admin`
+        // a `admin_id` laissait toute la suite verte.
+        $version = $this->versionChargee();
+        $sandbox = $this->sandboxDe($version);
+
+        $document = app(ScenarioCaptureService::class)->inspecter($version)->document;
+        $admins = array_values(array_filter($document['users'], static fn (array $u): bool => $u['organization_role'] === 'admin'));
+
+        // Le sens POSITIF : le responsable declare ressort bien `admin`.
+        $this->assertCount(1, $admins, 'La sandbox a exactement un responsable.');
+        $responsable = User::query()->findOrFail($sandbox->admin_id);
+        $this->assertSame($responsable->first_name, $admins[0]['first_name']);
+
+        // Le sens NEGATIF : poser `is_admin` sur un AUTRE compte ne le promeut
+        // pas dans le Manifest.
+        $autre = User::query()->where('organization_id', $sandbox->id)
+            ->whereKeyNot($sandbox->admin_id)->firstOrFail();
+        $autre->forceFill(['is_admin' => true])->save();
+
+        $apres = app(ScenarioCaptureService::class)->inspecter($version)->document;
+        $adminsApres = array_values(array_filter($apres['users'], static fn (array $u): bool => $u['organization_role'] === 'admin'));
+
+        $this->assertCount(1, $adminsApres);
+        $this->assertSame($admins[0]['key'], $adminsApres[0]['key'], 'Un privilege PLATEFORME ne fait pas un responsable d Organization.');
+    }
+
+    public function test_apres_un_RESET_la_Capture_refuse_avec_la_VRAIE_raison(): void
+    {
+        // `reset_at` n ETEINT rien : la migration T1646 le dit, et le resolveur
+        // canonique ne le regarde pas. En faire un predicat de vivacite rendait
+        // `notLoaded()` — une phrase fausse — apres un geste ordinaire.
+        //
+        // Mais capturer apres un Reset produirait des offsets decales, car
+        // `ScenarioPackResetter` ne met pas `loaded_at` a jour alors que le
+        // monde est reconstruit avec un instant frais. On refuse donc, avec la
+        // vraie raison et en disant quoi faire.
+        $version = $this->versionChargee();
+        app(ScenarioLifecycleService::class)->reset($version->fresh(), $this->superAdmin);
+
+        // La version reste CHARGEE : c est bien le point.
+        $this->assertTrue($version->fresh()->isLoaded());
+
+        try {
+            app(ScenarioCaptureService::class)->capturer($version->fresh(), $this->superAdmin);
+            $this->fail('Un refus etait attendu.');
+        } catch (ScenarioVersionRefused $refus) {
+            $this->assertSame(ScenarioVersionRefused::CAPTURE_BLOCKED, $refus->reason);
+            $this->assertStringContainsString('ancre_inconnue', $refus->getMessage());
+            $this->assertStringNotContainsString('aucun chargement', $refus->getMessage());
+        }
+    }
+
+    private function message(
+        \App\Models\Loop $loop,
+        User $auteur,
+        string $corps,
+        ?\App\Models\LoopMessage $parent = null,
+        int $minutes = 0
+    ): \App\Models\LoopMessage {
+        $message = \App\Models\LoopMessage::create([
+            'loop_id' => $loop->id,
+            'sender_id' => $auteur->id,
+            'organization_id' => $loop->organization_id,
+            'body' => $corps,
+            'type' => 'user',
+            'reply_to_id' => $parent?->id,
+        ]);
+
+        // L ordre chronologique doit etre celui qu on DECLARE, pas celui de
+        // l insertion.
+        $message->forceFill(['created_at' => now()->addMinutes($minutes)])->saveQuietly();
+
+        return $message->fresh();
+    }
+
+    // =====================================================================
     // Le round-trip : le critere canonique
     // =====================================================================
 
@@ -477,12 +790,28 @@ class ScenarioCaptureEngineTest extends TestCase
         $recapture = app(ScenarioCaptureService::class)->inspecter($capturee->fresh())->document;
         $attendu = json_decode((string) $capturee->json_source, true);
 
+        // LES VINGT familles, pas treize.
+        //
+        // La premiere version omettait `service_requests`, `services` et TOUT
+        // le sous-arbre `training` — soit exactement les familles dont la
+        // Capture depend d une relecture de la source ou d un filtre
+        // `archived_at`. Un test qui s appelle « round-trip » et qui laisse
+        // sept familles hors du contrat ne prouve pas ce qu il annonce.
         foreach (['users', 'loops', 'memberships', 'dossiers', 'articles', 'files',
-            'messages', 'categories', 'skills', 'polls', 'events', 'decisions', 'roadmap_items'] as $famille) {
+            'messages', 'categories', 'skills', 'service_requests', 'services',
+            'polls', 'events', 'decisions', 'roadmap_items'] as $famille) {
             $this->assertSame(
                 $this->empreinte($attendu[$famille]),
                 $this->empreinte($recapture[$famille]),
                 "La famille « {$famille} » ne converge pas apres re-Load."
+            );
+        }
+
+        foreach (['modules', 'sequences', 'progress', 'assignments', 'submissions'] as $sous) {
+            $this->assertSame(
+                $this->empreinte($attendu['training'][$sous]),
+                $this->empreinte($recapture['training'][$sous]),
+                "La famille « training.{$sous} » ne converge pas apres re-Load."
             );
         }
 

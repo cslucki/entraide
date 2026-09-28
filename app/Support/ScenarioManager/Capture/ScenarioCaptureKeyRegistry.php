@@ -245,7 +245,13 @@ final class ScenarioCaptureKeyRegistry
 
         $maintenant = now();
 
-        ScenarioCaptureKey::query()->insert(array_map(fn (array $ligne): array => [
+        // `upsert` et non `insert` : deux Captures concurrentes sur la meme
+        // sandbox calculent les MEMES clefs pour les memes objets, et un
+        // `insert` sec rendait alors une `UniqueConstraintViolationException`
+        // non traduite — un 500 la ou il n'y a rien d'anormal. La clef d'un
+        // objet est stable par construction : reecrire la meme valeur est sans
+        // effet.
+        ScenarioCaptureKey::query()->upsert(array_map(fn (array $ligne): array => [
             'id' => (string) \Illuminate\Support\Str::uuid7(),
             'organization_id' => $this->sandbox->id,
             'entity_family' => $ligne['entity_family'],
@@ -254,7 +260,7 @@ final class ScenarioCaptureKeyRegistry
             'first_seen_at' => $maintenant,
             'created_at' => $maintenant,
             'updated_at' => $maintenant,
-        ], $this->aEcrire));
+        ], $this->aEcrire), ['organization_id', 'entity_family', 'entity_id'], ['stable_key', 'updated_at']);
 
         $this->aEcrire = [];
     }
