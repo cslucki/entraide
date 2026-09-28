@@ -1014,6 +1014,19 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         ->whereUuid('version')
         ->name('outils.scenarios.remove');
 
+    // TASK-1653 — capturer l'etat actuel d'une sandbox.
+    //
+    // DEUX routes, et la separation est le contrat : le GET ouvre l'ecran et
+    // n'ecrit rien ; le POST cree la version, et seulement sur un geste humain
+    // explicite. Une seule route qui ferait les deux transformerait « ouvrir
+    // pour comprendre » en « creer sans avoir lu ».
+    Route::get('/outils/scenarios/{version}/capturer', [AdminScenarioManagerController::class, 'capturePreview'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.capture');
+    Route::post('/outils/scenarios/{version}/capturer', [AdminScenarioManagerController::class, 'captureStore'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.capture.store');
+
     // Stats
     Route::get('/stats/login-history', [AdminController::class, 'loginHistory'])->name('stats.login-history');
     Route::get('/stats/login-history/user/{user}', [AdminController::class, 'loginHistoryUser'])->name('stats.login-history.user');

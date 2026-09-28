@@ -156,6 +156,36 @@ class ScenarioPackResetter
 
             $load->pack_version = $pack->packVersion();
             $load->reset_at = now();
+
+            // TASK-1653 — Reset RECONSTRUIT le monde : son ancre est REMPLACEE.
+            //
+            // C'est le point qui manquait. `reset_at` dit quand on a reinitialise ;
+            // `world_anchored_at` doit dire a partir de quel instant le NOUVEAU
+            // monde compte ses offsets. Les laisser diverger rendait la Capture
+            // impossible apres un Reset (T1652 refusait, faute de savoir), ou —
+            // pire — l'aurait rendue silencieusement fausse.
+            //
+            // Un Reset avec le code actuel suffit donc a rendre capturable une
+            // sandbox dont l'ancre etait inconnue.
+            // SEULEMENT en mode EXACT, et la condition n'est pas decorative.
+            //
+            // En mode non-exact, `apply()` est idempotent : les messages et les
+            // articles DEJA presents sont rendus tels quels, leurs `created_at`
+            // et `published_at` ne sont pas reecrits. Remplacer l'ancre sans
+            // avoir reconstruit le monde ferait glisser TOUS les offsets du
+            // delai ecoule depuis le chargement — uniformement, donc sans
+            // rendre le document invalide.
+            //
+            // Aujourd'hui aucun appelant ne passe un `ManifestScenarioPack` en
+            // non-exact (le catalogue ne sait pas les produire), mais c'est un
+            // accident de routage, pas un invariant : le premier qui le fera ne
+            // doit rien casser. Trouve en relecture adverse.
+            $ancre = $registrar->ancreDuMonde();
+
+            if ($exact && $ancre !== null) {
+                $load->world_anchored_at = $ancre;
+            }
+
             $load->save();
 
             $counts = ScenarioPackEntity::query()

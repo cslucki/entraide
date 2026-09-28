@@ -144,11 +144,30 @@ class ManifestCoreApplier
 
             if (array_key_exists($key, $rootDossierKeys)) {
                 // Dossier racine : deja cree par la primitive canonique de
-                // T1642. On le retrouve, on ne le recree pas.
+                // T1642. On le retrouve, on ne le recree pas — MAIS on lui
+                // applique ce que le manifeste declare.
+                //
+                // ## Le defaut que ce bloc repare (TASK-1653)
+                //
+                // Jusqu'ici l'applier sortait ICI, sans jamais ecrire
+                // `$declared->name` ni toucher `root_document` : le monde
+                // charge portait le gabarit produit — le nom de la Boucle, et
+                // le texte de `initialContent()` — la ou le manifeste avait
+                // declare « Supports de formation » et son propre contenu.
+                //
+                // La divergence etait PERMANENTE et non actionnable. Elle est
+                // restee invisible jusqu'a ce que T1653 donne un ecran de
+                // comparaison a lire : un Load suivi d'un Preview immediat
+                // affichait « 2 Dossiers modifies » sur un monde ou personne
+                // n'avait rien fait, et le cas « aucun changement declarable »
+                // devenait INATTEIGNABLE.
+                //
+                // Arbitrage MASTER : `Manifest declare -> Load -> runtime
+                // fidele`, et non « le gabarit produit ecrase le manifeste ».
                 $loop = $loops[$rootDossierKeys[$key]] ?? null;
 
                 if ($loop !== null) {
-                    $dossiers[$key] = app(LoopRootDocumentService::class)->ensureRootDossier($loop);
+                    $dossiers[$key] = $this->appliquerLeDossierRacine($loop, $declared, $users);
                 }
 
                 continue;
@@ -184,6 +203,97 @@ class ManifestCoreApplier
         }
 
         return $dossiers;
+    }
+
+    /**
+     * Le Dossier racine d'une Boucle, RENDU FIDELE a ce que le manifeste
+     * declare (TASK-1653).
+     *
+     * La structure produit reste posee par la primitive canonique : on ne cree
+     * jamais un second Dossier racine, ni un second document racine. On
+     * applique ensuite, par-dessus, les champs que Manifest V1 declare — et
+     * seulement ceux-la.
+     *
+     * Les invariants du produit sont conserves par construction :
+     * `ensureRootDossier()` rend LE Dossier racine de la Boucle, donc
+     * `parent_id` reste nul et la visibilite reste celle de la Boucle.
+     *
+     * @param  array<string, User>  $users
+     */
+    private function appliquerLeDossierRacine(Loop $loop, mixed $declared, array $users): Dossier
+    {
+        $service = app(LoopRootDocumentService::class);
+        $dossier = $service->ensureRootDossier($loop);
+
+        // Le NOM declare. `forceFill` parce que `name` n'a pas a etre
+        // `$fillable` pour un geste d'administration.
+        //
+        // ## Et pourquoi PAS `owner`
+        //
+        // Une relecture adverse a signale que `dossiers[].owner` n'etait jamais
+        // applique, et que la Capture le reconstruit depuis la Boucle — d'ou un
+        // `changed` permanent si un manifeste declarait un autre proprietaire.
+        // Le constat est juste ; la correction est IMPOSSIBLE.
+        //
+        // `dossiers_holder_xor` :
+        //
+        //     CHECK ((owner_id IS NULL) <> (loop_id IS NULL))
+        //
+        // Un Dossier a SOIT un proprietaire, SOIT une Boucle — jamais les deux.
+        // L'espace documents d'une Boucle ne PEUT donc pas porter d'`owner_id`,
+        // et l'ecrire fait `SQLSTATE 23514` sur PostgreSQL.
+        //
+        // Le piege merite d'etre nomme : la contrainte est posee par un
+        // `DB::statement()` pgsql-only. SQLite l'ignore, la correction y
+        // paraissait verte, et seule la CI PostgreSQL l'a refusee — 83 erreurs.
+        // C'est la leçon « un CHECK pgsql-only rend le test VERT en SQLite »,
+        // payee une fois de plus.
+        //
+        // La gouvernance effective d'un espace documents est donc celle de sa
+        // Boucle, et la reconstruction de la Capture est la seule lecture que
+        // le schema autorise.
+        $nom = (string) $declared->name;
+
+        if ($nom !== '' && $dossier->name !== $nom) {
+            $dossier->forceFill(['name' => $nom])->save();
+        }
+
+        $document = $declared->root_document ?? null;
+
+        if ($document === null) {
+            return $dossier->refresh();
+        }
+
+        // L'auteur DECLARE, s'il est connu ; sinon celui que la primitive
+        // aurait choisi. On ne fabrique pas un persona au passage.
+        $auteur = $users[(string) ($document->author ?? '')] ?? null;
+
+        // `ensureRootDocument()` est IDEMPOTENTE : elle rend le document
+        // existant s'il y en a un, et n'en cree un second sous aucun pretexte.
+        $post = $service->ensureRootDocument($loop, $auteur);
+
+        $champs = [];
+
+        if (is_string($document->title ?? null) && $document->title !== '') {
+            $champs['title'] = (string) $document->title;
+        }
+
+        if (is_string($document->content ?? null)) {
+            // Le MEME passage que les articles : le Loader ne transforme pas le
+            // contenu selon son format, il le conserve tel quel. On ne rouvre
+            // pas ce contrat ici.
+            $champs['content'] = $this->renderedContent((string) $document->content, (string) ($document->format ?? 'html'));
+        }
+
+        if ($auteur !== null) {
+            $champs['user_id'] = $auteur->id;
+        }
+
+        if ($champs !== []) {
+            $post->forceFill($champs)->save();
+        }
+
+        return $dossier->refresh();
     }
 
     /**

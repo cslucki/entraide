@@ -113,7 +113,27 @@ class ManifestScenarioPack implements ScenarioPackDefinition
         // derivent dans le meme passage : chacun capturant la sienne, une remise
         // et un message declares au meme offset ne tomberaient plus au meme
         // instant, et la spec 6.3 serait violee sans que rien ne le dise.
-        $loadStartedAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        // L'horloge de L'APPLICATION, ramenee en UTC.
+        //
+        // `new DateTimeImmutable('now')` lit l'horloge SYSTEME : il ignore
+        // `Carbon::setTestNow()`, donc l'ancre etait intestable — on ne pouvait
+        // pas fabriquer un ecart pour verifier qu'elle avance apres un Reset.
+        // Une ancre qu'aucun test ne peut deplacer est une ancre dont personne
+        // ne prouve la valeur.
+        //
+        // L'UTC reste : les appliers convertissent ensuite vers le fuseau de
+        // chaque objet, et un instant local decalerait tout l'ecart du fuseau.
+        $loadStartedAt = \DateTimeImmutable::createFromInterface(now())
+            ->setTimezone(new \DateTimeZone('UTC'));
+
+        // L'ancre est DECLAREE, donc persistable.
+        //
+        // C'est le seul instant qui compte : celui a partir duquel les offsets
+        // du Manifest deviennent des dates reelles. `loaded_at`, ecrit avant
+        // cet appel, en differe de tout le temps qu'a pris l'ecriture des
+        // personas — plusieurs secondes en bcrypt de production. Capturer en
+        // relisant `loaded_at` faisait glisser tous les offsets.
+        $registrar->declarerLAncreDuMonde($loadStartedAt);
 
         // TASK-1643 — les familles CORE non-Training, dans un collaborateur
         // dedie. Le socle ci-dessus etait le contrat de T1642 et ses garanties

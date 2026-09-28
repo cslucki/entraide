@@ -45,8 +45,9 @@ use Illuminate\Support\Facades\Storage;
  *    n'a besoin d'une jointure pour retrouver son tenant.
  * 2. **Les references passent par le registre de Capture**, jamais par une
  *    ressemblance de nom, jamais par un UUID.
- * 3. **Une seule ancre de temps** : `loaded_at` du chargement SOURCE. Aucun
- *    `now()` par famille — l'ancre appartient a l'OPERATION (leçon T1644).
+ * 3. **Une seule ancre de temps** : `world_anchored_at`, l'instant EXACT ou le
+ *    pack a commence a materialiser le monde (T1653). Aucun `now()` par
+ *    famille — l'ancre appartient a l'OPERATION (leçon T1644).
  * 4. **Rien ne se devine.** Un champ qui n'existe pas au runtime se relit dans
  *    le Manifest SOURCE par sa stable key, ou obeit a une convention ARBITREE
  *    et ecrite ici. Jamais a une heuristique.
@@ -93,7 +94,16 @@ final class ScenarioCaptureSerializer
     ) {
         $decode = json_decode($documentSource, true);
         $this->source = is_array($decode) ? $decode : [];
-        $this->ancre = \DateTimeImmutable::createFromInterface($this->load->loaded_at);
+        // L'ancre PERSISTEE du monde, et rien d'autre.
+        //
+        // T1652 lisait `loaded_at`, qui n'est pas l'instant de materialisation :
+        // T1653 persiste `world_anchored_at` au moment exact ou le pack
+        // commence a ecrire le monde. Le constructeur n'accepte plus de repli —
+        // ni `now()`, ni `created_at`, ni `reset_at` : une ancre inconnue est
+        // refusee EN AMONT par {@see ScenarioCaptureService::prouverLaProvenance()},
+        // parce qu'un offset calcule sur une ancre approximative est faux sans
+        // que rien ne le signale.
+        $this->ancre = \DateTimeImmutable::createFromInterface($this->load->world_anchored_at);
 
         $this->indexerLaSource();
     }
@@ -140,7 +150,21 @@ final class ScenarioCaptureSerializer
                 'name' => (string) $this->sandbox->name,
                 'proposed_slug' => (string) ($this->source['organization']['proposed_slug'] ?? $this->sandbox->slug),
                 'description' => (string) ($this->source['organization']['description'] ?? ''),
-                'locale' => (string) ($this->source['locale'] ?? 'fr'),
+                // Le locale de l'ORGANIZATION, lu au runtime — pas le locale
+                // racine du document.
+                //
+                // Les deux sont INDEPENDANTS dans le schema, et
+                // `ScenarioSandboxProvisioner` charge la sandbox avec
+                // `organization.locale`. Lire le locale racine faisait donc
+                // diverger la capture d'un manifeste declarant `locale: en` et
+                // `organization.locale: fr` : la version capturee aurait
+                // recharge une sandbox dans la MAUVAISE langue, et
+                // `ensureRootDocument()` y aurait cuit titres et en-tetes de
+                // sections, definitivement. Trouve en relecture adverse.
+                'locale' => (string) ($this->sandbox->locale
+                    ?? $this->source['organization']['locale']
+                    ?? $this->source['locale']
+                    ?? 'fr'),
             ],
         ];
 
@@ -716,19 +740,24 @@ final class ScenarioCaptureSerializer
         return [
             'title' => (string) $post->title,
             'author' => $auteur,
-            // TOUJOURS `html`, et ce n'est pas une entorse a « objet source ->
-            // format source ».
+            // Format SOURCE s'il vient de la source, `html` sinon.
             //
-            // Mesure : aucun applier n'ecrit jamais `root_document.title`,
-            // `.content`, `.author` ni `.format` — `grep root_document` sur les
-            // trois appliers ne rend que `trackRootDossier()`. Le document
-            // racine est INTEGRALEMENT le gabarit produit, pose par
-            // `LoopRootDocumentService::initialContent()`, qui rend du HTML.
+            // T1652 forcait `html` ici, et la mesure etait juste A L'EPOQUE :
+            // aucun applier n'ecrivait `root_document`, donc le document relu
+            // etait toujours le gabarit produit de `initialContent()`, du HTML.
+            // Lui coller le format declare aurait etiquete du HTML en
+            // « markdown ».
             //
-            // L'objet relu n'est donc pas l'objet source : c'est un BlogPost
-            // que le produit a fabrique. Lui coller le `format` declare par la
-            // source revenait a etiqueter du HTML en « markdown ».
-            'format' => 'html',
+            // T1653 a change la PREMISSE, sur arbitrage MASTER : le Loader
+            // applique desormais `title`, `author`, `format` et `content`
+            // declares. Le document racine d'un Dossier venu de la source EST
+            // donc l'objet source — et lui rendre son format n'est plus une
+            // etiquette mensongere, c'est la seule lecture exacte.
+            //
+            // Un Dossier racine NOUVEAU, lui, porte toujours le gabarit
+            // produit : `html`, par la meme preuve deterministe que les
+            // articles.
+            'format' => $this->formatDeBlogPost($source['root_document']['format'] ?? null),
             'content' => (string) $post->content,
         ];
     }
@@ -971,8 +1000,13 @@ final class ScenarioCaptureSerializer
             $entree['ligne']['reply_to'] = $clefParId[$parent] ?? null;
 
             $boucle = $entree['ligne']['loop'];
-            $parBoucle[$boucle] = ($parBoucle[$boucle] ?? 0) + 1;
-            $entree['ligne']['order'] = $parBoucle[$boucle];
+
+            // `order` est 0-BASE : le manifeste de reference declare 0, 1, 2
+            // par Boucle. Numeroter a partir de 1 rendait les quatre messages
+            // « modifies » sur une sandbox ou personne n'avait rien fait —
+            // un faux positif qui aurait pollue chaque Preview.
+            $entree['ligne']['order'] = $parBoucle[$boucle] ?? 0;
+            $parBoucle[$boucle] = $entree['ligne']['order'] + 1;
 
             $sortie[] = $entree['ligne'];
         }
@@ -1095,7 +1129,7 @@ final class ScenarioCaptureSerializer
                 // `service_skill`, et `applyServices()` y ecrit. Relire la
                 // source rendait `skills: []` pour toute Offre creee dans la
                 // sandbox, et figeait les autres.
-                'skills' => $this->competencesDuService($service),
+                'skills' => $this->competencesDuService($service, $source),
                 'delivery_mode' => (string) $service->delivery_mode,
                 'points_cost' => (int) $service->points_cost,
                 'status' => (string) $service->status,
@@ -1109,7 +1143,7 @@ final class ScenarioCaptureSerializer
     /**
      * @return list<string>
      */
-    private function competencesDuService(Service $service): array
+    private function competencesDuService(Service $service, ?array $source): array
     {
         $clefs = [];
 
@@ -1130,7 +1164,44 @@ final class ScenarioCaptureSerializer
             }
         }
 
-        return $clefs;
+        return $this->ordonnerCommeLaSource($clefs, $source['skills'] ?? null);
+    }
+
+    /**
+     * Range une liste de clefs dans l'ordre DECLARE par la source.
+     *
+     * L'ordre d'un tableau compte pour la comparaison canonique. Le trier sur
+     * un UUID interne — ce que faisait la premiere version — produisait un
+     * ordre sans rapport avec l'ordre declare : `["student-01","trainer-2"]`
+     * ressortait `["trainer-2","student-01"]` parce que les UUID v7 suivent
+     * l'ordre de CREATION. L'objet apparaissait `changed` des le chargement.
+     *
+     * Les clefs que la source ne connait pas viennent ensuite, triees, pour
+     * rester deterministes.
+     *
+     * @param  list<string>  $clefs
+     * @return list<string>
+     */
+    private function ordonnerCommeLaSource(array $clefs, mixed $ordreSource): array
+    {
+        if (! is_array($ordreSource)) {
+            sort($clefs);
+
+            return $clefs;
+        }
+
+        $rang = array_flip(array_values(array_filter($ordreSource, 'is_string')));
+        $connues = [];
+        $neuves = [];
+
+        foreach ($clefs as $clef) {
+            isset($rang[$clef]) ? $connues[$clef] = $rang[$clef] : $neuves[] = $clef;
+        }
+
+        asort($connues);
+        sort($neuves);
+
+        return [...array_keys($connues), ...$neuves];
     }
 
     // =====================================================================
@@ -1158,8 +1229,55 @@ final class ScenarioCaptureSerializer
             $clefParOption = [];
             $declarees = [];
 
-            foreach ($options as $option) {
-                $clefOption = $this->emettre('poll_options', $this->clef('poll_options', (string) $option->id, (string) $option->label));
+            // L'identite des options : le registre, puis le rang CORROBORE.
+            //
+            // ## Pourquoi le rang seul ne suffit pas
+            //
+            // `applyPolls()` cree les options dans l'ordre declare : la
+            // correspondance par rang est exacte A L'INSTANT DU LOAD, et
+            // fausse ensuite. Supprimer ou reordonner une option decale les
+            // rangs, et la clef d'une option est alors attribuee a une AUTRE —
+            // les votes suivant la permutation. Le document reste coherent
+            // avec lui-meme, donc le Validator passe : la permutation ne se
+            // voit qu'au rechargement. Trouve en relecture adverse.
+            //
+            // ## Pourquoi pas le registre MOTEUR
+            //
+            // `loop_poll_options` ne porte aucun `organization_id`, et le
+            // `ScenarioPackEntityRegistrar` refuse — a juste titre — d'inscrire
+            // une entite dont il ne peut pas verifier le tenant. Les options ne
+            // peuvent donc pas etre tracees au Load.
+            //
+            // ## Ce qu'on fait a la place
+            //
+            // 1. le registre de CAPTURE d'abord : des la premiere Capture,
+            //    l'identite est figee par entite et ne bouge plus ;
+            // 2. sinon le rang, mais CORROBORE par le libelle. Si les libelles
+            //    ne correspondent plus a ceux de la source, on refuse d'amorcer
+            //    et on genere des clefs neuves : les options apparaissent alors
+            //    comme modifiees — VISIBLE pour l'operateur — au lieu d'etre
+            //    permutees en silence. Le libelle ne sert pas a attribuer une
+            //    identite : il sert a refuser de le faire.
+            $optionsSource = $this->source('polls', $this->registre->clefConnue('polls', (string) $sondage->id) ?? '')['options'] ?? [];
+            $rangs = array_values($options->all());
+
+            $corrobore = count($optionsSource) === count($rangs);
+
+            foreach ($rangs as $rang => $option) {
+                if ($corrobore && (string) ($optionsSource[$rang]['label'] ?? null) !== (string) $option->label) {
+                    $corrobore = false;
+                }
+            }
+
+            foreach ($rangs as $rang => $option) {
+                $clefSource = $corrobore ? ($optionsSource[$rang]['key'] ?? null) : null;
+
+                $clefOption = $this->registre->clefConnue('poll_options', (string) $option->id)
+                    ?? (is_string($clefSource) && $clefSource !== ''
+                        ? $this->registre->clefDe('poll_options', (string) $option->id, $clefSource)
+                        : $this->clef('poll_options', (string) $option->id, (string) $option->label));
+
+                $clefOption = $this->emettre('poll_options', $clefOption);
                 $clefParOption[(string) $option->id] = $clefOption;
                 $declarees[] = ['key' => $clefOption, 'label' => (string) $option->label];
             }
@@ -1375,15 +1493,18 @@ final class ScenarioCaptureSerializer
                 }
             }
 
+            $clefItem = $this->emettre('roadmap_items', $this->clef('roadmap_items', (string) $item->id, (string) $item->title));
+            $sourceItem = $this->source('roadmap_items', $clefItem);
+
             $sortie[] = [
-                'key' => $this->emettre('roadmap_items', $this->clef('roadmap_items', (string) $item->id, (string) $item->title)),
+                'key' => $clefItem,
                 'loop' => $boucle,
                 'created_by' => $auteur,
                 'title' => (string) $item->title,
                 'description' => $item->description,
                 'status' => (string) $item->status,
                 'position' => (int) $item->position,
-                'assignees' => $assignes,
+                'assignees' => $this->ordonnerCommeLaSource($assignes, $sourceItem['assignees'] ?? null),
                 'due_day_offset' => $this->offsetJours($item->due_at),
                 'decision' => $this->ref('decisions', (string) ($item->loop_decision_id ?? '')),
             ];

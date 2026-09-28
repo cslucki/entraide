@@ -199,6 +199,22 @@
                     </a>
                 @endif
 
+                {{-- TASK-1653 — capturer l'etat actuel.
+
+                     Place AVANT Reinitialiser, et ce n'est pas un detail :
+                     Reset EFFACE ce qui a ete fait dans la sandbox. Proposer
+                     d'abord de le CONSERVER, c'est mettre le geste
+                     constructif devant le geste destructeur.
+
+                     Le lien n'ouvre pas une action : il ouvre un ecran de
+                     comparaison. Rien n'est cree tant que l'operateur n'a pas
+                     lu ce qui a change. --}}
+                <a href="{{ route('admin.outils.scenarios.capture', $version) }}"
+                   data-capture-open
+                   class="rounded-lg border border-green-500 px-3 py-2 text-sm font-semibold text-green-800 hover:bg-green-50 dark:border-green-700 dark:text-green-300 dark:hover:bg-green-900/30">
+                    {{ __('admin.scenario_manager.capture_action') }}
+                </a>
+
                 {{-- Reinitialiser rejoue le monde : c'est un geste qui EFFACE
                      ce qu'on a fait dans la sandbox. Il avait moins de
                      protection que Retirer, alors qu'il s'emploie bien plus

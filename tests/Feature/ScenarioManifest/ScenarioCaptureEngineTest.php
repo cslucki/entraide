@@ -624,26 +624,66 @@ class ScenarioCaptureEngineTest extends TestCase
         $this->assertCount(count($avant) - 1, $apres, 'La Capture doit suivre le pivot, pas le document source.');
     }
 
-    public function test_le_document_racine_est_declare_en_html(): void
+    public function test_le_document_racine_SOURCE_garde_son_format_declare(): void
     {
-        // Aucun applier n ecrit jamais `root_document` : il est INTEGRALEMENT
-        // le gabarit produit, pose par `initialContent()`, qui rend du HTML.
-        // Lui coller le format declare par la source etiquetait du HTML en
-        // « markdown ».
+        // T1652 forcait `html` ici, et la mesure etait juste A L EPOQUE : aucun
+        // applier n ecrivait `root_document`, donc le document relu etait
+        // toujours le gabarit produit, du HTML.
+        //
+        // T1653 a change la PREMISSE sur arbitrage MASTER : le Loader applique
+        // desormais `title`, `author`, `format` et `content` declares. Le
+        // document racine d un Dossier venu de la source EST donc l objet
+        // source, et lui rendre son format est la seule lecture exacte.
         $version = $this->versionChargee();
         $source = json_decode((string) $version->json_source, true);
 
-        $formatsSource = array_column($source['dossiers'], 'root_document');
-        $this->assertSame('markdown', $formatsSource[0]['format'], 'La fixture doit declarer markdown pour que le cas vaille.');
+        $formatSource = $source['dossiers'][0]['root_document']['format'];
+        $this->assertSame('markdown', $formatSource, 'La fixture doit declarer markdown pour que le cas vaille.');
 
         $document = app(ScenarioCaptureService::class)->inspecter($version)->document;
+        $racine = collect($document['dossiers'])->firstWhere('key', $source['dossiers'][0]['key']);
 
-        foreach ($document['dossiers'] as $dossier) {
-            if ($dossier['root_document'] !== null) {
-                $this->assertSame('html', $dossier['root_document']['format']);
-                $this->assertStringContainsString('<p>', $dossier['root_document']['content']);
-            }
-        }
+        $this->assertSame($formatSource, $racine['root_document']['format']);
+
+        // Et le CONTENU declare est bien celui qui a ete charge, puis capture.
+        $this->assertSame($source['dossiers'][0]['root_document']['content'], $racine['root_document']['content']);
+        $this->assertSame($source['dossiers'][0]['root_document']['title'], $racine['root_document']['title']);
+        $this->assertSame($source['dossiers'][0]['name'], $racine['name']);
+    }
+
+    public function test_un_Dossier_racine_NOUVEAU_porte_le_gabarit_produit_en_html(): void
+    {
+        // L autre sens : une Boucle creee APRES le chargement n a pas d objet
+        // source. Son document racine est le gabarit de `initialContent()`,
+        // du HTML — par la meme preuve deterministe que les articles.
+        $version = $this->versionChargee();
+        $sandbox = $this->sandboxDe($version);
+        [, $auteur] = $this->uneBoucleEtUnMembre($version);
+
+        $nouvelle = \App\Models\Loop::query()->create([
+            'organization_id' => $sandbox->id,
+            'name' => 'Boucle nee apres le chargement',
+            'slug' => 'apres-'.uniqid(),
+            'description' => 'Sans objet source.',
+            'type' => 'general', 'visibility' => 'private', 'access_mode' => 'invitation',
+            'created_by' => $auteur->id,
+        ]);
+        \App\Models\LoopMember::query()->create([
+            'organization_id' => $sandbox->id, 'loop_id' => $nouvelle->id,
+            'user_id' => $auteur->id, 'role' => 'owner', 'status' => 'active',
+        ]);
+        $racine = app(\App\Services\Loops\LoopRootDocumentService::class);
+        $racine->ensureRootDossier($nouvelle);
+        $racine->ensureRootDocument($nouvelle, $auteur);
+
+        $document = app(ScenarioCaptureService::class)->inspecter($version)->document;
+        $neuf = collect($document['dossiers'])->first(
+            static fn (array $d): bool => ($d['root_document']['title'] ?? '') !== ''
+                && str_contains($d['root_document']['title'], 'Boucle nee apres le chargement')
+        );
+
+        $this->assertNotNull($neuf, 'Le Dossier racine de la Boucle neuve doit etre capture.');
+        $this->assertSame('html', $neuf['root_document']['format']);
     }
 
     public function test_une_personne_REELLE_bloque_meme_si_sa_clef_vient_de_la_SOURCE(): void
@@ -706,21 +746,51 @@ class ScenarioCaptureEngineTest extends TestCase
         $this->assertSame($admins[0]['key'], $adminsApres[0]['key'], 'Un privilege PLATEFORME ne fait pas un responsable d Organization.');
     }
 
-    public function test_apres_un_RESET_la_Capture_refuse_avec_la_VRAIE_raison(): void
+    public function test_apres_un_RESET_la_Capture_utilise_la_NOUVELLE_ancre(): void
     {
-        // `reset_at` n ETEINT rien : la migration T1646 le dit, et le resolveur
-        // canonique ne le regarde pas. En faire un predicat de vivacite rendait
-        // `notLoaded()` — une phrase fausse — apres un geste ordinaire.
-        //
-        // Mais capturer apres un Reset produirait des offsets decales, car
-        // `ScenarioPackResetter` ne met pas `loaded_at` a jour alors que le
-        // monde est reconstruit avec un instant frais. On refuse donc, avec la
-        // vraie raison et en disant quoi faire.
+        // T1652 refusait ici, faute de savoir quelle etait l'ancre du monde
+        // reconstruit. T1653 la persiste : Reset REMPLACE `world_anchored_at`,
+        // et la Capture redevient possible — sur la bonne ancre.
         $version = $this->versionChargee();
+        $load = \App\Models\ScenarioPackLoad::query()->findOrFail($version->scenario_pack_load_id);
+        $ancreAvant = $load->world_anchored_at;
+
+        $this->assertNotNull($ancreAvant, 'Un Load doit persister son ancre.');
+
+        // Le temps passe, PUIS on reinitialise : la nouvelle ancre doit etre
+        // celle du monde reconstruit, pas celle du chargement d origine.
+        $this->travel(2)->days();
         app(ScenarioLifecycleService::class)->reset($version->fresh(), $this->superAdmin);
 
-        // La version reste CHARGEE : c est bien le point.
-        $this->assertTrue($version->fresh()->isLoaded());
+        $ancreApres = $load->fresh()->world_anchored_at;
+
+        $this->assertNotNull($ancreApres);
+        $this->assertTrue(
+            $ancreApres->greaterThan($ancreAvant),
+            'Reset reconstruit le monde : son ancre doit AVANCER.'
+        );
+
+        // Et la Capture fonctionne, sur cette nouvelle ancre : les offsets du
+        // manifeste source sont reproduits a l identique.
+        $source = json_decode((string) $version->json_source, true);
+        $document = app(ScenarioCaptureService::class)->inspecter($version->fresh())->document;
+
+        $attendus = array_map(static fn (array $m): int => $m['offset_minutes'], $source['messages']);
+        $obtenus = array_map(static fn (array $m): int => $m['offset_minutes'], $document['messages']);
+        sort($attendus);
+        sort($obtenus);
+
+        $this->assertSame($attendus, $obtenus, 'Apres un Reset, les offsets se lisent sur la NOUVELLE ancre.');
+    }
+
+    public function test_un_chargement_SANS_ancre_refuse_et_dit_quoi_faire(): void
+    {
+        // Le cas des sandboxes chargees AVANT que le moteur ne conserve son
+        // ancre. On ne la devine pas : la deviner serait refaire
+        // l approximation qu on repare, en la faisant passer pour une mesure.
+        $version = $this->versionChargee();
+        $load = \App\Models\ScenarioPackLoad::query()->findOrFail($version->scenario_pack_load_id);
+        $load->forceFill(['world_anchored_at' => null])->save();
 
         try {
             app(ScenarioCaptureService::class)->capturer($version->fresh(), $this->superAdmin);
@@ -728,8 +798,45 @@ class ScenarioCaptureEngineTest extends TestCase
         } catch (ScenarioVersionRefused $refus) {
             $this->assertSame(ScenarioVersionRefused::CAPTURE_BLOCKED, $refus->reason);
             $this->assertStringContainsString('ancre_inconnue', $refus->getMessage());
-            $this->assertStringNotContainsString('aucun chargement', $refus->getMessage());
+            // Le message dit QUOI FAIRE, il ne constate pas seulement.
+            $this->assertStringContainsString('Reset', $refus->getMessage());
         }
+
+        // Et un Reset repare : l ancre devient connue, la Capture repasse.
+        app(ScenarioLifecycleService::class)->reset($version->fresh(), $this->superAdmin);
+
+        $this->assertNotNull($load->fresh()->world_anchored_at);
+        $this->assertFalse(app(ScenarioCaptureService::class)->inspecter($version->fresh())->estBloquee());
+    }
+
+    public function test_l_ancre_persistee_est_celle_du_MONDE_et_non_celle_du_chargement(): void
+    {
+        // LE test de la Phase A.
+        //
+        // `loaded_at` est ecrit AVANT `apply()`, l ancre du monde est fabriquee
+        // DEDANS : elles different du temps qu a pris l ecriture des personas.
+        // On force un ecart ARTIFICIEL et significatif entre les deux, puis on
+        // verifie que la Capture reproduit les offsets de la source.
+        //
+        // Sans cet ecart, le test ne discrimine rien : dans un test les deux
+        // instants tombent dans la meme seconde. C est exactement le defaut
+        // qu un sabotage avait revele en T1652.
+        $version = $this->versionChargee();
+        $load = \App\Models\ScenarioPackLoad::query()->findOrFail($version->scenario_pack_load_id);
+
+        // `loaded_at` est recule d une heure : une implementation qui le relit
+        // decalera tous les offsets de 60 minutes.
+        $load->forceFill(['loaded_at' => $load->world_anchored_at->copy()->subHour()])->save();
+
+        $source = json_decode((string) $version->json_source, true);
+        $document = app(ScenarioCaptureService::class)->inspecter($version->fresh())->document;
+
+        $attendus = array_map(static fn (array $m): int => $m['offset_minutes'], $source['messages']);
+        $obtenus = array_map(static fn (array $m): int => $m['offset_minutes'], $document['messages']);
+        sort($attendus);
+        sort($obtenus);
+
+        $this->assertSame($attendus, $obtenus, 'La Capture doit lire l ancre du MONDE, pas `loaded_at`.');
     }
 
     private function message(

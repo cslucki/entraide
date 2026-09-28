@@ -48,6 +48,35 @@ final class ScenarioCaptureService
      * Expose pour que l'inspection et les tests puissent mesurer le document
      * et les blockers sans fabriquer de version.
      */
+    /**
+     * Le Diff entre le Manifest SOURCE et l'etat courant de la sandbox.
+     *
+     * Lecture seule stricte : aucune version n'est creee, aucune donnee metier
+     * n'est touchee. Le seul effet possible est l'attribution deterministe
+     * d'une stable key a un objet neuf, dans le registre borne a la sandbox —
+     * et encore, seulement si le serializer en a besoin.
+     */
+    public function comparer(ScenarioManifestVersion $version): ScenarioCaptureDiff
+    {
+        return new ScenarioCaptureDiff(
+            (array) json_decode((string) $version->json_source, true),
+            $this->inspecter($version)->document
+        );
+    }
+
+    /**
+     * Le numero qu'on PROPOSE a l'humain : un bump MINEUR.
+     *
+     * Une Capture reste dans la meme chaine de scenario — meme
+     * `scenario_key` — parce que c'est le meme monde a un autre moment de sa
+     * vie. C'est ce qui la distingue d'un Duplicate, qui part sur une nouvelle
+     * clef en 1.0.0.
+     */
+    public function versionSuggeree(ScenarioManifestVersion $version): string
+    {
+        return $this->prochaineVersion((string) $version->scenario_key, (string) $version->version);
+    }
+
     public function inspecter(ScenarioManifestVersion $version): ScenarioCaptureResult
     {
         [$sandbox, $load] = $this->prouverLaProvenance($version);
@@ -87,7 +116,7 @@ final class ScenarioCaptureService
      * Ce n'est PAS une reparation apres Validator : rien n'est corrige, tout
      * est rapporte.
      */
-    private function constater(ScenarioCaptureResult $resultat, ScenarioManifestVersion $version): ScenarioCaptureResult
+    private function constater(ScenarioCaptureResult $resultat, ScenarioManifestVersion $version, ?string $numero = null): ScenarioCaptureResult
     {
         if ($resultat->estBloquee()) {
             // Un document ampute n'a pas a etre confronte au Validator : ses
@@ -95,7 +124,7 @@ final class ScenarioCaptureService
             return $resultat;
         }
 
-        $json = $this->encoder($resultat->document, $version);
+        $json = $this->encoder($resultat->document, $version, $numero);
 
         if (! is_string($json)) {
             return new ScenarioCaptureResult($resultat->document, [[
@@ -130,7 +159,7 @@ final class ScenarioCaptureService
     /**
      * @param  array<string, mixed>  $document
      */
-    private function encoder(array $document, ScenarioManifestVersion $version): ?string
+    private function encoder(array $document, ScenarioManifestVersion $version, ?string $numero = null): ?string
     {
         // Le document DIT ce qu'il est.
         //
@@ -138,7 +167,7 @@ final class ScenarioCaptureService
         // JSON est l'unique source de verite (CDC 10.1) ». Une capture qui
         // garderait le numero de sa source porterait deux verites, dont une
         // fausse — la colonne dirait 1.1.0 et le document 1.0.0.
-        $document['version'] = $this->prochaineVersion((string) $version->scenario_key, (string) $version->version);
+        $document['version'] = $numero ?? $this->versionSuggeree($version);
 
         $json = json_encode($document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
@@ -151,7 +180,7 @@ final class ScenarioCaptureService
      * @throws ScenarioVersionRefused si la provenance, les bornes, une fidelite
      *                                ou le Validator s'y opposent
      */
-    public function capturer(ScenarioManifestVersion $version, User $auteur): ScenarioManifestVersion
+    public function capturer(ScenarioManifestVersion $version, User $auteur, ?string $numero = null): ScenarioManifestVersion
     {
         [$sandbox, $load] = $this->prouverLaProvenance($version);
 
@@ -160,7 +189,8 @@ final class ScenarioCaptureService
 
         $resultat = $this->constater(
             (new ScenarioCaptureSerializer($sandbox, $load, $registre, (string) $version->json_source))->serialiser(),
-            $version
+            $version,
+            $numero
         );
 
         if ($resultat->estBloquee()) {
@@ -169,7 +199,20 @@ final class ScenarioCaptureService
             throw ScenarioVersionRefused::captureBlocked($resultat->rapport(), count($resultat->blockers));
         }
 
-        $json = $this->encoder($resultat->document, $version);
+        $numero ??= $this->versionSuggeree($version);
+
+        // `(scenario_key, version)` est unique en base, et le numero vient
+        // d'un champ que l'operateur peut modifier. `ScenarioVersionWriter`
+        // protege ce cas des DEUX cotes — pre-controle et `catch` — mais le
+        // chemin Capture ne passe pas par lui : sans cette garde, retaper un
+        // numero deja pris rendait un 500, la ou la phrase existe deja.
+        if (ScenarioManifestVersion::query()
+            ->where('scenario_key', $version->scenario_key)
+            ->where('version', $numero)
+            ->exists()) {
+            throw ScenarioVersionRefused::keyAlreadyUsed((string) $version->scenario_key, $numero);
+        }
+        $json = $this->encoder($resultat->document, $version, $numero);
 
         if (! is_string($json)) {
             throw ScenarioVersionRefused::captureInvalid('Le document capture n a pas pu etre encode.');
@@ -184,7 +227,7 @@ final class ScenarioCaptureService
             throw ScenarioVersionRefused::captureInvalid(json_encode($verdict->toArray()['errors'] ?? []) ?: '');
         }
 
-        return DB::transaction(function () use ($version, $sandbox, $auteur, $json, $verdict, $registre): ScenarioManifestVersion {
+        return DB::transaction(function () use ($version, $sandbox, $auteur, $json, $verdict, $registre, $numero): ScenarioManifestVersion {
             $registre->persister();
 
             $capturee = new ScenarioManifestVersion([
@@ -192,7 +235,7 @@ final class ScenarioCaptureService
                 // scenario, a un autre moment de sa vie.
                 'scenario_key' => (string) $version->scenario_key,
                 'name' => (string) $version->name,
-                'version' => $this->prochaineVersion((string) $version->scenario_key, (string) $version->version),
+                'version' => $numero,
                 'usage' => (string) $version->usage,
                 'origin' => ScenarioManifestVersion::ORIGIN_CAPTURE,
                 'json_source' => $json,
@@ -209,6 +252,8 @@ final class ScenarioCaptureService
             // `scenario_pack_load_id` : ce chargement appartient a la version
             // SOURCE, le recopier ferait croire que le nouveau DRAFT est
             // charge.
+            // La course perdue rend la meme phrase : pour la personne devant
+            // l'ecran, les deux cas sont le meme fait.
             $capturee->forceFill([
                 'state' => ScenarioManifestVersion::STATE_DRAFT,
                 'digest' => $verdict->digest(),
@@ -218,7 +263,13 @@ final class ScenarioCaptureService
                 'approved_at' => null,
                 'scenario_pack_load_id' => null,
                 'captured_from_organization_id' => $sandbox->id,
-            ])->save();
+            ]);
+
+            try {
+                $capturee->save();
+            } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+                throw ScenarioVersionRefused::keyAlreadyUsed((string) $version->scenario_key, $numero);
+            }
 
             return $capturee;
         });
@@ -244,31 +295,31 @@ final class ScenarioCaptureService
             throw ScenarioVersionRefused::notLoaded();
         }
 
-        // `reset_at` n'ETEINT rien.
+        // L'ancre du monde doit etre CONNUE.
         //
-        // Ma premiere version en faisait un predicat de vivacite et rendait
-        // `notLoaded()` — une phrase FAUSSE : la migration de T1646 dit
-        // explicitement que « `reset_at` n'eteint rien, ce n'est que
-        // l'horodatage du dernier reset », et le resolveur canonique
-        // `ScenarioLifecycleService::chargementDeLaVersion()` ne le regarde
-        // pas. Un Reset — geste ordinaire qui CONSERVE la sandbox — rendait
-        // donc la Capture impossible pour toujours, en pretendant qu'il n'y
-        // avait aucun chargement.
+        // `reset_at` n'eteint rien — la migration T1646 le dit, et le
+        // resolveur canonique ne le regarde pas. T1652 en avait fait un
+        // predicat de vivacite faute de mieux : apres un Reset, l'ancre du
+        // monde courant n'etait plus celle du chargement, et capturer aurait
+        // produit des offsets decales en silence.
         //
-        // Mais il ne suffit pas de retirer la clause. `ScenarioPackResetter`
-        // ne met PAS `loaded_at` a jour, alors que `ManifestScenarioPack::apply()`
-        // reconstruit le monde avec un instant FRAIS : apres un Reset, l'ancre
-        // du monde courant n'est plus celle du chargement, et capturer
-        // produirait tous les offsets decales du delai entre Load et Reset,
-        // silencieusement.
+        // T1653 ferme la dette a la source : Load et Reset persistent tous
+        // deux `world_anchored_at`, l'instant EXACT ou le pack a commence a
+        // materialiser le monde. Capturer apres un Reset redevient donc
+        // possible, et c'est meme le geste qui repare une sandbox ancienne.
         //
-        // On refuse donc, mais avec la VRAIE raison, et en disant quoi faire.
-        // La dette « persister l'ancre du monde courant » est nommee au TASK
-        // file.
-        if ($load->reset_at !== null) {
+        // Reste le cas des chargements ANTERIEURS a cette colonne : leur ancre
+        // n'a jamais ete ecrite nulle part, donc elle est perdue. On ne la
+        // devine pas — la deviner serait refaire l'approximation qu'on repare,
+        // en la faisant passer pour une mesure. On refuse, et on dit quoi
+        // faire.
+        if ($load->world_anchored_at === null) {
             throw ScenarioVersionRefused::captureBlocked(
-                "[sandbox] ancre_inconnue — Cette sandbox a ete reinitialisee : l ancre de temps de son monde courant n est pas conservee, "
-                ."et capturer produirait des offsets decales. Rechargez le scenario avant de capturer.",
+                "[sandbox] ancre_inconnue — L ancre temporelle exacte de cette sandbox n est pas connue : "
+                ."elle a ete chargee avant que le moteur ne la conserve, et capturer produirait des dates fausses. "
+                ."Un Reset la rendrait capturable, mais ATTENTION : le Reset reconstruit le monde et DETRUIT tout "
+                ."ce qui a ete produit dans la sandbox depuis son chargement — c est-a-dire precisement ce que "
+                ."vous vouliez capturer. Ne le faites que si vous acceptez de perdre cet etat.",
                 1
             );
         }

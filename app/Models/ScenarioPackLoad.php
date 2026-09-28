@@ -45,6 +45,7 @@ class ScenarioPackLoad extends Model
     {
         return [
             'loaded_at' => 'datetime',
+            'world_anchored_at' => 'datetime',
             'reset_at' => 'datetime',
             'organization_created_by_pack' => 'boolean',
         ];

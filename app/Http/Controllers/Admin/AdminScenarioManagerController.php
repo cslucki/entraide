@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ScenarioManifestVersion;
 use App\Support\ScenarioManager\ScenarioLifecycleService;
 use App\Support\ScenarioManager\ScenarioPreview;
+use App\Support\ScenarioManager\Capture\ScenarioCaptureService;
 use App\Support\ScenarioManager\ScenarioVersionRefused;
 use App\Support\ScenarioManager\ScenarioVersionWriter;
 use App\Support\ScenarioManager\ScenarioVisualEditor;
@@ -384,6 +385,101 @@ class AdminScenarioManagerController extends Controller
      * 500 : l'utilisateur verrait une panne la ou le produit a simplement dit
      * non, et pour une raison qu'il peut comprendre et contourner.
      */
+    // =====================================================================
+    // TASK-1653 — capturer l'etat actuel : comprendre AVANT de creer
+    // =====================================================================
+
+    /**
+     * L'ecran de Capture. Le premier clic n'ECRIT RIEN.
+     *
+     * ## Pourquoi un ecran, et pas un bouton
+     *
+     * « Capturer » sur une sandbox vivante, c'est figer un monde que personne
+     * n'a relu. Un bouton qui creerait directement une version transformerait
+     * le geste en « sauvegarder la sandbox » — et le SuperAdmin decouvrirait
+     * APRES COUP ce qu'il a fige.
+     *
+     * Cet ecran repond donc a une seule question : **qu'est-ce qui a change
+     * depuis le chargement ?** La creation, elle, est un second geste,
+     * explicite, avec son propre bouton.
+     *
+     * **Rien n'est persiste ici.** `ScenarioCaptureKeyRegistry::persister()`
+     * n'est appele que dans la transaction de `capturer()` : un Preview
+     * n'ecrit pas une ligne, pas meme une stable key.
+     *
+     * (La premiere version de ce docblock invoquait une ecriture de clefs pour
+     * justifier que deux Preview successifs soient identiques. C'etait faux :
+     * le determinisme vient des `orderBy` du serializer, et un docblock qui
+     * presente un mecanisme inexistant comme une garantie est une affirmation
+     * non mesuree. Trouve en relecture adverse.)
+     */
+    public function capturePreview(ScenarioManifestVersion $version, ScenarioCaptureService $capture): View
+    {
+        $blockers = [];
+        $diff = null;
+        $suggestion = null;
+
+        try {
+            $resultat = $capture->inspecter($version);
+            $blockers = $resultat->blockers;
+
+            if (! $resultat->estBloquee()) {
+                $diff = $capture->comparer($version);
+                $suggestion = $capture->versionSuggeree($version);
+            }
+        } catch (ScenarioVersionRefused $refus) {
+            // Une provenance refusee — ancre inconnue, version non chargee,
+            // Organization qui n'est pas une sandbox — se montre comme les
+            // autres obstacles, en francais, et non comme une page d'erreur.
+            $blockers = [[
+                'famille' => 'sandbox',
+                'raison' => $refus->reason,
+                'detail' => $refus->getMessage(),
+            ]];
+        }
+
+        return view('admin.outils.scenario-capture', [
+            'version' => $version,
+            'sandbox' => $version->isLoaded() ? $version->scenarioPackLoad?->organization : null,
+            'diff' => $diff,
+            'blockers' => $blockers,
+            'suggestion' => $suggestion,
+        ]);
+    }
+
+    /**
+     * La creation de la nouvelle version : un geste HUMAIN, jamais un effet de bord.
+     *
+     * Le numero est modifiable — l'ecran en propose un, l'operateur tranche.
+     */
+    public function captureStore(
+        Request $request,
+        ScenarioManifestVersion $version,
+        ScenarioCaptureService $capture
+    ): RedirectResponse {
+        $donnees = $request->validate([
+            'version' => ['required', 'string', 'max:20', 'regex:/^\d+\.\d+\.\d+$/'],
+        ]);
+
+        return $this->enRepondantAuxRefus(function () use ($version, $capture, $donnees) {
+            // Le garde-fou du « rien n'a change » est ici aussi, et pas
+            // seulement dans la vue : un formulaire se rejoue, et creer une
+            // version pour un monde inchange raconterait une histoire qui n'a
+            // pas eu lieu.
+            if ($capture->comparer($version)->estVide()) {
+                return back()->withErrors([
+                    'scenario' => __('admin.scenario_manager.capture_no_change'),
+                ]);
+            }
+
+            $capturee = $capture->capturer($version, request()->user(), $donnees['version']);
+
+            return redirect()
+                ->route('admin.outils.scenarios.show', $capturee)
+                ->with('status', __('admin.scenario_manager.capture_created', ['version' => $capturee->version]));
+        });
+    }
+
     // =====================================================================
     // TASK-1651 — l'editeur visuel borne
     // =====================================================================
