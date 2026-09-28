@@ -37,6 +37,20 @@
         @livewireStyles
     </head>
     <body class="font-sans antialiased bg-gray-100 dark:bg-gray-900">
+        {{-- TASK-1654 — le MEME bandeau que le layout membre.
+
+             Trouve en revue adverse : `OrgAdminMiddleware` autorise le compte
+             dont l'id est `organizations.admin_id`, et MASTER autorise
+             explicitement un persona administrateur de SA sandbox. Un tel
+             persona atteignait donc ces pages SANS bandeau et SANS bouton de
+             sortie — alors que le bandeau doit etre visible partout pendant le
+             mode.
+
+             Inclus, jamais recopie : deux bandeaux divergeraient, et c'est
+             exactement la faute que la Phase 0 de cette TASK a corrigee
+             ailleurs. --}}
+        <x-persona-banner />
+
         <div x-data="{ sidebarOpen: false, pinned: localStorage.getItem('org_admin_sidebar_pinned') === 'true', togglePin() { this.pinned = !this.pinned; localStorage.setItem('org_admin_sidebar_pinned', this.pinned); } }" class="flex min-h-screen">
             <!-- Overlay backdrop (mobile only) -->
             <div x-show="sidebarOpen" @click="sidebarOpen = false"

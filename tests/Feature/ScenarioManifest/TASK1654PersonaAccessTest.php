@@ -463,6 +463,29 @@ class TASK1654PersonaAccessTest extends TestCase
             ->assertSee(route('admin.outils.scenarios.personas.exit'), escape: false);
     }
 
+    public function test_le_bandeau_est_present_AUSSI_sur_les_pages_org_admin(): void
+    {
+        // Trouve en revue adverse. `OrgAdminMiddleware` autorise le compte dont
+        // l'id est `organizations.admin_id`, et MASTER autorise explicitement un
+        // persona administrateur de SA sandbox. Un tel persona atteignait donc
+        // ces pages sans bandeau et sans bouton de sortie — alors que le bandeau
+        // doit etre visible PARTOUT pendant le mode.
+        $version = $this->versionChargee();
+        $sandbox = $this->sandboxDe($version);
+        $persona = $this->unPersona($version);
+
+        $sandbox->forceFill(['admin_id' => $persona->id])->save();
+
+        $this->actingAs($this->superAdmin)
+            ->post(route('admin.outils.scenarios.personas.enter', $version), ['persona_id' => $persona->id])
+            ->assertRedirect('/');
+
+        $this->get('/org/'.$sandbox->slug.'/admin')
+            ->assertOk()
+            ->assertSee('Mode persona')
+            ->assertSee(route('admin.outils.scenarios.personas.exit'), escape: false);
+    }
+
     // =====================================================================
     // 6. Sortie et restauration
     // =====================================================================
