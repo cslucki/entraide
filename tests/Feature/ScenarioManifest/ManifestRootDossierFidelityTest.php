@@ -82,13 +82,12 @@ class ManifestRootDossierFidelityTest extends TestCase
             // Dette nommee au TASK file.
             $this->assertSame('private', (string) $dossier->visibility);
 
-            // Et le PROPRIETAIRE declare, que rien n'appliquait.
-            $proprietaire = User::query()->findOrFail($dossier->owner_id);
-            $this->assertStringStartsWith(
-                explode('@', $this->emailDeclare($source, (string) $declare['owner']))[0].'@',
-                (string) $proprietaire->email,
-                'Le proprietaire du Dossier racine doit etre le persona DECLARE.'
-            );
+            // Le PROPRIETAIRE ne peut PAS etre applique, et c'est le schema qui
+            // le dit : `dossiers_holder_xor` impose
+            // `(owner_id IS NULL) <> (loop_id IS NULL)`. Un espace documents de
+            // Boucle n'a donc pas de proprietaire — sa gouvernance est celle de
+            // sa Boucle, et c'est ce que la Capture reconstruit.
+            $this->assertNull($dossier->owner_id, 'Un Dossier de Boucle ne porte pas d owner_id.');
 
             $post = BlogPost::query()->withoutGlobalScopes()->findOrFail($dossier->root_blog_post_id);
             $declareDocument = $declare['root_document'];

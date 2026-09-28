@@ -225,30 +225,37 @@ class ManifestCoreApplier
         $service = app(LoopRootDocumentService::class);
         $dossier = $service->ensureRootDossier($loop);
 
-        // Le NOM et le PROPRIETAIRE declares. `forceFill` parce qu'aucun des
-        // deux n'a a etre `$fillable` pour un geste d'administration.
+        // Le NOM declare. `forceFill` parce que `name` n'a pas a etre
+        // `$fillable` pour un geste d'administration.
         //
-        // `ensureRootDossier()` cree l'espace documents avec `owner_id = null`,
-        // et rien ne l'y remplissait : un manifeste declarant un `owner`
-        // different du proprietaire de sa Boucle — ce qu'aucun invariant
-        // n'interdit — rendait le Dossier `changed` en PERMANENCE a la
-        // Capture, qui reconstruit ce champ depuis la Boucle. Meme defaut que
-        // pour le nom, trouve en relecture adverse.
-        $aEcrire = [];
+        // ## Et pourquoi PAS `owner`
+        //
+        // Une relecture adverse a signale que `dossiers[].owner` n'etait jamais
+        // applique, et que la Capture le reconstruit depuis la Boucle — d'ou un
+        // `changed` permanent si un manifeste declarait un autre proprietaire.
+        // Le constat est juste ; la correction est IMPOSSIBLE.
+        //
+        // `dossiers_holder_xor` :
+        //
+        //     CHECK ((owner_id IS NULL) <> (loop_id IS NULL))
+        //
+        // Un Dossier a SOIT un proprietaire, SOIT une Boucle — jamais les deux.
+        // L'espace documents d'une Boucle ne PEUT donc pas porter d'`owner_id`,
+        // et l'ecrire fait `SQLSTATE 23514` sur PostgreSQL.
+        //
+        // Le piege merite d'etre nomme : la contrainte est posee par un
+        // `DB::statement()` pgsql-only. SQLite l'ignore, la correction y
+        // paraissait verte, et seule la CI PostgreSQL l'a refusee — 83 erreurs.
+        // C'est la leçon « un CHECK pgsql-only rend le test VERT en SQLite »,
+        // payee une fois de plus.
+        //
+        // La gouvernance effective d'un espace documents est donc celle de sa
+        // Boucle, et la reconstruction de la Capture est la seule lecture que
+        // le schema autorise.
         $nom = (string) $declared->name;
 
         if ($nom !== '' && $dossier->name !== $nom) {
-            $aEcrire['name'] = $nom;
-        }
-
-        $proprietaire = $users[(string) ($declared->owner ?? '')] ?? null;
-
-        if ($proprietaire !== null && $dossier->owner_id !== $proprietaire->id) {
-            $aEcrire['owner_id'] = $proprietaire->id;
-        }
-
-        if ($aEcrire !== []) {
-            $dossier->forceFill($aEcrire)->save();
+            $dossier->forceFill(['name' => $nom])->save();
         }
 
         $document = $declared->root_document ?? null;
