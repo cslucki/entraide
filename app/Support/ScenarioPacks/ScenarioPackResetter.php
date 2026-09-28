@@ -156,6 +156,23 @@ class ScenarioPackResetter
 
             $load->pack_version = $pack->packVersion();
             $load->reset_at = now();
+
+            // TASK-1653 — Reset RECONSTRUIT le monde : son ancre est REMPLACEE.
+            //
+            // C'est le point qui manquait. `reset_at` dit quand on a reinitialise ;
+            // `world_anchored_at` doit dire a partir de quel instant le NOUVEAU
+            // monde compte ses offsets. Les laisser diverger rendait la Capture
+            // impossible apres un Reset (T1652 refusait, faute de savoir), ou —
+            // pire — l'aurait rendue silencieusement fausse.
+            //
+            // Un Reset avec le code actuel suffit donc a rendre capturable une
+            // sandbox dont l'ancre etait inconnue.
+            $ancre = $registrar->ancreDuMonde();
+
+            if ($ancre !== null) {
+                $load->world_anchored_at = $ancre;
+            }
+
             $load->save();
 
             $counts = ScenarioPackEntity::query()

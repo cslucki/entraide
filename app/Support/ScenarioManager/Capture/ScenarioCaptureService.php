@@ -244,31 +244,29 @@ final class ScenarioCaptureService
             throw ScenarioVersionRefused::notLoaded();
         }
 
-        // `reset_at` n'ETEINT rien.
+        // L'ancre du monde doit etre CONNUE.
         //
-        // Ma premiere version en faisait un predicat de vivacite et rendait
-        // `notLoaded()` — une phrase FAUSSE : la migration de T1646 dit
-        // explicitement que « `reset_at` n'eteint rien, ce n'est que
-        // l'horodatage du dernier reset », et le resolveur canonique
-        // `ScenarioLifecycleService::chargementDeLaVersion()` ne le regarde
-        // pas. Un Reset — geste ordinaire qui CONSERVE la sandbox — rendait
-        // donc la Capture impossible pour toujours, en pretendant qu'il n'y
-        // avait aucun chargement.
+        // `reset_at` n'eteint rien — la migration T1646 le dit, et le
+        // resolveur canonique ne le regarde pas. T1652 en avait fait un
+        // predicat de vivacite faute de mieux : apres un Reset, l'ancre du
+        // monde courant n'etait plus celle du chargement, et capturer aurait
+        // produit des offsets decales en silence.
         //
-        // Mais il ne suffit pas de retirer la clause. `ScenarioPackResetter`
-        // ne met PAS `loaded_at` a jour, alors que `ManifestScenarioPack::apply()`
-        // reconstruit le monde avec un instant FRAIS : apres un Reset, l'ancre
-        // du monde courant n'est plus celle du chargement, et capturer
-        // produirait tous les offsets decales du delai entre Load et Reset,
-        // silencieusement.
+        // T1653 ferme la dette a la source : Load et Reset persistent tous
+        // deux `world_anchored_at`, l'instant EXACT ou le pack a commence a
+        // materialiser le monde. Capturer apres un Reset redevient donc
+        // possible, et c'est meme le geste qui repare une sandbox ancienne.
         //
-        // On refuse donc, mais avec la VRAIE raison, et en disant quoi faire.
-        // La dette « persister l'ancre du monde courant » est nommee au TASK
-        // file.
-        if ($load->reset_at !== null) {
+        // Reste le cas des chargements ANTERIEURS a cette colonne : leur ancre
+        // n'a jamais ete ecrite nulle part, donc elle est perdue. On ne la
+        // devine pas — la deviner serait refaire l'approximation qu'on repare,
+        // en la faisant passer pour une mesure. On refuse, et on dit quoi
+        // faire.
+        if ($load->world_anchored_at === null) {
             throw ScenarioVersionRefused::captureBlocked(
-                "[sandbox] ancre_inconnue — Cette sandbox a ete reinitialisee : l ancre de temps de son monde courant n est pas conservee, "
-                ."et capturer produirait des offsets decales. Rechargez le scenario avant de capturer.",
+                "[sandbox] ancre_inconnue — L ancre temporelle exacte de cette sandbox n est pas connue : "
+                ."elle a ete chargee avant que le moteur ne la conserve. Effectuez un Reset pour reconstruire "
+                ."le scenario avec une ancre capturable.",
                 1
             );
         }

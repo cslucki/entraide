@@ -706,21 +706,51 @@ class ScenarioCaptureEngineTest extends TestCase
         $this->assertSame($admins[0]['key'], $adminsApres[0]['key'], 'Un privilege PLATEFORME ne fait pas un responsable d Organization.');
     }
 
-    public function test_apres_un_RESET_la_Capture_refuse_avec_la_VRAIE_raison(): void
+    public function test_apres_un_RESET_la_Capture_utilise_la_NOUVELLE_ancre(): void
     {
-        // `reset_at` n ETEINT rien : la migration T1646 le dit, et le resolveur
-        // canonique ne le regarde pas. En faire un predicat de vivacite rendait
-        // `notLoaded()` — une phrase fausse — apres un geste ordinaire.
-        //
-        // Mais capturer apres un Reset produirait des offsets decales, car
-        // `ScenarioPackResetter` ne met pas `loaded_at` a jour alors que le
-        // monde est reconstruit avec un instant frais. On refuse donc, avec la
-        // vraie raison et en disant quoi faire.
+        // T1652 refusait ici, faute de savoir quelle etait l'ancre du monde
+        // reconstruit. T1653 la persiste : Reset REMPLACE `world_anchored_at`,
+        // et la Capture redevient possible — sur la bonne ancre.
         $version = $this->versionChargee();
+        $load = \App\Models\ScenarioPackLoad::query()->findOrFail($version->scenario_pack_load_id);
+        $ancreAvant = $load->world_anchored_at;
+
+        $this->assertNotNull($ancreAvant, 'Un Load doit persister son ancre.');
+
+        // Le temps passe, PUIS on reinitialise : la nouvelle ancre doit etre
+        // celle du monde reconstruit, pas celle du chargement d origine.
+        $this->travel(2)->days();
         app(ScenarioLifecycleService::class)->reset($version->fresh(), $this->superAdmin);
 
-        // La version reste CHARGEE : c est bien le point.
-        $this->assertTrue($version->fresh()->isLoaded());
+        $ancreApres = $load->fresh()->world_anchored_at;
+
+        $this->assertNotNull($ancreApres);
+        $this->assertTrue(
+            $ancreApres->greaterThan($ancreAvant),
+            'Reset reconstruit le monde : son ancre doit AVANCER.'
+        );
+
+        // Et la Capture fonctionne, sur cette nouvelle ancre : les offsets du
+        // manifeste source sont reproduits a l identique.
+        $source = json_decode((string) $version->json_source, true);
+        $document = app(ScenarioCaptureService::class)->inspecter($version->fresh())->document;
+
+        $attendus = array_map(static fn (array $m): int => $m['offset_minutes'], $source['messages']);
+        $obtenus = array_map(static fn (array $m): int => $m['offset_minutes'], $document['messages']);
+        sort($attendus);
+        sort($obtenus);
+
+        $this->assertSame($attendus, $obtenus, 'Apres un Reset, les offsets se lisent sur la NOUVELLE ancre.');
+    }
+
+    public function test_un_chargement_SANS_ancre_refuse_et_dit_quoi_faire(): void
+    {
+        // Le cas des sandboxes chargees AVANT que le moteur ne conserve son
+        // ancre. On ne la devine pas : la deviner serait refaire
+        // l approximation qu on repare, en la faisant passer pour une mesure.
+        $version = $this->versionChargee();
+        $load = \App\Models\ScenarioPackLoad::query()->findOrFail($version->scenario_pack_load_id);
+        $load->forceFill(['world_anchored_at' => null])->save();
 
         try {
             app(ScenarioCaptureService::class)->capturer($version->fresh(), $this->superAdmin);
@@ -728,8 +758,45 @@ class ScenarioCaptureEngineTest extends TestCase
         } catch (ScenarioVersionRefused $refus) {
             $this->assertSame(ScenarioVersionRefused::CAPTURE_BLOCKED, $refus->reason);
             $this->assertStringContainsString('ancre_inconnue', $refus->getMessage());
-            $this->assertStringNotContainsString('aucun chargement', $refus->getMessage());
+            // Le message dit QUOI FAIRE, il ne constate pas seulement.
+            $this->assertStringContainsString('Reset', $refus->getMessage());
         }
+
+        // Et un Reset repare : l ancre devient connue, la Capture repasse.
+        app(ScenarioLifecycleService::class)->reset($version->fresh(), $this->superAdmin);
+
+        $this->assertNotNull($load->fresh()->world_anchored_at);
+        $this->assertFalse(app(ScenarioCaptureService::class)->inspecter($version->fresh())->estBloquee());
+    }
+
+    public function test_l_ancre_persistee_est_celle_du_MONDE_et_non_celle_du_chargement(): void
+    {
+        // LE test de la Phase A.
+        //
+        // `loaded_at` est ecrit AVANT `apply()`, l ancre du monde est fabriquee
+        // DEDANS : elles different du temps qu a pris l ecriture des personas.
+        // On force un ecart ARTIFICIEL et significatif entre les deux, puis on
+        // verifie que la Capture reproduit les offsets de la source.
+        //
+        // Sans cet ecart, le test ne discrimine rien : dans un test les deux
+        // instants tombent dans la meme seconde. C est exactement le defaut
+        // qu un sabotage avait revele en T1652.
+        $version = $this->versionChargee();
+        $load = \App\Models\ScenarioPackLoad::query()->findOrFail($version->scenario_pack_load_id);
+
+        // `loaded_at` est recule d une heure : une implementation qui le relit
+        // decalera tous les offsets de 60 minutes.
+        $load->forceFill(['loaded_at' => $load->world_anchored_at->copy()->subHour()])->save();
+
+        $source = json_decode((string) $version->json_source, true);
+        $document = app(ScenarioCaptureService::class)->inspecter($version->fresh())->document;
+
+        $attendus = array_map(static fn (array $m): int => $m['offset_minutes'], $source['messages']);
+        $obtenus = array_map(static fn (array $m): int => $m['offset_minutes'], $document['messages']);
+        sort($attendus);
+        sort($obtenus);
+
+        $this->assertSame($attendus, $obtenus, 'La Capture doit lire l ancre du MONDE, pas `loaded_at`.');
     }
 
     private function message(

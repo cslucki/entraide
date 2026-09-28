@@ -115,6 +115,15 @@ class ManifestScenarioPack implements ScenarioPackDefinition
         // instant, et la spec 6.3 serait violee sans que rien ne le dise.
         $loadStartedAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
 
+        // L'ancre est DECLAREE, donc persistable.
+        //
+        // C'est le seul instant qui compte : celui a partir duquel les offsets
+        // du Manifest deviennent des dates reelles. `loaded_at`, ecrit avant
+        // cet appel, en differe de tout le temps qu'a pris l'ecriture des
+        // personas — plusieurs secondes en bcrypt de production. Capturer en
+        // relisant `loaded_at` faisait glisser tous les offsets.
+        $registrar->declarerLAncreDuMonde($loadStartedAt);
+
         // TASK-1643 — les familles CORE non-Training, dans un collaborateur
         // dedie. Le socle ci-dessus etait le contrat de T1642 et ses garanties
         // sont deja revues : on doit pouvoir lire, et retirer, CORE sans

@@ -93,7 +93,16 @@ final class ScenarioCaptureSerializer
     ) {
         $decode = json_decode($documentSource, true);
         $this->source = is_array($decode) ? $decode : [];
-        $this->ancre = \DateTimeImmutable::createFromInterface($this->load->loaded_at);
+        // L'ancre PERSISTEE du monde, et rien d'autre.
+        //
+        // T1652 lisait `loaded_at`, qui n'est pas l'instant de materialisation :
+        // T1653 persiste `world_anchored_at` au moment exact ou le pack
+        // commence a ecrire le monde. Le constructeur n'accepte plus de repli —
+        // ni `now()`, ni `created_at`, ni `reset_at` : une ancre inconnue est
+        // refusee EN AMONT par {@see ScenarioCaptureService::prouverLaProvenance()},
+        // parce qu'un offset calcule sur une ancre approximative est faux sans
+        // que rien ne le signale.
+        $this->ancre = \DateTimeImmutable::createFromInterface($this->load->world_anchored_at);
 
         $this->indexerLaSource();
     }

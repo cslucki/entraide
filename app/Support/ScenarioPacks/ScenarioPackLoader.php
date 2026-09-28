@@ -75,6 +75,22 @@ class ScenarioPackLoader
                 }
             });
 
+            // TASK-1653 — l'ancre EXACTE, persistee APRES `apply()`.
+            //
+            // Elle ne peut etre connue qu'ici : c'est le pack qui la fabrique,
+            // au moment ou il commence a materialiser le monde. `loaded_at`,
+            // ecrit plus haut, est l'instant ou l'on a DECIDE de charger ;
+            // `world_anchored_at` est celui ou le monde a commence a exister.
+            //
+            // Un pack qui ne materialise aucun offset n'en declare pas, et la
+            // colonne reste `null` : on n'invente pas une ancre a qui n'en a
+            // pas besoin.
+            $ancre = $registrar->ancreDuMonde();
+
+            if ($ancre !== null) {
+                $load->forceFill(['world_anchored_at' => $ancre])->save();
+            }
+
             $counts = ScenarioPackEntity::query()
                 ->where('scenario_pack_load_id', $load->id)
                 ->selectRaw('entity_type, count(*) as aggregate')
