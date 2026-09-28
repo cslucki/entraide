@@ -624,26 +624,66 @@ class ScenarioCaptureEngineTest extends TestCase
         $this->assertCount(count($avant) - 1, $apres, 'La Capture doit suivre le pivot, pas le document source.');
     }
 
-    public function test_le_document_racine_est_declare_en_html(): void
+    public function test_le_document_racine_SOURCE_garde_son_format_declare(): void
     {
-        // Aucun applier n ecrit jamais `root_document` : il est INTEGRALEMENT
-        // le gabarit produit, pose par `initialContent()`, qui rend du HTML.
-        // Lui coller le format declare par la source etiquetait du HTML en
-        // « markdown ».
+        // T1652 forcait `html` ici, et la mesure etait juste A L EPOQUE : aucun
+        // applier n ecrivait `root_document`, donc le document relu etait
+        // toujours le gabarit produit, du HTML.
+        //
+        // T1653 a change la PREMISSE sur arbitrage MASTER : le Loader applique
+        // desormais `title`, `author`, `format` et `content` declares. Le
+        // document racine d un Dossier venu de la source EST donc l objet
+        // source, et lui rendre son format est la seule lecture exacte.
         $version = $this->versionChargee();
         $source = json_decode((string) $version->json_source, true);
 
-        $formatsSource = array_column($source['dossiers'], 'root_document');
-        $this->assertSame('markdown', $formatsSource[0]['format'], 'La fixture doit declarer markdown pour que le cas vaille.');
+        $formatSource = $source['dossiers'][0]['root_document']['format'];
+        $this->assertSame('markdown', $formatSource, 'La fixture doit declarer markdown pour que le cas vaille.');
 
         $document = app(ScenarioCaptureService::class)->inspecter($version)->document;
+        $racine = collect($document['dossiers'])->firstWhere('key', $source['dossiers'][0]['key']);
 
-        foreach ($document['dossiers'] as $dossier) {
-            if ($dossier['root_document'] !== null) {
-                $this->assertSame('html', $dossier['root_document']['format']);
-                $this->assertStringContainsString('<p>', $dossier['root_document']['content']);
-            }
-        }
+        $this->assertSame($formatSource, $racine['root_document']['format']);
+
+        // Et le CONTENU declare est bien celui qui a ete charge, puis capture.
+        $this->assertSame($source['dossiers'][0]['root_document']['content'], $racine['root_document']['content']);
+        $this->assertSame($source['dossiers'][0]['root_document']['title'], $racine['root_document']['title']);
+        $this->assertSame($source['dossiers'][0]['name'], $racine['name']);
+    }
+
+    public function test_un_Dossier_racine_NOUVEAU_porte_le_gabarit_produit_en_html(): void
+    {
+        // L autre sens : une Boucle creee APRES le chargement n a pas d objet
+        // source. Son document racine est le gabarit de `initialContent()`,
+        // du HTML — par la meme preuve deterministe que les articles.
+        $version = $this->versionChargee();
+        $sandbox = $this->sandboxDe($version);
+        [, $auteur] = $this->uneBoucleEtUnMembre($version);
+
+        $nouvelle = \App\Models\Loop::query()->create([
+            'organization_id' => $sandbox->id,
+            'name' => 'Boucle nee apres le chargement',
+            'slug' => 'apres-'.uniqid(),
+            'description' => 'Sans objet source.',
+            'type' => 'general', 'visibility' => 'private', 'access_mode' => 'invitation',
+            'created_by' => $auteur->id,
+        ]);
+        \App\Models\LoopMember::query()->create([
+            'organization_id' => $sandbox->id, 'loop_id' => $nouvelle->id,
+            'user_id' => $auteur->id, 'role' => 'owner', 'status' => 'active',
+        ]);
+        $racine = app(\App\Services\Loops\LoopRootDocumentService::class);
+        $racine->ensureRootDossier($nouvelle);
+        $racine->ensureRootDocument($nouvelle, $auteur);
+
+        $document = app(ScenarioCaptureService::class)->inspecter($version)->document;
+        $neuf = collect($document['dossiers'])->first(
+            static fn (array $d): bool => ($d['root_document']['title'] ?? '') !== ''
+                && str_contains($d['root_document']['title'], 'Boucle nee apres le chargement')
+        );
+
+        $this->assertNotNull($neuf, 'Le Dossier racine de la Boucle neuve doit etre capture.');
+        $this->assertSame('html', $neuf['root_document']['format']);
     }
 
     public function test_une_personne_REELLE_bloque_meme_si_sa_clef_vient_de_la_SOURCE(): void

@@ -95,7 +95,11 @@ class ScenarioCapturePreviewTest extends TestCase
         $diff = app(ScenarioCaptureService::class)->comparer($version);
 
         $this->assertTrue($diff->estVide(), 'Une sandbox fraichement chargee n a rien change : '.json_encode($diff->famillesModifiees()));
-        $this->assertSame(['added' => 0, 'changed' => 0, 'removed' => 0], $diff->totaux());
+        // `assertSame` compare aussi l ORDRE des clefs d un tableau
+        // associatif : on compare les valeurs, pas leur rangement.
+        $totaux = $diff->totaux();
+        ksort($totaux);
+        $this->assertSame(['added' => 0, 'changed' => 0, 'removed' => 0], $totaux);
 
         // L ecran le DIT, et n offre aucun bouton de creation.
         $this->actingAs($this->superAdmin)

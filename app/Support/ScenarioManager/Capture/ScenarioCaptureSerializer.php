@@ -725,19 +725,24 @@ final class ScenarioCaptureSerializer
         return [
             'title' => (string) $post->title,
             'author' => $auteur,
-            // TOUJOURS `html`, et ce n'est pas une entorse a « objet source ->
-            // format source ».
+            // Format SOURCE s'il vient de la source, `html` sinon.
             //
-            // Mesure : aucun applier n'ecrit jamais `root_document.title`,
-            // `.content`, `.author` ni `.format` — `grep root_document` sur les
-            // trois appliers ne rend que `trackRootDossier()`. Le document
-            // racine est INTEGRALEMENT le gabarit produit, pose par
-            // `LoopRootDocumentService::initialContent()`, qui rend du HTML.
+            // T1652 forcait `html` ici, et la mesure etait juste A L'EPOQUE :
+            // aucun applier n'ecrivait `root_document`, donc le document relu
+            // etait toujours le gabarit produit de `initialContent()`, du HTML.
+            // Lui coller le format declare aurait etiquete du HTML en
+            // « markdown ».
             //
-            // L'objet relu n'est donc pas l'objet source : c'est un BlogPost
-            // que le produit a fabrique. Lui coller le `format` declare par la
-            // source revenait a etiqueter du HTML en « markdown ».
-            'format' => 'html',
+            // T1653 a change la PREMISSE, sur arbitrage MASTER : le Loader
+            // applique desormais `title`, `author`, `format` et `content`
+            // declares. Le document racine d'un Dossier venu de la source EST
+            // donc l'objet source — et lui rendre son format n'est plus une
+            // etiquette mensongere, c'est la seule lecture exacte.
+            //
+            // Un Dossier racine NOUVEAU, lui, porte toujours le gabarit
+            // produit : `html`, par la meme preuve deterministe que les
+            // articles.
+            'format' => $this->formatDeBlogPost($source['root_document']['format'] ?? null),
             'content' => (string) $post->content,
         ];
     }
