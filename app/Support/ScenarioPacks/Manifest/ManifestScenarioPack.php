@@ -59,13 +59,6 @@ class ManifestScenarioPack implements ScenarioPackDefinition
     private const AVATAR_DISK = 'public';
 
     /**
-     * Emplacement d'APPLICATION des assets de banque, partage par toutes les
-     * sandboxes — jamais un chemin par sandbox. Voir {@see resolveAvatar()}
-     * pour la raison, qui n'est pas une commodite.
-     */
-    private const AVATAR_DIRECTORY = 'scenario-avatars';
-
-    /**
      * Prefixe d'identite du pack. Deux manifestes differents donnent deux
      * `pack_id` differents ; le meme manifeste garde le sien entre deux
      * versions, ce qui est la condition de l'idempotence du registre.
@@ -367,7 +360,15 @@ class ManifestScenarioPack implements ScenarioPackDefinition
             return null;
         }
 
-        $path = self::AVATAR_DIRECTORY.'/'.$bank.'/'.$declared.'.'.ManifestAvatarBank::ASSET_EXTENSION;
+        // Le chemin n'est plus construit ici : la banque en repond, et c'est
+        // elle que les gestes destructeurs interrogent (T1654). Deux endroits
+        // qui composent le meme chemin, c'est deux endroits qui divergent.
+        $path = ManifestAvatarBank::publishedPath($bank, $declared);
+
+        if ($path === null) {
+            return null;
+        }
+
         $disk = Storage::disk(self::AVATAR_DISK);
 
         // `Storage` et non le systeme de fichiers : le disque est S3 en

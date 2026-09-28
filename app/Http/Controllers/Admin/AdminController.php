@@ -22,6 +22,7 @@ use App\Services\Admin\PlatformDashboardMetrics;
 use App\Services\UserDataLifecycleRegistry;
 use App\Services\Users\Exceptions\UserDeletionBlockedException;
 use App\Services\Users\UserDeletionExecutor;
+use App\Support\ScenarioManifest\ManifestAvatarBank;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -230,9 +231,20 @@ class AdminController extends Controller
         }
 
         if ($request->hasFile('avatar')) {
-            if ($user->avatar) {
+            // TASK-1654 — l'ancien fichier ne se supprime que s'il appartient a
+            // CE compte. Un avatar de banque Scenario est publie a un chemin
+            // PARTAGE, sans discriminant d'Organization : le supprimer ici
+            // privait de son image tout persona, dans toute sandbox, qui
+            // declare la meme cle. La banque est seule a repondre de cette
+            // question ; ce controleur ne la redevine pas.
+            //
+            // Et l'inverse reste vrai : un upload individuel remplace DOIT
+            // toujours etre supprime, sans quoi on echangerait une casse
+            // globale contre une fuite de stockage.
+            if ($user->avatar && ! ManifestAvatarBank::isPublishedAsset($user->avatar)) {
                 Storage::disk('public')->delete($user->avatar);
             }
+
             $update['avatar'] = $request->file('avatar')->store('avatars', 'public');
         }
 
