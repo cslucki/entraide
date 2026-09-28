@@ -167,9 +167,22 @@ class ScenarioPackResetter
             //
             // Un Reset avec le code actuel suffit donc a rendre capturable une
             // sandbox dont l'ancre etait inconnue.
+            // SEULEMENT en mode EXACT, et la condition n'est pas decorative.
+            //
+            // En mode non-exact, `apply()` est idempotent : les messages et les
+            // articles DEJA presents sont rendus tels quels, leurs `created_at`
+            // et `published_at` ne sont pas reecrits. Remplacer l'ancre sans
+            // avoir reconstruit le monde ferait glisser TOUS les offsets du
+            // delai ecoule depuis le chargement — uniformement, donc sans
+            // rendre le document invalide.
+            //
+            // Aujourd'hui aucun appelant ne passe un `ManifestScenarioPack` en
+            // non-exact (le catalogue ne sait pas les produire), mais c'est un
+            // accident de routage, pas un invariant : le premier qui le fera ne
+            // doit rien casser. Trouve en relecture adverse.
             $ancre = $registrar->ancreDuMonde();
 
-            if ($ancre !== null) {
+            if ($exact && $ancre !== null) {
                 $load->world_anchored_at = $ancre;
             }
 

@@ -25,7 +25,6 @@ class ScenarioPackLoad extends Model
         'pack_version',
         'organization_id',
         'loaded_at',
-        'world_anchored_at',
         'reset_at',
         // TASK-1351 : ce chargement a-t-il cree lui-meme son Organization ?
         // Seule provenance qui autorise le retrait a revenir a l'etat ABSENT.

@@ -2,7 +2,6 @@
 
 namespace App\Support\ScenarioManager\Capture;
 
-use App\Support\ScenarioManifest\ManifestCanonicalJson;
 use App\Support\ScenarioManifest\ManifestSchema;
 
 /**
@@ -74,6 +73,64 @@ final class ScenarioCaptureDiff
         foreach (self::famillesComparables() as $chemin) {
             $this->comparer($chemin, self::lire($source, $chemin), self::lire($courant, $chemin));
         }
+
+        $this->comparerLEnveloppe($source, $courant);
+    }
+
+    /**
+     * L'enveloppe — `name`, `description`, `purpose`, `locale`,
+     * `organization`, `assets` — compte comme le reste.
+     *
+     * Elle etait absente du Diff, et ce n'etait pas anodin :
+     * `organization.name` est le SEUL champ d'enveloppe lu au RUNTIME par le
+     * serializer. Renommer la sandbox depuis `/admin/organizations` est donc un
+     * changement declarable reel — que l'ecran annoncait « aucun changement
+     * declarable », et que le POST refusait ensuite. Il n'existait AUCUN chemin
+     * pour le capturer. Trouve en relecture adverse.
+     *
+     * @param  array<string, mixed>  $source
+     * @param  array<string, mixed>  $courant
+     */
+    private function comparerLEnveloppe(array $source, array $courant): void
+    {
+        $champs = [];
+
+        foreach (ManifestSchema::envelope() as $nom => $spec) {
+            // Les collections sont deja comparees famille par famille.
+            if (($spec['type'] ?? null) === 'array') {
+                continue;
+            }
+
+            if ($nom === 'training') {
+                continue;
+            }
+
+            // `version` est REECRITE a la capture — c'est le numero de la
+            // nouvelle version, pas un fait du monde. La comparer rendrait
+            // toute sandbox « modifiee » par construction.
+            if ($nom === 'version') {
+                continue;
+            }
+
+            if (self::canonique($source[$nom] ?? null) !== self::canonique($courant[$nom] ?? null)) {
+                $champs[] = (string) $nom;
+            }
+        }
+
+        sort($champs);
+
+        $this->familles['enveloppe'] = [
+            self::ADDED => 0,
+            self::REMOVED => 0,
+            self::CHANGED => $champs === [] ? 0 : 1,
+            self::UNCHANGED => $champs === [] ? 1 : 0,
+            'objets' => $champs === [] ? [] : [[
+                'identite' => 'enveloppe',
+                'libelle' => (string) ($courant['name'] ?? 'Scenario'),
+                'statut' => self::CHANGED,
+                'champs' => $champs,
+            ]],
+        ];
     }
 
     /**
@@ -227,11 +284,7 @@ final class ScenarioCaptureDiff
             $a = $avant[$champ] ?? null;
             $b = $apres[$champ] ?? null;
 
-            // Le MEME encodage canonique que le digest : clefs triees, donc
-            // insensible a l'ordre des proprietes mais sensible a l'ordre
-            // d'une liste — ce qui est voulu, `order` et `position` sont des
-            // faits du monde.
-            if (ManifestCanonicalJson::encode($a) !== ManifestCanonicalJson::encode($b)) {
+            if (self::canonique($a) !== self::canonique($b)) {
                 $champs[] = (string) $champ;
             }
         }
@@ -239,6 +292,58 @@ final class ScenarioCaptureDiff
         sort($champs);
 
         return $champs;
+    }
+
+    /**
+     * Une forme COMPARABLE : clefs triees en profondeur, ordre des listes
+     * conserve.
+     *
+     * ## Pourquoi pas `ManifestCanonicalJson::encode()`
+     *
+     * Parce qu'il ne fait pas ce que son nom promet sur nos entrees. Mesure :
+     *
+     * ```
+     * encode(['b' => 1, 'a' => 2])  ->  [1,2]
+     * encode(['a' => 2, 'b' => 1])  ->  [2,1]
+     * ```
+     *
+     * Il ne trie que les `\stdClass` ; sur un tableau PHP associatif il tombe
+     * dans sa branche `is_array()` et rend une LISTE, clefs jetees. Or les deux
+     * cotes du Diff sont des tableaux associatifs (`json_decode(..., true)`).
+     * La comparaison devenait donc POSITIONNELLE et aveugle aux noms sur tout
+     * champ porteur d'un objet : `member_ai_profile`, `root_document`,
+     * `training.sequences[].content`, les options et les votes d'un sondage.
+     *
+     * Consequence mesurable : un manifeste dont le JSON declare
+     * `root_document` en ordre alphabetique — ce qu'une generation machine
+     * produit naturellement — rendait chaque Dossier racine `changed` en
+     * PERMANENCE, sur une sandbox chargee a l'instant. La fixture AMT n'y
+     * echappait que par coincidence d'ecriture : ses objets imbriques suivent
+     * exactement l'ordre du serializer.
+     *
+     * L'ordre d'une LISTE reste significatif, lui : `order` et `position` sont
+     * des faits du monde.
+     *
+     * Trouve en relecture adverse, contre un docblock qui affirmait l'inverse.
+     */
+    private static function canonique(mixed $valeur): string
+    {
+        return (string) json_encode(self::trier($valeur), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    private static function trier(mixed $valeur): mixed
+    {
+        if (! is_array($valeur)) {
+            return $valeur;
+        }
+
+        $trie = array_map(static fn (mixed $v): mixed => self::trier($v), $valeur);
+
+        if (! array_is_list($trie)) {
+            ksort($trie);
+        }
+
+        return $trie;
     }
 
     /**
@@ -300,9 +405,13 @@ final class ScenarioCaptureDiff
     /**
      * Rien n'a bouge : c'est le cas ou il ne faut PAS creer de version.
      *
-     * Une Capture identique a sa source produirait le meme digest canonique et
-     * ne serait meme pas rechargeable — mais surtout, incrementer un numero
-     * pour un monde inchange raconterait une histoire qui n'a pas eu lieu.
+     * La raison est simple, et c'est la seule : incrementer un numero pour un
+     * monde inchange raconterait une histoire qui n'a pas eu lieu.
+     *
+     * (Une premiere version de ce docblock invoquait aussi une egalite de
+     * digest avec la source. C'etait faux : `encoder()` reecrit
+     * `document['version']` avec le nouveau numero, donc le digest differe
+     * TOUJOURS. La garde etait bonne, sa justification ne l'etait pas.)
      */
     public function estVide(): bool
     {

@@ -14,6 +14,23 @@
     <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ __('admin.scenario_manager.capture_title') }}</h1>
     <p class="mt-1 mb-6 max-w-2xl text-sm text-gray-500 dark:text-gray-400">{{ __('admin.scenario_manager.capture_intro') }}</p>
 
+    @php
+        // Le libelle d une famille, avec un repli LISIBLE.
+        //
+        // Les familles du Diff viennent du schema et sont toutes traduites.
+        // Celles des BLOCKERS viennent d ailleurs : `sandbox` (une provenance
+        // refusee), `document` (une borne globale), ou le premier segment d un
+        // JSON Pointer (`training`, `version`, `organization`…). Aucune n avait
+        // de traduction, et l ecran affichait alors la CLEF — exactement ce que
+        // cet ecran promet de ne jamais faire.
+        $libelleFamille = static function (string $famille): string {
+            $clef = 'admin.scenario_manager.capture_family_'.str_replace('.', '_', $famille);
+            $traduit = __($clef);
+
+            return $traduit === $clef ? ucfirst(str_replace(['_', '.'], ' ', $famille)) : $traduit;
+        };
+    @endphp
+
     @if($errors->any())
         <div data-capture-errors class="mb-6 rounded-xl border border-red-300 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
             <ul class="space-y-1 text-sm text-red-900 dark:text-red-200">
@@ -36,9 +53,12 @@
             <p class="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100" data-sandbox>{{ $sandbox?->name ?? '—' }}</p>
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ $sandbox?->slug }}</p>
         </div>
+        {{-- La version proposee ne s affiche que s il y a quelque chose a
+             creer : la proposer puis expliquer qu il n y a rien a enregistrer
+             serait se contredire dans le meme ecran. --}}
         <div>
             <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('admin.scenario_manager.capture_proposed') }}</p>
-            <p class="mt-1 text-sm font-semibold text-indigo-700 dark:text-indigo-300" data-suggestion>{{ $suggestion ?? '—' }}</p>
+            <p class="mt-1 text-sm font-semibold text-indigo-700 dark:text-indigo-300" data-suggestion>{{ ($blockers === [] && $diff && ! $diff->estVide()) ? $suggestion : '—' }}</p>
         </div>
     </section>
 
@@ -51,8 +71,8 @@
             <ul class="mt-3 space-y-2">
                 @foreach($blockers as $blocker)
                     <li data-blocker class="rounded-lg bg-white/70 p-3 text-sm text-red-900 dark:bg-gray-900/40 dark:text-red-200">
-                        <span class="font-semibold">{{ __('admin.scenario_manager.capture_family_'.str_replace('.', '_', $blocker['famille'])) }}</span>
-                        <span class="ml-1 text-xs opacity-75">· {{ $blocker['raison'] }}</span>
+                        <span class="font-semibold">{{ $libelleFamille($blocker['famille']) }}</span>
+                        <span class="ml-1 text-xs opacity-75">· {{ str_replace('_', ' ', $blocker['raison']) }}</span>
                         <p class="mt-1 text-xs">{{ $blocker['detail'] }}</p>
                     </li>
                 @endforeach
@@ -83,7 +103,7 @@
             @foreach($diff->famillesModifiees() as $famille => $mesure)
                 <details data-family="{{ $famille }}" class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
                     <summary class="cursor-pointer text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        {{ __('admin.scenario_manager.capture_family_'.str_replace('.', '_', $famille)) }}
+                        {{ $libelleFamille($famille) }}
                         <span class="ml-2 text-xs font-normal">
                             @if($mesure['added'] > 0)<span data-added class="text-green-700 dark:text-green-400">+{{ $mesure['added'] }}</span>@endif
                             @if($mesure['changed'] > 0)<span data-changed class="ml-1 text-amber-700 dark:text-amber-400">~{{ $mesure['changed'] }}</span>@endif
@@ -118,12 +138,17 @@
 
         {{-- Le SECOND geste, et il est humain. --}}
         <section class="rounded-xl border border-indigo-300 bg-indigo-50 p-4 dark:border-indigo-800 dark:bg-indigo-900/20">
-            <form method="POST" action="{{ route('admin.outils.scenarios.capture.store', $version) }}" data-form="capture-create" class="space-y-3">
+            {{-- Le bouton nomme la version REELLEMENT saisie.
+                 Il affichait la SUGGESTION, figee : modifier le champ laissait
+                 « Creer la version 1.1.0 » alors que 2.0.0 allait etre creee.
+                 Le geste confirme n etait pas celui qui s executait. --}}
+            <form method="POST" action="{{ route('admin.outils.scenarios.capture.store', $version) }}" data-form="capture-create"
+                  x-data="{ numero: @js(old('version', $suggestion)) }" class="space-y-3">
                 @csrf
 
                 <label class="block max-w-xs">
                     <span class="text-sm font-medium text-indigo-900 dark:text-indigo-200">{{ __('admin.scenario_manager.capture_version_label') }}</span>
-                    <input type="text" name="version" value="{{ old('version', $suggestion) }}" required maxlength="20"
+                    <input type="text" name="version" x-model="numero" value="{{ old('version', $suggestion) }}" required maxlength="20"
                            pattern="\d+\.\d+\.\d+"
                            class="mt-1 w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700">
                 </label>
@@ -131,7 +156,7 @@
                 <p class="max-w-lg text-xs text-indigo-800 dark:text-indigo-300">{{ __('admin.scenario_manager.capture_version_hint') }}</p>
 
                 <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
-                    {{ __('admin.scenario_manager.capture_create', ['version' => $suggestion]) }}
+                    <span x-text="@js(__('admin.scenario_manager.capture_create', ['version' => '__V__'])).replace('__V__', numero)">{{ __('admin.scenario_manager.capture_create', ['version' => $suggestion]) }}</span>
                 </button>
             </form>
         </section>

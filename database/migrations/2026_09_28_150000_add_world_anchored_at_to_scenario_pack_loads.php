@@ -39,9 +39,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('scenario_pack_loads', function (Blueprint $table) {
-            // Juste apres `loaded_at`, dont elle est la version EXACTE : les
-            // deux voisines disent la difference mieux qu'un commentaire.
-            $table->timestamp('world_anchored_at')->nullable()->after('loaded_at');
+            // Elle est la version EXACTE de `loaded_at` : celui-ci dit quand
+            // on a DECIDE de charger, celle-ci a partir de quel instant le
+            // monde compte ses offsets.
+            //
+            // Pas de `->after()` : c'est un modificateur MySQL, que PostgreSQL
+            // et SQLite ignorent en silence. L'ecrire aurait affirme une
+            // disposition physique qui n'existe sur aucun des deux moteurs de
+            // ce depot.
+            $table->timestamp('world_anchored_at')->nullable();
         });
     }
 

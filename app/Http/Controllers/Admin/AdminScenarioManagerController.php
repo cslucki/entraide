@@ -403,9 +403,15 @@ class AdminScenarioManagerController extends Controller
      * depuis le chargement ?** La creation, elle, est un second geste,
      * explicite, avec son propre bouton.
      *
-     * Rien n'est persiste ici. Le seul effet possible est l'attribution
-     * deterministe d'une stable key a un objet neuf, dans le registre borne a
-     * la sandbox — c'est ce qui rend deux Preview successifs identiques.
+     * **Rien n'est persiste ici.** `ScenarioCaptureKeyRegistry::persister()`
+     * n'est appele que dans la transaction de `capturer()` : un Preview
+     * n'ecrit pas une ligne, pas meme une stable key.
+     *
+     * (La premiere version de ce docblock invoquait une ecriture de clefs pour
+     * justifier que deux Preview successifs soient identiques. C'etait faux :
+     * le determinisme vient des `orderBy` du serializer, et un docblock qui
+     * presente un mecanisme inexistant comme une garantie est une affirmation
+     * non mesuree. Trouve en relecture adverse.)
      */
     public function capturePreview(ScenarioManifestVersion $version, ScenarioCaptureService $capture): View
     {

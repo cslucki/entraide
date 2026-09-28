@@ -45,8 +45,9 @@ use Illuminate\Support\Facades\Storage;
  *    n'a besoin d'une jointure pour retrouver son tenant.
  * 2. **Les references passent par le registre de Capture**, jamais par une
  *    ressemblance de nom, jamais par un UUID.
- * 3. **Une seule ancre de temps** : `loaded_at` du chargement SOURCE. Aucun
- *    `now()` par famille — l'ancre appartient a l'OPERATION (leçon T1644).
+ * 3. **Une seule ancre de temps** : `world_anchored_at`, l'instant EXACT ou le
+ *    pack a commence a materialiser le monde (T1653). Aucun `now()` par
+ *    famille — l'ancre appartient a l'OPERATION (leçon T1644).
  * 4. **Rien ne se devine.** Un champ qui n'existe pas au runtime se relit dans
  *    le Manifest SOURCE par sa stable key, ou obeit a une convention ARBITREE
  *    et ecrite ici. Jamais a une heuristique.
@@ -149,7 +150,21 @@ final class ScenarioCaptureSerializer
                 'name' => (string) $this->sandbox->name,
                 'proposed_slug' => (string) ($this->source['organization']['proposed_slug'] ?? $this->sandbox->slug),
                 'description' => (string) ($this->source['organization']['description'] ?? ''),
-                'locale' => (string) ($this->source['locale'] ?? 'fr'),
+                // Le locale de l'ORGANIZATION, lu au runtime — pas le locale
+                // racine du document.
+                //
+                // Les deux sont INDEPENDANTS dans le schema, et
+                // `ScenarioSandboxProvisioner` charge la sandbox avec
+                // `organization.locale`. Lire le locale racine faisait donc
+                // diverger la capture d'un manifeste declarant `locale: en` et
+                // `organization.locale: fr` : la version capturee aurait
+                // recharge une sandbox dans la MAUVAISE langue, et
+                // `ensureRootDocument()` y aurait cuit titres et en-tetes de
+                // sections, definitivement. Trouve en relecture adverse.
+                'locale' => (string) ($this->sandbox->locale
+                    ?? $this->source['organization']['locale']
+                    ?? $this->source['locale']
+                    ?? 'fr'),
             ],
         ];
 
@@ -1114,7 +1129,7 @@ final class ScenarioCaptureSerializer
                 // `service_skill`, et `applyServices()` y ecrit. Relire la
                 // source rendait `skills: []` pour toute Offre creee dans la
                 // sandbox, et figeait les autres.
-                'skills' => $this->competencesDuService($service),
+                'skills' => $this->competencesDuService($service, $source),
                 'delivery_mode' => (string) $service->delivery_mode,
                 'points_cost' => (int) $service->points_cost,
                 'status' => (string) $service->status,
@@ -1128,7 +1143,7 @@ final class ScenarioCaptureSerializer
     /**
      * @return list<string>
      */
-    private function competencesDuService(Service $service): array
+    private function competencesDuService(Service $service, ?array $source): array
     {
         $clefs = [];
 
@@ -1149,7 +1164,44 @@ final class ScenarioCaptureSerializer
             }
         }
 
-        return $clefs;
+        return $this->ordonnerCommeLaSource($clefs, $source['skills'] ?? null);
+    }
+
+    /**
+     * Range une liste de clefs dans l'ordre DECLARE par la source.
+     *
+     * L'ordre d'un tableau compte pour la comparaison canonique. Le trier sur
+     * un UUID interne — ce que faisait la premiere version — produisait un
+     * ordre sans rapport avec l'ordre declare : `["student-01","trainer-2"]`
+     * ressortait `["trainer-2","student-01"]` parce que les UUID v7 suivent
+     * l'ordre de CREATION. L'objet apparaissait `changed` des le chargement.
+     *
+     * Les clefs que la source ne connait pas viennent ensuite, triees, pour
+     * rester deterministes.
+     *
+     * @param  list<string>  $clefs
+     * @return list<string>
+     */
+    private function ordonnerCommeLaSource(array $clefs, mixed $ordreSource): array
+    {
+        if (! is_array($ordreSource)) {
+            sort($clefs);
+
+            return $clefs;
+        }
+
+        $rang = array_flip(array_values(array_filter($ordreSource, 'is_string')));
+        $connues = [];
+        $neuves = [];
+
+        foreach ($clefs as $clef) {
+            isset($rang[$clef]) ? $connues[$clef] = $rang[$clef] : $neuves[] = $clef;
+        }
+
+        asort($connues);
+        sort($neuves);
+
+        return [...array_keys($connues), ...$neuves];
     }
 
     // =====================================================================
@@ -1177,31 +1229,54 @@ final class ScenarioCaptureSerializer
             $clefParOption = [];
             $declarees = [];
 
-            // Les clefs d'options viennent de la SOURCE, par POSITION.
+            // L'identite des options : le registre, puis le rang CORROBORE.
             //
-            // `applyPolls()` cree les options dans l'ordre declare, en posant
-            // `position` : le rang est donc une correspondance DETERMINISTE
-            // avec le manifeste source, pas une ressemblance de libelle.
+            // ## Pourquoi le rang seul ne suffit pas
             //
-            // Sans cela, les clefs etaient regenerees depuis le texte —
-            // « sources » devenait « verifier-les-sources » — et chaque
-            // Preview montrait le sondage comme modifie alors que rien n'avait
-            // bouge.
-            $clefsSource = array_column(
-                $this->source('polls', $this->registre->clefConnue('polls', (string) $sondage->id) ?? '')['options'] ?? [],
-                'key'
-            );
+            // `applyPolls()` cree les options dans l'ordre declare : la
+            // correspondance par rang est exacte A L'INSTANT DU LOAD, et
+            // fausse ensuite. Supprimer ou reordonner une option decale les
+            // rangs, et la clef d'une option est alors attribuee a une AUTRE —
+            // les votes suivant la permutation. Le document reste coherent
+            // avec lui-meme, donc le Validator passe : la permutation ne se
+            // voit qu'au rechargement. Trouve en relecture adverse.
+            //
+            // ## Pourquoi pas le registre MOTEUR
+            //
+            // `loop_poll_options` ne porte aucun `organization_id`, et le
+            // `ScenarioPackEntityRegistrar` refuse — a juste titre — d'inscrire
+            // une entite dont il ne peut pas verifier le tenant. Les options ne
+            // peuvent donc pas etre tracees au Load.
+            //
+            // ## Ce qu'on fait a la place
+            //
+            // 1. le registre de CAPTURE d'abord : des la premiere Capture,
+            //    l'identite est figee par entite et ne bouge plus ;
+            // 2. sinon le rang, mais CORROBORE par le libelle. Si les libelles
+            //    ne correspondent plus a ceux de la source, on refuse d'amorcer
+            //    et on genere des clefs neuves : les options apparaissent alors
+            //    comme modifiees — VISIBLE pour l'operateur — au lieu d'etre
+            //    permutees en silence. Le libelle ne sert pas a attribuer une
+            //    identite : il sert a refuser de le faire.
+            $optionsSource = $this->source('polls', $this->registre->clefConnue('polls', (string) $sondage->id) ?? '')['options'] ?? [];
+            $rangs = array_values($options->all());
 
-            foreach (array_values($options->all()) as $rang => $option) {
-                $clefSource = $clefsSource[$rang] ?? null;
+            $corrobore = count($optionsSource) === count($rangs);
 
-                $clefOption = is_string($clefSource) && $clefSource !== ''
-                    ? $this->registre->clefDe('poll_options', (string) $option->id, $clefSource)
-                    : $this->clef('poll_options', (string) $option->id, (string) $option->label);
+            foreach ($rangs as $rang => $option) {
+                if ($corrobore && (string) ($optionsSource[$rang]['label'] ?? null) !== (string) $option->label) {
+                    $corrobore = false;
+                }
+            }
 
-                // Une clef amorcee depuis la source doit etre EXACTEMENT
-                // celle-la : si le registre en avait deja fabrique une autre,
-                // on la garde — l'identite ne se reecrit pas.
+            foreach ($rangs as $rang => $option) {
+                $clefSource = $corrobore ? ($optionsSource[$rang]['key'] ?? null) : null;
+
+                $clefOption = $this->registre->clefConnue('poll_options', (string) $option->id)
+                    ?? (is_string($clefSource) && $clefSource !== ''
+                        ? $this->registre->clefDe('poll_options', (string) $option->id, $clefSource)
+                        : $this->clef('poll_options', (string) $option->id, (string) $option->label));
+
                 $clefOption = $this->emettre('poll_options', $clefOption);
                 $clefParOption[(string) $option->id] = $clefOption;
                 $declarees[] = ['key' => $clefOption, 'label' => (string) $option->label];
@@ -1418,15 +1493,18 @@ final class ScenarioCaptureSerializer
                 }
             }
 
+            $clefItem = $this->emettre('roadmap_items', $this->clef('roadmap_items', (string) $item->id, (string) $item->title));
+            $sourceItem = $this->source('roadmap_items', $clefItem);
+
             $sortie[] = [
-                'key' => $this->emettre('roadmap_items', $this->clef('roadmap_items', (string) $item->id, (string) $item->title)),
+                'key' => $clefItem,
                 'loop' => $boucle,
                 'created_by' => $auteur,
                 'title' => (string) $item->title,
                 'description' => $item->description,
                 'status' => (string) $item->status,
                 'position' => (int) $item->position,
-                'assignees' => $assignes,
+                'assignees' => $this->ordonnerCommeLaSource($assignes, $sourceItem['assignees'] ?? null),
                 'due_day_offset' => $this->offsetJours($item->due_at),
                 'decision' => $this->ref('decisions', (string) ($item->loop_decision_id ?? '')),
             ];

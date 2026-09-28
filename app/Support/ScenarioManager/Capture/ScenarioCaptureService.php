@@ -200,6 +200,18 @@ final class ScenarioCaptureService
         }
 
         $numero ??= $this->versionSuggeree($version);
+
+        // `(scenario_key, version)` est unique en base, et le numero vient
+        // d'un champ que l'operateur peut modifier. `ScenarioVersionWriter`
+        // protege ce cas des DEUX cotes — pre-controle et `catch` — mais le
+        // chemin Capture ne passe pas par lui : sans cette garde, retaper un
+        // numero deja pris rendait un 500, la ou la phrase existe deja.
+        if (ScenarioManifestVersion::query()
+            ->where('scenario_key', $version->scenario_key)
+            ->where('version', $numero)
+            ->exists()) {
+            throw ScenarioVersionRefused::keyAlreadyUsed((string) $version->scenario_key, $numero);
+        }
         $json = $this->encoder($resultat->document, $version, $numero);
 
         if (! is_string($json)) {
@@ -240,6 +252,8 @@ final class ScenarioCaptureService
             // `scenario_pack_load_id` : ce chargement appartient a la version
             // SOURCE, le recopier ferait croire que le nouveau DRAFT est
             // charge.
+            // La course perdue rend la meme phrase : pour la personne devant
+            // l'ecran, les deux cas sont le meme fait.
             $capturee->forceFill([
                 'state' => ScenarioManifestVersion::STATE_DRAFT,
                 'digest' => $verdict->digest(),
@@ -249,7 +263,13 @@ final class ScenarioCaptureService
                 'approved_at' => null,
                 'scenario_pack_load_id' => null,
                 'captured_from_organization_id' => $sandbox->id,
-            ])->save();
+            ]);
+
+            try {
+                $capturee->save();
+            } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+                throw ScenarioVersionRefused::keyAlreadyUsed((string) $version->scenario_key, $numero);
+            }
 
             return $capturee;
         });
@@ -296,8 +316,10 @@ final class ScenarioCaptureService
         if ($load->world_anchored_at === null) {
             throw ScenarioVersionRefused::captureBlocked(
                 "[sandbox] ancre_inconnue — L ancre temporelle exacte de cette sandbox n est pas connue : "
-                ."elle a ete chargee avant que le moteur ne la conserve. Effectuez un Reset pour reconstruire "
-                ."le scenario avec une ancre capturable.",
+                ."elle a ete chargee avant que le moteur ne la conserve, et capturer produirait des dates fausses. "
+                ."Un Reset la rendrait capturable, mais ATTENTION : le Reset reconstruit le monde et DETRUIT tout "
+                ."ce qui a ete produit dans la sandbox depuis son chargement — c est-a-dire precisement ce que "
+                ."vous vouliez capturer. Ne le faites que si vous acceptez de perdre cet etat.",
                 1
             );
         }

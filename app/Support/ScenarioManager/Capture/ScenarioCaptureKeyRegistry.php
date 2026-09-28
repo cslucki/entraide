@@ -61,6 +61,12 @@ final class ScenarioCaptureKeyRegistry
      *   adressees par leurs composants. Leur fabriquer une clef serait inventer
      *   une identite que le Manifest n'a pas ;
      * - `manifest_article_placement` aussi : c'est un lien, pas un objet.
+     *
+     * `manifest_poll_option` n'y figure pas non plus, et ce n'est pas un
+     * oubli : `loop_poll_options` ne porte AUCUN `organization_id`, et le
+     * registrar refuse — a juste titre — d'inscrire une entite dont il ne peut
+     * pas verifier le tenant. L'identite des options se resout donc
+     * autrement ; voir `ScenarioCaptureSerializer::polls()`.
      */
     private const FAMILLE_PAR_TYPE_MOTEUR = [
         'manifest_user' => 'users',

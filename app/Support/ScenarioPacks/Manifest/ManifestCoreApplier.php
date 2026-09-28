@@ -225,12 +225,30 @@ class ManifestCoreApplier
         $service = app(LoopRootDocumentService::class);
         $dossier = $service->ensureRootDossier($loop);
 
-        // Le NOM declare. `forceFill` parce que `name` n'a pas a etre
-        // `$fillable` pour un geste d'administration.
+        // Le NOM et le PROPRIETAIRE declares. `forceFill` parce qu'aucun des
+        // deux n'a a etre `$fillable` pour un geste d'administration.
+        //
+        // `ensureRootDossier()` cree l'espace documents avec `owner_id = null`,
+        // et rien ne l'y remplissait : un manifeste declarant un `owner`
+        // different du proprietaire de sa Boucle — ce qu'aucun invariant
+        // n'interdit — rendait le Dossier `changed` en PERMANENCE a la
+        // Capture, qui reconstruit ce champ depuis la Boucle. Meme defaut que
+        // pour le nom, trouve en relecture adverse.
+        $aEcrire = [];
         $nom = (string) $declared->name;
 
         if ($nom !== '' && $dossier->name !== $nom) {
-            $dossier->forceFill(['name' => $nom])->save();
+            $aEcrire['name'] = $nom;
+        }
+
+        $proprietaire = $users[(string) ($declared->owner ?? '')] ?? null;
+
+        if ($proprietaire !== null && $dossier->owner_id !== $proprietaire->id) {
+            $aEcrire['owner_id'] = $proprietaire->id;
+        }
+
+        if ($aEcrire !== []) {
+            $dossier->forceFill($aEcrire)->save();
         }
 
         $document = $declared->root_document ?? null;
