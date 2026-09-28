@@ -431,16 +431,16 @@ final class ScenarioCaptureSerializer
      */
     private function clefDAvatar(User $user): ?string
     {
-        $chemin = (string) ($user->avatar ?? '');
-
-        if ($chemin === '') {
-            return null;
-        }
-
-        $banque = ManifestSchema::AVATAR_BANK;
-        $clef = pathinfo($chemin, PATHINFO_FILENAME);
-
-        return in_array($clef, ManifestAvatarBank::keys($banque), true) ? $clef : null;
+        // TASK-1654 — la provenance ne se deduit PAS d'une ressemblance de nom.
+        // La premiere ecriture comparait le seul basename a la liste des cles :
+        // `avatars/female-03.jpg`, l'upload individuel d'une personne qui se
+        // trouve porter ce nom, s'y relisait comme un asset de banque et
+        // fabriquait une declaration d'avatar fausse dans le manifeste capture.
+        //
+        // C'est la MEME autorite que celle qui interdit la suppression de
+        // l'asset partage : la question « ce chemin est-il un asset de banque ? »
+        // n'a qu'une reponse, et elle vit chez la banque.
+        return ManifestAvatarBank::keyFromPublishedPath((string) ($user->avatar ?? ''));
     }
 
     /**

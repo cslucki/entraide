@@ -5,6 +5,7 @@ use App\Http\Middleware\CheckAiProfilesEnabled;
 use App\Http\Middleware\CheckLoopsEnabled;
 use App\Http\Middleware\ConsumeOrgParams;
 use App\Http\Middleware\EnsureProfileComplete;
+use App\Http\Middleware\EnsureScenarioPersonaContextIsValid;
 use App\Http\Middleware\EnsureOrganizationMember;
 use App\Http\Middleware\EnsureUserIsNotBanned;
 use App\Http\Middleware\ResolveApiOrganization;
@@ -118,6 +119,18 @@ return Application::configure(basePath: dirname(__DIR__))
             StartSession::class,
             ShareErrorsFromSession::class,
             PreventRequestForgery::class,
+            // TASK-1654 — le mode persona se reverifie a chaque requete et se
+            // ferme seul quand une condition tombe.
+            //
+            // Place ICI, et l'ordre compte deux fois. APRES `PreventRequestForgery`,
+            // pour qu'une requete sans jeton valide ne declenche aucune bascule
+            // d'identite. Et AVANT `EnsureUserIsNotBanned`, parce qu'un persona
+            // banni pendant la session serait sinon renvoye au login par cette
+            // garde-la — et l'administrateur d'origine serait perdu au lieu
+            // d'etre restaure.
+            //
+            // Hors mode persona : une lecture de session, aucune requete SQL.
+            EnsureScenarioPersonaContextIsValid::class,
             EnsureUserIsNotBanned::class,
             ResolveUrlOrganization::class,
             ResolveOrganization::class,
