@@ -209,6 +209,21 @@
                      Le lien n'ouvre pas une action : il ouvre un ecran de
                      comparaison. Rien n'est cree tant que l'operateur n'a pas
                      lu ce qui a change. --}}
+                {{-- TASK-1654 — l'entree du mode persona.
+
+                     Elle est ici, et pas dans un menu general : entrer dans un
+                     monde n'a de sens que depuis la version qui l'a cree. Elle
+                     est aussi CONDITIONNEE a une sandbox vivante — une sandbox
+                     en corbeille n'accueille personne, et proposer le geste
+                     reviendrait a promettre une porte qui refusera. --}}
+                @unless($sandbox->trashed())
+                    <a href="{{ route('admin.outils.scenarios.personas', $version) }}"
+                       data-personas-open
+                       class="rounded-lg border border-indigo-500 px-3 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-50 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-900/30">
+                        {{ __('admin.scenario_manager.personas_link') }}
+                    </a>
+                @endunless
+
                 <a href="{{ route('admin.outils.scenarios.capture', $version) }}"
                    data-capture-open
                    class="rounded-lg border border-green-500 px-3 py-2 text-sm font-semibold text-green-800 hover:bg-green-50 dark:border-green-700 dark:text-green-300 dark:hover:bg-green-900/30">

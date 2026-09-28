@@ -40,6 +40,7 @@ use App\Http\Controllers\Admin\AdminAssignDataController;
 use App\Http\Controllers\Admin\AdminDataIntegrityController;
 use App\Http\Controllers\Admin\AdminDossierCleanupController;
 use App\Http\Controllers\Admin\AdminScenarioManagerController;
+use App\Http\Controllers\Admin\AdminScenarioPersonaController;
 use App\Http\Controllers\Admin\AdminOutilsController;
 use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminRootDestinationController;
@@ -1027,6 +1028,16 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         ->whereUuid('version')
         ->name('outils.scenarios.capture.store');
 
+    // TASK-1654 — « Voir en tant que persona ». La SORTIE est declaree hors de
+    // ce groupe : pendant le mode, `Auth::user()` est le persona, et
+    // `AdminMiddleware` enfermerait l'operateur dans le mode.
+    Route::get('/outils/scenarios/{version}/personas', [AdminScenarioPersonaController::class, 'index'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.personas');
+    Route::post('/outils/scenarios/{version}/personas', [AdminScenarioPersonaController::class, 'enter'])
+        ->whereUuid('version')
+        ->name('outils.scenarios.personas.enter');
+
     // Stats
     Route::get('/stats/login-history', [AdminController::class, 'loginHistory'])->name('stats.login-history');
     Route::get('/stats/login-history/user/{user}', [AdminController::class, 'loginHistoryUser'])->name('stats.login-history.user');
@@ -1035,6 +1046,16 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 Route::get('/admin/back-to-admin', [AdminController::class, 'backToAdmin'])
     ->middleware('auth')
     ->name('admin.back-to-admin');
+
+// TASK-1654 — quitter le mode persona. POST + CSRF : c'est une bascule
+// d'identite, pas une navigation. Hors du groupe `admin` pour la meme raison
+// que `back-to-admin` ci-dessus — pendant le mode, le compte connecte N'EST PAS
+// administrateur, et le middleware `admin` rendrait la sortie inatteignable.
+// L'autorisation ne vient donc pas du privilege courant mais de l'existence
+// d'un mode persona valide, que le service revalide.
+Route::post('/admin/outils/scenarios/persona/sortir', [AdminScenarioPersonaController::class, 'exit'])
+    ->middleware('auth')
+    ->name('admin.outils.scenarios.personas.exit');
 
 // Organization route constraint
 $organizationConstraint = '(?!login|register|admin|api|sitemap|search|explorer|profile|password|membres|echanges|partenaires|partners|boucles|loops)[a-z0-9][a-z0-9\-]*';
