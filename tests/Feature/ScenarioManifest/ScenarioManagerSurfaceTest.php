@@ -144,12 +144,28 @@ class ScenarioManagerSurfaceTest extends TestCase
         // et n'ecrit rien, le POST cree la version. Une seule route qui ferait
         // les deux transformerait « ouvrir pour comprendre » en « creer sans
         // avoir lu ».
+        //
+        // T1654 en ajoute DEUX, et c'est cette garde qui l'a exige : elles
+        // n'ecrivent NI version ni document. Elles changent l'identite sous
+        // laquelle la session s'execute — `personas.enter` et `personas.exit` —
+        // et sont des POST pour cette raison precise : en GET, une bascule
+        // d'identite serait declenchable par un simple lien.
+        //
+        // `personas.exit` est declaree HORS du groupe `admin` (elle garde ce nom
+        // par coherence) : pendant le mode persona, le compte connecte n'est
+        // plus administrateur, et `AdminMiddleware` rendrait la sortie
+        // inatteignable — la garde censee proteger l'operateur l'enfermerait.
+        // Elle reste dans le groupe `web`, donc sous jeton CSRF.
+        //
+        // Leur jumelle en lecture est `personas`, comptee plus bas.
         $this->assertSame([
             'admin.outils.scenarios.approve' => 'POST',
             'admin.outils.scenarios.capture.store' => 'POST',
             'admin.outils.scenarios.destroy' => 'DELETE',
             'admin.outils.scenarios.duplicate' => 'POST',
             'admin.outils.scenarios.load' => 'POST',
+            'admin.outils.scenarios.personas.enter' => 'POST',
+            'admin.outils.scenarios.personas.exit' => 'POST',
             'admin.outils.scenarios.remove' => 'POST',
             'admin.outils.scenarios.reset' => 'POST',
             'admin.outils.scenarios.store' => 'POST',
@@ -163,12 +179,12 @@ class ScenarioManagerSurfaceTest extends TestCase
             'admin.outils.scenarios.visual.person.destroy' => 'DELETE',
             'admin.outils.scenarios.visual.person.store' => 'POST',
             'admin.outils.scenarios.visual.person.update' => 'PUT',
-        ], $mutantes, 'T1649, T1650, T1651 et T1653 livrent ces dix-huit ecritures, et rien de plus.');
+        ], $mutantes, 'T1649, T1650, T1651, T1653 et T1654 livrent ces vingt ecritures, et rien de plus.');
 
         // Les routes de LECTURE, nommement et positivement.
         //
         // Asserter qu'elles ne figurent pas dans l'ensemble ci-dessus serait
-        // une assertion MORTE : si cet ensemble vaut exactement les cinq cles
+        // une assertion MORTE : si cet ensemble vaut exactement les cles
         // ecrites plus haut, aucune route de lecture n'en est cle, par
         // construction. On verifie donc qu'elles EXISTENT et qu'elles
         // n'acceptent que GET.
@@ -180,6 +196,9 @@ class ScenarioManagerSurfaceTest extends TestCase
             'admin.outils.scenarios.approval',
             'admin.outils.scenarios.visual',
             'admin.outils.scenarios.capture',
+            // T1654 — l'ecran de selection des personas LIT et rien d'autre :
+            // il propose, la bascule est un POST distinct.
+            'admin.outils.scenarios.personas',
         ];
 
         foreach ($lectures as $nom) {
