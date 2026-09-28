@@ -669,8 +669,12 @@ final class ScenarioVisualEditor
      * broncher — produisait ainsi une clef que le Validator refusait, sur un
      * geste ou l'operateur n'avait rien fait d'anormal. Defaut trouve en
      * relecture adverse, contre un docblock qui affirmait la conformite.
+     *
+     * PUBLIQUE depuis T1652 : le registre de Capture derive lui aussi des
+     * stable keys, et recopier cette borne ailleurs serait recopier le defaut
+     * qu'elle repare. Une seule regle de troncature au depot.
      */
-    private static function borner(string $slug, int $longueur): string
+    public static function borner(string $slug, int $longueur): string
     {
         return rtrim(mb_substr($slug, 0, max(1, $longueur)), '-');
     }
