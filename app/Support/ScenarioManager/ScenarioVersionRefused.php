@@ -170,6 +170,24 @@ final class ScenarioVersionRefused extends \RuntimeException
     public const FOREIGN_CONTENT = 'foreign_content';
 
     /**
+     * TASK-1652 — la Capture a rencontre au moins un obstacle.
+     *
+     * Un blocker n'est pas une panne : c'est un constat. La Capture lit TOUT
+     * avant de conclure, pour que l'operateur voie l'inventaire complet plutot
+     * que le premier obstacle. Aucune version n'est creee.
+     */
+    public const CAPTURE_BLOCKED = 'capture_blocked';
+
+    /**
+     * TASK-1652 — le Manifest produit ne passe pas le Validator.
+     *
+     * C'est un defaut du MOTEUR de Capture, jamais un brouillon invalide
+     * acceptable : on ne persiste pas un document dont on sait qu'il est faux,
+     * et on ne le « repare » pas apres coup.
+     */
+    public const CAPTURE_INVALID = 'capture_invalid';
+
+    /**
      * @param  array<string, string|int>  $parametres
      */
     private function __construct(
@@ -197,6 +215,24 @@ final class ScenarioVersionRefused extends \RuntimeException
     public static function unparsableSource(): self
     {
         return new self(self::UNPARSABLE_SOURCE, 'Document illisible : son identite ne peut pas etre reecrite.');
+    }
+
+    public static function captureBlocked(string $rapport, int $nombre): self
+    {
+        return new self(
+            self::CAPTURE_BLOCKED,
+            sprintf("La capture est refusee : %d obstacle(s).\n%s", $nombre, $rapport),
+            ['nombre' => $nombre, 'rapport' => $rapport]
+        );
+    }
+
+    public static function captureInvalid(string $rapport): self
+    {
+        return new self(
+            self::CAPTURE_INVALID,
+            'Le Manifest capture ne passe pas le Validator : c est un defaut du moteur de Capture, pas un brouillon acceptable.',
+            ['rapport' => $rapport]
+        );
     }
 
     public static function keyAlreadyUsed(string $scenarioKey, string $version): self
