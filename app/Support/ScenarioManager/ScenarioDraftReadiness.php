@@ -56,6 +56,14 @@ final class ScenarioDraftReadiness
         '/dossiers' => 'dossiers',
     ];
 
+    /**
+     * « Rien a signaler » — et non « approuve ».
+     *
+     * Couvre deux situations qui se ressemblent a l'ecran : une version VALIDE,
+     * et un brouillon dont la derniere validation n'a rien reproche. Dans les
+     * deux cas la fiche n'a aucun bandeau a afficher ; c'est le bouton Valider
+     * qui dit la suite.
+     */
     public const ETAT_PRET = 'pret';
 
     public const ETAT_A_COMPLETER = 'a_completer';
@@ -72,9 +80,14 @@ final class ScenarioDraftReadiness
     /**
      * Classer une version d'apres sa DERNIERE validation enregistree.
      *
-     * Une version jamais validee n'a rien a dire : elle est traitee comme « a
-     * completer » sans checklist, parce qu'affirmer qu'il manque quelque chose
-     * demanderait de valider — et le Validator ne tourne jamais au rendu.
+     * Une version JAMAIS validee ne permet aucune affirmation : sans resume, on
+     * ne sait pas ce qui manque, et le Validator ne tourne jamais au rendu
+     * (CDC 11.1). Elle est donc « rien a signaler » — pas « a completer ».
+     *
+     * La premiere version de cette methode rendait « a completer » dans ce cas.
+     * C'etait une affirmation NON MESUREE : un scenario cree depuis le modele
+     * OFSH, complet, s'affichait « a completer » avec une checklist vide.
+     * Trouve par la recette navigateur, pas par les tests.
      */
     public static function pour(ScenarioManifestVersion $version): self
     {
@@ -86,8 +99,7 @@ final class ScenarioDraftReadiness
         $erreurs = is_array($resume['errors'] ?? null) ? $resume['errors'] : [];
 
         if ($erreurs === []) {
-            // Jamais validee, ou validee sans erreur mais pas encore approuvee.
-            return new self(self::ETAT_A_COMPLETER, [], []);
+            return new self(self::ETAT_PRET, [], []);
         }
 
         $reperees = [];

@@ -217,6 +217,23 @@ class ScenarioVersionWriter
 
         $version->json_source = $json;
 
+        // TASK-1656 — la colonne `name` SUIT le document.
+        //
+        // `json_source` est la source UNIQUE depuis T1651 ; la colonne n'est
+        // qu'une copie denormalisee, pour la liste, la recherche et le titre.
+        // Elle n'etait ecrite qu'a la CREATION : renommer un scenario depuis
+        // l'editeur visuel changeait le document et laissait l'ecran afficher
+        // l'ancien nom. Deux noms pour un scenario, et la liste montrait le
+        // perime — un geste sans effet visible, alors qu'il avait bien eu lieu.
+        //
+        // Trouve par la recette navigateur du parcours produit, pas par un test :
+        // aucun test n'avait renomme PUIS relu la bibliotheque.
+        $nomDuDocument = self::nomDeclareDans($json);
+
+        if ($nomDuDocument !== null) {
+            $version->name = $nomDuDocument;
+        }
+
         // CDC 12.3 : toute modification repasse DRAFT, invalide l'approbation
         // precedente et exige une nouvelle validation. Le resume est efface
         // avec le reste : des compteurs calcules sur un texte qui a change
@@ -399,6 +416,35 @@ class ScenarioVersionWriter
         }
 
         return $version;
+    }
+
+    /**
+     * Le `name` declare par un document, s'il en porte un exploitable.
+     *
+     * Rend `null` des que le texte n'est pas un objet JSON, ou que son `name`
+     * n'est pas une chaine non vide : un document invalide reste ENREGISTRABLE
+     * comme brouillon (c'est tout l'interet d'un brouillon), et son etat ne doit
+     * pas pouvoir effacer le nom sous lequel l'utilisateur retrouve sa ligne.
+     */
+    private static function nomDeclareDans(string $json): ?string
+    {
+        $document = json_decode($json, true);
+
+        if (! is_array($document)) {
+            return null;
+        }
+
+        $nom = $document['name'] ?? null;
+
+        if (! is_string($nom)) {
+            return null;
+        }
+
+        $nom = trim($nom);
+
+        // La colonne est bornee a 120 : un document qui en declare plus ne doit
+        // pas faire echouer l'enregistrement du brouillon.
+        return ($nom === '' || mb_strlen($nom) > 120) ? null : $nom;
     }
 
     private function existeDeja(string $scenarioKey): bool

@@ -386,8 +386,19 @@ class AdminScenarioManagerController extends Controller
                 'coller' => $writer->import($donnees['scenario_key'], $donnees['name'], (string) ($donnees['json'] ?? ''), $auteur, $donnees['usage']),
             };
 
+            // TASK-1656 — un scenario tout juste cree n'avait AUCUN
+            // `validation_summary` : la fiche ne pouvait donc dire ni ce qu'il
+            // contient, ni ce qui lui manque. Elle ouvrait sur un vide, et
+            // l'utilisateur devait deviner qu'il fallait d'abord valider pour
+            // obtenir une information.
+            //
+            // `revalidateAsDraft()` est la primitive EXISTANTE qui remplit le
+            // resume en laissant l'etat a DRAFT. Creer reste creer : rien n'est
+            // declare valide, rien n'est approuve, rien n'est charge.
+            $writer->revalidateAsDraft($version);
+
             return redirect()
-                ->route('admin.outils.scenarios.edit', $version)
+                ->route('admin.outils.scenarios.show', $version)
                 ->with('status', __('admin.scenario_manager.flash_created'));
         });
     }
@@ -457,13 +468,27 @@ class AdminScenarioManagerController extends Controller
      * L'etape TECHNIQUE du CDC 12.1. Elle n'approuve rien : l'approbation
      * humaine, seule porte vers un Load, arrive en T1650.
      */
-    public function validateDocument(ScenarioManifestVersion $version, ScenarioVersionWriter $writer): RedirectResponse
+    public function validateDocument(Request $request, ScenarioManifestVersion $version, ScenarioVersionWriter $writer): RedirectResponse
     {
-        return $this->enRepondantAuxRefus(function () use ($version, $writer) {
+        // TASK-1656 — le geste rend la main la ou il a ete FAIT.
+        //
+        // Valider ne vivait que sur l'editeur JSON, et y ramenait toujours.
+        // Expose sur la fiche (§26 : le parcours doit se faire sans ouvrir le
+        // JSON), ce retour fixe renvoyait l'utilisateur dans l'ecran meme qu'on
+        // cherchait a lui epargner — et il y perdait la barre d'actions.
+        //
+        // Le choix se fait entre DEUX routes CONNUES, d'apres un drapeau, et
+        // jamais d'apres une URL fournie par la requete : suivre une adresse
+        // soumise serait une redirection ouverte.
+        $depuisLaFiche = $request->input('origine') === 'fiche';
+
+        return $this->enRepondantAuxRefus(function () use ($depuisLaFiche, $version, $writer) {
             $writer->validate($version);
 
             return redirect()
-                ->route('admin.outils.scenarios.edit', $version)
+                ->route($depuisLaFiche
+                    ? 'admin.outils.scenarios.show'
+                    : 'admin.outils.scenarios.edit', $version)
                 ->with('status', $version->isValid()
                     ? __('admin.scenario_manager.flash_valid')
                     : __('admin.scenario_manager.flash_invalid'));

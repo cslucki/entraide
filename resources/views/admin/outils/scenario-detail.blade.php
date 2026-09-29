@@ -122,6 +122,29 @@
                 </a>
             @endif
 
+            {{-- TASK-1656 — « Valider » n'existait QUE sur l'editeur JSON.
+                 Un scenario cree depuis le modele OFSH porte deja un contenu
+                 valide : exiger d'ouvrir le JSON pour le declarer tel rendait le
+                 parcours du §26 impossible « sans ouvrir le JSON ». La route
+                 existe depuis T1649 — elle est seulement exposee ici.
+
+                 L'action principale du DRAFT reste « Continuer la construction »
+                 (§24) : valider est un geste de SORTIE de construction, pas le
+                 geste par defaut de quelqu'un qui construit. --}}
+            @unless($version->isValid())
+                <form method="POST" action="{{ route('admin.outils.scenarios.validate', $version) }}" class="inline">
+                    @csrf
+                    {{-- Dit d'ou vient le geste, pour y revenir. Un drapeau, pas
+                         une URL : le controleur choisit entre deux routes
+                         connues. --}}
+                    <input type="hidden" name="origine" value="fiche">
+                    <button type="submit" data-action="validate"
+                            class="inline-flex items-center rounded-lg border border-green-400 px-3 py-2 text-sm font-medium text-green-800 hover:bg-green-50 dark:border-green-700 dark:text-green-300 dark:hover:bg-green-900/20">
+                        {{ __('admin.scenario_manager.editor_validate') }}
+                    </button>
+                </form>
+            @endunless
+
             <x-scenario-duplicate :version="$version" />
             <x-scenario-delete :version="$version" :versions-count="$versionsDeLaClef" />
         </div>

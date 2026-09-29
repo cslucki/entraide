@@ -189,8 +189,19 @@ class ScenarioManagerCrudTest extends TestCase
         $version = ScenarioManifestVersion::query()->where('scenario_key', 'tentative')->sole();
 
         $this->assertSame(ScenarioManifestVersion::STATE_DRAFT, $version->state);
-        $this->assertNull($version->digest);
-        $this->assertNull($version->validation_summary);
+
+        // TASK-1656 : `digest` et `validation_summary` ne sont plus nuls apres
+        // une creation — le systeme les remplit lui-meme par
+        // `revalidateAsDraft()`, pour que la fiche puisse dire des l'abord ce
+        // que le scenario contient et ce qui lui manque.
+        //
+        // La garde de T1649 n'en est pas affaiblie, parce que ce n'est pas la
+        // NULLITE qui protege : c'est le fait que ces valeurs viennent du
+        // systeme et JAMAIS de la requete. On l'assert donc directement, ce qui
+        // est plus fort que l'ancienne assertion — celle-ci passait aussi si le
+        // code ne posait simplement rien.
+        $this->assertNotSame($usurpation, $version->digest, 'Le digest soumis a ete retenu.');
+        $this->assertSame('INVALID', $version->validation_summary['verdict'] ?? null);
         $this->assertNull($version->approved_digest);
         $this->assertNull($version->approved_by);
         $this->assertNull($version->approved_at);
