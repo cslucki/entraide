@@ -147,26 +147,10 @@ class ScenarioVersionWriter
         ScenarioManifestVersion $source,
         string $scenarioKey,
         string $name,
-        User $author
+        User $author,
+        ?string $usage = null
     ): ScenarioManifestVersion {
         $this->refuserSiBinaire($name);
-
-        $document = json_decode($source->json_source, true);
-
-        if (! is_array($document)) {
-            throw ScenarioVersionRefused::unparsableSource();
-        }
-
-        $document['id'] = $scenarioKey;
-        $document['name'] = $name;
-        // CDC 9.4 : la copie repart de 1.0.0. Une copie qui heriterait du
-        // numero de sa source laisserait croire a une continuite de version
-        // entre deux scenarios qui n'ont plus rien a voir.
-        $document['version'] = '1.0.0';
-
-        if (isset($document['organization']) && is_array($document['organization'])) {
-            $document['organization']['proposed_slug'] = $scenarioKey;
-        }
 
         // `parent_id` porte la PROVENANCE (CDC 3.3) : sans lui, la copie
         // declare qu'elle est une copie en perdant DE QUOI — la seule chose
@@ -174,17 +158,57 @@ class ScenarioVersionWriter
         return $this->creer(
             $scenarioKey,
             $name,
-            $this->encoder($document),
+            $this->reidentifier((string) $source->json_source, $scenarioKey, $name),
             ScenarioManifestVersion::ORIGIN_DUPLICATE,
             $author,
             $source,
-            $source->usage
+            // L'usage de la source par defaut — une copie sert le plus souvent
+            // la meme chose. Mais il est MODIFIABLE : dupliquer un scenario de
+            // QA pour en faire une demo est precisement un cas normal.
+            $usage ?? (string) $source->usage
         );
     }
 
     /**
      * Remplacer le document d'une version (CDC 10.10 et 12.3).
      */
+    /**
+     * TASK-1656 — creer un scenario a partir d'un MODELE publie.
+     *
+     * Le modele n'est pas une ligne de base : c'est un fichier livre avec le
+     * code. Il n'y a donc pas de `parent_id` a poser — la provenance est dite
+     * par `origin = template`, et le modele lui-meme reste intouche.
+     *
+     * Tout le reste est le contrat de {@see duplicate()}, au mot pres, parce
+     * que c'est la MEME reecriture d'identite : nouvelle clef, nouveau nom,
+     * retour a `1.0.0`, `proposed_slug` aligne. Les deux passent par
+     * {@see reidentifier()} pour qu'aucune ne puisse deriver de l'autre.
+     *
+     * Et comme `creer()` ne pose aucun attribut systeme, la copie nait DRAFT,
+     * sans digest, sans approbation et sans sandbox : « utiliser un modele » ne
+     * charge rien.
+     */
+    public function createFromTemplate(
+        string $templateJson,
+        string $scenarioKey,
+        string $name,
+        User $author,
+        string $usage = ScenarioManifestVersion::USAGE_QA
+    ): ScenarioManifestVersion {
+        $this->refuserSiBinaire($name);
+        $this->refuserSiBinaire($templateJson);
+
+        return $this->creer(
+            $scenarioKey,
+            $name,
+            $this->reidentifier($templateJson, $scenarioKey, $name),
+            ScenarioManifestVersion::ORIGIN_TEMPLATE,
+            $author,
+            null,
+            $usage
+        );
+    }
+
     public function updateDocument(ScenarioManifestVersion $version, string $json): ScenarioManifestVersion
     {
         $this->refuserSiChargee($version);
@@ -192,6 +216,23 @@ class ScenarioVersionWriter
         $this->refuserSiTropGros($json);
 
         $version->json_source = $json;
+
+        // TASK-1656 — la colonne `name` SUIT le document.
+        //
+        // `json_source` est la source UNIQUE depuis T1651 ; la colonne n'est
+        // qu'une copie denormalisee, pour la liste, la recherche et le titre.
+        // Elle n'etait ecrite qu'a la CREATION : renommer un scenario depuis
+        // l'editeur visuel changeait le document et laissait l'ecran afficher
+        // l'ancien nom. Deux noms pour un scenario, et la liste montrait le
+        // perime — un geste sans effet visible, alors qu'il avait bien eu lieu.
+        //
+        // Trouve par la recette navigateur du parcours produit, pas par un test :
+        // aucun test n'avait renomme PUIS relu la bibliotheque.
+        $nomDuDocument = self::nomDeclareDans($json);
+
+        if ($nomDuDocument !== null) {
+            $version->name = $nomDuDocument;
+        }
 
         // CDC 12.3 : toute modification repasse DRAFT, invalide l'approbation
         // precedente et exige une nouvelle validation. Le resume est efface
@@ -296,6 +337,40 @@ class ScenarioVersionWriter
         $version->delete();
     }
 
+    /**
+     * Reecrire l'IDENTITE d'un document repris : sa clef, son nom, son numero
+     * de version et le slug propose de son organisation.
+     *
+     * Partage par {@see duplicate()} et {@see createFromTemplate()}. C'est
+     * volontaire : ce sont deux portes d'entree sur le meme geste — « repartir
+     * de ce contenu sous une nouvelle identite ». Deux implementations
+     * auraient fini par differer sur un champ, et la difference n'aurait ete
+     * decouverte que par un document devenu incoherent.
+     *
+     * Le CONTENU metier n'est pas touche. Seule l'identite change.
+     */
+    private function reidentifier(string $json, string $scenarioKey, string $name): string
+    {
+        $document = json_decode($json, true);
+
+        if (! is_array($document)) {
+            throw ScenarioVersionRefused::unparsableSource();
+        }
+
+        $document['id'] = $scenarioKey;
+        $document['name'] = $name;
+        // CDC 9.4 : la copie repart de 1.0.0. Une copie qui heriterait du
+        // numero de sa source laisserait croire a une continuite de version
+        // entre deux scenarios qui n'ont plus rien a voir.
+        $document['version'] = '1.0.0';
+
+        if (isset($document['organization']) && is_array($document['organization'])) {
+            $document['organization']['proposed_slug'] = $scenarioKey;
+        }
+
+        return $this->encoder($document);
+    }
+
     private function creer(
         string $scenarioKey,
         string $name,
@@ -341,6 +416,35 @@ class ScenarioVersionWriter
         }
 
         return $version;
+    }
+
+    /**
+     * Le `name` declare par un document, s'il en porte un exploitable.
+     *
+     * Rend `null` des que le texte n'est pas un objet JSON, ou que son `name`
+     * n'est pas une chaine non vide : un document invalide reste ENREGISTRABLE
+     * comme brouillon (c'est tout l'interet d'un brouillon), et son etat ne doit
+     * pas pouvoir effacer le nom sous lequel l'utilisateur retrouve sa ligne.
+     */
+    private static function nomDeclareDans(string $json): ?string
+    {
+        $document = json_decode($json, true);
+
+        if (! is_array($document)) {
+            return null;
+        }
+
+        $nom = $document['name'] ?? null;
+
+        if (! is_string($nom)) {
+            return null;
+        }
+
+        $nom = trim($nom);
+
+        // La colonne est bornee a 120 : un document qui en declare plus ne doit
+        // pas faire echouer l'enregistrement du brouillon.
+        return ($nom === '' || mb_strlen($nom) > 120) ? null : $nom;
     }
 
     private function existeDeja(string $scenarioKey): bool

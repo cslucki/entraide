@@ -277,9 +277,56 @@ final class ManifestCoreInvariants
 
     private function validateDossiers(ManifestGraph $graph, ManifestErrorBag $errors): void
     {
+        // TASK-1656 — l'invariant de CHARGEABILITE que le schema ne disait pas.
+        //
+        // `dossiers.loop_id` porte un index UNIQUE, pose « pour la racine d'une
+        // Boucle » : une Boucle porte EXACTEMENT un Dossier. Et
+        // `dossiers_holder_xor` — `CHECK ((owner_id IS NULL) <> (loop_id IS
+        // NULL))` — interdit qu'un Dossier porte a la fois un proprietaire et
+        // une Boucle.
+        //
+        // Le Loader traite comme racine tout Dossier designe par
+        // `loops[].root_dossier`, et cree les AUTRES avec `owner_id` ET
+        // `loop_id`. Un second Dossier declarant la meme Boucle sans en etre la
+        // racine declaree tombe donc dans ce second chemin et viole les DEUX
+        // contraintes.
+        //
+        // C'etait exactement la dette `VALIDATOR_LOADABILITY_GAP_DOSSIER_LOOP_UNIQUE`
+        // de T1655 : le Validator rendait VERT, puis le Load echouait sur
+        // `UNIQUE constraint failed: dossiers.loop_id`. L'utilisateur
+        // decouvrait l'invariant au moment de l'ecriture en base.
+        //
+        // La direction symetrique — deux Boucles partageant une racine — etait
+        // DEJA gardee dans `validateLoops()`. Son commentaire affirmait couvrir
+        // les deux sens ; il n'en couvrait qu'un.
+        $racineDeclareeDe = [];
+
+        foreach ($graph->collection('loops') as $loop) {
+            $racine = $loop->root_dossier ?? null;
+            $clefDeBoucle = $loop->key ?? null;
+
+            if (is_string($racine) && is_string($clefDeBoucle)) {
+                $racineDeclareeDe[$clefDeBoucle] = $racine;
+            }
+        }
+
         foreach ($graph->collection('dossiers') as $index => $dossier) {
             $loop = $dossier->loop ?? null;
             $owner = $dossier->owner ?? null;
+
+            // Un Dossier qui declare une Boucle doit EN ETRE la racine declaree.
+            if (is_string($loop) && $graph->has('loops', $loop)) {
+                $racine = $racineDeclareeDe[$loop] ?? null;
+                $clef = $dossier->key ?? null;
+
+                if (is_string($clef) && $racine !== null && $racine !== $clef) {
+                    $errors->add(ManifestErrorCode::DUPLICATE_COMPOSITE_KEY, $this->at($graph, 'dossiers', $index, 'loop'), sprintf(
+                        "Loop '%s' already declares dossier '%s' as its root; a loop holds exactly one dossier.",
+                        $loop,
+                        $racine,
+                    ));
+                }
+            }
 
             if (is_string($loop) && is_string($owner) && $graph->has('loops', $loop) && ! $graph->isMember($loop, $owner)) {
                 $errors->add(ManifestErrorCode::OWNER_MEMBERSHIP_MISMATCH, $this->at($graph, 'dossiers', $index, 'owner'), sprintf(

@@ -46,7 +46,14 @@ class TASK1655OfshPilotTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const FIXTURE = 'tests/Fixtures/ScenarioManifest/ofsh-1.0.0.json';
+    /**
+     * TASK-1656 : le Manifest OFSH a quitte `tests/Fixtures/` pour devenir la
+     * source CANONIQUE du modele produit. Ce test lit desormais CE fichier —
+     * celui que l'ecran « Modeles » propose. Deux copies maintenues en
+     * parallele auraient diverge, et le pilote aurait cesse de prouver quoi que
+     * ce soit sur ce que l'utilisateur recoit reellement.
+     */
+    private const FIXTURE = 'resources/scenario-manifest/templates/ofsh-1.0.0.json';
 
     /** Les compteurs canoniques, arbitres par MASTER le 28/09/2026. */
     private const CANONIQUES = [

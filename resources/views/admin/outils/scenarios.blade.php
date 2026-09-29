@@ -5,11 +5,14 @@
      CDC 6.2 exige — nom, version, etat, usage, date de modification,
      principaux compteurs, presence ou non d'une sandbox, action principale.
 
-     T1649 livre « Nouveau » : le bouton apparait donc ici, parce qu'il MENE
-     quelque part. « Dupliquer » et « Exporter » vivent sur l'editeur d'une
-     version, la ou ils ont un objet sur quoi porter. « Capturer » appartient
-     a T1652 et reste OMIS : un bouton qui ne fait rien ment sur ce que l'ecran
-     sait faire.
+     TASK-1656 : « Dupliquer » et « Supprimer » remontent SUR la carte. Ils
+     existaient en backend depuis T1649 et n'etaient atteignables depuis aucun
+     ecran — une capacite non exposee est une capacite absente pour qui utilise
+     le produit. Les deux passent par les composants `x-scenario-duplicate` et
+     `x-scenario-delete`, partages avec la fiche : une seule implementation.
+
+     Le libelle de suppression depend du nombre de versions que porte la clef,
+     parce que le backend ne supprime QU'UNE version (§15).
 
      La colonne « Etat » affiche trois valeurs alors que la base n'en stocke
      que DEUX : « Charge » est derive par `isLoaded()`, jamais lu.
@@ -29,14 +32,66 @@
         </div>
     @endif
 
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
-        <p class="text-sm text-amber-900 dark:text-amber-200">{{ __('admin.scenario_manager.foundation_notice') }}</p>
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <p class="text-sm text-gray-600 dark:text-gray-400">{{ __('admin.scenario_manager.foundation_notice') }}</p>
 
         <a href="{{ route('admin.outils.scenarios.create') }}"
            class="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
             {{ __('admin.scenario_manager.new_scenario') }}
         </a>
     </div>
+
+    {{-- ================================================================
+         TASK-1656 §5 — les MODELES, avant la bibliotheque.
+
+         Un modele n'est pas un scenario de l'utilisateur : il ne porte pas
+         d'etat, ne recoit pas de sandbox, et ne se supprime pas. Il est la
+         BASE d'une copie. C'est pourquoi il vit dans sa propre section, au-
+         dessus, avec une seule action.
+         ================================================================ --}}
+    @if($modeles !== [])
+        <section data-section="templates" class="mb-8">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('admin.scenario_manager.templates_title') }}</h2>
+            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ __('admin.scenario_manager.templates_hint') }}</p>
+
+            <div class="mt-3 grid gap-4 md:grid-cols-2">
+                @foreach($modeles as $modele)
+                    @php $cptModele = $compteursModeles[$modele['key']] ?? []; @endphp
+
+                    <article data-template="{{ $modele['key'] }}"
+                             class="flex flex-col rounded-xl border-2 border-indigo-200 bg-indigo-50/40 p-4 dark:border-indigo-800 dark:bg-indigo-900/10">
+                        <header class="mb-2">
+                            <h3 class="font-semibold text-gray-900 dark:text-gray-100">{{ $modele['name'] }}</h3>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">{{ $modele['short'] }}</p>
+                        </header>
+
+                        <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">{{ $modele['description'] }}</p>
+
+                        @if($cptModele !== [])
+                            <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('admin.scenario_manager.template_contains') }}</p>
+                            <p class="mb-4 text-sm text-gray-700 dark:text-gray-300">
+                                {{ ($cptModele['users'] ?? 0).' '.__('admin.scenario_manager.counter_users') }}
+                                · {{ ($cptModele['loops'] ?? 0).' '.__('admin.scenario_manager.counter_loops') }}
+                                · {{ ($cptModele['messages'] ?? 0).' '.__('admin.scenario_manager.counter_messages') }}
+                                · {{ ($cptModele['dossiers'] ?? 0).' '.__('admin.scenario_manager.counter_dossiers') }}
+                                · {{ ($cptModele['service_requests'] ?? 0).' '.__('admin.scenario_manager.counter_requests') }}
+                                · {{ ($cptModele['events'] ?? 0).' '.__('admin.scenario_manager.counter_events') }}
+                                · {{ ($cptModele['decisions'] ?? 0).' '.__('admin.scenario_manager.counter_decisions') }}
+                            </p>
+                        @endif
+
+                        <div class="mt-auto">
+                            <a href="{{ route('admin.outils.scenarios.create', ['modele' => $modele['key']]) }}"
+                               data-action="use-template"
+                               class="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+                                {{ __('admin.scenario_manager.template_use') }}
+                            </a>
+                        </div>
+                    </article>
+                @endforeach
+            </div>
+        </section>
+    @endif
 
     <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
         @php
@@ -155,11 +210,28 @@
                         {{ __('admin.scenario_manager.card_modified', ['date' => $version->updated_at?->diffForHumans() ?? '—']) }}
                     </p>
 
-                    <div class="mt-auto">
+                    {{-- Les actions. « Ouvrir » et « Dupliquer » restent
+                         immediatement decouvrables, y compris a 390 px ;
+                         `flex-wrap` les empile plutot que de les faire deborder. --}}
+                    <div class="mt-auto flex flex-wrap items-center gap-2">
                         <a href="{{ route('admin.outils.scenarios.show', $version) }}"
+                           data-action="open"
                            class="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
                             {{ __('admin.scenario_manager.card_open') }}
                         </a>
+
+                        @if($version->isLoaded())
+                            <a href="{{ route('admin.outils.scenarios.capture', $version) }}"
+                               data-action="capture"
+                               class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                                {{ __('admin.scenario_manager.card_capture') }}
+                            </a>
+                        @endif
+
+                        <x-scenario-duplicate :version="$version" />
+
+                        <x-scenario-delete :version="$version"
+                                           :versions-count="$versionsParClef[$version->scenario_key] ?? 1" />
                     </div>
                 </article>
             @endforeach
