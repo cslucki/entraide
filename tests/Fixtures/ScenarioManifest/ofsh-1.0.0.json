@@ -1,0 +1,1349 @@
+{
+ "schema_version": "1.0",
+ "id": "ofsh",
+ "version": "1.0.0",
+ "name": "Organismes de Formation Humanistes & Solidaires",
+ "description": "Reseau fictif d'entraide entre professionnels et structures de la formation, a visee humaniste et solidaire. Dix semaines d'activite : un desaccord sur l'exigence qualite qui produit un outil commun, l'accueil d'une nouvelle independante, un essai encadre d'outils IA, et une echeance de financement.",
+ "purpose": "Scenario pilote du Scenario Manager : prouver qu'un monde metier credible se decrit, se charge, s'utilise sous plusieurs personas, evolue, et se recapture en nouvelle version.",
+ "locale": "fr",
+ "assets": {
+  "avatar_bank": "fictional-avatars-v1"
+ },
+ "organization": {
+  "name": "Organismes de Formation Humanistes & Solidaires",
+  "proposed_slug": "ofsh",
+  "description": "Sandbox fictive OFSH — scenario de reference du Scenario Manager.",
+  "locale": "fr"
+ },
+ "users": [
+  {
+   "key": "helene-vasseur",
+   "first_name": "Helene",
+   "name": "Vasseur",
+   "email": "helene-vasseur@ofsh-demo.test",
+   "bio": "Dirigeante d'un organisme de formation d'une vingtaine de formateurs, depuis vingt-deux ans. J'ai monte ce reseau parce que je ne voulais plus resoudre seule des problemes que d'autres avaient deja resolus.",
+   "available": true,
+   "location": "Nantes",
+   "avatar": "neutral-01",
+   "organization_role": "admin",
+   "member_ai_profile": null
+  },
+  {
+   "key": "bruno-teyssier",
+   "first_name": "Bruno",
+   "name": "Teyssier",
+   "email": "bruno-teyssier@ofsh-demo.test",
+   "bio": "Auditeur Qualiopi independant depuis quinze ans. Mon travail n'est pas de faire peur : c'est de rendre verifiable ce que vous faites deja bien.",
+   "available": true,
+   "location": "Lyon",
+   "avatar": "neutral-02",
+   "organization_role": "member",
+   "member_ai_profile": null
+  },
+  {
+   "key": "naima-belkacem",
+   "first_name": "Naima",
+   "name": "Belkacem",
+   "email": "naima-belkacem@ofsh-demo.test",
+   "bio": "Ingenieure pedagogique senior. Dix-sept ans a concevoir des parcours, et une conviction : une bonne trame se prete, elle ne se garde pas.",
+   "available": true,
+   "location": "Grenoble",
+   "avatar": "neutral-03",
+   "organization_role": "member",
+   "member_ai_profile": null
+  },
+  {
+   "key": "serge-kaltenbach",
+   "first_name": "Serge",
+   "name": "Kaltenbach",
+   "email": "serge-kaltenbach@ofsh-demo.test",
+   "bio": "Specialiste du financement de la formation, OPCO et CPF. Onze ans a lire des textes que personne ne veut lire, pour que d'autres n'aient pas a le faire.",
+   "available": true,
+   "location": "Strasbourg",
+   "avatar": "neutral-04",
+   "organization_role": "member",
+   "member_ai_profile": null
+  },
+  {
+   "key": "lea-fontanel",
+   "first_name": "Lea",
+   "name": "Fontanel",
+   "email": "lea-fontanel@ofsh-demo.test",
+   "bio": "Formatrice independante en communication et posture professionnelle. Huit ans. J'ai longtemps travaille seule ; je n'y tiens plus.",
+   "available": true,
+   "location": "Bordeaux",
+   "avatar": "neutral-05",
+   "organization_role": "member",
+   "member_ai_profile": null
+  },
+  {
+   "key": "karim-oufella",
+   "first_name": "Karim",
+   "name": "Oufella",
+   "email": "karim-oufella@ofsh-demo.test",
+   "bio": "Responsable pedagogique d'un organisme regional. Neuf ans a coordonner des formateurs, et a chercher comment les outiller sans les alourdir.",
+   "available": true,
+   "location": "Lille",
+   "avatar": "neutral-06",
+   "organization_role": "member",
+   "member_ai_profile": null
+  },
+  {
+   "key": "sophie-arnal",
+   "first_name": "Sophie",
+   "name": "Arnal",
+   "email": "sophie-arnal@ofsh-demo.test",
+   "bio": "Consultante en strategie de formation, douze ans. Je defends une idee simple : une exigence qui tue les petites structures ne protege personne.",
+   "available": true,
+   "location": "Toulouse",
+   "avatar": "neutral-07",
+   "organization_role": "member",
+   "member_ai_profile": null
+  },
+  {
+   "key": "didier-mounier",
+   "first_name": "Didier",
+   "name": "Mounier",
+   "email": "didier-mounier@ofsh-demo.test",
+   "bio": "Formateur independant sur les outils numeriques, quatorze ans. Je lis plus que je n'ecris.",
+   "available": false,
+   "location": "Rennes",
+   "avatar": "neutral-08",
+   "organization_role": "member",
+   "member_ai_profile": null
+  },
+  {
+   "key": "fatou-diagne",
+   "first_name": "Fatou",
+   "name": "Diagne",
+   "email": "fatou-diagne@ofsh-demo.test",
+   "bio": "Dirigeante d'un petit organisme associatif de trois personnes. Nos stagiaires sont souvent loin de l'emploi ; chaque heure compte deux fois.",
+   "available": true,
+   "location": "Marseille",
+   "avatar": "neutral-09",
+   "organization_role": "member",
+   "member_ai_profile": null
+  },
+  {
+   "key": "yann-lescop",
+   "first_name": "Yann",
+   "name": "Lescop",
+   "email": "yann-lescop@ofsh-demo.test",
+   "bio": "Ingenieur pedagogique freelance, specialise outils et IA. Six ans. Je prefere un essai rate a une demonstration reussie.",
+   "available": true,
+   "location": "Brest",
+   "avatar": "neutral-10",
+   "organization_role": "member",
+   "member_ai_profile": null
+  },
+  {
+   "key": "clara-vidal",
+   "first_name": "Clara",
+   "name": "Vidal",
+   "email": "clara-vidal@ofsh-demo.test",
+   "bio": "Formatrice independante depuis un an, apres douze ans en gestion de projet. Je sais animer ; je ne sais pas encore vendre.",
+   "available": true,
+   "location": "Angers",
+   "avatar": "neutral-11",
+   "organization_role": "member",
+   "member_ai_profile": null
+  },
+  {
+   "key": "marc-bellone",
+   "first_name": "Marc",
+   "name": "Bellone",
+   "email": "marc-bellone@ofsh-demo.test",
+   "bio": "Consultant en conduite du changement, en reconversion vers la formation depuis deux ans. Pour l'instant j'observe.",
+   "available": false,
+   "location": "Dijon",
+   "avatar": "neutral-12",
+   "organization_role": "member",
+   "member_ai_profile": null
+  },
+  {
+   "key": "awa-traore",
+   "first_name": "Awa",
+   "name": "Traore",
+   "email": "awa-traore@ofsh-demo.test",
+   "bio": "Responsable pedagogique junior, trois ans. En apprentissage sur l'alternance, et je pose beaucoup de questions.",
+   "available": true,
+   "location": "Montpellier",
+   "avatar": "female-01",
+   "organization_role": "member",
+   "member_ai_profile": null
+  },
+  {
+   "key": "pierre-cazenave",
+   "first_name": "Pierre",
+   "name": "Cazenave",
+   "email": "pierre-cazenave@ofsh-demo.test",
+   "bio": "Formateur independant en securite et prevention des risques, quatre ans. Habilitations, gestes et postures.",
+   "available": true,
+   "location": "Pau",
+   "avatar": "male-01",
+   "organization_role": "member",
+   "member_ai_profile": null
+  },
+  {
+   "key": "emilie-rouaud",
+   "first_name": "Emilie",
+   "name": "Rouaud",
+   "email": "emilie-rouaud@ofsh-demo.test",
+   "bio": "Consultante, double casquette qualite et financement, dix ans. Les deux sujets se tiennent ; les traiter separement fait perdre du temps.",
+   "available": true,
+   "location": "Tours",
+   "avatar": "female-02",
+   "organization_role": "member",
+   "member_ai_profile": null
+  },
+  {
+   "key": "thomas-ferry",
+   "first_name": "Thomas",
+   "name": "Ferry",
+   "email": "thomas-ferry@ofsh-demo.test",
+   "bio": "Ingenieur pedagogique freelance, aussi sur les outils. Cinq ans. Plutot que debattre, j'essaie sur un cas reel.",
+   "available": true,
+   "location": "Clermont-Ferrand",
+   "avatar": "male-02",
+   "organization_role": "member",
+   "member_ai_profile": null
+  }
+ ],
+ "loops": [
+  {
+   "key": "qualiopi-terrain",
+   "name": "Qualiopi sur le terrain",
+   "description": "Partager ce que les audits exigent reellement, preuves a l'appui. La Boucle d'origine du reseau : exigeante, parfois tendue, jamais decorative.",
+   "type": "general",
+   "owner": "bruno-teyssier",
+   "visibility": "public",
+   "access_mode": "invitation",
+   "root_dossier": "qualiopi-outils"
+  },
+  {
+   "key": "entraide-independants",
+   "name": "Entraide entre independants",
+   "description": "Accueillir, depanner, mettre en relation. La porte d'entree du reseau : on y arrive avec une question, on en repart avec un contact.",
+   "type": "general",
+   "owner": "lea-fontanel",
+   "visibility": "private",
+   "access_mode": "invitation",
+   "root_dossier": "entraide-reperes"
+  },
+  {
+   "key": "ingenierie-pedagogique",
+   "name": "Ingenierie pedagogique",
+   "description": "Mutualiser des trames reutilisables plutot que reinventer. On y ecrit des documents plus qu'on y bavarde.",
+   "type": "general",
+   "owner": "naima-belkacem",
+   "visibility": "private",
+   "access_mode": "invitation",
+   "root_dossier": "ingenierie-ressources"
+  },
+  {
+   "key": "financement-opco-cpf",
+   "name": "Financement, OPCO et CPF",
+   "description": "Suivre ensemble une reglementation qui change trop vite pour etre suivie seul. S'active aux echeances.",
+   "type": "general",
+   "owner": "serge-kaltenbach",
+   "visibility": "private",
+   "access_mode": "invitation",
+   "root_dossier": "financement-veille"
+  },
+  {
+   "key": "ia-et-outils",
+   "name": "IA et outils du formateur",
+   "description": "Eprouver les outils avant de les recommander. La Boucle la plus recente du reseau, et la plus contestee.",
+   "type": "general",
+   "owner": "yann-lescop",
+   "visibility": "private",
+   "access_mode": "invitation",
+   "root_dossier": "ia-essais"
+  }
+ ],
+ "memberships": [
+  {
+   "loop": "qualiopi-terrain",
+   "user": "bruno-teyssier",
+   "role": "owner"
+  },
+  {
+   "loop": "qualiopi-terrain",
+   "user": "helene-vasseur",
+   "role": "facilitator"
+  },
+  {
+   "loop": "qualiopi-terrain",
+   "user": "serge-kaltenbach",
+   "role": "member"
+  },
+  {
+   "loop": "qualiopi-terrain",
+   "user": "lea-fontanel",
+   "role": "member"
+  },
+  {
+   "loop": "qualiopi-terrain",
+   "user": "karim-oufella",
+   "role": "member"
+  },
+  {
+   "loop": "qualiopi-terrain",
+   "user": "sophie-arnal",
+   "role": "member"
+  },
+  {
+   "loop": "qualiopi-terrain",
+   "user": "clara-vidal",
+   "role": "member"
+  },
+  {
+   "loop": "qualiopi-terrain",
+   "user": "pierre-cazenave",
+   "role": "member"
+  },
+  {
+   "loop": "qualiopi-terrain",
+   "user": "emilie-rouaud",
+   "role": "member"
+  },
+  {
+   "loop": "qualiopi-terrain",
+   "user": "fatou-diagne",
+   "role": "member"
+  },
+  {
+   "loop": "entraide-independants",
+   "user": "lea-fontanel",
+   "role": "owner"
+  },
+  {
+   "loop": "entraide-independants",
+   "user": "helene-vasseur",
+   "role": "facilitator"
+  },
+  {
+   "loop": "entraide-independants",
+   "user": "serge-kaltenbach",
+   "role": "member"
+  },
+  {
+   "loop": "entraide-independants",
+   "user": "sophie-arnal",
+   "role": "member"
+  },
+  {
+   "loop": "entraide-independants",
+   "user": "fatou-diagne",
+   "role": "member"
+  },
+  {
+   "loop": "entraide-independants",
+   "user": "clara-vidal",
+   "role": "member"
+  },
+  {
+   "loop": "entraide-independants",
+   "user": "marc-bellone",
+   "role": "member"
+  },
+  {
+   "loop": "entraide-independants",
+   "user": "awa-traore",
+   "role": "member"
+  },
+  {
+   "loop": "ingenierie-pedagogique",
+   "user": "naima-belkacem",
+   "role": "owner"
+  },
+  {
+   "loop": "ingenierie-pedagogique",
+   "user": "helene-vasseur",
+   "role": "member"
+  },
+  {
+   "loop": "ingenierie-pedagogique",
+   "user": "karim-oufella",
+   "role": "member"
+  },
+  {
+   "loop": "ingenierie-pedagogique",
+   "user": "yann-lescop",
+   "role": "member"
+  },
+  {
+   "loop": "ingenierie-pedagogique",
+   "user": "awa-traore",
+   "role": "member"
+  },
+  {
+   "loop": "ingenierie-pedagogique",
+   "user": "thomas-ferry",
+   "role": "member"
+  },
+  {
+   "loop": "financement-opco-cpf",
+   "user": "serge-kaltenbach",
+   "role": "owner"
+  },
+  {
+   "loop": "financement-opco-cpf",
+   "user": "helene-vasseur",
+   "role": "member"
+  },
+  {
+   "loop": "financement-opco-cpf",
+   "user": "bruno-teyssier",
+   "role": "member"
+  },
+  {
+   "loop": "financement-opco-cpf",
+   "user": "fatou-diagne",
+   "role": "member"
+  },
+  {
+   "loop": "financement-opco-cpf",
+   "user": "emilie-rouaud",
+   "role": "member"
+  },
+  {
+   "loop": "ia-et-outils",
+   "user": "yann-lescop",
+   "role": "owner"
+  },
+  {
+   "loop": "ia-et-outils",
+   "user": "naima-belkacem",
+   "role": "member"
+  },
+  {
+   "loop": "ia-et-outils",
+   "user": "lea-fontanel",
+   "role": "member"
+  },
+  {
+   "loop": "ia-et-outils",
+   "user": "didier-mounier",
+   "role": "member"
+  },
+  {
+   "loop": "ia-et-outils",
+   "user": "thomas-ferry",
+   "role": "member"
+  }
+ ],
+ "dossiers": [
+  {
+   "key": "qualiopi-outils",
+   "name": "Outils d'audit partages",
+   "owner": "bruno-teyssier",
+   "loop": "qualiopi-terrain",
+   "parent": null,
+   "visibility": "loop",
+   "root_document": {
+    "title": "Reperes d'audit",
+    "author": "bruno-teyssier",
+    "format": "markdown",
+    "content": "# Ce que cette Boucle garde\n\nLes preuves qui passent en audit, et celles qui ne passent pas. Rien d'ideologique : du constate."
+   }
+  },
+  {
+   "key": "entraide-reperes",
+   "name": "Reperes du reseau",
+   "owner": "lea-fontanel",
+   "loop": "entraide-independants",
+   "parent": null,
+   "visibility": "loop",
+   "root_document": {
+    "title": "Comment on s'entraide ici",
+    "author": "lea-fontanel",
+    "format": "markdown",
+    "content": "# Trois regles\n\nOn arrive avec une question precise. On repond meme si on n'est pas certain. On dit quand on ne sait pas."
+   }
+  },
+  {
+   "key": "ingenierie-ressources",
+   "name": "Trames et parcours",
+   "owner": "naima-belkacem",
+   "loop": "ingenierie-pedagogique",
+   "parent": null,
+   "visibility": "loop",
+   "root_document": {
+    "title": "Ce qui se prete",
+    "author": "naima-belkacem",
+    "format": "markdown",
+    "content": "# Principe\n\nUne trame publiee ici est faite pour etre modifiee. Si vous l'ameliorez, dites-le."
+   }
+  },
+  {
+   "key": "financement-veille",
+   "name": "Notes de veille financement",
+   "owner": "serge-kaltenbach",
+   "loop": "financement-opco-cpf",
+   "parent": null,
+   "visibility": "loop",
+   "root_document": {
+    "title": "Ce que je surveille",
+    "author": "serge-kaltenbach",
+    "format": "markdown",
+    "content": "# Perimetre\n\nOPCO, CPF, et ce qui touche a la prise en charge. Je previens avant l'echeance, pas apres."
+   }
+  },
+  {
+   "key": "ia-essais",
+   "name": "Essais outils et IA",
+   "owner": "yann-lescop",
+   "loop": "ia-et-outils",
+   "parent": null,
+   "visibility": "loop",
+   "root_document": {
+    "title": "Regle de la Boucle",
+    "author": "yann-lescop",
+    "format": "markdown",
+    "content": "# Eprouver avant de recommander\n\nAucun outil n'entre ici sans un essai documente, y compris ses limites."
+   }
+  }
+ ],
+ "articles": [
+  {
+   "key": "doc-trame-sequence",
+   "dossier": "ingenierie-ressources",
+   "author": "naima-belkacem",
+   "title": "Trame de sequence — sept etapes",
+   "summary": "La trame que je refais a chaque fois, deposee pour etre modifiee.",
+   "status": "published",
+   "audience": "organization",
+   "format": "markdown",
+   "content": "# Trame de sequence\n\n1. **Intention** — ce que le stagiaire saura faire a la fin, formule en verbe d'action.\n2. **Point de depart** — ce qu'il sait deja, verifie et non suppose.\n3. **Apport** — le minimum necessaire, pas tout ce qu'on sait.\n4. **Mise en pratique** — sur un cas qui ressemble a son travail.\n5. **Ce qu'on verifie** — les indices observables que ca a marche.\n6. **Ecart** — ce qu'on fait si ca n'a pas marche.\n7. **Trace** — ce que le stagiaire repart avec.\n\n> L'etape 5 est celle qu'on saute le plus souvent, et c'est celle qui manque en audit.",
+   "published_offset_minutes": -49860
+  },
+  {
+   "key": "doc-grille-audit",
+   "dossier": "qualiopi-outils",
+   "author": "bruno-teyssier",
+   "title": "Grille d'audit interne partagee — v1",
+   "summary": "Memes exigences, trois formats selon la taille de la structure.",
+   "status": "published",
+   "audience": "organization",
+   "format": "markdown",
+   "content": "# Grille d'audit interne — v1\n\nIssue de la decision du reseau : **memes exigences, formats gradues**.\n\n| Exigence | Structure de 1 a 2 | de 3 a 10 | au-dela |\n|---|---|---|---|\n| Exploitation des retours | tableau tenu a jour | note de synthese par session | processus ecrit |\n| Competences des intervenants | CV et attestation | idem + entretien annuel | idem + plan de developpement |\n| Reclamations | registre simple | registre + suivi | procedure formalisee |\n\n## Ce que cette grille n'est pas\n\nUn allegement. La barre ne bouge pas ; l'escabeau change.",
+   "published_offset_minutes": -13800
+  },
+  {
+   "key": "doc-memo-cpf",
+   "dossier": "financement-veille",
+   "author": "serge-kaltenbach",
+   "title": "Memo : ce qui change sur le CPF",
+   "summary": "Les dates exactes, pour eviter un fil de quarante messages.",
+   "status": "published",
+   "audience": "organization",
+   "format": "markdown",
+   "content": "# Echeance CPF — memo\n\n## Ce qui compte\n\nUn dossier **complet a la date d'echeance** reste sous le regime actuel. Incomplet, il bascule.\n\n## Ce que « complet » veut dire\n\nProgramme, tarif, dates, et les pieces de l'organisme a jour. Un seul document manquant suffit a faire basculer le dossier.\n\n## Ce que je recommande\n\nDeposer une semaine avant, pas la veille. Le delai de traitement n'est pas de votre cote.",
+   "published_offset_minutes": -7440
+  },
+  {
+   "key": "doc-charte-solidaire",
+   "dossier": "entraide-reperes",
+   "author": "fatou-diagne",
+   "title": "Ce que « humaniste et solidaire » engage",
+   "summary": "Ecrit apres le desaccord sur l'exigence qualite, pour mettre par ecrit ce qu'il a revele.",
+   "status": "published",
+   "audience": "organization",
+   "format": "markdown",
+   "content": "# Ce que ces deux mots engagent\n\nNous les avons mis dans notre nom. Le desaccord de ces dernieres semaines a montre qu'ils ne veulent pas dire la meme chose pour tout le monde.\n\n## Humaniste\n\nLe stagiaire n'est pas un dossier. Une exigence qui ameliore la preuve sans rien changer pour lui est une exigence a discuter.\n\n## Solidaire\n\nUne regle qui ne tient que pour les structures qui ont les moyens de l'appliquer n'est pas une regle commune. Quand nous decidons quelque chose ensemble, nous nous demandons ce que ca coute a la plus petite d'entre nous.\n\n## Ce que ce n'est pas\n\nUne excuse pour en faire moins.",
+   "published_offset_minutes": -3720
+  },
+  {
+   "key": "doc-retour-atelier",
+   "dossier": "qualiopi-outils",
+   "author": "helene-vasseur",
+   "title": "Retour d'experience : atelier indicateur 22",
+   "summary": "Brouillon. L'atelier n'a pas encore eu lieu.",
+   "status": "draft",
+   "audience": "loop",
+   "format": "markdown",
+   "content": "# Retour d'experience — a completer apres l'atelier\n\n*(brouillon ouvert avant l'atelier, a remplir a chaud)*",
+   "published_offset_minutes": null
+  }
+ ],
+ "files": [],
+ "messages": [
+  {
+   "key": "q-c1-01",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "lea-fontanel",
+   "body": "Premier audit dans six semaines et je bloque sur l'indicateur 22. Concretement, qu'est-ce qu'on doit PROUVER ? J'ai des attestations de fin de formation et mes evaluations a chaud, ca suffit ou pas ?",
+   "format": "markdown",
+   "order": 0,
+   "offset_minutes": -59940,
+   "reply_to": null
+  },
+  {
+   "key": "q-c1-02",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "bruno-teyssier",
+   "body": "Ce qui est attendu, c'est la trace d'une exploitation des retours, pas les retours eux-memes. Vos evaluations a chaud ne prouvent rien seules. Ce qui prouve, c'est ce que vous en avez FAIT : une ligne quelque part disant « suite aux retours de janvier, j'ai raccourci la sequence 3 ».",
+   "format": "markdown",
+   "order": 1,
+   "offset_minutes": -58440,
+   "reply_to": "q-c1-01"
+  },
+  {
+   "key": "q-c1-03",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "emilie-rouaud",
+   "body": "Je complete, parce que ca depend de la taille. Sur un organisme de vingt formateurs l'auditeur attend un processus ecrit. Sur une independante, un tableau tenu a jour a toujours ete accepte dans les audits que j'ai accompagnes.",
+   "format": "markdown",
+   "order": 2,
+   "offset_minutes": -58320,
+   "reply_to": "q-c1-02"
+  },
+  {
+   "key": "q-c1-04",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "karim-oufella",
+   "body": "Confirme de notre cote. On a un document d'une page par session, et ca passe depuis trois audits.",
+   "format": "markdown",
+   "order": 3,
+   "offset_minutes": -57060,
+   "reply_to": null
+  },
+  {
+   "key": "q-c1-05",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "lea-fontanel",
+   "body": "Merci a vous trois. Je note : ce n'est pas la collecte qui compte, c'est la trace de ce qu'on en fait.",
+   "format": "markdown",
+   "order": 4,
+   "offset_minutes": -57000,
+   "reply_to": null
+  },
+  {
+   "key": "q-c2-01",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "bruno-teyssier",
+   "body": "Je reagis a la nuance d'Emilie, parce qu'elle revient souvent et qu'elle me gene. « Adapte a la taille » devient vite « allege », puis « pas fait ». La rigueur documentaire n'est pas une lubie d'auditeur : c'est ce qui protege le stagiaire quand la formation se passe mal.",
+   "format": "markdown",
+   "order": 5,
+   "offset_minutes": -56700,
+   "reply_to": null
+  },
+  {
+   "key": "q-c2-02",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "sophie-arnal",
+   "body": "Je ne suis pas d'accord, et pas sur le principe : sur l'effet. Pour une structure de deux personnes, la mise en conformite represente plusieurs semaines non facturees. Certaines renoncent. Un organisme qui ferme ne protege aucun stagiaire non plus.",
+   "format": "markdown",
+   "order": 6,
+   "offset_minutes": -55500,
+   "reply_to": null
+  },
+  {
+   "key": "q-c2-03",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "fatou-diagne",
+   "body": "On est trois. Nos stagiaires sont souvent tres loin de l'emploi. Chaque heure passee a formaliser une preuve est une heure non passee avec eux. Je ne demande pas moins d'exigence, je demande qu'elle soit proportionnee.",
+   "format": "markdown",
+   "order": 7,
+   "offset_minutes": -53940,
+   "reply_to": null
+  },
+  {
+   "key": "q-c2-04",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "bruno-teyssier",
+   "body": "La-dessus je vous suis, et c'est une concession reelle de ma part : ce qui doit rester identique, c'est ce qu'on prouve. La FORME peut changer. Un tableau tenu a jour vaut un processus ecrit, si on peut montrer qu'il est vivant.",
+   "format": "markdown",
+   "order": 8,
+   "offset_minutes": -52680,
+   "reply_to": null
+  },
+  {
+   "key": "q-c2-05",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "emilie-rouaud",
+   "body": "Il y a un point que personne n'a mis sur la table : le financeur, lui, ne regarde pas la forme. Il regarde si l'organisme est certifie. Donc alleger la forme ne coute rien cote financement, tant que la certification tient.",
+   "format": "markdown",
+   "order": 9,
+   "offset_minutes": -42660,
+   "reply_to": null
+  },
+  {
+   "key": "q-c2-06",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "karim-oufella",
+   "body": "Proposition, alors. Plutot que chacun bricole son niveau d'exigence, on ecrit UNE grille commune avec deux ou trois niveaux selon la taille de la structure. Meme exigences, formats differents.",
+   "format": "markdown",
+   "order": 10,
+   "offset_minutes": -28080,
+   "reply_to": null
+  },
+  {
+   "key": "q-c2-07",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "sophie-arnal",
+   "body": "Ca, je le signe. Ce n'est pas un compromis mou : c'est la meme barre avec un escabeau adapte.",
+   "format": "markdown",
+   "order": 11,
+   "offset_minutes": -22440,
+   "reply_to": "q-c2-06"
+  },
+  {
+   "key": "q-c7-01",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "bruno-teyssier",
+   "body": "On tourne en rond a l'ecrit sur l'indicateur 22. Je propose un atelier : deux heures, chacun vient avec un vrai document, on le regarde ensemble. On avancera plus qu'en quarante messages.",
+   "format": "markdown",
+   "order": 12,
+   "offset_minutes": -19560,
+   "reply_to": null
+  },
+  {
+   "key": "q-c7-02",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "helene-vasseur",
+   "body": "Pour, et je propose qu'on l'ouvre a tout le reseau, pas seulement a cette Boucle. Le sujet concerne aussi ceux qui ne passent pas par ici.",
+   "format": "markdown",
+   "order": 13,
+   "offset_minutes": -19440,
+   "reply_to": "q-c7-01"
+  },
+  {
+   "key": "q-c7-03",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "clara-vidal",
+   "body": "Je viens. C'est exactement ce dont j'ai besoin avant mon premier audit.",
+   "format": "markdown",
+   "order": 14,
+   "offset_minutes": -18180,
+   "reply_to": null
+  },
+  {
+   "key": "q-c7-04",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "pierre-cazenave",
+   "body": "Question peut-etre bete : est-ce que ca vaut aussi pour de la securite et des habilitations ? Mon referentiel metier est deja tres cadre, je ne sais pas ce qui se superpose.",
+   "format": "markdown",
+   "order": 15,
+   "offset_minutes": -18120,
+   "reply_to": null
+  },
+  {
+   "key": "q-c2-08",
+   "type": "loop_message",
+   "loop": "qualiopi-terrain",
+   "author": "helene-vasseur",
+   "body": "On acte donc : une grille d'audit interne commune, graduee selon la taille. Bruno et Karim la portent. Ce n'est pas la fin du desaccord, c'est ce qu'il a produit.",
+   "format": "markdown",
+   "order": 16,
+   "offset_minutes": -17700,
+   "reply_to": null
+  },
+  {
+   "key": "f-c3-01",
+   "type": "loop_message",
+   "loop": "financement-opco-cpf",
+   "author": "serge-kaltenbach",
+   "body": "Alerte, et pas dans trois semaines : les conditions de prise en charge changent a l'echeance. Si vous avez des dossiers en cours de montage, il faut les deposer avant, pas apres.",
+   "format": "markdown",
+   "order": 0,
+   "offset_minutes": -9570,
+   "reply_to": null
+  },
+  {
+   "key": "f-c3-02",
+   "type": "loop_message",
+   "loop": "financement-opco-cpf",
+   "author": "emilie-rouaud",
+   "body": "Et les dossiers deja deposes mais pas encore valides ? Ils basculent sous le nouveau regime ou ils restent sous l'ancien ?",
+   "format": "markdown",
+   "order": 1,
+   "offset_minutes": -9420,
+   "reply_to": "f-c3-01"
+  },
+  {
+   "key": "f-c3-03",
+   "type": "loop_message",
+   "loop": "financement-opco-cpf",
+   "author": "fatou-diagne",
+   "body": "Pour nous ca peut tout changer. On a trois parcours qui ne tiennent que grace a la prise en charge. Si elle baisse, on ne les ouvre pas.",
+   "format": "markdown",
+   "order": 2,
+   "offset_minutes": -8100,
+   "reply_to": null
+  },
+  {
+   "key": "f-c3-04",
+   "type": "loop_message",
+   "loop": "financement-opco-cpf",
+   "author": "serge-kaltenbach",
+   "body": "Emilie : ils restent sous l'ancien si le dossier est complet a la date. J'ecris un memo ce soir avec les dates exactes, ce sera plus clair qu'un fil de messages.",
+   "format": "markdown",
+   "order": 3,
+   "offset_minutes": -8040,
+   "reply_to": "f-c3-02"
+  },
+  {
+   "key": "f-c3-05",
+   "type": "loop_message",
+   "loop": "financement-opco-cpf",
+   "author": "helene-vasseur",
+   "body": "Idee : et si on publiait un catalogue CPF commun ? A plusieurs on absorbe mieux la baisse, et ca donne de la visibilite aux petites structures.",
+   "format": "markdown",
+   "order": 4,
+   "offset_minutes": -6660,
+   "reply_to": null
+  },
+  {
+   "key": "f-c3-06",
+   "type": "loop_message",
+   "loop": "financement-opco-cpf",
+   "author": "serge-kaltenbach",
+   "body": "Je comprends l'intention mais je suis contre cette annee, et je prefere le dire clairement. Un catalogue commun nous engage solidairement sur la qualite de chaque offre, alors qu'on vient de passer six semaines a constater qu'on n'a pas le meme niveau d'exigence. On le fera quand la grille existera.",
+   "format": "markdown",
+   "order": 5,
+   "offset_minutes": -6540,
+   "reply_to": "f-c3-05"
+  },
+  {
+   "key": "i-c6-01",
+   "type": "loop_message",
+   "loop": "ingenierie-pedagogique",
+   "author": "naima-belkacem",
+   "body": "Je depose la trame de sequence que je refais a chaque fois depuis dix ans. Sept etapes, rien d'original, mais elle m'evite d'oublier l'evaluation. Prenez-la, modifiez-la.",
+   "format": "markdown",
+   "order": 0,
+   "offset_minutes": -49860,
+   "reply_to": null
+  },
+  {
+   "key": "i-c6-02",
+   "type": "loop_message",
+   "loop": "ingenierie-pedagogique",
+   "author": "awa-traore",
+   "body": "Merci. Question : comment tu l'adaptes pour de l'alternance ? Chez nous le rythme casse la progression, et je ne sais pas ou couper.",
+   "format": "markdown",
+   "order": 1,
+   "offset_minutes": -49740,
+   "reply_to": "i-c6-01"
+  },
+  {
+   "key": "i-c6-03",
+   "type": "loop_message",
+   "loop": "ingenierie-pedagogique",
+   "author": "karim-oufella",
+   "body": "Je la reprends pour mon equipe des la semaine prochaine. Ca va nous economiser une reunion.",
+   "format": "markdown",
+   "order": 2,
+   "offset_minutes": -49620,
+   "reply_to": null
+  },
+  {
+   "key": "i-c6-04",
+   "type": "loop_message",
+   "loop": "ingenierie-pedagogique",
+   "author": "thomas-ferry",
+   "body": "Suggestion : ajouter un bloc « ce qu'on verifie » a l'etape 5. C'est la que je perds les stagiaires quand je scenarise.",
+   "format": "markdown",
+   "order": 3,
+   "offset_minutes": -49500,
+   "reply_to": null
+  },
+  {
+   "key": "a-c4-01",
+   "type": "loop_message",
+   "loop": "ia-et-outils",
+   "author": "yann-lescop",
+   "body": "Mesure plutot qu'opinion : j'ai refait mes supports de deux jours de formation. Trois heures au lieu de onze, en gardant ma structure. Le gain n'est pas sur la qualite, il est sur la mise en forme.",
+   "format": "markdown",
+   "order": 0,
+   "offset_minutes": -39780,
+   "reply_to": null
+  },
+  {
+   "key": "a-c4-02",
+   "type": "loop_message",
+   "loop": "ia-et-outils",
+   "author": "didier-mounier",
+   "body": "Et les sources ? J'ai teste sur un texte reglementaire : deux references sur cinq n'existaient pas. Sur de la mise en forme je veux bien. Sur du contenu qui engage, non.",
+   "format": "markdown",
+   "order": 1,
+   "offset_minutes": -38100,
+   "reply_to": "a-c4-01"
+  },
+  {
+   "key": "a-c4-03",
+   "type": "loop_message",
+   "loop": "ia-et-outils",
+   "author": "naima-belkacem",
+   "body": "Je pose une limite nette, et je ne la negocierai pas : pas sur l'evaluation des acquis. Un stagiaire a droit a ce qu'un humain juge son travail. Le reste se discute.",
+   "format": "markdown",
+   "order": 2,
+   "offset_minutes": -36840,
+   "reply_to": null
+  },
+  {
+   "key": "a-c4-04",
+   "type": "loop_message",
+   "loop": "ia-et-outils",
+   "author": "lea-fontanel",
+   "body": "Je suis curieuse mais perdue. Par ou on commence sans y passer trois week-ends ?",
+   "format": "markdown",
+   "order": 3,
+   "offset_minutes": -33900,
+   "reply_to": null
+  },
+  {
+   "key": "a-c4-05",
+   "type": "loop_message",
+   "loop": "ia-et-outils",
+   "author": "thomas-ferry",
+   "body": "Proposition concrete : on prend UN cas reel, on documente ce qui marche et ce qui rate, limites comprises. Un essai encadre plutot qu'un debat.",
+   "format": "markdown",
+   "order": 4,
+   "offset_minutes": -31140,
+   "reply_to": null
+  },
+  {
+   "key": "a-c4-06",
+   "type": "loop_message",
+   "loop": "ia-et-outils",
+   "author": "yann-lescop",
+   "body": "D'accord avec le cadre, y compris la limite de Naima. On acte : production de supports oui, evaluation des acquis non. Thomas et moi on documente l'essai.",
+   "format": "markdown",
+   "order": 5,
+   "offset_minutes": -28200,
+   "reply_to": "a-c4-05"
+  },
+  {
+   "key": "e-c5-01",
+   "type": "loop_message",
+   "loop": "entraide-independants",
+   "author": "clara-vidal",
+   "body": "Bonjour a tous. Je me lance apres douze ans en gestion de projet. J'anime plutot bien, et je suis incapable de faire une proposition commerciale qui tienne. Je ne sais meme pas quoi mettre dedans.",
+   "format": "markdown",
+   "order": 0,
+   "offset_minutes": -29700,
+   "reply_to": null
+  },
+  {
+   "key": "e-c5-02",
+   "type": "loop_message",
+   "loop": "entraide-independants",
+   "author": "lea-fontanel",
+   "body": "Bienvenue. Et ta question n'est pas « comment vendre », c'est « qu'est-ce que je vends exactement ». Tant que ce n'est pas clair, aucune proposition ne tiendra.",
+   "format": "markdown",
+   "order": 1,
+   "offset_minutes": -29580,
+   "reply_to": "e-c5-01"
+  },
+  {
+   "key": "e-c5-03",
+   "type": "loop_message",
+   "loop": "entraide-independants",
+   "author": "serge-kaltenbach",
+   "body": "Clara, parle a Helene. Elle a monte un organisme et elle a forme des dizaines de formateurs a ca. C'est exactement son sujet.",
+   "format": "markdown",
+   "order": 2,
+   "offset_minutes": -28260,
+   "reply_to": null
+  },
+  {
+   "key": "e-c5-04",
+   "type": "loop_message",
+   "loop": "entraide-independants",
+   "author": "helene-vasseur",
+   "body": "Volontiers. Je publie une offre de mentorat dans le reseau, comme ca ce n'est pas un service rendu en cachette : deux seances, on part de ce que tu sais faire, on finit par une proposition ecrite.",
+   "format": "markdown",
+   "order": 3,
+   "offset_minutes": -28140,
+   "reply_to": null
+  },
+  {
+   "key": "e-c5-05",
+   "type": "loop_message",
+   "loop": "entraide-independants",
+   "author": "clara-vidal",
+   "body": "Merci. Je prends. Mon besoin concret : une proposition pour une PME de quarante personnes, sur deux jours de formation a la conduite de reunion.",
+   "format": "markdown",
+   "order": 4,
+   "offset_minutes": -26760,
+   "reply_to": null
+  }
+ ],
+ "categories": [
+  {
+   "key": "qualite",
+   "name": "Qualite et conformite",
+   "color": "#0F766E"
+  },
+  {
+   "key": "formation",
+   "name": "Formation et pedagogie",
+   "color": "#4F46E5"
+  },
+  {
+   "key": "conseil",
+   "name": "Conseil et strategie",
+   "color": "#B45309"
+  }
+ ],
+ "skills": [
+  {
+   "key": "qualiopi",
+   "category": "qualite",
+   "name": "Referentiel Qualiopi"
+  },
+  {
+   "key": "audit-blanc",
+   "category": "qualite",
+   "name": "Audit blanc"
+  },
+  {
+   "key": "ingenierie-pedagogique",
+   "category": "formation",
+   "name": "Ingenierie pedagogique"
+  },
+  {
+   "key": "alternance",
+   "category": "formation",
+   "name": "Parcours en alternance"
+  },
+  {
+   "key": "outils-ia",
+   "category": "formation",
+   "name": "Outils IA pour formateurs"
+  },
+  {
+   "key": "animation-groupe",
+   "category": "formation",
+   "name": "Animation de groupe"
+  },
+  {
+   "key": "financement-formation",
+   "category": "conseil",
+   "name": "Financement de la formation"
+  },
+  {
+   "key": "strategie-of",
+   "category": "conseil",
+   "name": "Strategie d'organisme"
+  }
+ ],
+ "service_requests": [
+  {
+   "key": "sr-indicateur-22",
+   "author": "lea-fontanel",
+   "title": "Relire mon indicateur 22 avant audit",
+   "description": "Premier audit dans six semaines. Je cherche quelqu'un qui relise ce que j'ai prepare sur l'indicateur 22 et me dise ce qui manque, avant que l'auditeur le fasse a ma place.",
+   "category": "qualite",
+   "delivery_mode": "remote",
+   "budget_min": 0,
+   "budget_max": 0,
+   "deadline_day_offset": -35,
+   "status": "closed",
+   "highlight_in_loop": "qualiopi-terrain"
+  },
+  {
+   "key": "sr-premier-client",
+   "author": "clara-vidal",
+   "title": "Structurer ma premiere proposition commerciale",
+   "description": "Une PME de quarante personnes me demande deux jours sur la conduite de reunion. Je sais animer, je ne sais pas ecrire la proposition : perimetre, livrables, prix. J'ai besoin d'un regard.",
+   "category": "conseil",
+   "delivery_mode": "remote",
+   "budget_min": 0,
+   "budget_max": 0,
+   "deadline_day_offset": 14,
+   "status": "in_progress",
+   "highlight_in_loop": "entraide-independants"
+  },
+  {
+   "key": "sr-trame-alternance",
+   "author": "awa-traore",
+   "title": "Une trame pour un parcours en alternance",
+   "description": "Le rythme de l'alternance casse la progression pedagogique et je ne sais pas ou couper les sequences. Je cherche une trame adaptee, ou quelqu'un qui relise la mienne.",
+   "category": "formation",
+   "delivery_mode": "remote",
+   "budget_min": 0,
+   "budget_max": 0,
+   "deadline_day_offset": 30,
+   "status": "open",
+   "highlight_in_loop": "ingenierie-pedagogique"
+  },
+  {
+   "key": "sr-audit-blanc",
+   "author": "fatou-diagne",
+   "title": "Audit blanc adapte a un organisme de trois personnes",
+   "description": "Nous sommes trois, nos publics sont fragiles, et nous n'avons pas les moyens d'un accompagnement complet. Je cherche un audit blanc proportionne : ce qui bloquerait vraiment, rien de plus.",
+   "category": "qualite",
+   "delivery_mode": "both",
+   "budget_min": 0,
+   "budget_max": 0,
+   "deadline_day_offset": 45,
+   "status": "open",
+   "highlight_in_loop": "qualiopi-terrain"
+  }
+ ],
+ "services": [
+  {
+   "key": "svc-mentorat-of",
+   "author": "helene-vasseur",
+   "title": "Mentorat de dirigeant ou dirigeante d'organisme",
+   "description": "Deux seances. On part de ce que vous savez deja faire, on clarifie ce que vous vendez, on finit par une proposition ecrite que vous pouvez envoyer.",
+   "category": "conseil",
+   "skills": [
+    "strategie-of"
+   ],
+   "delivery_mode": "remote",
+   "points_cost": 0,
+   "status": "active",
+   "highlight_in_loop": "entraide-independants"
+  },
+  {
+   "key": "svc-audit-blanc",
+   "author": "bruno-teyssier",
+   "title": "Audit blanc Qualiopi",
+   "description": "Une demi-journee sur vos preuves reelles. Je vous dis ce qui bloquerait en audit et ce qui passe, sans reecrire votre organisation.",
+   "category": "qualite",
+   "skills": [
+    "qualiopi",
+    "audit-blanc"
+   ],
+   "delivery_mode": "both",
+   "points_cost": 0,
+   "status": "active",
+   "highlight_in_loop": "qualiopi-terrain"
+  },
+  {
+   "key": "svc-atelier-ia",
+   "author": "yann-lescop",
+   "title": "Atelier prise en main d'outils IA pour formateurs",
+   "description": "Deux heures sur vos propres supports. On documente ce que l'outil fait bien, et surtout ce qu'il rate.",
+   "category": "formation",
+   "skills": [
+    "outils-ia"
+   ],
+   "delivery_mode": "remote",
+   "points_cost": 0,
+   "status": "active",
+   "highlight_in_loop": "ia-et-outils"
+  },
+  {
+   "key": "svc-montage-dossier",
+   "author": "serge-kaltenbach",
+   "title": "Montage de dossier de financement",
+   "description": "OPCO, CPF, prise en charge. Je regarde votre dossier avant depot et je vous dis ce qui va coincer.",
+   "category": "conseil",
+   "skills": [
+    "financement-formation"
+   ],
+   "delivery_mode": "remote",
+   "points_cost": 0,
+   "status": "active",
+   "highlight_in_loop": "financement-opco-cpf"
+  },
+  {
+   "key": "svc-relecture-trame",
+   "author": "naima-belkacem",
+   "title": "Relecture de trame pedagogique",
+   "description": "Je relis votre trame et je vous dis ou la progression casse. Suspendu pour l'instant : je n'ai plus de creneau avant plusieurs semaines.",
+   "category": "formation",
+   "skills": [
+    "ingenierie-pedagogique",
+    "alternance"
+   ],
+   "delivery_mode": "remote",
+   "points_cost": 0,
+   "status": "paused",
+   "highlight_in_loop": "ingenierie-pedagogique"
+  }
+ ],
+ "polls": [],
+ "events": [
+  {
+   "key": "ev-webinaire-opco",
+   "loop": "financement-opco-cpf",
+   "author": "serge-kaltenbach",
+   "title": "Webinaire OPCO — reporte",
+   "description": "L'intervenante OPCO s'est decommandee la veille. Reprogrammation a chercher.",
+   "format": "online",
+   "starts_offset_minutes": -22080,
+   "duration_minutes": 60,
+   "timezone": "Europe/Paris",
+   "location": null,
+   "meeting_url": "https://visio.ofsh-demo.test/webinaire-opco",
+   "visibility": "loop",
+   "status": "cancelled",
+   "responses": []
+  },
+  {
+   "key": "ev-cafe-independants",
+   "loop": "entraide-independants",
+   "author": "lea-fontanel",
+   "title": "Cafe des independants",
+   "description": "Une heure, sans ordre du jour. On parle de ce qui coince en ce moment.",
+   "format": "online",
+   "starts_offset_minutes": -11880,
+   "duration_minutes": 60,
+   "timezone": "Europe/Paris",
+   "location": null,
+   "meeting_url": "https://visio.ofsh-demo.test/cafe",
+   "visibility": "loop",
+   "status": "scheduled",
+   "responses": [
+    {
+     "user": "clara-vidal",
+     "response": "going"
+    },
+    {
+     "user": "fatou-diagne",
+     "response": "going"
+    },
+    {
+     "user": "marc-bellone",
+     "response": "maybe"
+    }
+   ]
+  },
+  {
+   "key": "ev-atelier-indicateur-22",
+   "loop": "qualiopi-terrain",
+   "author": "bruno-teyssier",
+   "title": "Atelier : indicateur 22 en pratique",
+   "description": "Deux heures. Chacun vient avec un document reel, on le regarde ensemble. Ouvert a tout le reseau, pas seulement a la Boucle Qualiopi.",
+   "format": "online",
+   "starts_offset_minutes": 10620,
+   "duration_minutes": 120,
+   "timezone": "Europe/Paris",
+   "location": null,
+   "meeting_url": "https://visio.ofsh-demo.test/atelier-22",
+   "visibility": "organization",
+   "status": "scheduled",
+   "responses": [
+    {
+     "user": "helene-vasseur",
+     "response": "going"
+    },
+    {
+     "user": "clara-vidal",
+     "response": "going"
+    },
+    {
+     "user": "pierre-cazenave",
+     "response": "going"
+    },
+    {
+     "user": "emilie-rouaud",
+     "response": "going"
+    },
+    {
+     "user": "sophie-arnal",
+     "response": "not_going"
+    }
+   ]
+  }
+ ],
+ "decisions": [
+  {
+   "key": "dec-essai-ia-encadre",
+   "loop": "ia-et-outils",
+   "author": "yann-lescop",
+   "title": "Essai IA sur la production de supports, pas sur l'evaluation des acquis",
+   "rationale": "La limite posee par Naima est acceptee : un stagiaire a droit a ce qu'un humain juge son travail. L'objection de Didier sur la verifiabilite des sources borne l'usage a la mise en forme.",
+   "decided_day_offset": -20,
+   "message": "a-c4-06",
+   "supersedes": null
+  },
+  {
+   "key": "dec-grille-audit-commune",
+   "loop": "qualiopi-terrain",
+   "author": "helene-vasseur",
+   "title": "Adopter une grille d'audit interne commune, graduee selon la taille",
+   "rationale": "Le desaccord a montre que les deux camps avaient raison : la rigueur protege le stagiaire, et une exigence non proportionnee ecarte les petites structures. La grille garde la barre et change l'escabeau.",
+   "decided_day_offset": -12,
+   "message": "q-c2-08",
+   "supersedes": null
+  },
+  {
+   "key": "dec-pas-de-catalogue-cpf",
+   "loop": "financement-opco-cpf",
+   "author": "serge-kaltenbach",
+   "title": "Ne pas publier de catalogue CPF commun cette annee",
+   "rationale": "Un catalogue commun engage solidairement le reseau sur la qualite de chaque offre. Tant que la grille d'audit partagee n'existe pas, cet engagement n'est pas tenable.",
+   "decided_day_offset": -5,
+   "message": "f-c3-06",
+   "supersedes": null
+  }
+ ],
+ "roadmap_items": [
+  {
+   "key": "rm-grille-audit-v1",
+   "loop": "qualiopi-terrain",
+   "created_by": "helene-vasseur",
+   "title": "Produire la grille d'audit v1",
+   "description": "Trois niveaux selon la taille de la structure, memes exigences. Version 1 a soumettre au reseau.",
+   "status": "in_progress",
+   "position": 0,
+   "assignees": [
+    "bruno-teyssier",
+    "karim-oufella"
+   ],
+   "due_day_offset": 21,
+   "decision": "dec-grille-audit-commune"
+  },
+  {
+   "key": "rm-essai-ia-supports",
+   "loop": "ia-et-outils",
+   "created_by": "yann-lescop",
+   "title": "Essai encadre : generation de supports",
+   "description": "Un cas reel, documente avec ses limites. Evaluation des acquis exclue du perimetre.",
+   "status": "in_progress",
+   "position": 0,
+   "assignees": [
+    "yann-lescop",
+    "thomas-ferry"
+   ],
+   "due_day_offset": 14,
+   "decision": "dec-essai-ia-encadre"
+  },
+  {
+   "key": "rm-parcours-alternance",
+   "loop": "ingenierie-pedagogique",
+   "created_by": "naima-belkacem",
+   "title": "Trame de parcours en alternance",
+   "description": "Variante de la trame en sept etapes, adaptee a un rythme qui casse la progression. Ne decoule pas d'une decision : nait de la demande d'Awa.",
+   "status": "todo",
+   "position": 0,
+   "assignees": [
+    "naima-belkacem",
+    "awa-traore"
+   ],
+   "due_day_offset": 30,
+   "decision": null
+  }
+ ],
+ "training": {
+  "modules": [],
+  "sequences": [],
+  "progress": [],
+  "assignments": [],
+  "submissions": []
+ }
+}
