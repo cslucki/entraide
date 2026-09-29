@@ -1396,6 +1396,8 @@ return [
         'origin_capture' => 'Capture',
         'origin_template' => 'Template',
         // TASK-1656 — langage PRODUIT (§45)
+        'preview_actions' => 'Actions',
+        'preview_login_as' => 'Log in as',
         'counter_requests' => 'requests',
         'counter_services' => 'offers',
         'counter_events' => 'events',

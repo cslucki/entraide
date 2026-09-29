@@ -521,6 +521,11 @@
                 // `training.modules` se lit « modules » : le prefixe dit ou la
                 // famille vit dans le document, pas comment on la nomme.
                 $titre = \Illuminate\Support\Str::afterLast($famille, '.');
+
+                // TASK-1658 — « Se connecter sous » n'existe QUE sur la famille
+                // des personnes, et seulement si des personas empruntables ont
+                // ete apparies. Ailleurs, la table reste ce qu'elle etait.
+                $offreLEmprunt = $famille === 'users' && ($personasParClef ?? []) !== [];
             @endphp
 
             <section class="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
@@ -538,6 +543,9 @@
                                     @foreach($colonnes as $colonne)
                                         <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ $colonne }}</th>
                                     @endforeach
+                                    @if($offreLEmprunt)
+                                        <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('admin.scenario_manager.preview_actions') }}</th>
+                                    @endif
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
@@ -553,6 +561,30 @@
                                                 {{ is_scalar($valeur) ? Str::limit((string) $valeur, 90, '…') : '—' }}
                                             </td>
                                         @endforeach
+
+                                        @if($offreLEmprunt)
+                                            @php $personaId = $personasParClef[(string) ($ligne->key ?? '')] ?? null; @endphp
+                                            <td class="px-3 py-2 align-top">
+                                                @if($personaId)
+                                                    {{-- Le MEME geste que l'ecran de selection : meme route, meme
+                                                         champ, meme garde. Aucun second mecanisme d'emprunt. --}}
+                                                    <form method="POST" action="{{ route('admin.outils.scenarios.personas.enter', $version) }}">
+                                                        @csrf
+                                                        <input type="hidden" name="persona_id" value="{{ $personaId }}">
+                                                        <button type="submit"
+                                                                data-persona-enter="{{ $personaId }}"
+                                                                class="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                                                            {{ __('admin.scenario_manager.preview_login_as') }}
+                                                        </button>
+                                                    </form>
+                                                @else
+                                                    {{-- Declaree au document, mais pas empruntable : pas encore
+                                                         chargee, ou ecartee par les conditions du Persona Access
+                                                         (privilege plateforme, email non fictif, compte banni). --}}
+                                                    <span class="text-xs text-gray-400 dark:text-gray-500">—</span>
+                                                @endif
+                                            </td>
+                                        @endif
                                     </tr>
                                 @endforeach
                             </tbody>
