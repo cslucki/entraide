@@ -30,7 +30,140 @@
             @endif
         </div>
         <p class="mt-1 font-mono text-xs text-gray-400 dark:text-gray-500">{{ $version->scenario_key }} · v{{ $version->version }}</p>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('admin.scenario_manager.usage_'.$version->usage) }}</p>
     </header>
+
+    {{-- ================================================================
+         TASK-1656 §23 et §24 — ce que contient le scenario, puis QUOI FAIRE.
+
+         Avant : la fiche ouvrait sur le digest, les identifiants et les
+         details techniques. L'utilisateur devait deviner le workflow. Ici,
+         l'action PRINCIPALE depend de l'etat et porte un verbe, pas un nom de
+         mecanisme. Les details techniques descendent plus bas, sous un
+         `<details>` — accessibles, mais plus en premier.
+         ================================================================ --}}
+    @if($compteurs !== [])
+        <section class="mb-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+            <h2 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('admin.scenario_manager.fiche_contains') }}</h2>
+            <p data-contains class="mt-1 text-sm text-gray-800 dark:text-gray-200">
+                {{ ($compteurs['users'] ?? 0).' '.__('admin.scenario_manager.counter_users') }}
+                · {{ ($compteurs['loops'] ?? 0).' '.__('admin.scenario_manager.counter_loops') }}
+                · {{ ($compteurs['messages'] ?? 0).' '.__('admin.scenario_manager.counter_messages') }}
+                · {{ ($compteurs['dossiers'] ?? 0).' '.__('admin.scenario_manager.counter_dossiers') }}
+                · {{ ($compteurs['service_requests'] ?? 0).' '.__('admin.scenario_manager.counter_requests') }}
+                · {{ ($compteurs['events'] ?? 0).' '.__('admin.scenario_manager.counter_events') }}
+            </p>
+        </section>
+    @endif
+
+    @php
+        // `isLoaded()` dit qu'un chargement EXISTE, pas que la sandbox est
+        // encore VIVANTE.
+        //
+        // Et la relation ne rend PAS `null` pour une sandbox en corbeille :
+        // `ScenarioPackLoad::organization()` porte `->withTrashed()`, pose en
+        // T1650 precisement pour que Reset et Retirer restent atteignables sur
+        // une sandbox supprimee. Tester la nullite ne garde donc rien — il faut
+        // tester `trashed()`, comme le fait deja la section sandbox plus bas.
+        //
+        // Offrir « Ouvrir la sandbox » ou « Voir en tant que persona » sur une
+        // corbeille reviendrait a promettre une porte qui refusera.
+        $organisationDeLaSandbox = $version->scenarioPackLoad?->organization;
+        $sandboxVivante = $version->isLoaded()
+            && $organisationDeLaSandbox !== null
+            && ! $organisationDeLaSandbox->trashed();
+    @endphp
+
+    <section data-actions class="mb-6 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <div class="flex flex-wrap items-center gap-2">
+            {{-- L'action PRINCIPALE, une seule, selon l'etat. --}}
+            @if($sandboxVivante)
+                <a href="{{ route('organization.dashboard', ['organization' => $version->scenarioPackLoad?->organization?->slug]) }}"
+                   data-primary="loaded"
+                   class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+                    {{ __('admin.scenario_manager.primary_loaded') }}
+                </a>
+            @elseif($version->isValid() && ! $version->isLoaded())
+                <a href="{{ route('admin.outils.scenarios.approval', $version) }}"
+                   data-primary="valid"
+                   class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+                    {{ __('admin.scenario_manager.primary_valid') }}
+                </a>
+            @elseif(! $version->isLoaded())
+                <a href="{{ route('admin.outils.scenarios.visual', $version) }}"
+                   data-primary="draft"
+                   class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+                    {{ __('admin.scenario_manager.primary_draft') }}
+                </a>
+            @endif
+
+            {{-- Reste le cas d'une version chargee dont la sandbox a disparu :
+                 aucune action principale n'est PROPOSEE, parce qu'aucune ne
+                 s'applique. La phrase ci-dessous l'explique plutot que de
+                 laisser un ecran muet. --}}
+
+            {{-- Puis les secondaires, dans l'ordre du §24. --}}
+            @if($sandboxVivante)
+                <a href="{{ route('admin.outils.scenarios.personas', $version) }}"
+                   class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                    {{ __('admin.scenario_manager.personas_link') }}
+                </a>
+                <a href="{{ route('admin.outils.scenarios.capture', $version) }}"
+                   data-action="capture"
+                   class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                    {{ __('admin.scenario_manager.card_capture') }}
+                </a>
+            @endif
+
+            @if($version->isValid() && ! $version->isLoaded())
+                <a href="{{ route('admin.outils.scenarios.export', $version) }}"
+                   class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                    {{ __('admin.scenario_manager.editor_export') }}
+                </a>
+            @endif
+
+            <x-scenario-duplicate :version="$version" />
+            <x-scenario-delete :version="$version" :versions-count="$versionsDeLaClef" />
+        </div>
+
+        @if($version->isValid() && ! $version->isLoaded())
+            {{-- §13 : editer une version VALID annule sa validation. Le dire
+                 AVANT le clic, pas apres. --}}
+            <p class="mt-3 text-xs text-amber-800 dark:text-amber-300">{{ __('admin.scenario_manager.valid_edit_warning') }}</p>
+        @elseif($version->isLoaded() && ! $sandboxVivante)
+            <p data-sandbox="absente" class="mt-3 text-xs text-gray-600 dark:text-gray-400">{{ __('admin.scenario_manager.loaded_explained') }}</p>
+        @endif
+    </section>
+
+    {{-- ================================================================
+         TASK-1656 §20 et §21 — « a completer » n'est pas « invalide ».
+         ================================================================ --}}
+    @if($lecture->estACompleter())
+        <section data-readiness="a_completer" class="mb-6 rounded-xl border border-blue-300 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
+            <h2 class="text-sm font-semibold text-blue-900 dark:text-blue-200">{{ __('admin.scenario_manager.todo_title') }}</h2>
+            <p class="mt-1 text-xs text-blue-800 dark:text-blue-300">{{ __('admin.scenario_manager.todo_hint') }}</p>
+
+            @if($lecture->checklist() !== [])
+                <ul class="mt-3 space-y-1">
+                    @foreach($lecture->checklist() as $point)
+                        <li data-todo="{{ $point['cle'] }}" data-present="{{ $point['present'] ? 'oui' : 'non' }}"
+                            class="flex items-center gap-2 text-sm {{ $point['present'] ? 'text-blue-700 dark:text-blue-300' : 'text-blue-900 dark:text-blue-100' }}">
+                            <span aria-hidden="true">{{ $point['present'] ? '✓' : '○' }}</span>
+                            <span>{{ __('admin.scenario_manager.todo_item_'.$point['cle']) }}</span>
+                            <span class="text-xs text-blue-600 dark:text-blue-400">
+                                {{ $point['present'] ? __('admin.scenario_manager.todo_done') : __('admin.scenario_manager.todo_missing') }}
+                            </span>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </section>
+    @elseif($lecture->estInvalide())
+        <section data-readiness="invalide" class="mb-6 rounded-xl border border-red-300 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+            <h2 class="text-sm font-semibold text-red-900 dark:text-red-200">{{ __('admin.scenario_manager.invalid_title') }}</h2>
+            <p class="mt-1 text-xs text-red-800 dark:text-red-300">{{ __('admin.scenario_manager.invalid_hint') }}</p>
+        </section>
+    @endif
 
     {{-- Les DEUX portes d'edition, et le seul endroit de l'application qui les
          ouvre.
@@ -73,11 +206,19 @@
         </div>
     @endunless
 
-    {{-- Vue d'ensemble (CDC 11.2) --}}
-    <section class="mb-6 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-        <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('admin.scenario_manager.preview_overview') }}</h2>
+    {{-- Vue d'ensemble (CDC 11.2), retrogradee par TASK-1656 §23.
 
-        <dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+         Le CDC exige ces informations : elles restent donc TOUTES la, digest
+         compris, et la mention du §11.2 sur la nouvelle sandbox aussi. Mais
+         elles ne sont plus la PREMIERE chose que l'ecran dit. Un `<details>`
+         plutot qu'un panneau Alpine : le contenu reste atteignable sans script,
+         et il est dans le DOM pour qui le cherche. --}}
+    <details data-technical class="mb-6 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <summary class="cursor-pointer text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            {{ __('admin.scenario_manager.technical_details') }}
+        </summary>
+
+        <dl class="mt-3 grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
             @php
                 $lignes = [
                     __('admin.scenario_manager.preview_id') => $preview->header('id'),
@@ -114,7 +255,7 @@
         <p class="mt-4 rounded-lg bg-blue-50 p-3 text-xs text-blue-900 dark:bg-blue-900/20 dark:text-blue-200">
             {{ __('admin.scenario_manager.preview_new_sandbox') }}
         </p>
-    </section>
+    </details>
 
     @if(session('status'))
         <div class="mb-6 rounded-xl border border-green-300 bg-green-50 p-4 text-sm text-green-900 dark:border-green-800 dark:bg-green-900/20 dark:text-green-200">

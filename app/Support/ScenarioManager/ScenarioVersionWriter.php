@@ -147,26 +147,10 @@ class ScenarioVersionWriter
         ScenarioManifestVersion $source,
         string $scenarioKey,
         string $name,
-        User $author
+        User $author,
+        ?string $usage = null
     ): ScenarioManifestVersion {
         $this->refuserSiBinaire($name);
-
-        $document = json_decode($source->json_source, true);
-
-        if (! is_array($document)) {
-            throw ScenarioVersionRefused::unparsableSource();
-        }
-
-        $document['id'] = $scenarioKey;
-        $document['name'] = $name;
-        // CDC 9.4 : la copie repart de 1.0.0. Une copie qui heriterait du
-        // numero de sa source laisserait croire a une continuite de version
-        // entre deux scenarios qui n'ont plus rien a voir.
-        $document['version'] = '1.0.0';
-
-        if (isset($document['organization']) && is_array($document['organization'])) {
-            $document['organization']['proposed_slug'] = $scenarioKey;
-        }
 
         // `parent_id` porte la PROVENANCE (CDC 3.3) : sans lui, la copie
         // declare qu'elle est une copie en perdant DE QUOI — la seule chose
@@ -174,17 +158,57 @@ class ScenarioVersionWriter
         return $this->creer(
             $scenarioKey,
             $name,
-            $this->encoder($document),
+            $this->reidentifier((string) $source->json_source, $scenarioKey, $name),
             ScenarioManifestVersion::ORIGIN_DUPLICATE,
             $author,
             $source,
-            $source->usage
+            // L'usage de la source par defaut — une copie sert le plus souvent
+            // la meme chose. Mais il est MODIFIABLE : dupliquer un scenario de
+            // QA pour en faire une demo est precisement un cas normal.
+            $usage ?? (string) $source->usage
         );
     }
 
     /**
      * Remplacer le document d'une version (CDC 10.10 et 12.3).
      */
+    /**
+     * TASK-1656 — creer un scenario a partir d'un MODELE publie.
+     *
+     * Le modele n'est pas une ligne de base : c'est un fichier livre avec le
+     * code. Il n'y a donc pas de `parent_id` a poser — la provenance est dite
+     * par `origin = template`, et le modele lui-meme reste intouche.
+     *
+     * Tout le reste est le contrat de {@see duplicate()}, au mot pres, parce
+     * que c'est la MEME reecriture d'identite : nouvelle clef, nouveau nom,
+     * retour a `1.0.0`, `proposed_slug` aligne. Les deux passent par
+     * {@see reidentifier()} pour qu'aucune ne puisse deriver de l'autre.
+     *
+     * Et comme `creer()` ne pose aucun attribut systeme, la copie nait DRAFT,
+     * sans digest, sans approbation et sans sandbox : « utiliser un modele » ne
+     * charge rien.
+     */
+    public function createFromTemplate(
+        string $templateJson,
+        string $scenarioKey,
+        string $name,
+        User $author,
+        string $usage = ScenarioManifestVersion::USAGE_QA
+    ): ScenarioManifestVersion {
+        $this->refuserSiBinaire($name);
+        $this->refuserSiBinaire($templateJson);
+
+        return $this->creer(
+            $scenarioKey,
+            $name,
+            $this->reidentifier($templateJson, $scenarioKey, $name),
+            ScenarioManifestVersion::ORIGIN_TEMPLATE,
+            $author,
+            null,
+            $usage
+        );
+    }
+
     public function updateDocument(ScenarioManifestVersion $version, string $json): ScenarioManifestVersion
     {
         $this->refuserSiChargee($version);
@@ -294,6 +318,40 @@ class ScenarioVersionWriter
         $this->refuserSiChargee($version);
 
         $version->delete();
+    }
+
+    /**
+     * Reecrire l'IDENTITE d'un document repris : sa clef, son nom, son numero
+     * de version et le slug propose de son organisation.
+     *
+     * Partage par {@see duplicate()} et {@see createFromTemplate()}. C'est
+     * volontaire : ce sont deux portes d'entree sur le meme geste — « repartir
+     * de ce contenu sous une nouvelle identite ». Deux implementations
+     * auraient fini par differer sur un champ, et la difference n'aurait ete
+     * decouverte que par un document devenu incoherent.
+     *
+     * Le CONTENU metier n'est pas touche. Seule l'identite change.
+     */
+    private function reidentifier(string $json, string $scenarioKey, string $name): string
+    {
+        $document = json_decode($json, true);
+
+        if (! is_array($document)) {
+            throw ScenarioVersionRefused::unparsableSource();
+        }
+
+        $document['id'] = $scenarioKey;
+        $document['name'] = $name;
+        // CDC 9.4 : la copie repart de 1.0.0. Une copie qui heriterait du
+        // numero de sa source laisserait croire a une continuite de version
+        // entre deux scenarios qui n'ont plus rien a voir.
+        $document['version'] = '1.0.0';
+
+        if (isset($document['organization']) && is_array($document['organization'])) {
+            $document['organization']['proposed_slug'] = $scenarioKey;
+        }
+
+        return $this->encoder($document);
     }
 
     private function creer(

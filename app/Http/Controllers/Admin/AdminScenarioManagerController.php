@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ScenarioManifestVersion;
+use App\Support\ScenarioManager\ScenarioDraftReadiness;
 use App\Support\ScenarioManager\ScenarioLifecycleService;
 use App\Support\ScenarioManager\ScenarioPreview;
 use App\Support\ScenarioManager\Capture\ScenarioCaptureService;
 use App\Support\ScenarioManager\ScenarioVersionRefused;
+use App\Support\ScenarioManager\ScenarioTemplateLibrary;
 use App\Support\ScenarioManager\ScenarioVersionWriter;
 use App\Support\ScenarioManager\ScenarioVisualEditor;
 use App\Support\ScenarioManifest\ManifestSchema;
@@ -171,6 +173,14 @@ class AdminScenarioManagerController extends Controller
 
         return view('admin.outils.scenarios', [
             'versions' => $versions,
+            // TASK-1656 §5 : les modeles publies, avant la bibliotheque.
+            'modeles' => ScenarioTemplateLibrary::all(),
+            'compteursModeles' => self::compteursDesModeles(),
+            // TASK-1656 §15 : le libelle de suppression depend du NOMBRE de
+            // versions que porte la clef. Une seule requete groupee, bornee aux
+            // clefs de la page : un comptage par carte en couterait autant que
+            // de cartes.
+            'versionsParClef' => self::versionsParClef($versions->getCollection()),
             'filtres' => [
                 'q' => $recherche,
                 'etat' => $etatRetenu,
@@ -234,6 +244,13 @@ class AdminScenarioManagerController extends Controller
             'erreurs' => is_array($version->validation_summary['errors'] ?? null)
                 ? $version->validation_summary['errors']
                 : [],
+            // TASK-1656 §20 : « a completer » ou « invalide » — la fiche ne doit
+            // pas presenter un debut de construction comme une panne.
+            'lecture' => ScenarioDraftReadiness::pour($version),
+            // TASK-1656 §15 : le libelle de suppression, ici comme sur la carte.
+            'versionsDeLaClef' => ScenarioManifestVersion::query()
+                ->where('scenario_key', $version->scenario_key)
+                ->count(),
         ]);
     }
 
@@ -241,9 +258,89 @@ class AdminScenarioManagerController extends Controller
      * Le formulaire de creation (CDC 9.1 a 9.3) : scenario vide, import de
      * fichier, ou collage de texte. Les trois aboutissent a un DRAFT.
      */
-    public function create(): View
+    /**
+     * Les compteurs de chaque modele publie, pour la carte « Modeles ».
+     *
+     * @return array<string, array<string, int>>
+     */
+    private static function compteursDesModeles(): array
     {
-        return view('admin.outils.scenario-nouveau');
+        $compteurs = [];
+
+        foreach (ScenarioTemplateLibrary::keys() as $cle) {
+            $compteurs[$cle] = ScenarioTemplateLibrary::counters($cle);
+        }
+
+        return $compteurs;
+    }
+
+    /**
+     * Le Manifest d'un modele, ou un refus METIER si son actif a disparu.
+     *
+     * La clef a deja passe `Rule::in(...)` : arriver ici avec un fichier
+     * illisible signifie que le modele est declare mais son actif absent. C'est
+     * une panne d'installation, pas une faute de saisie — mais l'utilisateur
+     * doit lire une phrase, pas une 500 sur `null`.
+     */
+    private static function jsonDuModele(string $cle): string
+    {
+        $json = ScenarioTemplateLibrary::json($cle);
+
+        if ($json === null) {
+            throw ScenarioVersionRefused::unparsableSource();
+        }
+
+        return $json;
+    }
+
+    /**
+     * Combien de versions chaque clef de scenario porte-t-elle ?
+     *
+     * TASK-1656 §15 : le libelle de suppression doit dire la VERITE sur ce que
+     * le backend supprime. `ScenarioVersionWriter::delete()` supprime UNE
+     * ligne ; dire « supprimer le scenario » devant deux versions serait faux.
+     *
+     * Le comptage est borne aux clefs affichees, en une requete groupee.
+     *
+     * @param  \Illuminate\Support\Collection<int, ScenarioManifestVersion>  $page
+     * @return array<string, int>
+     */
+    private static function versionsParClef(\Illuminate\Support\Collection $page): array
+    {
+        $clefs = $page->pluck('scenario_key')->unique()->all();
+
+        if ($clefs === []) {
+            return [];
+        }
+
+        return ScenarioManifestVersion::query()
+            ->whereIn('scenario_key', $clefs)
+            ->groupBy('scenario_key')
+            ->selectRaw('scenario_key, count(*) as total')
+            ->pluck('total', 'scenario_key')
+            ->map(static fn ($total): int => (int) $total)
+            ->all();
+    }
+
+    public function create(Request $request): View
+    {
+        // TASK-1656 §9 : l'ordre est impose — modele, vide, import. Le JSON
+        // n'est plus presente comme la maniere normale d'utiliser le produit.
+        //
+        // `?modele=` vient du bouton « Utiliser ce modele ». Il est RETENU
+        // seulement s'il designe un modele reel : un parametre decoratif, qui
+        // n'aurait aucun effet, mentirait sur ce que le lien fait.
+        $demande = (string) $request->query('modele', '');
+        $preselection = ScenarioTemplateLibrary::has($demande) ? $demande : null;
+
+        $modeles = ScenarioTemplateLibrary::all();
+
+        return view('admin.outils.scenario-nouveau', [
+            'modeles' => $modeles,
+            'compteursModeles' => self::compteursDesModeles(),
+            // A defaut de demande explicite, le premier modele publie.
+            'modelePreselectionne' => $preselection ?? ($modeles[0]['key'] ?? null),
+        ]);
     }
 
     public function store(Request $request, ScenarioVersionWriter $writer): RedirectResponse
@@ -253,7 +350,10 @@ class AdminScenarioManagerController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'locale' => ['required', 'in:fr,en'],
             'usage' => ['required', Rule::in(ScenarioManifestVersion::USAGES)],
-            'mode' => ['required', 'in:vide,coller,fichier'],
+            'mode' => ['required', 'in:modele,vide,coller,fichier'],
+            // Le modele est une PROVENANCE de texte de plus, comme le collage
+            // et le fichier. La clef est validee contre la liste DECLAREE.
+            'template' => ['nullable', 'string', 'required_if:mode,modele', Rule::in(ScenarioTemplateLibrary::keys())],
             // Exiger le texte SELON le mode : sans cela, « coller » sans rien
             // coller creerait un document vide en se taisant.
             'json' => ['nullable', 'string', 'required_if:mode,coller'],
@@ -264,6 +364,15 @@ class AdminScenarioManagerController extends Controller
             $auteur = $request->user();
 
             $version = match ($donnees['mode']) {
+                // Un modele publie : meme contrat que l'import, a ceci pres que
+                // l'origine dit `template` et que le modele reste intouche.
+                'modele' => $writer->createFromTemplate(
+                    self::jsonDuModele((string) $donnees['template']),
+                    $donnees['scenario_key'],
+                    $donnees['name'],
+                    $auteur,
+                    $donnees['usage']
+                ),
                 'vide' => $writer->createBlank($donnees['scenario_key'], $donnees['name'], $donnees['locale'], $auteur, $donnees['usage']),
                 // Import et Paste ont le MEME contrat (CDC 9.3) : seule la
                 // provenance du texte change, pas ce qu'on en fait.
@@ -288,10 +397,18 @@ class AdminScenarioManagerController extends Controller
         $donnees = $request->validate([
             'scenario_key' => self::reglesDeCle(),
             'name' => ['required', 'string', 'max:120'],
+            // Absent = l'usage de la source. Le formulaire le propose pre-rempli.
+            'usage' => ['nullable', Rule::in(ScenarioManifestVersion::USAGES)],
         ]);
 
         return $this->enRepondantAuxRefus(function () use ($donnees, $request, $version, $writer) {
-            $copie = $writer->duplicate($version, $donnees['scenario_key'], $donnees['name'], $request->user());
+            $copie = $writer->duplicate(
+                $version,
+                $donnees['scenario_key'],
+                $donnees['name'],
+                $request->user(),
+                $donnees['usage'] ?? null
+            );
 
             return redirect()
                 ->route('admin.outils.scenarios.edit', $copie)
