@@ -109,7 +109,42 @@
                 @unless($version->isLoaded())
                     <form method="POST" action="{{ route('admin.outils.scenarios.load', $version) }}">
                         @csrf
-                        <button type="submit" class="rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800">
+                        {{-- TASK-1657 — le CTA sur le primaire CANONIQUE.
+
+                             Il portait `bg-green-700` / `hover:bg-green-800`.
+                             Aucune des deux n'est generee dans le CSS servi : la
+                             page d'approbation est le SEUL endroit du depot a
+                             employer `bg-green-700` en classe NUE — les sept
+                             autres vues ne l'utilisent qu'en `hover:`, variante
+                             qui, elle, existe. Le bouton rendait donc
+                             `text-white` SANS AUCUN FOND, blanc sur une carte
+                             claire : invisible.
+
+                             Ce n'etait pas un defaut de contraste mais de
+                             GENERATION. Tailwind ne produit que ce qu'il scanne,
+                             et une classe employee a un seul endroit disparait
+                             de tout actif construit avant l'ecran qui l'emploie.
+
+                             Le correctif n'est donc pas de rebatir l'actif — il
+                             masquerait le probleme jusqu'au prochain ecran — mais
+                             d'utiliser les classes du primaire canonique, celles
+                             que le bouton « approuver » de CETTE MEME page porte
+                             deja, et que 212 vues partagent. Une classe utilisee
+                             partout ne peut pas manquer d'un build.
+
+                             Un anneau de focus est ajoute : le §9 exige que le
+                             CTA reste identifiable au clavier, et rien ne le
+                             rendait visible au focus.
+
+                             Il emploie `focus:ring-*`, celui des composants du
+                             depot, et NON `focus-visible:outline-*` : cette
+                             seconde famille n'est pas generee non plus — je l'y
+                             avais d'abord mise, reintroduisant le defaut meme
+                             que ce bloc corrige. Chaque classe posee ici a ete
+                             verifiee presente dans le CSS servi. --}}
+                        <button type="submit"
+                                data-cta="load"
+                                class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
                             {{ __('admin.scenario_manager.load_action') }}
                         </button>
                     </form>
