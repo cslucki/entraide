@@ -2,6 +2,10 @@
 
 namespace Tests\Feature\ScenarioManifest;
 
+use App\Models\Loop;
+use App\Models\LoopEvent;
+use App\Models\LoopEventResponse;
+use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\ScenarioManifestVersion;
 use App\Models\ScenarioPackLoad;
@@ -732,6 +736,294 @@ class TASK1656ProductConsolidationTest extends TestCase
             ->getContent();
 
         $this->assertStringNotContainsString('data-readiness=', $html);
+    }
+
+    // =====================================================================
+    // DETTE 3 (§30) — VALID doit signifier « structurellement chargeable »
+    // =====================================================================
+
+    public function test_un_second_Dossier_sur_une_meme_Boucle_est_REFUSE_AVANT_le_Load(): void
+    {
+        $document = json_decode((string) ScenarioTemplateLibrary::json('ofsh'), true);
+        $boucle = $document['loops'][0]['key'];
+        $racineDeclaree = $document['loops'][0]['root_dossier'];
+
+        // Un second Dossier qui revendique la meme Boucle sans en etre la racine
+        // declaree. C'est EXACTEMENT le document que T1655 a vu declarer VALIDE
+        // puis refuser au Load par `UNIQUE constraint failed: dossiers.loop_id`.
+        $document['dossiers'][] = [
+            'key' => 'dossier-en-trop',
+            'loop' => $boucle,
+            'owner' => $document['users'][0]['key'],
+            'name' => 'Dossier en trop',
+            'visibility' => 'loop',
+            'parent' => null,
+            'root_document' => null,
+        ];
+
+        $resultat = app(ScenarioManifestValidator::class)->validate(json_encode($document));
+
+        $this->assertFalse(
+            $resultat->isValid(),
+            'Le Validator doit refuser AVANT le Load : sinon l utilisateur decouvre l invariant en base.'
+        );
+        $this->assertContains('DUPLICATE_COMPOSITE_KEY', $resultat->errorCodes());
+
+        // L'adresse de l'erreur designe le Dossier fautif, pas la Boucle : c'est
+        // le Dossier qu'il faut retirer ou rattacher.
+        $chemins = array_map(static fn (array $e): string => $e['path'], array_map(
+            static fn ($e) => $e->toArray(),
+            $resultat->errors()
+        ));
+        $this->assertContains('/dossiers/5/loop', $chemins);
+
+        // Et le message NOMME la racine deja declaree, pour qu'on sache laquelle
+        // des deux garder.
+        $messages = implode(' ', array_map(static fn ($e) => $e->toArray()['message'], $resultat->errors()));
+        $this->assertStringContainsString($racineDeclaree, $messages);
+    }
+
+    public function test_le_modele_OFSH_reste_VALIDE_apres_l_ajout_de_l_invariant(): void
+    {
+        // La garde ne doit pas rendre invalide ce qui se chargeait : OFSH porte
+        // 5 Dossiers pour 5 Boucles, chacun racine de la sienne.
+        $resultat = app(ScenarioManifestValidator::class)
+            ->validate((string) ScenarioTemplateLibrary::json('ofsh'));
+
+        $this->assertTrue($resultat->isValid(), json_encode($resultat->errorCodes()));
+        $this->assertSame(5, $resultat->counters()['dossiers']);
+        $this->assertSame(5, $resultat->counters()['loops']);
+    }
+
+    public function test_un_Dossier_PERSONNEL_sans_Boucle_reste_autorise(): void
+    {
+        // La garde porte sur `loop`, pas sur l'existence d'autres Dossiers : un
+        // Dossier prive appartenant a une personne n'a rien a voir avec une
+        // Boucle et doit rester possible. Une garde trop large aurait interdit
+        // la moitie du modele de donnees.
+        $document = json_decode((string) ScenarioTemplateLibrary::json('ofsh'), true);
+        $document['dossiers'][] = [
+            'key' => 'dossier-personnel',
+            'loop' => null,
+            'owner' => $document['users'][0]['key'],
+            'name' => 'Dossier personnel',
+            'visibility' => 'private',
+            'parent' => null,
+            'root_document' => null,
+        ];
+
+        $resultat = app(ScenarioManifestValidator::class)->validate(json_encode($document));
+
+        $this->assertTrue($resultat->isValid(), json_encode($resultat->errorCodes()));
+    }
+
+    // =====================================================================
+    // DETTE 1 (§28) — un evenement organization-wide devient REPONDABLE
+    // =====================================================================
+
+    public function test_une_NON_MEMBRE_repond_a_un_evenement_organization_wide_depuis_l_agenda(): void
+    {
+        [$evenement, $nonMembre] = $this->evenementRemonteEtUneNonMembre();
+
+        // Elle n'est PAS membre de la Boucle — c'est tout l'enjeu.
+        $this->assertSame(0, LoopMember::where('loop_id', $evenement->loop_id)
+            ->where('user_id', $nonMembre->id)->count());
+
+        $this->actingAs($nonMembre)
+            ->post(route('organization.events.agenda.respond', [
+                'organization' => $this->organization->slug,
+                'event' => $evenement->id,
+            ]), ['response' => LoopEventResponse::GOING])
+            ->assertRedirect()
+            ->assertSessionHas('status');
+
+        // La reponse est PERSISTEE — c'est le seul constat qui compte.
+        $this->assertDatabaseHas('loop_event_responses', [
+            'event_id' => $evenement->id,
+            'user_id' => $nonMembre->id,
+            'response' => LoopEventResponse::GOING,
+        ]);
+
+        // Et elle n'a PAS ete ajoutee a la Boucle pour autant : repondre n'est
+        // pas rejoindre. MASTER l'interdit explicitement.
+        $this->assertSame(0, LoopMember::where('loop_id', $evenement->loop_id)
+            ->where('user_id', $nonMembre->id)->count());
+    }
+
+    public function test_l_agenda_OFFRE_le_geste_a_une_non_membre(): void
+    {
+        [$evenement, $nonMembre] = $this->evenementRemonteEtUneNonMembre();
+
+        $html = $this->actingAs($nonMembre)
+            ->get(route('organization.events.agenda', ['organization' => $this->organization->slug]))
+            ->assertOk()
+            ->getContent();
+
+        // C'etait la dette : elle VOYAIT l'evenement, et aucun geste ne lui
+        // etait offert. L'agenda etait en lecture seule.
+        $this->assertStringContainsString('data-agenda-rsvp="'.$evenement->id.'"', $html);
+
+        foreach ([LoopEventResponse::GOING, LoopEventResponse::MAYBE, LoopEventResponse::NOT_GOING] as $choix) {
+            $this->assertStringContainsString('data-rsvp="'.$choix.'"', $html);
+        }
+
+        // Les MEMES libelles que la Card de la Boucle : une meme action ne doit
+        // pas porter deux noms selon l'ecran.
+        $this->assertStringContainsString(e(__('events.going')), $html);
+        $this->assertStringContainsString(e(__('events.not_going')), $html);
+    }
+
+    public function test_un_evenement_de_Boucle_NON_remonte_reste_hors_de_portee(): void
+    {
+        [$evenement, $nonMembre] = $this->evenementRemonteEtUneNonMembre();
+
+        // Redescendu au niveau Boucle : la non-membre n'a plus rien a y faire.
+        $evenement->forceFill(['visibility' => LoopEvent::VISIBILITY_LOOP])->save();
+
+        $this->actingAs($nonMembre)
+            ->post(route('organization.events.agenda.respond', [
+                'organization' => $this->organization->slug,
+                'event' => $evenement->id,
+            ]), ['response' => LoopEventResponse::GOING])
+            ->assertRedirect()
+            ->assertSessionHasErrors();
+
+        $this->assertDatabaseMissing('loop_event_responses', [
+            'event_id' => $evenement->id,
+            'user_id' => $nonMembre->id,
+        ]);
+    }
+
+    public function test_un_evenement_d_une_AUTRE_Organization_recoit_un_404(): void
+    {
+        // Le cas que l'autre test NE COUVRE PAS : la personne est bien chez
+        // elle, c'est l'EVENEMENT qui vient d'ailleurs.
+        //
+        // Sans cette separation, retirer la frontiere de tenant posee sur
+        // l'Evenement laissait le test vert — parce que la garde sur
+        // l'UTILISATEUR repondait a sa place. Un test qui reste vert quand on
+        // supprime ce qu'il pretend prouver ne prouve rien. Trouve en sabotant.
+        [$evenementEtranger] = $this->evenementDansUneAutreOrganization();
+
+        $chezElle = User::factory()->create(['organization_id' => $this->organization->id]);
+
+        $this->actingAs($chezElle)
+            ->post(route('organization.events.agenda.respond', [
+                'organization' => $this->organization->slug,
+                'event' => $evenementEtranger->id,
+            ]), ['response' => LoopEventResponse::GOING])
+            ->assertNotFound();
+
+        $this->assertDatabaseMissing('loop_event_responses', [
+            'event_id' => $evenementEtranger->id,
+        ]);
+    }
+
+    public function test_un_membre_d_une_AUTRE_Organization_recoit_un_404(): void
+    {
+        [$evenement] = $this->evenementRemonteEtUneNonMembre();
+
+        $etranger = User::factory()->create([
+            'organization_id' => Organization::factory()->create()->id,
+        ]);
+
+        // Un identifiant connu ne suffit pas : la frontiere de tenant se pose a
+        // la main sur chaque lecture de `User` (le modele ne porte pas de scope).
+        $this->actingAs($etranger)
+            ->post(route('organization.events.agenda.respond', [
+                'organization' => $this->organization->slug,
+                'event' => $evenement->id,
+            ]), ['response' => LoopEventResponse::GOING])
+            ->assertNotFound();
+    }
+
+    public function test_une_reponse_hors_enumeration_est_REFUSEE(): void
+    {
+        [$evenement, $nonMembre] = $this->evenementRemonteEtUneNonMembre();
+
+        $this->actingAs($nonMembre)
+            ->post(route('organization.events.agenda.respond', [
+                'organization' => $this->organization->slug,
+                'event' => $evenement->id,
+            ]), ['response' => 'peut-etre-bien-que-oui'])
+            ->assertSessionHasErrors('response');
+
+        $this->assertDatabaseMissing('loop_event_responses', ['event_id' => $evenement->id]);
+    }
+
+    /**
+     * Un evenement remonte, mais dans une Organization ETRANGERE.
+     *
+     * @return array{0: LoopEvent}
+     */
+    private function evenementDansUneAutreOrganization(): array
+    {
+        $autre = Organization::factory()->create();
+        $organisateur = User::factory()->create(['organization_id' => $autre->id]);
+
+        $boucle = Loop::factory()->create([
+            'organization_id' => $autre->id,
+            'created_by' => $organisateur->id,
+        ]);
+
+        LoopMember::create(['loop_id' => $boucle->id, 'user_id' => $organisateur->id, 'role' => 'owner']);
+
+        return [LoopEvent::create([
+            'organization_id' => $autre->id,
+            'loop_id' => $boucle->id,
+            'created_by' => $organisateur->id,
+            'title' => 'Atelier d ailleurs',
+            'format' => LoopEvent::FORMAT_ONLINE,
+            'starts_at' => now()->addDays(7),
+            'ends_at' => now()->addDays(7)->addHours(2),
+            'timezone' => 'Europe/Paris',
+            'meeting_url' => 'https://example.test/ailleurs',
+            'visibility' => LoopEvent::VISIBILITY_ORGANIZATION,
+            'status' => LoopEvent::STATUS_SCHEDULED,
+        ])];
+    }
+
+    /**
+     * Un evenement remonte au niveau Organization, et une personne de
+     * l'Organization qui n'est PAS membre de sa Boucle.
+     *
+     * @return array{0: LoopEvent, 1: User}
+     */
+    private function evenementRemonteEtUneNonMembre(): array
+    {
+        $organisateur = User::factory()->create(['organization_id' => $this->organization->id]);
+
+        $boucle = Loop::factory()->create([
+            'organization_id' => $this->organization->id,
+            'created_by' => $organisateur->id,
+        ]);
+
+        LoopMember::create([
+            'loop_id' => $boucle->id,
+            'user_id' => $organisateur->id,
+            'role' => 'owner',
+        ]);
+
+        $evenement = LoopEvent::create([
+            'organization_id' => $this->organization->id,
+            'loop_id' => $boucle->id,
+            'created_by' => $organisateur->id,
+            'title' => 'Atelier ouvert a toute l Organization',
+            'format' => LoopEvent::FORMAT_ONLINE,
+            'starts_at' => now()->addDays(7),
+            'ends_at' => now()->addDays(7)->addHours(2),
+            'timezone' => 'Europe/Paris',
+            'meeting_url' => 'https://example.test/atelier',
+            'visibility' => LoopEvent::VISIBILITY_ORGANIZATION,
+            'status' => LoopEvent::STATUS_SCHEDULED,
+        ]);
+
+        $nonMembre = User::factory()->create([
+            'organization_id' => $this->organization->id,
+            'is_admin' => false,
+        ]);
+
+        return [$evenement, $nonMembre];
     }
 
     // =====================================================================

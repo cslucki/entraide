@@ -432,10 +432,20 @@ Route::middleware('auth')->group(function () {
         Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
         Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
         Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
-        // L'agenda de l'Organization : lecture seule, il agrege ce qui a ete
-        // organise dans les Boucles. Declare avant /loops/{loop} n'est pas
-        // necessaire — le segment differe — mais reste groupe avec elles.
+        // L'agenda de l'Organization : il agrege ce qui a ete organise dans les
+        // Boucles. Declare avant /loops/{loop} n'est pas necessaire — le segment
+        // differe — mais reste groupe avec elles.
+        //
+        // TASK-1656 — il n'est plus en LECTURE SEULE : repondre a une invitation
+        // s'y fait. Organiser reste dans la Boucle ; repondre n'est pas
+        // organiser, et `LoopEventService::canRespondTo()` autorisait deja tout
+        // membre actif de l'Organization a repondre a un evenement remonte,
+        // sans appartenance a la Boucle. Aucune interface ne l'offrait : c'est
+        // la dette `ORG_WIDE_EVENT_HAS_NO_RSVP_SURFACE_FOR_NON_MEMBERS` de T1655.
         Route::get('/agenda', [LoopEventAgendaController::class, 'index'])->name('events.agenda');
+        Route::post('/agenda/{event}/repondre', [LoopEventAgendaController::class, 'respond'])
+            ->whereUuid('event')
+            ->name('events.agenda.respond');
         Route::get('/loops/{loop}/edit', [LoopController::class, 'edit'])->name('loops.edit');
         Route::put('/loops/{loop}', [LoopController::class, 'update'])->name('loops.update');
         Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
@@ -1253,10 +1263,12 @@ Route::prefix('/org/{organization}')
                 Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
                 Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
                 Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
-                // L'agenda de l'Organization : lecture seule, il agrege ce qui a ete
-                // organise dans les Boucles. Declare avant /loops/{loop} n'est pas
-                // necessaire — le segment differe — mais reste groupe avec elles.
+                // L'agenda de l'Organization. Voir la note sur la route courte :
+                // depuis TASK-1656 il porte le geste de REPONSE a une invitation.
                 Route::get('/agenda', [LoopEventAgendaController::class, 'index'])->name('events.agenda');
+                Route::post('/agenda/{event}/repondre', [LoopEventAgendaController::class, 'respond'])
+                    ->whereUuid('event')
+                    ->name('events.agenda.respond');
                 Route::get('/loops/{loop}/edit', [LoopController::class, 'edit'])->name('loops.edit');
                 Route::put('/loops/{loop}', [LoopController::class, 'update'])->name('loops.update');
                 Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
