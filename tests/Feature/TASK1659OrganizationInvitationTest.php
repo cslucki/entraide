@@ -287,6 +287,89 @@ class TASK1659OrganizationInvitationTest extends TestCase
         $this->assertSame('system_email_template', $log->data['template_used']);
     }
 
+    // ── Liens sortants : arriver sur le bon perimetre ────────────────────
+
+    public function test_the_email_template_link_lands_on_this_features_templates_only(): void
+    {
+        $org = $this->org();
+        foreach (['organization_invitation', 'loop_invitation'] as $slug) {
+            SystemEmailTemplate::create([
+                'organization_id' => $org->id,
+                'locale' => 'fr',
+                'slug' => $slug,
+                'name' => 'Gabarit '.$slug,
+                'subject' => 'Sujet '.$slug,
+                'content_html' => '<p>corps</p>',
+                'variables' => [],
+                'enabled' => true,
+            ]);
+        }
+
+        $response = $this->actingAs($this->superAdmin())
+            ->get(route('admin.system-email-templates', ['slug' => 'organization_invitation']));
+
+        $response->assertOk();
+        $response->assertSee('Gabarit organization_invitation');
+        $response->assertDontSee('Gabarit loop_invitation');
+    }
+
+    public function test_the_email_history_link_lands_on_invitation_emails_only(): void
+    {
+        $org = $this->org();
+        \App\Models\EmailLog::create([
+            'organization_id' => $org->id,
+            'to_email' => 'invitation@example.test',
+            'subject' => 'Sujet invitation',
+            'status' => 'sent',
+            'data' => ['source' => 'organization-invitation'],
+        ]);
+        \App\Models\EmailLog::create([
+            'organization_id' => $org->id,
+            'to_email' => 'autrechose@example.test',
+            'subject' => 'Sujet hors perimetre',
+            'status' => 'sent',
+            'data' => ['source' => 'loop-invitation'],
+        ]);
+
+        $response = $this->actingAs($this->superAdmin())
+            ->get(route('admin.email-logs', ['source' => 'organization-invitation']));
+
+        $response->assertOk();
+        $response->assertSee('invitation@example.test');
+        $response->assertDontSee('autrechose@example.test');
+    }
+
+    /**
+     * The search box must not escape the source filter: an ungrouped
+     * `orWhere` would have made "any subject matching X" win over "only
+     * invitation e-mails".
+     */
+    public function test_searching_within_the_invitation_history_stays_inside_that_perimeter(): void
+    {
+        $org = $this->org();
+        \App\Models\EmailLog::create([
+            'organization_id' => $org->id,
+            'to_email' => 'dedans@example.test',
+            'subject' => 'Bienvenue',
+            'status' => 'sent',
+            'data' => ['source' => 'organization-invitation'],
+        ]);
+        \App\Models\EmailLog::create([
+            'organization_id' => $org->id,
+            'to_email' => 'dehors@example.test',
+            'subject' => 'Bienvenue',
+            'status' => 'sent',
+            'data' => ['source' => 'loop-invitation'],
+        ]);
+
+        $response = $this->actingAs($this->superAdmin())
+            ->get(route('admin.email-logs', ['source' => 'organization-invitation', 'search' => 'Bienvenue']));
+
+        $response->assertOk();
+        $response->assertSee('dedans@example.test');
+        $response->assertDontSee('dehors@example.test');
+    }
+
     public function test_email_already_member_of_same_organization_is_blocked_no_duplicate(): void
     {
         Mail::fake();

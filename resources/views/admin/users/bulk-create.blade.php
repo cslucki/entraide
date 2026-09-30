@@ -126,10 +126,10 @@
                                 class="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium">
                             Créer les accès et envoyer les invitations
                         </button>
-                        <a href="{{ route('admin.system-email-templates') }}" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">
+                        <a href="{{ route('admin.system-email-templates', ['slug' => 'organization_invitation']) }}" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">
                             Gérer le modèle d'email
                         </a>
-                        <a href="{{ route('admin.email-logs') }}" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">
+                        <a href="{{ route('admin.email-logs', ['source' => 'organization-invitation']) }}" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">
                             Voir l'historique des emails
                         </a>
                     </div>

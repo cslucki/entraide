@@ -32,6 +32,11 @@
             <!-- Filters -->
             <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg p-6">
                 <form method="GET" class="flex flex-col sm:flex-row gap-4">
+                    {{-- TASK-1659 : le filtre par source arrive par l'URL et doit
+                         survivre a une soumission du formulaire. --}}
+                    @if($source)
+                        <input type="hidden" name="source" value="{{ $source }}">
+                    @endif
                     <div class="flex-1">
                         <input type="text" name="search" value="{{ $search }}"
                                placeholder="Rechercher par email ou sujet..."
@@ -50,7 +55,7 @@
                         Filtrer
                     </button>
                     @if($search || $status)
-                        <a href="{{ route('admin.email-logs') }}"
+                        <a href="{{ route('admin.email-logs', array_filter(['source' => $source])) }}"
                            class="px-6 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">
                             Réinitialiser
                         </a>
