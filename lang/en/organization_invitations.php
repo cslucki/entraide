@@ -1,0 +1,45 @@
+<?php
+
+// TASK-1659 — direct Organization invitation (bulk account creation,
+// SuperAdmin). Distinct from loops.php: no personal message, no
+// intermediate registration form.
+
+return [
+
+    // E-mail (Blade fallback, when the 'organization_invitation' SystemEmailTemplate is missing)
+    'mail_subject' => 'Your access to :organization',
+    'mail_heading' => 'You are invited to join :organization',
+    'mail_greeting' => 'Hi :name,',
+    'mail_body' => ':sender invites you to join :organization on BouclePro.',
+    'mail_cta' => 'Join :organization',
+    'mail_expires' => 'This link expires on :date.',
+
+    // Public landing page
+    'landing_eyebrow' => 'BouclePro invitation',
+    'landing_unknown_organization' => 'Organization',
+    'landing_sent_to' => 'Invitation sent to',
+    'landing_expires_on' => 'Expires on',
+    'landing_revoked' => 'This invitation link has been revoked.',
+    'landing_expired' => 'This invitation link has expired.',
+    'landing_already_accepted' => 'This invitation has already been accepted.',
+    'landing_body' => 'Click the button below to create your access to :organization.',
+    'landing_cta_join' => 'Join :organization',
+    'landing_cta_enter' => 'Go to my account',
+    'landing_no_password_needed' => 'No password is needed: your access is created directly.',
+
+    // Redirects after an accept attempt
+    'welcome' => 'Welcome to :organization.',
+    'flash_expired' => 'This invitation link has expired.',
+    'flash_revoked' => 'This invitation link has been revoked.',
+    'flash_sandbox_forbidden' => 'This organization does not accept direct invitations.',
+    'flash_email_used_elsewhere' => 'This address is already associated with another BouclePro account.',
+    'flash_invalid' => 'This invitation link is not valid.',
+
+    // SuperAdmin surface
+    'admin_sandbox_forbidden' => 'This organization is a demonstration world: no real invitation is sent to it.',
+    'admin_resent' => 'Invitation resent.',
+    'admin_resend_impossible' => 'This invitation can no longer be resent.',
+    'admin_revoked' => 'Invitation revoked.',
+    'admin_revoke_impossible' => 'Only a pending invitation can be revoked.',
+
+];

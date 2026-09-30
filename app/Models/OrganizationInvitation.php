@@ -1,0 +1,142 @@
+<?php
+
+namespace App\Models;
+
+use Database\Factories\OrganizationInvitationFactory;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
+
+/**
+ * A named invitation to join one Organization directly (TASK-1659) —
+ * modelled on LoopInvitation, with two deliberate differences: there is no
+ * `invitation_type` (no in-app notification pipeline exists for this flow),
+ * and accepting it CREATES the account rather than requiring one to already
+ * exist. `HasOrganizationId` is deliberately NOT used: `organization_id` here
+ * names the TARGET Organization of an invitation, not the tenant that owns
+ * this row — the two coincide, but the distinction matters for a future
+ * reader.
+ */
+class OrganizationInvitation extends Model
+{
+    /** @use HasFactory<OrganizationInvitationFactory> */
+    use HasFactory, HasUuids;
+
+    public const STATUS_PENDING = 'pending';
+
+    public const STATUS_ACCEPTED = 'accepted';
+
+    public const STATUS_EXPIRED = 'expired';
+
+    public const STATUS_REVOKED = 'revoked';
+
+    protected $fillable = [
+        'organization_id',
+        'created_by_user_id',
+        'recipient_first_name',
+        'recipient_name',
+        'recipient_email',
+        'token',
+        'status',
+        'expires_at',
+        'accepted_at',
+        'accepted_by_user_id',
+    ];
+
+    protected $casts = [
+        'expires_at' => 'datetime',
+        'accepted_at' => 'datetime',
+    ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (OrganizationInvitation $invitation) {
+            if (empty($invitation->token)) {
+                $invitation->token = Str::random(64);
+            }
+
+            if (is_null($invitation->expires_at)) {
+                // 48h, deliberately shorter than loop_invitations' 30 days:
+                // this link creates a real account directly on click, so a
+                // narrower window limits how long an unclaimed access stays
+                // valid (Cyril, 30/09).
+                $invitation->expires_at = now()->addHours(48);
+            }
+        });
+    }
+
+    /**
+     * Single normalisation entry point, used both when storing an address and
+     * when comparing one — the two must never diverge.
+     */
+    public static function normalizeEmail(?string $email): string
+    {
+        return mb_strtolower(trim((string) $email));
+    }
+
+    public function setRecipientEmailAttribute(?string $value): void
+    {
+        $this->attributes['recipient_email'] = self::normalizeEmail($value);
+    }
+
+    public function recipientFullName(): string
+    {
+        return trim(($this->recipient_first_name ?? '').' '.($this->recipient_name ?? ''))
+            ?: $this->recipient_email;
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    public function acceptedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'accepted_by_user_id');
+    }
+
+    public function isExpired(): bool
+    {
+        return $this->expires_at !== null && $this->expires_at->isPast();
+    }
+
+    public function isRevoked(): bool
+    {
+        return $this->status === self::STATUS_REVOKED;
+    }
+
+    public function isAccepted(): bool
+    {
+        return $this->status === self::STATUS_ACCEPTED;
+    }
+
+    /** Pending *and* still within its validity window. */
+    public function isPending(): bool
+    {
+        return $this->status === self::STATUS_PENDING && ! $this->isExpired();
+    }
+
+    /** True when this address is the one the invitation was issued to. */
+    public function matchesEmail(?string $email): bool
+    {
+        return $this->recipient_email !== ''
+            && $this->recipient_email === self::normalizeEmail($email);
+    }
+
+    /** @param  Builder<self>  $query */
+    public function scopeValid($query)
+    {
+        return $query->where('status', self::STATUS_PENDING)
+            ->where(function ($q) {
+                $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            });
+    }
+}

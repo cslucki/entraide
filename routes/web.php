@@ -24,6 +24,7 @@ use App\Http\Controllers\Admin\AdminEmailController;
 use App\Http\Controllers\Admin\AdminEmailLogsController;
 use App\Http\Controllers\Admin\AdminEmailTemplatesController;
 use App\Http\Controllers\Admin\AdminGuestShellController;
+use App\Http\Controllers\Admin\AdminUserBulkCreationController;
 use App\Http\Controllers\Admin\AdminIaDesignLabController;
 use App\Http\Controllers\Admin\AdminIaUsageByUserController;
 use App\Http\Controllers\Admin\AdminLoopController;
@@ -98,6 +99,7 @@ use App\Http\Controllers\LoopController;
 use App\Http\Controllers\LoopDossierArticleController;
 use App\Http\Controllers\LoopEventAgendaController;
 use App\Http\Controllers\LoopInvitationController;
+use App\Http\Controllers\OrganizationInvitationController;
 use App\Http\Controllers\LoopToolsController;
 use App\Http\Controllers\MemberAiProfileConversationsController;
 use App\Http\Controllers\MemberAiProfileInteractionController;
@@ -283,6 +285,13 @@ Route::post('/blog-invitations/{token}/prepare', [BlogInvitationController::clas
 // happens. Accepting never rides on a GET.
 Route::get('/loop-invitations/{token}', [LoopInvitationController::class, 'show'])->name('loop-invitations.show');
 Route::post('/loop-invitations/{token}/prepare', [LoopInvitationController::class, 'prepare'])->middleware('throttle:20,1')->name('loop-invitations.prepare');
+
+// TASK-1659 — flat and public, same shape as loop-invitations above: the
+// token is already globally unique and the landing page needs no auth. GET
+// is read-only; accept() is the only route that mutates (creates the
+// account, verifies the e-mail, logs in).
+Route::get('/organization-invitations/{token}', [OrganizationInvitationController::class, 'show'])->name('organization-invitations.show');
+Route::post('/organization-invitations/{token}/accept', [OrganizationInvitationController::class, 'accept'])->middleware('throttle:10,1')->name('organization-invitations.accept');
 
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 // TASK-1488 (P0 privacy) — /search etait un CONTOURNEMENT vivant du correctif
@@ -568,6 +577,17 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // deja dans les habitudes en destruction definitive. SuperAdmin uniquement ;
     // aucun equivalent OrgAdmin n'existe.
     Route::delete('/users/{user}/destroy', [AdminController::class, 'destroyUser'])->name('users.destroy');
+
+    // TASK-1659 — "Creation de comptes en masse". Outil SuperAdmin dedie,
+    // distinct de users.create ci-dessus (qui saisit un mot de passe en
+    // clair choisi par l'admin) : ici, une invitation par e-mail, jamais de
+    // mot de passe transmis. /users/bulk-create est un segment statique a 2
+    // niveaux, donc jamais capture par un /users/{user}/... a 3 niveaux.
+    Route::get('/users/bulk-create', [AdminUserBulkCreationController::class, 'index'])->name('users.bulk-create');
+    Route::post('/users/bulk-create/invitations', [AdminUserBulkCreationController::class, 'store'])->name('users.bulk-create.invitations.store');
+    Route::get('/users/bulk-create/invitations/{invitation}', [AdminUserBulkCreationController::class, 'show'])->name('users.bulk-create.invitations.show');
+    Route::post('/users/bulk-create/invitations/{invitation}/resend', [AdminUserBulkCreationController::class, 'resend'])->name('users.bulk-create.invitations.resend');
+    Route::post('/users/bulk-create/invitations/{invitation}/revoke', [AdminUserBulkCreationController::class, 'revoke'])->name('users.bulk-create.invitations.revoke');
 
     // Services
     Route::get('/services', [AdminController::class, 'services'])->name('services');

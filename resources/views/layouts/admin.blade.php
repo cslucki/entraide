@@ -103,6 +103,10 @@
                             ['route' => 'admin.crm.overview', 'label' => __('admin.crm_overview_menu'), 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'],
                             ['route' => 'admin.categories', 'label' => 'Catégories', 'icon' => 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z'],
                             ['route' => 'admin.users', 'label' => 'Utilisateurs', 'icon' => 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
+                            // TASK-1659 : outil SuperAdmin dedie, distinct de la creation
+                            // manuelle (admin.users.create) — invitation par e-mail, sans mot
+                            // de passe transmis.
+                            ['route' => 'admin.users.bulk-create', 'label' => 'Création de comptes en masse', 'icon' => 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z'],
                             ['route' => 'admin.reports', 'label' => 'Signalements', 'icon' => 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'],
                             ['route' => 'admin.bug-reports', 'label' => 'Bugs', 'icon' => 'M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83M11.42 15.17l2.5-2.5a3.375 3.375 0 00-4.773-4.773l-2.5 2.5m4.773 4.773l-4.773-4.773m0 0L3 6.75m3.647 3.647L3 14.25'],
                             ['route' => 'admin.referrals', 'label' => 'Invitations', 'icon' => 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z'],
@@ -255,7 +259,16 @@
                              x-transition:leave-end="opacity-0 scale-y-95"
                              class="origin-top">
                             @foreach($orgItems as $item)
-                            @php $itemActive = $isActive($item['route']); @endphp
+                            @php
+                                // TASK-1659 : 'admin.users.bulk-create' est imbrique sous le
+                                // prefixe 'admin.users.' (route voulue par MASTER), donc le
+                                // joker generique route.'.*' de $isActive allume AUSSI
+                                // 'Utilisateurs' quand on est sur cette page. Exclusion
+                                // ciblee, ici seulement : $isActive reste inchange pour
+                                // toutes les autres sections.
+                                $itemActive = $isActive($item['route'])
+                                    && ! ($item['route'] === 'admin.users' && request()->routeIs('admin.users.bulk-create', 'admin.users.bulk-create.*'));
+                            @endphp
                             <a href="{{ route($item['route']) }}"
                                class="flex items-center gap-3 px-3 py-2 pl-7 rounded-lg text-sm transition
                                       {{ $itemActive ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
