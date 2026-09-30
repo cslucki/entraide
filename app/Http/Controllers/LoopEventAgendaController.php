@@ -40,9 +40,13 @@ class LoopEventAgendaController extends Controller
         $user = $request->user();
         $organization = $this->resolveOrganization($user);
 
-        // Meme regle que partout ailleurs : on n'entre pas dans l'Organization
-        // d'un autre, meme par une URL ecrite a la main.
-        abort_if($user->organization_id !== $organization->id, 404);
+        // TASK-1658 — l'acces au tenant passe par l'autorite unique.
+        //
+        // La garde disait « on n'entre pas dans l'Organization d'un autre ».
+        // Elle reste vraie pour un utilisateur ordinaire ; elle etait fausse
+        // pour le SuperAdmin plateforme, qui doit pouvoir inspecter n'importe
+        // quel tenant sans en devenir membre.
+        abort_unless($user->canAccessOrganization($organization), 404);
 
         $service = app(LoopEventService::class);
         $presenter = app(LoopEventPresenter::class);

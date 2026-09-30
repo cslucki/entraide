@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ScenarioManifestVersion;
+use App\Models\ScenarioPackEntity;
+use App\Support\ScenarioManager\Persona\ScenarioPersonaAccess;
 use App\Support\ScenarioManager\ScenarioDraftReadiness;
 use App\Support\ScenarioManager\ScenarioLifecycleService;
 use App\Support\ScenarioManager\ScenarioPreview;
@@ -247,6 +249,19 @@ class AdminScenarioManagerController extends Controller
             // TASK-1656 §20 : « a completer » ou « invalide » — la fiche ne doit
             // pas presenter un debut de construction comme une panne.
             'lecture' => ScenarioDraftReadiness::pour($version),
+            // TASK-1658 — « Se connecter sous », dans l'onglet « personnes ».
+            //
+            // L'onglet liste ce que le DOCUMENT declare ; le geste, lui, a besoin
+            // du compte REELLEMENT charge. L'appariement passe par le registre de
+            // tracabilite (`manifest_user` -> `entity_id`), seule autorite pour
+            // relier une clef de manifeste a la ligne creee : l'email ne convient
+            // pas, le Load le transforme en `…@<slug>.…` (T1654).
+            //
+            // Et on n'offre que des personas que le Persona Access ACCEPTERA :
+            // `personasEligibles()` applique les memes conditions que la porte
+            // d'entree. Proposer un geste que la garde refuse ensuite est le
+            // defaut qu'on passe cette campagne a corriger.
+            'personasParClef' => self::personasChargeesParClef($version),
             // TASK-1656 §15 : le libelle de suppression, ici comme sur la carte.
             'versionsDeLaClef' => ScenarioManifestVersion::query()
                 ->where('scenario_key', $version->scenario_key)
@@ -258,6 +273,44 @@ class AdminScenarioManagerController extends Controller
      * Le formulaire de creation (CDC 9.1 a 9.3) : scenario vide, import de
      * fichier, ou collage de texte. Les trois aboutissent a un DRAFT.
      */
+    /**
+     * Clef de manifeste -> identifiant du compte CHARGE, pour les personas
+     * empruntables de cette version.
+     *
+     * Rend un tableau VIDE des que la version n'est pas chargee, que la sandbox
+     * n'est plus vivante, ou qu'aucun persona n'est eligible : l'onglet
+     * n'affichera alors aucun geste, plutot qu'un bouton qui echouerait.
+     *
+     * @return array<string, string>
+     */
+    private static function personasChargeesParClef(ScenarioManifestVersion $version): array
+    {
+        if (! $version->isLoaded()) {
+            return [];
+        }
+
+        $acces = app(ScenarioPersonaAccess::class);
+
+        try {
+            $eligibles = $acces->personasEligibles($version)->keyBy('id');
+        } catch (\Throwable) {
+            // Sandbox en corbeille, chargement denoue : pas de geste a offrir.
+            return [];
+        }
+
+        if ($eligibles->isEmpty()) {
+            return [];
+        }
+
+        return ScenarioPackEntity::query()
+            ->where('scenario_pack_load_id', $version->scenario_pack_load_id)
+            ->where('entity_type', 'manifest_user')
+            ->pluck('entity_id', 'internal_key')
+            ->filter(fn ($id): bool => $eligibles->has($id))
+            ->map(fn ($id): string => (string) $id)
+            ->all();
+    }
+
     /**
      * Les compteurs de chaque modele publie, pour la carte « Modeles ».
      *

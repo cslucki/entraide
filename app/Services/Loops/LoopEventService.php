@@ -266,10 +266,29 @@ class LoopEventService
             ->where('status', 'active')
             ->pluck('loop_id');
 
+        // TASK-1658 — le SuperAdmin plateforme voit l'agenda du tenant ENTIER.
+        //
+        // Le filtre ci-dessous est un filtre d'APPARTENANCE aux Boucles : sans
+        // lui, une personne ordinaire verrait les rencontres de Boucles dont
+        // elle n'est pas membre. Il reste donc en place pour tout le monde.
+        //
+        // Mais pour un SuperAdmin il cachait le tenant qu'il vient precisement
+        // inspecter : entre dans l'Organization, il n'y aurait vu que les
+        // evenements remontes au niveau Organization. Acceder sans voir n'est
+        // pas inspecter.
+        //
+        // Le scope d'Organization, lui, n'est JAMAIS retire — il est pose sur
+        // la requete, en dehors de cette condition. C'est lui qui garantit que
+        // `/org/<slug>/agenda` ne montre que ce tenant, et le bypass ne
+        // l'effleure pas.
+        $voitToutLeTenant = (bool) $user->is_admin;
+
         return LoopEvent::where('loop_events.organization_id', $organizationId)
-            ->where(function ($q) use ($memberLoopIds) {
-                $q->where('visibility', LoopEvent::VISIBILITY_ORGANIZATION)
-                    ->orWhereIn('loop_id', $memberLoopIds);
+            ->when(! $voitToutLeTenant, function ($query) use ($memberLoopIds) {
+                $query->where(function ($q) use ($memberLoopIds) {
+                    $q->where('visibility', LoopEvent::VISIBILITY_ORGANIZATION)
+                        ->orWhereIn('loop_id', $memberLoopIds);
+                });
             })
             ->with(['loop', 'creator'])
             ->withCount(['responses as going_count' => fn ($q) => $q->where('response', LoopEventResponse::GOING)])
