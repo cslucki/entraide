@@ -75,6 +75,21 @@
                         </p>
                     </div>
 
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Langue de l'email</label>
+                        <select name="locale"
+                                class="w-full max-w-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <option value="fr" @selected(old('locale', \App\Models\OrganizationInvitation::DEFAULT_LOCALE) === 'fr')>Français</option>
+                            <option value="en" @selected(old('locale') === 'en')>English</option>
+                        </select>
+                        @error('locale')
+                            <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                        @enderror
+                        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                            S'applique à toutes les personnes de cet envoi.
+                        </p>
+                    </div>
+
                     <div class="space-y-3">
                         <template x-for="(person, index) in people" :key="index">
                             <div class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1.5fr_auto] gap-3 items-start">
@@ -162,6 +177,7 @@
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                                         {{ $invitation->recipient_email }}
+                                        <span class="ml-1 text-xs uppercase text-gray-400 dark:text-gray-500">{{ $invitation->locale }}</span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                         {{ $invitation->organization?->name }}

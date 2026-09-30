@@ -202,27 +202,25 @@ class TASK1659OrganizationInvitationTest extends TestCase
     }
 
     /**
-     * Regression: the mailer originally picked the e-mail language from
-     * `app()->getLocale()` — the SuperAdmin's OWN session language — never
-     * the target Organization's. LaunchPals is configured 'en' in real
-     * data; before the fix, inviting into it still sent French. Cyril asked
-     * how to send an English invitation — the answer is the Organization's
-     * own `locale` field, already used elsewhere in the app, which the
-     * mailer now actually reads.
+     * The e-mail language is CHOSEN on the form (French by default), and
+     * deliberately not taken from `app()->getLocale()` — the SuperAdmin's
+     * own session language, which says nothing about what the invited
+     * person reads.
      */
-    public function test_invitation_email_follows_the_target_organizations_locale_via_blade_fallback(): void
+    public function test_invitation_email_uses_the_language_chosen_on_the_form(): void
     {
-        $org = $this->org(['name' => 'LaunchPals', 'locale' => 'en']);
+        $org = $this->org(['name' => 'LaunchPals']);
         // The request locale is decided by the SetLocale middleware, not by
         // anything this test sets beforehand — so pin it through the one
         // input that middleware reads first for an authenticated admin.
-        // Admin reads French, target Organization is English: the two must
-        // not be the same value, or the test could not tell a leak from a
-        // correct restore.
+        // Admin reads French, the invitation is sent in English: the two
+        // must differ, or the test could not tell a leak from a correct
+        // restore.
         $admin = User::factory()->create(['is_admin' => true, 'preferred_locale' => 'fr']);
 
         $this->actingAs($admin)->post(route('admin.users.bulk-create.invitations.store'), [
             'organization_id' => $org->id,
+            'locale' => 'en',
             'people' => [
                 ['first_name' => 'Jean', 'last_name' => 'Dupont', 'email' => 'anglophone@example.test'],
             ],
@@ -239,9 +237,27 @@ class TASK1659OrganizationInvitationTest extends TestCase
         $this->assertSame('fr', app()->getLocale());
     }
 
-    public function test_invitation_email_prefers_an_enabled_system_template_in_the_organizations_locale(): void
+    public function test_french_is_the_default_when_no_language_is_chosen(): void
     {
-        $org = $this->org(['locale' => 'en']);
+        $org = $this->org();
+        $admin = User::factory()->create(['is_admin' => true, 'preferred_locale' => 'en']);
+
+        $this->actingAs($admin)->post(route('admin.users.bulk-create.invitations.store'), [
+            'organization_id' => $org->id,
+            // no 'locale' key at all
+            'people' => [
+                ['first_name' => 'Jean', 'last_name' => 'Dupont', 'email' => 'defaut@example.test'],
+            ],
+        ]);
+
+        $invitation = OrganizationInvitation::where('recipient_email', 'defaut@example.test')->firstOrFail();
+        $this->assertSame('fr', $invitation->locale);
+        $this->assertStringContainsString('Vous êtes invité', $this->sentHtml());
+    }
+
+    public function test_invitation_email_prefers_an_enabled_system_template_in_the_chosen_locale(): void
+    {
+        $org = $this->org();
         SystemEmailTemplate::create([
             'organization_id' => $org->id,
             'locale' => 'en',
@@ -256,6 +272,7 @@ class TASK1659OrganizationInvitationTest extends TestCase
 
         $this->actingAs($admin)->post(route('admin.users.bulk-create.invitations.store'), [
             'organization_id' => $org->id,
+            'locale' => 'en',
             'people' => [
                 ['first_name' => 'Jean', 'last_name' => 'Dupont', 'email' => 'template@example.test'],
             ],

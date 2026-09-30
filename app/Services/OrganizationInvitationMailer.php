@@ -23,13 +23,15 @@ class OrganizationInvitationMailer
         $sender = $invitation->createdBy;
         $landingUrl = route('organization-invitations.show', $invitation->token);
 
-        // The recipient doesn't have an account yet, so there is no
-        // per-person locale to read — the Organization's own configured
-        // language is the only meaningful signal (e.g. LaunchPals is
-        // 'en'). Deliberately NOT app()->getLocale(): that is the
-        // SuperAdmin's own session language, which has nothing to do with
-        // the language the invited person should read.
-        $locale = $organization?->locale ?: config('app.locale');
+        // The language the SuperAdmin chose for THIS invitation (French by
+        // default). Deliberately NOT app()->getLocale(): that is the
+        // SuperAdmin's own session language, which says nothing about the
+        // language the invited person reads — and not the Organization's
+        // locale either, since one Organization can welcome people who read
+        // different languages.
+        $locale = in_array($invitation->locale, OrganizationInvitation::LOCALES, true)
+            ? $invitation->locale
+            : OrganizationInvitation::DEFAULT_LOCALE;
 
         $template = SystemEmailTemplate::where('slug', 'organization_invitation')
             ->where('enabled', true)

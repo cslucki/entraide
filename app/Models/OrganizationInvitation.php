@@ -33,12 +33,17 @@ class OrganizationInvitation extends Model
 
     public const STATUS_REVOKED = 'revoked';
 
+    public const LOCALES = ['fr', 'en'];
+
+    public const DEFAULT_LOCALE = 'fr';
+
     protected $fillable = [
         'organization_id',
         'created_by_user_id',
         'recipient_first_name',
         'recipient_name',
         'recipient_email',
+        'locale',
         'token',
         'status',
         'expires_at',
@@ -56,6 +61,10 @@ class OrganizationInvitation extends Model
         static::creating(function (OrganizationInvitation $invitation) {
             if (empty($invitation->token)) {
                 $invitation->token = Str::random(64);
+            }
+
+            if (! in_array($invitation->locale, self::LOCALES, true)) {
+                $invitation->locale = self::DEFAULT_LOCALE;
             }
 
             if (is_null($invitation->expires_at)) {

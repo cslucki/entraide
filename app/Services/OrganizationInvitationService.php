@@ -58,11 +58,14 @@ class OrganizationInvitationService
      *
      * @return array{case: string, invitation: ?OrganizationInvitation, user: ?User}
      */
-    public function invite(Organization $organization, User $admin, string $email, ?string $firstName, ?string $lastName): array
+    public function invite(Organization $organization, User $admin, string $email, ?string $firstName, ?string $lastName, ?string $locale = null): array
     {
         $email = OrganizationInvitation::normalizeEmail($email);
+        $locale = in_array($locale, OrganizationInvitation::LOCALES, true)
+            ? $locale
+            : OrganizationInvitation::DEFAULT_LOCALE;
 
-        return DB::transaction(function () use ($organization, $admin, $email, $firstName, $lastName) {
+        return DB::transaction(function () use ($organization, $admin, $email, $firstName, $lastName, $locale) {
             // TASK-1650, third expression of the same guard: no real account
             // is ever provisioned into a Scenario Manager sandbox. Checked
             // here, not only at the form's server-side validation, because
@@ -106,7 +109,7 @@ class OrganizationInvitationService
                         'recipient_first_name' => $firstName,
                         'recipient_name' => $lastName,
                     ], fn ($v) => $v !== null),
-                    ['expires_at' => now()->addHours(48)],
+                    ['locale' => $locale, 'expires_at' => now()->addHours(48)],
                 ));
 
                 return ['case' => self::CASE_RESENT, 'invitation' => $pending->fresh(), 'user' => null];
@@ -123,6 +126,7 @@ class OrganizationInvitationService
                 'recipient_first_name' => $firstName,
                 'recipient_name' => $lastName,
                 'recipient_email' => $email,
+                'locale' => $locale,
                 'status' => OrganizationInvitation::STATUS_PENDING,
             ]);
 

@@ -9,6 +9,7 @@ use App\Services\OrganizationInvitationMailer;
 use App\Services\OrganizationInvitationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
@@ -50,6 +51,7 @@ class AdminUserBulkCreationController extends Controller
     {
         $validated = $request->validate([
             'organization_id' => ['required', 'uuid', 'exists:organizations,id'],
+            'locale' => ['nullable', Rule::in(OrganizationInvitation::LOCALES)],
             'people' => ['required', 'array', 'min:1'],
             'people.*.first_name' => ['required', 'string', 'max:255'],
             'people.*.last_name' => ['required', 'string', 'max:255'],
@@ -76,6 +78,7 @@ class AdminUserBulkCreationController extends Controller
                 $person['email'],
                 $person['first_name'],
                 $person['last_name'],
+                $validated['locale'] ?? OrganizationInvitation::DEFAULT_LOCALE,
             );
 
             if ($outcome['case'] === OrganizationInvitationService::CASE_CREATED) {
@@ -109,6 +112,7 @@ class AdminUserBulkCreationController extends Controller
             $invitation->recipient_email,
             $invitation->recipient_first_name,
             $invitation->recipient_name,
+            $invitation->locale,
         );
 
         if (in_array($outcome['case'], [OrganizationInvitationService::CASE_CREATED, OrganizationInvitationService::CASE_RESENT], true)) {
