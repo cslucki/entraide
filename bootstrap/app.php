@@ -4,6 +4,7 @@ use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\CheckAiProfilesEnabled;
 use App\Http\Middleware\CheckLoopsEnabled;
 use App\Http\Middleware\ConsumeOrgParams;
+use App\Http\Middleware\EnsureInvitationPasswordIsSet;
 use App\Http\Middleware\EnsureProfileComplete;
 use App\Http\Middleware\EnsureScenarioPersonaContextIsValid;
 use App\Http\Middleware\EnsureOrganizationMember;
@@ -136,6 +137,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ResolveOrganization::class,
             SetLocale::class,
             SubstituteBindings::class,
+            // TASK-1659 — un compte cree par invitation doit poser son mot de
+            // passe avant d'aller ou que ce soit. APRES SubstituteBindings :
+            // la garde s'exprime en noms de routes, qui doivent etre resolus.
+            // Ne coute qu'une lecture d'attribut deja charge pour tout le monde.
+            EnsureInvitationPasswordIsSet::class,
         ]);
         $middleware->appendToGroup('api', [
             ResolveApiOrganization::class,

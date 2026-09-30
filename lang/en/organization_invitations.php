@@ -25,7 +25,15 @@ return [
     'landing_body' => 'Click the button below to create your access to :organization.',
     'landing_cta_join' => 'Join :organization',
     'landing_cta_enter' => 'Go to my account',
-    'landing_no_password_needed' => 'No password is needed: your access is created directly.',
+    'landing_no_password_needed' => 'You will choose your password right after.',
+
+    // Second step: choose a password
+    'password_title' => 'Choose your password',
+    'password_intro' => 'Your access is ready. Set a password so you can sign back in later.',
+    'password_label' => 'Password',
+    'password_confirm_label' => 'Confirm password',
+    'password_cta' => 'Save and continue',
+    'password_set' => 'Your password is saved. Welcome!',
 
     // Redirects after an accept attempt
     'welcome' => 'Welcome to :organization.',

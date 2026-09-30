@@ -105,6 +105,10 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_available' => 'boolean',
+            // TASK-1659 — deliberement HORS `$fillable`, comme
+            // `email_verified_at` : seul le parcours d'invitation le pose,
+            // et seul l'ecran de definition du mot de passe le retire.
+            'must_set_password' => 'boolean',
             'is_admin' => 'boolean',
             'show_email' => 'boolean',
             'show_phone' => 'boolean',

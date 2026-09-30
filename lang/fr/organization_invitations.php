@@ -25,7 +25,15 @@ return [
     'landing_body' => 'Cliquez sur le bouton ci-dessous pour créer votre accès à :organization.',
     'landing_cta_join' => 'Rejoindre :organization',
     'landing_cta_enter' => 'Accéder à mon espace',
-    'landing_no_password_needed' => 'Aucun mot de passe n\'est nécessaire : votre accès est créé directement.',
+    'landing_no_password_needed' => 'Vous choisirez votre mot de passe juste après.',
+
+    // Deuxieme etape : definir son mot de passe
+    'password_title' => 'Choisissez votre mot de passe',
+    'password_intro' => 'Votre accès est créé. Définissez un mot de passe pour pouvoir vous reconnecter ensuite.',
+    'password_label' => 'Mot de passe',
+    'password_confirm_label' => 'Confirmez le mot de passe',
+    'password_cta' => 'Enregistrer et continuer',
+    'password_set' => 'Votre mot de passe est enregistré. Bienvenue !',
 
     // Redirections apres tentative d'acceptation
     'welcome' => 'Bienvenue dans :organization.',

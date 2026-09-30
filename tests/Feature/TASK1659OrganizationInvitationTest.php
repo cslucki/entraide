@@ -7,6 +7,7 @@ use App\Models\OrganizationInvitation;
 use App\Models\SystemEmailTemplate;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Symfony\Component\Mime\Email;
 use Tests\TestCase;
@@ -472,6 +473,86 @@ class TASK1659OrganizationInvitationTest extends TestCase
             'reason' => 'welcome_bonus',
             'delta' => 100,
         ]);
+    }
+
+    // ── Deuxieme etape : definir son mot de passe ─────────────────────────
+
+    public function test_accepting_lands_on_the_password_step_not_the_dashboard(): void
+    {
+        $org = $this->org();
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $org->id,
+            'recipient_email' => 'motdepasse@example.test',
+        ]);
+
+        $this->post(route('organization-invitations.accept', $invitation->token))
+            ->assertRedirect(route('invitation.password.create'));
+
+        $user = User::where('email', 'motdepasse@example.test')->firstOrFail();
+        $this->assertTrue($user->must_set_password);
+        $this->assertAuthenticatedAs($user);
+    }
+
+    /**
+     * The point of the step: it must not be skippable by simply typing
+     * another URL — otherwise the person keeps an account whose password
+     * nobody knows, and would need "forgot password" to ever return.
+     */
+    public function test_the_password_step_cannot_be_skipped_by_navigating_elsewhere(): void
+    {
+        $org = $this->org();
+        $invitation = OrganizationInvitation::factory()->create(['organization_id' => $org->id]);
+        $this->post(route('organization-invitations.accept', $invitation->token));
+
+        $this->get(route('dashboard'))->assertRedirect(route('invitation.password.create'));
+        $this->get(route('profile.edit'))->assertRedirect(route('invitation.password.create'));
+    }
+
+    public function test_setting_the_password_releases_the_account_and_actually_works(): void
+    {
+        $org = $this->org();
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $org->id,
+            'recipient_email' => 'libere@example.test',
+        ]);
+        $this->post(route('organization-invitations.accept', $invitation->token));
+
+        $this->post(route('invitation.password.store'), [
+            'password' => 'un-mot-de-passe-solide-42',
+            'password_confirmation' => 'un-mot-de-passe-solide-42',
+        ])->assertRedirect();
+
+        $user = User::where('email', 'libere@example.test')->firstOrFail();
+        $this->assertFalse($user->must_set_password);
+        // The chosen password is the one that now opens the account.
+        $this->assertTrue(Hash::check('un-mot-de-passe-solide-42', $user->password));
+
+        // And the step stops standing in the way.
+        $this->get(route('dashboard'))->assertOk();
+    }
+
+    public function test_a_weak_or_unconfirmed_password_is_refused_and_the_step_stays(): void
+    {
+        $org = $this->org();
+        $invitation = OrganizationInvitation::factory()->create(['organization_id' => $org->id]);
+        $this->post(route('organization-invitations.accept', $invitation->token));
+        $user = User::where('email', $invitation->recipient_email)->firstOrFail();
+
+        $this->post(route('invitation.password.store'), [
+            'password' => 'court',
+            'password_confirmation' => 'pas-le-meme',
+        ])->assertSessionHasErrors('password');
+
+        $this->assertTrue($user->fresh()->must_set_password);
+    }
+
+    public function test_an_ordinary_account_is_never_sent_to_the_password_step(): void
+    {
+        $org = $this->org();
+        $user = User::factory()->create(['organization_id' => $org->id]);
+
+        $this->actingAs($user)->get(route('dashboard'))->assertOk();
+        $this->actingAs($user)->get(route('invitation.password.create'))->assertRedirect();
     }
 
     public function test_reclicking_an_already_accepted_link_is_idempotent(): void

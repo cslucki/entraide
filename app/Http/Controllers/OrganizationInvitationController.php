@@ -49,6 +49,15 @@ class OrganizationInvitationController extends Controller
 
             Auth::login($user);
 
+            // Second step before anything else: the account was born with a
+            // random secret nobody knows (Cyril, 30/09). The middleware
+            // enforces it too — this redirect just avoids a pointless bounce
+            // through the dashboard route.
+            if ($user->must_set_password) {
+                return redirect()->route('invitation.password.create')
+                    ->with('success', __('organization_invitations.welcome', ['organization' => $organization?->name ?? '']));
+            }
+
             return redirect()->intended($user->getLoginRedirectTarget())
                 ->with('success', __('organization_invitations.welcome', ['organization' => $organization?->name ?? '']));
         }

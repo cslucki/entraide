@@ -98,6 +98,7 @@ use App\Http\Controllers\LoopCatchUpController;
 use App\Http\Controllers\LoopController;
 use App\Http\Controllers\LoopDossierArticleController;
 use App\Http\Controllers\LoopEventAgendaController;
+use App\Http\Controllers\InvitationPasswordController;
 use App\Http\Controllers\LoopInvitationController;
 use App\Http\Controllers\OrganizationInvitationController;
 use App\Http\Controllers\LoopToolsController;
@@ -292,6 +293,14 @@ Route::post('/loop-invitations/{token}/prepare', [LoopInvitationController::clas
 // account, verifies the e-mail, logs in).
 Route::get('/organization-invitations/{token}', [OrganizationInvitationController::class, 'show'])->name('organization-invitations.show');
 Route::post('/organization-invitations/{token}/accept', [OrganizationInvitationController::class, 'accept'])->middleware('throttle:10,1')->name('organization-invitations.accept');
+
+// TASK-1659 — deuxieme etape : le compte vient d'etre cree et connecte, la
+// personne pose son mot de passe avant d'atteindre son Organization.
+// EnsureInvitationPasswordIsSet (groupe web) y renvoie tant que c'est du.
+Route::middleware('auth')->group(function () {
+    Route::get('/invitation/mot-de-passe', [InvitationPasswordController::class, 'create'])->name('invitation.password.create');
+    Route::post('/invitation/mot-de-passe', [InvitationPasswordController::class, 'store'])->name('invitation.password.store');
+});
 
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 // TASK-1488 (P0 privacy) — /search etait un CONTOURNEMENT vivant du correctif

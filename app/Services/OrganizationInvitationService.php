@@ -224,12 +224,21 @@ class OrganizationInvitationService
                 'organization_id' => $organization->id,
             ]);
 
-            // `email_verified_at` is deliberately NOT in User::$fillable —
-            // mass-assigning it would let any other form flip it by
-            // accident. Setting it explicitly here is the one place that is
-            // allowed to: clicking a token sent to this exact address IS
-            // the proof of possession (MASTER, INVITATION_CLICK_VERIFIES_EMAIL = YES).
-            $user->forceFill(['email_verified_at' => now()])->save();
+            // Both flags are deliberately NOT in User::$fillable —
+            // mass-assigning them would let any other form flip them by
+            // accident. This is the one place allowed to set them.
+            //
+            // email_verified_at: clicking a token sent to this exact
+            // address IS the proof of possession (MASTER,
+            // INVITATION_CLICK_VERIFIES_EMAIL = YES).
+            //
+            // must_set_password: the account was born with a random secret
+            // nobody knows, so the person must choose one before going
+            // anywhere (Cyril, 30/09) — otherwise they never would.
+            $user->forceFill([
+                'email_verified_at' => now(),
+                'must_set_password' => true,
+            ])->save();
 
             PointLedger::create([
                 'user_id' => $user->id,
