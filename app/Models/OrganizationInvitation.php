@@ -39,6 +39,7 @@ class OrganizationInvitation extends Model
 
     protected $fillable = [
         'organization_id',
+        'loop_id',
         'created_by_user_id',
         'recipient_first_name',
         'recipient_name',
@@ -100,6 +101,12 @@ class OrganizationInvitation extends Model
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    /** Boucle cible, optionnelle : ou la personne atterrit, et ce qu'elle rejoint. */
+    public function loop(): BelongsTo
+    {
+        return $this->belongsTo(Loop::class);
     }
 
     public function createdBy(): BelongsTo

@@ -43,11 +43,23 @@
             @endif
 
             <!-- Créer des accès -->
+            @php
+                // Les Boucles proposables, par Organization — le selecteur se
+                // filtre cote client, sans aller-retour serveur.
+                $loopOptions = $loopsByOrganization->map(fn ($loops) => $loops
+                    ->map(fn ($l) => ['id' => $l->id, 'name' => $l->name, 'private' => $l->visibility === 'private'])
+                    ->values());
+            @endphp
             <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg p-6"
                  x-data="{
                     people: [{ first_name: '', last_name: '', email: '' }],
                     addRow() { this.people.push({ first_name: '', last_name: '', email: '' }) },
                     removeRow(i) { if (this.people.length > 1) this.people.splice(i, 1) },
+                    loopsByOrg: {{ Js::from($loopOptions) }},
+                    organizationId: '{{ old('organization_id', $selectedOrganizationId) }}',
+                    loopId: '{{ old('loop_id') }}',
+                    get loops() { return this.loopsByOrg[this.organizationId] ?? [] },
+                    onOrganizationChange() { this.loopId = '' },
                  }">
                 <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
                     Créer des accès
@@ -59,6 +71,7 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Organisation</label>
                         <select name="organization_id" required
+                                x-model="organizationId" @change="onOrganizationChange()"
                                 class="w-full max-w-md rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                             <option value="">— Sélectionner —</option>
                             @foreach ($organizations as $organization)
@@ -72,6 +85,27 @@
                         @enderror
                         <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
                             Les organisations en sandbox du Scenario Manager ne sont pas proposées : aucun vrai compte n'y est créé.
+                        </p>
+                    </div>
+
+                    <div x-show="organizationId" x-cloak>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Boucle cible <span class="text-gray-400 font-normal">(facultatif)</span></label>
+                        <select name="loop_id" x-model="loopId"
+                                class="w-full max-w-md rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <option value="">— Aucune —</option>
+                            <template x-for="loop in loops" :key="loop.id">
+                                <option :value="loop.id" x-text="loop.name + (loop.private ? ' (privée)' : '')"></option>
+                            </template>
+                        </select>
+                        @error('loop_id')
+                            <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                        @enderror
+                        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                            La personne rejoint cette Boucle en acceptant, et y atterrit après avoir choisi son mot de passe.
+                            Pour une Boucle privée, l'invitation vaut autorisation d'y entrer.
+                        </p>
+                        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500" x-show="loops.length === 0" x-cloak>
+                            Aucune Boucle active dans cette organisation.
                         </p>
                     </div>
 
@@ -209,6 +243,9 @@
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                         {{ $invitation->organization?->name }}
+                                        @if ($invitation->loop)
+                                            <span class="block text-xs text-gray-400 dark:text-gray-500">↳ {{ $invitation->loop->name }}</span>
+                                        @endif
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         @if ($invitation->isAccepted())

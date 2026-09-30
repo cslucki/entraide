@@ -39,6 +39,15 @@
                         <dd class="mt-1 text-gray-900 dark:text-gray-100">{{ $invitation->status }}</dd>
                     </div>
                     <div>
+                        <dt class="text-gray-500 dark:text-gray-400">Boucle cible</dt>
+                        <dd class="mt-1 text-gray-900 dark:text-gray-100">
+                            {{ $invitation->loop?->name ?? '—' }}
+                            @if ($invitation->loop?->visibility === 'private')
+                                <span class="text-xs text-gray-400">(privée)</span>
+                            @endif
+                        </dd>
+                    </div>
+                    <div>
                         <dt class="text-gray-500 dark:text-gray-400">Langue de l'email</dt>
                         <dd class="mt-1 text-gray-900 dark:text-gray-100">{{ $invitation->locale === 'en' ? 'English' : 'Français' }}</dd>
                     </div>

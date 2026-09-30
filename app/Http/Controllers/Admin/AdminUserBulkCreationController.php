@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\OrganizationInvitation;
 use App\Services\OrganizationInvitationMailer;
@@ -36,7 +37,7 @@ class AdminUserBulkCreationController extends Controller
 
         $status = $request->input('status');
 
-        $invitations = OrganizationInvitation::with(['organization', 'createdBy', 'acceptedBy'])
+        $invitations = OrganizationInvitation::with(['organization', 'loop', 'createdBy', 'acceptedBy'])
             ->when($request->filled('organization_id'), fn ($q) => $q->where('organization_id', $request->input('organization_id')))
             // « Expirée » ne se lit pas dans la seule colonne `status` : une
             // ligne reste `pending` en base jusqu'a ce qu'un passage la
@@ -57,8 +58,20 @@ class AdminUserBulkCreationController extends Controller
             ->paginate(30)
             ->withQueryString();
 
+        // Les Boucles proposables, groupees par Organization : le selecteur
+        // se filtre cote client sur l'Organization choisie, sans aller-retour
+        // serveur. Seules les Boucles ACTIVES des Organizations elles-memes
+        // proposables sont envoyees.
+        $loopsByOrganization = Loop::query()
+            ->whereIn('organization_id', $organizations->pluck('id'))
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'name', 'organization_id', 'visibility'])
+            ->groupBy('organization_id');
+
         return view('admin.users.bulk-create', [
             'organizations' => $organizations,
+            'loopsByOrganization' => $loopsByOrganization,
             'invitations' => $invitations,
             'selectedOrganizationId' => $request->input('organization_id'),
             'selectedStatus' => $status,
@@ -101,6 +114,10 @@ class AdminUserBulkCreationController extends Controller
         $validated = $request->validate([
             'organization_id' => ['required', 'uuid', 'exists:organizations,id'],
             'locale' => ['nullable', Rule::in(OrganizationInvitation::LOCALES)],
+            // La Boucle doit appartenir a l'Organization choisie : la
+            // frontiere de tenant se verifie dans la requete elle-meme, pas
+            // seulement plus loin.
+            'loop_id' => ['nullable', 'uuid', Rule::exists('loops', 'id')->where('organization_id', $request->input('organization_id'))],
             'people' => ['required', 'array', 'min:1'],
             'people.*.first_name' => ['required', 'string', 'max:255'],
             'people.*.last_name' => ['required', 'string', 'max:255'],
@@ -128,6 +145,7 @@ class AdminUserBulkCreationController extends Controller
                 $person['first_name'],
                 $person['last_name'],
                 $validated['locale'] ?? OrganizationInvitation::DEFAULT_LOCALE,
+                $validated['loop_id'] ?? null,
             );
 
             if ($outcome['case'] === OrganizationInvitationService::CASE_CREATED) {
@@ -162,6 +180,7 @@ class AdminUserBulkCreationController extends Controller
             $invitation->recipient_first_name,
             $invitation->recipient_name,
             $invitation->locale,
+            $invitation->loop_id,
         );
 
         if (in_array($outcome['case'], [OrganizationInvitationService::CASE_CREATED, OrganizationInvitationService::CASE_RESENT], true)) {
@@ -186,7 +205,7 @@ class AdminUserBulkCreationController extends Controller
 
     public function show(OrganizationInvitation $invitation): View
     {
-        $invitation->load(['organization', 'createdBy', 'acceptedBy']);
+        $invitation->load(['organization', 'loop', 'createdBy', 'acceptedBy']);
 
         return view('admin.users.bulk-create-show', compact('invitation'));
     }

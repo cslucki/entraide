@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\OrganizationInvitation;
 use App\Models\SystemEmailTemplate;
@@ -313,6 +314,97 @@ class TASK1659OrganizationInvitationTest extends TestCase
         ]);
         $log = \App\Models\EmailLog::where('to_email', 'template@example.test')->firstOrFail();
         $this->assertSame('system_email_template', $log->data['template_used']);
+    }
+
+    // ── Boucle cible ──────────────────────────────────────────────────────
+
+    /**
+     * Une Boucle PRIVEE : c'est le cas qui porte la valeur. L'invitation
+     * emise par un SuperAdmin vaut autorisation d'y entrer — pas de demande
+     * d'adhesion separee.
+     */
+    public function test_accepting_joins_the_target_loop_even_when_it_is_private(): void
+    {
+        $org = $this->org();
+        $loop = Loop::factory()->create([
+            'organization_id' => $org->id,
+            'status' => 'active',
+            'visibility' => 'private',
+        ]);
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $org->id,
+            'loop_id' => $loop->id,
+            'recipient_email' => 'boucle@example.test',
+        ]);
+
+        $this->post(route('organization-invitations.accept', $invitation->token));
+
+        $user = User::where('email', 'boucle@example.test')->firstOrFail();
+        $this->assertDatabaseHas('loop_members', [
+            'loop_id' => $loop->id,
+            'user_id' => $user->id,
+            'status' => 'active',
+        ]);
+    }
+
+    public function test_the_password_step_then_lands_on_the_target_loop(): void
+    {
+        $org = $this->org();
+        $loop = Loop::factory()->create(['organization_id' => $org->id, 'status' => 'active', 'visibility' => 'private']);
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $org->id,
+            'loop_id' => $loop->id,
+            'recipient_email' => 'atterrissage@example.test',
+        ]);
+
+        $this->post(route('organization-invitations.accept', $invitation->token));
+
+        $this->post(route('invitation.password.store'), [
+            'password' => 'un-mot-de-passe-solide-42',
+            'password_confirmation' => 'un-mot-de-passe-solide-42',
+        ])->assertRedirect(route('organization.loops.show', ['organization' => $org->slug, 'loop' => $loop]));
+    }
+
+    public function test_without_a_target_loop_the_password_step_lands_on_the_organization(): void
+    {
+        $org = $this->org();
+        $invitation = OrganizationInvitation::factory()->create([
+            'organization_id' => $org->id,
+            'loop_id' => null,
+            'recipient_email' => 'sansboucle@example.test',
+        ]);
+
+        $this->post(route('organization-invitations.accept', $invitation->token));
+        $user = User::where('email', 'sansboucle@example.test')->firstOrFail();
+
+        $this->post(route('invitation.password.store'), [
+            'password' => 'un-mot-de-passe-solide-42',
+            'password_confirmation' => 'un-mot-de-passe-solide-42',
+        ])->assertRedirect($user->getLoginRedirectTarget());
+    }
+
+    /**
+     * Frontiere de tenant : une Boucle d'une AUTRE Organization ne peut pas
+     * devenir la cible, meme soumise directement dans la requete.
+     */
+    public function test_a_loop_from_another_organization_is_refused_as_a_target(): void
+    {
+        $orgA = $this->org();
+        $orgB = $this->org();
+        $loopChezB = Loop::factory()->create(['organization_id' => $orgB->id, 'status' => 'active']);
+        $admin = $this->superAdmin();
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.bulk-create.invitations.store'), [
+                'organization_id' => $orgA->id,
+                'loop_id' => $loopChezB->id,
+                'people' => [
+                    ['first_name' => 'Jean', 'last_name' => 'Dupont', 'email' => 'horstenant@example.test'],
+                ],
+            ])
+            ->assertSessionHasErrors('loop_id');
+
+        $this->assertDatabaseMissing('organization_invitations', ['recipient_email' => 'horstenant@example.test']);
     }
 
     // ── Suivi : filtrer par etat ──────────────────────────────────────────

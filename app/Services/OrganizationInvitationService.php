@@ -2,12 +2,16 @@
 
 namespace App\Services;
 
+use App\Models\Loop;
+use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\OrganizationInvitation;
 use App\Models\PointLedger;
 use App\Models\User;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Direct-to-Organization invitations (TASK-1659): a SuperAdmin names a
@@ -58,14 +62,21 @@ class OrganizationInvitationService
      *
      * @return array{case: string, invitation: ?OrganizationInvitation, user: ?User}
      */
-    public function invite(Organization $organization, User $admin, string $email, ?string $firstName, ?string $lastName, ?string $locale = null): array
+    public function invite(Organization $organization, User $admin, string $email, ?string $firstName, ?string $lastName, ?string $locale = null, ?string $loopId = null): array
     {
         $email = OrganizationInvitation::normalizeEmail($email);
         $locale = in_array($locale, OrganizationInvitation::LOCALES, true)
             ? $locale
             : OrganizationInvitation::DEFAULT_LOCALE;
 
-        return DB::transaction(function () use ($organization, $admin, $email, $firstName, $lastName, $locale) {
+        // Une Boucle d'un AUTRE tenant n'est pas une cible : la frontiere se
+        // verifie ici, et pas seulement dans la validation du formulaire, car
+        // la relance rentre par cette meme methode sans repasser par elle.
+        if ($loopId !== null && ! Loop::where('id', $loopId)->where('organization_id', $organization->id)->exists()) {
+            $loopId = null;
+        }
+
+        return DB::transaction(function () use ($organization, $admin, $email, $firstName, $lastName, $locale, $loopId) {
             // TASK-1650, third expression of the same guard: no real account
             // is ever provisioned into a Scenario Manager sandbox. Checked
             // here, not only at the form's server-side validation, because
@@ -109,6 +120,7 @@ class OrganizationInvitationService
                         'recipient_first_name' => $firstName,
                         'recipient_name' => $lastName,
                     ], fn ($v) => $v !== null),
+                    array_filter(['loop_id' => $loopId], fn ($v) => $v !== null),
                     ['locale' => $locale, 'expires_at' => now()->addHours(48)],
                 ));
 
@@ -122,6 +134,7 @@ class OrganizationInvitationService
 
             $invitation = OrganizationInvitation::create([
                 'organization_id' => $organization->id,
+                'loop_id' => $loopId,
                 'created_by_user_id' => $admin->id,
                 'recipient_first_name' => $firstName,
                 'recipient_name' => $lastName,
@@ -132,6 +145,48 @@ class OrganizationInvitationService
 
             return ['case' => self::CASE_CREATED, 'invitation' => $invitation, 'user' => null];
         });
+    }
+
+    /**
+     * Faire entrer la personne dans la Boucle CIBLE, quand il y en a une.
+     *
+     * C'est ici que l'invitation « vaut autorisation » : un SuperAdmin a
+     * designe la Boucle, donc une Boucle privee ou sur invitation s'ouvre
+     * sans demande d'adhesion separee.
+     *
+     * Un echec n'annule PAS l'acceptation : le compte vient d'etre cree, il
+     * est valide, et l'ancrer a la reussite d'une adhesion ferait perdre
+     * l'identite pour un probleme d'appartenance. L'echec est journalise —
+     * jamais avale en silence — et la personne atterrit simplement sur son
+     * Organization au lieu de la Boucle.
+     */
+    private function joinTargetLoop(OrganizationInvitation $invitation, User $user): void
+    {
+        $loop = $invitation->loop;
+
+        if (! $loop || $loop->organization_id !== $user->organization_id) {
+            return;
+        }
+
+        $dejaMembre = LoopMember::where('loop_id', $loop->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->exists();
+
+        if ($dejaMembre) {
+            return;
+        }
+
+        try {
+            app(LoopService::class)->addMemberByUserId($loop, $user->id);
+        } catch (\RuntimeException|ModelNotFoundException $e) {
+            Log::warning('organization_invitation: adhesion a la Boucle cible refusee', [
+                'invitation_id' => $invitation->id,
+                'loop_id' => $loop->id,
+                'user_id' => $user->id,
+                'reason' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function revoke(OrganizationInvitation $invitation): void
@@ -219,6 +274,8 @@ class OrganizationInvitationService
                     'accepted_by_user_id' => $existingUser->id,
                 ]);
 
+                $this->joinTargetLoop($invitation, $existingUser);
+
                 return ['result' => self::RESULT_ACCEPTED, 'invitation' => $invitation->fresh(), 'user' => $existingUser];
             }
 
@@ -263,6 +320,8 @@ class OrganizationInvitationService
                 'accepted_at' => now(),
                 'accepted_by_user_id' => $user->id,
             ]);
+
+            $this->joinTargetLoop($invitation, $user);
 
             return ['result' => self::RESULT_ACCEPTED, 'invitation' => $invitation->fresh(), 'user' => $user];
         });
