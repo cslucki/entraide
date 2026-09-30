@@ -136,6 +136,31 @@ class SystemEmailTemplateSeeder extends Seeder
                 'expires_at', 'app_name',
             ],
         ],
+        // TASK-1659 — "Création de comptes en masse" : contrairement a
+        // loop_invitation, ce lien cree DIRECTEMENT le compte au clic (pas
+        // de formulaire d'inscription intermediaire, aucun mot de passe).
+        'organization_invitation' => [
+            'name_fr' => 'Invitation directe a une Organization',
+            'name_en' => 'Direct Organization invitation',
+            'subject_fr' => 'Votre accès à {{ organization_name }}',
+            'subject_en' => 'Your access to {{ organization_name }}',
+            'content_html_fr' => '<h1>Vous êtes invité·e à rejoindre {{ organization_name }}</h1>
+<p>Bonjour {{ recipient_name }},</p>
+<p><strong>{{ sender_name }}</strong> vous invite à rejoindre <strong>{{ organization_name }}</strong> sur {{ app_name }}.</p>
+<p><a href="{{ invitation_url }}">Rejoindre {{ organization_name }}</a></p>
+<p>Ce lien expire le {{ expires_at }}.</p>
+<p>— {{ app_name }}</p>',
+            'content_html_en' => '<h1>You are invited to join {{ organization_name }}</h1>
+<p>Hi {{ recipient_name }},</p>
+<p><strong>{{ sender_name }}</strong> invites you to join <strong>{{ organization_name }}</strong> on {{ app_name }}.</p>
+<p><a href="{{ invitation_url }}">Join {{ organization_name }}</a></p>
+<p>This link expires on {{ expires_at }}.</p>
+<p>— {{ app_name }}</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'sender_name', 'organization_name',
+                'invitation_url', 'expires_at', 'app_name',
+            ],
+        ],
     ];
 
     public function run(): void
